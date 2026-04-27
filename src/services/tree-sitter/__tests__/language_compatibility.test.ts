@@ -123,6 +123,7 @@ describe("Language Compatibility Tests (Big Four)", () => {
 
 	before(async () => {
 		SymbolIndexService.getInstance().setPersistenceEnabled(false)
+		SymbolIndexService.getInstance().setSkipRepoCheck(true)
 		if (!HostProvider.isInitialized()) {
 			HostProvider.initialize(
 				"extension",

@@ -44,7 +44,6 @@ Dirac uses a modular, multi-stage pipeline to generate the final system prompt. 
 - **Role**: A utility class for tool filtering and conversion.
 - **`getEnabledToolSpecs(context)`**: Filters the registered tool list based on `contextRequirements`. For example:
     - `browser_action` is only included if `supportsBrowserUse` is true.
-    - `web_search` is only included if `diracWebToolsEnabled` is true.
 - **Dynamic Subagents**: Implements `getDynamicSubagentToolSpecs`, which dynamically generates tool definitions for subagents by loading configs from `src/core/task/tools/subagent/AgentConfigLoader.ts`.
 - **`getNativeTools(context)`**: The core of the native tool system. It selects the correct converter from `src/core/prompts/system-prompt/spec.ts` based on the provider (Anthropic vs. OpenAI vs. Gemini) and maps all enabled tools to that format.
 

@@ -29,9 +29,6 @@ const TOOL_KIND_MAP: Record<string, acp.ToolKind> = {
 	listFilesRecursive: "read",
 	listCodeDefinitionNames: "read",
 	searchFiles: "read",
-	// Web operations
-	webFetch: "fetch",
-	webSearch: "search",
 	// Other
 	summarizeTask: "think",
 	useSkill: "other",
@@ -819,10 +816,6 @@ function buildToolTitle(toolInfo: DiracSayTool): string {
 			return "Definitions"
 		case "searchFiles":
 			return "Search"
-		case "webFetch":
-			return "Fetch"
-		case "webSearch":
-			return "Web search"
 		case "summarizeTask":
 			return "Summarize"
 		case "useSkill":

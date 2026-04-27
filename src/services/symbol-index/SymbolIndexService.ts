@@ -124,6 +124,7 @@ export class SymbolIndexService {
 	private isFullScanInProgress = false
 	private scanQueue: { absolutePath: string; relPath: string }[] = []
 	private isPersistenceEnabled = true
+	private skipRepoCheck = false
 	private pendingUpdates: Set<string> = new Set()
 
 	private constructor() {}
@@ -134,6 +135,10 @@ export class SymbolIndexService {
 
 	public isScanning(): boolean {
 		return this.isScanningInternal
+	}
+
+	public setSkipRepoCheck(skip: boolean): void {
+		this.skipRepoCheck = skip
 	}
 
 	public setPersistenceEnabled(enabled: boolean): void {
@@ -160,7 +165,7 @@ export class SymbolIndexService {
 			return
 		}
 
-		const isRepo = await this.isRepository(projectRoot)
+		const isRepo = this.skipRepoCheck || (await this.isRepository(projectRoot))
 		if (!isRepo) {
 			Logger.info(`[SymbolIndexService] ${projectRoot} is not a repository. Skipping indexing to prevent performance issues.`)
 			return

@@ -65,7 +65,6 @@ interface OpenRouterRawModelInfo {
 		request: string
 		image: string
 		audio: string
-		web_search: string
 		internal_reasoning: string
 		input_cache_read: string
 		input_cache_write: string

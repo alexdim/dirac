@@ -94,9 +94,7 @@ export const TOOL_DESCRIPTIONS: Record<string, { ask: string; say: string }> = {
 
 	// Browser & Web
 	browser_action: { ask: "wants to use the browser", say: "used the browser" },
-	web_fetch: { ask: "wants to fetch content from", say: "fetched content from" },
 	read_line_range: { ask: "wants to read a line range from", say: "read a line range from" },
-	web_search: { ask: "wants to search the web", say: "searched the web" },
 
 	browser_action_result: { ask: "wants to see the browser result", say: "viewed the browser result" },
 	// Agent Control

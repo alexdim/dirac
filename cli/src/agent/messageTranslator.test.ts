@@ -1245,8 +1245,6 @@ describe("tool kind mapping", () => {
 		{ tool: "newFileCreated", expectedKind: "edit" },
 		{ tool: "fileDeleted", expectedKind: "delete" },
 		{ tool: "searchFiles", expectedKind: "search" },
-		{ tool: "webFetch", expectedKind: "fetch" },
-		{ tool: "webSearch", expectedKind: "search" },
 		{ tool: "summarizeTask", expectedKind: "think" },
 		{ tool: "useSkill", expectedKind: "other" },
 	]
@@ -1306,8 +1304,6 @@ describe("tool title building", () => {
 		{ tool: "listFilesTopLevel", path: "/src", expectedContains: "/src" },
 		{ tool: "listFilesRecursive", path: "/src", expectedContains: "/src" },
 		{ tool: "searchFiles", regex: "TODO", expectedContains: "TODO" },
-		{ tool: "webFetch", expectedContains: "Fetch" },
-		{ tool: "webSearch", expectedContains: "search" },
 	]
 
 	titleCases.forEach(({ tool, path, regex, expectedContains }) => {

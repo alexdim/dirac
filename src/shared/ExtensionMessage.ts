@@ -214,8 +214,6 @@ export interface DiracSayTool {
 	| "listCodeDefinitionNames"
 	| "searchFiles"
 	| "search_files"
-	| "webFetch"
-	| "webSearch"
 	| "summarizeTask"
 	| "useSkill"
 	| "listSkills"
@@ -304,7 +302,7 @@ export interface DiracSayHook {
 		content?: string // Content preview (first 200 chars)
 		diff?: string // Diff preview (first 200 chars)
 		regex?: string // Regex pattern for search_files
-		url?: string // URL for web_fetch or browser_action
+		url?: string // URL for browser_action
 	}
 	// Structured error information (only present when status is "failed")
 	error?: {

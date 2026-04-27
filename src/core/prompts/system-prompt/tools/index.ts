@@ -22,6 +22,4 @@ export * from "./search_files"
 
 export * from "./subagent"
 export * from "./use_skill"
-export * from "./web_fetch"
-export * from "./web_search"
 export * from "./write_to_file"

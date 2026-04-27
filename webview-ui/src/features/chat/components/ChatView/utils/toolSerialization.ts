@@ -380,21 +380,6 @@ export function serializeToolToDisplayUnits(
 			break
 		}
 
-		case "webFetch":
-		case "webSearch": {
-			units.push({
-				toolName: tool.tool,
-				id: `${message.ts}-web`,
-				type: tool.tool,
-				label: tool.tool === "webSearch" ? "Web search" : "Fetch",
-				subLabel: tool.url || tool.query || tool.path || "Action",
-				status,
-				icon,
-				isExpandable: true,
-				content: tool.content,
-			})
-			break
-		}
 
 		case "diagnosticsScan":
 		case "diagnostics_scan": {

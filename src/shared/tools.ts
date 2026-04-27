@@ -16,8 +16,6 @@ export enum DiracDefaultTool {
 	BROWSER = "browser_action",
 	NEW_TASK = "new_task",
 	PLAN_MODE = "plan_mode_respond",
-	WEB_FETCH = "web_fetch",
-	WEB_SEARCH = "web_search",
 	CONDENSE = "condense",
 	SUMMARIZE_TASK = "summarize_task",
 	REPORT_BUG = "report_bug",
@@ -65,8 +63,6 @@ export const READ_ONLY_TOOLS = [
 	DiracDefaultTool.FIND_SYMBOL_REFERENCES,
 	DiracDefaultTool.DIAGNOSTICS_SCAN,
 
-	DiracDefaultTool.WEB_SEARCH,
-	DiracDefaultTool.WEB_FETCH,
 	DiracDefaultTool.USE_SKILL,
 	DiracDefaultTool.LIST_SKILLS,
 	DiracDefaultTool.USE_SUBAGENTS,

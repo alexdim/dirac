@@ -68,8 +68,6 @@ export class AutoApprove {
 
 				case DiracDefaultTool.BASH:
 				case DiracDefaultTool.BROWSER:
-				case DiracDefaultTool.WEB_FETCH:
-				case DiracDefaultTool.WEB_SEARCH:
 					return true
 			}
 		}
@@ -93,8 +91,6 @@ export class AutoApprove {
 
 				case DiracDefaultTool.BASH:
 				case DiracDefaultTool.BROWSER:
-				case DiracDefaultTool.WEB_FETCH:
-				case DiracDefaultTool.WEB_SEARCH:
 					return true
 			}
 		}
@@ -122,9 +118,6 @@ export class AutoApprove {
 			case DiracDefaultTool.BASH:
 				return autoApprovalSettings.actions.executeCommands ?? false
 			case DiracDefaultTool.BROWSER:
-				return autoApprovalSettings.actions.useBrowser
-			case DiracDefaultTool.WEB_FETCH:
-			case DiracDefaultTool.WEB_SEARCH:
 				return autoApprovalSettings.actions.useBrowser
 		}
 		return false

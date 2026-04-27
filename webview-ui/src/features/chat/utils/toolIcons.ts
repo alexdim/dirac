@@ -39,8 +39,6 @@ export const TOOL_ICONS: Record<string, LucideIcon> = {
 	execute_command: TerminalIcon,
 	browser_action: GlobeIcon,
 	browser_action_result: GlobeIcon,
-	webFetch: GlobeIcon,
-	webSearch: GlobeIcon,
 	diagnosticsScan: ShieldCheck,
 	diagnostics_scan: ShieldCheck,
 	getFunction: SquareFunction,

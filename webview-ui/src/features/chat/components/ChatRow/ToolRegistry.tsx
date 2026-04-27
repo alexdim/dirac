@@ -35,8 +35,6 @@ export const TOOL_COMPONENT_REGISTRY: Record<string, React.FC<any> | undefined> 
 	fileDeleted: EditFileOutput,
 	browser_action: BrowserOutput,
 	browser_action_result: BrowserOutput,
-	webFetch: SystemOutput,
-	webSearch: SystemOutput,
 	executeCommand: TerminalOutput,
 	execute_command: TerminalOutput,
 	diagnosticsScan: SystemOutput,

@@ -494,51 +494,6 @@
     }
   },
   {
-    "name": "web_fetch",
-    "description": "Fetches content from a specified URL and analyzes it using your prompt\n- Takes a URL and analysis prompt as input\n- Fetches the URL content and processes based on your prompt\n- Use this tool when you need to retrieve and analyze web content\n- The URL must be a fully-formed valid URL\n- The prompt must be at least 2 characters\n- HTTP URLs will be automatically upgraded to HTTPS\n- This tool is read-only and does not modify any files",
-    "parameters": {
-      "type": "OBJECT",
-      "properties": {
-        "url": {
-          "type": "STRING",
-          "description": "The URL to fetch content from"
-        },
-        "prompt": {
-          "type": "STRING",
-          "description": "The prompt to use for analyzing the webpage content"
-        }
-      },
-      "required": [
-        "url",
-        "prompt"
-      ]
-    }
-  },
-  {
-    "name": "web_search",
-    "description": "Performs a web search and returns relevant results\n- Takes a search query as input and returns search results with titles and URLs\n- Optionally filter results by allowed or blocked domains\n- Use this tool when you need to search the web for information\n- The query must be at least 2 characters\n- You may provide either allowed_domains OR blocked_domains, but NOT both\n- Domains should be provided as a JSON array of strings\n- This tool is read-only and does not modify any files",
-    "parameters": {
-      "type": "OBJECT",
-      "properties": {
-        "query": {
-          "type": "STRING",
-          "description": "The search query to use"
-        },
-        "allowed_domains": {
-          "type": "STRING",
-          "description": "JSON array of domains to restrict results to"
-        },
-        "blocked_domains": {
-          "type": "STRING",
-          "description": "JSON array of domains to exclude from results"
-        }
-      },
-      "required": [
-        "query"
-      ]
-    }
-  },
-  {
     "name": "write_to_file",
     "description": "Creates a new file or completely overwrites an existing file. Automatically creates required directories.",
     "parameters": {

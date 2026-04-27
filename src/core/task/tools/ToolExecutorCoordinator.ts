@@ -24,8 +24,6 @@ import { UseSubagentsToolHandler } from "./handlers/SubagentToolHandler"
 import { SummarizeTaskHandler } from "./handlers/SummarizeTaskHandler"
 import { UseSkillToolHandler } from "./handlers/UseSkillToolHandler"
 import { ListSkillsToolHandler } from "./handlers/ListSkillsToolHandler"
-import { WebFetchToolHandler } from "./handlers/WebFetchToolHandler"
-import { WebSearchToolHandler } from "./handlers/WebSearchToolHandler"
 
 import { WriteToFileToolHandler } from "./handlers/WriteToFileToolHandler"
 import { AgentConfigLoader } from "./subagent/AgentConfigLoader"
@@ -98,8 +96,6 @@ export class ToolExecutorCoordinator {
 
 		[DiracDefaultTool.NEW_TASK]: (_v: ToolValidator) => new NewTaskHandler(),
 		[DiracDefaultTool.PLAN_MODE]: (_v: ToolValidator) => new PlanModeRespondHandler(),
-		[DiracDefaultTool.WEB_FETCH]: (_v: ToolValidator) => new WebFetchToolHandler(),
-		[DiracDefaultTool.WEB_SEARCH]: (_v: ToolValidator) => new WebSearchToolHandler(),
 		[DiracDefaultTool.CONDENSE]: (_v: ToolValidator) => new CondenseHandler(),
 		[DiracDefaultTool.SUMMARIZE_TASK]: (_v: ToolValidator) => new SummarizeTaskHandler(_v),
 		[DiracDefaultTool.REPORT_BUG]: (_v: ToolValidator) => new ReportBugHandler(),
