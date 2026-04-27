@@ -105,9 +105,6 @@ You can provide API keys via environment variables to skip the `dirac auth` step
 3. Start a new task by describing what you want to build or fix.
 4. Watch Dirac go!
 
-## 📄 License
-
-Dirac is **open source** and licensed under the [Apache License 2.0](LICENSE).
 
 ## 📈 Star History
 
@@ -119,6 +116,10 @@ Dirac is **open source** and licensed under the [Apache License 2.0](LICENSE).
   </picture>
 </a>
 
+
+## 📄 License
+
+Dirac is **open source** and licensed under the [Apache License 2.0](LICENSE).
 
 ## 🤝 Acknowledgments
 
