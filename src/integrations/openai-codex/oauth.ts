@@ -595,9 +595,10 @@ export class OpenAiCodexOAuthManager {
 		userCode: string,
 		interval: number,
 		signal?: AbortSignal,
+		expiresInMs: number = 15 * 60 * 1000
 	): Promise<OpenAiCodexCredentials> {
 		let currentInterval = interval
-		const expiresAt = Date.now() + 15 * 60 * 1000
+		const expiresAt = Date.now() + expiresInMs
 
 		while (true) {
 			if (signal?.aborted) {
@@ -609,13 +610,15 @@ export class OpenAiCodexOAuthManager {
 				user_code: userCode,
 			})
 
+			// Use a per-request timeout signal if no overall signal is provided
+			const fetchSignal = signal ?? AbortSignal.timeout(30000)
 			const response = await fetch(OPENAI_CODEX_OAUTH_CONFIG.deviceTokenEndpoint, {
 				method: "POST",
 				headers: {
 					"Content-Type": "application/json",
 				},
 				body,
-				signal: signal ?? AbortSignal.timeout(30000),
+				signal: fetchSignal,
 			})
 
 			const responseText = await response.text()
@@ -645,13 +648,14 @@ export class OpenAiCodexOAuthManager {
 				if (Date.now() >= expiresAt) {
 					throw new Error("The device code has expired. Please try again.")
 				}
-				await waitForDevicePollInterval(currentInterval, signal)
+				// Safety: ensure we don't loop too fast if interval is 0
+				await waitForDevicePollInterval(Math.max(currentInterval, 0.1), signal)
 				continue
 			}
 
 			if (error === "slow_down") {
 				currentInterval += 5
-				await waitForDevicePollInterval(currentInterval, signal)
+				await waitForDevicePollInterval(Math.max(currentInterval, 0.1), signal)
 				continue
 			}
 

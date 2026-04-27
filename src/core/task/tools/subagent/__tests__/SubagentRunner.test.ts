@@ -409,7 +409,7 @@ describe("SubagentRunner", () => {
 		stubApiHandler(createMessage)
 		initializeHostProvider()
 
-		const clock = sinon.useFakeTimers()
+		const clock = sinon.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "setInterval", "clearInterval", "Date"] })
 		const runner = new SubagentRunner(createTaskConfig())
 		const runPromise = runner.run("List files", () => {})
 		await clock.runAllAsync()

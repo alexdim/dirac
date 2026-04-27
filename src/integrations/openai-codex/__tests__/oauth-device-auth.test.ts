@@ -155,15 +155,21 @@ describe("OpenAiCodexOAuthManager device auth", () => {
 
 	it("throws a clear error when the device code expires", async () => {
 		const manager = new OpenAiCodexOAuthManager()
-		const fetchStub = sinon.stub().callsFake(() => Promise.resolve(jsonResponse({}, 403)))
-		const clock = sinon.useFakeTimers()
+		const fetchStub = sinon.stub().resolves(jsonResponse({}, 403))
+		const clock = sinon.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "setInterval", "clearInterval", "Date"] })
 
-		const result = mockFetchForTesting(fetchStub as unknown as typeof globalThis.fetch, () =>
-			manager.pollForDeviceToken("device-123", "ABCD-EFGH", 60),
-		)
-		await clock.tickAsync(15 * 60 * 1000)
+		try {
+			// Use a 1s interval and 5s expiration
+			const result = mockFetchForTesting(fetchStub as unknown as typeof globalThis.fetch, () =>
+				manager.pollForDeviceToken("device-123", "ABCD-EFGH", 1, undefined, 5000),
+			)
 
-		await result.should.be.rejectedWith("The device code has expired. Please try again.")
+			// Tick 6 seconds (enough for 5 iterations + expiration)
+			await clock.tickAsync(6000)
+			await result.should.be.rejectedWith("The device code has expired. Please try again.")
+		} finally {
+			clock.restore()
+		}
 	})
 
 	it("explains that device auth may need to be enabled when the server rejects device auth", async () => {
