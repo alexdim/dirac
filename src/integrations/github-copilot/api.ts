@@ -1,4 +1,5 @@
 import { fetch } from "@/shared/net"
+import { Logger } from "@/shared/services/Logger"
 import { z } from "zod"
 import { ModelInfo, openAiModelInfoSaneDefaults } from "@shared/api"
 
@@ -98,7 +99,17 @@ export async function fetchCopilotModels(token: string) {
 	}
 
 	const data = await response.json()
-	return githubCopilotModelSchema.parse(data).data
+	const validModels = data.data.filter((m: any) => m.policy?.state !== "disabled")
+	const parsedModels = []
+	for (const m of validModels) {
+		const result = githubCopilotModelSchema.shape.data.element.safeParse(m)
+		if (result.success) {
+			parsedModels.push(result.data)
+		} else {
+			Logger.warn(`[github-copilot] Skipping model ${m.id} due to schema mismatch: ${result.error.message}`)
+		}
+	}
+	return parsedModels
 }
 
 export function transformCopilotModelToModelInfo(rawModel: z.infer<typeof githubCopilotModelSchema>["data"][0]): ModelInfo {
