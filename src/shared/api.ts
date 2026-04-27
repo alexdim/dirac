@@ -300,6 +300,31 @@ export const anthropicModels = {
 		description:
 			"Anthropic fast mode preview for Claude Opus 4.6. Same model and capabilities with higher output token speed at premium pricing. Requires fast mode access on your Anthropic account.",
 	},
+	"claude-opus-4-7:1m": {
+		maxTokens: 128_000,
+		contextWindow: 1_000_000,
+		supportsImages: true,
+		supportsPromptCache: true,
+		supportsReasoning: true,
+		inputPrice: 5.0,
+		outputPrice: 25.0,
+		cacheWritesPrice: 6.25,
+		cacheReadsPrice: 0.5,
+		tiers: CLAUDE_OPUS_1M_TIERS,
+	},
+	"claude-opus-4-7:fast": {
+		maxTokens: 128_000,
+		contextWindow: 200_000,
+		supportsImages: true,
+		supportsPromptCache: true,
+		supportsReasoning: true,
+		inputPrice: 30.0,
+		outputPrice: 150.0,
+		cacheWritesPrice: 37.5,
+		cacheReadsPrice: 3.0,
+		description:
+			"Anthropic fast mode preview for Claude Opus 4.6. Same model and capabilities with higher output token speed at premium pricing. Requires fast mode access on your Anthropic account.",
+	},
 	"claude-opus-4-6:1m": {
 		maxTokens: 128_000,
 		contextWindow: 1_000_000,
