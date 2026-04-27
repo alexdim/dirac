@@ -26,6 +26,7 @@ import { type BedrockConfig, BedrockSetup } from "./BedrockSetup"
 import { ImportView } from "./ImportView"
 import { GithubAuthView } from "./GithubAuthView"
 import { CUSTOM_MODEL_ID, getDefaultModelId, hasModelPicker, ModelPicker } from "./ModelPicker"
+import { OpenAiCodexDeviceAuthView } from "./OpenAiCodexDeviceAuthView"
 import { getProviderLabel } from "./ProviderPicker"
 
 type AuthStep =
@@ -38,6 +39,7 @@ type AuthStep =
 	| "success"
 	| "error"
 	| "openai_codex_auth"
+	| "openai_codex_device_auth"
 	| "bedrock"
 	| "import"
 	| "bedrock_custom"
@@ -171,8 +173,9 @@ export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onEr
 	const mainMenuItems: SelectItem[] = useMemo(() => {
 		const items: SelectItem[] = []
 
-		// Add OpenAI Codex option for ChatGPT subscribers
+		// Add OpenAI Codex options for ChatGPT subscribers
 		items.push({ label: "Sign in with ChatGPT Subscription", value: "openai_codex_auth" })
+		items.push({ label: "Sign in with ChatGPT Device Code", value: "openai_codex_device_auth" })
 		items.push({ label: "Sign in with GitHub Copilot", value: "github_copilot_auth" })
 
 		// Add import options if detected
@@ -272,6 +275,8 @@ export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onEr
 			} else if (value === "openai_codex_auth") {
 				setStep("openai_codex_auth")
 				startOpenAiCodexAuth()
+			} else if (value === "openai_codex_device_auth") {
+				setStep("openai_codex_device_auth")
 			} else if (value === "github_copilot_auth") {
 				setStep("github_copilot_auth")
 			} else if (value === "configure_byo") {
@@ -496,6 +501,9 @@ export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onEr
 				openAiCodexOAuthManager.cancelAuthorizationFlow()
 				setStep("menu")
 				break
+			case "openai_codex_device_auth":
+				setStep("menu")
+				break
 			case "github_copilot_auth":
 				setStep("menu")
 				break
@@ -670,6 +678,22 @@ export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onEr
 					</Box>
 				)
 
+			case "openai_codex_device_auth":
+				return (
+					<OpenAiCodexDeviceAuthView
+						onCancel={goBack}
+						onComplete={async () => {
+							await applyProviderConfig({ providerId: "openai-codex", controller })
+							const stateManager = StateManager.get()
+							stateManager.setGlobalState("welcomeViewCompleted", true)
+							await stateManager.flushPendingState()
+							setSelectedProvider("openai-codex")
+							setModelId(openAiCodexDefaultModelId)
+							setStep("success")
+						}}
+					/>
+				)
+
 			case "github_copilot_auth":
 				return (
 					<GithubAuthView
@@ -739,8 +763,9 @@ export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onEr
 
 	// Steps that allow going back with escape (apikey handled by ApiKeyInput component)
 	// OcaEmployeeCheck handles its own escape key, so oca_employee_check is not in this list
-	const canGoBack = ["provider", "modelid", "baseurl", "openai_codex_auth", "bedrock", "error"].includes(step)
-	const isAuthStep = step === "openai_codex_auth" || step === "github_copilot_auth"
+	const canGoBack = ["provider", "modelid", "baseurl", "openai_codex_auth", "openai_codex_device_auth", "bedrock", "error"].includes(
+		step,
+	)
 
 	useInput(
 		(input, key) => {
@@ -803,12 +828,13 @@ export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onEr
 
 			{/* Auth box with border */}
 			<Box
-				{...(isAuthStep ? {} : { borderStyle: "round", borderColor: "gray" })}
+				borderColor="gray"
+				borderStyle="round"
 				flexDirection="column"
 				marginTop={1}
 				paddingBottom={1}
-				paddingLeft={isAuthStep ? 3 : 2}
-				paddingRight={isAuthStep ? 3 : 2}
+				paddingLeft={2}
+				paddingRight={2}
 				paddingTop={1}>
 				{step === "menu" ? (
 					<Box flexDirection="column">
