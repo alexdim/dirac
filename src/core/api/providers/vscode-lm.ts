@@ -3,6 +3,7 @@ import { SELECTOR_SEPARATOR, stringifyVsCodeLmModelSelector } from "@shared/vsCo
 import { calculateApiCostAnthropic } from "@utils/cost"
 import * as vscode from "vscode"
 import { DiracStorageMessage } from "@/shared/messages/content"
+import { DiracTool } from "@/shared/tools"
 import { Logger } from "@/shared/services/Logger"
 import { ApiHandler, CommonApiHandlerOptions, SingleCompletionHandler } from "../"
 import { withRetry } from "../retry"
@@ -367,7 +368,7 @@ export class VsCodeLmHandler implements ApiHandler, SingleCompletionHandler {
 	}
 
 	@withRetry()
-	async *createMessage(systemPrompt: string, messages: DiracStorageMessage[]): ApiStream {
+	async *createMessage(systemPrompt: string, messages: DiracStorageMessage[], tools?: DiracTool[]): ApiStream {
 		// Ensure clean state before starting a new request
 		this.ensureCleanState()
 		const client: vscode.LanguageModelChat = await this.getClient()
@@ -398,6 +399,14 @@ export class VsCodeLmHandler implements ApiHandler, SingleCompletionHandler {
 			// Create the response stream with minimal required options
 			const requestOptions: vscode.LanguageModelChatRequestOptions = {
 				justification: `Dirac would like to use '${client.name}' from '${client.vendor}', Click 'Allow' to proceed.`,
+				tools: tools?.map((tool: any) => {
+					const func = tool.function || tool
+					return {
+						name: func.name,
+						description: func.description,
+						inputSchema: func.parameters || func.input_schema,
+					}
+				}),
 			}
 
 			// Note: Tool support is currently provided by the VSCode Language Model API directly
@@ -442,17 +451,6 @@ export class VsCodeLmHandler implements ApiHandler, SingleCompletionHandler {
 							continue
 						}
 
-						// Convert tool calls to text format with proper error handling
-						const toolCall = {
-							type: "tool_call",
-							name: chunk.name,
-							arguments: chunk.input,
-							callId: chunk.callId,
-						}
-
-						const toolCallText = JSON.stringify(toolCall)
-						accumulatedText += toolCallText
-
 						// Log tool call for debugging
 						Logger.debug("Dirac <Language Model API>: Processing tool call:", {
 							name: chunk.name,
@@ -461,8 +459,15 @@ export class VsCodeLmHandler implements ApiHandler, SingleCompletionHandler {
 						})
 
 						yield {
-							type: "text",
-							text: toolCallText,
+							type: "tool_calls",
+							tool_call: {
+								call_id: chunk.callId,
+								function: {
+									id: chunk.callId,
+									name: chunk.name,
+									arguments: JSON.stringify(chunk.input),
+								},
+							},
 						}
 					} catch (error) {
 						Logger.error("Dirac <Language Model API>: Failed to process tool call:", error)

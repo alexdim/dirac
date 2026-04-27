@@ -10,6 +10,8 @@ import { isAnthropicModelId } from "@/utils/model-utils"
 import { ApiHandler, CommonApiHandlerOptions } from ".."
 import { withRetry } from "../retry"
 import { convertToOpenAiMessages } from "../transform/openai-format"
+import { getOpenAIToolParams, ToolCallProcessor } from "../transform/tool-call-processor"
+import { DiracTool } from "@/shared/tools"
 import { ApiStream } from "../transform/stream"
 
 interface LiteLlmHandlerOptions extends CommonApiHandlerOptions {
@@ -207,7 +209,7 @@ export class LiteLlmHandler implements ApiHandler {
 	}
 
 	@withRetry()
-	async *createMessage(systemPrompt: string, messages: DiracStorageMessage[]): ApiStream {
+	async *createMessage(systemPrompt: string, messages: DiracStorageMessage[], tools?: DiracTool[]): ApiStream {
 		const client = this.ensureClient()
 
 		const formattedMessages = convertToOpenAiMessages(messages)
@@ -297,6 +299,8 @@ export class LiteLlmHandler implements ApiHandler {
 			},
 		)
 
+		const toolParams = getOpenAIToolParams(tools as any)
+
 		const stream = await client.chat.completions.create({
 			model: this.options.liteLlmModelId || liteLlmDefaultModelId,
 			messages: [systemMessage, ...enhancedMessages],
@@ -306,13 +310,21 @@ export class LiteLlmHandler implements ApiHandler {
 			...(!isCodexModel && { stream_options: { include_usage: true } }), // Codex models are only on the responses api, which doesn't take the stream_options parameter. we will need to migrate to the responses api for this to work
 			...(thinkingConfig && { thinking: thinkingConfig }), // Add thinking configuration when applicable
 			...(this.options.ulid && { litellm_session_id: `dirac-${this.options.ulid}` }), // Add session ID for LiteLLM tracking
+			...toolParams,
 		} as LiteLlmChatCompletionCreateParams)
+
+		const toolCallProcessor = new ToolCallProcessor()
 
 		for await (const chunk of stream) {
 			const delta = chunk.choices?.[0]?.delta
 
 			// Handle normal text content
 			if (delta?.content) {
+			// Handle tool calls
+			if (delta?.tool_calls) {
+				yield* toolCallProcessor.processToolCallDeltas(delta.tool_calls)
+			}
+
 				yield {
 					type: "text",
 					text: delta.content,

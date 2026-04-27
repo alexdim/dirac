@@ -6,6 +6,9 @@ import { fetch } from "@/shared/net"
 import { ApiHandler, CommonApiHandlerOptions } from "../index"
 import { withRetry } from "../retry"
 import { ApiStream } from "../transform/stream"
+import { getOpenAIToolParams, ToolCallProcessor } from "../transform/tool-call-processor"
+import { DiracTool } from "@/shared/tools"
+import { convertToOpenAiMessages } from "../transform/openai-format"
 
 interface CerebrasHandlerOptions extends CommonApiHandlerOptions {
 	cerebrasApiKey?: string
@@ -58,79 +61,38 @@ export class CerebrasHandler implements ApiHandler {
 		baseDelay: 5000, // Start with 5 second delay
 		maxDelay: 60000, // Allow up to 60 second delays to respect rate limits
 	})
-	async *createMessage(systemPrompt: string, messages: DiracStorageMessage[]): ApiStream {
+	async *createMessage(systemPrompt: string, messages: DiracStorageMessage[], tools?: DiracTool[]): ApiStream {
 		const client = this.ensureClient()
 
-		// Convert Anthropic messages to Cerebras format
-		const cerebrasMessages: Array<{
-			role: "system" | "user" | "assistant"
-			content: string
-		}> = [{ role: "system", content: systemPrompt }]
-
-		// Helper function to strip thinking tags from content
-		const stripThinkingTags = (content: string): string => {
-			return content.replace(/<think>[\s\S]*?<\/think>/g, "").trim()
-		}
+		const toolParams = getOpenAIToolParams(tools as any)
+		const openAiMessages: any[] = [{ role: "system", content: systemPrompt }, ...convertToOpenAiMessages(messages)]
 
 		// Check if this is a reasoning model that uses thinking tags
 		const modelId = this.getModel().id
 		const isReasoningModel = modelId.includes("qwen")
 
-		// Convert Anthropic messages to Cerebras format
-		for (const message of messages) {
-			if (message.role === "user") {
-				const content = Array.isArray(message.content)
-					? message.content
-							.map((block) => {
-								if (block.type === "text") {
-									return block.text
-								}
-								if (block.type === "image") {
-									return "[Image content not supported in Cerebras]"
-								}
-								return ""
-							})
-							.join("\n")
-					: message.content
-				cerebrasMessages.push({ role: "user", content })
-			} else if (message.role === "assistant") {
-				let content = Array.isArray(message.content)
-					? message.content
-							.map((block) => {
-								if (block.type === "text") {
-									return block.text
-								}
-								return ""
-							})
-							.join("\n")
-					: message.content || ""
-
-				// Strip thinking tags from assistant messages for reasoning models
-				// so the model doesn't see its own thinking in the conversation history
-				if (isReasoningModel) {
-					content = stripThinkingTags(content)
-				}
-
-				cerebrasMessages.push({ role: "assistant", content })
-			}
-		}
-
 		try {
 			const model = this.getModel()
 			const stream = await client.chat.completions.create({
 				model: model.id,
-				messages: cerebrasMessages,
+				messages: openAiMessages,
 				temperature: model.info.temperature ?? 0,
 				stream: true,
 				max_tokens: CEREBRAS_DEFAULT_MAX_TOKENS,
-			})
+				...toolParams,
+			} as any)
 
 			// Handle streaming response
 			let reasoning: string | null = null // Track reasoning content for models that support thinking
+			const toolCallProcessor = new ToolCallProcessor()
 
 			for await (const chunk of stream as any) {
 				// Type assertion for the streaming chunk
 				const streamChunk = chunk as any
+
+				if (streamChunk.choices?.[0]?.delta?.tool_calls) {
+					yield* toolCallProcessor.processToolCallDeltas(streamChunk.choices[0].delta.tool_calls)
+				}
 
 				if (streamChunk.choices?.[0]?.delta?.content) {
 					const content = streamChunk.choices[0].delta.content
@@ -194,7 +156,6 @@ export class CerebrasHandler implements ApiHandler {
 			// Enhanced error handling for Cerebras API
 			if (error?.status === 429 || error?.code === "rate_limit_exceeded") {
 				// Rate limit error - will be handled by retry decorator with patient backoff
-				const _limits = this.getRateLimits()
 				throw new Error(`Cerebras API rate limit exceeded.`)
 			}
 			if (error?.status === 401) {

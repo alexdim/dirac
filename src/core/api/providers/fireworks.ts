@@ -7,6 +7,8 @@ import { withRetry } from "../retry"
 import { convertToOpenAiMessages } from "../transform/openai-format"
 import { addReasoningContent } from "../transform/r1-format"
 import { ApiStream } from "../transform/stream"
+import { getOpenAIToolParams, ToolCallProcessor } from "../transform/tool-call-processor"
+import { DiracTool } from "@/shared/tools"
 
 interface FireworksHandlerOptions extends CommonApiHandlerOptions {
 	fireworksApiKey?: string
@@ -41,7 +43,7 @@ export class FireworksHandler implements ApiHandler {
 	}
 
 	@withRetry()
-	async *createMessage(systemPrompt: string, messages: DiracStorageMessage[]): ApiStream {
+	async *createMessage(systemPrompt: string, messages: DiracStorageMessage[], tools?: DiracTool[]): ApiStream {
 		const client = this.ensureClient()
 		const modelId = this.options.fireworksModelId ?? ""
 
@@ -51,6 +53,8 @@ export class FireworksHandler implements ApiHandler {
 			{ role: "system", content: systemPrompt },
 			...((model.info as any).isR1FormatRequired ? addReasoningContent(convertedMessages, messages) : convertedMessages),
 		]
+		const toolParams = getOpenAIToolParams(tools as any)
+
 
 		const stream = await client.chat.completions.create({
 			model: modelId,
@@ -58,13 +62,24 @@ export class FireworksHandler implements ApiHandler {
 			stream: true,
 			stream_options: { include_usage: true },
 			temperature: 0,
+			...toolParams,
 		})
 
 		let reasoning: string | null = null
+		const toolCallProcessor = new ToolCallProcessor()
+
 		for await (const chunk of stream) {
 			const delta = chunk.choices?.[0]?.delta
 			if (reasoning || delta?.content?.includes("<think>")) {
 				reasoning = (reasoning || "") + (delta.content ?? "")
+			}
+
+			if (delta?.tool_calls) {
+				yield* toolCallProcessor.processToolCallDeltas(delta.tool_calls)
+			}
+
+			if (delta?.tool_calls) {
+				yield* toolCallProcessor.processToolCallDeltas(delta.tool_calls)
 			}
 
 			if (delta?.content && !reasoning) {

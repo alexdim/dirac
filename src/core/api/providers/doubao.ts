@@ -5,6 +5,8 @@ import { createOpenAIClient } from "@/shared/net"
 import { ApiHandler, CommonApiHandlerOptions } from ".."
 import { withRetry } from "../retry"
 import { convertToOpenAiMessages } from "../transform/openai-format"
+import { getOpenAIToolParams, ToolCallProcessor } from "../transform/tool-call-processor"
+import { DiracTool } from "@/shared/tools"
 import { ApiStream } from "../transform/stream"
 
 interface DoubaoHandlerOptions extends CommonApiHandlerOptions {
@@ -49,9 +51,11 @@ export class DoubaoHandler implements ApiHandler {
 	}
 
 	@withRetry()
-	async *createMessage(systemPrompt: string, messages: DiracStorageMessage[]): ApiStream {
+	async *createMessage(systemPrompt: string, messages: DiracStorageMessage[], tools?: DiracTool[]): ApiStream {
 		const client = this.ensureClient()
 		const model = this.getModel()
+
+		const toolParams = getOpenAIToolParams(tools as any)
 		const openAiMessages: OpenAI.Chat.ChatCompletionMessageParam[] = [
 			{ role: "system", content: systemPrompt },
 			...convertToOpenAiMessages(messages),
@@ -63,8 +67,10 @@ export class DoubaoHandler implements ApiHandler {
 			stream: true,
 			stream_options: { include_usage: true },
 			temperature: 0,
+			...toolParams,
 		})
 
+		const toolCallProcessor = new ToolCallProcessor()
 		for await (const chunk of stream) {
 			const delta = chunk.choices?.[0]?.delta
 			if (delta?.content) {
@@ -72,6 +78,10 @@ export class DoubaoHandler implements ApiHandler {
 					type: "text",
 					text: delta.content,
 				}
+			}
+
+			if (delta?.tool_calls) {
+				yield* toolCallProcessor.processToolCallDeltas(delta.tool_calls)
 			}
 
 			if (chunk.usage) {

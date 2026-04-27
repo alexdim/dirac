@@ -231,6 +231,7 @@ export const hicapModelInfoSaneDefaults: HicapCompatibleModelInfo = {
 	supportsImages: true,
 	supportsPromptCache: true,
 	inputPrice: 0,
+	supportsTools: true,
 	outputPrice: 0,
 	temperature: 1,
 }
@@ -2009,6 +2010,7 @@ export const liteLlmModelInfoSaneDefaults: LiteLLMModelInfo = {
 	supportsImages: true,
 	supportsPromptCache: true,
 	inputPrice: 0,
+	supportsTools: true,
 	outputPrice: 0,
 	cacheWritesPrice: 0,
 	cacheReadsPrice: 0,

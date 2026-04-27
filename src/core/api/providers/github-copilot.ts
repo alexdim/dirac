@@ -1,4 +1,6 @@
 import { ModelInfo, openAiModelInfoSaneDefaults } from "@shared/api"
+import { openAIToolToAnthropic } from "@/core/prompts/system-prompt/spec"
+import { DiracTool } from "@/shared/tools"
 import { DiracStorageMessage, convertDiracStorageToAnthropicMessage } from "@/shared/messages/content"
 import { Logger } from "@/shared/services/Logger"
 import { ApiHandler, CommonApiHandlerOptions } from "../"
@@ -6,6 +8,7 @@ import { ApiStream } from "../transform/stream"
 import { githubCopilotAuthManager } from "@/integrations/github-copilot/auth"
 import { fetch } from "@/shared/net"
 import { convertToOpenAiMessages } from "../transform/openai-format"
+import { getOpenAIToolParams, ToolCallProcessor } from "../transform/tool-call-processor"
 import {
 	GITHUB_COPILOT_BASE_URL,
 	getCopilotToken,
@@ -24,7 +27,7 @@ export class GithubCopilotHandler implements ApiHandler {
 		this.modelId = options.apiModelId || "gpt-4o"
 	}
 
-	async *createMessage(systemPrompt: string, messages: DiracStorageMessage[]): ApiStream {
+	async *createMessage(systemPrompt: string, messages: DiracStorageMessage[], tools?: DiracTool[]): ApiStream {
 		const githubToken = await githubCopilotAuthManager.getAccessToken()
 		if (!githubToken) {
 			throw new Error("Not authenticated with GitHub Copilot. Please sign in.")
@@ -51,6 +54,18 @@ export class GithubCopilotHandler implements ApiHandler {
 			"Content-Type": "application/json",
 			...COPILOT_SPOOF_HEADERS,
 		}
+		const toolParams = getOpenAIToolParams(tools as any)
+		const anthropicTools = tools
+			? (tools as any[]).map((tool) => {
+					// If it's already an Anthropic tool, return it as is
+					if (tool.input_schema) {
+						return tool
+					}
+					// Otherwise convert from OpenAI format
+					return openAIToolToAnthropic(tool)
+			  })
+			: undefined
+
 
 		let body: any
 		if (isAnthropicFormat) {
@@ -58,6 +73,8 @@ export class GithubCopilotHandler implements ApiHandler {
 				model: this.modelId,
 				system: systemPrompt,
 				messages: messages.map((m) => convertDiracStorageToAnthropicMessage(m)),
+				tools: anthropicTools,
+				tool_choice: anthropicTools ? { type: "auto" } : undefined,
 				max_tokens: modelData?.capabilities.limits.max_output_tokens || 4096,
 				stream: true,
 			}
@@ -65,6 +82,7 @@ export class GithubCopilotHandler implements ApiHandler {
 			body = {
 				model: this.modelId,
 				messages: [{ role: "system", content: systemPrompt }, ...convertToOpenAiMessages(messages)],
+				...toolParams,
 				max_tokens: modelData?.capabilities.limits.max_output_tokens || 4096,
 				stream: true,
 			}
@@ -89,6 +107,8 @@ export class GithubCopilotHandler implements ApiHandler {
 	}
 
 	private async *handleStream(body: ReadableStream<Uint8Array>, isAnthropicFormat: boolean): ApiStream {
+		const toolCallProcessor = new ToolCallProcessor()
+		const lastStartedToolCall = { id: "", name: "", arguments: "" }
 		const reader = body.getReader()
 		const decoder = new TextDecoder()
 		let buffer = ""
@@ -115,6 +135,42 @@ export class GithubCopilotHandler implements ApiHandler {
 					try {
 						const json = JSON.parse(data)
 						if (isAnthropicFormat) {
+							if (json.type === "content_block_start" && json.content_block?.type === "tool_use") {
+								lastStartedToolCall.id = json.content_block.id
+								lastStartedToolCall.name = json.content_block.name
+								lastStartedToolCall.arguments = ""
+
+								yield {
+									type: "tool_calls",
+									tool_call: {
+										call_id: lastStartedToolCall.id,
+										function: {
+											id: lastStartedToolCall.id,
+											name: lastStartedToolCall.name,
+											arguments: "",
+										},
+									},
+								}
+							} else if (json.type === "content_block_delta" && json.delta?.type === "input_json_delta") {
+								if (lastStartedToolCall.id) {
+									yield {
+										type: "tool_calls",
+										tool_call: {
+											...lastStartedToolCall,
+											function: {
+												...lastStartedToolCall,
+												id: lastStartedToolCall.id,
+												name: lastStartedToolCall.name,
+												arguments: json.delta.partial_json,
+											},
+										},
+									}
+								}
+							} else if (json.type === "content_block_stop") {
+								lastStartedToolCall.id = ""
+								lastStartedToolCall.name = ""
+								lastStartedToolCall.arguments = ""
+							}
 							if (json.type === "content_block_delta" && json.delta?.text) {
 								yield { type: "text", text: json.delta.text }
 							} else if (json.type === "message_delta" && json.usage) {
@@ -126,6 +182,9 @@ export class GithubCopilotHandler implements ApiHandler {
 							}
 						} else {
 							const delta = json.choices?.[0]?.delta
+							if (delta?.tool_calls) {
+								yield* toolCallProcessor.processToolCallDeltas(delta.tool_calls)
+							}
 							if (delta?.content) {
 								yield { type: "text", text: delta.content }
 							}
