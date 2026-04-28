@@ -64,12 +64,9 @@ import { Session } from "@/shared/services/Session"
 import { COLORS } from "../constants/colors"
 import { useTaskContext, useTaskState } from "../context/TaskContext"
 import { useHomeEndKeys } from "../hooks/useHomeEndKeys"
+import { useRawBackspaceKeys } from "../hooks/useRawBackspaceKeys"
 import { useIsSpinnerActive } from "../hooks/useStateSubscriber"
 import { findWordEnd, findWordStart, useTextInput } from "../hooks/useTextInput"
-import {
-	BACKSPACE_SEQUENCES,
-	DELETE_SEQUENCES
-} from "../constants/keyboard"
 import { moveCursorDown, moveCursorUp } from "../utils/cursor"
 import { centerText, setTerminalTitle } from "../utils/display"
 import {
@@ -302,7 +299,6 @@ export const ChatView: React.FC<ChatViewProps> = ({
 		setCursorPos,
 		handleKeyboardSequence,
 		handleCtrlShortcut,
-		deleteCharBefore,
 		deleteCharsBefore,
 		deleteCharsAfter,
 		insertText: insertTextAtCursor,
@@ -362,6 +358,12 @@ export const ChatView: React.FC<ChatViewProps> = ({
 		onHome: useCallback(() => setCursorPos(0), [setCursorPos]),
 		onEnd: useCallback(() => setCursorPos(textInputRef.current.length), [setCursorPos]),
 		isActive: !activePanel, // Only active when no panel is open
+	})
+
+	useRawBackspaceKeys({
+		onBackspace: deleteCharsBefore,
+		onDelete: deleteCharsAfter,
+		isActive: !activePanel,
 	})
 
 	// Track when we're exiting to hide UI elements before exit
@@ -1038,55 +1040,6 @@ export const ChatView: React.FC<ChatViewProps> = ({
 			return
 		}
 
-		// 2. Handle raw backspace/delete sequences from stdin (handles coalesced repeats)
-		// This must happen before any other handlers to prevent raw bytes from being treated as text
-		let backspaceCount = 0
-		for (const seq of BACKSPACE_SEQUENCES) {
-			if (input.includes(seq)) {
-				const matches = input.split(seq).length - 1
-				backspaceCount += matches
-			}
-		}
-
-		if (backspaceCount > 0) {
-			deleteCharsBefore(backspaceCount)
-			// If chunk only contained backspaces, stop here
-			const matchedLen = [...BACKSPACE_SEQUENCES].reduce((acc, s) => {
-				const count = input.split(s).length - 1
-				return acc + count * s.length
-			}, 0)
-			if (matchedLen === input.length) {
-				return
-			}
-			// Otherwise, strip backspaces and continue with remaining input
-			for (const seq of BACKSPACE_SEQUENCES) {
-				input = input.split(seq).join("")
-			}
-		}
-
-		let deleteCount = 0
-		for (const seq of DELETE_SEQUENCES) {
-			if (input.includes(seq)) {
-				const matches = input.split(seq).length - 1
-				deleteCount += matches
-			}
-		}
-
-		if (deleteCount > 0) {
-			deleteCharsAfter(deleteCount)
-			// If chunk only contained deletes, stop here
-			const matchedLen = [...DELETE_SEQUENCES].reduce((acc, s) => {
-				const count = input.split(s).length - 1
-				return acc + count * s.length
-			}, 0)
-			if (matchedLen === input.length) {
-				return
-			}
-			// Otherwise, strip deletes and continue with remaining input
-			for (const seq of DELETE_SEQUENCES) {
-				input = input.split(seq).join("")
-			}
-		}
 
 		// Use fresh values from mirror for hot-path logic
 		const currentTextInput = textInputRef.current
@@ -1421,16 +1374,6 @@ export const ChatView: React.FC<ChatViewProps> = ({
 			return
 		}
 
-		// Backspace/Delete are now handled by raw stdin logic at the top of this function
-		// but we keep these as backup for terminals where Ink's key object is more reliable
-		if (key.backspace) {
-			deleteCharBefore()
-			return
-		}
-		if (key.delete) {
-			deleteCharsAfter(1)
-			return
-		}
 
 		// Cursor movement (when not in a menu)
 		if (key.leftArrow && !inSlashMenu && !inFileMenu) {
