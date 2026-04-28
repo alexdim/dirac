@@ -1,4 +1,34 @@
-const SAFE_BASE_COMMANDS = ["ls", "pwd", "date", "whoami", "uname", "cat", "grep", "find", "head", "tail", "cd", "clear", "echo", "hostname", "df", "du", "ps", "free", "uptime", "wc", "sort", "uniq", "file", "stat", "diff", "rg", "cut"]
+const SAFE_BASE_COMMANDS = [
+	"ls",
+	"pwd",
+	"date",
+	"whoami",
+	"uname",
+	"cat",
+	"grep",
+	"find",
+	"head",
+	"tail",
+	"cd",
+	"clear",
+	"echo",
+	"hostname",
+	"df",
+	"du",
+	"ps",
+	"free",
+	"uptime",
+	"wc",
+	"sort",
+	"uniq",
+	"file",
+	"stat",
+	"diff",
+	"rg",
+	"cut",
+	"which",
+	"type",
+]
 
 const SAFE_GIT_SUBCOMMANDS = ["status", "log", "diff", "branch", "show", "remote"]
 
@@ -18,12 +48,17 @@ export function isSafeCommand(command: string): boolean {
 		normalized = normalized.slice(0, -devNullRedirection.length).trim()
 	}
 
-	// 1. Reject output redirection (avoids disk writes)
-	if (normalized.includes(">") || normalized.includes(">>")) {
+	// 1. Reject output redirection (avoids disk writes) and input redirection
+	if (normalized.includes(">") || normalized.includes("<")) {
 		return false
 	}
 
-	// 2. Split by common shell operators to check each part
+	// 2. Reject command substitution
+	if (normalized.includes("$(") || normalized.includes("`")) {
+		return false
+	}
+
+	// 3. Split by common shell operators to check each part
 	// Handles |, &&, ||, ;
 	const segments = normalized.split(/\|\||&&|[|;]|\n/)
 
@@ -36,7 +71,7 @@ export function isSafeCommand(command: string): boolean {
 		const parts = trimmed.split(/\s+/)
 		const baseCommand = parts[0].toLowerCase()
 
-		// 3. Special handling for git to only allow read-only operations
+		// 4. Special handling for git to only allow read-only operations
 		if (baseCommand === "git") {
 			if (parts.length < 2) {
 				return false
@@ -45,8 +80,34 @@ export function isSafeCommand(command: string): boolean {
 			if (!SAFE_GIT_SUBCOMMANDS.includes(subcommand)) {
 				return false
 			}
+
+			// Restrict branch and remote to listing only
+			if (subcommand === "branch" || subcommand === "remote") {
+				const allowedFlags = ["-a", "-r", "-v", "--list", "--get-url"]
+				for (let i = 2; i < parts.length; i++) {
+					if (!allowedFlags.includes(parts[i])) {
+						return false
+					}
+				}
+			}
+		} else if (baseCommand === "find") {
+			// 5. Special handling for find to block dangerous flags
+			const dangerousFlags = ["-delete", "-exec", "-execdir", "-ok", "-okdir"]
+			if (parts.some((part) => dangerousFlags.some((flag) => part.toLowerCase().startsWith(flag)))) {
+				return false
+			}
+		} else if (baseCommand === "sort") {
+			// 6. Special handling for sort to block output flag
+			if (
+				parts.some((part) => {
+					const lowerPart = part.toLowerCase()
+					return lowerPart === "-o" || lowerPart.startsWith("-o") || lowerPart.startsWith("--output")
+				})
+			) {
+				return false
+			}
 		} else if (!SAFE_BASE_COMMANDS.includes(baseCommand)) {
-			// 4. Check against general safe list
+			// 7. Check against general safe list
 			return false
 		}
 	}
