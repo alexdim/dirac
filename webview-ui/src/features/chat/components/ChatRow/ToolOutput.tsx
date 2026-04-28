@@ -26,6 +26,7 @@ interface ToolOutputProps {
 }
 
 export const ToolOutput = ({ tool, message, isExpanded, onToggleExpand, backgroundEditEnabled }: ToolOutputProps) => {
+	const [isProcessing, setIsProcessing] = useState(false)
 	const [expandedItems, setExpandedItems] = useState<Record<string, boolean>>({})
 	const messages = useChatStore((state) => state.diracMessages)
 	const chatState = {
@@ -39,6 +40,19 @@ export const ToolOutput = ({ tool, message, isExpanded, onToggleExpand, backgrou
 		setEnableButtons: () => {},
 	} as any
 	const { executeButtonAction } = useMessageHandlers(messages, chatState)
+
+	const handleAction = useCallback(
+		async (action: any) => {
+			if (isProcessing) return
+			setIsProcessing(true)
+			try {
+				await executeButtonAction(action)
+			} finally {
+				setIsProcessing(false)
+			}
+		},
+		[executeButtonAction, isProcessing]
+	)
 
 	const displayUnits = useMemo(() => {
 		const units = serializeToolToDisplayUnits(tool, message)
@@ -91,9 +105,10 @@ export const ToolOutput = ({ tool, message, isExpanded, onToggleExpand, backgrou
 
 		return (
 			<ApprovalBox
+				isProcessing={isProcessing}
 				description={description}
-				onApprove={() => executeButtonAction("approve")}
-				onReject={() => executeButtonAction("reject")}>
+				onApprove={() => handleAction("approve")}
+				onReject={() => handleAction("reject")}>
 				{content}
 			</ApprovalBox>
 		)

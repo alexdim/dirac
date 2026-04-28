@@ -1,4 +1,4 @@
-import { DiracSayTool, DiracMessage } from "@shared/ExtensionMessage"
+import { DiracSayTool, DiracMessage, COMMAND_OUTPUT_STRING } from "@shared/ExtensionMessage"
 import { DisplayUnit, DisplayUnitStatus } from "../../ChatRow/types"
 import { getIconForTool } from "../../../utils/toolIcons"
 
@@ -11,7 +11,15 @@ export function serializeToolToDisplayUnits(
 	statusOverride?: DisplayUnitStatus
 ): DisplayUnit[] {
 	const relPaths = tool.paths || (tool.path ? [tool.path] : [])
-	const status: DisplayUnitStatus = statusOverride || (message.ask === "tool" ? "pending" : message.partial ? "active" : "success")
+	const isCommandExecuting =
+		(message.ask === "command" || message.say === "command") &&
+		(!!message.multiCommandState?.commands.some((c) => c.status === "running") ||
+			(message.text?.includes(COMMAND_OUTPUT_STRING) && !message.commandCompleted))
+	const isPending =
+		(message.ask === "tool" || message.ask === "command" || message.ask === "browser_action_launch" || message.ask === "use_subagents") &&
+		!isCommandExecuting &&
+		!message.partial
+	const status: DisplayUnitStatus = statusOverride || (isPending ? "pending" : message.partial ? "active" : "success")
 
 	const units: DisplayUnit[] = []
 	const icon = getIconForTool(tool.tool)

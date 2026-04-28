@@ -18,7 +18,7 @@ import {
     LoaderCircleIcon,
     NetworkIcon,
 } from "lucide-react"
-import { useEffect, useMemo, useRef, useState } from "react"
+import { useEffect, useMemo, useRef, useState, useCallback } from "react"
 import MarkdownBlock from "@/shared/ui/MarkdownBlock"
 
 interface SubagentStatusRowProps {
@@ -195,6 +195,29 @@ export default function SubagentStatusRow({ message, isLast, lastModifiedMessage
 		setEnableButtons: () => {},
 	} as any
 	const { executeButtonAction } = useMessageHandlers(messages, chatState)
+	const [isProcessing, setIsProcessing] = useState(false)
+	const handleAction = useCallback(
+		async (action: any) => {
+			if (isProcessing) return
+			setIsProcessing(true)
+			try {
+				await executeButtonAction(action)
+				if (action !== "approve") {
+					setIsProcessing(false)
+				}
+			} catch (e) {
+				setIsProcessing(false)
+			}
+		},
+		[executeButtonAction, isProcessing]
+	)
+
+	const isPending = message.ask === "use_subagents"
+	useEffect(() => {
+		if (isProcessing && !isPending) {
+			setIsProcessing(false)
+		}
+	}, [isProcessing, isPending])
 	const [expandedItems, setExpandedItems] = useState<Record<number, boolean>>({})
 	const [expandedPrompts, setExpandedPrompts] = useState<Record<number, boolean>>({})
 	const data = useMemo(() => parseSubagentRowData(message), [message])
@@ -304,9 +327,10 @@ export default function SubagentStatusRow({ message, isLast, lastModifiedMessage
 	if (message.ask === "use_subagents") {
 		return (
 			<ApprovalBox
+				isProcessing={isProcessing}
 				description={singular ? "Approve subagent" : `Approve ${data.items.length} subagents`}
-				onApprove={() => executeButtonAction("approve")}
-				onReject={() => executeButtonAction("reject")}>
+				onApprove={() => handleAction("approve")}
+				onReject={() => handleAction("reject")}>
 				{content}
 			</ApprovalBox>
 		)

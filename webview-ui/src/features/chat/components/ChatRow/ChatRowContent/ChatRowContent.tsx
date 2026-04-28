@@ -109,6 +109,7 @@ export const ChatRowContent = memo(
 			if (!isCommandMessage) return false
 			if (multiCommandRequiresApproval) return true
 			if (message.commandCompleted) return false
+			if (isCommandExecuting) return false
 
 			// If it's an 'ask' message, it's pending by definition until completed
 			if (message.type === "ask") return true

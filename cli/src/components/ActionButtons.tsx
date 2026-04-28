@@ -223,6 +223,9 @@ export function getButtonConfig(message: DiracMessage | undefined, isStreaming =
 
 			// Command execution
 			case "command":
+				if (message.multiCommandState?.commands.some((c: any) => c.status === "running")) {
+					return BUTTON_CONFIGS.default
+				}
 				return BUTTON_CONFIGS.command
 			case "command_output":
 				return BUTTON_CONFIGS.command_output
@@ -263,6 +266,7 @@ export function getButtonConfig(message: DiracMessage | undefined, isStreaming =
 }
 
 interface ActionButtonsProps {
+	isProcessing?: boolean
 	config: ButtonConfig
 	mode?: "act" | "plan"
 }
@@ -284,7 +288,7 @@ export function getVisibleButtons(config: ButtonConfig) {
  * Buttons take full width (one button = full, two buttons = half each)
  * Does not show cancel-only buttons (ThinkingIndicator handles that with esc)
  */
-export const ActionButtons: React.FC<ActionButtonsProps> = ({ config, mode = "act" }) => {
+export const ActionButtons: React.FC<ActionButtonsProps> = ({ config, mode = "act", isProcessing }) => {
 	// Calculate button widths based on terminal width
 	const { columns: terminalWidth } = useTerminalSize()
 	if (!config.enableButtons) {
@@ -302,7 +306,7 @@ export const ActionButtons: React.FC<ActionButtonsProps> = ({ config, mode = "ac
 	const availableWidth = terminalWidth - 2 - gapWidth // 1 space padding on each side
 	const buttonWidth = Math.floor(availableWidth / buttonCount)
 
-	const modeColor = mode === "plan" ? "yellow" : COLORS.primaryBlue
+	const buttonColor = isProcessing ? "gray" : mode === "plan" ? "yellow" : COLORS.primaryBlue
 
 	const renderButton = (text: string, shortcut: string) => {
 		const label = ` ${text} (${shortcut}) `
@@ -312,7 +316,7 @@ export const ActionButtons: React.FC<ActionButtonsProps> = ({ config, mode = "ac
 		const paddedLabel = " ".repeat(leftPad) + label + " ".repeat(rightPad)
 
 		return (
-			<Text backgroundColor={modeColor} color="black">
+			<Text backgroundColor={buttonColor} color="black">
 				{paddedLabel}
 			</Text>
 		)

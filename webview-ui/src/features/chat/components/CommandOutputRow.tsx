@@ -1,6 +1,6 @@
 import { DiracMessage, COMMAND_OUTPUT_STRING, COMMAND_REQ_APP_STRING } from "@shared/ExtensionMessage"
 import { StringRequest } from "@shared/proto/dirac/common"
-import { memo } from "react"
+import { memo, useState, useCallback, useEffect } from "react"
 import { ApprovalBox } from "./ChatRow/ApprovalBox"
 import { useMessageHandlers } from "./ChatView/hooks/useMessageHandlers"
 import { useChatStore } from "../store/chatStore"
@@ -123,6 +123,7 @@ export const CommandOutputRow = memo(
 		isOutputFullyExpanded: boolean
 		setIsOutputFullyExpanded: (expanded: boolean) => void
 	}) => {
+		const [isProcessing, setIsProcessing] = useState(false)
 		const messages = useChatStore((state: any) => state.diracMessages)
 		const chatState = {
 			diracAsk: message.ask,
@@ -135,6 +136,29 @@ export const CommandOutputRow = memo(
 			setEnableButtons: () => {},
 		} as any
 		const { executeButtonAction } = useMessageHandlers(messages, chatState)
+
+		const handleAction = useCallback(
+			async (action: any) => {
+				if (isProcessing) return
+				setIsProcessing(true)
+				try {
+					await executeButtonAction(action)
+					if (action !== "approve") {
+						setIsProcessing(false)
+					}
+				} catch (e) {
+					setIsProcessing(false)
+				}
+			},
+			[executeButtonAction, isProcessing]
+		)
+
+
+		useEffect(() => {
+			if (isProcessing && !isCommandPending) {
+				setIsProcessing(false)
+			}
+		}, [isProcessing, isCommandPending])
 		const multiCommandState = message.multiCommandState
 
 		const splitMessage = (text: string) => {
@@ -282,8 +306,9 @@ export const CommandOutputRow = memo(
 				return (
 					<ApprovalBox
 						description="Approve command execution"
-						onApprove={() => executeButtonAction("approve")}
-						onReject={() => executeButtonAction("reject")}>
+						isProcessing={isProcessing}
+						onApprove={() => handleAction("approve")}
+						onReject={() => handleAction("reject")}>
 						{multiContent}
 					</ApprovalBox>
 				)
@@ -296,8 +321,9 @@ export const CommandOutputRow = memo(
 			return (
 				<ApprovalBox
 					description="Approve command execution"
-					onApprove={() => executeButtonAction("approve")}
-					onReject={() => executeButtonAction("reject")}>
+					isProcessing={isProcessing}
+					onApprove={() => handleAction("approve")}
+					onReject={() => handleAction("reject")}>
 					{content}
 				</ApprovalBox>
 			)

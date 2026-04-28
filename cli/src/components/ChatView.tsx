@@ -326,6 +326,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
 	const [showRipgrepWarning, setShowRipgrepWarning] = useState(false)
 	const [respondedToAsk, setRespondedToAsk] = useState<number | null>(null)
 	const [userScrolled, setUserScrolled] = useState(false)
+	const [isProcessing, setIsProcessing] = useState(false)
 
 	// Pasted text storage - maps placeholder number to full pasted content
 	const [pastedTexts, setPastedTexts] = useState<Map<number, string>>(() => {
@@ -739,7 +740,8 @@ export const ChatView: React.FC<ChatViewProps> = ({
 	// Send response to ask message
 	const sendAskResponse = useCallback(
 		async (responseType: string, text?: string) => {
-			if (!ctrl?.task || !pendingAsk) return
+			if (!ctrl?.task || !pendingAsk || isProcessing) return
+			setIsProcessing(true)
 
 			// Expand any pasted text placeholders
 			const expandedText = text ? expandPastedTexts(text, pastedTexts) : text
@@ -754,23 +756,28 @@ export const ChatView: React.FC<ChatViewProps> = ({
 
 			try {
 				await ctrl.task.handleWebviewAskResponse(responseType, expandedText)
+				if (responseType !== "yesButtonClicked") {
+					setIsProcessing(false)
+				}
 			} catch {
-				// Controller may be disposed
+				setIsProcessing(false)
 			}
 		},
-		[ctrl, pendingAsk, pastedTexts, storageKey],
+		[ctrl, pendingAsk, pastedTexts, storageKey, isProcessing],
 	)
 
 	// Handle cancel/interrupt
 	const handleCancel = useCallback(async () => {
-		if (!ctrl) return
-
+		if (!ctrl || isProcessing) return
+		setIsProcessing(true)
 		try {
 			await ctrl.cancelTask()
 		} catch {
 			// Controller may be disposed
+		} finally {
+			setIsProcessing(false)
 		}
-	}, [ctrl])
+	}, [ctrl, isProcessing])
 
 	// Handle exit - hide input first, show summary, then exit Ink app gracefully
 	const handleExit = useCallback(() => {
@@ -790,59 +797,69 @@ export const ChatView: React.FC<ChatViewProps> = ({
 		return getButtonConfig(lastMsg, isSpinnerActive)
 	}, [messages, isSpinnerActive])
 
+	useEffect(() => {
+		if (isProcessing && !buttonConfig.enableButtons) {
+			setIsProcessing(false)
+		}
+	}, [isProcessing, buttonConfig.enableButtons])
+
 	// Handle button actions (1 for primary, 2 for secondary)
 	const handleButtonAction = useCallback(
 		async (action: ButtonActionType | undefined, _isPrimary: boolean) => {
-			if (!action) return
+			if (!action || !ctrl || isProcessing) return
+			setIsProcessing(true)
+			try {
 
-			if (!ctrl) return
-
-			switch (action) {
-				case "approve":
-				case "retry":
-					sendAskResponse("yesButtonClicked")
-					break
-				case "reject":
-					// Check for states that should trigger exit (all end-of-task states with Exit button)
-					if (
-						pendingAsk?.ask === "resume_task" ||
-						pendingAsk?.ask === "resume_completed_task" ||
-						pendingAsk?.ask === "completion_result" ||
-						pendingAsk?.ask === "new_task"
-					) {
-						handleExit()
-					} else {
-						sendAskResponse("noButtonClicked")
-					}
-					break
-				case "proceed":
-					// Proceed can be either yesButtonClicked or messageResponse depending on context
-					sendAskResponse("yesButtonClicked")
-					break
-				case "new_task":
-					if (pendingAsk?.ask === "new_task") {
-						// Model called new_task tool - create new task with context
-						setRespondedToAsk(pendingAsk.ts)
-						setTextInput("")
-						setCursorPos(0)
-						await ctrl.initTask(pendingAsk.text || "")
-					} else {
-						// From completion_result or resume_completed_task - full clear
-						await clearViewAndResetTask()
-					}
-					break
-				case "cancel":
-					handleCancel()
-					break
+				switch (action) {
+					case "approve":
+					case "retry":
+						await sendAskResponse("yesButtonClicked")
+						break
+					case "reject":
+						// Check for states that should trigger exit (all end-of-task states with Exit button)
+						if (
+							pendingAsk?.ask === "resume_task" ||
+							pendingAsk?.ask === "resume_completed_task" ||
+							pendingAsk?.ask === "completion_result" ||
+							pendingAsk?.ask === "new_task"
+						) {
+							handleExit()
+						} else {
+							await sendAskResponse("noButtonClicked")
+						}
+						break
+					case "proceed":
+						// Proceed can be either yesButtonClicked or messageResponse depending on context
+						await sendAskResponse("yesButtonClicked")
+						break
+					case "new_task":
+						if (pendingAsk?.ask === "new_task") {
+							// Model called new_task tool - create new task with context
+							setRespondedToAsk(pendingAsk.ts)
+							setTextInput("")
+							setCursorPos(0)
+							await ctrl.initTask(pendingAsk.text || "")
+						} else {
+							// From completion_result or resume_completed_task - full clear
+							await clearViewAndResetTask()
+						}
+						break
+					case "cancel":
+						await handleCancel()
+						break
+				}
+			} catch {
+				setIsProcessing(false)
 			}
 		},
-		[controller, taskController, sendAskResponse, pendingAsk, handleExit, handleCancel, clearViewAndResetTask],
+		[controller, taskController, sendAskResponse, pendingAsk, handleExit, handleCancel, clearViewAndResetTask, isProcessing],
 	)
 
 	// Handle task submission (new task)
 	const handleSubmit = useCallback(
 		async (text: string, images: string[]) => {
-			if (!ctrl || !text.trim()) return
+			if (!ctrl || !text.trim() || isProcessing) return
+			setIsProcessing(true)
 
 			// Expand any pasted text placeholders
 			const expandedText = expandPastedTexts(text, pastedTexts)
@@ -878,9 +895,11 @@ export const ChatView: React.FC<ChatViewProps> = ({
 				await ctrl.initTask(expandedText.trim(), validImages.length > 0 ? validImages : undefined)
 			} catch (_error) {
 				onError?.()
+			} finally {
+				setIsProcessing(false)
 			}
 		},
-		[ctrl, onError, pastedTexts, storageKey],
+		[ctrl, onError, pastedTexts, storageKey, isProcessing],
 	)
 
 	// Auto-submit initial prompt if provided
@@ -1276,6 +1295,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
 		if (
 			buttonConfig.enableButtons &&
 			!isSpinnerActive &&
+			!isProcessing &&
 			currentTextInput === "" &&
 			!isYoloSuppressed(yolo, pendingAsk?.ask as DiracAsk | undefined)
 		) {
@@ -1302,7 +1322,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
 		// 10. Handle ask responses for options and text input
 		if (pendingAsk && !isYoloSuppressed(yolo, pendingAsk.ask as DiracAsk | undefined)) {
 			// Allow sending text message for any ask type where sending is enabled
-			if (key.return && currentTextInput.trim() && !buttonConfig.sendingDisabled) {
+			if (key.return && currentTextInput.trim() && !buttonConfig.sendingDisabled && !isProcessing) {
 				sendAskResponse("messageResponse", currentTextInput.trim())
 				return
 			}
@@ -1393,7 +1413,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
 			toggleMode()
 			return
 		}
-		if (key.return && !currentMentionInfo.inMentionMode && !currentSlashInfo.inSlashMode && !pendingAsk && !isSpinnerActive) {
+		if (key.return && !currentMentionInfo.inMentionMode && !currentSlashInfo.inSlashMode && !pendingAsk && !isSpinnerActive && !isProcessing) {
 			const { prompt: currentPrompt, imagePaths: currentImagePaths } = parseImagesFromInput(currentTextInput)
 			if (currentPrompt.trim() || currentImagePaths.length > 0) {
 				handleSubmit(currentPrompt.trim(), currentImagePaths)
@@ -1513,7 +1533,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
 				{/* Current streaming message */}
 				{currentMessage && (
 					<Box paddingX={1} width="100%">
-						<ChatMessage isStreaming message={currentMessage} mode={mode} />
+						<ChatMessage isStreaming isExecuting={currentMessage.ts === respondedToAsk} message={currentMessage} mode={mode} />
 					</Box>
 				)}
 
@@ -1521,7 +1541,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
 				{buttonConfig.enableButtons &&
 					!isSpinnerActive &&
 					!isYoloSuppressed(yolo, pendingAsk?.ask as DiracAsk | undefined) && (
-						<ActionButtons config={buttonConfig} mode={mode} />
+						<ActionButtons config={buttonConfig} isProcessing={isProcessing} mode={mode} />
 					)}
 
 				{/* Thinking indicator when processing */}

@@ -189,6 +189,7 @@ const MarkdownText: React.FC<{ children: string; color?: string }> = ({ children
 interface ChatMessageProps {
 	message: DiracMessage
 	isStreaming?: boolean
+	isExecuting?: boolean
 	mode?: "act" | "plan"
 }
 
@@ -279,7 +280,7 @@ function formatToolResult(result: string, maxLines = 5): string[] {
 	return displayLines
 }
 
-export const ChatMessage: React.FC<ChatMessageProps> = ({ message, mode, isStreaming }) => {
+export const ChatMessage: React.FC<ChatMessageProps> = ({ message, mode, isStreaming, isExecuting: isExecutingProp }) => {
 	const { type, ask, say, text, partial } = message
 	const toolColor = mode === "plan" ? "yellow" : COLORS.primaryBlue
 	const { columns: terminalWidth } = useTerminalSize()
@@ -413,31 +414,43 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message, mode, isStrea
 		}
 	}
 
-	if (say === "command") {
-		// these are redundant
-		return null
-	}
-
 	// Command execution (ask or say) - now includes combined output
-	if (type === "ask" && ask === "command") {
-		if (!text) return null
+	if ((type === "ask" && ask === "command") || say === "command") {
+		if (!text && !message.multiCommandState) return null
 
 		// Parse command and output from combined text
-		const outputIndex = text.indexOf(COMMAND_OUTPUT_STRING)
-		const command = outputIndex === -1 ? text : text.slice(0, outputIndex).trim()
-		const output = outputIndex === -1 ? "" : text.slice(outputIndex + COMMAND_OUTPUT_STRING.length).trim()
+		const outputIndex = text?.indexOf(COMMAND_OUTPUT_STRING) ?? -1
+		const command = outputIndex === -1 ? (text || "") : text!.slice(0, outputIndex).trim()
+		const output = outputIndex === -1 ? "" : text!.slice(outputIndex + COMMAND_OUTPUT_STRING.length).trim()
+
+		const isExecuting =
+			isExecutingProp ||
+			(say === "command" && !message.commandCompleted) ||
+			!!message.multiCommandState?.commands.some((c) => c.status === "running") ||
+			(outputIndex !== -1 && !message.commandCompleted)
 
 		const isAsk = type === "ask"
-		const label = isAsk ? "Dirac wants to execute this command: " : "Dirac executed this command: "
+		const label = isExecuting
+			? "Dirac is executing this command: "
+			: isAsk
+				? "Dirac wants to execute this command: "
+				: "Dirac executed this command: "
 
 		return (
 			<Box flexDirection="column" marginBottom={1} width="100%">
-				<DotRow color={toolColor} flashing={partial === true && isStreaming}>
+				<DotRow color={toolColor} flashing={(partial === true && isStreaming) || isExecuting}>
 					<Text>
 						<Text color={toolColor}>{label}</Text>
 						<Text>{truncate(command, 120)}</Text>
 					</Text>
 				</DotRow>
+				{isExecuting && !output && (
+					<Box flexDirection="column" marginLeft={2} width="100%">
+						<ResultRow isFirst={true}>
+							<Text color="gray">Running...</Text>
+						</ResultRow>
+					</Box>
+				)}
 				{output && (
 					<Box flexDirection="column" marginLeft={2} width="100%">
 						{formatToolResult(output, 8).map((line, idx) => (
@@ -761,6 +774,7 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message, mode, isStrea
 }
 
 /**
+ * Information
  * Render a list of messages in Claude Code style
  */
 interface ChatMessageListProps {
