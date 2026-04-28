@@ -665,11 +665,17 @@ async function runInkApp(element: any, cleanup: () => Promise<void>): Promise<vo
 	// Clear terminal for clean UI - robot will render at row 1
 	process.stdout.write("\x1b[2J\x1b[3J\x1b[H")
 
-	// Note: incrementalRendering is disabled because it causes UI glitches on terminal resize.
-	// Ink's incremental rendering tries to erase N lines based on previous output height,
-	// but when the terminal shrinks, this leaves artifacts. Gemini CLI only enables
-	// incrementalRendering when alternateBuffer is also enabled (which we don't use).
-	const { waitUntilExit, unmount } = render(element, { exitOnCtrlC: true })
+	// Note: incrementalRendering is enabled to reduce terminal bandwidth and improve responsiveness.
+	// We previously disabled this due to resize glitches, but our useTerminalSize hook now
+	// handles this by clearing the screen and forcing a full React remount on resize,
+	// which resets Ink's internal line tracking.
+	const { waitUntilExit, unmount } = render(element, {
+		exitOnCtrlC: true,
+		patchConsole: false,
+		// @ts-expect-error: synchronizedUpdateMode is supported by @jrichman/ink but not in the type definitions
+		synchronizedUpdateMode: true,
+		incrementalRendering: true,
+	})
 
 	try {
 		await waitUntilExit()

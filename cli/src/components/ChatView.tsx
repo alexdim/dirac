@@ -3,101 +3,27 @@
  * Combines the welcome screen layout with task message display
  * Messages appear above the input field, input stays at bottom
  *
- * IMPORTANT: Ink Rendering and the "Flicker Problem"
- * ==================================================
+ * IMPORTANT: Rendering Architecture
+ * ===============================
  *
- * Problem:
- * When using Ink (React for CLI), we encountered severe flickering once the
- * output grew to fill the terminal height. The top line would repeat endlessly,
- * making the UI unusable.
+ * To ensure a flicker-free experience in the terminal, we use a multi-layered approach:
  *
- * Root Cause:
- * Ink uses two different rendering strategies based on output height:
+ * 1. Modern Rendering Engine (@jrichman/ink@7.0.0):
+ *    - Synchronized Update Mode: Batches terminal writes into atomic frames.
+ *    - Incremental Rendering: Only sends changed lines to the terminal.
+ *    - Resize Recovery: useTerminalSize hook forces a full remount on resize to reset
+ *      Ink's line tracking and prevent "ghosting" artifacts.
  *
- * 1. When outputHeight < terminal rows: Ink uses efficient line-erasing
- *    (ansiEscapes.eraseLines) to update content in place. This is smooth.
- *
- * 2. When outputHeight >= terminal rows: Ink switches to clearTerminal() +
- *    full redraw on EVERY re-render. This causes visible flicker because:
- *    - The entire screen clears
- *    - Content redraws from scratch
- *    - This happens on every state change (typing, streaming, spinner, etc.)
- *
- * This is in Ink's onRender() method in ink.js:
- *   if (outputHeight >= this.options.stdout.rows) {
- *     this.options.stdout.write(ansiEscapes.clearTerminal + output);
- *   }
- *
- * The underlying issue is Ink's use of ansi-escapes clearTerminal which does
- * ^[2J^[3J^[H (erase screen + erase scrollback + move home) instead of more
- * efficient alternatives like ^[H^[0J (move home + erase to bottom).
- *
- * See: https://github.com/vadimdemedes/ink/issues/359
- *
- * Why Other CLIs (Claude Code, Gemini CLI) Don't Flicker:
- * =======================================================
- *
- * They keep the dynamic region small by either:
- * - Printing history as static output (logs that scroll up)
- * - Using alternate buffer with internal scrolling
- * - Never letting dynamic content reach terminal height
- *
- * Alternate Buffer Mode (What We Tried):
- * Gemini CLI uses alternate screen buffer (\x1b[?1049h) which isolates the app
- * in a separate screen (like vim/less). This eliminates flicker but has a major
- * drawback: scroll wheel doesn't work without implementing custom mouse event
- * handling. Gemini CLI built MouseProvider + ScrollProvider infrastructure to
- * capture mouse events and handle scrolling manually.
- *
- * From Gemini CLI PR #13623:
- * "We're setting the default for useAlternateBuffer back to false for now.
- * We'll plan to re-enable once we support selection without ctrl-S, speed up
- * scrolling on terminals that report fewer scroll events than ideal, and
- * optimize performance issues related to very large tool messages."
- *
- * Our Solution: Static + Dynamic Split
- * ====================================
- *
- * We use Ink's <Static> component to split content into two regions:
- *
- * 1. Static Region (header + completed messages):
- *    - Rendered ONCE when items are added
- *    - Stays above the dynamic region
- *    - Scrolls up like terminal logs
- *    - Never re-renders, so no flicker contribution
- *    - IMPORTANT: Content in Static cannot update after initial render
- *      (e.g., AccountInfoView showing "Loading..." would stay that way forever)
- *
- * 2. Dynamic Region (current streaming message + input + status):
- *    - Only contains actively changing content
- *    - Stays small (well under terminal height)
- *    - Uses efficient line-erasing, not clearTerminal
- *
- * Implementation Details:
- * - loggedMessageTs: Set<number> tracks which messages have been rendered to Static
- * - headerLogged: boolean tracks if the header has been rendered
- * - staticItems: array of items to render in Static (header + new completed messages)
- * - completedMessages: messages that are done (not partial/streaming)
- * - currentMessage: the single message currently streaming (if any)
- *
- * When a message completes (partial becomes false), it moves from the dynamic
- * region to Static. The dynamic region only ever contains 0-1 messages plus
- * the input UI, keeping it well under terminal height.
- *
- * Other Important Settings:
- * - patchConsole: false in render() options - prevents Ink from interfering with console
- * - Console suppression in utils/console.ts - prevents core debug output from breaking Ink
- *
- * Centering in Static:
- * Ink's Box centering (justifyContent, alignItems) doesn't work reliably inside
- * Static. We use manual centering via centerText() which pads strings based on
- * process.stdout.columns.
+ * 2. Static + Dynamic Split:
+ *    We use Ink's <Static> component to split content into two regions:
+ *    - Static Region: Header and completed messages. Rendered once, scrolls up like
+ *      terminal logs, and has zero re-render overhead.
+ *    - Dynamic Region: Current streaming message and input UI. Kept small to ensure
+ *      efficient line-erasing and synchronized updates.
  *
  * References:
- * - Ink flicker issue: https://github.com/vadimdemedes/ink/issues/359
- * - Gemini CLI (uses same @jrichman/ink fork): https://github.com/google-gemini/gemini-cli
- * - Gemini CLI alternate buffer PR: https://github.com/google-gemini/gemini-cli/pull/13623
- * - Ink source: node_modules/ink/build/ink.js (onRender method)
+ * - @jrichman/ink fork: https://github.com/jacob314/ink
+ * - Gemini CLI: https://github.com/google-gemini/gemini-cli
  *
  * Input Responsiveness and State Integrity
  * ========================================
