@@ -68,18 +68,16 @@ import { useIsSpinnerActive } from "../hooks/useStateSubscriber"
 import { findWordEnd, findWordStart, useTextInput } from "../hooks/useTextInput"
 import {
 	BACKSPACE_SEQUENCES,
-	DELETE_SEQUENCES,
-	OPTION_LEFT_SEQUENCES,
-	OPTION_RIGHT_SEQUENCES,
+	DELETE_SEQUENCES
 } from "../constants/keyboard"
 import { moveCursorDown, moveCursorUp } from "../utils/cursor"
 import { centerText, setTerminalTitle } from "../utils/display"
 import {
-    checkAndWarnRipgrepMissing,
-    extractMentionQuery,
-    type FileSearchResult,
-    insertMention,
-    searchWorkspaceFiles,
+	checkAndWarnRipgrepMissing,
+	extractMentionQuery,
+	type FileSearchResult,
+	insertMention,
+	searchWorkspaceFiles,
 } from "../utils/file-search"
 import { isMouseEscapeSequence } from "../utils/input"
 import { jsonParseSafe, parseImagesFromInput } from "../utils/parser"
