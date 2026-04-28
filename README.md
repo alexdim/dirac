@@ -78,7 +78,11 @@ npm install -g dirac-cli
    ```
 
 ### Configuration (Environment Variables)
-You can provide API keys via environment variables to skip the `dirac auth` step. This is ideal for CI/CD or non-persistent environments:
+You can provide API keys via environment variables to skip the `dirac auth` step. This is ideal for CI/CD or non-persistent environments.
+
+For provider-specific setup (e.g. [AWS Bedrock](docs/providers/README.md#aws-bedrock), [Google Cloud Vertex AI](docs/providers/README.md#google-cloud-vertex-ai)), see the [Provider Settings](docs/providers/README.md) guide.
+
+Common API Keys:
 
 - `ANTHROPIC_API_KEY`
 - `OPENAI_API_KEY`
@@ -96,25 +100,6 @@ You can use OPENAI_COMPATIBLE_CUSTOM_KEY (or its alias OPENAI_API_BASE) for any 
 
 `$ OPENAI_API_BASE="xxx" dirac -y --provider "https://api.deepseek.com/v1" --model deepseek-v4-flash "explain Dirac Delta function"`
 
-
-#### AWS Bedrock
-Use Bedrock by setting AWS credentials and region. When `AWS_ACCESS_KEY_ID` or `AWS_BEDROCK_MODEL` is present, Dirac automatically switches to the Bedrock provider:
-
-- `AWS_ACCESS_KEY_ID` — AWS access key
-- `AWS_SECRET_ACCESS_KEY` — AWS secret key
-- `AWS_SESSION_TOKEN` — session token (for temporary credentials)
-- `AWS_REGION` — AWS region (e.g. `us-east-1`). Note: `AWS_REGION` alone will not trigger an automatic switch to Bedrock.
-- `AWS_BEDROCK_MODEL` — model ID for both act and plan modes (e.g. `us.anthropic.claude-sonnet-4-6`)
-- `AWS_BEDROCK_MODEL_ACT` — model ID for act mode only
-- `AWS_BEDROCK_MODEL_PLAN` — model ID for plan mode only
-
-Works seamlessly with [aws-vault](https://github.com/99designs/aws-vault):
-```bash
-AWS_REGION=us-east-1 AWS_BEDROCK_MODEL=us.anthropic.claude-sonnet-4-6 \
-  aws-vault exec my-profile -- dirac "your task"
-```
-
-> **Note:** Newer Claude models on Bedrock (Sonnet 4.6+) require a cross-region inference profile prefix (`us.`, `eu.`, `ap.`). See the [AWS docs](https://docs.aws.amazon.com/bedrock/latest/userguide/inference-profiles-support.html) for supported model IDs.
 
 ### Common Commands
 - `dirac "prompt"`: Start an interactive task.
