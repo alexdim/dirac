@@ -20,11 +20,11 @@ const AboutSection = ({ version, renderSectionHeader }: AboutSectionProps) => {
 
 					<h3 className="text-md font-semibold">Community & Support</h3>
 					<p>
-						<VSCodeLink href="https://x.com/dirac">X</VSCodeLink>
+						<VSCodeLink href="https://x.com/Dirac_AI">X</VSCodeLink>
 						{" • "}
 						<VSCodeLink href="https://discord.gg/mWkzrF4h">Discord</VSCodeLink>
 						{" • "}
-						<VSCodeLink href="https://www.reddit.com/r/dirac/"> r/dirac</VSCodeLink>
+						<VSCodeLink href="https://www.reddit.com/r/DiracDelta/"> r/dirac</VSCodeLink>
 					</p>
 
 					<h3 className="text-md font-semibold">Development</h3>

@@ -99,7 +99,7 @@ export const WhatsNewModal: React.FC<WhatsNewModalProps> = ({ open, onClose, ver
 							<a
 								aria-label="Follow us on X"
 								className="text-[var(--vscode-foreground)] hover:text-[var(--vscode-textLink-activeForeground)] transition-colors"
-								href="https://x.com/dirac"
+								href="https://x.com/Dirac_AI"
 								rel="noopener noreferrer"
 								target="_blank">
 								<XIcon />
@@ -129,7 +129,7 @@ export const WhatsNewModal: React.FC<WhatsNewModalProps> = ({ open, onClose, ver
 							<a
 								aria-label="Join our subreddit"
 								className="text-[var(--vscode-foreground)] hover:text-[var(--vscode-textLink-activeForeground)] transition-colors"
-								href="https://www.reddit.com/r/dirac/"
+								href="https://www.reddit.com/r/DiracDelta/"
 								rel="noopener noreferrer"
 								target="_blank">
 								<RedditIcon />
