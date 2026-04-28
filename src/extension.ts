@@ -60,22 +60,23 @@ import { fileExistsAtPath } from "./utils/fs"
 export async function activate(context: vscode.ExtensionContext) {
 	const activationStartTime = performance.now()
 
-	// 1. Set up HostProvider for VSCode
-	// IMPORTANT: This must be done before any service can be registered
-	setupHostProvider(context)
+	// 1. Create storage context to determine shared data directory
+	const workspacePath = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath
+	const storageContext = createStorageContext({ workspacePath })
 
-	// 2. Clean up legacy data patterns within VSCode's native storage.
+	// 2. Set up HostProvider for VSCode using shared data directory
+	// IMPORTANT: This must be done before any service can be registered
+	setupHostProvider(context, storageContext.dataDir)
+
+	// 3. Clean up legacy data patterns within VSCode's native storage.
 	// Moves workspace→global keys, task history→file, custom instructions→rules, etc.
 	// Must run BEFORE the file export so we copy clean state.
 	await cleanupLegacyVSCodeStorage(context)
 
-	// 2.5. Migrate .dirac to .dirac if needed
-
-	// 3. One-time export of VSCode's native storage to shared file-backed stores.
+	// 4. One-time export of VSCode's native storage to shared file-backed stores.
 	// After this, all platforms (VSCode, CLI, JetBrains) read from ~/.dirac/data/.
-	const workspacePath = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath
-	const storageContext = createStorageContext({ workspacePath })
 	await exportVSCodeStorageToSharedFiles(context, storageContext)
+
 
 	// 4. Register services and perform common initialization
 	// IMPORTANT: Must be done after host provider is setup and migrations are complete
@@ -621,7 +622,8 @@ async function showJupyterPromptInput(title: string, placeholder: string): Promi
 	})
 }
 
-function setupHostProvider(context: ExtensionContext) {
+function setupHostProvider(context: ExtensionContext, globalStorageFsPath: string) {
+
 	const outputChannel = registerDiracOutputChannel(context)
 	outputChannel.appendLine("[Dirac] Setting up VS Code host...")
 
@@ -669,7 +671,8 @@ function setupHostProvider(context: ExtensionContext) {
 		getCallbackUrl,
 		getBinaryLocation,
 		context.extensionUri.fsPath,
-		context.globalStorageUri.fsPath,
+		globalStorageFsPath,
+
 		getEnvironmentVariables
 	)
 }

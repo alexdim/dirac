@@ -32,13 +32,19 @@
  *   and vice versa. See also: checkpoints at {globalStorageFsPath}/checkpoints/.
  */
 
+import fs from "node:fs/promises"
+import path from "node:path"
+import { fileExistsAtPath } from "@/utils/fs"
+import { HistoryItem } from "@/shared/HistoryItem"
+
 import type * as vscode from "vscode"
 import { Logger } from "@/shared/services/Logger"
 import { GlobalStateAndSettingKeys, LocalStateKeys, SecretKeys } from "@/shared/storage/state-keys"
 import type { StorageContext } from "@/shared/storage/storage-context"
 
 /** Bump this when adding new migration steps. */
-const CURRENT_MIGRATION_VERSION = 1
+const CURRENT_MIGRATION_VERSION = 2
+
 
 /** Sentinel key written to both globalState and workspaceState to track migration independently. */
 const MIGRATION_VERSION_KEY = "__vscodeMigrationVersion"
@@ -191,6 +197,10 @@ export async function exportVSCodeStorageToSharedFiles(
 
 		result.migrated = true
 
+		// ─── 3. Migrate global storage folders (tasks, history, etc.) ───
+		await migrateGlobalStorageFolders(vscodeContext, storage)
+
+
 		Logger.info(
 			`[Migration] Complete: ${result.globalStateCount} global state keys, ` +
 				`${result.secretsCount} secrets, ${result.workspaceStateCount} workspace state keys migrated. ` +
@@ -204,3 +214,90 @@ export async function exportVSCodeStorageToSharedFiles(
 
 	return result
 }
+
+
+/**
+ * Migrate global storage folders (tasks, checkpoints, etc.) to the shared Dirac directory.
+ */
+export async function migrateGlobalStorageFolders(
+	vscodeContext: vscode.ExtensionContext,
+	storage: StorageContext,
+): Promise<void> {
+	const oldPath = vscodeContext.globalStorageUri.fsPath
+	const newPath = storage.dataDir
+
+	if (oldPath === newPath) {
+		return
+	}
+
+	const foldersToMigrate = ["tasks", "checkpoints", "settings", "cache", "state"]
+
+	for (const folder of foldersToMigrate) {
+		const source = path.join(oldPath, folder)
+		const dest = path.join(newPath, folder)
+
+		if (!(await fileExistsAtPath(source))) {
+			continue
+		}
+
+		try {
+			if (!(await fileExistsAtPath(dest))) {
+				// Destination doesn't exist, safe to copy entire folder
+				await fs.mkdir(path.dirname(dest), { recursive: true })
+				await fs.cp(source, dest, { recursive: true })
+				Logger.info(`[Migration] Migrated ${folder} folder to shared storage.`)
+			} else {
+				// Destination exists, merge contents
+				if (folder === "state") {
+					const sourceHistory = path.join(source, "taskHistory.json")
+					const destHistory = path.join(dest, "taskHistory.json")
+					if (await fileExistsAtPath(sourceHistory)) {
+						if (await fileExistsAtPath(destHistory)) {
+							await mergeTaskHistory(sourceHistory, destHistory)
+							Logger.info("[Migration] Merged task history from VSCode to shared storage.")
+						} else {
+							await fs.mkdir(dest, { recursive: true })
+							await fs.copyFile(sourceHistory, destHistory)
+							Logger.info("[Migration] Copied task history to shared storage.")
+						}
+					}
+				} else {
+					// Generic merge: copy files that don't exist in destination
+					await fs.cp(source, dest, { recursive: true, force: false })
+					Logger.info(`[Migration] Merged ${folder} folder contents to shared storage.`)
+				}
+			}
+		} catch (error) {
+			Logger.error(`[Migration] Failed to migrate ${folder} folder:`, error)
+		}
+	}
+}
+
+async function mergeTaskHistory(sourceFile: string, destFile: string) {
+	try {
+		const sourceContent = await fs.readFile(sourceFile, "utf8")
+		const destContent = await fs.readFile(destFile, "utf8")
+
+		const sourceData = JSON.parse(sourceContent) as HistoryItem[]
+		const destData = JSON.parse(destContent) as HistoryItem[]
+
+		if (!Array.isArray(sourceData) || !Array.isArray(destData)) {
+			return
+		}
+
+		const combined = [...destData]
+		const destIds = new Set(destData.map((item) => item.id))
+
+		for (const item of sourceData) {
+			if (item && item.id && !destIds.has(item.id)) {
+				combined.push(item)
+			}
+		}
+
+		combined.sort((a, b) => (b.ts || 0) - (a.ts || 0))
+		await fs.writeFile(destFile, JSON.stringify(combined, null, 2))
+	} catch (error) {
+		Logger.error("[Migration] Error merging task history files:", error)
+	}
+}
+

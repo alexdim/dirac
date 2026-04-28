@@ -1,4 +1,5 @@
-import { GlobalFileNames } from "@core/storage/disk"
+import { ensureCacheDirectoryExists, GlobalFileNames } from "@core/storage/disk"
+
 import { EmptyRequest } from "@shared/proto/dirac/common"
 import { OpenRouterCompatibleModelInfo, OpenRouterModelInfo } from "@shared/proto/dirac/models"
 import { fileExistsAtPath } from "@utils/fs"
@@ -22,8 +23,13 @@ interface HicapRawModelInfo {
  * @param request Empty request object
  * @returns Response containing the OpenRouter models
  */
-export async function refreshHicapModels(controller: Controller, _request: EmptyRequest): Promise<OpenRouterCompatibleModelInfo> {
-	const hicapModelsFilePath = path.join(await ensureCacheDirectoryExists(controller), GlobalFileNames.hicapModels)
+export async function refreshHicapModels(
+	controller: Controller,
+	_request: EmptyRequest,
+): Promise<OpenRouterCompatibleModelInfo> {
+
+	const hicapModelsFilePath = path.join(await ensureCacheDirectoryExists(), GlobalFileNames.hicapModels)
+
 
 	const models: Record<string, OpenRouterModelInfo> = {}
 	try {
@@ -71,7 +77,8 @@ export async function refreshHicapModels(controller: Controller, _request: Empty
  * Reads cached OpenRouter models from disk
  */
 async function readHicapModels(controller: Controller): Promise<Record<string, OpenRouterModelInfo> | undefined> {
-	const hicapModelsFilePath = path.join(await ensureCacheDirectoryExists(controller), GlobalFileNames.hicapModels)
+	const hicapModelsFilePath = path.join(await ensureCacheDirectoryExists(), GlobalFileNames.hicapModels)
+
 	const fileExists = await fileExistsAtPath(hicapModelsFilePath)
 	if (fileExists) {
 		try {
@@ -82,13 +89,4 @@ async function readHicapModels(controller: Controller): Promise<Record<string, O
 		}
 	}
 	return undefined
-}
-
-/**
- * Ensures the cache directory exists and returns its path
- */
-async function ensureCacheDirectoryExists(controller: Controller): Promise<string> {
-	const cacheDir = path.join(controller.context.globalStorageUri.fsPath, "cache")
-	await fs.mkdir(cacheDir, { recursive: true })
-	return cacheDir
 }
