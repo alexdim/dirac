@@ -98,6 +98,19 @@
  * - Gemini CLI (uses same @jrichman/ink fork): https://github.com/google-gemini/gemini-cli
  * - Gemini CLI alternate buffer PR: https://github.com/google-gemini/gemini-cli/pull/13623
  * - Ink source: node_modules/ink/build/ink.js (onRender method)
+ *
+ * Input Responsiveness and State Integrity
+ * ========================================
+ *
+ * To prevent input lag and cursor "ghosting" (especially under high load):
+ * 1. Atomic State: text and cursorPos are updated together in a single state object
+ *    in useTextInput to ensure they never get out of sync.
+ * 2. Synchronous Mirror: A ref mirror provides the "hot-path" source of truth
+ *    for input handlers, bypassing React's asynchronous render cycle to avoid
+ *    stale closures during rapid typing.
+ * 3. Coalesced Deletion: Raw stdin is parsed to count repeated backspace/delete
+ *    bytes, allowing them to be processed in a single batch rather than one-by-one,
+ *    which reduces re-render pressure.
  * - log-update: node_modules/ink/build/log-update.js (eraseLines logic)
  */
 
@@ -127,6 +140,12 @@ import { useTaskContext, useTaskState } from "../context/TaskContext"
 import { useHomeEndKeys } from "../hooks/useHomeEndKeys"
 import { useIsSpinnerActive } from "../hooks/useStateSubscriber"
 import { findWordEnd, findWordStart, useTextInput } from "../hooks/useTextInput"
+import {
+	BACKSPACE_SEQUENCES,
+	DELETE_SEQUENCES,
+	OPTION_LEFT_SEQUENCES,
+	OPTION_RIGHT_SEQUENCES,
+} from "../constants/keyboard"
 import { moveCursorDown, moveCursorUp } from "../utils/cursor"
 import { centerText, setTerminalTitle } from "../utils/display"
 import {
@@ -360,17 +379,20 @@ export const ChatView: React.FC<ChatViewProps> = ({
 		handleKeyboardSequence,
 		handleCtrlShortcut,
 		deleteCharBefore,
+		deleteCharsBefore,
+		deleteCharsAfter,
 		insertText: insertTextAtCursor,
+		getText,
+		getCursorPos,
 	} = useTextInput()
 
 	// Get storage key for persisting input across remounts
 	const storageKey = useMemo(() => getInputStorageKey(ctrl, taskId), [ctrl, taskId])
 
 	// Refs for text input and cursor position (used by useHomeEndKeys and to avoid stale closures in useInput)
-	const textInputRef = useRef(textInput)
-	textInputRef.current = textInput
-	const cursorPosRef = useRef(cursorPos)
-	cursorPosRef.current = cursorPos
+	// We use getters that point to the useTextInput mirror to ensure we always have fresh values
+	const textInputRef = useMemo(() => ({ get current() { return getText() } }), [getText])
+	const cursorPosRef = useMemo(() => ({ get current() { return getCursorPos() } }), [getCursorPos])
 
 	const [fileResults, setFileResults] = useState<FileSearchResult[]>([])
 	const [selectedIndex, setSelectedIndex] = useState(0) // For file menu
@@ -829,12 +851,14 @@ export const ChatView: React.FC<ChatViewProps> = ({
 	// Handle exit - hide input first, show summary, then exit Ink app gracefully
 	const handleExit = useCallback(() => {
 		setIsExiting(true)
+		// Clear persisted state to prevent contamination between sessions
+		inputStateStorage.delete(storageKey)
 		// Delay to allow Ink to re-render with session summary visible
 		setTimeout(() => {
 			inkExit()
 			onExit?.()
 		}, 150)
-	}, [inkExit, onExit])
+	}, [inkExit, onExit, storageKey])
 
 	// Get button config based on the last message state
 	const buttonConfig = useMemo(() => {
@@ -1071,32 +1095,88 @@ export const ChatView: React.FC<ChatViewProps> = ({
 			return
 		}
 
-		// 2. Handle Option+arrow escape sequences for word navigation
+		// 2. Handle raw backspace/delete sequences from stdin (handles coalesced repeats)
+		// This must happen before any other handlers to prevent raw bytes from being treated as text
+		let backspaceCount = 0
+		for (const seq of BACKSPACE_SEQUENCES) {
+			if (input.includes(seq)) {
+				const matches = input.split(seq).length - 1
+				backspaceCount += matches
+			}
+		}
+
+		if (backspaceCount > 0) {
+			deleteCharsBefore(backspaceCount)
+			// If chunk only contained backspaces, stop here
+			const matchedLen = [...BACKSPACE_SEQUENCES].reduce((acc, s) => {
+				const count = input.split(s).length - 1
+				return acc + count * s.length
+			}, 0)
+			if (matchedLen === input.length) {
+				return
+			}
+			// Otherwise, strip backspaces and continue with remaining input
+			for (const seq of BACKSPACE_SEQUENCES) {
+				input = input.split(seq).join("")
+			}
+		}
+
+		let deleteCount = 0
+		for (const seq of DELETE_SEQUENCES) {
+			if (input.includes(seq)) {
+				const matches = input.split(seq).length - 1
+				deleteCount += matches
+			}
+		}
+
+		if (deleteCount > 0) {
+			deleteCharsAfter(deleteCount)
+			// If chunk only contained deletes, stop here
+			const matchedLen = [...DELETE_SEQUENCES].reduce((acc, s) => {
+				const count = input.split(s).length - 1
+				return acc + count * s.length
+			}, 0)
+			if (matchedLen === input.length) {
+				return
+			}
+			// Otherwise, strip deletes and continue with remaining input
+			for (const seq of DELETE_SEQUENCES) {
+				input = input.split(seq).join("")
+			}
+		}
+
+		// Use fresh values from mirror for hot-path logic
+		const currentTextInput = textInputRef.current
+		const currentCursorPos = cursorPosRef.current
+		const currentMentionInfo = extractMentionQuery(currentTextInput)
+		const currentSlashInfo = extractSlashQuery(currentTextInput, currentCursorPos)
+
+		// 3. Handle Option+arrow escape sequences for word navigation
 		if (handleKeyboardSequence(input)) {
 			return
 		}
 
-		// 3. Handle Option+arrow via key.meta (backup - Ink sometimes parses these instead of passing raw sequence)
+		// 4. Handle Option+arrow via key.meta (backup - Ink sometimes parses these instead of passing raw sequence)
 		if (key.meta) {
 			if (key.leftArrow) {
-				setCursorPos(findWordStart(textInputRef.current, cursorPosRef.current))
+				setCursorPos(findWordStart(currentTextInput, currentCursorPos))
 				return
 			}
 			if (key.rightArrow) {
-				setCursorPos(findWordEnd(textInputRef.current, cursorPosRef.current))
+				setCursorPos(findWordEnd(currentTextInput, currentCursorPos))
 				return
 			}
 		}
 
-		// 4. When a panel is open, let the panel handle its own input
+		// 5. When a panel is open, let the panel handle its own input
 		if (activePanel) {
 			return
 		}
 
-		const inSlashMenu = slashInfo.inSlashMode && filteredCommands.length > 0 && !slashMenuDismissed
-		const inFileMenu = mentionInfo.inMentionMode && fileResults.length > 0 && !inSlashMenu
+		const inSlashMenu = currentSlashInfo.inSlashMode && filteredCommands.length > 0 && !slashMenuDismissed
+		const inFileMenu = currentMentionInfo.inMentionMode && fileResults.length > 0 && !inSlashMenu
 
-		// 5. Slash command menu navigation (takes priority over file menu)
+		// 6. Slash command menu navigation (takes priority over file menu)
 		if (inSlashMenu) {
 			if (key.upArrow) {
 				setSelectedSlashIndex((i) => Math.max(0, i - 1))
@@ -1116,6 +1196,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
 						setCursorPos(0)
 						setSelectedSlashIndex(0)
 						setSlashMenuDismissed(true)
+						inputStateStorage.delete(storageKey)
 						return
 					}
 					if (cmd.name === "settings") {
@@ -1124,6 +1205,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
 						setCursorPos(0)
 						setSelectedSlashIndex(0)
 						setSlashMenuDismissed(true)
+						inputStateStorage.delete(storageKey)
 						return
 					}
 					if (cmd.name === "models") {
@@ -1141,6 +1223,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
 						setCursorPos(0)
 						setSelectedSlashIndex(0)
 						setSlashMenuDismissed(true)
+						inputStateStorage.delete(storageKey)
 						return
 					}
 					if (cmd.name === "history") {
@@ -1149,6 +1232,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
 						setCursorPos(0)
 						setSelectedSlashIndex(0)
 						setSlashMenuDismissed(true)
+						inputStateStorage.delete(storageKey)
 						return
 					}
 					if (cmd.name === "skills") {
@@ -1157,6 +1241,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
 						setCursorPos(0)
 						setSelectedSlashIndex(0)
 						setSlashMenuDismissed(true)
+						inputStateStorage.delete(storageKey)
 						return
 					}
 					if (cmd.name === "clear") {
@@ -1169,7 +1254,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
 						handleExit()
 						return
 					}
-					const newText = insertSlashCommand(textInput, slashInfo.slashIndex, cmd.name)
+					const newText = insertSlashCommand(currentTextInput, currentSlashInfo.slashIndex, cmd.name)
 					setTextInput(newText)
 					setCursorPos(newText.length)
 					setSelectedSlashIndex(0)
@@ -1184,7 +1269,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
 			}
 		}
 
-		// 6. File mention menu navigation
+		// 7. File mention menu navigation
 		if (inFileMenu) {
 			if (key.upArrow) {
 				setSelectedIndex((i) => Math.max(0, i - 1))
@@ -1197,7 +1282,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
 			if (key.tab || key.return) {
 				const file = fileResults[selectedIndex]
 				if (file) {
-					const newText = insertMention(textInput, mentionInfo.atIndex, file.path)
+					const newText = insertMention(currentTextInput, currentMentionInfo.atIndex, file.path)
 					setTextInput(newText)
 					setCursorPos(newText.length)
 					setFileResults([])
@@ -1212,19 +1297,19 @@ export const ChatView: React.FC<ChatViewProps> = ({
 			}
 		}
 
-		// 7. History navigation with up/down arrows
+		// 8. History navigation with up/down arrows
 		// Only works when: input is empty, or input matches the currently selected history item
 		if (key.upArrow && !inSlashMenu && !inFileMenu) {
 			const historyItems = getHistoryItems()
 			if (historyItems.length > 0) {
 				const canNavigate =
-					textInput === "" ||
-					(historyIndex >= 0 && historyIndex < historyItems.length && textInput === historyItems[historyIndex])
+					currentTextInput === "" ||
+					(historyIndex >= 0 && historyIndex < historyItems.length && currentTextInput === historyItems[historyIndex])
 
 				if (canNavigate) {
 					// Save original input when first entering history mode
 					if (historyIndex === -1) {
-						setSavedInput(textInput)
+						setSavedInput(currentTextInput)
 					}
 					const newIndex = Math.min(historyIndex + 1, historyItems.length - 1)
 					if (newIndex !== historyIndex) {
@@ -1241,7 +1326,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
 		if (key.downArrow && !inSlashMenu && !inFileMenu) {
 			const historyItems = getHistoryItems()
 			if (historyIndex >= 0) {
-				const canNavigate = historyIndex < historyItems.length && textInput === historyItems[historyIndex]
+				const canNavigate = historyIndex < historyItems.length && currentTextInput === historyItems[historyIndex]
 
 				if (canNavigate) {
 					const newIndex = historyIndex - 1
@@ -1262,12 +1347,12 @@ export const ChatView: React.FC<ChatViewProps> = ({
 			}
 		}
 
-		// 8. Handle button actions (1 for primary, 2 for secondary)
+		// 9. Handle button actions (1 for primary, 2 for secondary)
 		// Only when buttons are enabled, not streaming, and no text has been typed
 		if (
 			buttonConfig.enableButtons &&
 			!isSpinnerActive &&
-			textInput === "" &&
+			currentTextInput === "" &&
 			!isYoloSuppressed(yolo, pendingAsk?.ask as DiracAsk | undefined)
 		) {
 			const { hasPrimary, hasSecondary } = getVisibleButtons(buttonConfig)
@@ -1290,17 +1375,17 @@ export const ChatView: React.FC<ChatViewProps> = ({
 			}
 		}
 
-		// 9. Handle ask responses for options and text input
+		// 10. Handle ask responses for options and text input
 		if (pendingAsk && !isYoloSuppressed(yolo, pendingAsk.ask as DiracAsk | undefined)) {
 			// Allow sending text message for any ask type where sending is enabled
-			if (key.return && textInput.trim() && !buttonConfig.sendingDisabled) {
-				sendAskResponse("messageResponse", textInput.trim())
+			if (key.return && currentTextInput.trim() && !buttonConfig.sendingDisabled) {
+				sendAskResponse("messageResponse", currentTextInput.trim())
 				return
 			}
 			// Number selection for options (only when no text typed yet)
 			if (askType === "options") {
 				const num = Number.parseInt(input, 10)
-				if (textInput === "" && !Number.isNaN(num) && num >= 1 && num <= askOptions.length) {
+				if (currentTextInput === "" && !Number.isNaN(num) && num >= 1 && num <= askOptions.length) {
 					const selectedOption = askOptions[num - 1]
 					sendAskResponse("messageResponse", selectedOption)
 					return
@@ -1308,12 +1393,12 @@ export const ChatView: React.FC<ChatViewProps> = ({
 			}
 		}
 
-		// 10. Handle Ctrl+ shortcuts (Ctrl+A, Ctrl+E, Ctrl+W, etc.)
+		// 11. Handle Ctrl+ shortcuts (Ctrl+A, Ctrl+E, Ctrl+W, etc.)
 		if (key.ctrl && input && handleCtrlShortcut(input)) {
 			return
 		}
 
-		// 11. Detect paste by checking if input length exceeds threshold
+		// 12. Detect paste by checking if input length exceeds threshold
 		// Large pastes mess up the terminal UI, so we collapse them into a placeholder
 		// Terminal sends large pastes in multiple chunks, so we combine chunks that arrive rapidly
 		if (input && input.length > PASTE_COLLAPSE_THRESHOLD) {
@@ -1342,8 +1427,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
 				pasteUpdateTimeoutRef.current = setTimeout(() => {
 					const newPlaceholder = `[Pasted text #${pasteNum} +${activePasteLinesRef.current} lines]`
 					const pattern = new RegExp(`\\[Pasted text #${pasteNum} \\+\\d+ lines\\]`)
-					const newText = textInputRef.current.replace(pattern, newPlaceholder)
-					textInputRef.current = newText // Update ref immediately so setCursorPos bounds check works
+					const newText = currentTextInput.replace(pattern, newPlaceholder)
 					setTextInput(newText)
 					// Update cursor to be right after the placeholder
 					setCursorPos(activePasteStartPosRef.current + newPlaceholder.length)
@@ -1357,7 +1441,6 @@ export const ChatView: React.FC<ChatViewProps> = ({
 			pasteCounterRef.current += 1
 			const pasteNum = pasteCounterRef.current
 			activePasteNumRef.current = pasteNum
-			const currentCursorPos = cursorPosRef.current // Use ref to avoid stale closure
 			activePasteStartPosRef.current = currentCursorPos // Track where placeholder starts
 			// Count line breaks in the pasted content (handle both \n and \r)
 			const extraLines = input.match(/[\r\n]/g)?.length || 0
@@ -1371,49 +1454,58 @@ export const ChatView: React.FC<ChatViewProps> = ({
 			})
 
 			const newText =
-				textInputRef.current.slice(0, currentCursorPos) + placeholder + textInputRef.current.slice(currentCursorPos)
-			textInputRef.current = newText // Update ref immediately so setCursorPos bounds check works
+				currentTextInput.slice(0, currentCursorPos) + placeholder + currentTextInput.slice(currentCursorPos)
 			setTextInput(newText)
 			setCursorPos(currentCursorPos + placeholder.length)
 			return // Exit early - don't also add the raw input via normal handling below
 		}
 
-		// 12. Normal input handling
+		// 13. Normal input handling
 		if (key.shift && key.tab) {
 			toggleAutoApproveAll()
 			return
 		}
-		if (key.tab && !mentionInfo.inMentionMode && !slashInfo.inSlashMode) {
+		if (key.tab && !currentMentionInfo.inMentionMode && !currentSlashInfo.inSlashMode) {
 			toggleMode()
 			return
 		}
-		if (key.return && !mentionInfo.inMentionMode && !slashInfo.inSlashMode && !pendingAsk && !isSpinnerActive) {
-			if (prompt.trim() || imagePaths.length > 0) {
-				handleSubmit(prompt.trim(), imagePaths)
+		if (key.return && !currentMentionInfo.inMentionMode && !currentSlashInfo.inSlashMode && !pendingAsk && !isSpinnerActive) {
+			const { prompt: currentPrompt, imagePaths: currentImagePaths } = parseImagesFromInput(currentTextInput)
+			if (currentPrompt.trim() || currentImagePaths.length > 0) {
+				handleSubmit(currentPrompt.trim(), currentImagePaths)
 			}
 			return
 		}
-		if (key.backspace || key.delete) {
+
+		// Backspace/Delete are now handled by raw stdin logic at the top of this function
+		// but we keep these as backup for terminals where Ink's key object is more reliable
+		if (key.backspace) {
 			deleteCharBefore()
 			return
 		}
+		if (key.delete) {
+			deleteCharsAfter(1)
+			return
+		}
+
 		// Cursor movement (when not in a menu)
 		if (key.leftArrow && !inSlashMenu && !inFileMenu) {
 			setCursorPos((pos) => Math.max(0, pos - 1))
 			return
 		}
 		if (key.rightArrow && !inSlashMenu && !inFileMenu) {
-			setCursorPos((pos) => Math.min(textInputRef.current.length, pos + 1))
+			setCursorPos((pos) => Math.min(currentTextInput.length, pos + 1))
 			return
 		}
 		if (key.upArrow && !inSlashMenu && !inFileMenu) {
-			setCursorPos(moveCursorUp(textInputRef.current, cursorPosRef.current))
+			setCursorPos(moveCursorUp(currentTextInput, currentCursorPos))
 			return
 		}
 		if (key.downArrow && !inSlashMenu && !inFileMenu) {
-			setCursorPos(moveCursorDown(textInputRef.current, cursorPosRef.current))
+			setCursorPos(moveCursorDown(currentTextInput, currentCursorPos))
 			return
 		}
+
 		// Normal input (single char or short paste)
 		if (input && !key.ctrl && !key.meta && !key.upArrow && !key.downArrow && !key.tab) {
 			insertTextAtCursor(input)

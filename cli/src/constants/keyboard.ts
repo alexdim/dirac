@@ -38,3 +38,16 @@ export const OPTION_RIGHT_SEQUENCES = new Set([
 	"\x1bf", // Meta+f - emacs style
 	"\x1b[1;3C", // CSI 1;3 C - xterm with modifiers
 ])
+
+// Backspace key escape sequences
+export const BACKSPACE_SEQUENCES = new Set([
+	"\x7f", // Backspace (DEL) - most common on macOS/Linux
+	"\b", // Ctrl+H / Backspace
+	"\x1b\x7f", // ESC Backspace
+	"\x1b\b", // ESC Ctrl+H
+])
+
+// Delete key escape sequences (forward delete)
+export const DELETE_SEQUENCES = new Set([
+	"\x1b[3~", // CSI 3 ~ - Standard Delete key
+])

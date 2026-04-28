@@ -83,6 +83,12 @@ export interface UseTextInputReturn {
 
 	// Deletion
 	deleteCharBefore: () => void
+	deleteCharsBefore: (count: number) => void
+	deleteCharsAfter: (count: number) => void
+
+	// Hot-path access (fresh values even between renders)
+	getText: () => string
+	getCursorPos: () => number
 
 	// Keyboard shortcut handlers
 	handleKeyboardSequence: (input: string) => boolean
@@ -93,79 +99,146 @@ export interface UseTextInputReturn {
  * Hook for managing text input with cursor and keyboard shortcuts.
  */
 export function useTextInput(): UseTextInputReturn {
-	const [text, setTextState] = useState("")
-	const [cursorPos, setCursorPosState] = useState(0)
+	const [state, setState] = useState({ text: "", cursorPos: 0 })
 
-	// Use refs to get current values in callbacks without stale closures
-	const textRef = useRef(text)
-	const cursorRef = useRef(cursorPos)
-	textRef.current = text
-	cursorRef.current = cursorPos
+	/**
+	 * Authoritative mirror of the current state.
+	 * Updated synchronously within every mutation to provide a "hot-path" source of truth.
+	 * This allows input handlers to read the absolute latest state even if multiple events
+	 * arrive faster than React can complete its asynchronous render cycle.
+	 */
+	// Synchronous mirror for hot-path access to avoid stale closures during rapid input
+	const stateRef = useRef(state)
+
+	// Helper to update state and ref atomically
+	const updateState = useCallback(
+		(updater: (prev: { text: string; cursorPos: number }) => { text: string; cursorPos: number }) => {
+			const next = updater(stateRef.current)
+			stateRef.current = next
+			setState(next)
+		},
+		[],
+	)
 
 	// Text manipulation
-	const setText = useCallback((newText: string | ((prev: string) => string)) => {
-		setTextState((prev) => {
-			const resolved = typeof newText === "function" ? newText(prev) : newText
-			// Only update cursor to end if setting a direct value (not functional update)
-			if (typeof newText !== "function") {
-				setCursorPosState(resolved.length)
-			}
-			return resolved
-		})
-	}, [])
+	const setText = useCallback(
+		(newText: string | ((prev: string) => string)) => {
+			updateState((prev) => {
+				const resolved = typeof newText === "function" ? newText(prev.text) : newText
+				return {
+					text: resolved,
+					// Only update cursor to end if setting a direct value (not functional update)
+					cursorPos: typeof newText !== "function" ? resolved.length : prev.cursorPos,
+				}
+			})
+		},
+		[updateState],
+	)
 
-	const insertText = useCallback((insertedText: string) => {
-		const pos = cursorRef.current
-		setTextState((prev) => prev.slice(0, pos) + insertedText + prev.slice(pos))
-		setCursorPosState(pos + insertedText.length)
-	}, [])
+	const insertText = useCallback(
+		(insertedText: string) => {
+			updateState((prev) => ({
+				text: prev.text.slice(0, prev.cursorPos) + insertedText + prev.text.slice(prev.cursorPos),
+				cursorPos: prev.cursorPos + insertedText.length,
+			}))
+		},
+		[updateState],
+	)
 
-	const setCursorPos = useCallback((pos: number | ((prev: number) => number)) => {
-		setCursorPosState((prev) => {
-			const newPos = typeof pos === "function" ? pos(prev) : pos
-			return Math.max(0, Math.min(textRef.current.length, newPos))
-		})
-	}, [])
+	const setCursorPos = useCallback(
+		(pos: number | ((prev: number) => number)) => {
+			updateState((prev) => {
+				const newPos = typeof pos === "function" ? pos(prev.cursorPos) : pos
+				return {
+					...prev,
+					cursorPos: Math.max(0, Math.min(prev.text.length, newPos)),
+				}
+			})
+		},
+		[updateState],
+	)
 
 	// Deletion
-	const deleteCharBefore = useCallback(() => {
-		const pos = cursorRef.current
-		if (pos > 0) {
-			setTextState((prev) => prev.slice(0, pos - 1) + prev.slice(pos))
-			setCursorPosState(pos - 1)
-		}
-	}, [])
+	const deleteCharsBefore = useCallback(
+		(count: number) => {
+			updateState((prev) => {
+				const actualCount = Math.min(count, prev.cursorPos)
+				if (actualCount <= 0) return prev
+				return {
+					text: prev.text.slice(0, prev.cursorPos - actualCount) + prev.text.slice(prev.cursorPos),
+					cursorPos: prev.cursorPos - actualCount,
+				}
+			})
+		},
+		[updateState],
+	)
+
+	const deleteCharBefore = useCallback(() => deleteCharsBefore(1), [deleteCharsBefore])
+
+	const deleteCharsAfter = useCallback(
+		(count: number) => {
+			updateState((prev) => {
+				const actualCount = Math.min(count, prev.text.length - prev.cursorPos)
+				if (actualCount <= 0) return prev
+				return {
+					...prev,
+					text: prev.text.slice(0, prev.cursorPos) + prev.text.slice(prev.cursorPos + actualCount),
+				}
+			})
+		},
+		[updateState],
+	)
+
+	const deleteCharAfter = useCallback(() => deleteCharsAfter(1), [deleteCharsAfter])
 
 	const deleteWordBefore = useCallback(() => {
-		const pos = cursorRef.current
-		const wordStart = findWordStart(textRef.current, pos)
-		if (wordStart < pos) {
-			setTextState((prev) => prev.slice(0, wordStart) + prev.slice(pos))
-			setCursorPosState(wordStart)
-		}
-	}, [])
+		updateState((prev) => {
+			const wordStart = findWordStart(prev.text, prev.cursorPos)
+			if (wordStart < prev.cursorPos) {
+				return {
+					text: prev.text.slice(0, wordStart) + prev.text.slice(prev.cursorPos),
+					cursorPos: wordStart,
+				}
+			}
+			return prev
+		})
+	}, [updateState])
 
 	const deleteToStart = useCallback(() => {
-		const pos = cursorRef.current
-		if (pos > 0) {
-			setTextState((prev) => prev.slice(pos))
-			setCursorPosState(0)
-		}
-	}, [])
+		updateState((prev) => {
+			if (prev.cursorPos > 0) {
+				return {
+					text: prev.text.slice(prev.cursorPos),
+					cursorPos: 0,
+				}
+			}
+			return prev
+		})
+	}, [updateState])
 
 	const deleteToEnd = useCallback(() => {
-		const pos = cursorRef.current
-		if (pos < textRef.current.length) {
-			setTextState((prev) => prev.slice(0, pos))
-			// Cursor stays at same position (now at end of text)
-		}
-	}, [])
+		updateState((prev) => {
+			if (prev.cursorPos < prev.text.length) {
+				return {
+					...prev,
+					text: prev.text.slice(0, prev.cursorPos),
+				}
+			}
+			return prev
+		})
+	}, [updateState])
 
 	// Cursor movement (internal, used by handlers)
-	const moveToStart = useCallback(() => setCursorPosState(0), [])
-	const moveToEnd = useCallback(() => setCursorPosState(textRef.current.length), [])
-	const moveWordLeft = useCallback(() => setCursorPosState((pos) => findWordStart(textRef.current, pos)), [])
-	const moveWordRight = useCallback(() => setCursorPosState((pos) => findWordEnd(textRef.current, pos)), [])
+	const moveToStart = useCallback(() => setCursorPos(0), [setCursorPos])
+	const moveToEnd = useCallback(() => setCursorPos((_pos) => stateRef.current.text.length), [setCursorPos])
+	const moveWordLeft = useCallback(
+		() => setCursorPos((pos) => findWordStart(stateRef.current.text, pos)),
+		[setCursorPos],
+	)
+	const moveWordRight = useCallback(
+		() => setCursorPos((pos) => findWordEnd(stateRef.current.text, pos)),
+		[setCursorPos],
+	)
 
 	// Keyboard shortcut handlers
 	const handleKeyboardSequence = useCallback(
@@ -213,13 +286,17 @@ export function useTextInput(): UseTextInputReturn {
 	)
 
 	return {
-		text,
-		cursorPos,
+		text: state.text,
+		cursorPos: state.cursorPos,
 		setText,
 		insertText,
 		setCursorPos,
 		deleteCharBefore,
+		deleteCharsBefore,
+		deleteCharsAfter,
 		handleKeyboardSequence,
 		handleCtrlShortcut,
+		getText: () => stateRef.current.text,
+		getCursorPos: () => stateRef.current.cursorPos,
 	}
 }
