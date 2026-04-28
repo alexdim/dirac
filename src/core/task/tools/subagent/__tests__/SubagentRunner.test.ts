@@ -198,8 +198,7 @@ describe("SubagentRunner", () => {
 			return "system prompt"
 		})
 		sinon.stub(SubagentBuilder.prototype, "buildNativeTools").returns([{ name: "list_files" }] as any)
-		sinon.stub(skills, "discoverSkills").resolves([])
-		sinon.stub(skills, "getAvailableSkills").returns([])
+		sinon.stub(skills, "getOrDiscoverSkills").resolves([])
 		stubApiHandler(createMessage)
 		initializeHostProvider()
 
@@ -251,8 +250,7 @@ describe("SubagentRunner", () => {
 			return "system prompt"
 		})
 		sinon.stub(SubagentBuilder.prototype, "buildNativeTools").returns([{ name: "list_files" }] as any)
-		sinon.stub(skills, "discoverSkills").resolves([])
-		sinon.stub(skills, "getAvailableSkills").returns([])
+		sinon.stub(skills, "getOrDiscoverSkills").resolves([])
 		stubApiHandler(createMessage)
 		initializeHostProvider()
 
@@ -315,8 +313,7 @@ describe("SubagentRunner", () => {
 			sinon.stub(SubagentBuilder.prototype, "buildNativeTools").returns([])
 			return "system prompt"
 		})
-		sinon.stub(skills, "discoverSkills").resolves([])
-		sinon.stub(skills, "getAvailableSkills").returns([])
+		sinon.stub(skills, "getOrDiscoverSkills").resolves([])
 		stubApiHandler(createMessage)
 		initializeHostProvider()
 
@@ -365,8 +362,7 @@ describe("SubagentRunner", () => {
 			promptRegistry.nativeTools = undefined
 			return "system prompt"
 		})
-		sinon.stub(skills, "discoverSkills").resolves([])
-		sinon.stub(skills, "getAvailableSkills").returns([])
+		sinon.stub(skills, "getOrDiscoverSkills").resolves([])
 		stubApiHandler(createMessage)
 		initializeHostProvider()
 
@@ -404,8 +400,7 @@ describe("SubagentRunner", () => {
 			promptRegistry.nativeTools = undefined
 			return "system prompt"
 		})
-		sinon.stub(skills, "discoverSkills").resolves([])
-		sinon.stub(skills, "getAvailableSkills").returns([])
+		sinon.stub(skills, "getOrDiscoverSkills").resolves([])
 		stubApiHandler(createMessage)
 		initializeHostProvider()
 
@@ -435,8 +430,7 @@ describe("SubagentRunner", () => {
 			promptRegistry.nativeTools = undefined
 			return "system prompt"
 		})
-		sinon.stub(skills, "discoverSkills").resolves([])
-		sinon.stub(skills, "getAvailableSkills").returns([])
+		sinon.stub(skills, "getOrDiscoverSkills").resolves([])
 		stubApiHandler(createMessage)
 		initializeHostProvider()
 
@@ -468,8 +462,7 @@ describe("SubagentRunner", () => {
 			return "system prompt"
 		})
 		sinon.stub(SubagentBuilder.prototype, "buildNativeTools").returns([{ name: "list_files" }] as any)
-		sinon.stub(skills, "discoverSkills").resolves([])
-		sinon.stub(skills, "getAvailableSkills").returns([])
+		sinon.stub(skills, "getOrDiscoverSkills").resolves([])
 		stubApiHandler(createMessage)
 		initializeHostProvider()
 
@@ -505,8 +498,7 @@ describe("SubagentRunner", () => {
 			return "system prompt"
 		})
 		sinon.stub(SubagentBuilder.prototype, "getConfiguredSkills").returns(["allowed-skill"])
-		sinon.stub(skills, "discoverSkills").resolves([])
-		sinon.stub(skills, "getAvailableSkills").returns([
+		sinon.stub(skills, "getOrDiscoverSkills").resolves([
 			{ name: "allowed-skill", description: "Allowed", path: "/skills/allowed/SKILL.md", source: "project" },
 			{ name: "other-skill", description: "Other", path: "/skills/other/SKILL.md", source: "project" },
 		])
@@ -545,8 +537,7 @@ describe("SubagentRunner", () => {
 			return "system prompt"
 		})
 		sinon.stub(SubagentBuilder.prototype, "getConfiguredSkills").returns(undefined)
-		sinon.stub(skills, "discoverSkills").resolves([])
-		sinon.stub(skills, "getAvailableSkills").returns([
+		sinon.stub(skills, "getOrDiscoverSkills").resolves([
 			{ name: "alpha-skill", description: "Alpha", path: "/skills/alpha/SKILL.md", source: "project" },
 			{ name: "beta-skill", description: "Beta", path: "/skills/beta/SKILL.md", source: "project" },
 		])
@@ -586,10 +577,9 @@ describe("SubagentRunner", () => {
 			return "system prompt"
 		})
 		sinon.stub(SubagentBuilder.prototype, "getConfiguredSkills").returns(["present-skill", "missing-skill"])
-		sinon.stub(skills, "discoverSkills").resolves([])
 		sinon
-			.stub(skills, "getAvailableSkills")
-			.returns([{ name: "present-skill", description: "Present", path: "/skills/present/SKILL.md", source: "project" }])
+			.stub(skills, "getOrDiscoverSkills")
+			.resolves([{ name: "present-skill", description: "Present", path: "/skills/present/SKILL.md", source: "project" }])
 		stubApiHandler(createMessage)
 		initializeHostProvider()
 
@@ -656,8 +646,7 @@ describe("SubagentRunner", () => {
 			return "system prompt"
 		})
 		sinon.stub(SubagentBuilder.prototype, "buildNativeTools").returns([{ name: "list_files" }] as any)
-		sinon.stub(skills, "discoverSkills").resolves([])
-		sinon.stub(skills, "getAvailableSkills").returns([])
+		sinon.stub(skills, "getOrDiscoverSkills").resolves([])
 		stubApiHandler(createMessage)
 		initializeHostProvider()
 

@@ -155,7 +155,7 @@ describe("OpenAiCodexOAuthManager device auth", () => {
 
 	it("throws a clear error when the device code expires", async () => {
 		const manager = new OpenAiCodexOAuthManager()
-		const fetchStub = sinon.stub().resolves(jsonResponse({}, 403))
+		const fetchStub = sinon.stub().callsFake(() => Promise.resolve(jsonResponse({}, 403)))
 		const clock = sinon.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "setInterval", "clearInterval", "Date"] })
 
 		try {

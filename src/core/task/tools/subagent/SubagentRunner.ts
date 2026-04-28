@@ -1,5 +1,5 @@
 import * as path from "node:path"
-import { setTimeout as delay } from "node:timers/promises"
+const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 import type { ApiHandler, buildApiHandler } from "@core/api"
 import { parseAssistantMessageV2, ToolParamName, ToolUse } from "@core/assistant-message"
 import { getOrDiscoverSkills } from "@core/context/instructions/user-instructions/skills"
