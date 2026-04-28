@@ -98,12 +98,12 @@ You can use OPENAI_COMPATIBLE_CUSTOM_KEY (or its alias OPENAI_API_BASE) for any 
 
 
 #### AWS Bedrock
-Use Bedrock by setting AWS credentials and region. When any of these are present, Dirac automatically switches to the Bedrock provider:
+Use Bedrock by setting AWS credentials and region. When `AWS_ACCESS_KEY_ID` or `AWS_BEDROCK_MODEL` is present, Dirac automatically switches to the Bedrock provider:
 
-- `AWS_REGION` — AWS region (e.g. `us-east-1`)
 - `AWS_ACCESS_KEY_ID` — AWS access key
 - `AWS_SECRET_ACCESS_KEY` — AWS secret key
 - `AWS_SESSION_TOKEN` — session token (for temporary credentials)
+- `AWS_REGION` — AWS region (e.g. `us-east-1`). Note: `AWS_REGION` alone will not trigger an automatic switch to Bedrock.
 - `AWS_BEDROCK_MODEL` — model ID for both act and plan modes (e.g. `us.anthropic.claude-sonnet-4-6`)
 - `AWS_BEDROCK_MODEL_ACT` — model ID for act mode only
 - `AWS_BEDROCK_MODEL_PLAN` — model ID for plan mode only

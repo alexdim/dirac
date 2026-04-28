@@ -1,6 +1,6 @@
 import { expect } from "chai"
 import { afterEach, beforeEach, describe, it } from "mocha"
-import { getProviderFromEnv, getSecretsFromEnv, getSettingsFromEnv, getSettingsOverridesFromEnv } from "../env-config"
+import { getProviderFromEnv, getSecretsFromEnv, getSettingsFromEnv } from "../env-config"
 
 // Save and restore process.env around each test
 let savedEnv: NodeJS.ProcessEnv
@@ -60,7 +60,7 @@ describe("getSecretsFromEnv - Bedrock credentials", () => {
 	})
 })
 
-describe("getSettingsFromEnv - Bedrock region", () => {
+describe("getSettingsFromEnv - Bedrock settings", () => {
 	it("maps AWS_REGION to awsRegion", () => {
 		process.env.AWS_REGION = "us-east-1"
 		const settings = getSettingsFromEnv()
@@ -72,89 +72,36 @@ describe("getSettingsFromEnv - Bedrock region", () => {
 		const settings = getSettingsFromEnv()
 		expect(settings.awsRegion).to.be.undefined
 	})
-})
 
-describe("getSettingsOverridesFromEnv - Bedrock provider and model", () => {
-	it("sets bedrock provider when AWS_REGION is present", () => {
-		process.env.AWS_REGION = "us-east-1"
-		const overrides = getSettingsOverridesFromEnv()
-		expect(overrides.actModeApiProvider).to.equal("bedrock")
-		expect(overrides.planModeApiProvider).to.equal("bedrock")
-	})
-
-	it("sets bedrock provider when AWS_ACCESS_KEY_ID is present", () => {
-		process.env.AWS_ACCESS_KEY_ID = "AKIATEST"
-		const overrides = getSettingsOverridesFromEnv()
-		expect(overrides.actModeApiProvider).to.equal("bedrock")
-		expect(overrides.planModeApiProvider).to.equal("bedrock")
-	})
-
-	it("does not set bedrock provider when no AWS env vars present", () => {
-		delete process.env.AWS_REGION
-		delete process.env.AWS_ACCESS_KEY_ID
-		delete process.env.AWS_SECRET_ACCESS_KEY
-		const overrides = getSettingsOverridesFromEnv()
-		expect(overrides.actModeApiProvider).to.be.undefined
-		expect(overrides.planModeApiProvider).to.be.undefined
-	})
-
-	it("applies AWS_BEDROCK_MODEL to both act and plan modes", () => {
-		process.env.AWS_REGION = "us-east-1"
+	it("maps AWS_BEDROCK_MODEL to both act and plan modes", () => {
 		process.env.AWS_BEDROCK_MODEL = "us.anthropic.claude-sonnet-4-6"
-		const overrides = getSettingsOverridesFromEnv()
-		expect(overrides.actModeApiModelId).to.equal("us.anthropic.claude-sonnet-4-6")
-		expect(overrides.planModeApiModelId).to.equal("us.anthropic.claude-sonnet-4-6")
+		const settings = getSettingsFromEnv()
+		expect(settings.actModeApiModelId).to.equal("us.anthropic.claude-sonnet-4-6")
+		expect(settings.planModeApiModelId).to.equal("us.anthropic.claude-sonnet-4-6")
 	})
 
 	it("AWS_BEDROCK_MODEL_ACT overrides act mode only", () => {
-		process.env.AWS_REGION = "us-east-1"
 		process.env.AWS_BEDROCK_MODEL = "us.anthropic.claude-sonnet-4-6"
 		process.env.AWS_BEDROCK_MODEL_ACT = "us.anthropic.claude-haiku-4-5-20251001-v1:0"
-		const overrides = getSettingsOverridesFromEnv()
-		expect(overrides.actModeApiModelId).to.equal("us.anthropic.claude-haiku-4-5-20251001-v1:0")
-		expect(overrides.planModeApiModelId).to.equal("us.anthropic.claude-sonnet-4-6")
+		const settings = getSettingsFromEnv()
+		expect(settings.actModeApiModelId).to.equal("us.anthropic.claude-haiku-4-5-20251001-v1:0")
+		expect(settings.planModeApiModelId).to.equal("us.anthropic.claude-sonnet-4-6")
 	})
 
 	it("AWS_BEDROCK_MODEL_PLAN overrides plan mode only", () => {
-		process.env.AWS_REGION = "us-east-1"
 		process.env.AWS_BEDROCK_MODEL = "us.anthropic.claude-sonnet-4-6"
 		process.env.AWS_BEDROCK_MODEL_PLAN = "us.anthropic.claude-opus-4-6-v1"
-		const overrides = getSettingsOverridesFromEnv()
-		expect(overrides.actModeApiModelId).to.equal("us.anthropic.claude-sonnet-4-6")
-		expect(overrides.planModeApiModelId).to.equal("us.anthropic.claude-opus-4-6-v1")
-	})
-
-	it("per-mode vars take precedence over shared fallback for both modes", () => {
-		process.env.AWS_REGION = "us-east-1"
-		process.env.AWS_BEDROCK_MODEL = "us.anthropic.claude-sonnet-4-6"
-		process.env.AWS_BEDROCK_MODEL_ACT = "us.anthropic.claude-haiku-4-5-20251001-v1:0"
-		process.env.AWS_BEDROCK_MODEL_PLAN = "us.anthropic.claude-opus-4-6-v1"
-		const overrides = getSettingsOverridesFromEnv()
-		expect(overrides.actModeApiModelId).to.equal("us.anthropic.claude-haiku-4-5-20251001-v1:0")
-		expect(overrides.planModeApiModelId).to.equal("us.anthropic.claude-opus-4-6-v1")
-	})
-
-	it("works with Nova model IDs (no prefix required)", () => {
-		process.env.AWS_REGION = "us-east-1"
-		process.env.AWS_BEDROCK_MODEL = "amazon.nova-pro-v1:0"
-		const overrides = getSettingsOverridesFromEnv()
-		expect(overrides.actModeApiModelId).to.equal("amazon.nova-pro-v1:0")
-		expect(overrides.planModeApiModelId).to.equal("amazon.nova-pro-v1:0")
-	})
-
-	it("works with Qwen model IDs (no prefix required)", () => {
-		process.env.AWS_REGION = "us-east-1"
-		process.env.AWS_BEDROCK_MODEL = "qwen.qwen3-coder-480b-a35b-v1:0"
-		const overrides = getSettingsOverridesFromEnv()
-		expect(overrides.actModeApiModelId).to.equal("qwen.qwen3-coder-480b-a35b-v1:0")
-		expect(overrides.planModeApiModelId).to.equal("qwen.qwen3-coder-480b-a35b-v1:0")
+		const settings = getSettingsFromEnv()
+		expect(settings.actModeApiModelId).to.equal("us.anthropic.claude-sonnet-4-6")
+		expect(settings.planModeApiModelId).to.equal("us.anthropic.claude-opus-4-6-v1")
 	})
 })
 
+
 describe("getProviderFromEnv - Bedrock detection", () => {
-	it("returns bedrock when AWS_REGION is set", () => {
+	it("does not return bedrock when only AWS_REGION is set", () => {
 		process.env.AWS_REGION = "us-east-1"
-		expect(getProviderFromEnv()).to.equal("bedrock")
+		expect(getProviderFromEnv()).to.not.equal("bedrock")
 	})
 
 	it("returns bedrock when AWS_ACCESS_KEY_ID is set", () => {
@@ -171,7 +118,7 @@ describe("getProviderFromEnv - Bedrock detection", () => {
 
 	it("prefers anthropic over bedrock when ANTHROPIC_API_KEY also set", () => {
 		process.env.ANTHROPIC_API_KEY = "sk-ant-test"
-		process.env.AWS_REGION = "us-east-1"
+		process.env.AWS_ACCESS_KEY_ID = "AKIATEST"
 		expect(getProviderFromEnv()).to.equal("anthropic")
 	})
 })

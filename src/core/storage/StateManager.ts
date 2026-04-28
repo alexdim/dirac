@@ -14,7 +14,7 @@ import {
     type Settings,
     type SettingsKey,
 } from "@shared/storage/state-keys"
-import { getSecretsFromEnv, getSettingsFromEnv, getSettingsOverridesFromEnv } from "@shared/storage/env-config"
+import { getSecretsFromEnv, getSettingsFromEnv } from "@shared/storage/env-config"
 import type { StorageContext } from "@shared/storage/storage-context"
 import chokidar, { FSWatcher } from "chokidar"
 import { initializeDistinctId } from "@/services/logging/distinctId"
@@ -151,14 +151,6 @@ export class StateManager {
 
 			StateManager.instance.isInitialized = true
 
-			// Apply env var overrides into sessionOverrideCache so they propagate
-			// to all reads including UI display, not just constructApiConfigurationFromCache
-			const envOverrides = getSettingsOverridesFromEnv()
-			for (const [key, value] of Object.entries(envOverrides)) {
-				if (value !== undefined) {
-					StateManager.instance.sessionOverrideCache[key as keyof Settings] = value as any
-				}
-			}
 
 			await AgentConfigLoader.getInstance().ready()
 		} catch (error) {
