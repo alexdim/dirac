@@ -72,7 +72,7 @@ export function parseImagesFromInput(input: string): { prompt: string; imagePath
 	}
 
 	// Remove the image references from the prompt
-	const prompt = input.replace(atPathPattern, " ").replace(standalonePathPattern, " ").replace(/\s+/g, " ").trim()
+	const prompt = input.replace(atPathPattern, " ").replace(standalonePathPattern, " ").replace(/[ \t]+/g, " ").trim()
 
 	return { prompt, imagePaths }
 }

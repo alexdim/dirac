@@ -137,9 +137,10 @@ export function useTextInput(): UseTextInputReturn {
 
 	const insertText = useCallback(
 		(insertedText: string) => {
+			const normalizedText = insertedText.replace(/\r\n/g, "\n").replace(/\r/g, "\n")
 			updateState((prev) => ({
-				text: prev.text.slice(0, prev.cursorPos) + insertedText + prev.text.slice(prev.cursorPos),
-				cursorPos: prev.cursorPos + insertedText.length,
+				text: prev.text.slice(0, prev.cursorPos) + normalizedText + prev.text.slice(prev.cursorPos),
+				cursorPos: prev.cursorPos + normalizedText.length,
 			}))
 		},
 		[updateState],

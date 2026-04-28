@@ -127,7 +127,7 @@ const SEARCH_DEBOUNCE_MS = 150
 const RIPGREP_WARNING_DURATION_MS = 5000
 const MAX_SEARCH_RESULTS = 15
 const DEFAULT_CONTEXT_WINDOW = 200000
-const PASTE_COLLAPSE_THRESHOLD = 100 // Characters before showing placeholder
+const PASTE_COLLAPSE_THRESHOLD = 10000 // Characters before showing placeholder
 const MAX_HISTORY_ITEMS = 20 // Max history items to navigate with up/down arrows
 
 /**
@@ -1193,6 +1193,13 @@ export const ChatView: React.FC<ChatViewProps> = ({
 			}
 		}
 
+		// 7.5. Shift+DownArrow to insert newline
+		if (key.shift && key.downArrow) {
+			insertTextAtCursor("\n")
+			return
+		}
+
+
 		// 8. History navigation with up/down arrows
 		// Only works when: input is empty, or input matches the currently selected history item
 		if (key.upArrow && !inSlashMenu && !inFileMenu) {
@@ -1275,7 +1282,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
 		// 10. Handle ask responses for options and text input
 		if (pendingAsk && !isYoloSuppressed(yolo, pendingAsk.ask as DiracAsk | undefined)) {
 			// Allow sending text message for any ask type where sending is enabled
-			if (key.return && currentTextInput.trim() && !buttonConfig.sendingDisabled && !isProcessing) {
+			if (key.return && !key.shift && !key.meta && input !== "\n" && currentTextInput.trim() && !buttonConfig.sendingDisabled && !isProcessing) {
 				sendAskResponse("messageResponse", currentTextInput.trim())
 				return
 			}
@@ -1358,6 +1365,11 @@ export const ChatView: React.FC<ChatViewProps> = ({
 		}
 
 		// 13. Normal input handling
+		if (key.return && (key.shift || key.meta || input === "\n")) {
+			insertTextAtCursor("\n")
+			return
+		}
+
 		if (key.shift && key.tab) {
 			toggleAutoApproveAll()
 			return
@@ -1366,7 +1378,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
 			toggleMode()
 			return
 		}
-		if (key.return && !currentMentionInfo.inMentionMode && !currentSlashInfo.inSlashMode && !pendingAsk && !isSpinnerActive && !isProcessing) {
+		if (key.return && !key.shift && !key.meta && input !== "\n" && !currentMentionInfo.inMentionMode && !currentSlashInfo.inSlashMode && !pendingAsk && !isSpinnerActive && !isProcessing) {
 			const { prompt: currentPrompt, imagePaths: currentImagePaths } = parseImagesFromInput(currentTextInput)
 			if (currentPrompt.trim() || currentImagePaths.length > 0) {
 				handleSubmit(currentPrompt.trim(), currentImagePaths)
@@ -1492,21 +1504,23 @@ export const ChatView: React.FC<ChatViewProps> = ({
 
 				{/* Input field with border - hidden when panel is open or exiting */}
 				{!activePanel && !isExiting && (
-					<Box
-						borderColor={borderColor}
-						borderStyle="round"
-						flexDirection="row"
-						justifyContent="space-between"
-						paddingLeft={1}
-						paddingRight={1}
-						width="100%">
-						<Box>
-							{inputPrompt && <Text color={borderColor}>{inputPrompt} </Text>}
-							<HighlightedInput
-								availableCommands={availableCommands.map((c) => c.name)}
-								cursorPos={cursorPos}
-								text={textInput}
-							/>
+					<Box flexDirection="column" width="100%">
+						<Box
+							borderColor={borderColor}
+							borderStyle="round"
+							flexDirection="row"
+							justifyContent="space-between"
+							paddingLeft={1}
+							paddingRight={1}
+							width="100%">
+							<Box>
+								{inputPrompt && <Text color={borderColor}>{inputPrompt} </Text>}
+								<HighlightedInput
+									availableCommands={availableCommands.map((c) => c.name)}
+									cursorPos={cursorPos}
+									text={textInput}
+								/>
+							</Box>
 						</Box>
 					</Box>
 				)}
@@ -1585,7 +1599,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
 						{/* Row 1: Instructions (left, can wrap) | Plan/Act toggle (right, no wrap) */}
 						<Box justifyContent="space-between" paddingLeft={1} paddingRight={1} width="100%">
 							<Box flexShrink={1} flexWrap="wrap">
-								<Text color="gray">/ for commands · @ for files</Text>
+								<Text color="gray">/ for commands · @ for files · Press Shift+↓ for a new line</Text>
 							</Box>
 							<Box flexShrink={0} gap={1}>
 								<Box>

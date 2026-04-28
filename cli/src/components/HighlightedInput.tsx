@@ -150,9 +150,18 @@ export const HighlightedInput: React.FC<HighlightedInputProps> = ({ text, cursor
 				return (
 					<Text key={segmentIdx}>
 						{beforeCursor && <Text backgroundColor="gray">{beforeCursor}</Text>}
-						<Text backgroundColor="gray" inverse>
-							{cursorChar}
-						</Text>
+						{cursorChar === "\n" || cursorChar === "\r" ? (
+							<React.Fragment>
+								<Text backgroundColor="gray" inverse>
+									{" "}
+								</Text>
+								{"\n"}
+							</React.Fragment>
+						) : (
+							<Text backgroundColor="gray" inverse>
+								{cursorChar}
+							</Text>
+						)}
 						{afterCursor && <Text backgroundColor="gray">{afterCursor}</Text>}
 					</Text>
 				)
@@ -160,7 +169,14 @@ export const HighlightedInput: React.FC<HighlightedInputProps> = ({ text, cursor
 			return (
 				<Text key={segmentIdx}>
 					{beforeCursor}
-					<Text inverse>{cursorChar}</Text>
+					{cursorChar === "\n" || cursorChar === "\r" ? (
+						<React.Fragment>
+							<Text inverse> </Text>
+							{"\n"}
+						</React.Fragment>
+					) : (
+						<Text inverse>{cursorChar}</Text>
+					)}
 					{afterCursor}
 				</Text>
 			)
