@@ -431,6 +431,38 @@ export async function captureUnhandledException(reason: Error, context: string) 
 	}
 }
 
+/**
+ * Determines if the auth command should proceed with quick setup (non-interactive)
+ * based on provided flags and inferred values (from environment).
+ */
+export function shouldDoQuickAuth(
+	options: {
+		provider?: string
+		apikey?: string
+		modelid?: string
+		baseurl?: string
+		azureApiVersion?: string
+	},
+	inferred: {
+		provider?: string
+		apikey?: string
+		modelid?: string
+	},
+): boolean {
+	const hasAnyAuthFlag = !!(
+		options.provider ||
+		options.apikey ||
+		options.modelid ||
+		options.baseurl ||
+		options.azureApiVersion
+	)
+	const hasAllRequiredFields = !!(inferred.provider && inferred.apikey && inferred.modelid)
+
+	// We do quick setup if we have all required fields AND the user provided at least one flag.
+	return hasAllRequiredFields && hasAnyAuthFlag
+}
+
+
 export function hasExplicitAuthQuickSetupFlags(options: { provider?: string; apikey?: string; modelid?: string }): boolean {
 	return !!(options.provider && options.apikey && options.modelid)
 }
@@ -947,13 +979,12 @@ async function runAuth(options: {
 			}
 		}
 	}
+	const isQuickSetup = shouldDoQuickAuth(options, { provider, apikey, modelid })
 
-	const hasQuickSetupFlags = hasExplicitAuthQuickSetupFlags(options)
-
-	telemetryService.captureHostEvent("auth_command", hasQuickSetupFlags ? "quick_setup" : "interactive")
+	telemetryService.captureHostEvent("auth_command", isQuickSetup ? "quick_setup" : "interactive")
 
 	// Quick setup mode - no UI, just save configuration and exit
-	if (hasQuickSetupFlags) {
+	if (isQuickSetup) {
 		const result = await performQuickAuthSetup(ctx, {
 			provider: provider!,
 			apikey: apikey!,

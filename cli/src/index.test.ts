@@ -1,6 +1,6 @@
 import { Command } from "commander"
 import { beforeEach, describe, expect, it, vi } from "vitest"
-import { captureUnhandledException, hasExplicitAuthQuickSetupFlags } from "."
+import { captureUnhandledException, hasExplicitAuthQuickSetupFlags, shouldDoQuickAuth } from "."
 
 /**
  * Tests for CLI command parsing and structure
@@ -418,6 +418,65 @@ describe("auth quick setup detection", () => {
 		expect(hasExplicitAuthQuickSetupFlags({ provider: "anthropic", apikey: "key", modelid: "claude-sonnet-4-6" })).toBe(true)
 		expect(hasExplicitAuthQuickSetupFlags({ provider: "anthropic", apikey: "key" })).toBe(false)
 		expect(hasExplicitAuthQuickSetupFlags({})).toBe(false)
+	})
+})
+
+describe("shouldDoQuickAuth", () => {
+	it("returns true when all required fields are present and at least one flag is provided", () => {
+		// User's case: provider and modelid as flags, apikey inferred from env
+		expect(
+			shouldDoQuickAuth(
+				{ provider: "deepseek", modelid: "deepseek-v4-pro" },
+				{ provider: "deepseek", apikey: "sk-xxxx", modelid: "deepseek-v4-pro" },
+			),
+		).toBe(true)
+	})
+
+	it("returns true when all three fields are provided as flags", () => {
+		expect(
+			shouldDoQuickAuth(
+				{ provider: "openai", apikey: "key", modelid: "gpt-4o" },
+				{ provider: "openai", apikey: "key", modelid: "gpt-4o" },
+			),
+		).toBe(true)
+	})
+
+	it("returns false when no flags are provided, even if all fields are inferred", () => {
+		expect(
+			shouldDoQuickAuth(
+				{},
+				{ provider: "anthropic", apikey: "key", modelid: "claude-3-5-sonnet" },
+			),
+		).toBe(false)
+	})
+
+	it("returns false when required fields are missing", () => {
+		expect(
+			shouldDoQuickAuth(
+				{ provider: "openai" },
+				{ provider: "openai", modelid: "gpt-4o" }, // missing apikey
+			),
+		).toBe(false)
+	})
+
+	it("returns true when only apikey is provided as flag and others are inferred", () => {
+		expect(
+			shouldDoQuickAuth(
+				{ apikey: "new-key" },
+				{ provider: "anthropic", apikey: "new-key", modelid: "claude-3-5-sonnet" },
+			),
+		).toBe(true)
+	})
+
+	it("returns false when only non-auth flags are provided", () => {
+		// Note: shouldDoQuickAuth doesn't see 'verbose' or 'config' because they aren't in its options type
+		// but we should ensure it behaves correctly if they were passed (they would be undefined)
+		expect(
+			shouldDoQuickAuth(
+				{} as any,
+				{ provider: "anthropic", apikey: "key", modelid: "claude-3-5-sonnet" },
+			),
+		).toBe(false)
 	})
 })
 
