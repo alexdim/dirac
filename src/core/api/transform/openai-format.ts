@@ -62,11 +62,13 @@ function transformToolCallIdForNativeApi(toolId: string, provider?: ApiProvider)
  *
  * @param anthropicMessages - Array of DiracStorageMessage objects to be converted
  * @param provider - Optional parameter to indicate the API provider, which may affect ID transformation logic
+ * @param supportsImages - Whether the model supports image attachments
  * @returns Array of OpenAI.Chat.ChatCompletionMessageParam objects
  */
 export function convertToOpenAiMessages(
 	anthropicMessages: Omit<DiracStorageMessage, "modelInfo">[],
 	provider?: ApiProvider,
+	supportsImages: boolean = true,
 ): OpenAI.Chat.ChatCompletionMessageParam[] {
 	const openAiMessages: OpenAI.Chat.ChatCompletionMessageParam[] = []
 
@@ -107,7 +109,9 @@ export function convertToOpenAiMessages(
 							toolMessage.content
 								?.map((part) => {
 									if (part.type === "image") {
-										toolResultImages.push(part as DiracImageContentBlock)
+										if (supportsImages) {
+											toolResultImages.push(part as DiracImageContentBlock)
+										}
 										return "(see following user message for image)"
 									}
 									return part.type === "text" ? part.text : ""
@@ -129,7 +133,10 @@ export function convertToOpenAiMessages(
 						content: toolResultImages.map((part) => ({
 							type: "image_url",
 							image_url: {
-								url: part.source.type === "base64" ? `data:${part.source.media_type};base64,${part.source.data}` : (part.source as any).url,
+								url:
+									part.source.type === "base64"
+										? `data:${part.source.media_type};base64,${part.source.data}`
+										: (part.source as any).url,
 							},
 						})),
 					})
@@ -141,11 +148,18 @@ export function convertToOpenAiMessages(
 						role: "user",
 						content: nonToolMessages.map((part) => {
 							if (part.type === "image") {
-								return {
-									type: "image_url",
-									image_url: {
-										url: part.source.type === "base64" ? `data:${part.source.media_type};base64,${part.source.data}` : (part.source as any).url,
-									},
+								if (supportsImages) {
+									return {
+										type: "image_url",
+										image_url: {
+											url:
+												part.source.type === "base64"
+													? `data:${part.source.media_type};base64,${part.source.data}`
+													: (part.source as any).url,
+										},
+									}
+								} else {
+									return { type: "text", text: "[Image]" }
 								}
 							}
 							return { type: "text", text: part.text || "" }

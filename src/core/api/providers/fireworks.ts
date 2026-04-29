@@ -48,7 +48,7 @@ export class FireworksHandler implements ApiHandler {
 		const modelId = this.options.fireworksModelId ?? ""
 
 		const model = this.getModel()
-		const convertedMessages = convertToOpenAiMessages(messages)
+		const convertedMessages = convertToOpenAiMessages(messages, undefined, this.getModel().info.supportsImages !== false)
 		const openAiMessages: OpenAI.Chat.ChatCompletionMessageParam[] = [
 			{ role: "system", content: systemPrompt },
 			...((model.info as any).isR1FormatRequired ? addReasoningContent(convertedMessages, messages) : convertedMessages),

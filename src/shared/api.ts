@@ -2450,8 +2450,21 @@ export const ALL_MODEL_MAPS: [ApiProvider, Record<string, ModelInfo>][] = [
  */
 export function getProviderForModel(modelId: string): ApiProvider | undefined {
 	for (const [provider, map] of ALL_MODEL_MAPS) {
-		if (modelId in map) {
+		if (modelId && modelId in map) {
 			return provider
+		}
+	}
+	return undefined
+}
+
+
+/**
+ * Gets the model info for a given model ID based on hardcoded model maps.
+ */
+export function getModelInfo(modelId: string): ModelInfo | undefined {
+	for (const [_, map] of ALL_MODEL_MAPS) {
+		if (modelId && modelId in map) {
+			return map[modelId]
 		}
 	}
 	return undefined

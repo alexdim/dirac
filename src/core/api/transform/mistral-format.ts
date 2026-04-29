@@ -13,7 +13,10 @@ export type MistralMessage =
 			)[]
 	  }
 
-export function convertToMistralMessages(anthropicMessages: Anthropic.Messages.MessageParam[]): MistralMessage[] {
+export function convertToMistralMessages(
+	anthropicMessages: Anthropic.Messages.MessageParam[],
+	supportsImages: boolean = true,
+): MistralMessage[] {
 	const mistralMessages: MistralMessage[] = []
 
 	for (const anthropicMessage of anthropicMessages) {
@@ -34,11 +37,18 @@ export function convertToMistralMessages(anthropicMessages: Anthropic.Messages.M
 						role: "user",
 						content: textAndImageBlocks.map((part) => {
 							if (part.type === "image") {
-								return {
-									type: "image_url",
-									imageUrl: {
-										url: part.source.type === "base64" ? `data:${part.source.media_type};base64,${part.source.data}` : (part.source as any).url,
-									},
+								if (supportsImages) {
+									return {
+										type: "image_url",
+										imageUrl: {
+											url:
+												part.source.type === "base64"
+													? `data:${part.source.media_type};base64,${part.source.data}`
+													: (part.source as any).url,
+										},
+									}
+								} else {
+									return { type: "text", text: "[Image]" }
 								}
 							}
 							return { type: "text", text: part.type === "text" ? part.text : "" }

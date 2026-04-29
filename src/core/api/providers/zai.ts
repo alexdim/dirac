@@ -83,7 +83,7 @@ export class ZAiHandler implements ApiHandler {
 		const model = this.getModel()
 		const openAiMessages: OpenAI.Chat.ChatCompletionMessageParam[] = [
 			{ role: "system", content: systemPrompt },
-			...convertToOpenAiMessages(messages),
+			...convertToOpenAiMessages(messages, undefined, this.getModel().info.supportsImages !== false),
 		]
 
 		const thinkingBudgetTokens = this.options.thinkingBudgetTokens || 0

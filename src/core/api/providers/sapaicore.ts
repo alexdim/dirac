@@ -674,7 +674,7 @@ export class SapAiCoreHandler implements ApiHandler {
 		} else if (openAIModels.includes(model.id)) {
 			const openAiMessages: OpenAI.Chat.ChatCompletionMessageParam[] = [
 				{ role: "system", content: systemPrompt },
-				...convertToOpenAiMessages(messages),
+				...convertToOpenAiMessages(messages, undefined, this.getModel().info.supportsImages !== false),
 			]
 
 			url = `${this.options.sapAiCoreBaseUrl}/v2/inference/deployments/${deploymentId}/chat/completions?api-version=2024-12-01-preview`
@@ -702,7 +702,7 @@ export class SapAiCoreHandler implements ApiHandler {
 		} else if (perplexityModels.includes(model.id)) {
 			const openAiMessages: OpenAI.Chat.ChatCompletionMessageParam[] = [
 				{ role: "system", content: systemPrompt },
-				...convertToOpenAiMessages(messages),
+				...convertToOpenAiMessages(messages, undefined, this.getModel().info.supportsImages !== false),
 			]
 
 			url = `${this.options.sapAiCoreBaseUrl}/v2/inference/deployments/${deploymentId}/chat/completions`
@@ -1096,6 +1096,6 @@ export class SapAiCoreHandler implements ApiHandler {
 	}
 	private convertMessageParamToSAPMessages(messages: DiracStorageMessage[]): ChatMessage[] {
 		// Use the existing OpenAI converter since the logic is identical
-		return convertToOpenAiMessages(messages) as ChatMessage[]
+		return convertToOpenAiMessages(messages, undefined, this.getModel().info.supportsImages !== false) as ChatMessage[]
 	}
 }

@@ -533,7 +533,10 @@ export class AwsBedrockHandler implements ApiHandler {
 	 */
 	private formatDeepseekR1Prompt(systemPrompt: string, messages: DiracStorageMessage[]): string {
 		// First use convertToR1Format to merge consecutive messages with the same role
-		const r1Messages = convertToR1Format([{ role: "user", content: systemPrompt }, ...messages])
+		const r1Messages = convertToR1Format(
+			[{ role: "user", content: systemPrompt }, ...messages],
+			this.getModel().info.supportsImages !== false,
+		)
 
 		// Then convert to the special string format expected by DeepSeek R1
 		let combinedContent = ""
@@ -916,7 +919,7 @@ export class AwsBedrockHandler implements ApiHandler {
 		tools?: DiracTool[],
 	): ApiStream {
 		// Format messages for Anthropic model using unified formatter
-		const formattedMessages = this.formatMessagesForConverseAPI(messages)
+		const formattedMessages = this.formatMessagesForConverseAPI(messages, model.info.supportsImages !== false)
 
 		// Get model info and message indices for caching
 		const userMsgIndices = messages.reduce((acc, msg, index) => (msg.role === "user" ? [...acc, index] : acc), [] as number[])
@@ -965,7 +968,7 @@ export class AwsBedrockHandler implements ApiHandler {
 	 * Formats messages for models using the Converse API specification
 	 * Used by both Anthropic and Nova models to avoid code duplication
 	 */
-	private formatMessagesForConverseAPI(messages: DiracStorageMessage[]): Message[] {
+	private formatMessagesForConverseAPI(messages: DiracStorageMessage[], supportsImages: boolean = true): Message[] {
 		return messages.map((message) => {
 			// Determine role (user or assistant)
 			const role = message.role === "user" ? ConversationRole.USER : ConversationRole.ASSISTANT
@@ -987,7 +990,11 @@ export class AwsBedrockHandler implements ApiHandler {
 
 						// Image content
 						if (item.type === "image") {
-							return this.processImageContent(item)
+							if (supportsImages) {
+								return this.processImageContent(item)
+							} else {
+								return { text: "[Image]" }
+							}
 						}
 
 						if (item.type === "tool_use") {
@@ -1018,7 +1025,11 @@ export class AwsBedrockHandler implements ApiHandler {
 												return { text: block.text }
 											}
 											if (block.type === "image") {
+											if (supportsImages) {
 												return this.processImageContent(block)
+											} else {
+												return { text: "[Image]" }
+											}
 											}
 											return null
 										})
@@ -1151,7 +1162,7 @@ export class AwsBedrockHandler implements ApiHandler {
 		tools?: DiracTool[],
 	): ApiStream {
 		// Format messages for Nova model using unified formatter
-		const formattedMessages = this.formatMessagesForConverseAPI(messages)
+		const formattedMessages = this.formatMessagesForConverseAPI(messages, model.info.supportsImages !== false)
 
 		// Get model info and message indices for caching (for Nova models that support it)
 		const userMsgIndices = messages.reduce((acc, msg, index) => (msg.role === "user" ? [...acc, index] : acc), [] as number[])
@@ -1197,7 +1208,7 @@ export class AwsBedrockHandler implements ApiHandler {
 		const client = await this.getBedrockClient()
 
 		// Format messages for Converse API
-		const formattedMessages = this.formatMessagesForConverseAPI(messages)
+		const formattedMessages = this.formatMessagesForConverseAPI(messages, model.info.supportsImages !== false)
 
 		// Prepare system message
 		const systemMessages = systemPrompt ? [{ text: systemPrompt }] : undefined
@@ -1335,7 +1346,7 @@ export class AwsBedrockHandler implements ApiHandler {
 		const client = await this.getBedrockClient()
 
 		// Format messages for Converse API
-		const formattedMessages = this.formatMessagesForConverseAPI(messages)
+		const formattedMessages = this.formatMessagesForConverseAPI(messages, model.info.supportsImages !== false)
 
 		// Prepare system message
 		const systemMessages = systemPrompt ? [{ text: systemPrompt }] : undefined

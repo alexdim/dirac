@@ -212,7 +212,7 @@ export class LiteLlmHandler implements ApiHandler {
 	async *createMessage(systemPrompt: string, messages: DiracStorageMessage[], tools?: DiracTool[]): ApiStream {
 		const client = this.ensureClient()
 
-		const formattedMessages = convertToOpenAiMessages(messages)
+		const formattedMessages = convertToOpenAiMessages(messages, undefined, this.getModel().info.supportsImages !== false)
 		const systemMessage: OpenAI.Chat.ChatCompletionSystemMessageParam | Anthropic.Messages.TextBlockParam = {
 			role: "system",
 			content: systemPrompt,

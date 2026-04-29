@@ -50,17 +50,17 @@ export class TogetherHandler implements ApiHandler {
 
 		let openAiMessages: OpenAI.Chat.ChatCompletionMessageParam[] = [
 			{ role: "system", content: systemPrompt },
-			...convertToOpenAiMessages(messages),
+			...convertToOpenAiMessages(messages, undefined, this.getModel().info.supportsImages !== false),
 		]
 
 		if (isDeepseekReasoner || (model.info as any).isR1FormatRequired) {
 			if ((model.info as any).supportsTools) {
 				openAiMessages = [
 					{ role: "system", content: systemPrompt },
-					...addReasoningContent(convertToOpenAiMessages(messages), messages),
+					...addReasoningContent(convertToOpenAiMessages(messages, undefined, this.getModel().info.supportsImages !== false), messages),
 				]
 			} else {
-				openAiMessages = convertToR1Format([{ role: "user", content: systemPrompt }, ...messages])
+				openAiMessages = convertToR1Format([{ role: "user", content: systemPrompt }, ...messages], this.getModel().info.supportsImages !== false)
 			}
 		}
 

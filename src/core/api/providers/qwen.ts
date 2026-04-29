@@ -91,7 +91,7 @@ export class QwenHandler implements ApiHandler {
 
 		let openAiMessages: OpenAI.Chat.ChatCompletionMessageParam[] = [
 			{ role: "system", content: systemPrompt },
-			...convertToOpenAiMessages(messages),
+			...convertToOpenAiMessages(messages, undefined, this.getModel().info.supportsImages !== false),
 		]
 
 		let temperature: number | undefined = 0
@@ -106,7 +106,10 @@ export class QwenHandler implements ApiHandler {
 			: undefined
 
 		if (isDeepseekReasoner || (reasoningOn && isReasoningModelFamily)) {
-			openAiMessages = convertToR1Format([{ role: "user", content: systemPrompt }, ...messages])
+			openAiMessages = convertToR1Format(
+				[{ role: "user", content: systemPrompt }, ...messages],
+				this.getModel().info.supportsImages !== false,
+			)
 			temperature = undefined
 		}
 

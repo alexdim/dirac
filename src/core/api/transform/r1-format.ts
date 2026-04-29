@@ -68,6 +68,7 @@ export function addReasoningContent(
 export function convertToDeepSeekMessages(
 	messages: DiracStorageMessage[],
 	systemPrompt: string,
+	supportsImages: boolean = false,
 ): DeepSeekReasonerMessage[] {
 	const openAiMessages: DeepSeekReasonerMessage[] = [{ role: "system", content: systemPrompt }]
 
@@ -119,7 +120,21 @@ export function convertToDeepSeekMessages(
 				if (nonToolParts.length > 0) {
 					const content = nonToolParts.map((p) => {
 						if (p.type === "text") return { type: "text", text: p.text }
-						if (p.type === "image") return { type: "image_url", image_url: { url: p.source.type === "base64" ? `data:${p.source.media_type};base64,${p.source.data}` : (p.source as any).url } }
+						if (p.type === "image") {
+							if (supportsImages) {
+								return {
+									type: "image_url",
+									image_url: {
+										url:
+											p.source.type === "base64"
+												? `data:${p.source.media_type};base64,${p.source.data}`
+												: (p.source as any).url,
+									},
+								}
+							} else {
+								return { type: "text", text: "[Image]" }
+							}
+						}
 						return { type: "text", text: "" }
 					}) as OpenAI.Chat.ChatCompletionUserMessageParam["content"]
 
@@ -177,7 +192,10 @@ export function convertToDeepSeekMessages(
 }
 
 
-export function convertToR1Format(messages: Anthropic.Messages.MessageParam[]): OpenAI.Chat.ChatCompletionMessageParam[] {
+export function convertToR1Format(
+	messages: Anthropic.Messages.MessageParam[],
+	supportsImages: boolean = false,
+): OpenAI.Chat.ChatCompletionMessageParam[] {
 	return messages.reduce<OpenAI.Chat.ChatCompletionMessageParam[]>((merged, message) => {
 		const lastMessage = merged[merged.length - 1]
 		let messageContent: string | (OpenAI.Chat.ChatCompletionContentPartText | OpenAI.Chat.ChatCompletionContentPartImage)[] =
@@ -193,11 +211,20 @@ export function convertToR1Format(messages: Anthropic.Messages.MessageParam[]): 
 					textParts.push(part.text || "")
 				}
 				if (part.type === "image") {
-					hasImages = true
-					imageParts.push({
-						type: "image_url",
-						image_url: { url: part.source.type === "base64" ? `data:${part.source.media_type};base64,${part.source.data}` : (part.source as any).url },
-					})
+					if (supportsImages) {
+						hasImages = true
+						imageParts.push({
+							type: "image_url",
+							image_url: {
+								url:
+									part.source.type === "base64"
+										? `data:${part.source.media_type};base64,${part.source.data}`
+										: (part.source as any).url,
+							},
+						})
+					} else {
+						textParts.push("[Image]")
+					}
 				}
 			})
 

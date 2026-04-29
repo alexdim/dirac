@@ -67,7 +67,7 @@ export class RequestyHandler implements ApiHandler {
 		const toolParams = getOpenAIToolParams(tools as any)
 		const openAiMessages: OpenAI.Chat.ChatCompletionMessageParam[] = [
 			{ role: "system", content: systemPrompt },
-			...convertToOpenAiMessages(messages),
+			...convertToOpenAiMessages(messages, undefined, this.getModel().info.supportsImages !== false),
 		]
 
 		const reasoningEffort = this.options.reasoningEffort || "medium"

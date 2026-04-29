@@ -47,7 +47,7 @@ export class NousResearchHandler implements ApiHandler {
 		const toolParams = getOpenAIToolParams(tools as any)
 		const openAiMessages: OpenAI.Chat.ChatCompletionMessageParam[] = [
 			{ role: "system", content: systemPrompt },
-			...convertToOpenAiMessages(messages),
+			...convertToOpenAiMessages(messages, undefined, this.getModel().info.supportsImages !== false),
 		]
 
 		const stream = await client.chat.completions.create({

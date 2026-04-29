@@ -93,8 +93,11 @@ export class DeepSeekHandler implements ApiHandler {
 		const shouldAddReasoningContent = isR1 || supportsReasoning
 
 		const openAiMessages = shouldAddReasoningContent
-			? convertToDeepSeekMessages(messages, systemPrompt)
-			: [{ role: "system", content: systemPrompt }, ...convertToOpenAiMessages(messages)]
+			? convertToDeepSeekMessages(messages, systemPrompt, model.info.supportsImages !== false)
+			: [
+					{ role: "system", content: systemPrompt },
+					...convertToOpenAiMessages(messages, undefined, model.info.supportsImages !== false),
+			  ]
 
 		const stream = await client.chat.completions.create({
 			model: model.id,

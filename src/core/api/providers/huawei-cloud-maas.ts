@@ -66,7 +66,7 @@ export class HuaweiCloudMaaSHandler implements ApiHandler {
 		const model = this.getModel()
 		const openAiMessages: OpenAI.Chat.ChatCompletionMessageParam[] = [
 			{ role: "system", content: systemPrompt },
-			...convertToOpenAiMessages(messages),
+			...convertToOpenAiMessages(messages, undefined, this.getModel().info.supportsImages !== false),
 		]
 		const stream = await client.chat.completions.create({
 			model: model.id,

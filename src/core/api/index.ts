@@ -1,4 +1,4 @@
-import { ApiConfiguration, ModelInfo, openAiModelInfoSaneDefaults, QwenApiRegions } from "@shared/api"
+import { ApiConfiguration, getModelInfo, ModelInfo, openAiModelInfoSaneDefaults, QwenApiRegions } from "@shared/api"
 import { Mode } from "@shared/storage/types"
 import { DiracStorageMessage } from "@/shared/messages/content"
 import { Logger } from "@/shared/services/Logger"
@@ -138,6 +138,10 @@ function createHandlerForProvider(
 		case "openai": {
 			const openAiModelId = mode === "plan" ? options.planModeOpenAiModelId : options.actModeOpenAiModelId
 			let openAiModelInfo = mode === "plan" ? options.planModeOpenAiModelInfo : options.actModeOpenAiModelInfo
+
+			if (!openAiModelInfo && openAiModelId) {
+				openAiModelInfo = getModelInfo(openAiModelId)
+			}
 
 			const isCustomUrl = options.openAiBaseUrl && options.openAiBaseUrl.startsWith("http")
 			if (options.openAiCompatibleCustomApiKey || isCustomUrl) {

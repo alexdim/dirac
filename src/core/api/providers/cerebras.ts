@@ -65,7 +65,7 @@ export class CerebrasHandler implements ApiHandler {
 		const client = this.ensureClient()
 
 		const toolParams = getOpenAIToolParams(tools as any)
-		const openAiMessages: any[] = [{ role: "system", content: systemPrompt }, ...convertToOpenAiMessages(messages)]
+		const openAiMessages: any[] = [{ role: "system", content: systemPrompt }, ...convertToOpenAiMessages(messages, undefined, this.getModel().info.supportsImages !== false)]
 
 		// Check if this is a reasoning model that uses thinking tags
 		const modelId = this.getModel().id

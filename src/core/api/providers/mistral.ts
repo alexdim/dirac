@@ -89,7 +89,10 @@ export class MistralHandler implements ApiHandler {
 				model: this.getModel().id,
 				// max_completion_tokens: this.getModel().info.maxTokens,
 				temperature: 0,
-				messages: [{ role: "system", content: systemPrompt }, ...convertToMistralMessages(messages)],
+				messages: [
+					{ role: "system", content: systemPrompt },
+					...convertToMistralMessages(messages, this.getModel().info.supportsImages !== false),
+				],
 				stream: true,
 				tools: tools?.length ? (tools as MistralTool[]) : undefined,
 				toolChoice: tools?.length ? "any" : undefined,

@@ -81,7 +81,7 @@ export class GithubCopilotHandler implements ApiHandler {
 		} else {
 			body = {
 				model: this.modelId,
-				messages: [{ role: "system", content: systemPrompt }, ...convertToOpenAiMessages(messages)],
+				messages: [{ role: "system", content: systemPrompt }, ...convertToOpenAiMessages(messages, undefined, this.getModel().info.supportsImages !== false)],
 				...toolParams,
 				max_tokens: modelData?.capabilities.limits.max_output_tokens || 4096,
 				stream: true,

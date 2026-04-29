@@ -34,7 +34,7 @@ export async function createOpenRouterStream(
 	// Convert Anthropic messages to OpenAI format
 	let openAiMessages: OpenAI.Chat.ChatCompletionMessageParam[] = [
 		{ role: "system", content: systemPrompt },
-		...convertToOpenAiMessages(messages as any),
+		...convertToOpenAiMessages(messages as any, undefined, model.info.supportsImages !== false),
 	]
 
 	const isClaude1m =
@@ -139,7 +139,10 @@ export async function createOpenRouterStream(
 		// Recommended values from DeepSeek
 		temperature = 0.3
 		topP = 0.95
-		openAiMessages = convertToR1Format([{ role: "user", content: systemPrompt }, ...messages])
+		openAiMessages = convertToR1Format(
+			[{ role: "user", content: systemPrompt }, ...messages],
+			model.info.supportsImages !== false,
+		)
 	}
 
 	if (shouldAddReasoningContent) {

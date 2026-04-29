@@ -115,7 +115,7 @@ export class OpenAiHandler implements ApiHandler {
 
 		let openAiMessages: OpenAI.Chat.ChatCompletionMessageParam[] = [
 			{ role: "system", content: systemPrompt },
-			...convertToOpenAiMessages(messages),
+			...convertToOpenAiMessages(messages, undefined, this.getModel().info.supportsImages !== false),
 		]
 		let temperature: number | undefined
 		if (this.options.openAiModelInfo?.temperature !== undefined) {
@@ -141,10 +141,16 @@ export class OpenAiHandler implements ApiHandler {
 				// convertToR1Format merges messages but loses tools.
 				openAiMessages = [
 					{ role: "system", content: systemPrompt },
-					...addReasoningContent(convertToOpenAiMessages(messages), messages),
+					...addReasoningContent(
+						convertToOpenAiMessages(messages, undefined, this.getModel().info.supportsImages !== false),
+						messages,
+					),
 				]
 			} else {
-				openAiMessages = convertToR1Format([{ role: "user", content: systemPrompt }, ...messages])
+				openAiMessages = convertToR1Format(
+					[{ role: "user", content: systemPrompt }, ...messages],
+					this.getModel().info.supportsImages !== false,
+				)
 			}
 		}
 
@@ -155,7 +161,10 @@ export class OpenAiHandler implements ApiHandler {
 
 
 		if (isReasoningModelFamily) {
-			openAiMessages = [{ role: "developer", content: systemPrompt }, ...convertToOpenAiMessages(messages)]
+			openAiMessages = [
+				{ role: "developer", content: systemPrompt },
+				...convertToOpenAiMessages(messages, undefined, this.getModel().info.supportsImages !== false),
+			]
 			temperature = undefined // does not support temperature
 		}
 

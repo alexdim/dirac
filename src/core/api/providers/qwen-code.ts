@@ -191,7 +191,7 @@ export class QwenCodeHandler implements ApiHandler {
 			content: systemPrompt,
 		}
 
-		const convertedMessages = [systemMessage, ...convertToOpenAiMessages(messages)]
+		const convertedMessages = [systemMessage, ...convertToOpenAiMessages(messages, undefined, this.getModel().info.supportsImages !== false)]
 
 		const requestOptions: OpenAI.Chat.Completions.ChatCompletionCreateParamsStreaming = {
 			model: model.id,
