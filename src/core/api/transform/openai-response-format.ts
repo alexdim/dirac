@@ -94,12 +94,15 @@ export function convertToOpenAIResponsesInput(
 	if (options?.usePreviousResponseId) {
 		for (let i = _messages.length - 1; i >= 0; i--) {
 			const msg = _messages[i]
-			// Must be less than 24 hours old to be considered for chaining as the previous Id is only valid for 24 hours.
-			// Set to 23 hours to account for any potential delays in processing.
-			const isLessThan23HoursOld = msg.ts ? Date.now() - msg.ts < 23 * 60 * 60 * 1000 : false
-			if (msg.role === "assistant" && msg.id && isLessThan23HoursOld) {
-				previousResponseId = msg.id
-				messages = _messages.slice(i + 1)
+			if (msg.role === "assistant") {
+				// Must be less than 24 hours old to be considered for chaining as the previous Id is only valid for 24 hours.
+				// Set to 23 hours to account for any potential delays in processing.
+				const isLessThan23HoursOld = msg.ts ? Date.now() - msg.ts < 23 * 60 * 60 * 1000 : false
+				if (msg.id && isLessThan23HoursOld) {
+					previousResponseId = msg.id
+					messages = _messages.slice(i + 1)
+				}
+				// Always break after the first assistant message we find, whether it has a usable ID or not.
 				break
 			}
 		}
@@ -140,7 +143,7 @@ export function convertToOpenAIResponsesInput(
 							thinkingBlock.summary && Array.isArray(thinkingBlock.summary) && thinkingBlock.summary.length > 0
 
 						if (!item) {
-							item = { id: call_id, type: "reasoning", summary: [] }
+							item = { type: "reasoning", summary: [] }
 							assistantTurnItems.set(call_id, item)
 						}
 
@@ -154,7 +157,7 @@ export function convertToOpenAIResponsesInput(
 					case "redacted_thinking": {
 						const redactedBlock = part as DiracAssistantRedactedThinkingBlock
 						if (!item) {
-							item = { id: call_id, type: "reasoning", summary: [] }
+							item = { type: "reasoning", summary: [] }
 							assistantTurnItems.set(call_id, item)
 						}
 						if (redactedBlock.data) {
@@ -165,7 +168,6 @@ export function convertToOpenAIResponsesInput(
 					case "text": {
 						const textBlock = part as DiracTextContentBlock
 						assistantTurnItems.set(call_id, {
-							id: call_id,
 							type: "message",
 							role: "assistant",
 							content: [{ type: "output_text", text: textBlock.text || "" }],
@@ -175,7 +177,6 @@ export function convertToOpenAIResponsesInput(
 					case "image": {
 						const imageBlock = part as DiracImageContentBlock
 						assistantTurnItems.set(call_id, {
-							id: call_id,
 							type: "message",
 							role: "assistant",
 							content: [
@@ -196,7 +197,6 @@ export function convertToOpenAIResponsesInput(
 						assistantTurnItems.set(call_id, {
 							type: "function_call",
 							call_id,
-							id: !toolUseBlock.id.startsWith("fc_") ? `fc_${toolUseBlock.id.slice(0, 50)}` : toolUseBlock.id,
 							name: toolUseBlock.name,
 							arguments: JSON.stringify(toolUseBlock.input ?? {}),
 						})

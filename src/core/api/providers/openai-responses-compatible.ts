@@ -7,9 +7,9 @@ import { withRetry } from "../retry"
 import { convertToOpenAIResponsesInput } from "../transform/openai-response-format"
 import { ApiStream } from "../transform/stream"
 import { Logger } from "@/shared/services/Logger"
-import { 
-	buildResponseCreateParams, 
-	mapResponseTools, 
+import {
+	buildResponseCreateParams,
+	mapResponseTools,
 	processResponsesEvents,
 	shouldRetryWithFullContext
 } from "./openai-responses-utils"

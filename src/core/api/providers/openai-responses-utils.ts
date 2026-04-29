@@ -505,6 +505,11 @@ export function shouldRetryWithFullContext(error: unknown, hadPreviousResponseId
 
 	// Codex seems to return 404 for missing previous_response_id
 	if (status === 404 || message.includes("404")) {
+		// Only retry if the 404 is NOT about an item in the input
+		const details = (error as any)?.details
+		if (details?.param === "input") {
+			return false
+		}
 		return true
 	}
 
