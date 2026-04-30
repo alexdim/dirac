@@ -146,7 +146,9 @@ export async function createOpenRouterStream(
 	}
 
 	if (shouldAddReasoningContent) {
-		openAiMessages = addReasoningContent(openAiMessages, messages as any)
+		openAiMessages = addReasoningContent(openAiMessages, messages as any, {
+			onlyIfToolCall: isDeepSeek && !isR1,
+		})
 	}
 
 	const supportsReasoningEffort = supportsReasoningEffortForModel(model.id)
@@ -216,9 +218,12 @@ export async function createOpenRouterStream(
 		...(reasoningPayload ? { reasoning: reasoningPayload } : {}),
 		...(isDeepSeek && supportsReasoning && !isR1
 			? {
-				thinking: { type: isThinkingEnabled ? "enabled" : "disabled" },
-				...(isThinkingEnabled ? { reasoning_effort: requestedEffort } : {}),
-			}
+					thinking: {
+						type: isThinkingEnabled ? "enabled" : "disabled",
+						...(isThinkingEnabled && thinkingBudgetTokens ? { budget_tokens: thinkingBudgetTokens } : {}),
+					},
+					...(isThinkingEnabled ? { reasoning_effort: requestedEffort } : {}),
+				}
 			: {}),
 		...(openRouterProviderSorting && !providerPreferences ? { provider: { sort: openRouterProviderSorting } } : {}),
 		...(providerPreferences ? { provider: providerPreferences } : {}),

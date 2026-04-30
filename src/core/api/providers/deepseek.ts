@@ -16,6 +16,7 @@ import { getOpenAIToolParams, ToolCallProcessor } from "../transform/tool-call-p
 interface DeepSeekHandlerOptions extends CommonApiHandlerOptions {
 	deepSeekApiKey?: string
 	reasoningEffort?: string
+	thinkingBudgetTokens?: number
 	apiModelId?: string
 }
 
@@ -94,7 +95,12 @@ export class DeepSeekHandler implements ApiHandler {
 
 		const convertedMessages = convertToOpenAiMessages(messages, undefined, model.info.supportsImages !== false)
 		const openAiMessages = shouldAddReasoningContent
-			? [{ role: "system", content: systemPrompt }, ...addReasoningContent(convertedMessages, messages)]
+			? [
+					{ role: "system", content: systemPrompt },
+					...addReasoningContent(convertedMessages, messages, {
+						onlyIfToolCall: !isR1, // V4 models only need reasoning_content if they performed a tool call
+					}),
+				]
 			: [{ role: "system", content: systemPrompt }, ...convertedMessages]
 
 		// DeepSeek.com API requires reasoning_content to be passed back for ALL assistant messages
@@ -132,7 +138,14 @@ export class DeepSeekHandler implements ApiHandler {
 			...(supportsReasoning && !isR1
 				? {
 						// @ts-ignore
-						extra_body: { thinking: { type: isThinkingEnabled ? "enabled" : "disabled" } },
+						extra_body: {
+							thinking: {
+								type: isThinkingEnabled ? "enabled" : "disabled",
+								...(isThinkingEnabled && this.options.thinkingBudgetTokens
+									? { budget_tokens: this.options.thinkingBudgetTokens }
+									: {}),
+							},
+						},
 						...(isThinkingEnabled ? { reasoning_effort: requestedEffort } : {}),
 					}
 				: {}),

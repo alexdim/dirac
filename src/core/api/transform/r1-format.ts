@@ -15,10 +15,11 @@ export type DeepSeekReasonerMessage =
 export function addReasoningContent(
 	openAiMessages: OpenAI.Chat.ChatCompletionMessageParam[],
 	originalMessages: DiracStorageMessage[],
+	options?: { onlyIfToolCall?: boolean },
 ): DeepSeekReasonerMessage[] {
 
 	// Extract thinking content from original messages, keyed by assistant index
-	const thinkingByIndex = new Map<number, string>()
+	const thinkingByIndex = new Map<number, { thinking: string; hasToolCall: boolean }>()
 	let assistantIdx = 0
 	for (const msg of originalMessages) {
 		if (msg.role === "assistant") {
@@ -27,8 +28,9 @@ export function addReasoningContent(
 					.filter((p): p is DiracAssistantThinkingBlock => p.type === "thinking")
 					.map((p) => p.thinking)
 					.join("\n")
+				const hasToolCall = msg.content.some((p) => p.type === "tool_use")
 				if (thinking) {
-					thinkingByIndex.set(assistantIdx, thinking)
+					thinkingByIndex.set(assistantIdx, { thinking, hasToolCall })
 				}
 			}
 			assistantIdx++
@@ -39,9 +41,12 @@ export function addReasoningContent(
 	let aiIdx = 0
 	return openAiMessages.map((msg): DeepSeekReasonerMessage => {
 		if (msg.role === "assistant") {
-			const thinking = thinkingByIndex.get(aiIdx++)
-			if (thinking) {
-				return { ...msg, reasoning_content: thinking } as DeepSeekReasonerMessage
+			const data = thinkingByIndex.get(aiIdx++)
+			if (data) {
+				const shouldInclude = options?.onlyIfToolCall ? data.hasToolCall : true
+				if (shouldInclude) {
+					return { ...msg, reasoning_content: data.thinking } as DeepSeekReasonerMessage
+				}
 			}
 		}
 		return msg as DeepSeekReasonerMessage
