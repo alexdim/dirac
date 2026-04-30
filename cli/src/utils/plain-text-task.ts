@@ -270,97 +270,141 @@ function handleMessageForPipeMode(
 	const isPartial = message.partial ?? false
 	const statusPrefix = verbose ? (isPartial ? "[partial] " : "[complete] ") : ""
 
-	if (message.type === "say") {
-		if (message.say === "error") {
-			// Errors always go to stderr
-			process.stderr.write(`${statusPrefix}Error: ${fullText}\n`)
-		} else if (verbose) {
-			// Verbose output goes to stderr so it doesn't interfere with piped stdout
-			if (message.say === "task") {
-				process.stderr.write(`${statusPrefix}${fullText}\n`)
-			} else if (message.say === "text" && fullText) {
-				process.stderr.write(`${statusPrefix}${fullText}\n`)
-			} else if (message.say === "api_req_started" || message.say === "api_req_finished") {
-				const label = message.say === "api_req_started" ? "API request started" : "API request finished"
-				try {
-					const info = JSON.parse(fullText || "{}")
-					const hasMetrics = info.cost !== undefined || info.tokensIn !== undefined
-					if (hasMetrics || !isUpdate) {
-						const costStr = info.cost !== undefined ? `Cost: $${info.cost.toFixed(4)}` : ""
-						const tokensStr =
-							info.tokensIn !== undefined
-								? `Tokens: ${info.tokensIn.toLocaleString()} in, ${info.tokensOut.toLocaleString()} out${info.reasoningTokens ? ` (+${info.reasoningTokens.toLocaleString()} thinking)` : ""}`
-								: ""
-						const cacheStr =
-							info.cacheReads !== undefined || info.cacheWrites !== undefined
-								? ` (Cache: ${(info.cacheReads || 0).toLocaleString()} read, ${(info.cacheWrites || 0).toLocaleString()} write)`
-								: ""
-						const contextStr =
-							info.contextWindow !== undefined
-								? ` | Context: ${info.contextUsagePercentage}% of ${(info.contextWindow / 1000).toFixed(0)}K`
-								: ""
+	// 1. Handle Errors (always stderr)
+	if (message.say === "error" || message.ask === "api_req_failed") {
+		process.stderr.write(`${statusPrefix}Error: ${fullText || "API request failed"}\n`)
+		return
+	}
 
-						const metricsStr = hasMetrics ? ` [${tokensStr}${cacheStr}${contextStr} | ${costStr}]` : ""
-						process.stderr.write(`${statusPrefix}${label}${metricsStr}\n`)
+	// Print reasoning if present (unless it's already the main content of a reasoning message)
+	if (verbose && reasoning && message.say !== "reasoning") {
+		process.stderr.write(`${statusPrefix}Reasoning: ${reasoning}\n`)
+	}
+
+
+	// 2. Handle Tool Calls (Triggering actions)
+	const toolType = getToolType(message)
+	if (toolType) {
+		let label = "Tool Call"
+		let extra = ""
+		if (message.type === "ask") {
+			if (yolo) {
+				extra = " [yolo]"
+			} else {
+				extra = " [waiting for approval]"
+			}
+		}
+		process.stderr.write(`${statusPrefix}${label}${extra}: ${toolType}: ${fullText}\n`)
+		return
+	}
+
+	// 3. Handle Verbose Output
+
+	if (verbose) {
+
+		if (message.type === "say") {
+			switch (message.say) {
+				case "task":
+				case "text":
+					if (fullText) {
+						process.stderr.write(`${statusPrefix}${fullText}\n`)
 					}
-				} catch {
-					process.stderr.write(`${statusPrefix}${label}\n`)
-				}
-			} else if (message.say === "completion_result" && fullText) {
-				process.stderr.write(`${statusPrefix}Completion Result: ${fullText}\n`)
-			} else if (message.say === "reasoning" || reasoning) {
-				const content = fullText || reasoning
-				if (content) {
-					process.stderr.write(`${statusPrefix}Reasoning: ${content}\n`)
-				}
-			} else if (message.say === "tool") {
-				process.stderr.write(`${statusPrefix}Tool Call: ${fullText}\n`)
-			} else if (message.say === "command") {
-				process.stderr.write(`${statusPrefix}Command: ${fullText}\n`)
-			} else if (message.say === "command_output") {
-				process.stderr.write(`${statusPrefix}Command Output: ${fullText}\n`)
-			} else if (fullText) {
-				process.stderr.write(`${statusPrefix}${message.say}: ${fullText}\n`)
-			} else {
-				// Catch-all for other say types in verbose mode
-				process.stderr.write(`${statusPrefix}Event: ${message.say}\n`)
+					break
+				case "api_req_started":
+				case "api_req_finished":
+					handleApiReqMessage(message, statusPrefix, isUpdate)
+					break
+				case "completion_result":
+					process.stderr.write(`${statusPrefix}Completion Result: ${fullText}\n`)
+					break
+				case "reasoning":
+					const content = fullText || reasoning
+					if (content) {
+						process.stderr.write(`${statusPrefix}Reasoning: ${content}\n`)
+					}
+					break
+				case "command":
+					process.stderr.write(`${statusPrefix}Command: ${fullText}\n`)
+					break
+				case "command_output":
+					process.stderr.write(`${statusPrefix}Command Output: ${fullText}\n`)
+					break
+				default:
+					if (fullText) {
+						process.stderr.write(`${statusPrefix}${message.say}: ${fullText}\n`)
+					} else {
+						process.stderr.write(`${statusPrefix}Event: ${message.say}\n`)
+					}
+			}
+		} else if (message.type === "ask") {
+			switch (message.ask) {
+				case "completion_result":
+					process.stderr.write(`${statusPrefix}Task completed\n`)
+					break
+				default:
+					if (fullText) {
+						process.stderr.write(`${statusPrefix}Question: ${fullText}\n`)
+					} else {
+						process.stderr.write(`${statusPrefix}Question Type: ${message.ask}\n`)
+					}
 			}
 		}
-	} else if (message.type === "ask") {
-		if (message.ask === "api_req_failed") {
-			// Errors always go to stderr
-			process.stderr.write(`${statusPrefix}Error: API request failed: ${fullText}\n`)
-		} else if (
-			yolo &&
-			(message.ask === "tool" ||
-				message.ask === "command" ||
-				message.ask === "browser_action_launch" ||
-				message.ask === "plan_mode_respond" ||
-				message.ask === "act_mode_respond")
-		) {
-			// In yolo mode, we auto-approve everything that requires it
-			if (verbose && statusPrefix === "[complete] ") {
-				process.stderr.write(`${statusPrefix}[yolo] Auto-approving ${message.ask}: ${fullText}\n`)
-			}
-		} else if (message.ask === "tool" || message.ask === "command" || message.ask === "browser_action_launch") {
-			// These require approval - warn via stderr
-			process.stderr.write(
-				`${statusPrefix}Waiting for approval (use --yolo for auto-approve): ${message.ask}: ${fullText}\n`,
-			)
-		} else if (verbose) {
-			// Verbose output goes to stderr
-			if (message.ask === "plan_mode_respond" || message.ask === "act_mode_respond") {
-				if (fullText) {
-					process.stderr.write(`${statusPrefix}Response: ${fullText}\n`)
-				}
-			} else if (message.ask === "completion_result") {
-				process.stderr.write(`${statusPrefix}Task completed\n`)
-			} else if (fullText) {
-				process.stderr.write(`${statusPrefix}Question: ${fullText}\n`)
-			} else {
-				// Catch-all for other ask types in verbose mode
-				process.stderr.write(`${statusPrefix}Question Type: ${message.ask}\n`)
-			}
+	}
+}
+
+/**
+ * Identify if a message is a tool call and return its type/name
+ */
+function getToolType(message: DiracMessage): string | null {
+	if (message.type === "say" && message.say === "tool") {
+		return "tool"
+	}
+	if (message.type === "ask") {
+		const toolAsks = [
+			"tool",
+			"command",
+			"browser_action_launch",
+			"plan_mode_respond",
+			"act_mode_respond",
+			"use_subagents",
+		]
+		if (message.ask && toolAsks.includes(message.ask)) {
+			return message.ask
 		}
+	}
+	return null
+}
+
+/**
+ * Handle formatting and printing of API request messages
+ */
+function handleApiReqMessage(message: DiracMessage, statusPrefix: string, isUpdate?: boolean): void {
+	const label = message.say === "api_req_started" ? "API request started" : "API request finished"
+	const fullText = message.text ?? ""
+	try {
+		const info = JSON.parse(fullText || "{}")
+		const hasMetrics = info.cost !== undefined || info.tokensIn !== undefined
+		if (hasMetrics || !isUpdate) {
+			const costStr = info.cost !== undefined ? `Cost: $${info.cost.toFixed(4)}` : ""
+			const tokensStr =
+				info.tokensIn !== undefined
+					? `Tokens: ${info.tokensIn.toLocaleString()} in, ${info.tokensOut.toLocaleString()} out${
+							info.reasoningTokens ? ` (+${info.reasoningTokens.toLocaleString()} thinking)` : ""
+						}`
+					: ""
+			const cacheStr =
+				info.cacheReads !== undefined || info.cacheWrites !== undefined
+					? ` (Cache: ${(info.cacheReads || 0).toLocaleString()} read, ${(info.cacheWrites || 0).toLocaleString()} write)`
+					: ""
+			const contextStr =
+				info.contextWindow !== undefined
+					? ` | Context: ${info.contextUsagePercentage}% of ${(info.contextWindow / 1000).toFixed(0)}K`
+					: ""
+
+			const metricsStr = hasMetrics ? ` [${tokensStr}${cacheStr}${contextStr} | ${costStr}]` : ""
+			process.stderr.write(`${statusPrefix}${label}${metricsStr}\n`)
+		}
+	} catch {
+		process.stderr.write(`${statusPrefix}${label}\n`)
 	}
 }

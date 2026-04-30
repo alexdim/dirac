@@ -104,9 +104,11 @@ function getMessageIcon(message: DiracMessage): string {
 			case "followup":
 				return "❓"
 			case "command":
-			case "command_output":
 				return "⚙️ "
 			case "tool":
+			case "plan_mode_respond":
+			case "act_mode_respond":
+			case "use_subagents":
 				return "🔧"
 			case "completion_result":
 				return "✅"
@@ -133,6 +135,7 @@ function getMessageIcon(message: DiracMessage): string {
 		case "completion_result":
 			return "✅"
 		case "user_feedback":
+		case "user_feedback_diff":
 			return "👤"
 		case "command":
 		case "command_output":
@@ -145,6 +148,7 @@ function getMessageIcon(message: DiracMessage): string {
 			return "🌐"
 		case "api_req_started":
 		case "api_req_finished":
+		case "api_req_retried":
 			return "🔄"
 		case "checkpoint_created":
 			return "💾"
@@ -159,16 +163,34 @@ function getMessageIcon(message: DiracMessage): string {
  * Format a DiracMessage for terminal display
  */
 export function formatMessage(message: DiracMessage, verbose = false): string {
-	const icon = getMessageIcon(message)
 	const timestamp = formatTimestamp(message.ts)
 	const lines: string[] = []
 
+	// Always show reasoning if present
+	if (message.reasoning && message.say !== "reasoning") {
+		lines.push(`${style.dim(timestamp)} 🧠 ${style.dim("Thinking:")} ${style.italic(message.reasoning)}`)
+	}
+
+	const icon = getMessageIcon(message)
 	const prefix = `${style.dim(timestamp)} ${icon}`
 
-	if (message.type === "ask") {
-		lines.push(formatAskMessage(message, prefix, verbose))
+	const toolType = getToolType(message)
+	if (toolType) {
+		let label = "Tool Call"
+		if (message.type === "ask") {
+			label = "Use tool?"
+		}
+		lines.push(`${prefix} ${style.tool(label)} ${style.bold(toolType)}: ${message.text || ""}`)
+	} else if (message.type === "ask") {
+		const formatted = formatAskMessage(message, prefix, verbose)
+		if (formatted) {
+			lines.push(formatted)
+		}
 	} else {
-		lines.push(formatSayMessage(message, prefix, verbose))
+		const formatted = formatSayMessage(message, prefix, verbose)
+		if (formatted) {
+			lines.push(formatted)
+		}
 	}
 
 	return lines.filter(Boolean).join("\n")
@@ -179,40 +201,22 @@ function formatAskMessage(message: DiracMessage, prefix: string, verbose: boolea
 
 	switch (ask) {
 		case "followup": {
-			// Parse JSON question format
 			let question = message.text || ""
 			try {
 				const parsed = JSON.parse(message.text || "{}")
 				question = parsed.question || question
 			} catch {
-				// Fallback to raw text if not JSON
-				question = message.text || ""
+				// Fallback to raw text
 			}
 			return `${prefix} ${style.info("Question:")} ${question}`
 		}
-
-		case "command":
-			return `${prefix} ${style.command("Execute command?")} ${style.code(message.text || "")}`
-
-		case "tool":
-			return `${prefix} ${style.tool("Use tool?")} ${message.text || ""}`
-
 		case "completion_result":
 			return `${prefix} ${style.success("Task completed")} ${message.text ? `- ${message.text}` : ""}`
-
 		case "api_req_failed":
 			return `${prefix} ${style.error("API request failed")} ${message.text || ""}`
-
 		case "resume_task":
 		case "resume_completed_task":
 			return `${prefix} ${style.info("Resume task?")} ${message.text || ""}`
-
-		case "browser_action_launch":
-			return `${prefix} ${style.info("Launch browser?")} ${message.text || ""}`
-
-		case "plan_mode_respond":
-			return `${prefix} ${style.info("Plan mode response:")} ${message.text || ""}`
-
 		default:
 			return verbose ? `${prefix} [ASK:${ask}] ${message.text || ""}` : ""
 	}
@@ -224,84 +228,94 @@ function formatSayMessage(message: DiracMessage, prefix: string, verbose: boolea
 	switch (say) {
 		case "task":
 			return `${prefix} ${style.task("Task:")} ${message.text || ""}`
-
 		case "text":
 			return `${prefix} ${style.assistant(message.text || "")}`
-
 		case "reasoning":
 			return `${prefix} ${style.dim("Thinking:")} ${style.italic(message.text || "")}`
-
 		case "error":
 			return `${prefix} ${style.error("Error:")} ${message.text || ""}`
-
 		case "completion_result":
 			return `${prefix} ${style.success("✓ Completed:")} ${message.text || ""}`
-
 		case "user_feedback":
+		case "user_feedback_diff":
 			return `${prefix} ${style.user("User:")} ${message.text || ""}`
-
 		case "command":
 			return `${prefix} ${style.command("Command:")} ${style.code(message.text || "")}`
-
-		case "command_output":
+		case "command_output": {
 			const output = message.text || ""
 			const truncated = output.length > 500 ? output.substring(0, 500) + "..." : output
 			return `${prefix} ${style.dim("Output:")} ${truncated}`
-
-		case "tool":
-			return `${prefix} ${style.tool("Tool:")} ${message.text || ""}`
-
-		case "browser_action":
-		case "browser_action_launch":
-			return `${prefix} ${style.info("Browser:")} ${message.text || ""}`
-
+		}
 		case "browser_action_result":
 			return `${prefix} ${style.dim("Browser result")} ${message.text ? `- ${message.text.substring(0, 100)}...` : ""}`
-
-		case "api_req_started": {
-			if (verbose) {
-				return `${prefix} ${style.api("API request started")}`
-			} else {
-				try {
-					const info = JSON.parse(message.text || "{}")
-					if (info.cost !== undefined || info.tokensIn !== undefined) {
-						const costStr = info.cost !== undefined ? `Cost: $${info.cost.toFixed(4)}` : ""
-						const tokensStr =
-							info.tokensIn !== undefined
-								? `Tokens: ${info.tokensIn.toLocaleString()} in, ${info.tokensOut.toLocaleString()} out${info.reasoningTokens ? ` (+${info.reasoningTokens.toLocaleString()} thinking)` : ""}`
-								: ""
-						const cacheStr =
-							info.cacheReads !== undefined || info.cacheWrites !== undefined
-								? ` (Cache: ${(info.cacheReads || 0).toLocaleString()} read, ${(info.cacheWrites || 0).toLocaleString()} write)`
-								: ""
-						const contextStr =
-							info.contextWindow !== undefined
-								? ` | Context: ${info.contextUsagePercentage}% of ${(info.contextWindow / 1000).toFixed(0)}K`
-								: ""
-						return `${prefix} ${style.api("API request finished")} ${style.dim(`[${tokensStr}${cacheStr}${contextStr} | ${costStr}]`)}`
-					}
-				} catch {
-					return `${message.text || ""}`
-				}
-				return "" // Don't show "API request started" in non-verbose mode if no cost yet
-			}
-		}
-
+		case "api_req_started":
 		case "api_req_finished":
-			return verbose ? `${prefix} ${style.api("API request finished")}` : ""
-
+			return formatApiReqMessage(message, prefix, verbose)
 		case "checkpoint_created":
 			return `${prefix} ${style.success("Checkpoint created")} ${message.text || ""}`
-
 		case "info":
 			return `${prefix} ${style.info(message.text || "")}`
-
 		case "hook_status":
 			return `${prefix} ${style.dim("Hook:")} ${message.text || ""}`
-
 		default:
 			return verbose ? `${prefix} [SAY:${say}] ${message.text || ""}` : ""
 	}
+}
+
+/**
+ * Identify if a message is a tool call and return its type/name
+ */
+function getToolType(message: DiracMessage): string | null {
+	if (message.type === "say" && message.say === "tool") {
+		return "tool"
+	}
+	if (message.type === "ask") {
+		const toolAsks = [
+			"tool",
+			"command",
+			"browser_action_launch",
+			"plan_mode_respond",
+			"act_mode_respond",
+			"use_subagents",
+		]
+		if (message.ask && toolAsks.includes(message.ask)) {
+			return message.ask
+		}
+	}
+	return null
+}
+
+/**
+ * Handle formatting of API request messages
+ */
+function formatApiReqMessage(message: DiracMessage, prefix: string, verbose: boolean): string {
+	if (message.say === "api_req_started") {
+		return verbose ? `${prefix} ${style.api("API request started")}` : ""
+	}
+	try {
+		const info = JSON.parse(message.text || "{}")
+		if (info.cost !== undefined || info.tokensIn !== undefined) {
+			const costStr = info.cost !== undefined ? `Cost: $${info.cost.toFixed(4)}` : ""
+			const tokensStr =
+				info.tokensIn !== undefined
+					? `Tokens: ${info.tokensIn.toLocaleString()} in, ${info.tokensOut.toLocaleString()} out${
+							info.reasoningTokens ? ` (+${info.reasoningTokens.toLocaleString()} thinking)` : ""
+						}`
+					: ""
+			const cacheStr =
+				info.cacheReads !== undefined || info.cacheWrites !== undefined
+					? ` (Cache: ${(info.cacheReads || 0).toLocaleString()} read, ${(info.cacheWrites || 0).toLocaleString()} write)`
+					: ""
+			const contextStr =
+				info.contextWindow !== undefined
+					? ` | Context: ${info.contextUsagePercentage}% of ${(info.contextWindow / 1000).toFixed(0)}K`
+					: ""
+			return `${prefix} ${style.api("API request finished")} ${style.dim(`[${tokensStr}${cacheStr}${contextStr} | ${costStr}]`)}`
+		}
+	} catch {
+		// Fallback to raw text
+	}
+	return verbose ? `${prefix} ${style.api("API request finished")}` : ""
 }
 
 /**
