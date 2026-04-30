@@ -47,8 +47,6 @@ service ModelsService {
   rpc refreshGroqModelsRpc(EmptyRequest) returns (OpenRouterCompatibleModelInfo);
   // Refreshes and returns Baseten models
   rpc refreshBasetenModelsRpc(EmptyRequest) returns (OpenRouterCompatibleModelInfo);
-  // Fetches available models from SAP AI Core
-  rpc getSapAiCoreModels(SapAiCoreModelsRequest) returns (SapAiCoreModelsResponse);
   // Fetches available models from AIhubmix
   rpc getAihubmixModels(EmptyRequest) returns (OpenRouterCompatibleModelInfo);
   // Refreshes and returns Vercel AI Gateway models
@@ -123,28 +121,6 @@ message OpenAiModelsRequest {
   string api_key = 3;
 }
 
-// Request for fetching SAP AI Core models
-message SapAiCoreModelsRequest {
-  Metadata metadata = 1;
-  string client_id = 2;
-  string client_secret = 3;
-  string base_url = 4;
-  string token_url = 5;
-  string resource_group = 6;
-}
-
-// SAP AI Core model with deployment information
-message SapAiCoreModelDeployment {
-  string model_name = 1;
-  string deployment_id = 2;
-}
-
-// Response for SAP AI Core models with orchestration availability
-message SapAiCoreModelsResponse {
-  repeated SapAiCoreModelDeployment deployments = 1;
-  bool orchestration_available = 2;
-}
-
 // API secrets (credentials, API keys)
 message ModelsApiSecrets {
   optional string api_key = 1;
@@ -170,8 +146,7 @@ message ModelsApiSecrets {
   optional string xai_api_key = 22;
   optional string sambanova_api_key = 23;
   optional string cerebras_api_key = 24;
-  optional string sap_ai_core_client_id = 25;
-  optional string sap_ai_core_client_secret = 26;
+  reserved 25, 26;
   optional string moonshot_api_key = 27;
   optional string dirac_account_id = 28;
   optional string groq_api_key = 29;
@@ -213,10 +188,7 @@ message ModelsApiOptions {
   optional string qwen_api_line = 25;
   reserved 26; // was asksage_api_url
   optional int64 request_timeout_ms = 27;
-  optional string sap_ai_resource_group = 28;
-  optional string sap_ai_core_token_url = 29;
-  optional string sap_ai_core_base_url = 30;
-  optional bool sap_ai_core_use_orchestration_mode = 31;
+  reserved 28, 29, 30, 31;
   optional string moonshot_api_line = 32;
   optional string aws_authentication = 33;
   optional string zai_api_line = 34;
@@ -248,8 +220,7 @@ message ModelsApiOptions {
   optional OpenRouterModelInfo plan_mode_requesty_model_info = 116;
   optional string plan_mode_together_model_id = 117;
   optional string plan_mode_fireworks_model_id = 118;
-  optional string plan_mode_sap_ai_core_model_id = 119;
-  optional string plan_mode_sap_ai_core_deployment_id = 120;
+  reserved 119, 120;
   optional string plan_mode_groq_model_id = 121;
   optional OpenRouterModelInfo plan_mode_groq_model_info = 122;
   optional string plan_mode_hugging_face_model_id = 123;
@@ -284,8 +255,7 @@ message ModelsApiOptions {
   optional OpenRouterModelInfo act_mode_requesty_model_info = 216;
   optional string act_mode_together_model_id = 217;
   optional string act_mode_fireworks_model_id = 218;
-  optional string act_mode_sap_ai_core_model_id = 219;
-  optional string act_mode_sap_ai_core_deployment_id = 220;
+  reserved 219, 220;
   optional string act_mode_groq_model_id = 221;
   optional OpenRouterModelInfo act_mode_groq_model_info = 222;
   optional string act_mode_hugging_face_model_id = 223;
@@ -418,7 +388,7 @@ enum ApiProvider {
   SAMBANOVA = 22;
   CEREBRAS = 23;
   GROQ = 24;
-  SAPAICORE = 25;
+  reserved 25;
   CLAUDE_CODE = 26;
   MOONSHOT = 27;
   HUGGINGFACE = 28;
@@ -534,12 +504,7 @@ message ModelsApiConfiguration {
   optional string sambanova_api_key = 47;
   optional string cerebras_api_key = 48;
   optional int64 request_timeout_ms = 49;
-  optional string sap_ai_core_client_id = 50;
-  optional string sap_ai_core_client_secret = 51;
-  optional string sap_ai_resource_group = 52;
-  optional string sap_ai_core_token_url = 53;
-  optional string sap_ai_core_base_url = 54;
-  optional bool sap_ai_core_use_orchestration_mode = 55;
+  reserved 50, 51, 52, 53, 54, 55;
   optional string moonshot_api_key = 56;
   optional string moonshot_api_line = 57;
   optional string aws_authentication = 58;
@@ -586,8 +551,7 @@ message ModelsApiConfiguration {
   optional OpenRouterModelInfo plan_mode_requesty_model_info = 116;
   optional string plan_mode_together_model_id = 117;
   optional string plan_mode_fireworks_model_id = 118;
-  optional string plan_mode_sap_ai_core_model_id = 119;
-  optional string plan_mode_sap_ai_core_deployment_id = 120;
+  reserved 119, 120;
   optional string plan_mode_groq_model_id = 121;
   optional OpenRouterModelInfo plan_mode_groq_model_info = 122;
   optional string plan_mode_hugging_face_model_id = 123;
@@ -626,8 +590,7 @@ message ModelsApiConfiguration {
   optional OpenRouterModelInfo act_mode_requesty_model_info = 216;
   optional string act_mode_together_model_id = 217;
   optional string act_mode_fireworks_model_id = 218;
-  optional string act_mode_sap_ai_core_model_id = 219;
-  optional string act_mode_sap_ai_core_deployment_id = 220;
+  reserved 219, 220;
   optional string act_mode_groq_model_id = 221;
   optional OpenRouterModelInfo act_mode_groq_model_info = 222;
   optional string act_mode_hugging_face_model_id = 223;

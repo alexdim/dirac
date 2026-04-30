@@ -29,7 +29,6 @@ export type ApiProvider =
 	| "xai"
 	| "sambanova"
 	| "cerebras"
-	| "sapaicore"
 	| "groq"
 	| "huggingface"
 	| "huawei-cloud-maas"
@@ -72,7 +71,6 @@ export const ALL_PROVIDERS: ApiProvider[] = [
 	"xai",
 	"sambanova",
 	"cerebras",
-	"sapaicore",
 	"groq",
 	"huggingface",
 	"huawei-cloud-maas",
@@ -1841,130 +1839,6 @@ export const requestyDefaultModelInfo: ModelInfo = {
 }
 
 // SAP AI Core
-export type SapAiCoreModelId = keyof typeof sapAiCoreModels
-export const sapAiCoreDefaultModelId: SapAiCoreModelId = "anthropic--claude-4.6-sonnet"
-// Pricing is calculated using Capacity Units, not directly in USD
-const sapAiCoreModelDescription = "Pricing is calculated using SAP's Capacity Units rather than direct USD pricing."
-export const sapAiCoreModels = {
-	"anthropic--claude-4.5-haiku": {
-		maxTokens: 64000,
-		contextWindow: 200_000,
-		supportsImages: true,
-		supportsPromptCache: true,
-		description: sapAiCoreModelDescription,
-	},
-	"anthropic--claude-4.6-sonnet": {
-		maxTokens: 8192,
-		contextWindow: 200_000,
-		supportsImages: true,
-		supportsPromptCache: true,
-		description: sapAiCoreModelDescription,
-	},
-	"anthropic--claude-4.5-sonnet": {
-		maxTokens: 64_000,
-		contextWindow: 200_000,
-		supportsImages: true,
-		supportsPromptCache: true,
-		description: sapAiCoreModelDescription,
-	},
-	"anthropic--claude-4-sonnet": {
-		maxTokens: 64_000,
-		contextWindow: 200_000,
-		supportsImages: true,
-		supportsPromptCache: true,
-		description: sapAiCoreModelDescription,
-	},
-	"anthropic--claude-4.5-opus": {
-		maxTokens: 64_000,
-		contextWindow: 200_000,
-		supportsImages: true,
-		supportsPromptCache: true,
-		description: sapAiCoreModelDescription,
-	},
-	"anthropic--claude-4-opus": {
-		maxTokens: 32_000,
-		contextWindow: 200_000,
-		supportsImages: true,
-		supportsPromptCache: true,
-		description: sapAiCoreModelDescription,
-	},
-	"gemini-2.5-pro": {
-		maxTokens: 65536,
-		contextWindow: 1_048_576,
-		supportsImages: true,
-		supportsPromptCache: true,
-		thinkingConfig: {
-			maxBudget: 32767,
-		},
-		description: sapAiCoreModelDescription,
-	},
-	"gemini-2.5-flash": {
-		maxTokens: 65536,
-		contextWindow: 1_048_576,
-		supportsImages: true,
-		supportsPromptCache: true,
-		thinkingConfig: {
-			maxBudget: 24576,
-		},
-		description: sapAiCoreModelDescription,
-	},
-	"gpt-4": {
-		maxTokens: 4096,
-		contextWindow: 200_000,
-		supportsImages: true,
-		supportsPromptCache: false,
-		description: sapAiCoreModelDescription,
-	},
-	"gpt-4o": {
-		maxTokens: 4096,
-		contextWindow: 200_000,
-		supportsImages: true,
-		supportsPromptCache: false,
-		description: sapAiCoreModelDescription,
-	},
-	"gpt-4o-mini": {
-		maxTokens: 4096,
-		contextWindow: 200_000,
-		supportsImages: true,
-		supportsPromptCache: false,
-		description: sapAiCoreModelDescription,
-	},
-	"gpt-4.1": {
-		maxTokens: 32_768,
-		contextWindow: 1_047_576,
-		supportsImages: true,
-		supportsPromptCache: true,
-		description: sapAiCoreModelDescription,
-	},
-	"gpt-4.1-nano": {
-		maxTokens: 32_768,
-		contextWindow: 1_047_576,
-		supportsImages: true,
-		supportsPromptCache: true,
-		description: sapAiCoreModelDescription,
-	},
-	"gpt-5": {
-		maxTokens: 128_000,
-		contextWindow: 272_000,
-		supportsImages: true,
-		supportsPromptCache: true,
-		description: sapAiCoreModelDescription,
-	},
-	"gpt-5-nano": {
-		maxTokens: 128_000,
-		contextWindow: 272_000,
-		supportsImages: true,
-		supportsPromptCache: true,
-		description: sapAiCoreModelDescription,
-	},
-	"gpt-5-mini": {
-		maxTokens: 128_000,
-		contextWindow: 272_000,
-		supportsImages: true,
-		supportsPromptCache: true,
-		description: sapAiCoreModelDescription,
-	},
-} as const satisfies Record<string, ModelInfo>
 
 // Moonshot AI Studio
 // https://platform.moonshot.ai/docs/pricing/chat
@@ -2433,7 +2307,6 @@ export const ALL_MODEL_MAPS: [ApiProvider, Record<string, ModelInfo>][] = [
 	["sambanova", sambanovaModels],
 	["cerebras", cerebrasModels],
 	["groq", groqModels],
-	["sapaicore", sapAiCoreModels],
 	["moonshot", moonshotModels],
 	["huawei-cloud-maas", huaweiCloudMaasModels],
 	["baseten", basetenModels],

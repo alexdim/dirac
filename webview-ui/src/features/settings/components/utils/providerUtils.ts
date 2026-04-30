@@ -59,8 +59,6 @@ import {
     requestyDefaultModelInfo,
     sambanovaDefaultModelId,
     sambanovaModels,
-    sapAiCoreDefaultModelId,
-    sapAiCoreModels,
     vertexDefaultModelId,
     vertexModels,
     wandbDefaultModelId,
@@ -129,8 +127,6 @@ export function getModelsForProvider(
 			return groqModels
 		case "baseten":
 			return dynamicModels?.basetenModels || basetenModels
-		case "sapaicore":
-			return sapAiCoreModels
 		case "huawei-cloud-maas":
 			return huaweiCloudMaasModels
 		case "zai":
@@ -393,8 +389,6 @@ export function normalizeApiConfiguration(
 					},
 			}
 		}
-		case "sapaicore":
-			return getProviderData(sapAiCoreModels, sapAiCoreDefaultModelId)
 		case "huawei-cloud-maas":
 			const huaweiCloudMaasModelId =
 				currentMode === "plan"
@@ -796,7 +790,6 @@ export async function syncModeConfigurations(
 		case "wandb":
 		case "sambanova":
 		case "cerebras":
-		case "sapaicore":
 		case "zai":
 		case "minimax":
 		default:

@@ -491,7 +491,6 @@ describe("getProviderModelIdKey", () => {
 		requesty: "RequestyModelId",
 		together: "TogetherModelId",
 		fireworks: "FireworksModelId",
-		sapaicore: "SapAiCoreModelId",
 		groq: "GroqModelId",
 		baseten: "BasetenModelId",
 		huggingface: "HuggingFaceModelId",

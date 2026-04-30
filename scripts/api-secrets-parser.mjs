@@ -150,11 +150,6 @@ export function extractProviderFromFieldName(fieldName) {
 		return "vertex"
 	}
 
-	// Pattern 3: SAP AI Core fields
-	if (lowerFieldName.startsWith("sapaicore") || lowerFieldName.startsWith("sapai")) {
-		return "sapaicore"
-	}
-
 	// Pattern 4: Provider name in the middle (e.g., openAiNativeApiKey) - check before generic pattern
 	const providerPatterns = [
 		{ pattern: "openainative", providerId: "openai-native" },
@@ -221,7 +216,6 @@ function normalizeProviderName(providerPart) {
 		"deep-seek": "deepseek",
 		"hugging-face": "huggingface",
 		"huawei-cloud-maas": "huawei-cloud-maas",
-		"sap-ai-core": "sapaicore",
 		"vercel-ai-gateway": "vercel-ai-gateway",
 	}
 
@@ -264,20 +258,7 @@ function applySpecialCaseMappings(providerApiKeyMap, apiSecretsFields, assignedF
 		// These are already captured if they exist in ApiHandlerSecrets
 	}
 
-	// Special case 3: SAP AI Core multi-key authentication
-	if (providerApiKeyMap["sapaicore"]) {
-		const sapFields = providerApiKeyMap["sapaicore"]
-		const requiredSapFields = ["sapAiCoreClientId", "sapAiCoreClientSecret"]
-
-		for (const field of requiredSapFields) {
-			if (apiSecretsFields.fieldNames.includes(field) && !sapFields.includes(field)) {
-				sapFields.push(field)
-				assignedFields.add(field)
-			}
-		}
-	}
 }
-
 /**
  * Generates display name for an API key field
  * Converts camelCase to Title Case with proper spacing
@@ -320,8 +301,6 @@ export function generateApiKeyDisplayName(fieldName) {
 		diracAccountId: "Dirac Account ID",
 		vertexProjectId: "Vertex Project ID",
 		vertexRegion: "Vertex Region",
-		sapAiCoreClientId: "SAP AI Core Client ID",
-		sapAiCoreClientSecret: "SAP AI Core Client Secret",
 		huaweiCloudMaasApiKey: "Huawei Cloud MaaS API Key",
 		hicapApiKey: "Hicap API Key",
 	}

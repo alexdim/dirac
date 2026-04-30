@@ -192,9 +192,6 @@ export class ModelsServiceClient extends ProtoBusClient {
     static async refreshBasetenModelsRpc(request: proto.dirac.EmptyRequest): Promise<proto.dirac.OpenRouterCompatibleModelInfo> {
 		return this.makeUnaryRequest("refreshBasetenModelsRpc", request, proto.dirac.EmptyRequest.toJSON, proto.dirac.OpenRouterCompatibleModelInfo.fromJSON)
 	}
-    static async getSapAiCoreModels(request: proto.dirac.SapAiCoreModelsRequest): Promise<proto.dirac.SapAiCoreModelsResponse> {
-		return this.makeUnaryRequest("getSapAiCoreModels", request, proto.dirac.SapAiCoreModelsRequest.toJSON, proto.dirac.SapAiCoreModelsResponse.fromJSON)
-	}
     static async getAihubmixModels(request: proto.dirac.EmptyRequest): Promise<proto.dirac.OpenRouterCompatibleModelInfo> {
 		return this.makeUnaryRequest("getAihubmixModels", request, proto.dirac.EmptyRequest.toJSON, proto.dirac.OpenRouterCompatibleModelInfo.fromJSON)
 	}

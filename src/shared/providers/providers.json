@@ -49,10 +49,6 @@
 			"label": "Claude Code"
 		},
 		{
-			"value": "sapaicore",
-			"label": "SAP AI Core"
-		},
-		{
 			"value": "github-copilot",
 			"label": "GitHub Copilot (Native)"
 		},

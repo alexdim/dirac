@@ -117,15 +117,6 @@ export function getConfiguredProviders(
 		configured.push("cerebras")
 	}
 
-	// SAP AI Core - requires base URL, client ID, client secret, and token URL
-	if (
-		apiConfiguration.sapAiCoreBaseUrl &&
-		apiConfiguration.sapAiCoreClientId &&
-		apiConfiguration.sapAiCoreClientSecret &&
-		apiConfiguration.sapAiCoreTokenUrl
-	) {
-		configured.push("sapaicore")
-	}
 
 	// Z AI - requires API key
 	if (apiConfiguration.zaiApiKey) {

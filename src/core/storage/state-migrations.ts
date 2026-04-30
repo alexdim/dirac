@@ -29,7 +29,6 @@ export async function migrateWorkspaceToGlobalStorage(context: vscode.ExtensionC
 		"requestyModelInfo",
 		"togetherModelId",
 		"fireworksModelId",
-		"sapAiCoreModelId",
 		"groqModelId",
 		"groqModelInfo",
 		"huggingFaceModelId",
@@ -44,7 +43,6 @@ export async function migrateWorkspaceToGlobalStorage(context: vscode.ExtensionC
 		"previousModeReasoningEffort",
 		"previousModeAwsBedrockCustomSelected",
 		"previousModeAwsBedrockCustomModelBaseId",
-		"previousModeSapAiCoreModelId",
 	]
 
 	for (const key of keysToMigrate) {
@@ -211,7 +209,6 @@ export async function migrateLegacyApiConfigurationToModeSpecific(context: vscod
 		const requestyModelInfo = await context.globalState.get("requestyModelInfo")
 		const togetherModelId = await context.globalState.get("togetherModelId")
 		const fireworksModelId = await context.globalState.get("fireworksModelId")
-		const sapAiCoreModelId = await context.globalState.get("sapAiCoreModelId")
 		const groqModelId = await context.globalState.get("groqModelId")
 		const groqModelInfo = await context.globalState.get("groqModelInfo")
 		const huggingFaceModelId = await context.globalState.get("huggingFaceModelId")
@@ -226,7 +223,6 @@ export async function migrateLegacyApiConfigurationToModeSpecific(context: vscod
 		const previousModeReasoningEffort = await context.globalState.get("previousModeReasoningEffort")
 		const previousModeAwsBedrockCustomSelected = await context.globalState.get("previousModeAwsBedrockCustomSelected")
 		const previousModeAwsBedrockCustomModelBaseId = await context.globalState.get("previousModeAwsBedrockCustomModelBaseId")
-		const previousModeSapAiCoreModelId = await context.globalState.get("previousModeSapAiCoreModelId")
 
 		// Migrate based on planActSeparateModelsSetting
 		if (planActSeparateModelsSetting === false) {
@@ -305,10 +301,6 @@ export async function migrateLegacyApiConfigurationToModeSpecific(context: vscod
 				await context.globalState.update("planModeFireworksModelId", fireworksModelId)
 				await context.globalState.update("actModeFireworksModelId", fireworksModelId)
 			}
-			if (sapAiCoreModelId !== undefined) {
-				await context.globalState.update("planModeSapAiCoreModelId", sapAiCoreModelId)
-				await context.globalState.update("actModeSapAiCoreModelId", sapAiCoreModelId)
-			}
 			if (groqModelId !== undefined) {
 				await context.globalState.update("planModeGroqModelId", groqModelId)
 				await context.globalState.update("actModeGroqModelId", groqModelId)
@@ -383,9 +375,6 @@ export async function migrateLegacyApiConfigurationToModeSpecific(context: vscod
 			if (fireworksModelId !== undefined) {
 				await context.globalState.update("planModeFireworksModelId", fireworksModelId)
 			}
-			if (sapAiCoreModelId !== undefined) {
-				await context.globalState.update("planModeSapAiCoreModelId", sapAiCoreModelId)
-			}
 			if (groqModelId !== undefined) {
 				await context.globalState.update("planModeGroqModelId", groqModelId)
 			}
@@ -434,11 +423,6 @@ export async function migrateLegacyApiConfigurationToModeSpecific(context: vscod
 				await context.globalState.update("actModeAwsBedrockCustomModelBaseId", previousModeAwsBedrockCustomModelBaseId)
 			} else if (awsBedrockCustomModelBaseId !== undefined) {
 				await context.globalState.update("actModeAwsBedrockCustomModelBaseId", awsBedrockCustomModelBaseId)
-			}
-			if (previousModeSapAiCoreModelId !== undefined) {
-				await context.globalState.update("actModeSapAiCoreModelId", previousModeSapAiCoreModelId)
-			} else if (sapAiCoreModelId !== undefined) {
-				await context.globalState.update("actModeSapAiCoreModelId", sapAiCoreModelId)
 			}
 
 			// For fields without previous variants, use current values for act mode
@@ -511,7 +495,6 @@ export async function migrateLegacyApiConfigurationToModeSpecific(context: vscod
 		await context.globalState.update("requestyModelInfo", undefined)
 		await context.globalState.update("togetherModelId", undefined)
 		await context.globalState.update("fireworksModelId", undefined)
-		await context.globalState.update("sapAiCoreModelId", undefined)
 		await context.globalState.update("groqModelId", undefined)
 		await context.globalState.update("groqModelInfo", undefined)
 		await context.globalState.update("huggingFaceModelId", undefined)
@@ -524,7 +507,6 @@ export async function migrateLegacyApiConfigurationToModeSpecific(context: vscod
 		await context.globalState.update("previousModeReasoningEffort", undefined)
 		await context.globalState.update("previousModeAwsBedrockCustomSelected", undefined)
 		await context.globalState.update("previousModeAwsBedrockCustomModelBaseId", undefined)
-		await context.globalState.update("previousModeSapAiCoreModelId", undefined)
 
 		Logger.log("Successfully migrated legacy API configuration to mode-specific keys")
 	} catch (error) {
@@ -557,7 +539,6 @@ export async function migrateWelcomeViewCompleted(context: vscode.ExtensionConte
 			const mistralApiKey = await context.secrets.get("mistralApiKey")
 			const xaiApiKey = await context.secrets.get("xaiApiKey")
 			const sambanovaApiKey = await context.secrets.get("sambanovaApiKey")
-			const sapAiCoreClientId = await context.secrets.get("sapAiCoreClientId")
 			const difyApiKey = await context.secrets.get("difyApiKey")
 			const hicapApiKey = await context.secrets.get("hicapApiKey")
 			// OpenAI Codex OAuth credentials
@@ -595,7 +576,6 @@ export async function migrateWelcomeViewCompleted(context: vscode.ExtensionConte
 				diracAccountId,
 				xaiApiKey,
 				sambanovaApiKey,
-				sapAiCoreClientId,
 				difyApiKey,
 				hicapApiKey,
 				openAiCodexCredentials,

@@ -300,8 +300,6 @@ function convertApiProviderToProto(provider: string | undefined): ProtoApiProvid
 			return ProtoApiProvider.GROQ
 		case "baseten":
 			return ProtoApiProvider.BASETEN
-		case "sapaicore":
-			return ProtoApiProvider.SAPAICORE
 		case "claude-code":
 			return ProtoApiProvider.CLAUDE_CODE
 		case "huawei-cloud-maas":
@@ -386,8 +384,6 @@ export function convertProtoToApiProvider(provider: ProtoApiProvider): ApiProvid
 			return "groq"
 		case ProtoApiProvider.BASETEN:
 			return "baseten"
-		case ProtoApiProvider.SAPAICORE:
-			return "sapaicore"
 		case ProtoApiProvider.CLAUDE_CODE:
 			return "claude-code"
 		case ProtoApiProvider.HUAWEI_CLOUD_MAAS:
@@ -473,12 +469,6 @@ export function convertApiConfigurationToProto(config: ApiConfiguration): ProtoA
 		groqApiKey: config.groqApiKey,
 		basetenApiKey: config.basetenApiKey,
 		requestTimeoutMs: config.requestTimeoutMs,
-		sapAiCoreClientId: config.sapAiCoreClientId,
-		sapAiCoreClientSecret: config.sapAiCoreClientSecret,
-		sapAiResourceGroup: config.sapAiResourceGroup,
-		sapAiCoreTokenUrl: config.sapAiCoreTokenUrl,
-		sapAiCoreBaseUrl: config.sapAiCoreBaseUrl,
-		sapAiCoreUseOrchestrationMode: config.sapAiCoreUseOrchestrationMode,
 		huaweiCloudMaasApiKey: config.huaweiCloudMaasApiKey,
 		zaiApiLine: config.zaiApiLine,
 		zaiApiKey: config.zaiApiKey,
@@ -522,10 +512,8 @@ export function convertApiConfigurationToProto(config: ApiConfiguration): ProtoA
 		planModeBasetenModelInfo: convertModelInfoToProtoOpenRouter(config.planModeBasetenModelInfo),
 		planModeHuggingFaceModelId: config.planModeHuggingFaceModelId,
 		planModeHuggingFaceModelInfo: convertModelInfoToProtoOpenRouter(config.planModeHuggingFaceModelInfo),
-		planModeSapAiCoreModelId: config.planModeSapAiCoreModelId,
 		planModeHuaweiCloudMaasModelId: config.planModeHuaweiCloudMaasModelId,
 		planModeHuaweiCloudMaasModelInfo: convertModelInfoToProtoOpenRouter(config.planModeHuaweiCloudMaasModelInfo),
-		planModeSapAiCoreDeploymentId: config.planModeSapAiCoreDeploymentId,
 		planModeAihubmixModelId: config.planModeAihubmixModelId,
 		planModeAihubmixModelInfo: convertOpenAiCompatibleModelInfoToProto(config.planModeAihubmixModelInfo),
 		planModeHicapModelId: config.planModeHicapModelId,
@@ -562,10 +550,8 @@ export function convertApiConfigurationToProto(config: ApiConfiguration): ProtoA
 		actModeBasetenModelInfo: convertModelInfoToProtoOpenRouter(config.actModeBasetenModelInfo),
 		actModeHuggingFaceModelId: config.actModeHuggingFaceModelId,
 		actModeHuggingFaceModelInfo: convertModelInfoToProtoOpenRouter(config.actModeHuggingFaceModelInfo),
-		actModeSapAiCoreModelId: config.actModeSapAiCoreModelId,
 		actModeHuaweiCloudMaasModelId: config.actModeHuaweiCloudMaasModelId,
 		actModeHuaweiCloudMaasModelInfo: convertModelInfoToProtoOpenRouter(config.actModeHuaweiCloudMaasModelInfo),
-		actModeSapAiCoreDeploymentId: config.actModeSapAiCoreDeploymentId,
 		actModeAihubmixModelId: config.actModeAihubmixModelId,
 		actModeAihubmixModelInfo: convertOpenAiCompatibleModelInfoToProto(config.actModeAihubmixModelInfo),
 		actModeHicapModelId: config.actModeHicapModelId,
@@ -636,12 +622,6 @@ export function convertProtoToApiConfiguration(protoConfig: ProtoApiConfiguratio
 		groqApiKey: protoConfig.groqApiKey,
 		basetenApiKey: protoConfig.basetenApiKey,
 		requestTimeoutMs: protoConfig.requestTimeoutMs,
-		sapAiCoreClientId: protoConfig.sapAiCoreClientId,
-		sapAiCoreClientSecret: protoConfig.sapAiCoreClientSecret,
-		sapAiResourceGroup: protoConfig.sapAiResourceGroup,
-		sapAiCoreTokenUrl: protoConfig.sapAiCoreTokenUrl,
-		sapAiCoreBaseUrl: protoConfig.sapAiCoreBaseUrl,
-		sapAiCoreUseOrchestrationMode: protoConfig.sapAiCoreUseOrchestrationMode,
 		huaweiCloudMaasApiKey: protoConfig.huaweiCloudMaasApiKey,
 		zaiApiLine: protoConfig.zaiApiLine,
 		zaiApiKey: protoConfig.zaiApiKey,
@@ -688,10 +668,8 @@ export function convertProtoToApiConfiguration(protoConfig: ProtoApiConfiguratio
 		planModeBasetenModelInfo: convertProtoToModelInfo(protoConfig.planModeBasetenModelInfo),
 		planModeHuggingFaceModelId: protoConfig.planModeHuggingFaceModelId,
 		planModeHuggingFaceModelInfo: convertProtoToModelInfo(protoConfig.planModeHuggingFaceModelInfo),
-		planModeSapAiCoreModelId: protoConfig.planModeSapAiCoreModelId,
 		planModeHuaweiCloudMaasModelId: protoConfig.planModeHuaweiCloudMaasModelId,
 		planModeHuaweiCloudMaasModelInfo: convertProtoToModelInfo(protoConfig.planModeHuaweiCloudMaasModelInfo),
-		planModeSapAiCoreDeploymentId: protoConfig.planModeSapAiCoreDeploymentId,
 		planModeAihubmixModelId: protoConfig.planModeAihubmixModelId,
 		planModeAihubmixModelInfo: convertProtoToOpenAiCompatibleModelInfo(protoConfig.planModeAihubmixModelInfo),
 		planModeHicapModelId: protoConfig.planModeHicapModelId,
@@ -729,10 +707,8 @@ export function convertProtoToApiConfiguration(protoConfig: ProtoApiConfiguratio
 		actModeBasetenModelInfo: convertProtoToModelInfo(protoConfig.actModeBasetenModelInfo),
 		actModeHuggingFaceModelId: protoConfig.actModeHuggingFaceModelId,
 		actModeHuggingFaceModelInfo: convertProtoToModelInfo(protoConfig.actModeHuggingFaceModelInfo),
-		actModeSapAiCoreModelId: protoConfig.actModeSapAiCoreModelId,
 		actModeHuaweiCloudMaasModelId: protoConfig.actModeHuaweiCloudMaasModelId,
 		actModeHuaweiCloudMaasModelInfo: convertProtoToModelInfo(protoConfig.actModeHuaweiCloudMaasModelInfo),
-		actModeSapAiCoreDeploymentId: protoConfig.actModeSapAiCoreDeploymentId,
 		actModeAihubmixModelId: protoConfig.actModeAihubmixModelId,
 		actModeAihubmixModelInfo: convertProtoToOpenAiCompatibleModelInfo(protoConfig.actModeAihubmixModelInfo),
 		actModeHicapModelId: protoConfig.actModeHicapModelId,

@@ -34,7 +34,6 @@ import { QwenHandler } from "./providers/qwen"
 import { QwenCodeHandler } from "./providers/qwen-code"
 import { RequestyHandler } from "./providers/requesty"
 import { SambanovaHandler } from "./providers/sambanova"
-import { SapAiCoreHandler } from "./providers/sapaicore"
 import { TogetherHandler } from "./providers/together"
 import { VercelAIGatewayHandler } from "./providers/vercel-ai-gateway"
 import { VertexHandler } from "./providers/vertex"
@@ -356,21 +355,6 @@ function createHandlerForProvider(
 				basetenModelId: mode === "plan" ? options.planModeBasetenModelId : options.actModeBasetenModelId,
 				basetenModelInfo: mode === "plan" ? options.planModeBasetenModelInfo : options.actModeBasetenModelInfo,
 				apiModelId: mode === "plan" ? options.planModeApiModelId : options.actModeApiModelId,
-			})
-		case "sapaicore":
-			return new SapAiCoreHandler({
-				onRetryAttempt: options.onRetryAttempt,
-				sapAiCoreClientId: options.sapAiCoreClientId,
-				sapAiCoreClientSecret: options.sapAiCoreClientSecret,
-				sapAiCoreTokenUrl: options.sapAiCoreTokenUrl,
-				sapAiResourceGroup: options.sapAiResourceGroup,
-				sapAiCoreBaseUrl: options.sapAiCoreBaseUrl,
-				apiModelId: mode === "plan" ? options.planModeApiModelId : options.actModeApiModelId,
-				thinkingBudgetTokens:
-					mode === "plan" ? options.planModeThinkingBudgetTokens : options.actModeThinkingBudgetTokens,
-				reasoningEffort: mode === "plan" ? options.planModeReasoningEffort : options.actModeReasoningEffort,
-				deploymentId: mode === "plan" ? options.planModeSapAiCoreDeploymentId : options.actModeSapAiCoreDeploymentId,
-				sapAiCoreUseOrchestrationMode: options.sapAiCoreUseOrchestrationMode,
 			})
 		case "claude-code":
 			return new ClaudeCodeHandler({

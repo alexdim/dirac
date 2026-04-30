@@ -60,13 +60,6 @@ function isProviderConfigured(providerId: string, config: ApiConfiguration): boo
 			return !!config.sambanovaApiKey
 		case "cerebras":
 			return !!config.cerebrasApiKey
-		case "sapaicore":
-			return !!(
-				config.sapAiCoreBaseUrl &&
-				config.sapAiCoreClientId &&
-				config.sapAiCoreClientSecret &&
-				config.sapAiCoreTokenUrl
-			)
 		case "zai":
 			return !!config.zaiApiKey
 		case "groq":

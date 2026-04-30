@@ -20,7 +20,6 @@ import {
     openAiNativeDefaultModelId,
     openRouterDefaultModelId,
     requestyDefaultModelId,
-    sapAiCoreDefaultModelId,
     wandbDefaultModelId,
     xaiDefaultModelId,
 } from "../api"
@@ -34,7 +33,6 @@ const ProviderKeyMap: Partial<Record<ApiProvider, string>> = {
 	requesty: "RequestyModelId",
 	together: "TogetherModelId",
 	fireworks: "FireworksModelId",
-	sapaicore: "SapAiCoreModelId",
 	groq: "GroqModelId",
 	baseten: "BasetenModelId",
 	huggingface: "HuggingFaceModelId",
@@ -77,7 +75,6 @@ export const ProviderToApiKeyMap: Partial<Record<ApiProvider, keyof Secrets | (k
 	minimax: "minimaxApiKey",
 	hicap: "hicapApiKey",
 	nousResearch: "nousResearchApiKey",
-	sapaicore: ["sapAiCoreClientId", "sapAiCoreClientSecret"],
 	wandb: "wandbApiKey",
 } as const
 
@@ -91,7 +88,6 @@ const ProviderDefaultModelMap: Partial<Record<ApiProvider, string>> = {
 	requesty: requestyDefaultModelId,
 	together: openRouterDefaultModelId,
 	fireworks: fireworksDefaultModelId,
-	sapaicore: sapAiCoreDefaultModelId,
 	groq: groqDefaultModelId,
 	baseten: basetenDefaultModelId,
 	huggingface: huggingFaceDefaultModelId,
