@@ -1,6 +1,6 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import OpenAI from "openai"
-import { DiracAssistantThinkingBlock, DiracStorageMessage, DiracUserToolResultContentBlock } from "@/shared/messages/content"
+import { DiracAssistantThinkingBlock, DiracStorageMessage } from "@/shared/messages/content"
 
 /**
  * DeepSeek Reasoner message format with reasoning_content support.
