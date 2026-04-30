@@ -86,7 +86,7 @@ export class QwenHandler implements ApiHandler {
 	async *createMessage(systemPrompt: string, messages: DiracStorageMessage[], tools?: OpenAITool[]): ApiStream {
 		const client = this.ensureClient()
 		const model = this.getModel()
-		const isDeepseekReasoner = model.id.includes("deepseek-r1")
+		const isDeepseek = model.id.includes("deepseek")
 		const isReasoningModelFamily = model.id.includes("qwen3") || ["qwen-plus-latest", "qwen-turbo-latest"].includes(model.id)
 
 		let openAiMessages: OpenAI.Chat.ChatCompletionMessageParam[] = [
@@ -105,7 +105,7 @@ export class QwenHandler implements ApiHandler {
 				}
 			: undefined
 
-		if (isDeepseekReasoner || (reasoningOn && isReasoningModelFamily)) {
+		if (isDeepseek || (reasoningOn && isReasoningModelFamily)) {
 			openAiMessages = convertToR1Format(
 				[{ role: "user", content: systemPrompt }, ...messages],
 				this.getModel().info.supportsImages !== false,

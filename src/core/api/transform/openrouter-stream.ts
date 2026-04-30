@@ -50,7 +50,7 @@ export async function createOpenRouterStream(
 	// Sanitize messages for Gemini models (removes tool_calls without reasoning_details)
 	openAiMessages = sanitizeGeminiMessages(openAiMessages, model.id)
 
-	const isDeepSeek = model.id.startsWith("deepseek/")
+	const isDeepSeek = model.id.includes("deepseek")
 	const supportsReasoning = model.info.supportsReasoning
 	const requestedEffort = normalizeOpenaiReasoningEffort(reasoningEffort)
 	const isThinkingEnabled = supportsReasoning && requestedEffort !== "none"

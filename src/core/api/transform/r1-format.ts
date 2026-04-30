@@ -23,16 +23,17 @@ export function addReasoningContent(
 	let assistantIdx = 0
 	for (const msg of originalMessages) {
 		if (msg.role === "assistant") {
+			let thinking = ""
+			let hasToolCall = false
 			if (Array.isArray(msg.content)) {
-				const thinking = msg.content
+				thinking = msg.content
 					.filter((p): p is DiracAssistantThinkingBlock => p.type === "thinking")
 					.map((p) => p.thinking)
 					.join("\n")
-				const hasToolCall = msg.content.some((p) => p.type === "tool_use")
-				if (thinking) {
-					thinkingByIndex.set(assistantIdx, { thinking, hasToolCall })
-				}
+				hasToolCall = msg.content.some((p) => p.type === "tool_use")
 			}
+			// Always record an entry for every assistant message to ensure we can add reasoning_content field
+			thinkingByIndex.set(assistantIdx, { thinking, hasToolCall })
 			assistantIdx++
 		}
 	}
@@ -48,6 +49,8 @@ export function addReasoningContent(
 					return { ...msg, reasoning_content: data.thinking } as DeepSeekReasonerMessage
 				}
 			}
+			// If we are in R1 format, we should always include reasoning_content even if empty
+			return { ...msg, reasoning_content: "" } as DeepSeekReasonerMessage
 		}
 		return msg as DeepSeekReasonerMessage
 	})
@@ -58,12 +61,13 @@ export function addReasoningContent(
 export function convertToR1Format(
 	messages: Anthropic.Messages.MessageParam[],
 	supportsImages: boolean = false,
-): OpenAI.Chat.ChatCompletionMessageParam[] {
-	return messages.reduce<OpenAI.Chat.ChatCompletionMessageParam[]>((merged, message) => {
+): DeepSeekReasonerMessage[] {
+	return messages.reduce<DeepSeekReasonerMessage[]>((merged, message) => {
 		const lastMessage = merged[merged.length - 1]
 		let messageContent: string | (OpenAI.Chat.ChatCompletionContentPartText | OpenAI.Chat.ChatCompletionContentPartImage)[] =
 			""
 		let hasImages = false
+		let thinking = ""
 
 		if (Array.isArray(message.content)) {
 			const textParts: string[] = []
@@ -88,6 +92,9 @@ export function convertToR1Format(
 					} else {
 						textParts.push("[Image]")
 					}
+				}
+				if ((part as any).type === "thinking") {
+					thinking += (thinking ? "\n" : "") + ((part as any).thinking || "")
 				}
 			})
 
@@ -124,6 +131,11 @@ export function convertToR1Format(
 						...newContent,
 					] as OpenAI.Chat.ChatCompletionAssistantMessageParam["content"]
 					lastMessage.content = mergedContent
+					// Merge thinking content for assistant messages
+					if (thinking) {
+						const currentReasoning = (lastMessage as any).reasoning_content || ""
+						;(lastMessage as any).reasoning_content = currentReasoning + (currentReasoning ? "\n" : "") + thinking
+					}
 				} else {
 					const mergedContent = [...lastContent, ...newContent] as OpenAI.Chat.ChatCompletionUserMessageParam["content"]
 					lastMessage.content = mergedContent
@@ -132,9 +144,10 @@ export function convertToR1Format(
 		} else {
 			// Adds new message with the correct type based on role
 			if (message.role === "assistant") {
-				const newMessage: OpenAI.Chat.ChatCompletionAssistantMessageParam = {
+				const newMessage: DeepSeekReasonerMessage = {
 					role: "assistant",
 					content: messageContent as OpenAI.Chat.ChatCompletionAssistantMessageParam["content"],
+					reasoning_content: thinking || "",
 				}
 				merged.push(newMessage)
 			} else {
@@ -142,7 +155,7 @@ export function convertToR1Format(
 					role: "user",
 					content: messageContent as OpenAI.Chat.ChatCompletionUserMessageParam["content"],
 				}
-				merged.push(newMessage)
+				merged.push(newMessage as any)
 			}
 		}
 		return merged

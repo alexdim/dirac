@@ -105,10 +105,8 @@ export class OpenAiHandler implements ApiHandler {
 	async *createMessage(systemPrompt: string, messages: DiracStorageMessage[], tools?: ChatCompletionTool[]): ApiStream {
 		const client = this.ensureClient()
 		const modelId = this.options.openAiModelId ?? ""
-		const isDeepseekReasoner =
-			modelId.toLowerCase().includes("deepseek-reasoner") ||
-			modelId.toLowerCase().includes("r1") ||
-			modelId.toLowerCase().includes("reasoner")
+		const isDeepseek =
+			modelId.toLowerCase().includes("deepseek")
 		const isR1FormatRequired = this.options.openAiModelInfo?.isR1FormatRequired ?? false
 		const isReasoningModelFamily =
 			["o1", "o3", "o4", "gpt-5"].some((prefix) => modelId.includes(prefix)) && !modelId.includes("chat")
@@ -133,7 +131,7 @@ export class OpenAiHandler implements ApiHandler {
 			maxTokens = undefined
 		}
 
-		if (isDeepseekReasoner || isR1FormatRequired) {
+		if (isDeepseek || isR1FormatRequired) {
 			const modelInfo = this.getModel().info
 			if ((modelInfo as any).supportsTools || (modelInfo as any).isR1FormatRequired) {
 				// If the model supports tools or specifically requires R1 format (which includes reasoning_content),

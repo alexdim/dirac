@@ -45,7 +45,7 @@ export class TogetherHandler implements ApiHandler {
 	async *createMessage(systemPrompt: string, messages: DiracStorageMessage[], tools?: OpenAITool[]): ApiStream {
 		const client = this.ensureClient()
 		const modelId = this.options.togetherModelId ?? ""
-		const isDeepseekReasoner = modelId.includes("deepseek-reasoner")
+		const isDeepseek = modelId.includes("deepseek")
 		const model = this.getModel()
 
 		let openAiMessages: OpenAI.Chat.ChatCompletionMessageParam[] = [
@@ -53,7 +53,7 @@ export class TogetherHandler implements ApiHandler {
 			...convertToOpenAiMessages(messages, undefined, this.getModel().info.supportsImages !== false),
 		]
 
-		if (isDeepseekReasoner || (model.info as any).isR1FormatRequired) {
+		if (isDeepseek || (model.info as any).isR1FormatRequired) {
 			if ((model.info as any).supportsTools) {
 				openAiMessages = [
 					{ role: "system", content: systemPrompt },
