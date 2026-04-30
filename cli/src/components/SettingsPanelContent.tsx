@@ -34,6 +34,8 @@ import { LanguagePicker } from "./LanguagePicker"
 import { CUSTOM_MODEL_ID, hasModelPicker, ModelPicker } from "./ModelPicker"
 import { Panel, PanelTab } from "./Panel"
 import { getProviderLabel, ProviderPicker } from "./ProviderPicker"
+import { ObjectEditorPanel, type ObjectEditorState } from "./ConfigViewComponents"
+import { getObjectAtPath, setObjectValueAtPath } from "../utils/config"
 
 interface SettingsPanelContentProps {
 	onClose: () => void
@@ -47,8 +49,8 @@ type SettingsTab = "api" | "auto-approve" | "features" | "other"
 interface ListItem {
 	key: string
 	label: string
-	type: "checkbox" | "readonly" | "editable" | "separator" | "header" | "spacer" | "action" | "cycle"
-	value: string | boolean
+	type: "checkbox" | "readonly" | "editable" | "separator" | "header" | "spacer" | "action" | "cycle" | "object"
+	value: any
 	description?: string
 	isSubItem?: boolean
 	parentKey?: string
@@ -209,6 +211,10 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 			stateManager.getApiConfiguration().planModeApiProvider ||
 			"not configured",
 	)
+	const [objectEditor, setObjectEditor] = useState<ObjectEditorState | null>(null)
+	const [openAiHeaders, setOpenAiHeaders] = useState<Record<string, string>>(() =>
+		stateManager.getGlobalSettingsKey("openAiHeaders") ?? {}
+	)
 	// Refresh trigger to force re-reading model IDs from state
 	const [modelRefreshKey, setModelRefreshKey] = useState(0)
 	const refreshModelIds = useCallback(() => setModelRefreshKey((k) => k + 1), [])
@@ -286,6 +292,16 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 						type: "editable",
 						value: provider ? getProviderLabel(provider) : "not configured",
 					},
+					...(provider === "openai"
+						? [
+								{
+									key: "openAiHeaders",
+									label: "Custom Headers",
+									type: "object" as const,
+									value: openAiHeaders,
+								},
+						  ]
+						: []),
 					...(provider === "openai-codex" && openAiCodexIsAuthenticated
 						? [
 								{
@@ -589,6 +605,17 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 		},
 		[separateModels, rebuildTaskApi, stateManager],
 	)
+	const persistObjectEditor = useCallback(
+		(nextObject: Record<string, unknown>, _source: string, key: string) => {
+			if (key === "openAiHeaders") {
+				const headers = nextObject as Record<string, string>
+				setOpenAiHeaders(headers)
+				stateManager.setGlobalState("openAiHeaders", headers)
+				rebuildTaskApi()
+			}
+		},
+		[stateManager, rebuildTaskApi],
+	)
 
 	// Handle toggle/edit for selected item
 	const handleAction = useCallback(() => {
@@ -597,6 +624,20 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 			return
 
 		if (item.type === "action") {
+			return
+		}
+
+		if (item.type === "object") {
+			setObjectEditor({
+				source: "global",
+				key: item.key,
+				path: [],
+				value: item.value as Record<string, unknown>,
+				selectedIndex: 0,
+				isEditingValue: false,
+				isAddingKey: false,
+				editValue: "",
+			})
 			return
 		}
 
@@ -1108,6 +1149,9 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 	// Disable when in modes where child components handle input
 	useInput(
 		(input, key) => {
+			if (objectEditor) {
+				return
+			}
 			// Filter out mouse escape sequences
 			if (isMouseEscapeSequence(input)) {
 				return
@@ -1435,6 +1479,19 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 			)
 		}
 
+		if (objectEditor) {
+			return (
+				<ObjectEditorPanel
+					getObjectAtPath={getObjectAtPath}
+					onClose={() => setObjectEditor(null)}
+					onPersist={(nextObject) => persistObjectEditor(nextObject, objectEditor.source, objectEditor.key)}
+					setObjectValueAtPath={setObjectValueAtPath}
+					setState={setObjectEditor}
+					state={objectEditor}
+				/>
+			)
+		}
+
 		return (
 			<Box flexDirection="column">
 				{items.map((item, idx) => {
@@ -1519,7 +1576,7 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 							</Text>
 							{item.label && <Text color={isSelected ? COLORS.primaryBlue : "white"}>{item.label}: </Text>}
 							<Text color={item.type === "readonly" ? "gray" : COLORS.primaryBlue}>
-								{typeof item.value === "string" ? item.value : String(item.value)}
+								{typeof item.value === "string" ? item.value : item.type === "object" ? "{...}" : String(item.value)}
 							</Text>
 							{item.type === "editable" && isSelected && <Text color="gray"> (Tab to edit)</Text>}
 						</Text>

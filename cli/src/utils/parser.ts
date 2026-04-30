@@ -78,6 +78,32 @@ export function parseImagesFromInput(input: string): { prompt: string; imagePath
 }
 
 /**
+ * Parse headers string into a Record<string, string>.
+ * Supports comma-separated key=value pairs or JSON.
+ * Example: "X-Header=Value,Authorization=Bearer token" or '{"X-Header": "Value"}'
+ */
+export function parseHeaders(headersString: string): Record<string, string> {
+	const trimmed = headersString.trim()
+	if (trimmed.startsWith("{")) {
+		try {
+			return JSON.parse(trimmed)
+		} catch (error) {
+			// Fall back to comma-separated if JSON parsing fails
+		}
+	}
+
+	const headers: Record<string, string> = {}
+	const pairs = trimmed.split(",")
+	for (const pair of pairs) {
+		const [key, ...valueParts] = pair.split("=")
+		if (key && valueParts.length > 0) {
+			headers[key.trim()] = valueParts.join("=").trim()
+		}
+	}
+	return headers
+}
+
+/**
  * Process image file paths into base64 data URLs
  * Returns only successfully converted images
  */

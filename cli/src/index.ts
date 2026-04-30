@@ -44,6 +44,7 @@ interface TaskOptions {
 	stdinWasPiped?: boolean
 	hooksDir?: string
 	subagents?: boolean
+	headers?: string
 }
 
 let telemetryDisposed = false
@@ -263,6 +264,14 @@ async function applyTaskOptions(options: TaskOptions): Promise<void> {
 	if (options.autoCondense) {
 		stateManager.setSessionOverride("useAutoCondense", true)
 	}
+
+	const headersString = options.headers || process.env.CUSTOM_HEADERS
+	if (headersString) {
+		const { parseHeaders } = await import("./utils/parser")
+		const parsedHeaders = parseHeaders(headersString)
+		stateManager.setSessionOverride("openAiHeaders", parsedHeaders)
+	}
+
 }
 
 /**
@@ -1282,6 +1291,7 @@ program
 	.option("--double-check-completion", "Reject first completion attempt to force re-verification")
 	.option("--auto-condense", "Enable AI-powered context compaction instead of mechanical truncation")
 	.option("--subagents", "Enable subagents for the task")
+	.option("--headers <headers>", "Custom headers for OpenAI-compatible provider (key1=value1,key2=value2 or JSON)")
 	.option("--hooks-dir <path>", "Path to additional hooks directory for runtime hook injection")
 	.option("--acp", "Run in ACP (Agent Client Protocol) mode for editor integration")
 	.option("--kanban", "Run npx kanban --agent dirac")

@@ -98,9 +98,30 @@ Common API Keys:
 
 #### Using Any OpenAI compatible endpoint
 
-You can use OPENAI_COMPATIBLE_CUSTOM_KEY (or its alias OPENAI_API_BASE) for any provider and model as long as it exposes an OpenAI compatible endpoint. Using these variables requires providing both the model and the provider in the cli
+You can use any OpenAI-compatible provider (e.g., DeepSeek, DeepInfra, OpenRouter, or your own local proxy) by providing the base URL and model ID.
 
-`$ OPENAI_API_BASE="xxx" dirac -y --provider "https://api.deepseek.com/v1" --model deepseek-v4-flash "explain Dirac Delta function"`
+**Environment Variables:**
+- `OPENAI_API_BASE` (or `OPENAI_COMPATIBLE_CUSTOM_KEY`): Your API key.
+- `CUSTOM_HEADERS`: Optional custom headers (e.g., `"Authorization=Bearer token,X-Account-Id=123"` or JSON format).
+
+**CLI Example:**
+```bash
+# Using environment variables
+export OPENAI_API_BASE="your-api-key"
+export CUSTOM_HEADERS="Authorization=Bearer XXX"
+
+dirac "explain Dirac Delta function" \
+  --provider "https://api.yourprovider.com/v1" \
+  --model "your-model-id"
+```
+
+**CLI Flag Example:**
+```bash
+dirac "explain Dirac Delta function" \
+  --provider "https://api.deepseek.com/v1" \
+  --model "deepseek-v4-pro" \
+  --headers "X-Custom-Header=Value"
+```
 
 
 ### Common Commands

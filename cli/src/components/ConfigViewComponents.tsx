@@ -54,6 +54,7 @@ export interface ObjectEditorState {
 	selectedIndex: number
 	isEditingValue: boolean
 	editValue: string
+	isAddingKey: boolean
 }
 
 export const EXCLUDED_KEYS = new Set(["taskHistory", "primaryRootIndex", "welcomeViewCompleted", "isNewUser"])
@@ -408,6 +409,43 @@ export const ObjectEditorPanel: React.FC<ObjectEditorPanelProps> = ({
 
 	useInput(
 		(input, key) => {
+			if (state.isAddingKey) {
+				if (key.escape) {
+					setState((prev) => (prev ? { ...prev, isAddingKey: false, editValue: "" } : prev))
+					return
+				}
+				if (key.return) {
+					if (!state.editValue.trim()) {
+						setState((prev) => (prev ? { ...prev, isAddingKey: false, editValue: "" } : prev))
+						return
+					}
+					const newKey = state.editValue.trim()
+					const nextObject = setObjectValueAtPath(state.value, state.path, newKey, "")
+					onPersist(nextObject)
+					setState((prev) =>
+						prev
+							? {
+									...prev,
+									value: nextObject,
+									isAddingKey: false,
+									isEditingValue: true,
+									editValue: "",
+									selectedIndex: Object.keys(getObjectAtPath(nextObject, state.path)).sort().indexOf(newKey),
+								}
+							: prev,
+					)
+					return
+				}
+				if (key.backspace || key.delete) {
+					setState((prev) => (prev ? { ...prev, editValue: prev.editValue.slice(0, -1) } : prev))
+					return
+				}
+				if (input && !key.ctrl && !key.meta) {
+					setState((prev) => (prev ? { ...prev, editValue: prev.editValue + input } : prev))
+				}
+				return
+			}
+
 			if (state.isEditingValue) {
 				if (key.escape) {
 					setState((prev) => (prev ? { ...prev, isEditingValue: false, editValue: "" } : prev))
@@ -446,6 +484,40 @@ export const ObjectEditorPanel: React.FC<ObjectEditorPanelProps> = ({
 					setState((prev) => (prev ? { ...prev, path: prev.path.slice(0, -1), selectedIndex: 0 } : prev))
 				} else {
 					onClose()
+				}
+				return
+			}
+
+			if (input === "a") {
+				setState((prev) => (prev ? { ...prev, isAddingKey: true, editValue: "" } : prev))
+				return
+			}
+
+			if (input === "d" || key.delete) {
+				if (selectedEntry) {
+					const [entryKey] = selectedEntry
+					const currentNode = getObjectAtPath(state.value, state.path)
+					const { [entryKey]: _, ...rest } = currentNode
+					const nextObject = setObjectValueAtPath(state.value, state.path.slice(0, -1), state.path[state.path.length - 1], rest)
+					// Wait, setObjectValueAtPath needs to be used carefully here.
+					// If path is empty, we just update the root.
+					let updatedRoot: Record<string, unknown>
+					if (state.path.length === 0) {
+						updatedRoot = rest
+					} else {
+						updatedRoot = setObjectValueAtPath(state.value, state.path.slice(0, -1), state.path[state.path.length - 1], rest)
+					}
+
+					onPersist(updatedRoot)
+					setState((prev) =>
+						prev
+							? {
+									...prev,
+									value: updatedRoot,
+									selectedIndex: Math.max(0, prev.selectedIndex - 1),
+								}
+							: prev,
+					)
 				}
 				return
 			}
@@ -515,7 +587,16 @@ export const ObjectEditorPanel: React.FC<ObjectEditorPanelProps> = ({
 			</Text>
 			<Text color="gray">{SEPARATOR}</Text>
 			<Text color="cyan">{breadcrumb}</Text>
-			{state.isEditingValue ? (
+			{state.isAddingKey ? (
+				<Box flexDirection="column" marginTop={1}>
+					<Text color="yellow">Add new key:</Text>
+					<Box>
+						<Text color="white">{state.editValue}</Text>
+						<Text color="cyan">|</Text>
+					</Box>
+					<Text color="gray">Enter to add • Esc to cancel</Text>
+				</Box>
+			) : state.isEditingValue ? (
 				<Box flexDirection="column" marginTop={1}>
 					<Box>
 						<Text color="white">{state.editValue}</Text>
@@ -542,7 +623,22 @@ export const ObjectEditorPanel: React.FC<ObjectEditorPanelProps> = ({
 							)
 						})
 					)}
-					<Text color="gray">↑/↓ Navigate • Enter/Tab Edit or drill in • Esc Back/Close</Text>
+					<Box>
+						<Text color="gray">↑/↓ </Text>
+						<Text color="cyan">Navigate</Text>
+						<Text color="gray"> • </Text>
+						<Text color="gray">Enter/Tab </Text>
+						<Text color="cyan">Edit</Text>
+						<Text color="gray"> • </Text>
+						<Text color="cyan">a</Text>
+						<Text color="gray"> Add</Text>
+						<Text color="gray"> • </Text>
+						<Text color="cyan">d</Text>
+						<Text color="gray"> Delete</Text>
+						<Text color="gray"> • </Text>
+						<Text color="cyan">Esc</Text>
+						<Text color="gray"> Back</Text>
+					</Box>
 				</Box>
 			)}
 		</Box>
