@@ -1,4 +1,4 @@
-import { parseYamlFrontmatter } from "@core/context/instructions/user-instructions/frontmatter"
+import { parseYamlFrontmatter } from "@utils/frontmatter"
 import { Logger } from "@shared/services/Logger"
 import { DiracDefaultTool, setDynamicToolUseNames } from "@shared/tools"
 import chokidar, { type FSWatcher } from "chokidar"

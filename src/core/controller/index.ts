@@ -48,7 +48,7 @@ import { sendChatButtonClickedEvent } from "./ui/subscribeToChatButtonClicked"
 import { SkillMetadata } from "@/shared/skills"
 
 export class Controller {
-	public discoveredSkillsCache: SkillMetadata[] = []
+	public discoveredSkillsCache?: SkillMetadata[]
 	task?: Task
 	readonly stateManager: StateManager
 
@@ -649,7 +649,11 @@ export class Controller {
 
 		const workspaceManager = await this.ensureWorkspaceManager()
 		const cwd = (this.task as any)?.cwd || workspaceManager?.getPrimaryRoot()?.path || process.cwd()
-		const availableSkills = await getOrDiscoverSkills(cwd, this.task?.taskState || (this as any))
+		const discoveredSkills = await getOrDiscoverSkills(cwd, this.task?.taskState || (this as any))
+		const availableSkills = discoveredSkills.filter((skill) => {
+			const toggles = skill.source === "global" ? globalSkillsToggles : localSkillsToggles
+			return toggles[skill.path] !== false
+		})
 
 		const primaryRootPath = this.workspaceManager?.getPrimaryRoot()?.path
 		const currentTaskItem = this.task?.taskId ? (taskHistory || []).find((item) => item.id === this.task?.taskId) : undefined

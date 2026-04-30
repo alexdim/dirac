@@ -15,7 +15,7 @@ import fs from "fs/promises"
 import path from "path"
 import { Controller } from "@/core/controller"
 import { Logger } from "@/shared/services/Logger"
-import { parseYamlFrontmatter } from "./frontmatter"
+import { parseYamlFrontmatter } from "@utils/frontmatter"
 import { evaluateRuleConditionals, type RuleEvaluationContext } from "./rule-conditionals"
 
 export const getGlobalDiracRules = async (

@@ -4,16 +4,8 @@ import { fileExistsAtPath, isDirectory } from "@utils/fs"
 import * as fs from "fs/promises"
 import * as path from "path"
 import { Logger } from "@/shared/services/Logger"
-import { parseYamlFrontmatter } from "./frontmatter"
+import { parseYamlFrontmatter } from "@utils/frontmatter"
 
-/** Parse YAML frontmatter from markdown content (shared helper). */
-function parseFrontmatter(fileContent: string): { data: Record<string, unknown>; content: string } {
-	const result = parseYamlFrontmatter(fileContent)
-	if (result.parseError) {
-		Logger.warn("Failed to parse YAML frontmatter:", result.parseError)
-	}
-	return { data: result.data, content: result.body }
-}
 
 /**
  * Scan a directory for skill subdirectories containing SKILL.md files.
@@ -60,21 +52,26 @@ async function loadSkillMetadata(
 
 	try {
 		const fileContent = await fs.readFile(skillMdPath, "utf-8")
-		const { data: frontmatter } = parseFrontmatter(fileContent)
+		const { data: frontmatter, parseError } = parseYamlFrontmatter(fileContent)
+
+		if (parseError) {
+			Logger.warn(`Failed to parse YAML frontmatter for skill at ${skillDir}: ${parseError}`)
+			return null
+		}
 
 		// Validate required fields
 		if (!frontmatter.name || typeof frontmatter.name !== "string") {
-			Logger.warn(`Skill at ${skillDir} missing required 'name' field`)
+			Logger.warn(`Skill at ${skillDir} missing required 'name' field in frontmatter`)
 			return null
 		}
 		if (!frontmatter.description || typeof frontmatter.description !== "string") {
-			Logger.warn(`Skill at ${skillDir} missing required 'description' field`)
+			Logger.warn(`Skill at ${skillDir} missing required 'description' field in frontmatter`)
 			return null
 		}
 
 		// Name must match directory name per spec
 		if (frontmatter.name !== skillName) {
-			Logger.warn(`Skill name "${frontmatter.name}" doesn't match directory "${skillName}"`)
+			Logger.warn(`Skill name "${frontmatter.name}" in frontmatter doesn't match directory "${skillName}" at ${skillDir}`)
 			return null
 		}
 
@@ -169,7 +166,7 @@ export async function getSkillContent(skillName: string, availableSkills: SkillM
 
 	try {
 		const fileContent = await fs.readFile(skill.path, "utf-8")
-		const { content: body } = parseFrontmatter(fileContent)
+		const { body } = parseYamlFrontmatter(fileContent)
 
 		return {
 			...skill,
@@ -188,7 +185,7 @@ export async function getOrDiscoverSkills(
 	cwd: string,
 	cacheProvider: { discoveredSkillsCache?: SkillMetadata[] },
 ): Promise<SkillMetadata[]> {
-	if (cacheProvider.discoveredSkillsCache) {
+	if (cacheProvider.discoveredSkillsCache !== undefined) {
 		return cacheProvider.discoveredSkillsCache
 	}
 

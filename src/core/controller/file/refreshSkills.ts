@@ -1,42 +1,12 @@
 import { RefreshedSkills, SkillInfo } from "@shared/proto/dirac/file"
+import { parseYamlFrontmatter } from "@utils/frontmatter"
+import { Logger } from "@/shared/services/Logger"
 import fs from "fs/promises"
 import path from "path"
 import { getSkillsDirectoriesForScan } from "@/core/storage/disk"
 import { HostProvider } from "@/hosts/host-provider"
 import { fileExistsAtPath, isDirectory } from "@/utils/fs"
 import { Controller } from ".."
-
-/**
- * Parse YAML frontmatter from markdown content.
- */
-function parseFrontmatter(fileContent: string): {
-	data: Record<string, unknown>
-	content: string
-} {
-	const frontmatterRegex = /^---\r?\n([\s\S]*?)\r?\n---\r?\n?([\s\S]*)$/
-	const match = fileContent.match(frontmatterRegex)
-
-	if (!match) {
-		return { data: {}, content: fileContent }
-	}
-
-	const [, yamlContent, body] = match
-	// Simple YAML parsing for name and description
-	const data: Record<string, unknown> = {}
-	const lines = yamlContent.split("\n")
-	for (const line of lines) {
-		const colonIndex = line.indexOf(":")
-		if (colonIndex > 0) {
-			const key = line.slice(0, colonIndex).trim()
-			const value = line
-				.slice(colonIndex + 1)
-				.trim()
-				.replace(/^["']|["']$/g, "")
-			data[key] = value
-		}
-	}
-	return { data, content: body }
-}
 
 /**
  * Scan a directory for skill subdirectories containing SKILL.md files.
@@ -57,16 +27,31 @@ async function scanSkillsDirectory(dirPath: string): Promise<SkillInfo[]> {
 			if (!stats?.isDirectory()) continue
 
 			const skillMdPath = path.join(entryPath, "SKILL.md")
-			if (!(await fileExistsAtPath(skillMdPath))) continue
 
 			try {
 				const fileContent = await fs.readFile(skillMdPath, "utf-8")
-				const { data: frontmatter } = parseFrontmatter(fileContent)
+				const { data: frontmatter, parseError } = parseYamlFrontmatter(fileContent)
+
+				if (parseError) {
+					Logger.warn(`Failed to parse YAML frontmatter for skill at ${entryPath}: ${parseError}`)
+					continue
+				}
 
 				// Validate required fields
-				if (!frontmatter.name || typeof frontmatter.name !== "string") continue
-				if (!frontmatter.description || typeof frontmatter.description !== "string") continue
-				if (frontmatter.name !== entryName) continue
+				if (!frontmatter.name || typeof frontmatter.name !== "string") {
+					Logger.warn(`Skill at ${entryPath} missing required 'name' field in frontmatter`)
+					continue
+				}
+				if (!frontmatter.description || typeof frontmatter.description !== "string") {
+					Logger.warn(`Skill at ${entryPath} missing required 'description' field in frontmatter`)
+					continue
+				}
+				if (frontmatter.name !== entryName) {
+					Logger.warn(
+						`Skill name "${frontmatter.name}" in frontmatter doesn't match directory name "${entryName}" at ${entryPath}`,
+					)
+					continue
+				}
 
 				skills.push(
 					SkillInfo.create({
@@ -76,8 +61,8 @@ async function scanSkillsDirectory(dirPath: string): Promise<SkillInfo[]> {
 						enabled: true, // Will be updated with toggle state
 					}),
 				)
-			} catch {
-				// Skip invalid skills
+			} catch (error) {
+				Logger.warn(`Failed to load skill at ${entryPath}:`, error)
 			}
 		}
 	} catch {
@@ -93,29 +78,42 @@ async function scanSkillsDirectory(dirPath: string): Promise<SkillInfo[]> {
 export async function refreshSkills(controller: Controller): Promise<RefreshedSkills> {
 	// Get workspace paths for local skills
 	const workspacePaths = await HostProvider.workspace.getWorkspacePaths({})
-	const primaryWorkspace = workspacePaths.paths[0]
+	const allWorkspacePaths = workspacePaths.paths
 
-	const globalSkills: SkillInfo[] = []
-	const localSkills: SkillInfo[] = []
+	const globalSkillsMap = new Map<string, SkillInfo>()
+	const localSkillsMap = new Map<string, SkillInfo>()
 
-	if (primaryWorkspace) {
-		const scanDirs = getSkillsDirectoriesForScan(primaryWorkspace)
-		for (const dir of scanDirs) {
+	// 1. Scan global directories (only once)
+	// We use an empty string as cwd to get global directories from getSkillsDirectoriesForScan
+	const scanDirsForGlobal = getSkillsDirectoriesForScan("")
+	for (const dir of scanDirsForGlobal) {
+		if (dir.source === "global") {
 			const skills = await scanSkillsDirectory(dir.path)
-			if (dir.source === "global") {
-				globalSkills.push(...skills)
-			} else {
-				localSkills.push(...skills)
+			for (const skill of skills) {
+				if (!globalSkillsMap.has(skill.path)) {
+					globalSkillsMap.set(skill.path, skill)
+				}
 			}
 		}
-	} else {
-		const scanDirs = getSkillsDirectoriesForScan("")
+	}
+
+	// 2. Scan all workspace folders for project skills
+	for (const workspacePath of allWorkspacePaths) {
+		const scanDirs = getSkillsDirectoriesForScan(workspacePath)
 		for (const dir of scanDirs) {
-			if (dir.source !== "global") continue
-			const skills = await scanSkillsDirectory(dir.path)
-			globalSkills.push(...skills)
+			if (dir.source === "project") {
+				const skills = await scanSkillsDirectory(dir.path)
+				for (const skill of skills) {
+					if (!localSkillsMap.has(skill.path)) {
+						localSkillsMap.set(skill.path, skill)
+					}
+				}
+			}
 		}
 	}
+
+	const globalSkills = Array.from(globalSkillsMap.values())
+	const localSkills = Array.from(localSkillsMap.values())
 
 	// Get global toggles and apply them
 	const globalToggles = controller.stateManager.getGlobalSettingsKey("globalSkillsToggles") || {}

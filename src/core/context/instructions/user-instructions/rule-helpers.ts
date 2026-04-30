@@ -6,7 +6,7 @@ import fs from "fs/promises"
 import * as path from "path"
 import { Controller } from "@/core/controller"
 import { Logger } from "@/shared/services/Logger"
-import { parseYamlFrontmatter } from "./frontmatter"
+import { parseYamlFrontmatter } from "@utils/frontmatter"
 import { evaluateRuleConditionals, RuleEvaluationContext } from "./rule-conditionals"
 
 /**

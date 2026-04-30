@@ -1,5 +1,5 @@
 import { expect } from "chai"
-import { parseYamlFrontmatter } from "../frontmatter"
+import { parseYamlFrontmatter } from "@utils/frontmatter"
 
 describe("parseYamlFrontmatter", () => {
 	it("returns original content when no frontmatter", () => {
