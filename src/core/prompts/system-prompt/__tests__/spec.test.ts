@@ -124,3 +124,42 @@ describe("native tool placeholder replacement", () => {
 		}
 	})
 })
+
+
+describe("tools without parameters", () => {
+	const noParamTool: DiracToolSpec = {
+		id: DiracDefaultTool.LIST_SKILLS,
+		name: "list_skills",
+		description: "List skills",
+	}
+
+	it("OpenAI: includes empty parameters object", () => {
+		const result = toolSpecFunctionDefinition(noParamTool, mockContext) as any
+		expect(result.function.parameters).to.exist
+		expect(result.function.parameters).to.deep.equal({
+			type: "object",
+			properties: {},
+			required: [],
+			additionalProperties: false,
+		})
+	})
+
+	it("Anthropic: includes empty properties and required in input_schema", () => {
+		const result = toolSpecInputSchema(noParamTool, mockContext)
+		expect(result.input_schema).to.deep.equal({
+			type: "object",
+			properties: {},
+			required: [],
+		})
+	})
+
+	it("Gemini: includes empty parameters object", () => {
+		const result = toolSpecFunctionDeclarations(noParamTool, mockContext)
+		expect(result.parameters).to.exist
+		expect(result.parameters).to.deep.equal({
+			type: "OBJECT",
+			properties: {},
+			required: [],
+		})
+	})
+})

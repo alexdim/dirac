@@ -125,16 +125,12 @@ export function toolSpecFunctionDefinition(tool: DiracToolSpec, context: SystemP
 			name: tool.name,
 			description: replacer(tool.description, context),
 			strict: false,
-			...(Object.keys(properties).length > 0
-				? {
-						parameters: {
-							type: "object",
-							properties,
-							required,
-							additionalProperties: false,
-						},
-				  }
-				: {}),
+			parameters: {
+				type: "object",
+				properties,
+				required,
+				additionalProperties: false,
+			},
 		},
 	}
 
@@ -219,7 +215,8 @@ export function toolSpecInputSchema(tool: DiracToolSpec, context: SystemPromptCo
 		description: replacer(tool.description, context),
 		input_schema: {
 			type: "object",
-			...(Object.keys(properties).length > 0 ? { properties, required } : {}),
+			properties,
+			required,
 		},
 	}
 
@@ -343,15 +340,11 @@ export function toolSpecFunctionDeclarations(tool: DiracToolSpec, context: Syste
 	const googleTool: GoogleTool = {
 		name: tool.name,
 		description: replacer(tool.description, context),
-		...(Object.keys(properties).length > 0
-			? {
-					parameters: {
-						type: GoogleToolParamType.OBJECT,
-						properties,
-						required,
-					},
-			  }
-			: {}),
+		parameters: {
+			type: GoogleToolParamType.OBJECT,
+			properties,
+			required,
+		},
 	}
 	return googleTool
 }
@@ -420,14 +413,11 @@ export function toOpenAIResponsesAPITool(openAITool: OpenAITool): OpenAIResponse
 			name: fn.name,
 			description: fn.description || "",
 			strict: fn.strict || false,
-			parameters:
-				Object.keys(fn.parameters?.properties || {}).length > 0
-					? {
-							type: "object",
-							properties: fn.parameters?.properties,
-							required: (fn.parameters?.required as string[]) || [],
-					  }
-					: null,
+			parameters: {
+				type: "object",
+				properties: fn.parameters?.properties || {},
+				required: (fn.parameters?.required as string[]) || [],
+			},
 		} satisfies OpenAIResponseFunctionTool
 	}
 
