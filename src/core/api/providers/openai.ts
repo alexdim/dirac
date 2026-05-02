@@ -107,7 +107,12 @@ export class OpenAiHandler implements ApiHandler {
 
 		// Add web_search tool for OpenAI
 		const finalTools = [...(tools || [])]
-		finalTools.push({ type: "web_search" } as any)
+		const baseUrl = this.options.openAiBaseUrl?.trim() || ""
+		const isOfficialOpenAi = !baseUrl || baseUrl.includes("api.openai.com") || baseUrl.includes("azure.com")
+		const isResponsesApi = baseUrl.includes("responses")
+		if (isOfficialOpenAi || isResponsesApi) {
+			finalTools.push({ type: "web_search" } as any)
+		}
 		const modelId = this.options.openAiModelId ?? ""
 		const isDeepseek =
 			modelId.toLowerCase().includes("deepseek")
