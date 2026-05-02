@@ -396,6 +396,7 @@ export class Task {
 						delete currentApiReqInfo.cancelReason
 						delete currentApiReqInfo.streamingFailedMessage
 						await this.messageStateHandler.updateDiracMessage(lastApiReqStartedIndex, {
+							partial: true,
 							text: JSON.stringify(currentApiReqInfo),
 						})
 
@@ -1135,6 +1136,7 @@ ${notice}`
 					const delay = 2000 * 2 ** (this.taskState.autoRetryAttempts - 1)
 
 					await updateApiReqMsg({
+						partial: true,
 						messageStateHandler: this.messageStateHandler,
 						lastApiReqIndex: lastApiReqStartedIndex,
 						inputTokens: 0,
@@ -1309,6 +1311,7 @@ ${notice}`
 					(taskMetrics.cacheReadTokens || 0)
 				const contextUsagePercentage = contextWindow ? Math.round((totalTokens / contextWindow) * 100) : undefined
 				await updateApiReqMsg({
+					partial: true,
 					messageStateHandler: this.messageStateHandler,
 					lastApiReqIndex,
 					inputTokens: taskMetrics.inputTokens,
@@ -1356,6 +1359,10 @@ ${notice}`
 				didFinalizeApiReqMsg = true
 				await usageChunkSideEffectsQueue
 				await updateApiReqMsgFromMetrics(cancelReason, streamingFailedMessage)
+				const lastApiReqIndex = findLastIndex(this.messageStateHandler.getDiracMessages(), (m) => m.say === "api_req_started")
+				if (lastApiReqIndex !== -1) {
+					await this.messageStateHandler.updateDiracMessage(lastApiReqIndex, { partial: false })
+				}
 			}
 
 			const abortStream = async (cancelReason: DiracApiReqCancelReason, streamingFailedMessage?: string) => {

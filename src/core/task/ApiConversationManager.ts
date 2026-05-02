@@ -179,6 +179,9 @@ export class ApiConversationManager {
 			JSON.stringify({
 				request: userContent.map((block) => formatContentBlockToMarkdown(block)).join("\n\n") + "\n\nLoading...",
 			}),
+			undefined, // images
+			undefined, // files
+			true, // partial
 		)
 
 		await this.dependencies.messageStateHandler.addToApiConversationHistory({

@@ -97,6 +97,13 @@ export async function runPlainTextTask(options: PlainTextTaskOptions): Promise<b
 		const ts = message.ts || 0
 
 		if (message.partial) {
+			// Special case: allow printing the initial api_req_started message even if it's partial
+			// so the user knows the request has begun. Subsequent updates will be skipped until complete.
+			if (message.say === "api_req_started" && !processedMessages.has(ts)) {
+				handleMessageForPipeMode(message, verbose || false, yolo || false, false)
+				processedMessages.set(ts, text)
+				return
+			}
 			if (!jsonOutput && verbose) {
 				lastProcessedPartialMessages.set(ts, message)
 			}
@@ -214,7 +221,7 @@ export async function runPlainTextTask(options: PlainTextTaskOptions): Promise<b
 		if (jsonOutput) {
 			process.stdout.write(JSON.stringify({ type: "error", message: errMsg }) + "\n")
 		} else {
-			process.stderr.write(`Error: ${errMsg}\n`)
+			process.stderr.write(`[${new Date().toLocaleTimeString("en-GB", { hour12: false })}] Error: ${errMsg}\n`)
 		}
 		hasError = true
 	} finally {
@@ -271,20 +278,21 @@ function handleMessageForPipeMode(
 	yolo: boolean,
 	isUpdate?: boolean,
 ): void {
+	const timestamp = message.ts ? `[${new Date(message.ts).toLocaleTimeString("en-GB", { hour12: false })}] ` : ""
 	const fullText = message.text ?? ""
 	const reasoning = message.reasoning ?? ""
 	const isPartial = message.partial ?? false
-	const statusPrefix = verbose ? (isPartial ? "[partial] " : "[complete] ") : ""
+	const statusPrefix = verbose ? (isPartial ? "[partial]  " : (isUpdate ? "[update]   " : "[complete] ")) : ""
 
 	// 1. Handle Errors (always stderr)
 	if (message.say === "error" || message.ask === "api_req_failed") {
-		process.stderr.write(`${statusPrefix}Error: ${fullText || "API request failed"}\n`)
+		process.stderr.write(`${timestamp}${statusPrefix}Error: ${fullText || "API request failed"}\n`)
 		return
 	}
 
 	// Print reasoning if present (unless it's already the main content of a reasoning message)
 	if (verbose && reasoning && message.say !== "reasoning") {
-		process.stderr.write(`${statusPrefix}Reasoning: ${reasoning}\n`)
+		process.stderr.write(`${timestamp}${statusPrefix}Reasoning: ${reasoning}\n`)
 	}
 
 	// 2. Handle Tool Calls (Triggering actions)
@@ -357,9 +365,9 @@ function handleMessageForPipeMode(
 		}
 
 		if (isTool) {
-			process.stderr.write(`${statusPrefix}${label}${extra}: ${toolType}: ${fullText}\n`)
+			process.stderr.write(`${timestamp}${statusPrefix}${label}${extra}: ${toolType}: ${fullText}\n`)
 		} else {
-			process.stderr.write(`${statusPrefix}${label}${extra}: ${fullText}\n`)
+			process.stderr.write(`${timestamp}${statusPrefix}${label}${extra}: ${fullText}\n`)
 		}
 		return
 	}
@@ -373,7 +381,7 @@ function handleMessageForPipeMode(
 				case "task":
 				case "text":
 					if (fullText) {
-						process.stderr.write(`${statusPrefix}${fullText}\n`)
+						process.stderr.write(`${timestamp}${statusPrefix}${fullText}\n`)
 					}
 					break
 				case "api_req_started":
@@ -381,37 +389,37 @@ function handleMessageForPipeMode(
 					handleApiReqMessage(message, statusPrefix, isUpdate)
 					break
 				case "completion_result":
-					process.stderr.write(`${statusPrefix}Completion Result: ${fullText}\n`)
+					process.stderr.write(`${timestamp}${statusPrefix}Completion Result: ${fullText}\n`)
 					break
 				case "reasoning":
 					const content = fullText || reasoning
 					if (content) {
-						process.stderr.write(`${statusPrefix}Reasoning: ${content}\n`)
+						process.stderr.write(`${timestamp}${statusPrefix}Reasoning: ${content}\n`)
 					}
 					break
 				case "command":
-					process.stderr.write(`${statusPrefix}Command: ${fullText}\n`)
+					process.stderr.write(`${timestamp}${statusPrefix}Command: ${fullText}\n`)
 					break
 				case "command_output":
-					process.stderr.write(`${statusPrefix}Command Output: ${fullText}\n`)
+					process.stderr.write(`${timestamp}${statusPrefix}Command Output: ${fullText}\n`)
 					break
 				default:
 					if (fullText) {
-						process.stderr.write(`${statusPrefix}${message.say}: ${fullText}\n`)
+						process.stderr.write(`${timestamp}${statusPrefix}${message.say}: ${fullText}\n`)
 					} else {
-						process.stderr.write(`${statusPrefix}Event: ${message.say}\n`)
+						process.stderr.write(`${timestamp}${statusPrefix}Event: ${message.say}\n`)
 					}
 			}
 		} else if (message.type === "ask") {
 			switch (message.ask) {
 				case "completion_result":
-					process.stderr.write(`${statusPrefix}Task completed\n`)
+					process.stderr.write(`${timestamp}${statusPrefix}Task completed\n`)
 					break
 				default:
 					if (fullText) {
-						process.stderr.write(`${statusPrefix}Question: ${fullText}\n`)
+						process.stderr.write(`${timestamp}${statusPrefix}Question: ${fullText}\n`)
 					} else {
-						process.stderr.write(`${statusPrefix}Question Type: ${message.ask}\n`)
+						process.stderr.write(`${timestamp}${statusPrefix}Question Type: ${message.ask}\n`)
 					}
 			}
 		}
@@ -488,32 +496,46 @@ function getToolType(message: DiracMessage): string | null {
  * Handle formatting and printing of API request messages
  */
 function handleApiReqMessage(message: DiracMessage, statusPrefix: string, isUpdate?: boolean): void {
-	const label = message.say === "api_req_started" ? "API request started" : "API request finished"
+	const timestamp = message.ts ? `[${new Date(message.ts).toLocaleTimeString("en-GB", { hour12: false })}] ` : ""
 	const fullText = message.text ?? ""
+	let info: any = {}
 	try {
-		const info = JSON.parse(fullText || "{}")
-		const hasMetrics = info.cost !== undefined || info.tokensIn !== undefined
-		if (hasMetrics || !isUpdate) {
-			const costStr = info.cost !== undefined ? `Cost: $${info.cost.toFixed(4)}` : ""
-			const tokensStr =
-				info.tokensIn !== undefined
-					? `Tokens: ${info.tokensIn.toLocaleString()} in, ${info.tokensOut.toLocaleString()} out${
-							info.reasoningTokens ? ` (+${info.reasoningTokens.toLocaleString()} thinking)` : ""
-						}`
-					: ""
-			const cacheStr =
-				info.cacheReads !== undefined || info.cacheWrites !== undefined
-					? ` (Cache: ${(info.cacheReads || 0).toLocaleString()} read, ${(info.cacheWrites || 0).toLocaleString()} write)`
-					: ""
-			const contextStr =
-				info.contextWindow !== undefined
-					? ` | Context: ${info.contextUsagePercentage}% of ${(info.contextWindow / 1000).toFixed(0)}K`
-					: ""
+		info = JSON.parse(fullText || "{}")
+	} catch (e) {}
 
-			const metricsStr = hasMetrics ? ` [${tokensStr}${cacheStr}${contextStr} | ${costStr}]` : ""
-			process.stderr.write(`${statusPrefix}${label}${metricsStr}\n`)
-		}
-	} catch {
-		process.stderr.write(`${statusPrefix}${label}\n`)
+	const hasMetrics = info.cost !== undefined || info.tokensIn !== undefined
+
+	let label = "API request"
+	if (message.say === "api_req_started") {
+		label = hasMetrics ? "API request finished" : "API request started"
+	} else if (message.say === "api_req_finished") {
+		label = "API request finished"
+	} else if (message.say === "api_req_retried") {
+		label = "API request retried"
+	}
+
+	if (hasMetrics || !isUpdate || info.retryStatus) {
+		const costStr = info.cost !== undefined ? `Cost: $${info.cost.toFixed(4)}` : ""
+		const tokensStr =
+			info.tokensIn !== undefined
+				? `Tokens: ${info.tokensIn.toLocaleString()} in, ${info.tokensOut.toLocaleString()} out${
+						info.reasoningTokens ? ` (+${info.reasoningTokens.toLocaleString()} thinking)` : ""
+					}`
+				: ""
+		const cacheStr =
+			info.cacheReads !== undefined || info.cacheWrites !== undefined
+				? ` (Cache: ${(info.cacheReads || 0).toLocaleString()} read, ${(info.cacheWrites || 0).toLocaleString()} write)`
+				: ""
+		const contextStr =
+			info.contextWindow !== undefined
+				? ` | Context: ${info.contextUsagePercentage}% of ${(info.contextWindow / 1000).toFixed(0)}K`
+				: ""
+
+		const retryStr = info.retryStatus
+			? ` (Retry ${info.retryStatus.attempt}/${info.retryStatus.maxAttempts}${info.retryStatus.delaySec ? ` in ${info.retryStatus.delaySec}s` : ""}${info.retryStatus.errorSnippet ? `: ${info.retryStatus.errorSnippet}` : ""})`
+			: ""
+
+		const metricsStr = hasMetrics || retryStr ? ` [${tokensStr}${cacheStr}${contextStr}${retryStr} | ${costStr}]` : ""
+		process.stderr.write(`${timestamp}${statusPrefix}${label}${metricsStr}\n`)
 	}
 }
