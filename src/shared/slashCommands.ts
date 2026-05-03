@@ -56,6 +56,12 @@ export const CLI_ONLY_COMMANDS: SlashCommand[] = [
 		cliCompatible: true,
 	},
 	{
+		name: "providers",
+		description: "Switch between configured API providers",
+		section: "default",
+		cliCompatible: true,
+	},
+	{
 		name: "models",
 		description: "Change the model used for the current mode",
 		section: "default",

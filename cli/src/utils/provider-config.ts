@@ -11,7 +11,7 @@ import { refreshOpenRouterModels } from "@/core/controller/models/refreshOpenRou
 import { refreshVercelAiGatewayModels } from "@/core/controller/models/refreshVercelAiGatewayModels"
 import { StateManager } from "@/core/storage/StateManager"
 import type { BedrockConfig } from "../components/BedrockSetup"
-import { getDefaultModelId } from "../components/ModelPicker"
+import { getDefaultModelId, getModelList } from "../components/ModelPicker"
 
 export interface ApplyProviderConfigOptions {
 	providerId: string
@@ -34,30 +34,76 @@ export async function applyProviderConfig(options: ApplyProviderConfigOptions): 
 		planModeApiProvider: providerId,
 	}
 
-	// Add model ID (use provided or fall back to default)
-	// Use provider-specific model ID keys (e.g., actModeOpenRouterModelId for dirac/openrouter)
-	const finalModelId = modelId || getDefaultModelId(providerId)
-	if (finalModelId) {
-		const actModelKey = getProviderModelIdKey(providerId as ApiProvider, "act")
-		const planModelKey = getProviderModelIdKey(providerId as ApiProvider, "plan")
-		if (actModelKey) config[actModelKey] = finalModelId
-		if (planModelKey) config[planModelKey] = finalModelId
+	// Add model ID (use provided, existing from state, or fall back to default)
+	const actModelKey = getProviderModelIdKey(providerId as ApiProvider, "act")
+	const planModelKey = getProviderModelIdKey(providerId as ApiProvider, "plan")
 
+	const existingActModel = stateManager.getGlobalSettingsKey(actModelKey) as string
+	const existingPlanModel = stateManager.getGlobalSettingsKey(planModelKey) as string
+
+	const hasSpecificKey = actModelKey !== "actModeApiModelId"
+	const validModels = getModelList(providerId)
+
+	const isCompatible = (model: string) => {
+		if (!model) return false
+		if (hasSpecificKey) return true
+		return validModels.includes(model)
+	}
+
+	const defaultModel = getDefaultModelId(providerId)
+
+	const finalActModelId =
+		modelId ||
+		(isCompatible(existingActModel)
+			? existingActModel
+			: isCompatible(existingPlanModel)
+				? existingPlanModel
+				: defaultModel)
+	const finalPlanModelId =
+		modelId ||
+		(isCompatible(existingPlanModel)
+			? existingPlanModel
+			: isCompatible(existingActModel)
+				? existingActModel
+				: defaultModel)
+
+	if (finalActModelId) {
+		if (actModelKey) config[actModelKey] = finalActModelId
+	}
+	if (finalPlanModelId) {
+		if (planModelKey) config[planModelKey] = finalPlanModelId
+	}
+
+	if (finalActModelId || finalPlanModelId) {
 		// Fetch model info from the provider API (not just disk cache) so headless
 		// CLI auth gets correct maxTokens, thinkingConfig, etc.
 		if ((providerId === "dirac" || providerId === "openrouter") && controller) {
 			const openRouterModels = await refreshOpenRouterModels(controller)
-			const modelInfo = openRouterModels?.[finalModelId]
-			if (modelInfo) {
-				stateManager.setGlobalState("actModeOpenRouterModelInfo", modelInfo)
-				stateManager.setGlobalState("planModeOpenRouterModelInfo", modelInfo)
+			if (finalActModelId) {
+				const modelInfo = openRouterModels?.[finalActModelId]
+				if (modelInfo) {
+					stateManager.setGlobalState("actModeOpenRouterModelInfo", modelInfo)
+				}
+			}
+			if (finalPlanModelId) {
+				const modelInfo = openRouterModels?.[finalPlanModelId]
+				if (modelInfo) {
+					stateManager.setGlobalState("planModeOpenRouterModelInfo", modelInfo)
+				}
 			}
 		} else if (providerId === "vercel-ai-gateway" && controller) {
 			const vercelModels = await refreshVercelAiGatewayModels(controller)
-			const modelInfo = vercelModels?.[finalModelId]
-			if (modelInfo) {
-				stateManager.setGlobalState("actModeVercelAiGatewayModelInfo", modelInfo)
-				stateManager.setGlobalState("planModeVercelAiGatewayModelInfo", modelInfo)
+			if (finalActModelId) {
+				const modelInfo = vercelModels?.[finalActModelId]
+				if (modelInfo) {
+					stateManager.setGlobalState("actModeVercelAiGatewayModelInfo", modelInfo)
+				}
+			}
+			if (finalPlanModelId) {
+				const modelInfo = vercelModels?.[finalPlanModelId]
+				if (modelInfo) {
+					stateManager.setGlobalState("planModeVercelAiGatewayModelInfo", modelInfo)
+				}
 			}
 		}
 	}
@@ -125,13 +171,42 @@ export async function applyBedrockConfig(options: ApplyBedrockConfigOptions): Pr
 		awsUseCrossRegionInference: bedrockConfig.awsUseCrossRegionInference,
 	}
 
-	// Add model ID
-	const finalModelId = modelId || getDefaultModelId("bedrock")
-	if (finalModelId) {
-		const actModelKey = getProviderModelIdKey("bedrock" as ApiProvider, "act")
-		const planModelKey = getProviderModelIdKey("bedrock" as ApiProvider, "plan")
-		if (actModelKey) config[actModelKey] = finalModelId
-		if (planModelKey) config[planModelKey] = finalModelId
+	// Add model ID (use provided, existing from state, or fall back to default)
+	const actModelKey = getProviderModelIdKey("bedrock" as ApiProvider, "act")
+	const planModelKey = getProviderModelIdKey("bedrock" as ApiProvider, "plan")
+
+	const existingActModel = stateManager.getGlobalSettingsKey(actModelKey) as string
+	const existingPlanModel = stateManager.getGlobalSettingsKey(planModelKey) as string
+
+	const validModels = getModelList("bedrock")
+	const isCompatible = (model: string) => {
+		if (!model) return false
+		// For Bedrock, we also consider it compatible if it's an ARN (starts with 'arn:')
+		return validModels.includes(model) || model.startsWith("arn:")
+	}
+
+	const defaultModel = getDefaultModelId("bedrock")
+
+	const finalActModelId =
+		modelId ||
+		(isCompatible(existingActModel)
+			? existingActModel
+			: isCompatible(existingPlanModel)
+				? existingPlanModel
+				: defaultModel)
+	const finalPlanModelId =
+		modelId ||
+		(isCompatible(existingPlanModel)
+			? existingPlanModel
+			: isCompatible(existingActModel)
+				? existingActModel
+				: defaultModel)
+
+	if (finalActModelId) {
+		if (actModelKey) config[actModelKey] = finalActModelId
+	}
+	if (finalPlanModelId) {
+		if (planModelKey) config[planModelKey] = finalPlanModelId
 	}
 
 	// Handle custom model (Application Inference Profile ARN)

@@ -347,7 +347,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
 
 	// Panel state
 	const [activePanel, setActivePanel] = useState<
-		| { type: "settings"; initialMode?: "model-picker" | "featured-models"; initialModelKey?: "actModelId" | "planModelId" }
+		| { type: "settings"; initialMode?: "model-picker" | "featured-models" | "provider-picker"; initialModelKey?: "actModelId" | "planModelId" }
 		| { type: "history" }
 		| { type: "help" }
 		| { type: "skills" }
@@ -1246,6 +1246,15 @@ export const ChatView: React.FC<ChatViewProps> = ({
 					}
 					if (cmd.name === "exit" || cmd.name === "q") {
 						handleExit()
+						return
+					}
+					if (cmd.name === "providers") {
+						setActivePanel({ type: "settings", initialMode: "provider-picker" })
+						setTextInput("")
+						setCursorPos(0)
+						setSelectedSlashIndex(0)
+						setSlashMenuDismissed(true)
+						inputStateStorage.delete(storageKey)
 						return
 					}
 					const newText = insertSlashCommand(currentTextInput, currentSlashInfo.slashIndex, cmd.name)

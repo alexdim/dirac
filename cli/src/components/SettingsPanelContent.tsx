@@ -40,7 +40,7 @@ import { getObjectAtPath, setObjectValueAtPath } from "../utils/config"
 interface SettingsPanelContentProps {
 	onClose: () => void
 	controller?: Controller
-	initialMode?: "model-picker" | "featured-models"
+	initialMode?: "model-picker" | "featured-models" | "provider-picker"
 	initialModelKey?: "actModelId" | "planModelId"
 }
 
@@ -134,7 +134,7 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 	const [pickingModelKey, setPickingModelKey] = useState<"actModelId" | "planModelId" | null>(
 		initialMode ? (initialModelKey ?? "actModelId") : null,
 	)
-	const [isPickingProvider, setIsPickingProvider] = useState(false)
+	const [isPickingProvider, setIsPickingProvider] = useState(initialMode === "provider-picker")
 	const [isPickingLanguage, setIsPickingLanguage] = useState(false)
 	const [isEnteringApiKey, setIsEnteringApiKey] = useState(false)
 	const [pendingProvider, setPendingProvider] = useState<string | null>(null)
@@ -839,6 +839,10 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 			setIsBedrockCustomFlow(false)
 			setPickingModelKey(null)
 
+			if (initialMode) {
+				onClose()
+			}
+
 			// If opened from /models command, close the entire settings panel
 			if (initialMode) {
 				onClose()
@@ -984,6 +988,52 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 
 	const handleProviderSelect = useCallback(
 		async (providerId: string) => {
+			// Check if this provider needs an API key
+			const keyField = ProviderToApiKeyMap[providerId as ApiProvider]
+			const apiConfig = stateManager.getApiConfiguration()
+			const fieldName = keyField ? (Array.isArray(keyField) ? keyField[0] : keyField) : null
+			const existingKey = fieldName ? (apiConfig as Record<string, string>)[fieldName] || "" : ""
+
+			// If opened via /providers and already configured, switch and close immediately
+			if (initialMode === "provider-picker" && (existingKey || !keyField) && providerId !== "bedrock") {
+				// Special handling for OAuth providers - check if actually authenticated
+				let canSwitchDirectly = true
+				if (providerId === "openai-codex") {
+					canSwitchDirectly = await openAiCodexOAuthManager.isAuthenticated()
+				} else if (providerId === "github-copilot") {
+					canSwitchDirectly = await githubCopilotAuthManager.isAuthenticated()
+				}
+
+				if (canSwitchDirectly) {
+					await applyProviderConfig({ providerId, controller })
+					setProvider(providerId)
+					refreshModelIds()
+					setIsPickingProvider(false)
+					onClose()
+					return
+				}
+			}
+			// Special handling for Bedrock - needs multi-field configuration
+			if (providerId === "bedrock") {
+				const apiConfig = stateManager.getApiConfiguration()
+				const isConfigured = !!(apiConfig.awsRegion && (apiConfig.awsUseProfile || (apiConfig.awsAccessKey && apiConfig.awsSecretKey)))
+
+				if (initialMode === "provider-picker" && isConfigured) {
+					// Efficiently switch to already configured Bedrock
+					await applyProviderConfig({ providerId, controller })
+					setProvider(providerId)
+					refreshModelIds()
+					setIsPickingProvider(false)
+					onClose()
+					return
+				}
+
+				setPendingProvider(providerId)
+				setIsPickingProvider(false)
+				setIsConfiguringBedrock(true)
+				return
+			}
+
 			if (providerId === "github-copilot") {
 				setIsPickingProvider(false)
 				const isAuthenticated = await githubCopilotAuthManager.isAuthenticated()
@@ -1012,22 +1062,11 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 				return
 			}
 
-			// Special handling for Bedrock - needs multi-field configuration
-			if (providerId === "bedrock") {
-				setPendingProvider(providerId)
-				setIsPickingProvider(false)
-				setIsConfiguringBedrock(true)
-				return
-			}
 
 			// Check if this provider needs an API key
-			const keyField = ProviderToApiKeyMap[providerId as ApiProvider]
 			if (keyField) {
 				// Provider needs an API key - go to API key entry mode
 				// Pre-fill with existing key if configured
-				const apiConfig = stateManager.getApiConfiguration()
-				const fieldName = Array.isArray(keyField) ? keyField[0] : keyField
-				const existingKey = (apiConfig as Record<string, string>)[fieldName] || ""
 				setPendingProvider(providerId)
 				setApiKeyValue(existingKey)
 				setIsPickingProvider(false)
@@ -1040,7 +1079,7 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 				setIsPickingProvider(false)
 			}
 		},
-		[stateManager, startCodexAuth, controller, refreshModelIds],
+		[stateManager, startCodexAuth, controller, refreshModelIds, initialMode, onClose],
 	)
 
 	// Handle API key submission after provider selection
@@ -1056,8 +1095,12 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 			setIsEnteringApiKey(false)
 			setPendingProvider(null)
 			setApiKeyValue("")
+
+			if (initialMode) {
+				onClose()
+			}
 		},
-		[pendingProvider, controller, refreshModelIds],
+		[pendingProvider, controller, refreshModelIds, initialMode, onClose],
 	)
 
 	// Handle Bedrock configuration complete
@@ -1071,8 +1114,12 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 
 			// Apply config and rebuild API handler in background
 			applyBedrockConfig({ bedrockConfig, controller })
+
+			if (initialMode) {
+				onClose()
+			}
 		},
-		[controller, refreshModelIds],
+		[controller, refreshModelIds, initialMode, onClose],
 	)
 
 	// Handle saving edited value
@@ -1161,6 +1208,9 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 			if (isPickingProvider) {
 				if (key.escape) {
 					setIsPickingProvider(false)
+					if (initialMode) {
+						onClose()
+					}
 				}
 				return
 			}
