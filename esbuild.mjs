@@ -138,17 +138,27 @@ const copyAssets = {
 				"kotlin",
 			]
 
-			languages.forEach((lang) => {
 			// Copy sql-wasm.wasm
 			const sqlJsSource = path.join(__dirname, "node_modules", "sql.js", "dist", "sql-wasm.wasm")
 			if (fs.existsSync(sqlJsSource)) {
 				fs.copyFileSync(sqlJsSource, path.join(targetDir, "sql-wasm.wasm"))
 			}
 
-
+			languages.forEach((lang) => {
 				const filename = `tree-sitter-${lang}.wasm`
 				fs.copyFileSync(path.join(languageWasmDir, filename), path.join(targetDir, filename))
 			})
+
+			// Copy better-sqlite3 and bindings
+			const modulesToCopy = ["better-sqlite3", "bindings"]
+			for (const mod of modulesToCopy) {
+				const sourceModuleDir = path.join(__dirname, "node_modules", mod)
+				const targetModuleDir = path.join(targetDir, "node_modules", mod)
+				if (fs.existsSync(sourceModuleDir)) {
+					fs.cpSync(sourceModuleDir, targetModuleDir, { recursive: true })
+				}
+			}
+
 		})
 	},
 }
