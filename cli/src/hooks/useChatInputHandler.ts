@@ -1,0 +1,422 @@
+import { useInput } from "ink"
+import { isMouseEscapeSequence } from "../utils/input"
+import { extractMentionQuery, insertMention } from "../utils/file-search"
+import { extractSlashQuery, insertSlashCommand } from "../utils/slash-commands"
+import { findWordEnd, findWordStart } from "./useTextInput"
+import { moveCursorDown, moveCursorUp } from "../utils/cursor"
+import { parseImagesFromInput } from "../utils/parser"
+import { StateManager } from "@/core/storage/StateManager"
+
+interface UseChatInputHandlerProps {
+	textInputRef: React.MutableRefObject<string>
+	cursorPosRef: React.MutableRefObject<number>
+	setTextInput: (text: string) => void
+	setCursorPos: (pos: number | ((prev: number) => number)) => void
+	activePanel: any
+	setActivePanel: (panel: any) => void
+	handleAskShortcuts: (input: string, key: any, currentTextInput: string) => boolean
+	handleKeyboardSequence: (input: string) => boolean
+	handleCtrlShortcut: (input: string) => boolean
+	insertTextAtCursor: (text: string) => void
+	toggleMode: () => void
+	toggleAutoApproveAll: () => void
+	handleSubmit: (text: string, images: string[]) => void
+	handleExit: () => void
+	clearViewAndResetTask: () => void
+	// Slash menu state
+	filteredCommands: any[]
+	selectedSlashIndex: number
+	setSelectedSlashIndex: React.Dispatch<React.SetStateAction<number>>
+	slashMenuDismissed: boolean
+	setSlashMenuDismissed: (dismissed: boolean) => void
+	// File menu state
+	fileResults: any[]
+	selectedIndex: number
+	setSelectedIndex: React.Dispatch<React.SetStateAction<number>>
+	setFileResults: (results: any[]) => void
+	// History state
+	getHistoryItems: () => string[]
+	historyIndex: number
+	setHistoryIndex: (index: number) => void
+	savedInput: string
+	setSavedInput: (input: string) => void
+	// Button state
+	buttonConfig: any
+	isSpinnerActive: boolean
+	isProcessing: boolean
+	yolo: boolean
+	pendingAsk: any
+	handleButtonAction: (action: any, isPrimary: boolean) => void
+	isYoloSuppressed: (yolo: boolean, ask: any) => boolean
+	// Paste state
+	lastPasteTimeRef: React.MutableRefObject<number>
+	activePasteNumRef: React.MutableRefObject<number>
+	activePasteLinesRef: React.MutableRefObject<number>
+	activePasteStartPosRef: React.MutableRefObject<number>
+	pasteCounterRef: React.MutableRefObject<number>
+	pasteUpdateTimeoutRef: React.MutableRefObject<NodeJS.Timeout | null>
+	setPastedTexts: React.Dispatch<React.SetStateAction<Map<number, string>>>
+	PASTE_COLLAPSE_THRESHOLD: number
+	PASTE_CHUNK_WINDOW_MS: number
+	PASTE_UPDATE_DEBOUNCE_MS: number
+	// Other
+	mode: string
+}
+
+export function useChatInputHandler({
+	textInputRef,
+	cursorPosRef,
+	setTextInput,
+	setCursorPos,
+	activePanel,
+	setActivePanel,
+	handleAskShortcuts,
+	handleKeyboardSequence,
+	handleCtrlShortcut,
+	insertTextAtCursor,
+	toggleMode,
+	toggleAutoApproveAll,
+	handleSubmit,
+	handleExit,
+	clearViewAndResetTask,
+	filteredCommands,
+	selectedSlashIndex,
+	setSelectedSlashIndex,
+	slashMenuDismissed,
+	setSlashMenuDismissed,
+	fileResults,
+	selectedIndex,
+	setSelectedIndex,
+	setFileResults,
+	getHistoryItems,
+	historyIndex,
+	setHistoryIndex,
+	savedInput,
+	setSavedInput,
+	buttonConfig,
+	isSpinnerActive,
+	isProcessing,
+	yolo,
+	pendingAsk,
+	handleButtonAction,
+	isYoloSuppressed,
+	lastPasteTimeRef,
+	activePasteNumRef,
+	activePasteLinesRef,
+	activePasteStartPosRef,
+	pasteCounterRef,
+	pasteUpdateTimeoutRef,
+	setPastedTexts,
+	PASTE_COLLAPSE_THRESHOLD,
+	PASTE_CHUNK_WINDOW_MS,
+	PASTE_UPDATE_DEBOUNCE_MS,
+	mode,
+}: UseChatInputHandlerProps) {
+	useInput((input, key) => {
+		if (isMouseEscapeSequence(input)) return
+
+		const currentTextInput = textInputRef.current
+		const currentCursorPos = cursorPosRef.current
+		const currentMentionInfo = extractMentionQuery(currentTextInput)
+		const currentSlashInfo = extractSlashQuery(currentTextInput, currentCursorPos)
+
+		if (handleAskShortcuts(input, key, currentTextInput)) return
+		if (handleKeyboardSequence(input)) return
+
+		if (key.meta) {
+			if (key.leftArrow) {
+				setCursorPos(findWordStart(currentTextInput, currentCursorPos))
+				return
+			}
+			if (key.rightArrow) {
+				setCursorPos(findWordEnd(currentTextInput, currentCursorPos))
+				return
+			}
+		}
+
+		if (activePanel) return
+
+		const inSlashMenu = currentSlashInfo.inSlashMode && filteredCommands.length > 0 && !slashMenuDismissed
+		const inFileMenu = currentMentionInfo.inMentionMode && fileResults.length > 0 && !inSlashMenu
+
+		if (inSlashMenu) {
+			if (key.upArrow) {
+				setSelectedSlashIndex((i) => Math.max(0, i - 1))
+				return
+			}
+			if (key.downArrow) {
+				setSelectedSlashIndex((i) => Math.min(filteredCommands.length - 1, i + 1))
+				return
+			}
+			if (key.tab || key.return) {
+				const cmd = filteredCommands[selectedSlashIndex]
+				if (cmd) {
+					if (cmd.name === "help") {
+						setActivePanel({ type: "help" })
+						setTextInput("")
+						setCursorPos(0)
+						setSelectedSlashIndex(0)
+						setSlashMenuDismissed(true)
+						return
+					}
+					if (cmd.name === "settings") {
+						setActivePanel({ type: "settings" })
+						setTextInput("")
+						setCursorPos(0)
+						setSelectedSlashIndex(0)
+						setSlashMenuDismissed(true)
+						return
+					}
+					if (cmd.name === "models") {
+						const apiConfig = StateManager.get().getApiConfiguration()
+						const provider =
+							mode === "act"
+								? apiConfig.actModeApiProvider || apiConfig.planModeApiProvider
+								: apiConfig.planModeApiProvider || apiConfig.actModeApiProvider
+						const initialMode = !provider ? undefined : provider === "dirac" ? "featured-models" : "model-picker"
+						const initialModelKey = mode === "act" ? "actModelId" : "planModelId"
+						setActivePanel({ type: "settings", initialMode, initialModelKey })
+						setTextInput("")
+						setCursorPos(0)
+						setSelectedSlashIndex(0)
+						setSlashMenuDismissed(true)
+						return
+					}
+					if (cmd.name === "history") {
+						setActivePanel({ type: "history" })
+						setTextInput("")
+						setCursorPos(0)
+						setSelectedSlashIndex(0)
+						setSlashMenuDismissed(true)
+						return
+					}
+					if (cmd.name === "skills") {
+						setActivePanel({ type: "skills" })
+						setTextInput("")
+						setCursorPos(0)
+						setSelectedSlashIndex(0)
+						setSlashMenuDismissed(true)
+						return
+					}
+					if (cmd.name === "clear") {
+						clearViewAndResetTask()
+						setSelectedSlashIndex(0)
+						setSlashMenuDismissed(true)
+						return
+					}
+					if (cmd.name === "exit" || cmd.name === "q") {
+						handleExit()
+						return
+					}
+					if (cmd.name === "providers") {
+						setActivePanel({ type: "settings", initialMode: "provider-picker" })
+						setTextInput("")
+						setCursorPos(0)
+						setSelectedSlashIndex(0)
+						setSlashMenuDismissed(true)
+						return
+					}
+					const newText = insertSlashCommand(currentTextInput, currentSlashInfo.slashIndex, cmd.name)
+					setTextInput(newText)
+					setCursorPos(newText.length)
+					setSelectedSlashIndex(0)
+				}
+				return
+			}
+			if (key.escape) {
+				setSlashMenuDismissed(true)
+				setSelectedSlashIndex(0)
+				return
+			}
+		}
+
+		if (inFileMenu) {
+			if (key.upArrow) {
+				setSelectedIndex((i) => Math.max(0, i - 1))
+				return
+			}
+			if (key.downArrow) {
+				setSelectedIndex((i) => Math.min(fileResults.length - 1, i + 1))
+				return
+			}
+			if (key.tab || key.return) {
+				const file = fileResults[selectedIndex]
+				if (file) {
+					const newText = insertMention(currentTextInput, currentMentionInfo.atIndex, file.path)
+					setTextInput(newText)
+					setCursorPos(newText.length)
+					setFileResults([])
+					setSelectedIndex(0)
+				}
+				return
+			}
+			if (key.escape) {
+				setFileResults([])
+				setSelectedIndex(0)
+				return
+			}
+		}
+
+		if (key.shift && key.downArrow) {
+			insertTextAtCursor("\n")
+			return
+		}
+
+		if (key.upArrow && !inSlashMenu && !inFileMenu) {
+			const historyItems = getHistoryItems()
+			if (historyItems.length > 0) {
+				const canNavigate =
+					currentTextInput === "" ||
+					(historyIndex >= 0 && historyIndex < historyItems.length && currentTextInput === historyItems[historyIndex])
+				if (canNavigate) {
+					if (historyIndex === -1) setSavedInput(currentTextInput)
+					const newIndex = Math.min(historyIndex + 1, historyItems.length - 1)
+					if (newIndex !== historyIndex) {
+						setHistoryIndex(newIndex)
+						const historyText = historyItems[newIndex]
+						setTextInput(historyText)
+						setCursorPos(historyText.length)
+					}
+					return
+				}
+			}
+		}
+
+		if (key.downArrow && !inSlashMenu && !inFileMenu) {
+			const historyItems = getHistoryItems()
+			if (historyIndex >= 0) {
+				const canNavigate = historyIndex < historyItems.length && currentTextInput === historyItems[historyIndex]
+				if (canNavigate) {
+					const newIndex = historyIndex - 1
+					if (newIndex >= 0) {
+						setHistoryIndex(newIndex)
+						const historyText = historyItems[newIndex]
+						setTextInput(historyText)
+						setCursorPos(historyText.length)
+					} else {
+						setHistoryIndex(-1)
+						setTextInput(savedInput)
+						setCursorPos(savedInput.length)
+					}
+					return
+				}
+			}
+		}
+
+		if (
+			buttonConfig.enableButtons &&
+			!isSpinnerActive &&
+			!isProcessing &&
+			currentTextInput === "" &&
+			!isYoloSuppressed(yolo, pendingAsk?.ask)
+		) {
+			if (input === "1") {
+				if (buttonConfig.primaryAction) {
+					handleButtonAction(buttonConfig.primaryAction, true)
+					return
+				}
+			}
+			if (input === "2" && buttonConfig.secondaryAction) {
+				handleButtonAction(buttonConfig.secondaryAction, false)
+				return
+			}
+		}
+
+		if (key.ctrl && input && handleCtrlShortcut(input)) return
+
+		if (input && input.length > PASTE_COLLAPSE_THRESHOLD) {
+			const now = Date.now()
+			const timeSinceLastPaste = now - lastPasteTimeRef.current
+			lastPasteTimeRef.current = now
+
+			if (timeSinceLastPaste < PASTE_CHUNK_WINDOW_MS && activePasteNumRef.current > 0) {
+				const pasteNum = activePasteNumRef.current
+				const chunkLines = input.match(/[\r\n]/g)?.length || 0
+				activePasteLinesRef.current += chunkLines
+
+				setPastedTexts((prev) => {
+					const next = new Map(prev)
+					next.set(pasteNum, (next.get(pasteNum) || "") + input)
+					return next
+				})
+
+				if (pasteUpdateTimeoutRef.current) clearTimeout(pasteUpdateTimeoutRef.current)
+				pasteUpdateTimeoutRef.current = setTimeout(() => {
+					const newPlaceholder = `[Pasted text #${pasteNum} +${activePasteLinesRef.current} lines]`
+					const pattern = new RegExp(`\\[Pasted text #${pasteNum} \\+\\d+ lines\\]`)
+					const newText = currentTextInput.replace(pattern, newPlaceholder)
+					setTextInput(newText)
+					setCursorPos(activePasteStartPosRef.current + newPlaceholder.length)
+				}, PASTE_UPDATE_DEBOUNCE_MS)
+				return
+			}
+
+			pasteCounterRef.current += 1
+			const pasteNum = pasteCounterRef.current
+			activePasteNumRef.current = pasteNum
+			activePasteStartPosRef.current = currentCursorPos
+			const extraLines = input.match(/[\r\n]/g)?.length || 0
+			activePasteLinesRef.current = extraLines
+			const placeholder = `[Pasted text #${pasteNum} +${extraLines} lines]`
+			setPastedTexts((prev) => {
+				const next = new Map(prev)
+				next.set(pasteNum, input)
+				return next
+			})
+			const newText = currentTextInput.slice(0, currentCursorPos) + placeholder + currentTextInput.slice(currentCursorPos)
+			setTextInput(newText)
+			setCursorPos(currentCursorPos + placeholder.length)
+			return
+		}
+
+		if (key.return && (key.shift || key.meta || input === "\n")) {
+			insertTextAtCursor("\n")
+			return
+		}
+		if (key.shift && key.tab) {
+			toggleAutoApproveAll()
+			return
+		}
+		if (key.tab && !currentMentionInfo.inMentionMode && !currentSlashInfo.inSlashMode) {
+			toggleMode()
+			return
+		}
+		if (
+			key.return &&
+			!key.shift &&
+			!key.meta &&
+			input !== "\n" &&
+			!currentMentionInfo.inMentionMode &&
+			!currentSlashInfo.inSlashMode &&
+			!isSpinnerActive &&
+			!isProcessing
+		) {
+			const { prompt: currentPrompt, imagePaths: currentImagePaths } = parseImagesFromInput(currentTextInput)
+			if (currentPrompt.trim() || currentImagePaths.length > 0) {
+				handleSubmit(currentPrompt.trim(), currentImagePaths)
+			}
+			return
+		}
+
+		if (key.leftArrow && !inSlashMenu && !inFileMenu) {
+			setCursorPos((pos) => Math.max(0, pos - 1))
+			return
+		}
+		if (key.rightArrow && !inSlashMenu && !inFileMenu) {
+			setCursorPos((pos) => Math.min(currentTextInput.length, pos + 1))
+			return
+		}
+		if (key.upArrow && !inSlashMenu && !inFileMenu) {
+			setCursorPos(moveCursorUp(currentTextInput, currentCursorPos))
+			return
+		}
+		if (key.downArrow && !inSlashMenu && !inFileMenu) {
+			setCursorPos(moveCursorDown(currentTextInput, currentCursorPos))
+			return
+		}
+
+		if (input && !key.ctrl && !key.meta && !key.upArrow && !key.downArrow && !key.tab) {
+			insertTextAtCursor(input)
+		}
+	})
+}

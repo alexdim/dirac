@@ -492,6 +492,19 @@ export async function promptConfirmation(question: string): Promise<boolean> {
 }
 
 /**
+ * Create a progress bar for context window usage
+ * Returns { filled, empty } strings to allow different coloring
+ */
+export function createContextBar(used: number, total: number, width = 8): { filled: string; empty: string } {
+	const ratio = Math.min(used / total, 1)
+	// Use ceil so any usage > 0 shows at least one bar
+	const filledCount = used > 0 ? Math.max(1, Math.ceil(ratio * width)) : 0
+	const emptyCount = width - filledCount
+	return { filled: "█".repeat(filledCount), empty: "█".repeat(emptyCount) }
+}
+
+
+/**
  * Set the terminal session title using OSC escape sequence.
  * Works in most modern terminal emulators (iTerm2, Terminal.app, GNOME Terminal, etc.)
  */

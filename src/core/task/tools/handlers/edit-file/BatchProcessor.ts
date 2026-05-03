@@ -557,10 +557,10 @@ export class BatchProcessor {
 
         config.services.diffViewProvider.editType = "modify"
         // Stage the changes in the diff view provider before saving
-        await config.services.diffViewProvider.open(absolutePath, { displayPath })
         if (!config.services.diffViewProvider.isEditing) {
-            await config.services.diffViewProvider.update(finalContent, true)
+            await config.services.diffViewProvider.open(absolutePath, { displayPath })
         }
+        await config.services.diffViewProvider.update(finalContent, true)
 
         // Wait for the diff view to update before saving to ensure auto-formatting is triggered
         await setTimeoutPromise(200)

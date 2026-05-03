@@ -10,10 +10,10 @@ export type PlaybackAPI = {
 
 export type AsciiMotionCliProps = {
 	hasDarkBackground?: boolean;
+	onInteraction?: (input: string, key: any) => void;
 	autoPlay?: boolean;
 	loop?: boolean;
 	onReady?: (api: PlaybackAPI) => void;
-	onInteraction?: () => void;
 };
 
 const _DIRAC_COLORS = {
@@ -71,9 +71,9 @@ export const AsciiMotionCli: React.FC<AsciiMotionCliProps> = ({ onReady, onInter
 	}, [onReady]);
 
 	// Trigger onInteraction to allow dismissing the welcome state via any keypress
-	useInput(() => {
+	useInput((input, key) => {
 		if (onInteraction) {
-			onInteraction();
+			onInteraction(input, key);
 		}
 	});
 
