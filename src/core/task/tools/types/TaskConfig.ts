@@ -38,6 +38,7 @@ export interface TaskConfig {
 	vscodeTerminalExecutionMode: "vscodeTerminal" | "backgroundExec"
 	enableParallelToolCalling: boolean
 	isSubagentExecution: boolean
+	backgroundEditEnabled: boolean
 
 	// Multi-workspace support (optional for backward compatibility)
 	workspaceManager?: WorkspaceRootManager

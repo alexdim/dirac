@@ -57,7 +57,7 @@ export class RenameSymbolToolHandler implements IFullyManagedTool {
 		const partialMessage = JSON.stringify(sharedMessageProps)
 
 		const firstPath = paths[0] || ""
-		if (await uiHelpers.shouldAutoApproveToolWithPath(DiracDefaultTool.EDIT_FILE, firstPath)) {
+		if (await uiHelpers.shouldAutoApproveToolWithPath(block.name, firstPath)) {
 			await uiHelpers.removeLastPartialMessageIfExistsWithType("ask", "tool")
 			await uiHelpers.say("tool", partialMessage, undefined, undefined, block.partial)
 		} else {
@@ -239,7 +239,7 @@ export class RenameSymbolToolHandler implements IFullyManagedTool {
 			const shouldAutoApprove =
 				config.isSubagentExecution ||
 				(await Promise.all(
-					fileResults.map((fr) => config.callbacks.shouldAutoApproveToolWithPath(DiracDefaultTool.EDIT_FILE, fr.displayPath)),
+					fileResults.map((fr) => config.callbacks.shouldAutoApproveToolWithPath(this.name, fr.displayPath)),
 				).then((results) => results.every(Boolean)))
 
 			if (!shouldAutoApprove) {
@@ -284,13 +284,19 @@ export class RenameSymbolToolHandler implements IFullyManagedTool {
 			}> = []
 
 			for (const fr of fileResults) {
-				config.services.diffViewProvider.editType = "modify"
-				await config.services.diffViewProvider.open(fr.absolutePath, { displayPath: fr.displayPath })
-				await config.services.diffViewProvider.update(fr.finalContent, true)
-				
-				await setTimeoutPromise(200)
-				
-				const saveResult = await config.services.diffViewProvider.saveChanges({ skipDiagnostics: true })
+				// Apply changes via DiffViewProvider
+				let saveResult: { finalContent?: string; autoFormattingEdits?: string; userEdits?: string }
+				if (shouldAutoApprove && config.backgroundEditEnabled) {
+					saveResult = await config.services.diffViewProvider.applyAndSaveSilently(fr.absolutePath, fr.finalContent)
+				} else {
+					config.services.diffViewProvider.editType = "modify"
+					await config.services.diffViewProvider.open(fr.absolutePath, { displayPath: fr.displayPath })
+					await config.services.diffViewProvider.update(fr.finalContent, true)
+
+					await setTimeoutPromise(200)
+
+					saveResult = await config.services.diffViewProvider.saveChanges({ skipDiagnostics: true })
+				}
 				const actualFinalContent = saveResult.finalContent || fr.finalContent
 
 				config.taskState.didEditFile = true

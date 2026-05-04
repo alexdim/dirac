@@ -144,6 +144,7 @@ export class ToolExecutor {
 			vscodeTerminalExecutionMode: this.vscodeTerminalExecutionMode,
 			enableParallelToolCalling: this.isParallelToolCallingEnabled(),
 			isSubagentExecution: false,
+			backgroundEditEnabled: !!this.stateManager.getGlobalSettingsKey("backgroundEditEnabled"),
 			cwd: this.cwd,
 			workspaceManager: this.workspaceManager,
 			isMultiRootEnabled: this.isMultiRootEnabled,

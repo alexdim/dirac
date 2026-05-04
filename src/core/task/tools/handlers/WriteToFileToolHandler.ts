@@ -66,7 +66,8 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 			const partialMessage = JSON.stringify(sharedMessageProps)
 
 			// Handle auto-approval vs manual approval for partial
-			if (await uiHelpers.shouldAutoApproveToolWithPath(block.name, relPath)) {
+			const shouldAutoApprove = await uiHelpers.shouldAutoApproveToolWithPath(block.name, relPath)
+			if (shouldAutoApprove) {
 				await uiHelpers.removeLastPartialMessageIfExistsWithType("ask", "tool") // in case the user changes auto-approval settings mid stream
 				await uiHelpers.say("tool", partialMessage, undefined, undefined, block.partial)
 			} else {
@@ -75,12 +76,14 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 			}
 
 			// CRITICAL: Open editor and stream content in real-time (from original code)
-			if (!config.services.diffViewProvider.isEditing) {
-				// Open the editor and prepare to stream content in
-				await config.services.diffViewProvider.open(absolutePath, { displayPath: relPath })
+			if (!(shouldAutoApprove && config.backgroundEditEnabled)) {
+				if (!config.services.diffViewProvider.isEditing) {
+					// Open the editor and prepare to stream content in
+					await config.services.diffViewProvider.open(absolutePath, { displayPath: relPath })
+				}
+				// Editor is open, stream content in real-time (false = don't finalize yet)
+				await config.services.diffViewProvider.update(newContent, false)
 			}
-			// Editor is open, stream content in real-time (false = don't finalize yet)
-			await config.services.diffViewProvider.update(newContent, false)
 		} catch (error) {
 			// Reset diff view on error
 			await config.services.diffViewProvider.revertChanges()
@@ -156,18 +159,6 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 				operationIsLocatedInWorkspace: await isLocatedInWorkspace(relPath),
 				startLineNumbers: undefined,
 			}
-			// if isEditingFile false, that means we have the full contents of the file already.
-			// it's important to note how this function works, you can't make the assumption that the block.partial conditional will always be called since it may immediately get complete, non-partial data. So this part of the logic will always be called.
-			// in other words, you must always repeat the block.partial logic here
-			if (!config.services.diffViewProvider.isEditing) {
-				// show gui message before showing edit animation
-				const partialMessage = JSON.stringify(sharedMessageProps)
-				await config.callbacks.ask("tool", partialMessage, true).catch(() => {}) // sending true for partial even though it's not a partial, this shows the edit row before the content is streamed into the editor
-				await config.services.diffViewProvider.open(absolutePath, { displayPath: relPath })
-			}
-			await config.services.diffViewProvider.update(newContent, true)
-			await setTimeoutPromise(300) // wait for diff view to update
-			await config.services.diffViewProvider.scrollToFirstDiff()
 			// showOmissionWarning(this.diffViewProvider.originalContent || "", newContent)
 
 			const completeMessage = JSON.stringify({
@@ -176,7 +167,8 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 				operationIsLocatedInWorkspace: await isLocatedInWorkspace(relPath),
 			} satisfies DiracSayTool)
 
-			if (await config.callbacks.shouldAutoApproveToolWithPath(block.name, relPath)) {
+			const shouldAutoApprove = await config.callbacks.shouldAutoApproveToolWithPath(block.name, relPath)
+			if (shouldAutoApprove) {
 				// Auto-approval flow
 				await config.callbacks.removeLastPartialMessageIfExistsWithType("ask", "tool")
 				await config.callbacks.say("tool", completeMessage, undefined, undefined, false)
@@ -325,8 +317,26 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 			config.services.fileContextTracker.markFileAsEditedByDirac(relPath)
 
 			// Save the changes and get the result
-			const { newProblemsMessage, userEdits, autoFormattingEdits, finalContent } =
-				await config.services.diffViewProvider.saveChanges()
+			let saveResult: { newProblemsMessage?: string; userEdits?: string; autoFormattingEdits?: string; finalContent?: string }
+			if (shouldAutoApprove && config.backgroundEditEnabled) {
+				saveResult = await config.services.diffViewProvider.applyAndSaveSilently(absolutePath, newContent)
+			} else {
+				// if isEditingFile false, that means we have the full contents of the file already.
+				// it's important to note how this function works, you can't make the assumption that the block.partial conditional will always be called since it may immediately get complete, non-partial data. So this part of the logic will always be called.
+				// in other words, you must always repeat the block.partial logic here
+				if (!config.services.diffViewProvider.isEditing) {
+					// show gui message before showing edit animation
+					const partialMessage = JSON.stringify(sharedMessageProps)
+					await config.callbacks.ask("tool", partialMessage, true).catch(() => {}) // sending true for partial even though it's not a partial, this shows the edit row before the content is streamed into the editor
+					await config.services.diffViewProvider.open(absolutePath, { displayPath: relPath })
+				}
+				await config.services.diffViewProvider.update(newContent, true)
+				await setTimeoutPromise(300) // wait for diff view to update
+				await config.services.diffViewProvider.scrollToFirstDiff()
+
+				saveResult = await config.services.diffViewProvider.saveChanges()
+			}
+			const { newProblemsMessage, userEdits, autoFormattingEdits, finalContent } = saveResult
 
 			// Reset consecutive mistake counter on successful file operation
 			config.taskState.consecutiveMistakeCount = 0

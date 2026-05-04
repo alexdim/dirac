@@ -166,7 +166,7 @@ export class BatchProcessor {
 
         const allAutoApproved = await this.checkAutoApproval(config, preparedBatches)
 
-        if (allAutoApproved) {
+        if (allAutoApproved && config.backgroundEditEnabled) {
             // FAST PATH: All files auto-approved, apply them all silently
             const appliedResults = new Map<string, any>()
             let anyFailed = false
@@ -271,7 +271,7 @@ export class BatchProcessor {
 
             // Apply and save this file
             try {
-                const applied = await this.applyAndSave(config, batch, { silent: false })
+                const applied = await this.applyAndSave(config, batch, { silent: shouldAutoApprove && config.backgroundEditEnabled })
                 appliedResults.set(batch.absolutePath, applied)
                 anySucceeded = true
             } catch (error) {

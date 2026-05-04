@@ -278,15 +278,20 @@ export class ReplaceSymbolToolHandler implements IFullyManagedTool {
 				const { batch, finalContent } = fr
 
 				// Apply changes via DiffViewProvider
-				config.services.diffViewProvider.editType = "modify"
-				await config.services.diffViewProvider.open(batch.absolutePath, { displayPath: batch.displayPath })
-				await config.services.diffViewProvider.update(finalContent, true)
+				let saveResult: { finalContent?: string; autoFormattingEdits?: string; userEdits?: string }
+				if (shouldAutoApprove && config.backgroundEditEnabled) {
+					saveResult = await config.services.diffViewProvider.applyAndSaveSilently(batch.absolutePath, finalContent)
+				} else {
+					config.services.diffViewProvider.editType = "modify"
+					await config.services.diffViewProvider.open(batch.absolutePath, { displayPath: batch.displayPath })
+					await config.services.diffViewProvider.update(finalContent, true)
 
-				// Wait for the diff view to update before saving to ensure auto-formatting is triggered
-				await setTimeoutPromise(200)
+					// Wait for the diff view to update before saving to ensure auto-formatting is triggered
+					await setTimeoutPromise(200)
 
-				// Save with skipDiagnostics: true because we'll run them in parallel at the end
-				const saveResult = await config.services.diffViewProvider.saveChanges({ skipDiagnostics: true })
+					// Save with skipDiagnostics: true because we'll run them in parallel at the end
+					saveResult = await config.services.diffViewProvider.saveChanges({ skipDiagnostics: true })
+				}
 				const actualFinalContent = saveResult.finalContent || finalContent
 
 				config.taskState.consecutiveMistakeCount = 0
