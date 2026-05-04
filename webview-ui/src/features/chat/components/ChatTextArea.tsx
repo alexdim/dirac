@@ -287,10 +287,17 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 						insertValue = value || ""
 					} else if (type === ContextMenuOptionType.Problems) {
 						insertValue = "problems"
+					} else if (type === ContextMenuOptionType.Image) {
+						insertValue = "image"
 					} else if (type === ContextMenuOptionType.Terminal) {
 						insertValue = "terminal"
 					} else if (type === ContextMenuOptionType.Git) {
 						insertValue = value || ""
+					}
+
+					if (type === ContextMenuOptionType.Image) {
+						onSelectFilesAndImages()
+						return
 					}
 
 					const { newValue, mentionIndex } = insertMention(
@@ -315,7 +322,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 					}, 0)
 				}
 			},
-			[setInputValue, cursorPosition, searchQuery],
+			[setInputValue, cursorPosition, searchQuery, onSelectFilesAndImages],
 		)
 
 		const handleSlashCommandsSelect = useCallback(
@@ -737,38 +744,12 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 		const handlePaste = useCallback(
 			async (e: React.ClipboardEvent) => {
 				const items = e.clipboardData.items
-
-				const pastedText = e.clipboardData.getData("text")
-				// Check if the pasted content is a URL, add space after so user can easily delete if they don't want it
-				const urlRegex = /^\S+:\/\/\S+$/
-				if (urlRegex.test(pastedText.trim())) {
-					e.preventDefault()
-					const trimmedUrl = pastedText.trim()
-					const newValue = inputValue.slice(0, cursorPosition) + trimmedUrl + " " + inputValue.slice(cursorPosition)
-					setInputValue(newValue)
-					const newCursorPosition = cursorPosition + trimmedUrl.length + 1
-					setCursorPosition(newCursorPosition)
-					setIntendedCursorPosition(newCursorPosition)
-					setShowContextMenu(false)
-
-					// Scroll to new cursor position
-					// https://stackoverflow.com/questions/29899364/how-do-you-scroll-to-the-position-of-the-cursor-in-a-textarea/40951875#40951875
-					setTimeout(() => {
-						if (textAreaRef.current) {
-							textAreaRef.current.blur()
-							textAreaRef.current.focus()
-						}
-					}, 0)
-					// NOTE: callbacks dont utilize return function to cleanup, but it's fine since this timeout immediately executes and will be cleaned up by the browser (no chance component unmounts before it executes)
-
-					return
-				}
-
-				const acceptedTypes = ["png", "jpeg", "webp"] // supported by anthropic and openrouter (jpg is just a file extension but the image will be recognized as jpeg)
+				const acceptedTypes = ["png", "jpeg", "webp", "gif"]
 				const imageItems = Array.from(items).filter((item) => {
 					const [type, subtype] = item.type.split("/")
 					return type === "image" && acceptedTypes.includes(subtype)
 				})
+
 				if (!shouldDisableFilesAndImages && imageItems.length > 0) {
 					e.preventDefault()
 					const imagePromises = imageItems.map((item) => {
@@ -804,7 +785,6 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 					})
 					const imageDataArray = await Promise.all(imagePromises)
 					const dataUrls = imageDataArray.filter((dataUrl): dataUrl is string => dataUrl !== null)
-					//.map((dataUrl) => dataUrl.split(",")[1]) // strip the mime type prefix, sharp doesn't need it
 					if (dataUrls.length > 0) {
 						const filesAndImagesLength = selectedImages.length + selectedFiles.length
 						const availableSlots = MAX_IMAGES_AND_FILES_PER_MESSAGE - filesAndImagesLength
@@ -816,6 +796,30 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 					} else {
 						console.warn("No valid images were processed")
 					}
+					return
+				}
+
+				const pastedText = e.clipboardData.getData("text")
+				// Check if the pasted content is a URL, add space after so user can easily delete if they don't want it
+				const urlRegex = /^\S+:\/\/\S+$/
+				if (urlRegex.test(pastedText.trim())) {
+					e.preventDefault()
+					const trimmedUrl = pastedText.trim()
+					const newValue = inputValue.slice(0, cursorPosition) + trimmedUrl + " " + inputValue.slice(cursorPosition)
+					setInputValue(newValue)
+					const newCursorPosition = cursorPosition + trimmedUrl.length + 1
+					setCursorPosition(newCursorPosition)
+					setIntendedCursorPosition(newCursorPosition)
+					setShowContextMenu(false)
+
+					// Scroll to new cursor position
+					setTimeout(() => {
+						if (textAreaRef.current) {
+							textAreaRef.current.blur()
+							textAreaRef.current.focus()
+						}
+					}, 0)
+					return
 				}
 			},
 			[

@@ -60,6 +60,7 @@ export const mentionRegex = new RegExp(
 		`|problems\\b` + // Exact word 'problems'
 		`|terminal\\b` + // Exact word 'terminal'
 		`|git-changes\\b` + // Exact word 'git-changes'
+		`|image\\b` + // Exact word 'image'
 		`)` +
 		`(?=[.,;:!?()]*(?=[\\s\\r\\n]|$))`, // Lookahead for trailing punctuation (multiple allowed)
 )

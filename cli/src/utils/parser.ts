@@ -52,22 +52,40 @@ export async function imageFileToDataUrl(filePath: string): Promise<string> {
  * Supports formats like: "prompt text @/path/to/image.png" or just file paths
  * Returns the clean prompt text and array of image paths
  */
+function unescapePath(p: string): string {
+	if ((p.startsWith("\"") && p.endsWith("\"")) || (p.startsWith("'") && p.endsWith("'"))) {
+		return p.slice(1, -1)
+	}
+	// Handle backslash-escaped spaces and other common terminal escapes
+	return p.replace(/\\(.)/g, "$1")
+}
+
 export function parseImagesFromInput(input: string): { prompt: string; imagePaths: string[] } {
 	const imagePaths: string[] = []
 
-	// Match @/path/to/image.ext patterns (with space or at start)
-	const atPathPattern = /(?:^|\s)@(\/[^\s]+\.(?:png|jpg|jpeg|gif|webp))/gi
+	// Match @path/to/image.ext patterns (with space or at start)
+	// Supports: @/abs/path, @./rel/path, @path/to/file, @C:\path\to\file
+	// Also supports quoted paths and escaped spaces
+	const atPathPattern =
+		/@(?:"([^"]+\.(?:png|jpg|jpeg|gif|webp))"|'([^']+\.(?:png|jpg|jpeg|gif|webp))'|((?:[a-zA-Z]:\\|\/|\.\/|\.\.\/|[^\s@])(?:[^\s]|\\ )*?\.(?:png|jpg|jpeg|gif|webp)))/gi
 	let match: RegExpExecArray | null
 	while ((match = atPathPattern.exec(input)) !== null) {
-		imagePaths.push(match[1])
+		const p = match[1] || match[2] || match[3]
+		if (p) {
+			imagePaths.push(unescapePath(p))
+		}
 	}
 
-	// Also match standalone absolute paths that look like images
-	const standalonePathPattern = /(?:^|\s)(\/[^\s]+\.(?:png|jpg|jpeg|gif|webp))(?:\s|$)/gi
+	// Also match standalone paths that look like images
+	const standalonePathPattern =
+		/(?:^|\s)(?:"([^"]+\.(?:png|jpg|jpeg|gif|webp))"|'([^']+\.(?:png|jpg|jpeg|gif|webp))'|((?:[a-zA-Z]:\\|\/|\.\/|\.\.\/|[^\s@])(?:[^\s]|\\ )*?\.(?:png|jpg|jpeg|gif|webp)))(?:\s|$)/gi
 	while ((match = standalonePathPattern.exec(input)) !== null) {
-		const p = match[1]
-		if (!imagePaths.includes(p)) {
-			imagePaths.push(p)
+		const p = match[1] || match[2] || match[3]
+		if (p) {
+			const unescaped = unescapePath(p)
+			if (!imagePaths.includes(unescaped)) {
+				imagePaths.push(unescaped)
+			}
 		}
 	}
 

@@ -87,6 +87,7 @@ export enum ContextMenuOptionType {
 	URL = "url",
 	Git = "git",
 	NoResults = "noResults",
+	Image = "image",
 }
 
 export interface ContextMenuQueryItem {
@@ -104,6 +105,7 @@ function getContextMenuEntries(): ContextMenuOptionType[] {
 		ContextMenuOptionType.Git,
 		ContextMenuOptionType.Folder,
 		ContextMenuOptionType.File,
+		ContextMenuOptionType.Image,
 	]
 	if (PLATFORM_CONFIG.supportsTerminalMentions) {
 		entries.splice(2, 0, ContextMenuOptionType.Terminal)
@@ -179,6 +181,13 @@ export function getContextMenuOptions(
 	const suggestions: ContextMenuQueryItem[] = []
 
 	// Check for top-level option matches
+	if ("image".startsWith(lowerQuery)) {
+		suggestions.push({
+			type: ContextMenuOptionType.Image,
+			label: "Image",
+			description: "Add images to the task",
+		})
+	}
 	if ("git".startsWith(lowerQuery)) {
 		suggestions.push({
 			type: ContextMenuOptionType.Git,
@@ -307,7 +316,7 @@ export function shouldShowContextMenu(text: string, position: number): boolean {
 	}
 
 	// Don't show the menu if it's a problems or terminal
-	if (textAfterAt.toLowerCase().startsWith("problems") || textAfterAt.toLowerCase().startsWith("terminal")) {
+	if (textAfterAt.toLowerCase().startsWith("problems") || textAfterAt.toLowerCase().startsWith("terminal") || textAfterAt.toLowerCase().startsWith("image")) {
 		return false
 	}
 

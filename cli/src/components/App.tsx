@@ -4,6 +4,7 @@
  */
 
 import { Box, useApp } from "ink"
+import { TerminalInfoProvider } from "ink-picture"
 import React, { ReactNode, useCallback, useEffect, useState } from "react"
 import { StdinProvider } from "../context/StdinContext"
 import { TaskContextProvider } from "../context/TaskContext"
@@ -96,7 +97,9 @@ export const App: React.FC<AppProps> = (props) => {
 
 	return (
 		<ErrorBoundary exit={exit}>
-			<InternalApp {...props} />
+			<TerminalInfoProvider>
+				<InternalApp {...props} />
+			</TerminalInfoProvider>
 		</ErrorBoundary>
 	)
 }

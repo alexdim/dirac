@@ -1,11 +1,12 @@
 import { useInput } from "ink"
-import { isMouseEscapeSequence } from "../utils/input"
+import { isMouseEscapeSequence, isTerminalResponseSequence } from "../utils/input"
 import { extractMentionQuery, insertMention } from "../utils/file-search"
 import { extractSlashQuery, insertSlashCommand } from "../utils/slash-commands"
 import { findWordEnd, findWordStart } from "./useTextInput"
 import { moveCursorDown, moveCursorUp } from "../utils/cursor"
 import { parseImagesFromInput } from "../utils/parser"
 import { StateManager } from "@/core/storage/StateManager"
+import { readImageFromClipboard } from "../utils/clipboard-image"
 
 interface UseChatInputHandlerProps {
 	textInputRef: React.MutableRefObject<string>
@@ -113,7 +114,7 @@ export function useChatInputHandler({
 	mode,
 }: UseChatInputHandlerProps) {
 	useInput((input, key) => {
-		if (isMouseEscapeSequence(input)) return
+		if (isMouseEscapeSequence(input) || isTerminalResponseSequence(input, key)) return
 
 		const currentTextInput = textInputRef.current
 		const currentCursorPos = cursorPosRef.current
@@ -320,6 +321,20 @@ export function useChatInputHandler({
 				handleButtonAction(buttonConfig.secondaryAction, false)
 				return
 			}
+		}
+
+		if (key.ctrl && (input === "v" || input === "\u0016")) {
+			// Try to read image from clipboard in the background.
+			// We don't return here so that the terminal can still perform its default paste behavior for text.
+			void (async () => {
+				// Only attempt if not in an SSH session to avoid unnecessary tool calls that will fail anyway
+				if (!(process.env.SSH_CONNECTION || process.env.SSH_CLIENT || process.env.SSH_TTY)) {
+					const imagePath = await readImageFromClipboard()
+					if (imagePath) {
+						insertTextAtCursor(`@${imagePath} `)
+					}
+				}
+			})()
 		}
 
 		if (key.ctrl && input && handleCtrlShortcut(input)) return

@@ -49,7 +49,9 @@ import { CLI_ONLY_COMMANDS } from "@shared/slashCommands"
 import { getProviderDefaultModelId, getProviderModelIdKey } from "@shared/storage"
 import { getRandomQuote } from "@/shared/quotes"
 import type { Mode } from "@shared/storage/types"
-import { Box, Static, Text } from "ink"
+import { Box, Static, Text, useStdout } from "ink"
+import path from "node:path"
+import Image from "ink-picture"
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { getAvailableSlashCommands } from "@/core/controller/slash/getAvailableSlashCommands"
 import { StateManager } from "@/core/storage/StateManager"
@@ -61,11 +63,11 @@ import { useIsSpinnerActive } from "../hooks/useStateSubscriber"
 import { useTextInput } from "../hooks/useTextInput"
 import { setTerminalTitle } from "../utils/display"
 import {
-    checkAndWarnRipgrepMissing,
-    extractMentionQuery,
-    type FileSearchResult, searchWorkspaceFiles
+	checkAndWarnRipgrepMissing,
+	extractMentionQuery,
+	type FileSearchResult, searchWorkspaceFiles
 } from "../utils/file-search"
-import { jsonParseSafe, parseImagesFromInput } from "../utils/parser"
+import { jsonParseSafe, parseImagesFromInput, processImagePaths } from "../utils/parser"
 import { extractSlashQuery, filterCommands, sortCommandsWorkflowsFirst } from "../utils/slash-commands"
 import { type ButtonActionType, getButtonConfig } from "./ActionButtons"
 import { AskPrompt } from "./AskPrompt"
@@ -85,11 +87,11 @@ import { useChatInputHandler } from "../hooks/useChatInputHandler"
 import { useChatMessages } from "../hooks/useChatMessages"
 import { useChatTask } from "../hooks/useChatTask"
 import {
-    expandPastedTexts,
-    getAskPromptType,
-    getInputStorageKey,
-    isYoloSuppressed,
-    parseAskOptions,
+	expandPastedTexts,
+	getAskPromptType,
+	getInputStorageKey,
+	isYoloSuppressed,
+	parseAskOptions,
 } from "../utils/chat"
 import { getGitBranch, getGitDiffStats, type GitDiffStats } from "../utils/git"
 
@@ -177,6 +179,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
 	taskId,
 }) => {
 	const quote = useMemo(() => getRandomQuote(), [])
+	const { stdout } = useStdout()
 	const taskState = useTaskState()
 	const { controller: taskController, clearState } = useTaskContext()
 	const { isActive: isSpinnerActive, startTime: spinnerStartTime } = useIsSpinnerActive()
@@ -634,30 +637,14 @@ export const ChatView: React.FC<ChatViewProps> = ({
 			}
 			setIsProcessing(true)
 			const expandedText = expandPastedTexts(text, pastedTexts)
+
 			setTextInput("")
 			setCursorPos(0)
 			setPastedTexts(new Map())
 			pasteCounterRef.current = 0
 			inputStateStorage.delete(storageKey)
 			try {
-				const imageDataUrls =
-					images.length > 0
-						? await Promise.all(
-								images.map(async (p) => {
-									try {
-										const fs = await import("fs/promises")
-										const path = await import("path")
-										const data = await fs.readFile(p)
-										const ext = path.extname(p).toLowerCase().slice(1)
-										const mimeType = ext === "jpg" ? "jpeg" : ext
-										return `data:image/${mimeType};base64,${data.toString("base64")}`
-									} catch {
-										return null
-									}
-								}),
-						  )
-						: []
-				const validImages = imageDataUrls.filter((img): img is string => img !== null)
+				const validImages = await processImagePaths(images)
 				setTerminalTitle(expandedText.trim())
 				await ctrl.initTask(expandedText.trim(), validImages.length > 0 ? validImages : undefined)
 			} catch (_error) {
@@ -694,7 +681,20 @@ export const ChatView: React.FC<ChatViewProps> = ({
 		setIsSearching(true)
 		r.searchTimeout = setTimeout(async () => {
 			try {
-				const results = await searchWorkspaceFiles(query, workspacePath, 15)
+				let results: FileSearchResult[]
+				if (query.toLowerCase().startsWith("image")) {
+					let imageQuery = ""
+					if (query.toLowerCase() === "image") {
+						imageQuery = ""
+					} else if (query.toLowerCase().startsWith("image:")) {
+						imageQuery = query.slice(6)
+					} else {
+						imageQuery = query.slice(5)
+					}
+					results = await searchWorkspaceFiles(imageQuery, workspacePath, 15, undefined, ["png", "jpg", "jpeg", "gif", "webp"])
+				} else {
+					results = await searchWorkspaceFiles(query, workspacePath, 15)
+				}
 				setFileResults(results)
 				setSelectedIndex(0)
 			} catch {
@@ -911,6 +911,36 @@ export const ChatView: React.FC<ChatViewProps> = ({
 					/>
 				)}
 			</Box>
+
+				{imagePaths.length > 0 && !activePanel && (
+					<Box
+						{...({
+							position: "absolute",
+							width: stdout?.columns || 80,
+							height: stdout?.rows || 24,
+							flexDirection: "column",
+							justifyContent: "flex-end",
+							alignItems: "flex-end",
+							paddingRight: 2,
+							paddingBottom: 1,
+						} as any)}>
+						<Box flexDirection="column" alignItems="flex-end">
+							<Box borderStyle="round" borderColor="magenta">
+								<Image
+									key={imagePaths[imagePaths.length - 1]}
+									src={path.resolve(imagePaths[imagePaths.length - 1])}
+									width={30}
+								/>
+							</Box>
+							<Text color="gray" dimColor>
+								{path.basename(imagePaths[imagePaths.length - 1])}
+							</Text>
+						</Box>
+					</Box>
+				)}
+
+
+
 		</Box>
 	)
 }

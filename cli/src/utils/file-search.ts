@@ -205,12 +205,21 @@ export async function searchWorkspaceFiles(
 	workspacePath: string,
 	limit = 15,
 	selectedType?: "file" | "folder",
+	extensionFilter?: string[],
 ): Promise<FileSearchResult[]> {
 	try {
 		let items = await listWorkspaceFiles(workspacePath, 5000)
 
 		if (selectedType) {
 			items = items.filter((item) => item.type === selectedType)
+		}
+
+		if (extensionFilter && extensionFilter.length > 0) {
+			items = items.filter((item) => {
+				if (item.type !== "file") return true
+				const ext = item.path.split(".").pop()?.toLowerCase()
+				return ext ? extensionFilter.includes(ext) : false
+			})
 		}
 
 		if (!query.trim()) {
@@ -258,6 +267,7 @@ export function insertMention(text: string, atIndex: number, filePath: string): 
 	const end = endIndex === -1 ? text.length : endIndex
 	// Ensure path starts with / for proper mention format
 	const normalizedPath = filePath.startsWith("/") ? filePath : `/${filePath}`
-	const mention = normalizedPath.includes(" ") ? `@"${normalizedPath}"` : `@${normalizedPath}`
+	// Quote the path if it contains spaces or other special characters that might break parsing
+	const mention = /[\s()\[\]]/.test(normalizedPath) ? `@"${normalizedPath}"` : `@${normalizedPath}`
 	return text.slice(0, atIndex) + mention + " " + text.slice(end).trimStart()
 }
