@@ -236,6 +236,14 @@ export class ReplaceSymbolToolHandler implements IFullyManagedTool {
 				const notificationMessage = `Dirac wants to replace symbols [${symbolNames}] in [${fileNames}]`
 				showNotificationForApproval(notificationMessage, config.autoApprovalSettings.enableNotifications)
 
+				// Show the diff for all files in the batch
+				await config.services.diffViewProvider.showReview(fileResults.map(fr => ({
+					absolutePath: fr.batch.absolutePath,
+					displayPath: fr.batch.displayPath,
+					content: fr.finalContent
+				})))
+
+
 				await config.callbacks.removeLastPartialMessageIfExistsWithType("say", "tool")
 				await config.callbacks.removeLastPartialMessageIfExistsWithType("ask", "tool")
 				const { didApprove } = await ToolResultUtils.askApprovalAndPushFeedback("tool", completeMessage, config)
@@ -250,6 +258,8 @@ export class ReplaceSymbolToolHandler implements IFullyManagedTool {
 						undefined,
 						block.isNativeToolCall,
 					)
+
+					await config.services.diffViewProvider.hideReview()
 					return formatResponse.toolDenied()
 				}
 			} else {
@@ -283,7 +293,7 @@ export class ReplaceSymbolToolHandler implements IFullyManagedTool {
 					saveResult = await config.services.diffViewProvider.applyAndSaveSilently(batch.absolutePath, finalContent)
 				} else {
 					config.services.diffViewProvider.editType = "modify"
-					await config.services.diffViewProvider.open(batch.absolutePath, { displayPath: batch.displayPath })
+					await config.services.diffViewProvider.open(batch.displayPath)
 					await config.services.diffViewProvider.update(finalContent, true)
 
 					// Wait for the diff view to update before saving to ensure auto-formatting is triggered

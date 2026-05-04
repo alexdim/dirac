@@ -6,6 +6,7 @@ import { DecorationController } from "@/hosts/vscode/DecorationController"
 import { NotebookDiffView } from "@/hosts/vscode/NotebookDiffView"
 import { Logger } from "@/shared/services/Logger"
 import { arePathsEqual } from "@/utils/path"
+import { createDirectoriesForFile } from "@/utils/fs"
 
 export const DIFF_VIEW_URI_SCHEME = "dirac-diff"
 
@@ -314,6 +315,17 @@ export class VscodeDiffViewProvider extends DiffViewProvider {
 		userEdits: string | undefined
 	}> {
 		const uri = vscode.Uri.file(absolutePath)
+
+		// Ensure parent directories exist
+		await createDirectoriesForFile(absolutePath)
+
+		// Ensure file exists before opening
+		try {
+			await vscode.workspace.fs.stat(uri)
+		} catch (error) {
+			await vscode.workspace.fs.writeFile(uri, new Uint8Array())
+		}
+
 		const document = await vscode.workspace.openTextDocument(uri)
 
 		const edit = new vscode.WorkspaceEdit()

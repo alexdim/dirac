@@ -79,7 +79,7 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 			if (!(shouldAutoApprove && config.backgroundEditEnabled)) {
 				if (!config.services.diffViewProvider.isEditing) {
 					// Open the editor and prepare to stream content in
-					await config.services.diffViewProvider.open(absolutePath, { displayPath: relPath })
+					await config.services.diffViewProvider.open(relPath)
 				}
 				// Editor is open, stream content in real-time (false = don't finalize yet)
 				await config.services.diffViewProvider.update(newContent, false)
@@ -328,7 +328,7 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 					// show gui message before showing edit animation
 					const partialMessage = JSON.stringify(sharedMessageProps)
 					await config.callbacks.ask("tool", partialMessage, true).catch(() => {}) // sending true for partial even though it's not a partial, this shows the edit row before the content is streamed into the editor
-					await config.services.diffViewProvider.open(absolutePath, { displayPath: relPath })
+					await config.services.diffViewProvider.open(relPath)
 				}
 				await config.services.diffViewProvider.update(newContent, true)
 				await setTimeoutPromise(300) // wait for diff view to update

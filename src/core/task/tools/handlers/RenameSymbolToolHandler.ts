@@ -246,6 +246,14 @@ export class RenameSymbolToolHandler implements IFullyManagedTool {
 				const notificationMessage = `Dirac wants to rename symbol '${existingSymbol}' to '${newSymbol}' (${totalReplacements} occurrences in ${fileResults.length} files)`
 				showNotificationForApproval(notificationMessage, config.autoApprovalSettings.enableNotifications)
 
+				// Show the diff for all files in the batch
+				await config.services.diffViewProvider.showReview(fileResults.map(fr => ({
+					absolutePath: fr.absolutePath,
+					displayPath: fr.displayPath,
+					content: fr.finalContent
+				})))
+
+
 				await config.callbacks.removeLastPartialMessageIfExistsWithType("say", "tool")
 				await config.callbacks.removeLastPartialMessageIfExistsWithType("ask", "tool")
 				const { didApprove } = await ToolResultUtils.askApprovalAndPushFeedback("tool", completeMessage, config)
@@ -260,6 +268,8 @@ export class RenameSymbolToolHandler implements IFullyManagedTool {
 						undefined,
 						block.isNativeToolCall,
 					)
+
+					await config.services.diffViewProvider.hideReview()
 					return formatResponse.toolDenied()
 				}
 			} else {
@@ -290,7 +300,7 @@ export class RenameSymbolToolHandler implements IFullyManagedTool {
 					saveResult = await config.services.diffViewProvider.applyAndSaveSilently(fr.absolutePath, fr.finalContent)
 				} else {
 					config.services.diffViewProvider.editType = "modify"
-					await config.services.diffViewProvider.open(fr.absolutePath, { displayPath: fr.displayPath })
+					await config.services.diffViewProvider.open(fr.displayPath)
 					await config.services.diffViewProvider.update(fr.finalContent, true)
 
 					await setTimeoutPromise(200)
