@@ -136,6 +136,17 @@ export interface ModelInfo {
 	apiFormat?: ApiFormat // The API format used by this model
 }
 
+export interface OpenAiCompatibleProfile {
+	name: string
+	baseUrl: string
+	apiKey?: string
+	modelId: string
+	modelInfo: OpenAiCompatibleModelInfo
+	headers?: Record<string, string>
+	azureApiVersion?: string
+}
+
+
 export interface OpenAiCompatibleModelInfo extends ModelInfo {
 	temperature?: number
 	isR1FormatRequired?: boolean

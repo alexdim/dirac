@@ -133,17 +133,28 @@ function createHandlerForProvider(
 				geminiBaseUrl: options.geminiBaseUrl,
 				reasoningEffort: mode === "plan" ? options.planModeReasoningEffort : options.actModeReasoningEffort,
 				ulid: options.ulid,
-
 			})
 		case "openai": {
-			const openAiModelId = mode === "plan" ? options.planModeOpenAiModelId : options.actModeOpenAiModelId
-			let openAiModelInfo = mode === "plan" ? options.planModeOpenAiModelInfo : options.actModeOpenAiModelInfo
+			const profileName = mode === "plan" ? options.planModeOpenAiProfileName : options.actModeOpenAiProfileName
+			const profile = options.openAiCompatibleProfiles?.find((p) => p.name === profileName)
+
+			const openAiBaseUrl = profile ? profile.baseUrl : options.openAiBaseUrl
+			const openAiApiKey = profile ? profile.apiKey : options.openAiApiKey
+			const openAiModelId = profile
+				? profile.modelId
+				: (mode === "plan" ? options.planModeOpenAiModelId : options.actModeOpenAiModelId)
+			const openAiHeaders = profile ? profile.headers : options.openAiHeaders
+			const azureApiVersion = profile ? profile.azureApiVersion : options.azureApiVersion
+
+			let openAiModelInfo = profile
+				? profile.modelInfo
+				: (mode === "plan" ? options.planModeOpenAiModelInfo : options.actModeOpenAiModelInfo)
 
 			if (!openAiModelInfo && openAiModelId) {
 				openAiModelInfo = getModelInfo(openAiModelId)
 			}
 
-			const isCustomUrl = options.openAiBaseUrl && options.openAiBaseUrl.startsWith("http")
+			const isCustomUrl = openAiBaseUrl && openAiBaseUrl.startsWith("http")
 			if (options.openAiCompatibleCustomApiKey || isCustomUrl) {
 				openAiModelInfo = {
 					...(openAiModelInfo || openAiModelInfoSaneDefaults),
@@ -153,13 +164,16 @@ function createHandlerForProvider(
 				}
 			}
 
-			const apiKey = options.openAiCompatibleCustomApiKey || options.openAiApiKey
+			const apiKey = options.openAiCompatibleCustomApiKey || openAiApiKey
 			if (apiKey) {
 				const maskedKey = `${apiKey.slice(0, 4)}****${apiKey.slice(-4)}`
-				Logger.info(`Using OpenAI API key: ${maskedKey} (from ${options.openAiCompatibleCustomApiKey ? "custom key" : "standard key"})`)
+				Logger.info(
+					`Using OpenAI API key: ${maskedKey} (from ${options.openAiCompatibleCustomApiKey ? "custom key" : "standard key"})`,
+				)
 			}
-			if (options.openAiBaseUrl?.replace(/\/+$/, "").endsWith("/responses")) {
-				const normalizedBaseUrl = options.openAiBaseUrl.replace(/\/responses\/?$/, "")
+
+			if (openAiBaseUrl?.replace(/\/+$/, "").endsWith("/responses")) {
+				const normalizedBaseUrl = openAiBaseUrl.replace(/\/responses\/?$/, "")
 				return new OpenAiResponsesCompatibleHandler({
 					onRetryAttempt: options.onRetryAttempt,
 					openAiApiKey: apiKey,
@@ -173,9 +187,9 @@ function createHandlerForProvider(
 			return new OpenAiHandler({
 				onRetryAttempt: options.onRetryAttempt,
 				openAiApiKey: apiKey,
-				openAiBaseUrl: options.openAiBaseUrl,
-				azureApiVersion: options.azureApiVersion,
-				openAiHeaders: options.openAiHeaders,
+				openAiBaseUrl: openAiBaseUrl,
+				azureApiVersion: azureApiVersion,
+				openAiHeaders: openAiHeaders,
 				openAiModelId,
 				openAiModelInfo,
 				reasoningEffort: mode === "plan" ? options.planModeReasoningEffort : options.actModeReasoningEffort,
@@ -201,7 +215,6 @@ function createHandlerForProvider(
 				apiModelId: mode === "plan" ? options.planModeApiModelId : options.actModeApiModelId,
 				ulid: options.ulid,
 				geminiSearchEnabled: options.geminiSearchEnabled,
-
 			})
 		case "openai-native":
 			return new OpenAiNativeHandler({

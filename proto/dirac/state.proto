@@ -75,7 +75,6 @@ message Secrets {
   optional string doubao_api_key = 17;
   optional string mistral_api_key = 18;
   optional string lite_llm_api_key = 19;
-  reserved 21; // was asksage_api_key
   optional string xai_api_key = 22;
   optional string moonshot_api_key = 23;
   optional string zai_api_key = 24;
@@ -83,8 +82,6 @@ message Secrets {
   optional string nebius_api_key = 26;
   optional string sambanova_api_key = 27;
   optional string cerebras_api_key = 28;
-  optional string sap_ai_core_client_id = 29;
-  optional string sap_ai_core_client_secret = 30;
   optional string groq_api_key = 31;
   optional string huawei_cloud_maas_api_key = 32;
   optional string baseten_api_key = 33;
@@ -97,6 +94,8 @@ message Secrets {
   optional string dirac_api_key = 51;
   optional string auth_nonce = 52;
   optional string openai_codex_oauth_credentials = 53;
+  optional string open_ai_compatible_custom_api_key = 54;
+  optional string github_copilot_oauth_credentials = 55;
 }
 
 // NOTE: Add new fields under API_HANDLER_SETTINGS_FIELDS or USER_SETTINGS_FIELDS
@@ -129,12 +128,7 @@ message Settings {
   optional string azure_api_version = 27;
   optional string qwen_api_line = 29;
   optional string moonshot_api_line = 30;
-  reserved 31; // was asksage_api_url
   optional int32 request_timeout_ms = 32;
-  optional string sap_ai_resource_group = 33;
-  optional string sap_ai_core_token_url = 34;
-  optional string sap_ai_core_base_url = 35;
-  optional bool sap_ai_core_use_orchestration_mode = 36;
   optional string dify_base_url = 37;
   optional string zai_api_line = 38;
   optional string aihubmix_base_url = 42;
@@ -158,8 +152,6 @@ message Settings {
   optional OpenRouterModelInfo plan_mode_requesty_model_info = 61;
   optional string plan_mode_together_model_id = 62;
   optional string plan_mode_fireworks_model_id = 63;
-  optional string plan_mode_sap_ai_core_model_id = 64;
-  optional string plan_mode_sap_ai_core_deployment_id = 65;
   optional string plan_mode_groq_model_id = 66;
   optional OpenRouterModelInfo plan_mode_groq_model_info = 67;
   optional string plan_mode_baseten_model_id = 68;
@@ -192,8 +184,6 @@ message Settings {
   optional OpenRouterModelInfo act_mode_requesty_model_info = 101;
   optional string act_mode_together_model_id = 102;
   optional string act_mode_fireworks_model_id = 103;
-  optional string act_mode_sap_ai_core_model_id = 104;
-  optional string act_mode_sap_ai_core_deployment_id = 105;
   optional string act_mode_groq_model_id = 106;
   optional OpenRouterModelInfo act_mode_groq_model_info = 107;
   optional string act_mode_baseten_model_id = 108;
@@ -228,7 +218,6 @@ message Settings {
   optional bool dirac_web_tools_enabled = 144;
   optional string preferred_language = 145;
   optional PlanActMode mode = 147;
-  reserved 149; // was focus_chain_settings
   optional string custom_prompt = 150;
   optional bool hooks_enabled = 152;
   optional bool subagents_enabled = 153;
@@ -260,6 +249,14 @@ message Settings {
   optional string write_prompt_metadata_directory = 183;
   optional string minimax_api_line = 184;
   optional bool opt_out_of_remote_config = 185;
+  repeated OpenAiCompatibleProfile open_ai_compatible_profiles = 186;
+  optional string plan_mode_open_ai_profile_name = 187;
+  optional string act_mode_open_ai_profile_name = 188;
+  optional bool gemini_search_enabled = 189;
+  optional string plan_mode_github_copilot_model_id = 190;
+  optional OpenRouterModelInfo plan_mode_github_copilot_model_info = 191;
+  optional string act_mode_github_copilot_model_id = 192;
+  optional OpenRouterModelInfo act_mode_github_copilot_model_info = 193;
 }
 
 message State {

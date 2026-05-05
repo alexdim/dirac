@@ -436,6 +436,16 @@ message OpenAiCompatibleModelInfo {
   optional bool supports_adaptive_thinking = 17;
 }
 
+message OpenAiCompatibleProfile {
+  string name = 1;
+  string base_url = 2;
+  optional string api_key = 3;
+  string model_id = 4;
+  OpenAiCompatibleModelInfo model_info = 5;
+  map<string, string> headers = 6;
+  optional string azure_api_version = 7;
+}
+
 // Model info for LiteLLM models
 message LiteLLMModelInfo {
   optional int64 max_tokens = 1;
@@ -525,6 +535,7 @@ message ModelsApiConfiguration {
   optional bool aws_use_global_inference = 77;
   optional string minimax_api_key = 78;
   optional string minimax_api_line = 79;
+  repeated OpenAiCompatibleProfile open_ai_compatible_profiles = 88;
   reserved 80, 81;
 
   optional string aihubmix_api_key = 82;
@@ -572,6 +583,7 @@ message ModelsApiConfiguration {
   optional string gemini_plan_mode_thinking_level = 139;
   optional string plan_mode_dirac_model_id = 140;
   optional OpenRouterModelInfo plan_mode_dirac_model_info = 141;
+  optional string plan_mode_open_ai_profile_name = 142;
 
   // Act mode configurations
   optional ApiProvider act_mode_api_provider = 200;
@@ -611,4 +623,5 @@ message ModelsApiConfiguration {
   optional string gemini_act_mode_thinking_level = 239;
   optional string act_mode_dirac_model_id = 240;
   optional OpenRouterModelInfo act_mode_dirac_model_info = 241;
+  optional string act_mode_open_ai_profile_name = 242;
 }

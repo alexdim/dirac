@@ -5,17 +5,20 @@ import type { DiracMessage, ExtensionState } from "@shared/ExtensionMessage"
 import { SkillMetadata } from "@shared/skills"
 import { DEFAULT_PLATFORM } from "@shared/ExtensionMessage"
 import {
-	basetenDefaultModelId,
-	basetenModels,
-	groqDefaultModelId,
-	groqModels,
-	openRouterDefaultModelId,
-	openRouterDefaultModelInfo,
-	requestyDefaultModelId,
-	requestyDefaultModelInfo,
-	liteLlmModelInfoSaneDefaults,
+    basetenDefaultModelId,
+    basetenModels,
+    groqDefaultModelId,
+    groqModels,
+    openRouterDefaultModelId,
+    openRouterDefaultModelInfo,
+    requestyDefaultModelId,
+    requestyDefaultModelInfo,
+    liteLlmModelInfoSaneDefaults,
+    openAiModelInfoSaneDefaults,
+    ModelInfo,
 } from "@shared/api"
 import { fromProtobufModels } from "@shared/proto-conversions/models/typeConversion"
+import { OpenAiModelsRequest } from "@shared/proto/dirac/models"
 import { EmptyRequest } from "@shared/proto/dirac/common"
 import { ModelsServiceClient } from "@/shared/api/grpc-client"
 import { create } from "zustand"
@@ -42,6 +45,8 @@ interface SettingsState {
 	groqModels: any
 	huggingFaceModels: any
 	requestyModels: any
+	openAiModels: any
+	refreshOpenAiModels: (baseUrl: string, apiKey: string) => Promise<void>
 	githubCopilotModels: any
 	githubCopilotIsAuthenticated: boolean
 	githubCopilotEmail?: string
@@ -245,6 +250,27 @@ export const useSettingsStore = create<SettingsState>((set) => ({
 			console.error("Failed to refresh OpenRouter models:", error)
 		}
 	},
+	refreshOpenAiModels: async (baseUrl: string, apiKey: string) => {
+		try {
+			const response = await ModelsServiceClient.refreshOpenAiModels(
+				OpenAiModelsRequest.create({
+					baseUrl,
+					apiKey,
+				}),
+			)
+			if (response?.values) {
+				const models: Record<string, ModelInfo> = {}
+				response.values.forEach((id) => {
+					models[id] = {
+						...openAiModelInfoSaneDefaults,
+					}
+				})
+				set({ openAiModels: models })
+			}
+		} catch (error) {
+			console.error("Failed to refresh OpenAI models:", error)
+		}
+	},
 	like: {},
 	vercelAiGatewayModels: {},
 	refreshVercelAiGatewayModels: async () => {
@@ -287,6 +313,7 @@ export const useSettingsStore = create<SettingsState>((set) => ({
 		[requestyDefaultModelId]: requestyDefaultModelInfo,
 	},
 	githubCopilotModels: {},
+	openAiModels: {},
 	githubCopilotIsAuthenticated: false,
 	githubCopilotEmail: undefined,
 	openAiCodexIsAuthenticated: false,

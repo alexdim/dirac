@@ -507,7 +507,10 @@ export function getModeSpecificFields(apiConfiguration: ApiConfiguration | undef
 		diracModelId: mode === "plan" ? apiConfiguration?.planModeDiracModelId : apiConfiguration?.actModeDiracModelId,
 		diracModelInfo: mode === "plan" ? apiConfiguration?.planModeDiracModelInfo : apiConfiguration?.actModeDiracModelInfo,
 		openAiModelId: mode === "plan" ? apiConfiguration?.planModeOpenAiModelId : apiConfiguration?.actModeOpenAiModelId,
-		openAiModelInfo: mode === "plan" ? apiConfiguration?.planModeOpenAiModelInfo : apiConfiguration?.actModeOpenAiModelInfo,
+		openAiModelInfo:
+			mode === "plan" ? apiConfiguration?.planModeOpenAiModelInfo : apiConfiguration?.actModeOpenAiModelInfo,
+		openAiProfileName:
+			mode === "plan" ? apiConfiguration?.planModeOpenAiProfileName : apiConfiguration?.actModeOpenAiProfileName,
 		lmStudioModelId: mode === "plan" ? apiConfiguration?.planModeLmStudioModelId : apiConfiguration?.actModeLmStudioModelId,
 		liteLlmModelId: mode === "plan" ? apiConfiguration?.planModeLiteLlmModelId : apiConfiguration?.actModeLiteLlmModelId,
 		liteLlmModelInfo:
@@ -609,6 +612,8 @@ export async function syncModeConfigurations(
 			updates.actModeOpenAiModelId = sourceFields.openAiModelId
 			updates.planModeOpenAiModelInfo = sourceFields.openAiModelInfo
 			updates.actModeOpenAiModelInfo = sourceFields.openAiModelInfo
+			updates.planModeOpenAiProfileName = sourceFields.openAiProfileName
+			updates.actModeOpenAiProfileName = sourceFields.openAiProfileName
 			break
 
 		case "lmstudio":

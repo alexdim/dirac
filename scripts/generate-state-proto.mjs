@@ -44,6 +44,10 @@ function inferProtoType(typeText, fieldName) {
 		.replace(/undefined\s*\|\s*/g, "")
 		.trim()
 
+	// Check for array types
+	const isArray = cleanType.endsWith("[]")
+	const baseType = isArray ? cleanType.slice(0, -2) : cleanType
+
 	// Handle common types
 	if (cleanType === "string") {
 		return "string"
@@ -74,6 +78,7 @@ function inferProtoType(typeText, fieldName) {
 	// contain quotes but should map to proto enums
 	const knownTypes = [
 		// Specific model info types first
+		["OpenAiCompatibleProfile", "OpenAiCompatibleProfile"],
 		["OpenAiCompatibleModelInfo", "OpenAiCompatibleModelInfo"],
 		["LiteLLMModelInfo", "LiteLLMModelInfo"],
 		["OcaModelInfo", "OcaModelInfo"],
@@ -89,8 +94,8 @@ function inferProtoType(typeText, fieldName) {
 	]
 
 	for (const [tsType, protoType] of knownTypes) {
-		if (cleanType.includes(tsType)) {
-			return protoType
+		if (baseType.includes(tsType)) {
+			return isArray ? `${protoType}[]` : protoType
 		}
 	}
 
@@ -372,9 +377,17 @@ function generateProtoMessage(messageName, fields, fieldNumbers) {
 	for (const field of sortedFields) {
 		const snakeName = toProtoFieldName(field.name)
 		const fieldNum = fieldNumbers[field.name]
-		// Map types cannot have the 'optional' modifier in proto3
-		const prefix = field.protoType.startsWith("map<") ? "" : "optional "
-		lines.push(`  ${prefix}${field.protoType} ${snakeName} = ${fieldNum};`)
+		let protoType = field.protoType
+		let prefix = ""
+
+		if (protoType.endsWith("[]")) {
+			protoType = protoType.slice(0, -2)
+			prefix = "repeated "
+		} else if (!protoType.startsWith("map<")) {
+			prefix = "optional "
+		}
+
+		lines.push(`  ${prefix}${protoType} ${snakeName} = ${fieldNum};`)
 	}
 
 	lines.push("}")

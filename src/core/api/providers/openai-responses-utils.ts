@@ -2,7 +2,6 @@ import OpenAI from "openai"
 import { WebSocket as UndiciWebSocket, MessageEvent as UndiciMessageEvent } from "undici"
 import { ModelInfo } from "@shared/api"
 import { calculateApiCostOpenAI } from "@utils/cost"
-import { Logger } from "@/shared/services/Logger"
 import { normalizeOpenaiReasoningEffort } from "@shared/storage/types"
 import { buildExternalBasicHeaders } from "@/services/EnvUtils"
 import { ChatCompletionReasoningEffort, ChatCompletionTool } from "openai/resources/chat/completions"
@@ -22,9 +21,7 @@ export async function* yieldUsage(info: ModelInfo, usage: any, id?: string): Asy
 	const cacheWriteTokens = 0
 	const reasoningTokens = usage.output_tokens_details?.reasoning_tokens || 0
 	const totalTokens = usage.total_tokens || 0
-	
-	Logger.log(`Total tokens from Responses API usage: ${totalTokens}`)
-	
+		
 	const totalCost = calculateApiCostOpenAI(
 		info,
 		inputTokens,
@@ -148,8 +145,6 @@ export async function* processResponsesEvents(
 	const functionCallByItemId = new Map<string, { call_id?: string; name?: string; id?: string }>()
 
 	for await (const chunk of stream) {
-		Logger.debug(`OpenAI Responses Chunk: ${JSON.stringify(chunk)}`)
-
 		if (chunk.type === "response.output_item.added") {
 			const item = chunk.item
 			if (item.type === "function_call" && item.id) {
@@ -290,18 +285,6 @@ export async function* processResponsesEvents(
 						},
 					},
 				}
-			}
-		}
-
-		if (
-			chunk.type === "response.incomplete" &&
-			chunk.response?.status === "incomplete" &&
-			chunk.response?.incomplete_details?.reason === "max_output_tokens"
-		) {
-			if (chunk.response?.output_text?.length > 0) {
-				Logger.log("Partial output:", chunk.response.output_text)
-			} else {
-				Logger.log("Ran out of tokens during reasoning")
 			}
 		}
 

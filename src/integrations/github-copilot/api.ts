@@ -1,5 +1,4 @@
 import { fetch } from "@/shared/net"
-import { Logger } from "@/shared/services/Logger"
 import { z } from "zod"
 import { ModelInfo, openAiModelInfoSaneDefaults } from "@shared/api"
 
@@ -106,7 +105,7 @@ export async function fetchCopilotModels(token: string) {
 		if (result.success) {
 			parsedModels.push(result.data)
 		} else {
-			Logger.warn(`[github-copilot] Skipping model ${m.id} due to schema mismatch: ${result.error.message}`)
+			// Logger.warn(`[github-copilot] Skipping model ${m.id} due to schema mismatch: ${result.error.message}`)
 		}
 	}
 	return parsedModels

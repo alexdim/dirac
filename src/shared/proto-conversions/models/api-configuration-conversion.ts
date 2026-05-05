@@ -1,20 +1,23 @@
 import {
-	LiteLLMModelInfo,
-	OpenAiCompatibleModelInfo,
-	OpenRouterModelInfo,
-	ModelsApiConfiguration as ProtoApiConfiguration,
-	ApiProvider as ProtoApiProvider,
-	OcaModelInfo as ProtoOcaModelInfo,
-	ThinkingConfig,
+    LiteLLMModelInfo,
+    OpenAiCompatibleModelInfo,
+    OpenRouterModelInfo,
+    ModelsApiConfiguration as ProtoApiConfiguration,
+    ApiProvider as ProtoApiProvider,
+    OcaModelInfo as ProtoOcaModelInfo,
+    ThinkingConfig,
+    OpenAiCompatibleProfile,
 } from "@shared/proto/dirac/models"
 import {
-	ApiConfiguration,
-	ApiProvider,
-	LiteLLMModelInfo as AppLiteLLMModelInfo,
-	OpenAiCompatibleModelInfo as AppOpenAiCompatibleModelInfo,
-	BedrockModelId,
-	ModelInfo,
-	OcaModelInfo,
+    ApiConfiguration,
+    ApiProvider,
+    LiteLLMModelInfo as AppLiteLLMModelInfo,
+    OpenAiCompatibleModelInfo as AppOpenAiCompatibleModelInfo,
+    OpenAiCompatibleProfile as AppOpenAiCompatibleProfile,
+    BedrockModelId,
+    ModelInfo,
+    openAiModelInfoSaneDefaults,
+    OcaModelInfo,
 } from "../../api"
 import { OpenaiReasoningEffort } from "../../storage/types"
 
@@ -216,6 +219,37 @@ function convertOpenAiCompatibleModelInfoToProto(
 }
 
 // Convert proto OpenAiCompatibleModelInfo to application OpenAiCompatibleModelInfo
+// Convert application OpenAiCompatibleProfile to proto OpenAiCompatibleProfile
+function convertOpenAiCompatibleProfileToProto(
+	profile: AppOpenAiCompatibleProfile,
+): OpenAiCompatibleProfile {
+	return {
+		name: profile.name,
+		baseUrl: profile.baseUrl,
+		apiKey: profile.apiKey,
+		modelId: profile.modelId,
+		modelInfo: convertOpenAiCompatibleModelInfoToProto(profile.modelInfo),
+		headers: profile.headers || {},
+		azureApiVersion: profile.azureApiVersion,
+	}
+}
+
+// Convert proto OpenAiCompatibleProfile to application OpenAiCompatibleProfile
+function convertProtoToOpenAiCompatibleProfile(
+	profile: OpenAiCompatibleProfile,
+): AppOpenAiCompatibleProfile {
+	return {
+		name: profile.name,
+		baseUrl: profile.baseUrl,
+		apiKey: profile.apiKey,
+		modelId: profile.modelId,
+		modelInfo: convertProtoToOpenAiCompatibleModelInfo(profile.modelInfo) || openAiModelInfoSaneDefaults,
+		headers: Object.keys(profile.headers || {}).length > 0 ? profile.headers : undefined,
+		azureApiVersion: profile.azureApiVersion,
+	}
+}
+
+
 function convertProtoToOpenAiCompatibleModelInfo(
 	info: OpenAiCompatibleModelInfo | undefined,
 ): AppOpenAiCompatibleModelInfo | undefined {
@@ -477,6 +511,7 @@ export function convertApiConfigurationToProto(config: ApiConfiguration): ProtoA
 		aihubmixApiKey: config.aihubmixApiKey,
 		aihubmixBaseUrl: config.aihubmixBaseUrl,
 		aihubmixAppCode: config.aihubmixAppCode,
+		openAiCompatibleProfiles: (config.openAiCompatibleProfiles || []).map(convertOpenAiCompatibleProfileToProto),
 
 		// Plan mode configurations
 		planModeApiProvider: config.planModeApiProvider ? convertApiProviderToProto(config.planModeApiProvider) : undefined,
@@ -493,6 +528,7 @@ export function convertApiConfigurationToProto(config: ApiConfiguration): ProtoA
 		planModeDiracModelInfo: convertModelInfoToProtoOpenRouter(config.planModeDiracModelInfo),
 		planModeOpenAiModelId: config.planModeOpenAiModelId,
 		planModeOpenAiModelInfo: convertOpenAiCompatibleModelInfoToProto(config.planModeOpenAiModelInfo),
+		planModeOpenAiProfileName: config.planModeOpenAiProfileName,
 		planModeLmStudioModelId: config.planModeLmStudioModelId,
 		planModeLiteLlmModelId: config.planModeLiteLlmModelId,
 		planModeLiteLlmModelInfo: convertLiteLLMModelInfoToProto(config.planModeLiteLlmModelInfo),
@@ -549,6 +585,7 @@ export function convertApiConfigurationToProto(config: ApiConfiguration): ProtoA
 		actModeNousResearchModelId: config.actModeNousResearchModelId,
 		actModeVercelAiGatewayModelId: config.actModeVercelAiGatewayModelId,
 		actModeVercelAiGatewayModelInfo: convertModelInfoToProtoOpenRouter(config.actModeVercelAiGatewayModelInfo),
+		actModeOpenAiProfileName: config.actModeOpenAiProfileName,
 	}
 }
 
@@ -620,6 +657,7 @@ export function convertProtoToApiConfiguration(protoConfig: ProtoApiConfiguratio
 		aihubmixApiKey: protoConfig.aihubmixApiKey,
 		aihubmixBaseUrl: protoConfig.aihubmixBaseUrl,
 		aihubmixAppCode: protoConfig.aihubmixAppCode,
+		openAiCompatibleProfiles: (protoConfig.openAiCompatibleProfiles || []).map(convertProtoToOpenAiCompatibleProfile),
 		minimaxApiKey: protoConfig.minimaxApiKey,
 		minimaxApiLine: protoConfig.minimaxApiLine,
 		nousResearchApiKey: protoConfig.nousResearchApiKey,
@@ -643,6 +681,7 @@ export function convertProtoToApiConfiguration(protoConfig: ProtoApiConfiguratio
 		planModeDiracModelInfo: convertProtoToModelInfo(protoConfig.planModeDiracModelInfo),
 		planModeOpenAiModelId: protoConfig.planModeOpenAiModelId,
 		planModeOpenAiModelInfo: convertProtoToOpenAiCompatibleModelInfo(protoConfig.planModeOpenAiModelInfo),
+		planModeOpenAiProfileName: protoConfig.planModeOpenAiProfileName,
 		planModeLmStudioModelId: protoConfig.planModeLmStudioModelId,
 		planModeLiteLlmModelId: protoConfig.planModeLiteLlmModelId,
 		planModeLiteLlmModelInfo: convertProtoToLiteLLMModelInfo(protoConfig.planModeLiteLlmModelInfo),
@@ -680,6 +719,7 @@ export function convertProtoToApiConfiguration(protoConfig: ProtoApiConfiguratio
 		actModeDiracModelInfo: convertProtoToModelInfo(protoConfig.actModeDiracModelInfo),
 		actModeOpenAiModelId: protoConfig.actModeOpenAiModelId,
 		actModeOpenAiModelInfo: convertProtoToOpenAiCompatibleModelInfo(protoConfig.actModeOpenAiModelInfo),
+		actModeOpenAiProfileName: protoConfig.actModeOpenAiProfileName,
 		actModeLmStudioModelId: protoConfig.actModeLmStudioModelId,
 		actModeLiteLlmModelId: protoConfig.actModeLiteLlmModelId,
 		actModeLiteLlmModelInfo: convertProtoToLiteLLMModelInfo(protoConfig.actModeLiteLlmModelInfo),

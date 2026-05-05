@@ -1,4 +1,4 @@
-import { LiteLLMModelInfo, ModelInfo, OcaModelInfo, OpenAiCompatibleModelInfo } from "@shared/api"
+import { LiteLLMModelInfo, ModelInfo, OcaModelInfo, OpenAiCompatibleModelInfo, openAiModelInfoSaneDefaults } from "@shared/api"
 import {
     OpenRouterModelInfo,
     LiteLLMModelInfo as ProtoLiteLLMModelInfo,
@@ -84,7 +84,12 @@ export function toProtobufModelInfo(modelInfo: ModelInfo): OpenRouterModelInfo {
 /**
  * Convert protobuf OpenAiCompatibleModelInfo to application OpenAiCompatibleModelInfo
  */
-export function fromProtobufOpenAiCompatibleModelInfo(protoInfo: ProtoOpenAiCompatibleModelInfo): OpenAiCompatibleModelInfo {
+export function fromProtobufOpenAiCompatibleModelInfo(
+	protoInfo: ProtoOpenAiCompatibleModelInfo | undefined,
+): OpenAiCompatibleModelInfo {
+	if (!protoInfo) {
+		return openAiModelInfoSaneDefaults
+	}
 	return {
 		maxTokens: protoInfo.maxTokens,
 		contextWindow: protoInfo.contextWindow,

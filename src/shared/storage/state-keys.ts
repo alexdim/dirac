@@ -1,5 +1,12 @@
 import { AutoApprovalSettings, DEFAULT_AUTO_APPROVAL_SETTINGS } from "@shared/AutoApprovalSettings"
-import { ApiProvider, DEFAULT_API_PROVIDER, LiteLLMModelInfo, ModelInfo, OpenAiCompatibleModelInfo } from "@shared/api"
+import {
+    ApiProvider,
+    DEFAULT_API_PROVIDER,
+    LiteLLMModelInfo,
+    ModelInfo,
+    OpenAiCompatibleModelInfo,
+    OpenAiCompatibleProfile,
+} from "@shared/api"
 import { BrowserSettings, DEFAULT_BROWSER_SETTINGS } from "@shared/BrowserSettings"
 import { DiracRulesToggles } from "@shared/dirac-rules"
 import { HistoryItem } from "@shared/HistoryItem"
@@ -82,6 +89,9 @@ const API_HANDLER_SETTINGS_FIELDS = {
 	vertexProjectId: { default: undefined as string | undefined },
 	vertexRegion: { default: undefined as string | undefined },
 	openAiBaseUrl: { default: undefined as string | undefined },
+	openAiCompatibleProfiles: { default: [] as OpenAiCompatibleProfile[] },
+	planModeOpenAiProfileName: { default: undefined as string | undefined },
+	actModeOpenAiProfileName: { default: undefined as string | undefined },
 	lmStudioBaseUrl: { default: undefined as string | undefined },
 	lmStudioMaxTokens: { default: undefined as string | undefined },
 	geminiBaseUrl: { default: undefined as string | undefined },
