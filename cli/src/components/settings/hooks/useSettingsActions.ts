@@ -385,6 +385,14 @@ export function useSettingsActions({
 			if (!item) return
 
 			switch (item.key) {
+				case "baseUrl": {
+					await applyProviderConfig({
+						providerId: provider,
+						baseUrl: editValue,
+						controller,
+					})
+					break
+				}
 				case "actModelId":
 				case "planModelId":
 				case "actCustomModelId":
@@ -397,7 +405,7 @@ export function useSettingsActions({
 					const planKey = planProvider ? getProviderModelIdKey(planProvider, "plan") : null
 
 					if (separateModels) {
-						const stateKey = (item.key === "actModelId" || item.key === "actCustomModelId") ? actKey : planKey
+						const stateKey = item.key === "actModelId" || item.key === "actCustomModelId" ? actKey : planKey
 						if (stateKey) stateManager.setGlobalState(stateKey, editValue || undefined)
 					} else {
 						if (actKey) stateManager.setGlobalState(actKey, editValue || undefined)
@@ -416,7 +424,18 @@ export function useSettingsActions({
 
 			setIsEditing(false)
 		},
-		[items, selectedIndex, separateModels, stateManager, setPreferredLanguage, setIsEditing, rebuildTaskApi],
+		[
+			items,
+			selectedIndex,
+			separateModels,
+			stateManager,
+			setPreferredLanguage,
+			setIsEditing,
+			rebuildTaskApi,
+			provider,
+			controller,
+			refreshModelIds,
+		],
 	)
 
 	const handleProviderSelect = useCallback(
