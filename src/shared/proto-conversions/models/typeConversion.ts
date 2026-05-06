@@ -57,6 +57,7 @@ export function fromProtobufModelInfo(protoInfo: OpenRouterModelInfo): ModelInfo
 		thinkingConfig: convertThinkingConfig(protoInfo.thinkingConfig),
 		supportsGlobalEndpoint: protoInfo.supportsGlobalEndpoint,
 		tiers: protoInfo.tiers.length > 0 ? protoInfo.tiers : undefined,
+		supportsStrictTools: protoInfo.supportsStrictTools,
 	}
 }
 
@@ -78,6 +79,7 @@ export function toProtobufModelInfo(modelInfo: ModelInfo): OpenRouterModelInfo {
 		thinkingConfig: toProtobufThinkingConfig(modelInfo.thinkingConfig),
 		supportsGlobalEndpoint: modelInfo.supportsGlobalEndpoint,
 		tiers: modelInfo.tiers || [],
+		supportsStrictTools: modelInfo.supportsStrictTools,
 	})
 }
 
@@ -105,6 +107,7 @@ export function fromProtobufOpenAiCompatibleModelInfo(
 		tiers: protoInfo.tiers.length > 0 ? protoInfo.tiers : undefined,
 		temperature: protoInfo.temperature,
 		isR1FormatRequired: protoInfo.isR1FormatRequired,
+		supportsStrictTools: protoInfo.supportsStrictTools,
 	}
 }
 
@@ -127,6 +130,7 @@ export function fromProtobufLiteLLMModelInfo(protoInfo: ProtoLiteLLMModelInfo): 
 		supportsGlobalEndpoint: protoInfo.supportsGlobalEndpoint,
 		tiers: protoInfo.tiers.length > 0 ? protoInfo.tiers : undefined,
 		temperature: protoInfo.temperature,
+		supportsStrictTools: protoInfo.supportsStrictTools,
 	}
 }
 
@@ -153,6 +157,7 @@ export function fromProtobufOcaModelInfo(protoInfo: ProtoOcaModelInfo): OcaModel
 		apiFormat: protoInfo.apiFormat,
 		supportsReasoning: protoInfo.supportsReasoning,
 		reasoningEffortOptions: protoInfo.reasoningEffortOptions,
+		supportsStrictTools: protoInfo.supportsStrictTools,
 	}
 }
 
