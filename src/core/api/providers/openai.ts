@@ -13,7 +13,7 @@ import { addReasoningContent } from "../transform/r1-format"
 import { convertToR1Format } from "../transform/r1-format"
 import { ApiStream } from "../transform/stream"
 import { getOpenAIToolParams, ToolCallProcessor } from "../transform/tool-call-processor"
-import { calculateApiCostOpenAI } from "@/utils/cost"
+import { formatOpenAiCompatibleUsage } from "../transform/openai-usage"
 
 interface OpenAiHandlerOptions extends CommonApiHandlerOptions {
 	openAiApiKey?: string
@@ -215,24 +215,8 @@ export class OpenAiHandler implements ApiHandler {
 			}
 
 			if (chunk.usage) {
-				const inputTokens = chunk.usage.prompt_tokens || 0
-				const outputTokens = chunk.usage.completion_tokens || 0
-				const cacheReadTokens = chunk.usage.prompt_tokens_details?.cached_tokens || 0
-				const cacheWriteTokens = (chunk.usage as any).prompt_cache_miss_tokens || 0
-				const totalCost = calculateApiCostOpenAI(
-					this.getModel().info,
-					inputTokens,
-					outputTokens,
-					cacheWriteTokens,
-					cacheReadTokens,
-				)
 				yield {
-					type: "usage",
-					inputTokens: Math.max(0, inputTokens - cacheReadTokens - cacheWriteTokens),
-					outputTokens: outputTokens,
-					cacheReadTokens: cacheReadTokens,
-					cacheWriteTokens: cacheWriteTokens,
-					totalCost: totalCost,
+					...formatOpenAiCompatibleUsage(chunk.usage, this.getModel().info),
 					stopReason,
 				}
 			}
