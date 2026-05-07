@@ -211,6 +211,8 @@ export class BatchProcessor {
         let anyFailed = false
         let anySucceeded = false
 
+        try {
+
         for (const batch of preparedBatches) {
             let shouldAutoApprove = forceAutoApproveRemaining || await this.checkAutoApproval(config, [batch])
 
@@ -282,6 +284,10 @@ export class BatchProcessor {
                 await config.services.diffViewProvider.reset().catch(() => { })
             }
         }
+        } finally {
+            await config.callbacks.removeLastPartialMessageIfExistsWithType("say", "tool")
+            await config.callbacks.removeLastPartialMessageIfExistsWithType("ask", "tool", false)
+        }
 
         if (anyFailed) {
             config.taskState.consecutiveMistakeCount++
@@ -292,8 +298,6 @@ export class BatchProcessor {
         // Run diagnostics and format results for all successfully applied files
         await this.processDiagnosticsAndFormatResults(config, preparedBatches, appliedResults, providers, preDiagnostics, results)
 
-        await config.callbacks.removeLastPartialMessageIfExistsWithType("say", "tool")
-        await config.callbacks.removeLastPartialMessageIfExistsWithType("ask", "tool", false)
         const successfulBatches = preparedBatches.filter((b) => appliedResults.has(b.absolutePath))
         const finalMessage = await this.buildEditMessage(config, successfulBatches)
         await config.callbacks.say("tool", JSON.stringify(finalMessage), undefined, undefined, false)
