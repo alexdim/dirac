@@ -72,6 +72,7 @@ interface SettingsState {
 	welcomeViewCompleted: boolean
 	strictPlanModeEnabled: boolean
 	yoloModeToggled: boolean
+	autoApproveAllToggled: boolean
 	customPrompt?: string
 	useAutoCondense: boolean
 	subagentsEnabled: boolean
@@ -176,6 +177,7 @@ export const useSettingsStore = create<SettingsState>((set) => ({
 	welcomeViewCompleted: false,
 	strictPlanModeEnabled: false,
 	yoloModeToggled: false,
+	autoApproveAllToggled: false,
 	customPrompt: undefined,
 	useAutoCondense: false,
 	subagentsEnabled: false,

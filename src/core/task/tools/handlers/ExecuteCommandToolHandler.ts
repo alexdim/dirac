@@ -214,6 +214,7 @@ export class ExecuteCommandToolHandler implements IFullyManagedTool {
 		const apiConfig = config.services.stateManager.getApiConfiguration()
 		const currentMode = config.services.stateManager.getGlobalSettingsKey("mode")
 		const provider = (currentMode === "plan" ? apiConfig.planModeApiProvider : apiConfig.actModeApiProvider) as string
+		const isYolo = config.yoloModeToggled || config.services.stateManager.getGlobalSettingsKey("autoApproveAllToggled")
 
 		// Initialize multi-command state
 		const multiCommandState: MultiCommandState = {
@@ -229,6 +230,8 @@ export class ExecuteCommandToolHandler implements IFullyManagedTool {
 		for (const cmdState of multiCommandState.commands) {
 			const actualCommand = cmdState.command.trim()
 			const isSafe = isSafeCommand(actualCommand)
+			const permissionResult = config.services.commandPermissionController.validateCommand(actualCommand)
+			const isAllowedByRules = permissionResult.allowed
 			const autoApproveResult = config.autoApprover?.shouldAutoApproveTool(block.name)
 			const autoApproveEnabled =
 				typeof autoApproveResult === "boolean"
@@ -237,8 +240,7 @@ export class ExecuteCommandToolHandler implements IFullyManagedTool {
 						? autoApproveResult[0]
 						: false
 
-			const isYolo = config.yoloModeToggled || config.services.stateManager.getGlobalSettingsKey("autoApproveAllToggled")
-			if (!config.isSubagentExecution && !(isYolo || (isSafe && autoApproveEnabled))) {
+			if (!config.isSubagentExecution && !(isYolo || (isSafe && isAllowedByRules && autoApproveEnabled))) {
 				commandsRequiringApproval.push(actualCommand)
 				cmdState.requiresApproval = true
 			}
@@ -363,8 +365,8 @@ export class ExecuteCommandToolHandler implements IFullyManagedTool {
 			}
 
 			// Permission validation
-			const permissionResult = config.services.commandPermissionController.validateCommand(actualCommand)
-			if (!permissionResult.allowed && !wasManuallyApproved) {
+			const permissionResult = config.services.commandPermissionController.validateCommand(actualCommand, isYolo || config.isSubagentExecution)
+			if (!permissionResult.allowed && !wasManuallyApproved && !isYolo && !config.isSubagentExecution) {
 				let errorMessage = `Command "${actualCommand}" was denied by DIRAC_COMMAND_PERMISSIONS.`
 				if (permissionResult.failedSegment) {
 					errorMessage += ` Segment "${permissionResult.failedSegment}" ${permissionResult.reason}.`
@@ -402,7 +404,6 @@ export class ExecuteCommandToolHandler implements IFullyManagedTool {
 			const autoApproveEnabled = Array.isArray(autoApproveResult) ? autoApproveResult[0] : autoApproveResult
 
 			let didAutoApprove = false
-			const isYolo = config.yoloModeToggled || config.services.stateManager.getGlobalSettingsKey("autoApproveAllToggled")
 			if (config.isSubagentExecution || isYolo || (isSafe && autoApproveEnabled)) {
 				didAutoApprove = true
 				cmdState.wasAutoApproved = true
