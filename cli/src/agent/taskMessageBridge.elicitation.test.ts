@@ -406,13 +406,13 @@ describe("TaskMessageBridge form elicitation", () => {
 			releaseFirst = resolve;
 		});
 		let secondStarted = false;
-		const resolvePrompt = vi.fn();
+		const rejectPrompt = vi.fn();
 		const promptResolved = { value: false };
 
 		const first = (bridge as any).queueMessageWork(
 			() => firstGate,
 			"session-1",
-			resolvePrompt,
+			rejectPrompt,
 			promptResolved,
 		);
 		bridge.clearPromptState();
@@ -421,7 +421,7 @@ describe("TaskMessageBridge form elicitation", () => {
 				secondStarted = true;
 			},
 			"session-1",
-			resolvePrompt,
+			rejectPrompt,
 			promptResolved,
 		);
 		await Promise.resolve();
@@ -554,6 +554,33 @@ describe("TaskMessageBridge form elicitation", () => {
 	});
 
 
+	it("rejects the ACP prompt when asynchronous message handling fails", async () => {
+		const internalError = new Error("persistence failed");
+		const rejectPrompt = vi.fn();
+		const promptResolved = { value: false };
+
+		await (bridge as any).queueMessageWork(
+			async () => {
+				throw internalError;
+			},
+			"session-1",
+			rejectPrompt,
+			promptResolved,
+		);
+		await Promise.resolve();
+
+		expect(emitSessionUpdate).toHaveBeenCalledWith(
+			"session-1",
+			expect.objectContaining({
+				sessionUpdate: "agent_message_chunk",
+				content: expect.objectContaining({ text: "Error: persistence failed" }),
+			}),
+		);
+		expect(rejectPrompt).toHaveBeenCalledWith(internalError);
+		expect(promptResolved.value).toBe(true);
+	});
+
+
 
 	it("uses task-run fulfillment as the fallback ACP turn boundary", async () => {
 		let finishTask!: () => void;
@@ -574,6 +601,7 @@ describe("TaskMessageBridge form elicitation", () => {
 			"session-1",
 			sessionState(),
 			resolvePrompt,
+			vi.fn(),
 			promptResolved,
 			cleanupFunctions,
 			taskRunPromise,
