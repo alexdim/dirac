@@ -1239,10 +1239,13 @@ export class DiracAgent implements acp.Agent {
 		// Track cleanup functions for subscriptions
 		const cleanupFunctions: (() => void)[] = []
 
-		// Promise that resolves when task completes, is cancelled, or needs input
+		// Promise that settles when the task completes, is cancelled, needs input,
+		// or encounters an internal failure.
 		let resolvePrompt: (response: acp.PromptResponse) => void
-		const promptPromise = new Promise<acp.PromptResponse>((resolve) => {
+		let rejectPrompt: (error: Error) => void
+		const promptPromise = new Promise<acp.PromptResponse>((resolve, reject) => {
 			resolvePrompt = resolve
+			rejectPrompt = reject
 		})
 
 		// Track if we've already resolved/rejected (object for pass-by-reference)
@@ -1264,6 +1267,7 @@ export class DiracAgent implements acp.Agent {
 				params.sessionId,
 				sessionState,
 				resolvePrompt!,
+				rejectPrompt!,
 				promptResolved,
 				cleanupFunctions,
 				controller.taskRunPromise,
@@ -1284,6 +1288,7 @@ export class DiracAgent implements acp.Agent {
 				params.sessionId,
 				sessionState,
 				resolvePrompt!,
+				rejectPrompt!,
 				promptResolved,
 				0,
 				replayEndIndex,
@@ -1424,6 +1429,7 @@ export class DiracAgent implements acp.Agent {
 							params.sessionId,
 							sessionState,
 							resolvePrompt!,
+							rejectPrompt!,
 							promptResolved,
 							0,
 							replayEndIndex,
@@ -1456,6 +1462,7 @@ export class DiracAgent implements acp.Agent {
 					params.sessionId,
 					sessionState,
 					resolvePrompt!,
+					rejectPrompt!,
 					promptResolved,
 					0,
 					replayEndIndex,
@@ -1474,15 +1481,19 @@ export class DiracAgent implements acp.Agent {
 		} catch (error) {
 			if (!promptResolved.value) {
 				promptResolved.value = true
-				// Send error as session update before returning
-				await this.emitSessionUpdate(params.sessionId, {
-					sessionUpdate: "agent_message_chunk",
-					content: {
-						type: "text",
-						text: `Error: ${error instanceof Error ? error.message : String(error)}`,
-					},
-				})
-				return bridge.promptResponse("end_turn")
+				const internalError = error instanceof Error ? error : new Error(String(error))
+				try {
+					await this.emitSessionUpdate(params.sessionId, {
+						sessionUpdate: "agent_message_chunk",
+						content: {
+							type: "text",
+							text: `Error: ${internalError.message}`,
+						},
+					})
+				} catch (emitError) {
+					Logger.error("[DiracAgent] Failed to emit internal prompt error:", emitError)
+				}
+				throw internalError
 			}
 			throw error
 		} finally {
@@ -1558,28 +1569,31 @@ export class DiracAgent implements acp.Agent {
 				action: "cancel",
 			})
 
-			// If we have an active controller task, cancel it before resolving prompt.
-			const controller = this.#sessionControllers.get(session)
-			if (controller?.task) {
-				try {
-					await controller.cancelTask()
-				} catch (error) {
-					Logger.debug("[DiracAgent] Error cancelling task:", error)
+			try {
+				// If we have an active controller task, cancel it before resolving prompt.
+				const controller = this.#sessionControllers.get(session)
+				if (controller?.task) {
+					try {
+						await controller.cancelTask()
+					} catch (error) {
+						Logger.debug("[DiracAgent] Error cancelling task:", error)
+					}
+
+					await bridge.waitForMessageWork()
 				}
 
-				await bridge.waitForMessageWork()
-			}
-
-			// ACP clients retain tool calls until a terminal update arrives. Close
-			// every outstanding call, including one awaiting permission, before the
-			// cancelled prompt response is emitted.
-			await this.bridgeForSession(params.sessionId).cancelInFlightToolCalls(params.sessionId, sessionState)
-
-			// Per ACP spec (prompt-turn.mdx): "After all ongoing operations have
-			// been successfully aborted ... the Agent MUST respond to the original
-			// session/prompt request with the cancelled stop reason."
-			if (cancelClaimed) {
-				pending!.resolve(bridge.promptResponse("cancelled"))
+				// ACP clients retain tool calls until a terminal update arrives. Close
+				// every outstanding call, including one awaiting permission, before the
+				// cancelled prompt response is emitted.
+				await bridge.cancelInFlightToolCalls(params.sessionId, sessionState)
+			} catch (error) {
+				Logger.error("[DiracAgent] Error finalizing ACP cancellation:", error)
+			} finally {
+				// Cancellation owns this resolver once claimed. Cleanup failures must not
+				// strand the original session/prompt request.
+				if (cancelClaimed) {
+					pending!.resolve(bridge.promptResponse("cancelled"))
+				}
 			}
 		}
 	}

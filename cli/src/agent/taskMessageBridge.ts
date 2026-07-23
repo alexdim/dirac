@@ -18,6 +18,7 @@ import type { AcpSessionState } from "./types.js";
 import { isFollowupQuestionCard } from "./questionCard.js";
 
 type PromptResolver = (response: acp.PromptResponse) => void;
+type PromptRejecter = (error: Error) => void;
 
 
 type UsageSnapshot = {
@@ -134,7 +135,7 @@ export class TaskMessageBridge {
 	private queueMessageWork(
 		work: () => Promise<void>,
 		sessionId: string,
-		resolvePrompt: PromptResolver,
+		rejectPrompt: PromptRejecter,
 		promptResolved: { value: boolean },
 	): Promise<void> {
 		const queued = this.messageWork.then(work);
@@ -143,7 +144,7 @@ export class TaskMessageBridge {
 			this.handleUnhandledHandlerError(
 				sessionId,
 				promptResolved,
-				resolvePrompt,
+				rejectPrompt,
 				error,
 			);
 		});
@@ -355,6 +356,7 @@ export class TaskMessageBridge {
 		sessionId: string,
 		sessionState: AcpSessionState,
 		resolvePrompt: PromptResolver,
+		rejectPrompt: PromptRejecter,
 		promptResolved: { value: boolean },
 		cleanupFunctions: Array<() => void>,
 		taskRunPromise?: Promise<void>,
@@ -376,7 +378,7 @@ export class TaskMessageBridge {
 						promptResolved,
 					),
 				sessionId,
-				resolvePrompt,
+				rejectPrompt,
 				promptResolved,
 			);
 		};
@@ -405,7 +407,7 @@ export class TaskMessageBridge {
 							resolvePrompt(this.promptResponse("end_turn"));
 						},
 						sessionId,
-						resolvePrompt,
+						rejectPrompt,
 						promptResolved,
 					);
 				},
@@ -414,7 +416,7 @@ export class TaskMessageBridge {
 					this.handleUnhandledHandlerError(
 						sessionId,
 						promptResolved,
-						resolvePrompt,
+						rejectPrompt,
 						error,
 					);
 				},
@@ -427,6 +429,7 @@ export class TaskMessageBridge {
 		sessionId: string,
 		sessionState: AcpSessionState,
 		resolvePrompt: PromptResolver,
+		rejectPrompt: PromptRejecter,
 		promptResolved: { value: boolean },
 		startIndex = 0,
 		endIndex?: number,
@@ -454,24 +457,20 @@ export class TaskMessageBridge {
 				}
 			},
 			sessionId,
-			resolvePrompt,
+			rejectPrompt,
 			promptResolved,
 		);
 	}
 
 	/**
-	 * Terminate the in-flight prompt with an error after an unhandled throw
-	 * inside message handling.
-	 *
-	 * Without this the promise wired up in prompt() would never resolve
-	 * and the client (Zed et al.) would spin forever. Emits an
-	 * `agent_message_chunk` carrying the error text, then resolves the prompt
-	 * with `stopReason: "end_turn"`.
+	 * Terminate the in-flight prompt with a JSON-RPC failure after an unhandled
+	 * internal exception. ACP 1.2.1 has no error stop reason, so returning
+	 * `end_turn` would falsely report success.
 	 */
 	private handleUnhandledHandlerError(
 		sessionId: string,
 		promptResolved: { value: boolean },
-		resolvePrompt: PromptResolver,
+		rejectPrompt: PromptRejecter,
 		error: unknown,
 	): void {
 		Logger.error(
@@ -480,10 +479,10 @@ export class TaskMessageBridge {
 		);
 		if (promptResolved.value) return;
 		promptResolved.value = true;
-		const message = error instanceof Error ? error.message : String(error);
+		const internalError = error instanceof Error ? error : new Error(String(error));
 		this.emitSessionUpdate(sessionId, {
 			sessionUpdate: "agent_message_chunk",
-			content: { type: "text", text: `Error: ${message}` },
+			content: { type: "text", text: `Error: ${internalError.message}` },
 		})
 			.catch((emitError) =>
 				Logger.error(
@@ -491,7 +490,7 @@ export class TaskMessageBridge {
 					emitError,
 				),
 			)
-			.finally(() => resolvePrompt(this.promptResponse("end_turn")));
+			.finally(() => rejectPrompt(internalError));
 	}
 
 	private async incorporateWhispersAtToolBoundary(
