@@ -8,6 +8,7 @@ export enum DiracErrorType {
 	Network = "network",
 	RateLimit = "rateLimit",
 	Balance = "balance",
+	Payment = "payment",
 	ContextWindowExceeded = "contextWindowExceeded",
 }
 
@@ -113,9 +114,12 @@ export class DiracError extends Error {
 	toDisplayMessage(): string {
 		const errorType = DiracError.getErrorType(this)
 
-		// For auth errors, provide a generic actionable message
 		if (errorType === DiracErrorType.Auth) {
-			return "Authentication failed. Please verify your API key configuration."
+			return `${this.message}\n\nAuthentication failed. Please verify your API key configuration.`
+		}
+
+		if (errorType === DiracErrorType.Payment) {
+			return `${this.message}\n\nPayment is required by the configured provider. Check its billing, credits, and model access.`
 		}
 
 		// For other errors, return the message without internal fields
@@ -160,14 +164,18 @@ export class DiracError extends Error {
 		const { code, status, details } = err._error
 		const message = (err._error?.message || err.message || JSON.stringify(err._error))?.toLowerCase()
 
-		// Check balance error first (most specific)
+		// Check payment and balance errors before more general classifications.
+		const normalizedStatus = Number(status)
+
+		if (normalizedStatus === 402) {
+			return DiracErrorType.Payment
+		}
 		if (code === "insufficient_credits" && typeof details?.current_balance === "number") {
 			return DiracErrorType.Balance
 		}
 
-		// Check auth errors
-		const isAuthStatus = status !== undefined && status > 400 && status < 429
-		if (code === "ERR_BAD_REQUEST" || err instanceof AuthInvalidTokenError || isAuthStatus) {
+		const isAuthStatus = normalizedStatus === 401 || normalizedStatus === 403
+		if (err instanceof AuthInvalidTokenError || isAuthStatus) {
 			return DiracErrorType.Auth
 		}
 

@@ -27,7 +27,8 @@ export async function refreshOpenAiModels(_controller: Controller, request: Open
 			config["headers"] = { Authorization: `Bearer ${request.apiKey}` }
 		}
 
-		const response = await axios.get(`${request.baseUrl}/models`, {
+		const baseUrl = request.baseUrl.replace(/\/chat\/completions\/?$/, "").replace(/\/+$/, "")
+		const response = await axios.get(`${baseUrl}/models`, {
 			...config,
 			...getAxiosSettings(),
 		})
@@ -36,7 +37,11 @@ export async function refreshOpenAiModels(_controller: Controller, request: Open
 
 		return StringArray.create({ values: models })
 	} catch (error) {
-		Logger.error("Error fetching OpenAI models:", error)
+		if (axios.isAxiosError(error) && [404, 405].includes(error.response?.status ?? 0)) {
+			Logger.warn("Configured OpenAI-compatible provider does not support model discovery at /models")
+		} else {
+			Logger.error("Error fetching OpenAI models:", error)
+		}
 		return StringArray.create({ values: [] })
 	}
 }

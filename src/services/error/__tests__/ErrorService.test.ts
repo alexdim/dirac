@@ -7,7 +7,7 @@
 import { afterEach, beforeEach, describe, it } from "mocha"
 import "should"
 import sinon from "sinon"
-import { DiracError } from "../DiracError"
+import { DiracError, DiracErrorType } from "../DiracError"
 import { ErrorProviderFactory } from "../ErrorProviderFactory"
 import { ErrorService } from "../ErrorService"
 import type { IErrorProvider } from "../providers/IErrorProvider"
@@ -139,6 +139,43 @@ describe("ErrorService", () => {
 	})
 
 	// ---------------------------------------------------------------
+	describe("DiracError classification", () => {
+		it("classifies HTTP 402 as payment instead of authentication", () => {
+			const error = new DiracError({ message: "Payment Required", status: 402 })
+
+			error.isErrorType(DiracErrorType.Payment).should.equal(true)
+			error.isErrorType(DiracErrorType.Auth).should.equal(false)
+			error.toDisplayMessage().should.equal(
+				"Payment Required\n\nPayment is required by the configured provider. Check its billing, credits, and model access.",
+			)
+		})
+
+		it("classifies only 401 and 403 status codes as authentication failures", () => {
+			new DiracError({ message: "Unauthorized", status: 401 }).isErrorType(DiracErrorType.Auth).should.equal(true)
+			new DiracError({ message: "Forbidden", status: 403 }).isErrorType(DiracErrorType.Auth).should.equal(true)
+			new DiracError({ message: "Bad Request", status: 400 }).isErrorType(DiracErrorType.Auth).should.equal(false)
+		})
+
+		it("classifies numeric-string HTTP statuses", () => {
+			new DiracError({ message: "Payment Required", status: "402" as any })
+				.isErrorType(DiracErrorType.Payment)
+				.should.equal(true)
+			new DiracError({ message: "Unauthorized", status: "401" as any }).isErrorType(DiracErrorType.Auth).should.equal(true)
+			new DiracError({ message: "Forbidden", status: "403" as any }).isErrorType(DiracErrorType.Auth).should.equal(true)
+		})
+
+
+		it("preserves provider auth error text alongside guidance", () => {
+			const error = new DiracError({ message: "Invalid bearer token", status: 401 })
+
+			error.toDisplayMessage().should.equal(
+				"Invalid bearer token\n\nAuthentication failed. Please verify your API key configuration.",
+			)
+		})
+	})
+
+	// ---------------------------------------------------------------
+
 	describe("isEnabled", () => {
 		it("delegates to provider", () => {
 			service.isEnabled().should.be.true()

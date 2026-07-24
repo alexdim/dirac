@@ -6,6 +6,7 @@
  */
 import { afterEach, beforeEach, describe, it } from "mocha"
 import "should"
+import { DiracAskResponse } from "@shared/WebviewMessage"
 import * as fs from "fs/promises"
 import * as os from "os"
 import * as path from "path"
@@ -355,4 +356,52 @@ describe("Task (original)", () => {
 		t.ulid.should.be.a.String()
 		t.ulid.length.should.be.greaterThan(0)
 	})
+
+	it("reinitializes the task when a user cancels an API failure", async () => {
+		const reinitExistingTaskFromId = sandbox.stub().resolves()
+		const task = new Task({
+			controller: createMockController(),
+			updateTaskHistory: sandbox.stub().resolves([]),
+			postStateToWebview: sandbox.stub().resolves(),
+			reinitExistingTaskFromId,
+			cancelTask: sandbox.stub().resolves(),
+			shellIntegrationTimeout: 5000,
+			terminalReuseEnabled: true,
+			terminalOutputLineLimit: 500,
+			defaultTerminalProfile: "default",
+			vscodeTerminalExecutionMode: "vscodeTerminal",
+			cwd: tempDir,
+			stateManager: StateManager.get(),
+			task: "test",
+			taskId: "test-api-cancel",
+			taskLockAcquired: false,
+		}) as any
+		const abortTask = sandbox.stub(task, "abortTask").resolves()
+
+		task.taskState.apiErrorRetryAttempts = 3
+		task.messageStateHandler = {
+			getDiracMessages: () => [],
+			updateDiracMessage: sandbox.stub().resolves(),
+		}
+		task.taskMessenger = {
+			createCard: sandbox.stub().callsFake(async (options: { requireApproval?: boolean }) => {
+				if (!options.requireApproval) {
+					return {}
+				}
+				return { waitForInteraction: sandbox.stub().resolves({ response: DiracAskResponse.REJECT }) }
+			}),
+		}
+
+		const shouldRetry = await task.handleApiRequestError({
+			error: new Error("connection failed"),
+			model: { id: "test-model", info: {} },
+			providerId: "test-provider",
+			metricsManager: {},
+		})
+
+		shouldRetry.should.equal(false)
+		sinon.assert.calledOnce(abortTask)
+		sinon.assert.calledOnceWithExactly(reinitExistingTaskFromId, "test-api-cancel")
+	})
+
 })

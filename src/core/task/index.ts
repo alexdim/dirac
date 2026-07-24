@@ -1349,6 +1349,7 @@ export class Task {
 		}
 
 		const isAuthError = diracError.isErrorType(DiracErrorType.Auth)
+		const isPaymentError = diracError.isErrorType(DiracErrorType.Payment)
 
 		const isDiracProviderInsufficientCredits = (() => {
 			if (providerId !== "dirac") {
@@ -1363,7 +1364,7 @@ export class Task {
 		})()
 
 		let response: DiracAskResponse
-		if (!isDiracProviderInsufficientCredits && !isAuthError && this.taskState.apiErrorRetryAttempts < 3) {
+		if (!isDiracProviderInsufficientCredits && !isAuthError && !isPaymentError && this.taskState.apiErrorRetryAttempts < 3) {
 			this.taskState.apiErrorRetryAttempts++
 			const delay = 2000 * 2 ** (this.taskState.apiErrorRetryAttempts - 1)
 
@@ -1425,11 +1426,18 @@ export class Task {
 			await autoRetryCard.update({ body: `API Error (attempt ${this.taskState.apiErrorRetryAttempts}/3). Retrying...` })
 			await autoRetryCard.finalize(CardStatus.ERROR)
 		} else {
-			if (!isDiracProviderInsufficientCredits && !isAuthError) {
+			if (!isDiracProviderInsufficientCredits && !isAuthError && !isPaymentError) {
 				await this.taskMessenger.createCard({
 					status: CardStatus.ERROR,
 					header: "API Error (Retries Exhausted)",
 					body: `The API request failed after 3 attempts. ${diracError.toDisplayMessage()}`,
+				})
+			}
+			if (isPaymentError) {
+				await this.taskMessenger.createCard({
+					status: CardStatus.ERROR,
+					header: "API Error (Payment Required)",
+					body: diracError.toDisplayMessage(),
 				})
 			}
 			if (isAuthError) {
@@ -1470,7 +1478,9 @@ export class Task {
 		}
 
 		if (response !== DiracAskResponse.APPROVE) {
-			throw new Error("API request failed")
+			await this.abortTask()
+			await this.reinitExistingTaskFromId(this.taskId)
+			return false
 		}
 
 		const manualRetryApiReqIndex = findLastIndex(
@@ -1930,13 +1940,16 @@ export class Task {
 				}
 			} catch (error) {
 				await streamCoordinator?.stop()
-				if (!this.taskState.abandoned) {
-					const diracError = ErrorService.get().toDiracError(error, this.api.getModel().id)
-					const errorMessage = diracError.serialize()
-					this.abortTask()
-					await abortStream("streaming_failed", errorMessage)
-					await this.reinitExistingTaskFromId(this.taskId)
+				if (this.taskState.abort || this.taskState.abandoned) {
+					return true
 				}
+
+				const diracError = ErrorService.get().toDiracError(error, this.api.getModel().id)
+				const errorMessage = diracError.serialize()
+				await this.abortTask()
+				await abortStream("streaming_failed", errorMessage)
+				await this.reinitExistingTaskFromId(this.taskId)
+				return true
 			} finally {
 				Session.get().endApiCall()
 			}

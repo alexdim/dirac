@@ -220,6 +220,12 @@ describe("LifecycleManager", () => {
 			deps.taskState.abort.should.equal(true)
 		})
 
+
+		it("transitions to CANCELLED after cleanup", async () => {
+			await manager.abortTask()
+			deps.taskState.status.should.equal(TaskStatus.CANCELLED)
+		})
+
 		it("cancels active hook if present", async () => {
 			deps.hookManager.getActiveHookExecution = sinon.stub().resolves({ id: "hook1" })
 			await manager.abortTask()

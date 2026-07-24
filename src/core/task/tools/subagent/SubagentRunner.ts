@@ -759,8 +759,9 @@ export class SubagentRunner {
 		const parsedError = DiracError.transform(error, modelId, providerId)
 		const isAuthError = parsedError.isErrorType(DiracErrorType.Auth)
 		const isBalanceError = parsedError.isErrorType(DiracErrorType.Balance)
+		const isPaymentError = parsedError.isErrorType(DiracErrorType.Payment)
 
-		if (isAuthError || isBalanceError) {
+		if (isAuthError || isBalanceError || isPaymentError) {
 			return false
 		}
 
