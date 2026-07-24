@@ -29,7 +29,16 @@ export type PersistedSessionUpdate =
 		annotation: Record<string, unknown>
 	}
 
-type LegacySessionUpdatesMap = Record<string, PersistedSessionUpdate[]>
+
+type LegacyPersistedSessionUpdate =
+	| PersistedSessionUpdate
+	| {
+		kind: "usage_update"
+		sequenceNumber: number
+		usage: Record<string, unknown>
+	}
+
+type LegacySessionUpdatesMap = Record<string, LegacyPersistedSessionUpdate[]>
 
 type SessionUpdatesJournal = {
 	version: typeof JOURNAL_VERSION
@@ -66,7 +75,7 @@ function isObject(value: unknown): value is Record<string, unknown> {
 	return value !== null && typeof value === "object" && !Array.isArray(value)
 }
 
-function validateUpdates(updates: unknown): asserts updates is PersistedSessionUpdate[] {
+function validateUpdateArray(updates: unknown, allowLegacyUsageUpdates: boolean): void {
 	if (!Array.isArray(updates)) {
 		throw new Error("expected an array of persisted updates")
 	}
@@ -89,8 +98,20 @@ function validateUpdates(updates: unknown): asserts updates is PersistedSessionU
 			if (!isObject(update.annotation)) throw new Error(`client annotation ${index} has no annotation payload`)
 			continue
 		}
+		if (allowLegacyUsageUpdates && update.kind === "usage_update") {
+			if (!isObject(update.usage)) throw new Error(`legacy usage update ${index} has no usage payload`)
+			continue
+		}
 		throw new Error(`update ${index} has unknown kind ${JSON.stringify(update.kind)}`)
 	}
+}
+
+function validateUpdates(updates: unknown): asserts updates is PersistedSessionUpdate[] {
+	validateUpdateArray(updates, false)
+}
+
+function validateLegacyUpdates(updates: unknown): asserts updates is LegacyPersistedSessionUpdate[] {
+	validateUpdateArray(updates, true)
 }
 
 function malformedJournalError(filePath: string, error: unknown): Error {
@@ -133,20 +154,79 @@ function readSessionJournal(sessionId: string): SessionUpdatesJournal {
 	}
 }
 
-function readLegacySessionUpdatesMap(): LegacySessionUpdatesMap {
+function leadingJsonObjectEnd(contents: string): number | undefined {
+	let index = 0
+	while (index < contents.length && /\s/.test(contents[index])) index += 1
+	if (contents[index] !== "{") return undefined
+
+	const closingDelimiters = ["}"]
+	let insideString = false
+	let escaped = false
+	for (index += 1; index < contents.length; index += 1) {
+		const character = contents[index]
+		if (insideString) {
+			if (escaped) {
+				escaped = false
+				continue
+			}
+			if (character === "\\") {
+				escaped = true
+				continue
+			}
+			if (character === '"') insideString = false
+			continue
+		}
+
+		if (character === '"') {
+			insideString = true
+			continue
+		}
+		if (character === "{") {
+			closingDelimiters.push("}")
+			continue
+		}
+		if (character === "[") {
+			closingDelimiters.push("]")
+			continue
+		}
+		if (character !== "}" && character !== "]") continue
+		if (closingDelimiters.at(-1) !== character) return undefined
+		closingDelimiters.pop()
+		if (closingDelimiters.length === 0) return index + 1
+	}
+	return undefined
+}
+
+function parseLegacyJournalJson(contents: string): { parsed: unknown; hadTrailingData: boolean } {
+	try {
+		return { parsed: JSON.parse(contents), hadTrailingData: false }
+	} catch (error) {
+		const leadingObjectEnd = leadingJsonObjectEnd(contents)
+		if (leadingObjectEnd === undefined || contents.slice(leadingObjectEnd).trim() === "") {
+			throw malformedJournalError(LEGACY_SESSION_UPDATES_FILE, error)
+		}
+		try {
+			return { parsed: JSON.parse(contents.slice(0, leadingObjectEnd)), hadTrailingData: true }
+		} catch {
+			throw malformedJournalError(LEGACY_SESSION_UPDATES_FILE, error)
+		}
+	}
+}
+
+function readLegacySessionUpdatesMap(): { sessionUpdates: LegacySessionUpdatesMap; hadTrailingData: boolean } {
 	const contents = fs.readFileSync(LEGACY_SESSION_UPDATES_FILE, "utf8")
-	const parsed = parseJournalJson(LEGACY_SESSION_UPDATES_FILE, contents)
+	const { parsed, hadTrailingData } = parseLegacyJournalJson(contents)
 	try {
 		if (!isObject(parsed)) throw new Error("expected a JSON object keyed by session ID")
 		for (const [sessionId, updates] of Object.entries(parsed)) {
 			try {
-				validateUpdates(updates)
+				validateLegacyUpdates(updates)
 			} catch (error) {
 				const detail = error instanceof Error ? error.message : String(error)
 				throw new Error(`session ${JSON.stringify(sessionId)}: ${detail}`)
 			}
 		}
-		return parsed as LegacySessionUpdatesMap
+		return { sessionUpdates: parsed as LegacySessionUpdatesMap, hadTrailingData }
 	} catch (error) {
 		throw malformedJournalError(LEGACY_SESSION_UPDATES_FILE, error)
 	}
@@ -283,8 +363,13 @@ function withLock<T>(lockDirectory: string, action: () => T): T {
 	}
 }
 
-function removeMigratedLegacyJournal(): void {
-	fs.unlinkSync(LEGACY_SESSION_UPDATES_FILE)
+function finalizeLegacyJournalMigration(hadTrailingData: boolean): void {
+	if (hadTrailingData) {
+		const recoveryPath = `${LEGACY_SESSION_UPDATES_FILE}.recovery-${Date.now()}-${crypto.randomUUID()}`
+		fs.renameSync(LEGACY_SESSION_UPDATES_FILE, recoveryPath)
+	} else {
+		fs.unlinkSync(LEGACY_SESSION_UPDATES_FILE)
+	}
 	fsyncDirectory(path.dirname(LEGACY_SESSION_UPDATES_FILE))
 }
 
@@ -310,17 +395,20 @@ function migrateLegacySession(sessionId: string, legacyUpdates: PersistedSession
 	})
 }
 
+function currentUpdatesFromLegacy(updates: LegacyPersistedSessionUpdate[]): PersistedSessionUpdate[] {
+	return updates.filter((update): update is PersistedSessionUpdate => update.kind !== "usage_update")
+}
 
 function migrateLegacyJournal(): void {
 	if (!fs.existsSync(LEGACY_SESSION_UPDATES_FILE)) return
 
 	withLock(MIGRATION_LOCK_DIRECTORY, () => {
 		if (!fs.existsSync(LEGACY_SESSION_UPDATES_FILE)) return
-		const legacyMap = readLegacySessionUpdatesMap()
-		for (const [sessionId, updates] of Object.entries(legacyMap)) {
-			migrateLegacySession(sessionId, updates)
+		const { sessionUpdates, hadTrailingData } = readLegacySessionUpdatesMap()
+		for (const [sessionId, updates] of Object.entries(sessionUpdates)) {
+			migrateLegacySession(sessionId, currentUpdatesFromLegacy(updates))
 		}
-		removeMigratedLegacyJournal()
+		finalizeLegacyJournalMigration(hadTrailingData)
 	})
 }
 

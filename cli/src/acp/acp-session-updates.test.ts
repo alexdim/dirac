@@ -204,6 +204,65 @@ describe("ACP session update journal", () => {
 		expect(fs.readFileSync(legacyPath, "utf8")).toBe(malformed)
 	})
 
+
+	it("recovers a complete legacy map with trailing corruption and archives the original bytes", async () => {
+		const dataDirectory = process.env.DIRAC_DATA_DIR!
+		const legacyPath = path.join(dataDirectory, "acp-session-updates.json")
+		const sessionId = "recoverable-session"
+		const legacyContents =
+			JSON.stringify({
+				[sessionId]: [
+					{
+						kind: "session_update",
+						sequenceNumber: 1,
+						update: {
+							sessionUpdate: "agent_message_chunk",
+							content: { type: "text", text: "preserved" },
+							_meta: { "dev.dirac/seq": 1 },
+						},
+					},
+					{
+						kind: "usage_update",
+						sequenceNumber: 2,
+						usage: {
+							tokensIn: 10,
+							tokensOut: 5,
+							_meta: { "dev.dirac/seq": 2 },
+						},
+					},
+					{
+						kind: "client_annotation",
+						sequenceNumber: 3,
+						annotation: {
+							kind: "permission_decision",
+							_meta: { "dev.dirac/seq": 3 },
+						},
+					},
+				],
+			}) + '{"incomplete":'
+		fs.writeFileSync(legacyPath, legacyContents)
+		const journal = await import("./acp-session-updates.js")
+
+		expect(journal.getSessionUpdates(sessionId)).toEqual([
+			expect.objectContaining({ kind: "session_update", sequenceNumber: 1 }),
+			expect.objectContaining({ kind: "client_annotation", sequenceNumber: 3 }),
+		])
+		expect(fs.existsSync(legacyPath)).toBe(false)
+		const recoveryFiles = fs
+			.readdirSync(dataDirectory)
+			.filter((entry) => entry.startsWith("acp-session-updates.json.recovery-"))
+		expect(recoveryFiles).toHaveLength(1)
+		expect(fs.readFileSync(path.join(dataDirectory, recoveryFiles[0]), "utf8")).toBe(legacyContents)
+		expect(JSON.parse(fs.readFileSync(journalFilePath(dataDirectory, sessionId), "utf8"))).toMatchObject({
+			version: 1,
+			sessionId,
+			updates: [
+				{ kind: "session_update", sequenceNumber: 1 },
+				{ kind: "client_annotation", sequenceNumber: 3 },
+			],
+		})
+	})
+
 	it("migrates valid legacy data into an isolated session journal", async () => {
 		const dataDirectory = process.env.DIRAC_DATA_DIR!
 		const legacyPath = path.join(dataDirectory, "acp-session-updates.json")
