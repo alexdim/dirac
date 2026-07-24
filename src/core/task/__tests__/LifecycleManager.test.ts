@@ -290,6 +290,7 @@ describe("LifecycleManager", () => {
 })
 
 function createMockDeps(): any {
+	let diracMessages: any[] = []
 	return {
 		taskState: {
 			isInitialized: false,
@@ -299,11 +300,15 @@ function createMockDeps(): any {
 			taskScopedSkillIds: [],
 		} as any,
 		messageStateHandler: {
-			setDiracMessages: sinon.stub(),
+			setDiracMessages: sinon.stub().callsFake((messages: any[]) => {
+				diracMessages = messages
+			}),
 			setApiConversationHistory: sinon.stub(),
-			getDiracMessages: sinon.stub().returns([]),
+			getDiracMessages: sinon.stub().callsFake(() => diracMessages),
 			getApiConversationHistory: sinon.stub().returns([]),
-			overwriteDiracMessages: sinon.stub(),
+			overwriteDiracMessages: sinon.stub().callsFake(async (messages: any[]) => {
+				diracMessages = messages
+			}),
 			overwriteApiConversationHistory: sinon.stub(),
 			updateDiracMessage: sinon.stub(),
 			saveDiracMessagesAndUpdateHistory: sinon.stub(),

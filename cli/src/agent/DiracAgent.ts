@@ -20,10 +20,12 @@ import type { ApiProvider } from "@shared/api"
 import type { DiracMessage } from "@shared/ExtensionMessage"
 import { CardStatus, DiracMessageType, TaskStatus } from "@shared/ExtensionMessage"
 import { CLI_ONLY_COMMANDS, VSCODE_ONLY_COMMANDS } from "@shared/slashCommands"
-import { getProviderModelIdKey } from "@shared/storage/provider-keys"
+import { getSettingsFromEnv } from "@shared/storage/env-config"
+import { getProviderModelIdKey, getProviderModelInfoKey } from "@shared/storage/provider-keys"
 import { DiracAskResponse } from "@shared/WebviewMessage"
 import pWaitFor from "p-wait-for"
 import simpleGit from "simple-git"
+import { ApiConfigurationError, ApiConfigurationErrorCode, type ApiHandler, validateApiConfiguration } from "@/core/api"
 import { Controller } from "@/core/controller"
 import { getAvailableSlashCommands } from "@/core/controller/slash/getAvailableSlashCommands"
 import { CommandPermissionController } from "@/core/permissions/CommandPermissionController.js"
@@ -64,9 +66,17 @@ import {
 	type SessionWorktree,
 	setSessionWorktree,
 } from "../acp/acp-session-worktrees.js"
+import {
+	copyTaskRuntimeSettings,
+	deleteSessionRuntimeConfig,
+	getSessionRuntimeConfig,
+	setSessionRuntimeConfig,
+	TASK_RUNTIME_SETTINGS_KEYS,
+} from "../acp/acp-session-runtime-config.js"
 import { swapSessionOverrides } from "../acp/sessionOverrides.js"
 import { initCoreServices } from "../initCoreServices.js"
 import { openUrlInBrowser } from "../utils/browser.js"
+import { getDefaultModelId } from "../utils/model-metadata.js"
 import { isValidCliProvider } from "../utils/providers.js"
 import { CliContextResult, initializeCliContext } from "../vscode-context.js"
 import { DiracSessionEmitter } from "./DiracSessionEmitter.js"
@@ -153,20 +163,21 @@ function worktreeProvisioningRequest(params: acp.NewSessionRequest): WorktreePro
  */
 export class DiracAgent implements acp.Agent {
 	async shutdown() {
-		this.unsubscribeFromStateChanges?.()
-		this.unsubscribeFromStateChanges = undefined
 		for (const sessionId of [...this.sessions.keys()]) {
-			await this.releaseSessionResources(sessionId)
+			await this.releaseSessionResources(sessionId, true)
 		}
 	}
 
 	/** Release active session resources while retaining all persisted history. */
-	private async releaseSessionResources(sessionId: string): Promise<void> {
+	private async releaseSessionResources(sessionId: string, force = false): Promise<void> {
 		const session = this.sessions.get(sessionId)
 		if (!session) {
 			return
 		}
 
+		if (!force && this.sessionStates.get(sessionId)?.status === AcpSessionStatus.Configuring) {
+			throw new Error(`Session ${sessionId} is applying a runtime configuration change`)
+		}
 		if (this.sessionStates.get(sessionId)?.status === AcpSessionStatus.Processing) {
 			await this.cancel({ sessionId })
 		}
@@ -212,6 +223,8 @@ export class DiracAgent implements acp.Agent {
 		deleteTasksForSession(sessionId)
 		deleteSessionUpdates(sessionId)
 		deletePinnedSessionMessages(sessionId)
+
+		deleteSessionRuntimeConfig(this.ctx.DATA_DIR, sessionId)
 	}
 
 	/** Create a branch-backed git worktree owned exclusively by one ACP session. */
@@ -452,15 +465,16 @@ export class DiracAgent implements acp.Agent {
 		return {
 			pinnedContext: this.pinnedContextForSession(sessionId),
 			onContextCompacted: () => void this.emitPinnedMessagesUpdate(sessionId, "compacted"),
+			switchToActMode: () => this.switchSessionToActMode(sessionId),
 		}
 	}
 
 	private applyPinnedContext(
 		task:
 			| {
-				taskState: { pinnedContext?: string }
-				setContextCompactionObserver: (observer: () => void) => void
-			}
+					taskState: { pinnedContext?: string }
+					setContextCompactionObserver: (observer: () => void) => void
+			  }
 			| undefined,
 		sessionId: string,
 	): void {
@@ -524,9 +538,6 @@ export class DiracAgent implements acp.Agent {
 	/** Session currently running through the legacy process-global controller path. */
 	private activePromptSessionId?: string
 
-	/** Removes the StateManager listener installed during ACP initialization. */
-	private unsubscribeFromStateChanges?: () => void
-
 	/**
 	 * Per-session settings that must not bleed across concurrent ACP sessions.
 	 *
@@ -535,9 +546,6 @@ export class DiracAgent implements acp.Agent {
 	 * session's values into StateManager only for the duration of its turn.
 	 */
 	private readonly acpSessionOverrides: Map<string, Partial<Settings>> = new Map()
-
-	/** Explicit provider/model CLI options copied into each ACP session. */
-	private startupSessionOverrides: Partial<Settings> = {}
 
 	/**
 	 * In-flight prompt resolvers, keyed by session id. {@link cancel} uses these
@@ -570,51 +578,209 @@ export class DiracAgent implements acp.Agent {
 		// observe anything.
 	}
 
-	private createStartupSessionOverrides(): Partial<Settings> {
-		const { provider, model } = this.options
+	private applyStartupProviderInfrastructure(): void {
+		const { provider, model, mode, thinkingBudgetTokens, reasoningEffort } = this.options
+
+		if (mode && !["plan", "act", "auto", "yolo"].includes(mode)) {
+			throw new Error(`Invalid startup mode: ${mode}`)
+		}
+		if (thinkingBudgetTokens !== undefined && (!Number.isFinite(thinkingBudgetTokens) || thinkingBudgetTokens < 0)) {
+			throw new Error(`Invalid --thinking value: ${thinkingBudgetTokens}`)
+		}
+		if (reasoningEffort !== undefined && !["none", "low", "medium", "high", "xhigh"].includes(reasoningEffort)) {
+			throw new Error(`Invalid --reasoning-effort value: ${reasoningEffort}`)
+		}
 		if (provider && !model) {
 			throw new Error("--provider requires --model to be specified")
 		}
-		if (!model) return {}
-
-		const stateManager = StateManager.get()
-		const currentMode = (stateManager.getGlobalSettingsKey("mode") || "act") as "act" | "plan"
-		const overrides: Partial<Settings> = {}
-		let targetProvider: ApiProvider | undefined
+		if (provider && !provider.startsWith("http://") && !provider.startsWith("https://") && !isValidCliProvider(provider)) {
+			throw new Error(`Invalid provider: ${provider}`)
+		}
 
 		if (provider?.startsWith("http://") || provider?.startsWith("https://")) {
-			targetProvider = "openai"
-			overrides.openAiBaseUrl = provider
-		} else if (provider) {
-			if (!isValidCliProvider(provider)) {
-				throw new Error(`Invalid provider: ${provider}`)
+			StateManager.get().setApiConfiguration({ openAiBaseUrl: provider })
+		}
+	}
+
+	private createStartupSessionOverrides(): Partial<Settings> {
+		const { provider, model, mode: startupMode, thinkingBudgetTokens, reasoningEffort } = this.options
+		const stateManager = StateManager.get()
+		const environmentSettings = getSettingsFromEnv()
+		const effectiveDefaults: Partial<Settings> = {}
+
+		for (const key of TASK_RUNTIME_SETTINGS_KEYS) {
+			const systemDefault = stateManager.getSystemDefaultSettingsKey(key)
+			;(effectiveDefaults as Record<keyof Settings, unknown>)[key] = systemDefault ?? environmentSettings[key]
+		}
+
+		const overrides = copyTaskRuntimeSettings(effectiveDefaults)
+		overrides.mode ??= "act"
+		overrides.autoApproveAllToggled ??= false
+		overrides.yoloModeToggled ??= false
+		overrides.planActSeparateModelsSetting ??= false
+
+		if (startupMode) {
+			const { mode, autoApprove, yolo } = acpModeToInternalState(startupMode)
+			overrides.mode = mode
+			overrides.autoApproveAllToggled = autoApprove
+			overrides.yoloModeToggled = yolo
+		}
+
+		for (const mode of ["plan", "act"] as const) {
+			const providerKey = mode === "act" ? "actModeApiProvider" : "planModeApiProvider"
+			const defaultProvider = overrides[providerKey] as ApiProvider | undefined
+			if (!defaultProvider) throw new Error(`No default API provider is configured for ${mode} mode`)
+
+			const modelKey = getProviderModelIdKey(defaultProvider, mode)
+			if (defaultProvider === "openai") {
+				const profileNameKey = mode === "act" ? "actModeOpenAiProfileName" : "planModeOpenAiProfileName"
+				const profileName = overrides[profileNameKey]
+				const profiles =
+					stateManager.getSystemDefaultSettingsKey("openAiCompatibleProfiles") ??
+					environmentSettings.openAiCompatibleProfiles
+				const profile = profileName ? profiles?.find((candidate) => candidate.name === profileName) : undefined
+				if (profile) {
+					const runtimeValues = overrides as Record<string, unknown>
+					runtimeValues[modelKey] ||= profile.modelId
+					const modelInfoKey = getProviderModelInfoKey(defaultProvider, mode)!
+					runtimeValues[modelInfoKey] ||= structuredClone(profile.modelInfo)
+				}
 			}
-			targetProvider = provider as ApiProvider
-		} else {
-			const providerKey = currentMode === "act" ? "actModeApiProvider" : "planModeApiProvider"
-			targetProvider = stateManager.getGlobalSettingsKey(providerKey) as ApiProvider | undefined
+			;(overrides as Record<string, unknown>)[modelKey] =
+				(overrides[modelKey] as string | undefined) || getDefaultModelId(defaultProvider)
+
+			const thinkingKey = mode === "act" ? "actModeThinkingBudgetTokens" : "planModeThinkingBudgetTokens"
+			const reasoningKey = mode === "act" ? "actModeReasoningEffort" : "planModeReasoningEffort"
+			;(overrides as Record<string, unknown>)[thinkingKey] ??= 0
+			;(overrides as Record<string, unknown>)[reasoningKey] ??= "medium"
 		}
 
-		if (!targetProvider) {
-			throw new Error("--model requires a configured provider or an explicit --provider")
+		if (model) {
+			let targetProvider: ApiProvider | undefined
+			if (provider?.startsWith("http://") || provider?.startsWith("https://")) {
+				targetProvider = "openai"
+			} else if (provider) {
+				if (!isValidCliProvider(provider)) throw new Error(`Invalid provider: ${provider}`)
+				targetProvider = provider as ApiProvider
+			} else {
+				const currentMode = overrides.mode
+				targetProvider = overrides[currentMode === "act" ? "actModeApiProvider" : "planModeApiProvider"] as
+					| ApiProvider
+					| undefined
+			}
+			if (!targetProvider) throw new Error("--model requires a configured provider or an explicit --provider")
+
+			const modes = overrides.planActSeparateModelsSetting ? [overrides.mode] : (["plan", "act"] as const)
+			for (const mode of modes) {
+				;(overrides as Record<string, unknown>)[mode === "act" ? "actModeApiProvider" : "planModeApiProvider"] =
+					targetProvider
+				;(overrides as Record<string, unknown>)[getProviderModelIdKey(targetProvider, mode)] = model
+				const modelInfoKey = getProviderModelInfoKey(targetProvider, mode)
+				if (modelInfoKey) overrides[modelInfoKey] = undefined
+				if (provider?.startsWith("http://") || provider?.startsWith("https://")) {
+					overrides[mode === "act" ? "actModeOpenAiProfileName" : "planModeOpenAiProfileName"] = undefined
+				}
+			}
 		}
 
-		const setProviderAndModel = (mode: "act" | "plan") => {
-			const values = overrides as Record<string, unknown>
-			values[mode === "act" ? "actModeApiProvider" : "planModeApiProvider"] = targetProvider
-			values[getProviderModelIdKey(targetProvider, mode)] = model
+		if (thinkingBudgetTokens !== undefined) {
+			const modes = overrides.planActSeparateModelsSetting ? [overrides.mode] : (["plan", "act"] as const)
+			for (const mode of modes) {
+				overrides[mode === "act" ? "actModeThinkingBudgetTokens" : "planModeThinkingBudgetTokens"] = thinkingBudgetTokens
+			}
 		}
-		setProviderAndModel(currentMode)
-
-		const separateModels = stateManager.getGlobalSettingsKey("planActSeparateModelsSetting") ?? false
-		if (!separateModels) {
-			setProviderAndModel(currentMode === "act" ? "plan" : "act")
+		if (reasoningEffort !== undefined) {
+			const modes = overrides.planActSeparateModelsSetting ? [overrides.mode] : (["plan", "act"] as const)
+			for (const mode of modes) {
+				overrides[mode === "act" ? "actModeReasoningEffort" : "planModeReasoningEffort"] = reasoningEffort
+			}
 		}
 		return overrides
 	}
 
-	private initializeSessionOverrides(sessionId: string): void {
-		this.acpSessionOverrides.set(sessionId, { ...this.startupSessionOverrides })
+	private initializeSessionOverrides(sessionId: string, persisted?: Partial<Settings>): Partial<Settings> {
+		const overrides = copyTaskRuntimeSettings(persisted ?? this.createStartupSessionOverrides())
+		this.acpSessionOverrides.set(sessionId, overrides)
+		return overrides
+	}
+
+	private persistSessionOverrides(sessionId: string): void {
+		const overrides = this.acpSessionOverrides.get(sessionId)
+		if (!overrides) throw new Error(`Session runtime configuration not found: ${sessionId}`)
+		const session = this.sessions.get(sessionId)
+		if (!session) throw new Error(`Session not found: ${sessionId}`)
+		this.writeSessionRuntimeConfig(session, overrides)
+	}
+
+	private writeSessionRuntimeConfig(session: DiracAcpSession, overrides: Partial<Settings>): void {
+		setSessionRuntimeConfig(this.ctx.DATA_DIR, session.sessionId, {
+			settings: overrides,
+			cwd: session.cwd,
+			createdAt: session.createdAt,
+		})
+	}
+
+	private beginSessionRuntimeMutation(sessionId: string): void {
+		const sessionState = this.sessionStates.get(sessionId)
+		if (!sessionState) throw new Error(`Session not found: ${sessionId}`)
+		if (sessionState.status !== AcpSessionStatus.Idle) {
+			throw new Error(`Session ${sessionId} is busy; retry the configuration change after the current operation ends`)
+		}
+		sessionState.status = AcpSessionStatus.Configuring
+	}
+
+	private finishSessionRuntimeMutation(sessionId: string): void {
+		const sessionState = this.sessionStates.get(sessionId)
+		if (sessionState?.status === AcpSessionStatus.Configuring) {
+			sessionState.status = AcpSessionStatus.Idle
+		}
+	}
+
+	private refreshTaskRuntime(session: DiracAcpSession): void {
+		const controller = this.#sessionControllers.get(session)
+		if (!controller?.task) return
+		const overrides = this.acpSessionOverrides.get(session.sessionId)
+		if (!overrides) throw new Error(`Session runtime configuration not found: ${session.sessionId}`)
+		const savedOverrides = swapSessionOverrides(overrides)
+		try {
+			controller.task.rebuildApiHandler(StateManager.get().getApiConfiguration(), session.mode)
+		} finally {
+			swapSessionOverrides(savedOverrides)
+		}
+	}
+
+	private replaceSessionRuntimeConfig(
+		session: DiracAcpSession,
+		nextOverrides: Partial<Settings>,
+		nextMode: "act" | "plan",
+	): void {
+		if (!this.acpSessionOverrides.has(session.sessionId)) {
+			throw new Error(`Session runtime configuration not found: ${session.sessionId}`)
+		}
+
+		const previousMode = session.mode
+		const task = this.#sessionControllers.get(session)?.task
+		let nextApi: ApiHandler | undefined
+		if (task) {
+			const savedOverrides = swapSessionOverrides(nextOverrides)
+			try {
+				nextApi = task.createApiHandlerForRuntime(StateManager.get().getApiConfiguration(), nextMode)
+			} finally {
+				swapSessionOverrides(savedOverrides)
+			}
+		}
+
+		this.writeSessionRuntimeConfig(session, nextOverrides)
+		this.acpSessionOverrides.set(session.sessionId, nextOverrides)
+		if (this.activePromptSessionId === session.sessionId) {
+			swapSessionOverrides(nextOverrides)
+		}
+		session.mode = nextMode
+		if (task && nextApi) task.setApiHandler(nextApi)
+
+		if (previousMode !== nextMode) {
+			task?.applyRuntimeModeChange(previousMode, nextMode)
+		}
 	}
 
 	/**
@@ -804,12 +970,7 @@ export class DiracAgent implements acp.Agent {
 			extensionDir: this.ctx.EXTENSION_DIR,
 			storageContext: this.ctx.storageContext,
 		})
-		this.startupSessionOverrides = this.createStartupSessionOverrides()
-
-		this.unsubscribeFromStateChanges?.()
-		this.unsubscribeFromStateChanges = StateManager.get().subscribe(() => {
-			this.publishSelfInitiatedModeChange()
-		})
+		this.applyStartupProviderInfrastructure()
 
 		return {
 			protocolVersion: PROTOCOL_VERSION,
@@ -927,6 +1088,7 @@ export class DiracAgent implements acp.Agent {
 	 */
 	async newSession(params: acp.NewSessionRequest): Promise<acp.NewSessionResponse> {
 		const sessionId = crypto.randomUUID()
+		const sessionOverrides = this.createStartupSessionOverrides()
 
 		Logger.debug("[DiracAgent] newSession called:", {
 			sessionId,
@@ -946,7 +1108,7 @@ export class DiracAgent implements acp.Agent {
 		const session: DiracAcpSession = {
 			sessionId,
 			cwd: sessionCwd,
-			mode: (await controller.getStateToPostToWebview()).mode,
+			mode: sessionOverrides.mode as "act" | "plan",
 			createdAt: Date.now(),
 			lastActivityAt: Date.now(),
 			reservedTaskId: sessionId,
@@ -955,7 +1117,8 @@ export class DiracAgent implements acp.Agent {
 		this.#sessionControllers.set(session, controller)
 
 		this.sessions.set(sessionId, session)
-		this.initializeSessionOverrides(sessionId)
+		this.initializeSessionOverrides(sessionId, sessionOverrides)
+		this.persistSessionOverrides(sessionId)
 
 		// Initialize session state
 		const sessionState: AcpSessionState = {
@@ -967,25 +1130,22 @@ export class DiracAgent implements acp.Agent {
 		this.sessionStates.set(sessionId, sessionState)
 
 		// Get current model configuration for the response
-		const configOptions = await this.sessionConfig.getSessionConfigOptions(
-			session,
-			this.acpSessionOverrides.get(session.sessionId),
-		)
+		const configOptions = await this.sessionConfig.getSessionConfigOptions(session, sessionOverrides)
 
 		return {
 			sessionId,
-			modes: this.sessionConfig.getSessionModeState(session.mode, this.acpSessionOverrides.get(sessionId)),
+			modes: this.sessionConfig.getSessionModeState(session.mode, sessionOverrides),
 			configOptions,
 			...(worktree
 				? {
-					_meta: {
-						"dev.dirac/worktree": {
-							path: worktree.worktreePath,
-							branch: worktree.branch,
-							...(worktree.targetBranch ? { targetBranch: worktree.targetBranch } : {}),
+						_meta: {
+							"dev.dirac/worktree": {
+								path: worktree.worktreePath,
+								branch: worktree.branch,
+								...(worktree.targetBranch ? { targetBranch: worktree.targetBranch } : {}),
+							},
 						},
-					},
-				}
+					}
 				: {}),
 		}
 	}
@@ -1000,17 +1160,32 @@ export class DiracAgent implements acp.Agent {
 		const sessionId = params.sessionId
 		const existingSession = this.sessions.get(sessionId)
 		if (existingSession) {
-			const configOptions = await this.sessionConfig.getSessionConfigOptions(
-				existingSession,
-				this.acpSessionOverrides.get(sessionId),
-			)
+			const sessionOverrides = this.acpSessionOverrides.get(sessionId)!
+			const configOptions = await this.sessionConfig.getSessionConfigOptions(existingSession, sessionOverrides)
 			return {
-				modes: this.sessionConfig.getSessionModeState(existingSession.mode, this.acpSessionOverrides.get(sessionId)),
+				modes: this.sessionConfig.getSessionModeState(existingSession.mode, sessionOverrides),
 				configOptions,
 			}
 		}
 
 		Logger.debug("[DiracAgent] loadSession called:", { sessionId })
+
+		const persistedRuntimeConfig = getSessionRuntimeConfig(this.ctx.DATA_DIR, sessionId)
+		if (!persistedRuntimeConfig) {
+			throw new ApiConfigurationError(
+				ApiConfigurationErrorCode.SessionRuntimeMissing,
+				`Task runtime configuration not found for ACP session ${sessionId}; this session predates task-owned runtime configuration and cannot be loaded safely`,
+				"Start a new session under the current provider and model settings.",
+			)
+		}
+		const persistedMode = persistedRuntimeConfig.settings.mode
+		if (persistedMode !== "plan" && persistedMode !== "act") {
+			throw new ApiConfigurationError(
+				ApiConfigurationErrorCode.SessionRuntimeMalformed,
+				`Task runtime configuration for ACP session ${sessionId} has no valid mode`,
+				"Start a new session or repair/remove the corrupted runtime record before retrying.",
+			)
+		}
 
 		// Resolve the actual taskId: check the replacement-task map first (multi-task session),
 		// then fall back to sessionId itself (the common single-task case where taskId === sessionId).
@@ -1019,9 +1194,6 @@ export class DiracAgent implements acp.Agent {
 		const persistedHistory = (StateManager.get().getGlobalStateKey("taskHistory") || []).find(
 			(item) => item.id === resolvedTaskId,
 		)
-		if (!persistedHistory) {
-			throw new Error(`Task ${resolvedTaskId} not found for ACP session ${sessionId}`)
-		}
 
 		const ownedWorktree = getSessionWorktree(sessionId)
 		if (ownedWorktree) {
@@ -1034,36 +1206,60 @@ export class DiracAgent implements acp.Agent {
 			}
 		}
 
-		const historyCwd = ownedWorktree?.worktreePath ?? getHistoryItemCwd(persistedHistory, params.cwd, this.options.cwd)
+		const historyCwd =
+			ownedWorktree?.worktreePath ??
+			(persistedHistory
+				? getHistoryItemCwd(persistedHistory, params.cwd, this.options.cwd)
+				: persistedRuntimeConfig.cwd || params.cwd || this.options.cwd)
+		if (!historyCwd) throw new Error(`Working directory not found for ACP session ${sessionId}`)
+
 		const controller = new Controller(this.ctx.extensionContext, {
 			workspaceCwd: historyCwd,
 		})
-		const history = await controller.getTaskWithId(resolvedTaskId)
+
 		const session: DiracAcpSession = {
 			sessionId,
-			cwd: historyCwd || process.cwd(),
-			mode: (await controller.getStateToPostToWebview()).mode,
-			createdAt: Date.now(),
+			cwd: historyCwd,
+			mode: persistedMode,
+			createdAt: persistedRuntimeConfig.createdAt ?? Date.now(),
 			lastActivityAt: Date.now(),
-			isLoadedFromHistory: true,
-			loadedTaskId: resolvedTaskId,
+			...(persistedHistory
+				? {
+						isLoadedFromHistory: true,
+						loadedTaskId: resolvedTaskId,
+					}
+				: { reservedTaskId: sessionId }),
+		}
+		const sessionOverrides = copyTaskRuntimeSettings(persistedRuntimeConfig.settings)
+		this.sessionConfig.assertTaskRuntimeAvailable(session, sessionOverrides)
+		const savedOverrides = swapSessionOverrides(sessionOverrides)
+		try {
+			validateApiConfiguration(StateManager.get().getApiConfiguration(), persistedMode)
+		} finally {
+			swapSessionOverrides(savedOverrides)
+		}
+
+		if (persistedHistory) {
+			const savedTaskOverrides = swapSessionOverrides(sessionOverrides)
+			try {
+				await controller.getTaskWithId(resolvedTaskId)
+			} finally {
+				swapSessionOverrides(savedTaskOverrides)
+			}
 		}
 
 		this.#sessionControllers.set(session, controller)
 		this.sessions.set(sessionId, session)
-		this.initializeSessionOverrides(sessionId)
+		this.acpSessionOverrides.set(sessionId, sessionOverrides)
 		this.sessionStates.set(sessionId, {
 			sessionId,
 			status: AcpSessionStatus.Idle,
 			pendingToolCalls: new Map(),
 		})
 
-		const configOptions = await this.sessionConfig.getSessionConfigOptions(
-			session,
-			this.acpSessionOverrides.get(session.sessionId),
-		)
+		const configOptions = await this.sessionConfig.getSessionConfigOptions(session, sessionOverrides)
 		return {
-			modes: this.sessionConfig.getSessionModeState(session.mode, this.acpSessionOverrides.get(sessionId)),
+			modes: this.sessionConfig.getSessionModeState(session.mode, sessionOverrides),
 			configOptions,
 		}
 	}
@@ -1103,61 +1299,51 @@ export class DiracAgent implements acp.Agent {
 
 	async setSessionConfigOption(params: acp.SetSessionConfigOptionRequest): Promise<acp.SetSessionConfigOptionResponse> {
 		const session = this.sessions.get(params.sessionId)
-		if (!session) {
-			throw new Error(`Session not found: ${params.sessionId}`)
-		}
+		if (!session) throw new Error(`Session not found: ${params.sessionId}`)
 
 		Logger.debug("[DiracAgent] setSessionConfigOption called:", {
 			sessionId: params.sessionId,
 			configId: params.configId,
 			value: params.value,
 		})
-
 		if (typeof params.value !== "string") {
 			throw new Error(`Boolean session config is not supported: ${params.configId}`)
 		}
 
-		const value = params.value
-		const sessionOverrides = this.acpSessionOverrides.get(params.sessionId) ?? {}
-		this.acpSessionOverrides.set(params.sessionId, sessionOverrides)
-		let emittedConfigUpdate = false
-		switch (params.configId) {
-			case "mode":
-				await this.setSessionMode({
-					sessionId: params.sessionId,
-					modeId: value,
-				})
-				emittedConfigUpdate = true
-				break
-			case "provider":
-				await this.sessionConfig.applyProviderConfigOption(session, value, sessionOverrides)
-				break
-			case "model":
-				await this.sessionConfig.applyModelConfigOption(session, value, sessionOverrides)
-				break
-			case "reasoning_effort":
-				this.sessionConfig.applyReasoningEffortConfigOption(session, value)
-				break
-			case "thinking_budget":
-				this.sessionConfig.applyThinkingBudgetConfigOption(session, value)
-				break
-			default:
-				throw new Error(`Unknown session config option: ${params.configId}`)
+		if (params.configId === "mode") {
+			return { configOptions: await this.applySessionMode(params.sessionId, params.value) }
 		}
 
-		session.lastActivityAt = Date.now()
-		await StateManager.get().flushPendingState()
-		const configOptions = await this.sessionConfig.getSessionConfigOptions(
-			session,
-			this.acpSessionOverrides.get(session.sessionId),
-		)
-		if (!emittedConfigUpdate) {
-			await this.emitSessionUpdate(params.sessionId, {
-				sessionUpdate: "config_option_update",
-				configOptions,
-			})
+		this.beginSessionRuntimeMutation(params.sessionId)
+		try {
+			const currentOverrides = this.acpSessionOverrides.get(params.sessionId)
+			if (!currentOverrides) throw new Error(`Session runtime configuration not found: ${params.sessionId}`)
+			const nextOverrides = copyTaskRuntimeSettings(currentOverrides)
+			switch (params.configId) {
+				case "provider":
+					await this.sessionConfig.applyProviderConfigOption(session, params.value, nextOverrides)
+					break
+				case "model":
+					await this.sessionConfig.applyModelConfigOption(session, params.value, nextOverrides)
+					break
+				case "reasoning_effort":
+					this.sessionConfig.applyReasoningEffortConfigOption(session, params.value, nextOverrides)
+					break
+				case "thinking_budget":
+					this.sessionConfig.applyThinkingBudgetConfigOption(session, params.value, nextOverrides)
+					break
+				default:
+					throw new Error(`Unknown session config option: ${params.configId}`)
+			}
+
+			const configOptions = await this.sessionConfig.getSessionConfigOptions(session, nextOverrides)
+			this.replaceSessionRuntimeConfig(session, nextOverrides, session.mode)
+			session.lastActivityAt = Date.now()
+			await this.emitSessionUpdate(params.sessionId, { sessionUpdate: "config_option_update", configOptions })
+			return { configOptions }
+		} finally {
+			this.finishSessionRuntimeMutation(params.sessionId)
 		}
-		return { configOptions }
 	}
 
 	/**
@@ -1182,15 +1368,14 @@ export class DiracAgent implements acp.Agent {
 			throw new Error(`Session not found: ${params.sessionId}`)
 		}
 
-		const providerKey = session.mode === "act" ? "actModeApiProvider" : "planModeApiProvider"
 		const sessionOverrides = this.acpSessionOverrides.get(params.sessionId)
-		const selectedProvider = (sessionOverrides?.[providerKey] ??
-			StateManager.get().getGlobalSettingsKey(providerKey)) as ApiProvider
-		this.providerConfiguration.assertProviderEnabled(selectedProvider)
+		if (!sessionOverrides) throw new Error(`Session runtime configuration not found: ${params.sessionId}`)
 
-		if (sessionState.status === AcpSessionStatus.Processing) {
-			throw new Error(`Session ${params.sessionId} is already processing a prompt`)
+		if (sessionState.status !== AcpSessionStatus.Idle) {
+			throw new Error(`Session ${params.sessionId} is busy with another operation`)
 		}
+		this.sessionConfig.assertTaskRuntimeAvailable(session, sessionOverrides)
+		this.refreshTaskRuntime(session)
 
 		const controller = this.#sessionControllers.get(session)
 		if (!controller) {
@@ -1308,12 +1493,12 @@ export class DiracAgent implements acp.Agent {
 			const interceptedReviewResponse =
 				imageContent.length === 0 && fileResources.length === 0
 					? await handleAcpReviewCommand({
-						commandText: textContent,
-						controller,
-						sessionId: params.sessionId,
-						cwd: session.cwd,
-						emitSessionUpdate: this.emitSessionUpdate.bind(this),
-					})
+							commandText: textContent,
+							controller,
+							sessionId: params.sessionId,
+							cwd: session.cwd,
+							emitSessionUpdate: this.emitSessionUpdate.bind(this),
+						})
 					: null
 
 			if (interceptedReviewResponse) {
@@ -1328,10 +1513,10 @@ export class DiracAgent implements acp.Agent {
 			const isLoadedSession = session.isLoadedFromHistory === true
 
 			if (isLoadedSession && !hasActiveTask) {
-				// First prompt on a loaded session - resume the task from history
+				// First prompt on a loaded session - resume the task from history.
 				Logger.debug("[DiracAgent] Resuming loaded session:", params.sessionId)
 
-				// Clear the flag so subsequent prompts are handled normally
+				// Clear the flag so subsequent prompts are handled normally.
 				session.isLoadedFromHistory = false
 
 				// Use loadedTaskId if set (multi-task session resolved in loadSession),
@@ -1339,29 +1524,41 @@ export class DiracAgent implements acp.Agent {
 				const taskIdToResume = session.loadedTaskId ?? params.sessionId
 				session.loadedTaskId = undefined
 
-				// Resume the task using its history item
 				await controller.reinitExistingTaskFromId(
 					taskIdToResume,
 					this.pinnedContextInitializationOptions(params.sessionId),
 				)
 
-				// After reinit, resumeTaskFromHistory() is running asynchronously. We must
-				// NOT call handleWebviewAskResponse yet — TaskMessenger.ask() clears
-				// taskState.askResponse at its start (to reset stale state), so any
-				// response set before ask() runs gets wiped, leaving pWaitFor spinning
-				// forever and the idle watchdog firing after 60 s.
-				//
-				// Instead, wait for the task to actually issue ask("resume_task" |
-				// "resume_completed_task") — signalled by a diracMessagesChanged "add"
-				// event — and only then deliver the user's prompt as the response.
 				if (controller.task) {
 					const task = controller.task
-					await new Promise<void>((resolve, reject) => {
-						// Guard: if runPromise rejects before ask() fires (e.g. task init
-						// error), bail out so we don't leak a listener that would never fire.
+					const resumeResult = await new Promise<"completed" | "resumed">((resolve, reject) => {
+						let settled = false
+						const finish = (result: "completed" | "resumed") => {
+							if (settled) return
+							settled = true
+							clearInterval(statusPoll)
+							task.messageStateHandler.off("diracMessagesChanged", onChanged)
+							resolve(result)
+						}
 						const onRunPromiseError = (err: unknown) => {
+							if (settled) return
+							settled = true
+							clearInterval(statusPoll)
 							task.messageStateHandler.off("diracMessagesChanged", onChanged)
 							reject(err instanceof Error ? err : new Error(String(err)))
+						}
+						const hasResumeCard = () =>
+							task.messageStateHandler
+								.getDiracMessages()
+								.some(
+									(message) =>
+										message.content.type === DiracMessageType.CARD &&
+										(message.content.card.header === "Resume Task" ||
+											message.content.card.header === "Resume Completed Task"),
+								)
+						const checkResumeState = () => {
+							if (task.taskState.status === TaskStatus.COMPLETED) return finish("completed")
+							if (hasResumeCard()) finish("resumed")
 						}
 						const onChanged = (change: DiracMessageChange) => {
 							if (
@@ -1370,18 +1567,38 @@ export class DiracAgent implements acp.Agent {
 								(change.message.content.card.header === "Resume Task" ||
 									change.message.content.card.header === "Resume Completed Task")
 							) {
-								task.messageStateHandler.off("diracMessagesChanged", onChanged)
-								resolve()
+								finish("resumed")
 							}
 						}
-						// runPromise may not be set yet if resumeTaskFromHistory was started
-						// in the same tick; use Promise.resolve() so we only see rejections,
-						// not an absent value. Calling reject() after resolve() is a no-op.
-						Promise.resolve(controller.taskRunPromise).catch(onRunPromiseError)
+						const statusPoll = setInterval(checkResumeState, 10)
 						task.messageStateHandler.on("diracMessagesChanged", onChanged)
+						Promise.resolve(controller.taskRunPromise).catch(onRunPromiseError)
+						checkResumeState()
 					})
-					subscribeToCurrentTask()
-					await task.submitCardResponse("", DiracAskResponse.MESSAGE, textContent, imageContent, fileResources)
+
+					if (resumeResult === "completed") {
+						// Completed history is terminal: resumeTaskFromHistory() intentionally does
+						// not issue a resume card or wait for a response. Start a fresh task for
+						// the first new ACP prompt rather than waiting forever for that card.
+						Logger.debug("[DiracAgent] Starting a new task from completed loaded session:", taskIdToResume)
+						await controller.initTask(
+							textContent,
+							imageContent,
+							fileResources,
+							undefined,
+							undefined,
+							undefined,
+							undefined,
+							this.pinnedContextInitializationOptions(params.sessionId),
+						)
+						if (controller.task) {
+							await recordTaskForSession(params.sessionId, controller.task.taskId)
+							session.taskId = controller.task.taskId
+						}
+					} else {
+						subscribeToCurrentTask()
+						await task.submitCardResponse("", DiracAskResponse.MESSAGE, textContent, imageContent, fileResources)
+					}
 				}
 			} else if (hasActiveTask && controller.task) {
 				// Continue existing task - respond to pending ask
@@ -1390,13 +1607,13 @@ export class DiracAgent implements acp.Agent {
 				const waitingCardId = controller.task.taskState.lastWaitingCardId
 				const waitingCard = waitingCardId
 					? controller.task.messageStateHandler
-						.getDiracMessages()
-						.find(
-							(message) =>
-								message.content.type === DiracMessageType.CARD &&
-								message.content.card.id === waitingCardId &&
-								message.content.card.status === CardStatus.WAITING_FOR_INPUT,
-						)
+							.getDiracMessages()
+							.find(
+								(message) =>
+									message.content.type === DiracMessageType.CARD &&
+									message.content.card.id === waitingCardId &&
+									message.content.card.status === CardStatus.WAITING_FOR_INPUT,
+							)
 					: undefined
 
 				if (waitingCard) {
@@ -1440,6 +1657,7 @@ export class DiracAgent implements acp.Agent {
 					)
 					if (controller.task) {
 						await recordTaskForSession(params.sessionId, controller.task.taskId)
+						session.taskId = controller.task.taskId
 						const replayEndIndex = controller.task.messageStateHandler.getDiracMessages().length
 						subscribeToCurrentTask()
 						await bridge.replayTaskMessages(
@@ -1470,6 +1688,7 @@ export class DiracAgent implements acp.Agent {
 					undefined,
 					this.pinnedContextInitializationOptions(params.sessionId),
 				)
+				session.taskId = controller.task?.taskId
 			}
 
 			if (controller.task && !subscribedTask) {
@@ -1640,52 +1859,61 @@ export class DiracAgent implements acp.Agent {
 	}
 
 	async setSessionMode(params: acp.SetSessionModeRequest): Promise<acp.SetSessionModeResponse> {
-		const session = this.sessions.get(params.sessionId)
-
-		if (!session) {
-			throw new Error(`Session not found: ${params.sessionId}`)
-		}
-
 		Logger.debug("[DiracAgent] setSessionMode called:", {
 			sessionId: params.sessionId,
 			modeId: params.modeId,
 		})
-
-		const validModes: AcpModeId[] = ["plan", "act", "auto", "yolo"]
-		if (!validModes.includes(params.modeId as AcpModeId)) {
-			throw new Error(`Invalid mode: ${params.modeId}. Valid modes are: ${validModes.join(", ")}`)
-		}
-
-		const acpMode = params.modeId as AcpModeId
-		const { mode, autoApprove, yolo } = acpModeToInternalState(acpMode)
-
-		// Write to the per-session override map rather than the global StateManager
-		// sessionOverrideCache. This prevents one ACP session's mode switch from
-		// bleeding into every other concurrent session in the same process.
-		const existing = this.acpSessionOverrides.get(params.sessionId) ?? {}
-		this.acpSessionOverrides.set(params.sessionId, {
-			...existing,
-			autoApproveAllToggled: autoApprove,
-			yoloModeToggled: yolo,
-			mode,
-		})
-
-		session.mode = mode
-		session.lastActivityAt = Date.now()
-
-		const stateManager = StateManager.get()
-		const controller = this.#sessionControllers.get(session)
-		if (controller) {
-			if (controller.task) {
-				await controller.togglePlanActMode(session.mode)
-			}
-		}
-
-		await stateManager.flushPendingState()
-		await this.emitCurrentModeUpdate(params.sessionId)
-		await this.emitConfigOptionsUpdate(params.sessionId)
-
+		await this.applySessionMode(params.sessionId, params.modeId)
 		return {}
+	}
+
+	private async applySessionMode(sessionId: string, modeId: string): Promise<acp.SessionConfigOption[]> {
+		const session = this.sessions.get(sessionId)
+		if (!session) throw new Error(`Session not found: ${sessionId}`)
+		const validModes: AcpModeId[] = ["plan", "act", "auto", "yolo"]
+		if (!validModes.includes(modeId as AcpModeId)) {
+			throw new Error(`Invalid mode: ${modeId}. Valid modes are: ${validModes.join(", ")}`)
+		}
+
+		this.beginSessionRuntimeMutation(sessionId)
+		try {
+			const currentOverrides = this.acpSessionOverrides.get(sessionId)
+			if (!currentOverrides) throw new Error(`Session runtime configuration not found: ${sessionId}`)
+			const nextOverrides = copyTaskRuntimeSettings(currentOverrides)
+			const { mode, autoApprove, yolo } = acpModeToInternalState(modeId as AcpModeId)
+			nextOverrides.autoApproveAllToggled = autoApprove
+			nextOverrides.yoloModeToggled = yolo
+			nextOverrides.mode = mode
+
+			const nextSession = { ...session, mode }
+			const configOptions = await this.sessionConfig.getSessionConfigOptions(nextSession, nextOverrides)
+			this.replaceSessionRuntimeConfig(session, nextOverrides, mode)
+			session.lastActivityAt = Date.now()
+			await this.emitCurrentModeUpdate(sessionId)
+			await this.emitSessionUpdate(sessionId, { sessionUpdate: "config_option_update", configOptions })
+			return configOptions
+		} finally {
+			this.finishSessionRuntimeMutation(sessionId)
+		}
+	}
+
+	private async switchSessionToActMode(sessionId: string): Promise<boolean> {
+		const session = this.sessions.get(sessionId)
+		if (!session) throw new Error(`Session not found: ${sessionId}`)
+		const currentOverrides = this.acpSessionOverrides.get(sessionId)
+		if (!currentOverrides) throw new Error(`Session runtime configuration not found: ${sessionId}`)
+		if (session.mode === "act") return this.#sessionControllers.get(session)?.task !== undefined
+
+		const nextOverrides = copyTaskRuntimeSettings(currentOverrides)
+		nextOverrides.mode = "act"
+		const nextSession = { ...session, mode: "act" as const }
+		this.sessionConfig.assertTaskRuntimeAvailable(nextSession, nextOverrides)
+		const configOptions = await this.sessionConfig.getSessionConfigOptions(nextSession, nextOverrides)
+		this.replaceSessionRuntimeConfig(session, nextOverrides, "act")
+		session.lastActivityAt = Date.now()
+		await this.emitCurrentModeUpdate(sessionId)
+		await this.emitSessionUpdate(sessionId, { sessionUpdate: "config_option_update", configOptions })
+		return this.#sessionControllers.get(session)?.task !== undefined
 	}
 
 	async listProviders(): Promise<acp.ListProvidersResponse> {
@@ -1735,36 +1963,17 @@ export class DiracAgent implements acp.Agent {
 		await openAiCodexOAuthManager.clearCredentials()
 	}
 
-	private publishSelfInitiatedModeChange(): void {
-		const sessionId = this.activePromptSessionId
-		if (!sessionId) return
-
-		const session = this.sessions.get(sessionId)
-		if (!session) return
-
-		const stateManager = StateManager.get()
-		const nextMode = stateManager.getGlobalSettingsKey("mode")
-		if (session.mode === nextMode) return
-
-		session.mode = nextMode
-		session.lastActivityAt = Date.now()
-		this.emitCurrentModeUpdate(sessionId).catch((error) => {
-			Logger.error("[DiracAgent] Error publishing self-initiated mode change:", error)
-		})
-		this.emitConfigOptionsUpdate(sessionId).catch((error) => {
-			Logger.error("[DiracAgent] Error publishing self-initiated config update:", error)
-		})
-	}
-
 	private async emitCurrentModeUpdate(sessionId: string): Promise<void> {
 		const session = this.sessions.get(sessionId)
 		if (!session) {
 			throw new Error(`Session not found: ${sessionId}`)
 		}
+		const sessionOverrides = this.acpSessionOverrides.get(sessionId)
+		if (!sessionOverrides) throw new Error(`Session runtime configuration not found: ${sessionId}`)
 
 		await this.emitSessionUpdate(sessionId, {
 			sessionUpdate: "current_mode_update",
-			currentModeId: this.sessionConfig.computeCurrentAcpModeId(session.mode, this.acpSessionOverrides.get(sessionId)),
+			currentModeId: this.sessionConfig.computeCurrentAcpModeId(session.mode, sessionOverrides),
 		})
 	}
 
@@ -1788,16 +1997,15 @@ export class DiracAgent implements acp.Agent {
 			sessionUpdate: "config_option_update",
 			configOptions: await this.sessionConfig.getSessionConfigOptions(
 				session,
-				this.acpSessionOverrides.get(session.sessionId),
+				this.acpSessionOverrides.get(session.sessionId)!,
 			),
 		})
 	}
 
-
 	/**
- * Replay the historical messages for a loaded session as ACP sessionUpdate events.
- * Called by AcpAgent after subscribing to session events, so the events reach the client.
- */
+	 * Replay the historical messages for a loaded session as ACP sessionUpdate events.
+	 * Called by AcpAgent after subscribing to session events, so the events reach the client.
+	 */
 	async replayLoadedSessionHistory(sessionId: string): Promise<void> {
 		const session = this.sessions.get(sessionId)
 		if (!session) return
@@ -1805,7 +2013,8 @@ export class DiracAgent implements acp.Agent {
 		const controller = this.#sessionControllers.get(session)
 		if (!controller) return
 
-		const taskId = session.loadedTaskId ?? sessionId
+		const taskId = session.loadedTaskId ?? controller.task?.taskId
+		if (!taskId) return
 		let uiMessages: DiracMessage[]
 		try {
 			const { uiMessagesFilePath } = await controller.getTaskWithId(taskId)

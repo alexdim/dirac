@@ -1,5 +1,6 @@
 import type * as acp from "@agentclientprotocol/sdk"
 import type { ApiProvider } from "@shared/api"
+import { ApiConfigurationError, ApiConfigurationErrorCode } from "@core/api"
 import { StateManager } from "@/core/storage/StateManager"
 
 const OPENAI_DEFAULT_BASE_URL = "https://api.openai.com/v1"
@@ -66,11 +67,11 @@ export class ProviderConfigurationManager {
 				...(disabled.has(providerId)
 					? {}
 					: {
-							current: {
-								apiType: this.currentApiType(providerId, configuration),
-								baseUrl: this.currentBaseUrl(providerId, configuration, definition.defaultBaseUrl),
-							},
-						}),
+						current: {
+							apiType: this.currentApiType(providerId, configuration),
+							baseUrl: this.currentBaseUrl(providerId, configuration, definition.defaultBaseUrl),
+						},
+					}),
 			})),
 		}
 	}
@@ -142,7 +143,11 @@ export class ProviderConfigurationManager {
 
 	assertProviderEnabled(providerId: ApiProvider): void {
 		if (!this.isProviderEnabled(providerId)) {
-			throw new Error(`Provider ${providerId} is disabled through ACP provider configuration`)
+			throw new ApiConfigurationError(
+				ApiConfigurationErrorCode.ProviderDisabled,
+				`Provider ${providerId} is disabled through ACP provider configuration`,
+				"Enable the provider or select an available replacement before retrying.",
+			)
 		}
 	}
 

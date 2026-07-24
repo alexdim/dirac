@@ -21,6 +21,10 @@ export class ToolHookRunner {
 		private clearActiveHookExecution: () => Promise<void>,
 	) {}
 
+	setApi(api: ApiHandler): void {
+		this.api = api
+	}
+
 	// Runs PostToolUse hook; returns true if hook requested cancellation.
 	async runPostToolUseHook(
 		block: ToolUse,

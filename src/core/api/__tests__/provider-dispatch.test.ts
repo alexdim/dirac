@@ -314,6 +314,7 @@ describe("API Provider Dispatch (original)", () => {
 		const config: ApiConfiguration = {
 			apiProvider: "dify",
 			difyApiKey: "test-key",
+			difyBaseUrl: "https://dify.example/v1",
 			planModeApiModelId: TEST_MODEL_IDS.ANTHROPIC,
 			actModeApiModelId: TEST_MODEL_IDS.ANTHROPIC,
 		}
@@ -488,15 +489,13 @@ describe("API Provider Dispatch (original)", () => {
 		// Handler should use act mode model ID
 	})
 
-	it("handles undefined apiProvider gracefully", () => {
+	it("rejects an undefined apiProvider", () => {
 		const config: ApiConfiguration = {
 			apiProvider: undefined,
 			apiKey: "test-key",
 			planModeApiModelId: TEST_MODEL_IDS.ANTHROPIC,
 			actModeApiModelId: TEST_MODEL_IDS.ANTHROPIC,
 		}
-		const handler = buildApiHandler(config, "plan")
-		handler.should.not.be.undefined()
-		// Should fall back to default handler
+		should(() => buildApiHandler(config, "plan")).throw("API provider is not configured")
 	})
 })

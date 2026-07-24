@@ -1,9 +1,9 @@
-import { buildApiHandler } from "@core/api"
 import { Empty } from "@shared/proto/dirac/common"
 import { UpdateApiConfigurationPartialRequest } from "@shared/proto/dirac/models"
 import { convertProtoToApiConfiguration } from "@shared/proto-conversions/models/api-configuration-conversion"
 import { Logger } from "@/shared/services/Logger"
 import type { Controller } from "../index"
+import { applyApiConfigurationTransaction } from "./apiConfigurationTransaction"
 
 /**
  * Updates API configuration with partial values using FieldMask
@@ -40,12 +40,7 @@ export async function updateApiConfigurationPartial(
 			;(updatedConfig as Record<string, any>)[field] = (newConfigValues as Record<string, any>)[field]
 		}
 
-		// Update storage and task API handler
-		controller.stateManager.setApiConfiguration(updatedConfig)
-		if (controller.task) {
-			const currentMode = controller.stateManager.getGlobalSettingsKey("mode")
-			controller.task.api = buildApiHandler({ ...updatedConfig, ulid: controller.task.ulid }, currentMode)
-		}
+		applyApiConfigurationTransaction(controller, updatedConfig)
 
 		// Notify webview
 		await controller.postStateToWebview()

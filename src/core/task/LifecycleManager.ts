@@ -21,6 +21,10 @@ import { buildUserFeedbackContent } from "./utils/buildUserFeedbackContent"
 export class LifecycleManager {
 	constructor(private dependencies: LifecycleManagerDependencies) { }
 
+	setApi(api: LifecycleManagerDependencies["api"]): void {
+		this.dependencies.api = api
+	}
+
 	public async initializeCheckpoints(isFirstRequest: boolean): Promise<void> {
 		if (
 			!isFirstRequest ||
@@ -251,6 +255,16 @@ export class LifecycleManager {
 
 		this.dependencies.taskState.isInitialized = true
 		this.dependencies.taskState.abort = false
+
+		const completedTask =
+			lastDiracMessage?.content.type === "card" &&
+			lastDiracMessage.content.card.header === "Task Completed" &&
+			lastDiracMessage.content.card.status === CardStatus.SUCCESS
+		if (completedTask) {
+			this.dependencies.taskState.status = TaskStatus.COMPLETED
+			await this.dependencies.postStateToWebview()
+			return
+		}
 
 		// Reset askResponse state before waiting
 		this.dependencies.taskState.askResponse = undefined

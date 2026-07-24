@@ -72,6 +72,10 @@ export class EnvironmentManager {
 		this.dependencies = dependencies
 	}
 
+	setApi(api: ApiHandler): void {
+		this.dependencies.api = api
+	}
+
 	private get cwd() {
 		return this.dependencies.cwd
 	}

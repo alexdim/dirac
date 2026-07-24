@@ -1,10 +1,10 @@
 import { Empty } from "@shared/proto/dirac/common"
 import { UpdateApiConfigurationRequest } from "@shared/proto/dirac/models"
 import { convertProtoToApiConfiguration } from "@shared/proto-conversions/models/api-configuration-conversion"
-import { buildApiHandler } from "@/core/api"
 import { recordSavedOpenAiCompatibleProfileChanges } from "@/core/models/modelProviderPresets"
 import { Logger } from "@/shared/services/Logger"
 import type { Controller } from "../index"
+import { applyApiConfigurationTransaction } from "./apiConfigurationTransaction"
 
 /**
  * Updates API configuration
@@ -28,18 +28,8 @@ export async function updateApiConfigurationProto(
 
 		const previousProfiles = controller.stateManager.getApiConfiguration().openAiCompatibleProfiles || []
 
-		// Update the API configuration in storage
-		controller.stateManager.setApiConfiguration(convertedApiConfigurationFromProto)
+		applyApiConfigurationTransaction(controller, convertedApiConfigurationFromProto)
 		recordSavedOpenAiCompatibleProfileChanges(controller.stateManager, previousProfiles)
-
-		// Update the task's API handler if there's an active task
-		if (controller.task) {
-			const currentMode = controller.stateManager.getGlobalSettingsKey("mode")
-			controller.task.api = buildApiHandler(
-				{ ...convertedApiConfigurationFromProto, ulid: controller.task.ulid },
-				currentMode,
-			)
-		}
 
 		// Post updated state to webview
 		await controller.postStateToWebview()

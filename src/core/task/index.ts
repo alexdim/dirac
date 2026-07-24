@@ -119,6 +119,7 @@ type TaskParams = {
 	taskLockAcquired: boolean
 	pinnedContext?: string
 	onContextCompacted?: () => void
+	switchToActMode?: () => Promise<boolean>
 }
 
 export class Task {
@@ -198,6 +199,7 @@ export class Task {
 	private apiConversationManager: ApiConversationManager
 	private assistantStreamManager: AssistantStreamManager
 	private contextCompactionObserver?: () => void
+	private switchToActMode: () => Promise<boolean>
 
 	private responseProcessor: ResponseProcessor
 
@@ -261,6 +263,7 @@ export class Task {
 		this.taskId = taskId
 		this.taskLockAcquired = taskLockAcquired
 		this.terminalExecutionMode = vscodeTerminalExecutionMode || "vscodeTerminal"
+		this.switchToActMode = params.switchToActMode ?? (() => this.controller.toggleActModeForYoloMode())
 
 		if (stateManager.getGlobalSettingsKey("mode") === "act") {
 			this.taskState.didSwitchToActMode = true
@@ -427,7 +430,7 @@ export class Task {
 		const currentProvider = mode === "plan" ? apiConfiguration.planModeApiProvider : apiConfiguration.actModeApiProvider
 
 		// Now that ulid is initialized, we can build the API handler
-		this.api = buildApiHandler(effectiveApiConfiguration, mode)
+		this.api = this.createApiHandlerForRuntime(effectiveApiConfiguration, mode)
 
 		// Update taskMessenger and hookManager with the initialized api
 		this.taskMessenger.setApi(this.api)
@@ -613,6 +616,53 @@ export class Task {
 			toolExecutor: this.toolExecutor,
 			assistantStreamManager: this.assistantStreamManager,
 		})
+	}
+
+	/** Rebuild the model runtime used by this existing task between API turns. */
+	public rebuildApiHandler(configuration: ApiConfiguration, mode: Mode): void {
+		this.setApiHandler(this.createApiHandlerForRuntime(configuration, mode))
+	}
+
+	/** Construct a model runtime without installing it on the task. */
+	public createApiHandlerForRuntime(configuration: ApiConfiguration, mode: Mode): ApiHandler {
+		return buildApiHandler(
+			{
+				...configuration,
+				ulid: this.ulid,
+				onRetryAttempt: async (attempt: number, maxRetries: number, delay: number, error: any) => {
+					await this.taskMessenger.upsertApiStatus({
+						retryStatus: {
+							attempt,
+							maxAttempts: maxRetries,
+							delaySec: Math.round(delay / 1000),
+							errorSnippet: error?.message ? `${String(error.message).substring(0, 50)}...` : undefined,
+						},
+					})
+				},
+			},
+			mode,
+		)
+	}
+
+	/** Replace the model runtime used by this existing task between API turns. */
+	public setApiHandler(api: ApiHandler): void {
+		this.api = api
+		this.taskMessenger.setApi(api)
+		this.hookManager.setApi(api)
+		this.toolExecutor.setApi(api)
+		this.environmentManager.setApi(api)
+		this.lifecycleManager.setApi(api)
+		this.apiConversationManager.setApi(api)
+		this.responseProcessor.setApi(api)
+	}
+
+	/** Apply task-state effects required when its owning runtime changes mode. */
+	public applyRuntimeModeChange(previousMode: Mode, nextMode: Mode): void {
+		if (previousMode !== "plan" || nextMode !== "act") return
+		this.taskState.didSwitchToActMode = true
+		if (this.taskState.isAwaitingPlanResponse) {
+			this.taskState.didRespondToPlanAskBySwitchingMode = true
+		}
 	}
 
 	async getEnvironmentDetails(includeFileDetails = false): Promise<string> {
@@ -858,7 +908,7 @@ export class Task {
 	}
 
 	private async switchToActModeCallback(): Promise<boolean> {
-		return await this.controller.toggleActModeForYoloMode()
+		return await this.switchToActMode()
 	}
 
 	private async runUserPromptSubmitHook(

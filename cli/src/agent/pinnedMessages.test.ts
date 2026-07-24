@@ -6,6 +6,11 @@ import path from "node:path"
 
 const mockStateManager = {
 	getGlobalSettingsKey: vi.fn(() => "act"),
+	getSystemDefaultSettingsKey: vi.fn((key: string) => {
+		if (key === "mode") return "act"
+		if (key === "actModeApiProvider" || key === "planModeApiProvider") return "anthropic"
+		return undefined
+	}),
 	getApiConfiguration: vi.fn(() => ({ actModeThinkingBudgetTokens: 1024, planModeThinkingBudgetTokens: 1024 })),
 	subscribe: vi.fn(() => () => undefined),
 	getGlobalStateKey: vi.fn(() => []),
@@ -31,12 +36,14 @@ vi.mock("@/core/controller", () => ({
 			this.task = {
 				taskState: { pinnedContext: args[7]?.pinnedContext },
 				setContextCompactionObserver: vi.fn(),
+				rebuildApiHandler: vi.fn(),
 			}
 		})
 		reinitExistingTaskFromId = vi.fn(async (...args: any[]) => {
 			this.task = {
 				taskState: { pinnedContext: args[1]?.pinnedContext },
 				setContextCompactionObserver: vi.fn(),
+				rebuildApiHandler: vi.fn(),
 			}
 		})
 		constructor() {

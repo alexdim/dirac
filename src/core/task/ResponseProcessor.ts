@@ -24,6 +24,10 @@ export class ResponseProcessor {
 		this.emptyHandler = new EmptyResponseHandler(dependencies)
 	}
 
+	setApi(api: ResponseProcessorDependencies["api"]): void {
+		this.dependencies.api = api
+	}
+
 	public resetStreamState() {
 		this.presenter.resetState()
 	}

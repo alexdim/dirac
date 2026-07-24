@@ -8,6 +8,7 @@ import { TaskController } from "./task/TaskController"
 import { StateController } from "./state/StateController"
 import type { Controller } from "."
 import { buildApiHandler } from "@core/api"
+import { telemetryService } from "@/services/telemetry"
 import { Logger } from "@/shared/services/Logger"
 import { Session } from "@/shared/services/Session"
 import { PromptRegistry } from "../prompts/system-prompt"
@@ -87,6 +88,7 @@ export class Initializer {
 			buildApiHandlerFn: buildApiHandler,
 			postStateToWebviewFn: () => controller.postStateToWebview(),
 			cancelTaskFn: () => controller.cancelTask(),
+			captureModeSwitchFn: (taskId, mode) => void telemetryService.captureModeSwitch(taskId, mode),
 		})
 
 		stateManager.registerCallbacks({

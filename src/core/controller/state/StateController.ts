@@ -13,6 +13,7 @@ export interface StateControllerDependencies {
 	buildApiHandlerFn: typeof buildApiHandler
 	postStateToWebviewFn: () => Promise<void>
 	cancelTaskFn: () => Promise<void>
+	captureModeSwitchFn: (taskId: string, mode: Mode) => void
 }
 
 export class StateController {
@@ -21,6 +22,7 @@ export class StateController {
 	private readonly buildApiHandlerFn: typeof buildApiHandler
 	private readonly postStateToWebviewFn: () => Promise<void>
 	private readonly cancelTaskFn: () => Promise<void>
+	private readonly captureModeSwitchFn: (taskId: string, mode: Mode) => void
 
 	constructor(deps: StateControllerDependencies) {
 		this.stateManager = deps.stateManager
@@ -28,6 +30,7 @@ export class StateController {
 		this.buildApiHandlerFn = deps.buildApiHandlerFn
 		this.postStateToWebviewFn = deps.postStateToWebviewFn
 		this.cancelTaskFn = deps.cancelTaskFn
+		this.captureModeSwitchFn = deps.captureModeSwitchFn
 	}
 
 	async updateTelemetrySetting(telemetrySetting: TelemetrySetting): Promise<void> {
@@ -51,64 +54,55 @@ export class StateController {
 
 	async toggleActModeForYoloMode(): Promise<boolean> {
 		const modeToSwitchTo: Mode = "act"
+		const task = this.getTask()
+		const nextApi = task
+			? this.buildApiHandlerFn({ ...this.stateManager.getApiConfiguration(), ulid: task.ulid }, modeToSwitchTo)
+			: undefined
 
 		this.stateManager.setGlobalState("mode", modeToSwitchTo)
 		this.stateManager.setSessionOverride("mode", modeToSwitchTo)
-
-		const task = this.getTask()
-		if (task) {
-			const apiConfiguration = this.stateManager.getApiConfiguration()
-			task.api = this.buildApiHandlerFn({ ...apiConfiguration, ulid: task.ulid }, modeToSwitchTo)
-		}
+		if (task && nextApi) task.setApiHandler(nextApi)
 
 		await this.postStateToWebviewFn()
-
-		return !!this.getTask()
+		return !!task
 	}
 
 	async togglePlanActMode(modeToSwitchTo: Mode, chatContent?: ChatContent): Promise<boolean> {
 		const didSwitchToActMode = modeToSwitchTo === "act"
+		const task = this.getTask()
+		const nextApi = task
+			? this.buildApiHandlerFn({ ...this.stateManager.getApiConfiguration(), ulid: task.ulid }, modeToSwitchTo)
+			: undefined
 
 		this.stateManager.setGlobalState("mode", modeToSwitchTo)
 		this.stateManager.setSessionOverride("mode", modeToSwitchTo)
+		this.captureModeSwitchFn(task?.ulid ?? "0", modeToSwitchTo)
 
-		telemetryService.captureModeSwitch(this.getTask()?.ulid ?? "0", modeToSwitchTo)
-
-		const task = this.getTask()
-		if (task) {
-			if (didSwitchToActMode) {
-				task.taskState.didSwitchToActMode = true
-			}
-			const apiConfiguration = this.stateManager.getApiConfiguration()
-			task.api = this.buildApiHandlerFn({ ...apiConfiguration, ulid: task.ulid }, modeToSwitchTo)
+		if (task && nextApi) {
+			if (didSwitchToActMode) task.taskState.didSwitchToActMode = true
+			task.setApiHandler(nextApi)
 		}
 
 		await this.postStateToWebviewFn()
 
-		if (task) {
-			if (task.taskState.isAwaitingPlanResponse && didSwitchToActMode) {
-				task.taskState.didRespondToPlanAskBySwitchingMode = true
-				const cardId = task.taskState.lastWaitingCardId
-				if (cardId) {
-					await task.submitCardResponse(
-						cardId,
-						DiracAskResponse.APPROVE,
-						chatContent?.message || "PLAN_MODE_TOGGLE_RESPONSE",
-						chatContent?.images || [],
-						chatContent?.files || [],
-					)
-				}
-
-				return true
+		if (!task) return false
+		if (task.taskState.isAwaitingPlanResponse && didSwitchToActMode) {
+			task.taskState.didRespondToPlanAskBySwitchingMode = true
+			const cardId = task.taskState.lastWaitingCardId
+			if (cardId) {
+				await task.submitCardResponse(
+					cardId,
+					DiracAskResponse.APPROVE,
+					chatContent?.message || "PLAN_MODE_TOGGLE_RESPONSE",
+					chatContent?.images || [],
+					chatContent?.files || [],
+				)
 			}
-			if (task.taskState.status === TaskStatus.COMPLETED) {
-				return false
-			}
-
-			await this.cancelTaskFn()
-			return false
+			return true
 		}
+		if (task.taskState.status === TaskStatus.COMPLETED) return false
 
+		await this.cancelTaskFn()
 		return false
 	}
 

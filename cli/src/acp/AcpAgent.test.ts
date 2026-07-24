@@ -146,12 +146,22 @@ describe("AcpAgent", () => {
 	})
 
 	it("passes config and cwd through to DiracAgent", () => {
-		new AcpAgent(connection, { diracDir: "/tmp/dirac-config", cwd: "/tmp/workspace", hooksDir: "/tmp/hooks" })
+		new AcpAgent(connection, {
+			diracDir: "/tmp/dirac-config",
+			cwd: "/tmp/workspace",
+			hooksDir: "/tmp/hooks",
+			mode: "yolo",
+			thinkingBudgetTokens: 4096,
+			reasoningEffort: "high",
+		})
 
 		expect(mocks.DiracAgent).toHaveBeenCalledWith({
 			diracDir: "/tmp/dirac-config",
 			cwd: "/tmp/workspace",
 			hooksDir: "/tmp/hooks",
+			mode: "yolo",
+			thinkingBudgetTokens: 4096,
+			reasoningEffort: "high",
 		})
 	})
 

@@ -1,11 +1,11 @@
 import { Empty } from "@shared/proto/dirac/common"
 import { convertProtoToApiProvider } from "@shared/proto-conversions/models/api-configuration-conversion"
-import { buildApiHandler } from "@/core/api"
 import { ApiHandlerOptions, ApiProvider } from "@/shared/api"
 import { UpdateApiConfigurationRequestNew } from "@/shared/proto/index.dirac"
 import { Logger } from "@/shared/services/Logger"
 import { Secrets } from "@/shared/storage/state-keys"
 import type { Controller } from "../index"
+import { applyApiConfigurationTransaction } from "./apiConfigurationTransaction"
 
 /**
  * Parses field mask paths into separate sets for options and secrets
@@ -134,26 +134,15 @@ export async function updateApiConfiguration(controller: Controller, request: Up
 			}
 		}
 
-		// Update storage using batch methods
-		if (Object.keys(secrets).length > 0) {
-			controller.stateManager.setSecretsBatch(secrets)
+		const candidateConfiguration = {
+			...controller.stateManager.getApiConfiguration(),
+			...options,
+			...secrets,
 		}
-		if (Object.keys(options).length > 0) {
-			controller.stateManager.setGlobalStateBatch(options)
-		}
-
-		// Update the task's API handler if there's an active task
-		if (controller.task) {
-			const currentMode = controller.stateManager.getGlobalSettingsKey("mode")
-			// Build updated config
-			controller.task.api = buildApiHandler(
-				{
-					...controller.stateManager.getApiConfiguration(),
-					ulid: controller.task.ulid,
-				},
-				currentMode,
-			)
-		}
+		applyApiConfigurationTransaction(controller, candidateConfiguration, () => {
+			if (Object.keys(secrets).length > 0) controller.stateManager.setSecretsBatch(secrets)
+			if (Object.keys(options).length > 0) controller.stateManager.setGlobalStateBatch(options)
+		})
 
 		// Post updated state to webview
 		await controller.postStateToWebview()

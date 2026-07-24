@@ -5,12 +5,13 @@ export const env = {
 	onDidChangeTelemetryEnabled: (_callback: (enabled: boolean) => void) => {
 		// Return a disposable mock
 		return {
-			dispose: () => {},
+			dispose: () => { },
 		}
 	},
 }
 
 export const workspace = {
+	onDidChangeConfiguration: (_callback: any) => ({ dispose: () => { } }),
 	getConfiguration: (section?: string) => {
 		return {
 			get: (key: string, defaultValue?: any) => {
@@ -46,22 +47,22 @@ export const window = {
 	showInformationMessage: (_message: string) => Promise.resolve(),
 	createTextEditorDecorationType: (_options: any) => ({
 		key: "mock-decoration-type",
-		dispose: () => {},
+		dispose: () => { },
 	}),
 	createOutputChannel: (_name: string) => ({
 		appendLine: (message: string) => console.debug(message),
 		append: (message: string) => console.debug(message),
-		clear: () => {},
-		show: () => {},
-		hide: () => {},
-		dispose: () => {},
+		clear: () => { },
+		show: () => { },
+		hide: () => { },
+		dispose: () => { },
 	}),
 	showTextDocument: async (documentOrUri: any, _options?: any) => {
 		return {
 			document: documentOrUri,
 			selection: undefined,
 			visible: true,
-			dispose: () => {},
+			dispose: () => { },
 		}
 	},
 	tabGroups: {
@@ -75,26 +76,26 @@ export const window = {
 				html: "",
 				onDidReceiveMessage: (listener: (message: any) => void, _thisArgs?: any) => {
 					messageListeners.push(listener)
-					return { dispose: () => {} }
+					return { dispose: () => { } }
 				},
 			},
 			visible: true,
-			dispose: () => {},
+			dispose: () => { },
 		}
 	},
 	createTerminal: (options?: any) => ({
 		name: options?.name || "Dirac",
-		sendText: (_text: string, _addNewLine?: boolean) => {},
-		show: (_preserveFocus?: boolean) => {},
-		hide: () => {},
-		dispose: () => {},
+		sendText: (_text: string, _addNewLine?: boolean) => { },
+		show: (_preserveFocus?: boolean) => { },
+		hide: () => { },
+		dispose: () => { },
 		processId: Promise.resolve(1234),
 		creationOptions: options || {},
 		exitStatus: undefined,
 		shellIntegration: undefined,
 		state: 1,
 	}),
-	onDidChangeTerminalState: (_callback: any) => ({ dispose: () => {} }),
+	onDidChangeTerminalState: (_callback: any) => ({ dispose: () => { } }),
 }
 
 export const commands = {
@@ -128,7 +129,7 @@ export class Position {
 	constructor(
 		public line: number,
 		public character: number,
-	) {}
+	) { }
 }
 
 export class Range {
@@ -158,7 +159,7 @@ export class Diagnostic {
 		public range: Range,
 		public message: string,
 		public severity: DiagnosticSeverity = DiagnosticSeverity.Error,
-	) {}
+	) { }
 	public source: string | undefined
 }
 
@@ -169,7 +170,7 @@ export enum LanguageModelChatMessageRole {
 }
 
 export class LanguageModelTextPart {
-	constructor(public value: string) {}
+	constructor(public value: string) { }
 }
 
 export class LanguageModelToolCallPart {
@@ -177,14 +178,14 @@ export class LanguageModelToolCallPart {
 		public callId: string,
 		public name: string,
 		public input: object,
-	) {}
+	) { }
 }
 
 export class LanguageModelToolResultPart {
 	constructor(
 		public callId: string,
 		public content: Array<LanguageModelTextPart>,
-	) {}
+	) { }
 }
 
 export class LanguageModelChatMessage {
@@ -232,14 +233,14 @@ export class WorkspaceEdit {
 
 // TabInputText
 export class TabInputText {
-	constructor(public uri: any) {}
+	constructor(public uri: any) { }
 }
 
 // CancellationTokenSource
 export class CancellationTokenSource {
-	token = { isCancellationRequested: false, onCancellationRequested: () => ({ dispose: () => {} }) }
-	cancel() {}
-	dispose() {}
+	token = { isCancellationRequested: false, onCancellationRequested: () => ({ dispose: () => { } }) }
+	cancel() { }
+	dispose() { }
 }
 
 // Extensions namespace

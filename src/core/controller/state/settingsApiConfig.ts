@@ -1,24 +1,23 @@
-import { buildApiHandler } from "@core/api"
 import { UpdateSettingsRequest } from "@shared/proto/dirac/state"
 import { convertProtoToApiConfiguration } from "@shared/proto-conversions/models/api-configuration-conversion"
 import { Controller } from ".."
+import { applyApiConfigurationTransaction } from "../models/apiConfigurationTransaction"
+import { convertMode } from "./settingsMode"
 
-/** Apply API configuration from webview request and rebuild handler if task is active */
+/** Apply API configuration from webview request after validating the active task runtime. */
 export function applyApiConfiguration(controller: Controller, request: UpdateSettingsRequest): void {
 	if (!request.apiConfiguration) return
-	const converted = convertProtoToApiConfiguration(request.apiConfiguration)
-	controller.stateManager.setApiConfiguration(converted)
-	if (!controller.task) return
-	const currentMode = controller.stateManager.getGlobalSettingsKey("mode")
-	controller.task.api = buildApiHandler({ ...converted, ulid: controller.task.ulid }, currentMode)
+	applyApiConfigurationTransaction(
+		controller,
+		convertProtoToApiConfiguration(request.apiConfiguration),
+		undefined,
+		convertMode(request.mode),
+	)
 }
 
-/** Rebuild API handler from current state if a task is active */
+/** Rebuild API handler from current state if a task is active. */
 export function rebuildApiHandlerIfTask(controller: Controller): void {
 	if (!controller.task) return
 	const currentMode = controller.stateManager.getGlobalSettingsKey("mode")
-	controller.task.api = buildApiHandler(
-		{ ...controller.stateManager.getApiConfiguration(), ulid: controller.task.ulid },
-		currentMode,
-	)
+	controller.task.rebuildApiHandler(controller.stateManager.getApiConfiguration(), currentMode)
 }

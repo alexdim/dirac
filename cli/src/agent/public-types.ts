@@ -93,6 +93,12 @@ export interface DiracAgentOptions {
 	provider?: string
 	/** Model explicitly selected for this agent process */
 	model?: string
+	/** ACP operating mode explicitly selected for this agent process */
+	mode?: "plan" | "act" | "auto" | "yolo"
+	/** Extended-thinking token budget explicitly selected for this agent process */
+	thinkingBudgetTokens?: number
+	/** Reasoning effort explicitly selected for this agent process */
+	reasoningEffort?: string
 	/** Additional runtime hooks directory */
 	hooksDir?: string
 	/** Whether ACP is served through a reconnectable Unix socket. */
@@ -113,6 +119,12 @@ export interface AcpAgentOptions {
 	provider?: string
 	/** Model explicitly selected for this agent process */
 	model?: string
+	/** ACP operating mode explicitly selected for this agent process */
+	mode?: "plan" | "act" | "auto" | "yolo"
+	/** Extended-thinking token budget explicitly selected for this agent process */
+	thinkingBudgetTokens?: number
+	/** Reasoning effort explicitly selected for this agent process */
+	reasoningEffort?: string
 	/** Additional runtime hooks directory */
 	hooksDir?: string
 	/** Whether ACP is served through a reconnectable Unix socket. */
@@ -164,6 +176,8 @@ export interface DiracAcpSession {
 export enum AcpSessionStatus {
 	/** Session is idle, waiting for a prompt */
 	Idle = "idle",
+	/** Session is atomically applying a runtime configuration change */
+	Configuring = "configuring",
 	/** Session is actively processing a prompt */
 	Processing = "processing",
 	/** Session processing was cancelled */

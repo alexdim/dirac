@@ -346,8 +346,14 @@ export class StateManager {
 	getGlobalSettingsKey<K extends keyof Settings>(key: K): Settings[K] {
 		if (!this.isInitialized) throw new Error(STATE_MANAGER_NOT_INITIALIZED)
 		// Precedence: session override > task settings > global settings
-		if (this.sessionOverrideCache[key] !== undefined) return this.sessionOverrideCache[key] as Settings[K]
+		if (Object.hasOwn(this.sessionOverrideCache, key)) return this.sessionOverrideCache[key] as Settings[K]
 		if (this.taskStateCache[key] !== undefined) return this.taskStateCache[key]
+		return this.globalStateCache[key]
+	}
+
+	/** Read a system default without inheriting active session or task state. */
+	getSystemDefaultSettingsKey<K extends keyof Settings>(key: K): Settings[K] {
+		if (!this.isInitialized) throw new Error(STATE_MANAGER_NOT_INITIALIZED)
 		return this.globalStateCache[key]
 	}
 
@@ -405,7 +411,7 @@ export class StateManager {
 
 	private getSettingWithOverride<K extends keyof Settings>(key: K): Settings[K] {
 		// Precedence: session override > task settings > global settings
-		if (this.sessionOverrideCache[key] !== undefined) return this.sessionOverrideCache[key]
+		if (Object.hasOwn(this.sessionOverrideCache, key)) return this.sessionOverrideCache[key] as Settings[K]
 		const taskValue = this.taskStateCache[key]
 		if (taskValue !== undefined) return taskValue
 		return this.globalStateCache[key]
@@ -435,7 +441,7 @@ export class StateManager {
 		// Merge environment variables as fallback for settings (only fills undefined values)
 		const envSettings = getSettingsFromEnv()
 		for (const [key, value] of Object.entries(envSettings)) {
-			if (value && isSettingsKey(key) && settings[key] === undefined) {
+			if (value && isSettingsKey(key) && settings[key] === undefined && !Object.hasOwn(this.sessionOverrideCache, key)) {
 				;(settings as Record<string, unknown>)[key] = value
 			}
 		}
