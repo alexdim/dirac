@@ -160,6 +160,8 @@ export interface DiracAcpSession {
 	reservedTaskId?: string
 	/** Resolved taskId stashed by loadSession for use by the first prompt's resume path. */
 	loadedTaskId?: string
+	/** Whether cancelTask() reinitialized persisted history and the next ACP prompt must wake that resume flow. */
+	awaitingCancelledTaskResume?: boolean
 	/** Model ID override for plan mode (format: "provider/modelId") */
 	planModeModelId?: string
 	/** Model ID override for act mode (format: "provider/modelId") */

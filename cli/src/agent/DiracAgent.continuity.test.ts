@@ -6,8 +6,12 @@ const mocks = vi.hoisted(() => {
 	let activePromptResolver: ((response: { stopReason: string }) => void) | undefined
 	const controllers: MockController[] = []
 
+	let resolveSubmittedResponses = true
+	const conversationHistory = ["remember: established context"]
+
 	const task = {
 		taskId: "session-task",
+		conversationHistory,
 		taskState: {
 			lastWaitingCardId: undefined as string | undefined,
 			didAttemptCompletion: true,
@@ -19,7 +23,7 @@ const mocks = vi.hoisted(() => {
 			off: vi.fn(),
 		},
 		submitCardResponse: vi.fn(async () => {
-			activePromptResolver?.({ stopReason: "end_turn" })
+			if (resolveSubmittedResponses) activePromptResolver?.({ stopReason: "end_turn" })
 		}),
 		rebuildApiHandler: vi.fn(),
 		applyRuntimeModeChange: vi.fn(),
@@ -42,6 +46,12 @@ const mocks = vi.hoisted(() => {
 			task.taskState.didAttemptCompletion = true
 			task.taskState.status = TaskStatus.COMPLETED
 		})
+		cancelTask = vi.fn(async () => {
+			this.task = task
+			task.taskState.lastWaitingCardId = undefined
+			task.taskState.didAttemptCompletion = false
+			task.taskState.status = TaskStatus.CANCELLED
+		})
 
 		constructor() {
 			controllers.push(this)
@@ -52,6 +62,8 @@ const mocks = vi.hoisted(() => {
 		clearPromptState = vi.fn()
 		promptResponse = vi.fn((stopReason: string) => ({ stopReason }))
 		cancelInFlightToolCalls = vi.fn(async () => undefined)
+		invalidatePendingInteractions = vi.fn()
+		waitForMessageWork = vi.fn(async () => undefined)
 		subscribeToTaskMessages = vi.fn(
 			(
 				_controller: unknown,
@@ -72,6 +84,9 @@ const mocks = vi.hoisted(() => {
 		task,
 		MockController,
 		MockTaskMessageBridge,
+		setResolveSubmittedResponses(value: boolean) {
+			resolveSubmittedResponses = value
+		},
 		reset() {
 			activePromptResolver = undefined
 			controllers.splice(0)
@@ -85,6 +100,7 @@ const mocks = vi.hoisted(() => {
 			task.createApiHandlerForRuntime.mockClear()
 			task.setApiHandler.mockClear()
 			sessionOverrideCache = {}
+			resolveSubmittedResponses = true
 		},
 	}
 })
@@ -126,12 +142,12 @@ describe("DiracAgent ACP conversation continuity", () => {
 
 	it("continues a completed turn on the existing task for the same session", async () => {
 		const agent = new DiracAgent({ cwd: "/tmp/workspace" })
-		;(agent as any).ctx = { extensionContext: {}, DATA_DIR: "/tmp/dirac-test-data" }
-		;(agent as any).providerConfiguration.assertProviderEnabled = vi.fn()
-		;(agent as any).sessionConfig.getSessionConfigOptions = vi.fn(async () => [])
-		;(agent as any).sessionConfig.getSessionModeState = vi.fn(() => ({ currentModeId: "act", availableModes: [] }))
-		;(agent as any).sendAvailableCommands = vi.fn(async () => undefined)
-		;(agent as any).setSessionTitleFromFirstExchange = vi.fn(async () => undefined)
+			; (agent as any).ctx = { extensionContext: {}, DATA_DIR: "/tmp/dirac-test-data" }
+			; (agent as any).providerConfiguration.assertProviderEnabled = vi.fn()
+			; (agent as any).sessionConfig.getSessionConfigOptions = vi.fn(async () => [])
+			; (agent as any).sessionConfig.getSessionModeState = vi.fn(() => ({ currentModeId: "act", availableModes: [] }))
+			; (agent as any).sendAvailableCommands = vi.fn(async () => undefined)
+			; (agent as any).setSessionTitleFromFirstExchange = vi.fn(async () => undefined)
 
 		const { sessionId } = await agent.newSession({ cwd: "/tmp/workspace", mcpServers: [] } as any)
 		const controller = mocks.controllers[0]
@@ -165,12 +181,12 @@ describe("DiracAgent ACP conversation continuity", () => {
 
 	it("starts a new task for the first prompt after loading completed history", async () => {
 		const agent = new DiracAgent({ cwd: "/tmp/workspace" })
-		;(agent as any).ctx = { extensionContext: {}, DATA_DIR: "/tmp/dirac-test-data" }
-		;(agent as any).providerConfiguration.assertProviderEnabled = vi.fn()
-		;(agent as any).sessionConfig.getSessionConfigOptions = vi.fn(async () => [])
-		;(agent as any).sessionConfig.getSessionModeState = vi.fn(() => ({ currentModeId: "act", availableModes: [] }))
-		;(agent as any).sendAvailableCommands = vi.fn(async () => undefined)
-		;(agent as any).setSessionTitleFromFirstExchange = vi.fn(async () => undefined)
+			; (agent as any).ctx = { extensionContext: {}, DATA_DIR: "/tmp/dirac-test-data" }
+			; (agent as any).providerConfiguration.assertProviderEnabled = vi.fn()
+			; (agent as any).sessionConfig.getSessionConfigOptions = vi.fn(async () => [])
+			; (agent as any).sessionConfig.getSessionModeState = vi.fn(() => ({ currentModeId: "act", availableModes: [] }))
+			; (agent as any).sendAvailableCommands = vi.fn(async () => undefined)
+			; (agent as any).setSessionTitleFromFirstExchange = vi.fn(async () => undefined)
 
 		const { sessionId } = await agent.newSession({ cwd: "/tmp/workspace", mcpServers: [] } as any)
 		const controller = mocks.controllers[0]
@@ -196,12 +212,66 @@ describe("DiracAgent ACP conversation continuity", () => {
 		expect(mocks.task.submitCardResponse).not.toHaveBeenCalled()
 	})
 
+	it("resumes the reinitialized task after cancellation without a historical resume card", async () => {
+		const agent = new DiracAgent({ cwd: "/tmp/workspace" })
+			; (agent as any).ctx = { extensionContext: {}, DATA_DIR: "/tmp/dirac-test-data" }
+			; (agent as any).providerConfiguration.assertProviderEnabled = vi.fn()
+			; (agent as any).sessionConfig.getSessionConfigOptions = vi.fn(async () => [])
+			; (agent as any).sessionConfig.getSessionModeState = vi.fn(() => ({ currentModeId: "act", availableModes: [] }))
+			; (agent as any).sendAvailableCommands = vi.fn(async () => undefined)
+			; (agent as any).setSessionTitleFromFirstExchange = vi.fn(async () => undefined)
+
+		const { sessionId } = await agent.newSession({ cwd: "/tmp/workspace", mcpServers: [] } as any)
+		const controller = mocks.controllers[0]
+
+		await expect(agent.prompt({ sessionId, prompt: [{ type: "text", text: "remember this context" }] } as any)).resolves.toEqual({
+			stopReason: "end_turn",
+		})
+		const backingTaskId = controller.task!.taskId
+		const initCallsBeforeCancellation = controller.initTask.mock.calls.length
+
+		mocks.setResolveSubmittedResponses(false)
+		const activeTurn = agent.prompt({ sessionId, prompt: [{ type: "text", text: "begin active work" }] } as any)
+		await vi.waitFor(() =>
+			expect(mocks.task.submitCardResponse).toHaveBeenCalledWith(
+				"",
+				DiracAskResponse.MESSAGE,
+				"begin active work",
+				[],
+				[],
+			),
+		)
+
+		await agent.cancel({ sessionId } as any)
+		await expect(activeTurn).resolves.toEqual({ stopReason: "cancelled" })
+		expect(controller.cancelTask).toHaveBeenCalledOnce()
+		expect((agent as any).sessions.get(sessionId).awaitingCancelledTaskResume).toBe(true)
+
+		mocks.setResolveSubmittedResponses(true)
+		await expect(agent.prompt({ sessionId, prompt: [{ type: "text", text: "continue using the context" }] } as any)).resolves.toEqual({
+			stopReason: "end_turn",
+		})
+
+		expect(controller.task?.taskId).toBe(backingTaskId)
+		expect(controller.task?.conversationHistory).toEqual(["remember: established context"])
+		expect(controller.initTask).toHaveBeenCalledTimes(initCallsBeforeCancellation)
+		expect(mocks.task.submitCardResponse).toHaveBeenLastCalledWith(
+			"",
+			DiracAskResponse.MESSAGE,
+			"continue using the context",
+			[],
+			[],
+		)
+		expect((agent as any).sessions.get(sessionId).awaitingCancelledTaskResume).toBe(false)
+	})
+
+
 	it("installs Act overrides immediately when the active prompt changes mode", async () => {
 		const agent = new DiracAgent({ cwd: "/tmp/workspace" })
-		;(agent as any).ctx = { extensionContext: {}, DATA_DIR: "/tmp/dirac-test-data" }
-		;(agent as any).providerConfiguration.assertProviderEnabled = vi.fn()
-		;(agent as any).sessionConfig.getSessionConfigOptions = vi.fn(async () => [])
-		;(agent as any).sessionConfig.getSessionModeState = vi.fn(() => ({ currentModeId: "plan", availableModes: [] }))
+			; (agent as any).ctx = { extensionContext: {}, DATA_DIR: "/tmp/dirac-test-data" }
+			; (agent as any).providerConfiguration.assertProviderEnabled = vi.fn()
+			; (agent as any).sessionConfig.getSessionConfigOptions = vi.fn(async () => [])
+			; (agent as any).sessionConfig.getSessionModeState = vi.fn(() => ({ currentModeId: "plan", availableModes: [] }))
 
 		stateManager.getGlobalSettingsKey.mockImplementation((key: string) => {
 			if (Object.hasOwn(sessionOverrideCache, key)) {
@@ -215,7 +285,7 @@ describe("DiracAgent ACP conversation continuity", () => {
 		const session = (agent as any).sessions.get(sessionId)
 		const controller = mocks.controllers[0]
 		controller.task = mocks.task
-		;(agent as any).activePromptSessionId = sessionId
+			; (agent as any).activePromptSessionId = sessionId
 		sessionOverrideCache = { mode: "plan", planModeApiProvider: "anthropic", actModeApiProvider: "anthropic" }
 
 		const nextOverrides = {
@@ -223,7 +293,7 @@ describe("DiracAgent ACP conversation continuity", () => {
 			mode: "act",
 			actModeApiProvider: "anthropic",
 		}
-		;(agent as any).replaceSessionRuntimeConfig(session, nextOverrides, "act")
+			; (agent as any).replaceSessionRuntimeConfig(session, nextOverrides, "act")
 
 		expect(sessionOverrideCache.mode).toBe("act")
 		expect(stateManager.getGlobalSettingsKey("mode")).toBe("act")
@@ -232,10 +302,10 @@ describe("DiracAgent ACP conversation continuity", () => {
 
 	it("forces cleanup during shutdown while preserving close-session guards", async () => {
 		const agent = new DiracAgent({ cwd: "/tmp/workspace" })
-		;(agent as any).ctx = { extensionContext: {}, DATA_DIR: "/tmp/dirac-test-data" }
+			; (agent as any).ctx = { extensionContext: {}, DATA_DIR: "/tmp/dirac-test-data" }
 		const { sessionId } = await agent.newSession({ cwd: "/tmp/workspace", mcpServers: [] } as any)
 		const controller = mocks.controllers[0]
-		;(agent as any).sessionStates.get(sessionId).status = "configuring"
+			; (agent as any).sessionStates.get(sessionId).status = "configuring"
 
 		await expect(agent.closeSession({ sessionId } as any)).rejects.toThrow("applying a runtime configuration change")
 		await expect(agent.shutdown()).resolves.toBeUndefined()
