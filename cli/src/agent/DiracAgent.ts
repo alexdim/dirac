@@ -18,7 +18,7 @@ import { PROTOCOL_VERSION } from "@agentclientprotocol/sdk"
 import type { DiracMessageChange } from "@core/task/message-state"
 import type { ApiProvider } from "@shared/api"
 import type { DiracMessage } from "@shared/ExtensionMessage"
-import { CardStatus, DiracMessageType } from "@shared/ExtensionMessage"
+import { CardStatus, DiracMessageType, TaskStatus } from "@shared/ExtensionMessage"
 import { CLI_ONLY_COMMANDS, VSCODE_ONLY_COMMANDS } from "@shared/slashCommands"
 import { getProviderModelIdKey } from "@shared/storage/provider-keys"
 import { DiracAskResponse } from "@shared/WebviewMessage"
@@ -1408,8 +1408,26 @@ export class DiracAgent implements acp.Agent {
 						imageContent,
 						fileResources,
 					)
+				} else if (controller.task.taskState.didAttemptCompletion) {
+					// The completion card resolves session/prompt slightly before the core task
+					// reaches waitForFollowUp(). Wait for that handoff so submitCardResponse
+					// cannot be cleared by waitForFollowUp() resetting stale response state.
+					await pWaitFor(() => controller.task?.taskState.status === TaskStatus.AWAITING_USER_INPUT, { interval: 10 })
+
+					// attempt_completion ends the ACP turn, not the conversation. The core
+					// task remains alive in waitForFollowUp() so the next session/prompt can
+					// continue with the same API conversation history.
+					Logger.debug("[DiracAgent] Continuing completed task in existing ACP session:", controller.task.taskId)
+					subscribeToCurrentTask()
+					await controller.task.submitCardResponse(
+						"",
+						DiracAskResponse.MESSAGE,
+						textContent,
+						imageContent,
+						fileResources,
+					)
 				} else {
-					Logger.debug("[DiracAgent] Starting new task (active task is not waiting for input)")
+					Logger.debug("[DiracAgent] Starting new task (active task cannot accept a follow-up)")
 					await controller.initTask(
 						textContent,
 						imageContent,
