@@ -39,6 +39,7 @@ ${
 		: ""
 }
 - Use the 'say' tool for interim updates or narration; avoid plain text outside of tool calls. Every response MUST contain at least one tool call.
+- Keeping in mind that this harness exposes specific precision tooling for code exploration and manipulation (such as AST based tooling, hash anchored editing etc). Make use of those. Prefer the precision code exploration tooling to plan file reads where it makes saense.
 
 
 ACT MODE VS PLAN MODE
