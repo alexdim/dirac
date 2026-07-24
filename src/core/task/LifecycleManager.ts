@@ -463,10 +463,10 @@ export class LifecycleManager {
 	}
 
 	public async abortTask() {
+		this.dependencies.taskState.abort = true
+
 		try {
 			const shouldRunTaskCancelHook = await this.dependencies.hookManager.shouldRunTaskCancelHook()
-
-			this.dependencies.taskState.abort = true
 
 			const activeHook = await this.dependencies.hookManager.getActiveHookExecution()
 			if (activeHook) {
@@ -561,6 +561,8 @@ export class LifecycleManager {
 					Logger.error(`[Task ${this.dependencies.taskId}] Failed to release task lock:`, error)
 				}
 			}
+
+			this.dependencies.taskState.status = TaskStatus.CANCELLED
 
 			try {
 				await this.dependencies.postStateToWebview()
