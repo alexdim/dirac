@@ -17,8 +17,9 @@ const providerOrder: string[] = providersData.list.map((p: { value: string }) =>
 /**
  * Providers that are not supported in CLI.
  * - vscode-lm: Requires VS Code's Language Model API (see ENG-1490 for OAuth-based support)
+ * - oca: No runtime API handler is implemented
  */
-const CLI_EXCLUDED_PROVIDERS = new Set<string>(["vscode-lm"]) // github-copilot is now supported natively
+const CLI_EXCLUDED_PROVIDERS = new Set<string>(["vscode-lm", "oca"]) // github-copilot is now supported natively
 
 /**
  * Get the display label for a provider ID

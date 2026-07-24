@@ -68,7 +68,7 @@ describe("NewTaskTool", () => {
 		)
 		assert.ok(card.waitForInteraction.calledOnce)
 		assert.ok(card.finalize.calledWith("success"))
-		assert.ok(env.orchestration.requestTaskReplacement.calledOnceWithExactly(context, undefined, undefined))
+		assert.ok(env.orchestration.requestTaskReplacement.calledOnceWithExactly(context))
 	})
 
 	it("treats composer content as feedback instead of replacing the task", async () => {
@@ -78,7 +78,7 @@ describe("NewTaskTool", () => {
 			response: "approve",
 			value: DiracDefaultTool.NEW_TASK,
 			text: "Change the plan",
-			images: ["image-1"],
+			images: ["data:image/png;base64,iVBORw0KGgo="],
 		})
 
 		await new NewTaskTool().processCall({ context: "Generated context" }, env as any)

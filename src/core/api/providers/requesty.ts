@@ -155,6 +155,9 @@ export class RequestyHandler implements ApiHandler {
 		if (modelId && modelInfo) {
 			return { id: modelId, info: modelInfo }
 		}
+		if (modelId) {
+			return { id: modelId, info: requestyDefaultModelInfo }
+		}
 		return { id: requestyDefaultModelId, info: requestyDefaultModelInfo }
 	}
 }

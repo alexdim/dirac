@@ -1,7 +1,7 @@
 import type { ApiProvider } from "@shared/api"
 import axios from "axios"
 import open from "open"
-import { buildApiHandler } from "@core/api"
+import { applyApiConfigurationTransaction } from "@core/controller/models/apiConfigurationTransaction"
 import { HostProvider } from "@/hosts/host-provider"
 import { ShowMessageType } from "@shared/proto/host/window"
 import { getAxiosSettings } from "@/shared/net"
@@ -15,6 +15,8 @@ export interface AuthControllerDependencies {
 	task?: {
 		api: any
 		ulid: string
+
+		setApiHandler(api: any): void
 	}
 }
 
@@ -36,7 +38,6 @@ export class AuthController {
 		}
 
 		const openrouter: ApiProvider = "openrouter"
-		const currentMode = this.deps.stateManager.getGlobalSettingsKey("mode")
 
 		const currentApiConfiguration = this.deps.stateManager.getApiConfiguration()
 		const updatedConfig = {
@@ -45,12 +46,8 @@ export class AuthController {
 			actModeApiProvider: openrouter,
 			openRouterApiKey: apiKey,
 		}
-		this.deps.stateManager.setApiConfiguration(updatedConfig)
-
+		applyApiConfigurationTransaction(this.deps, updatedConfig)
 		await this.deps.postStateToWebview()
-		if (this.deps.task) {
-			this.deps.task.api = buildApiHandler({ ...updatedConfig, ulid: this.deps.task.ulid }, currentMode)
-		}
 	}
 
 	async completeGithubLogin() {
@@ -87,7 +84,6 @@ export class AuthController {
 
 	async completeRequestyAuth(code: string) {
 		const requesty: ApiProvider = "requesty"
-		const currentMode = this.deps.stateManager.getGlobalSettingsKey("mode")
 		const currentApiConfiguration = this.deps.stateManager.getApiConfiguration()
 		const updatedConfig = {
 			...currentApiConfiguration,
@@ -95,10 +91,7 @@ export class AuthController {
 			actModeApiProvider: requesty,
 			requestyApiKey: code,
 		}
-		this.deps.stateManager.setApiConfiguration(updatedConfig)
+		applyApiConfigurationTransaction(this.deps, updatedConfig)
 		await this.deps.postStateToWebview()
-		if (this.deps.task) {
-			this.deps.task.api = buildApiHandler({ ...updatedConfig, ulid: this.deps.task.ulid }, currentMode)
-		}
 	}
 }

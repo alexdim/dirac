@@ -24,7 +24,15 @@ import { updateTaskSettings } from "../updateTaskSettings"
 
 // Mock controller factory — builds a controller with a recording stateManager
 function createMockController(overrides: any = {}) {
-	const store: Record<string, any> = {}
+	const store: Record<string, any> = {
+		__apiConfig: {
+			planModeApiProvider: "anthropic",
+			actModeApiProvider: "anthropic",
+			planModeApiModelId: "claude-sonnet-4-20250514",
+			actModeApiModelId: "claude-sonnet-4-20250514",
+			mode: "act",
+		},
+	}
 	const taskStore: Record<string, Record<string, any>> = {}
 	const stateManager = {
 		setGlobalState: sinon.spy((key: string, value: any) => {
@@ -76,6 +84,8 @@ function createMockController(overrides: any = {}) {
 			taskId: "test-task-id",
 			api: mockApi,
 			terminalManager,
+			setApiHandler: sinon.spy(),
+			rebuildApiHandler: sinon.spy(),
 			markToolsDirty: sinon.spy(() => {}),
 			...controller.task,
 		}
@@ -95,7 +105,12 @@ describe("updateSettings", () => {
 		sandbox.stub(Logger, "log")
 		sandbox.stub(DiracEnv, "setEnvironment")
 		sandbox.stub(apiModule, "buildApiHandler").returns({} as any)
-		sandbox.stub(conversionModule, "convertProtoToApiConfiguration").returns({ provider: "anthropic" } as any)
+		sandbox.stub(conversionModule, "convertProtoToApiConfiguration").returns({
+			planModeApiProvider: "anthropic",
+			actModeApiProvider: "anthropic",
+			planModeApiModelId: "claude-sonnet-4-20250514",
+			actModeApiModelId: "claude-sonnet-4-20250514",
+		} as any)
 		sandbox.stub(conversionModule, "convertProtoToApiProvider").returns("anthropic")
 		showMessageSpy = sinon.spy()
 		sandbox.stub(HostProvider, "window").get(() => ({ showMessage: showMessageSpy }) as any)
@@ -132,6 +147,7 @@ describe("updateSettings", () => {
 			await updateSettings(controller, request)
 			expect(controller.stateManager.setApiConfiguration.calledOnce).to.be.true
 			expect((apiModule.buildApiHandler as sinon.SinonStub).calledOnce).to.be.true
+			expect(controller.task.setApiHandler.calledOnce).to.be.true
 		})
 
 		it("should set apiConfiguration but not rebuild handler when no active task", async () => {
@@ -139,6 +155,20 @@ describe("updateSettings", () => {
 			await updateSettings(controller, UpdateSettingsRequest.create({ apiConfiguration: {} as any }))
 			expect(controller.stateManager.setApiConfiguration.calledOnce).to.be.true
 			expect((apiModule.buildApiHandler as sinon.SinonStub).called).to.be.false
+		})
+
+		it("does not persist an invalid API configuration", async () => {
+			const controller = createMockController({ task: {} })
+			;(apiModule.buildApiHandler as sinon.SinonStub).throws(new Error("invalid candidate"))
+
+			try {
+				await updateSettings(controller, UpdateSettingsRequest.create({ apiConfiguration: {} as any }))
+				expect.fail("Should have thrown")
+			} catch (error: any) {
+				expect(error.message).to.equal("invalid candidate")
+			}
+			expect(controller.stateManager.setApiConfiguration.called).to.be.false
+			expect(controller.task.setApiHandler.called).to.be.false
 		})
 
 		it("should call updateTelemetrySetting when telemetrySetting is provided", async () => {
@@ -437,6 +467,7 @@ describe("updateSettings", () => {
 			const request = UpdateSettingsRequestCli.create({ settings: { preferredLanguage: "typescript" } as any })
 			await updateSettingsCli(controller, request)
 			expect((apiModule.buildApiHandler as sinon.SinonStub).calledOnce).to.be.true
+			expect(controller.task.setApiHandler.calledOnce).to.be.true
 		})
 
 		it("should not rebuild api handler when no active task", async () => {
@@ -444,6 +475,47 @@ describe("updateSettings", () => {
 			const request = UpdateSettingsRequestCli.create({ settings: { preferredLanguage: "typescript" } as any })
 			await updateSettingsCli(controller, request)
 			expect((apiModule.buildApiHandler as sinon.SinonStub).called).to.be.false
+		})
+
+		it("allows an active-mode update when the inactive mode has stale Dify configuration", async () => {
+			const controller = createMockController({ task: {} })
+			controller.stateManager._store.__apiConfig = {
+				planModeApiProvider: "dify",
+				actModeApiProvider: "anthropic",
+				actModeApiModelId: "claude-sonnet-4-20250514",
+			}
+			controller.stateManager._store.mode = "act"
+
+			await updateSettingsCli(
+				controller,
+				UpdateSettingsRequestCli.create({ settings: { preferredLanguage: "typescript" } as any }),
+			)
+
+			expect(controller.stateManager.setGlobalStateBatch.calledWithMatch({ preferredLanguage: "typescript" })).to.be.true
+			expect(controller.task.setApiHandler.calledOnce).to.be.true
+		})
+
+		it("rejects an invalid active Dify configuration before persisting settings", async () => {
+			const controller = createMockController({ task: {} })
+			controller.stateManager._store.__apiConfig = {
+				planModeApiProvider: "anthropic",
+				actModeApiProvider: "dify",
+				planModeApiModelId: "claude-sonnet-4-20250514",
+			}
+			controller.stateManager._store.mode = "act"
+
+			try {
+				await updateSettingsCli(
+					controller,
+					UpdateSettingsRequestCli.create({ settings: { preferredLanguage: "typescript" } as any }),
+				)
+				expect.fail("Should have thrown")
+			} catch (error: any) {
+				expect(error.message).to.equal("Dify requires both an API key and base URL")
+			}
+
+			expect(controller.stateManager.setGlobalStateBatch.called).to.be.false
+			expect(controller.task.setApiHandler.called).to.be.false
 		})
 
 		it("should update secrets batch filtering out undefined values", async () => {

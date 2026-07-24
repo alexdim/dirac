@@ -174,7 +174,17 @@ describe("ACP protocol conformance over raw stdio", () => {
 	it("uses explicit startup provider and model until the ACP client changes them", async () => {
 		const configDir = await temporaryDirectory("dirac-acp-config-")
 		const cwd = await temporaryDirectory("dirac-acp-workspace-")
-		const client = createRawClient(configDir, cwd, ["--provider", "deepseek", "--model", "deepseek-v4-flash"])
+		const client = createRawClient(configDir, cwd, [
+			"--provider",
+			"deepseek",
+			"--model",
+			"deepseek-v4-flash",
+			"--thinking",
+			"4096",
+			"--reasoning-effort",
+			"high",
+			"--yolo",
+		])
 		await client.initialize()
 
 		const session = await client.request("session/new", { cwd, mcpServers: [] })
@@ -195,6 +205,13 @@ describe("ACP protocol conformance over raw stdio", () => {
 			options: expect.arrayContaining([expect.objectContaining({ value: "deepseek-v4-flash" })]),
 		})
 		expect((modelOptions[0].options as Array<Record<string, unknown>>).map((option) => option.value)).not.toContain("deepseek")
+		expect(configOptions).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({ id: "mode", currentValue: "yolo" }),
+				expect.objectContaining({ id: "thinking_budget", currentValue: "4096" }),
+				expect.objectContaining({ id: "reasoning_effort", currentValue: "high" }),
+			]),
+		)
 
 		const configured = await client.request("session/set_config_option", {
 			sessionId,
@@ -203,6 +220,21 @@ describe("ACP protocol conformance over raw stdio", () => {
 		})
 		expect(configured.result?.configOptions).toEqual(
 			expect.arrayContaining([expect.objectContaining({ id: "model", currentValue: "deepseek-v4-pro" })]),
+		)
+
+		await client.request("session/set_config_option", {
+			sessionId,
+			configId: "reasoning_effort",
+			value: "low",
+		})
+		const secondSession = await client.request("session/new", { cwd, mcpServers: [] })
+		expect(secondSession.result?.configOptions).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({ id: "provider", currentValue: "deepseek" }),
+				expect.objectContaining({ id: "model", currentValue: "deepseek-v4-flash" }),
+				expect.objectContaining({ id: "thinking_budget", currentValue: "4096" }),
+				expect.objectContaining({ id: "reasoning_effort", currentValue: "high" }),
+			]),
 		)
 	})
 
@@ -283,6 +315,15 @@ describe("ACP protocol conformance over raw stdio", () => {
 		})
 		const permission = await client.waitForPermission(30_000)
 		expect(permission.params?.sessionId).toBe(sessionId)
+		await expect(
+			client.request("session/set_config_option", {
+				sessionId,
+				configId: "thinking_budget",
+				value: "8192",
+			}),
+		).resolves.toMatchObject({
+			error: { message: expect.stringContaining("busy") },
+		})
 		client.notify("session/cancel", { sessionId })
 
 		await expect(prompt).resolves.toMatchObject({ result: { stopReason: "cancelled" } })
@@ -318,6 +359,50 @@ describe("ACP protocol conformance over raw stdio", () => {
 				update: { content: { type: "text", text: "Persisted user message" } },
 			},
 		})
+	})
+
+	it("restores a changed never-prompted task without recomputing startup defaults", async () => {
+		const configDir = await temporaryDirectory("dirac-acp-config-")
+		const cwd = await temporaryDirectory("dirac-acp-workspace-")
+		const first = createRawClient(configDir, cwd, [
+			"--provider",
+			"deepseek",
+			"--model",
+			"deepseek-v4-flash",
+		])
+		await first.initialize()
+		const created = await first.request("session/new", { cwd, mcpServers: [] })
+		const sessionId = created.result?.sessionId as string
+
+		await first.request("session/set_config_option", {
+			sessionId,
+			configId: "model",
+			value: "deepseek-v4-pro",
+		})
+		await first.request("session/set_config_option", {
+			sessionId,
+			configId: "reasoning_effort",
+			value: "high",
+		})
+		await first.request("session/close", { sessionId })
+		await first.close()
+
+		const second = createRawClient(configDir, cwd, [
+			"--provider",
+			"anthropic",
+			"--model",
+			"claude-sonnet-4-6",
+		])
+		await second.initialize()
+		const loaded = await second.request("session/load", { sessionId, cwd, mcpServers: [] })
+
+		expect(loaded.result?.configOptions).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({ id: "provider", currentValue: "deepseek" }),
+				expect.objectContaining({ id: "model", currentValue: "deepseek-v4-pro" }),
+				expect.objectContaining({ id: "reasoning_effort", currentValue: "high" }),
+			]),
+		)
 	})
 })
 
@@ -362,6 +447,30 @@ async function seedPersistedSession(configDir: string, cwd: string, sessionId: s
 		]),
 	)
 	await writeFile(path.join(taskDirectory, "api_conversation_history.json"), "[]")
+	await writeFile(
+		path.join(configDir, "data", "acp-session-runtime-config.json"),
+		JSON.stringify({
+			[sessionId]: {
+				version: 1,
+				cwd,
+				createdAt: timestamp,
+				settings: {
+					mode: "act",
+					autoApproveAllToggled: false,
+					yoloModeToggled: false,
+					planActSeparateModelsSetting: false,
+					planModeApiProvider: "deepseek",
+					actModeApiProvider: "deepseek",
+					planModeApiModelId: "deepseek-v4-flash",
+					actModeApiModelId: "deepseek-v4-flash",
+					planModeThinkingBudgetTokens: 0,
+					actModeThinkingBudgetTokens: 0,
+					planModeReasoningEffort: "medium",
+					actModeReasoningEffort: "medium",
+				},
+			},
+		}),
+	)
 	await writeFile(
 		path.join(taskDirectory, "ui_messages.json"),
 		JSON.stringify([

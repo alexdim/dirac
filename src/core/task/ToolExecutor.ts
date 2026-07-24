@@ -116,6 +116,12 @@ export class ToolExecutor {
 		this.errorHandler = new ToolErrorHandler(taskState, taskMessenger)
 	}
 
+	public setApi(api: ApiHandler): void {
+		this.api = api
+		this.hookRunner.setApi(api)
+		this.markToolsDirty("settings_refresh_detected_change")
+	}
+
 	private shouldAutoApproveTool(toolName: DiracDefaultTool): boolean | [boolean, boolean] {
 		return this.autoApprover.shouldAutoApproveTool(toolName)
 	}

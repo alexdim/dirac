@@ -185,6 +185,22 @@ program
 				cwd: options.cwd,
 				provider: options.provider,
 				model: options.model,
+				mode: options.plan
+					? "plan"
+					: options.yolo
+						? "yolo"
+						: options.autoApproveAll
+							? "auto"
+							: options.act
+								? "act"
+								: undefined,
+				thinkingBudgetTokens:
+					options.thinking === undefined
+						? undefined
+						: typeof options.thinking === "string"
+							? Number.parseInt(options.thinking, 10)
+							: 1024,
+				reasoningEffort: options.reasoningEffort,
 				hooksDir: options.hooksDir,
 				verbose: options.verbose,
 				listen: options.listen,

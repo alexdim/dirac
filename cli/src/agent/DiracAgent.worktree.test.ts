@@ -13,6 +13,11 @@ const mocks = vi.hoisted(() => {
 		stateManager = {
 			getApiConfiguration: vi.fn(() => ({ actModeThinkingBudgetTokens: 1024, planModeThinkingBudgetTokens: 1024 })),
 			getGlobalSettingsKey: vi.fn(() => "act"),
+			getSystemDefaultSettingsKey: vi.fn((key: string) => {
+				if (key === "mode") return "act"
+				if (key === "actModeApiProvider" || key === "planModeApiProvider") return "anthropic"
+				return undefined
+			}),
 		}
 		getStateToPostToWebview = vi.fn(async () => ({ mode: "act" }))
 		dispose = vi.fn()
@@ -55,6 +60,11 @@ vi.mock("@/core/storage/StateManager", () => ({
 			getSessionOverrideCache: vi.fn(() => ({})),
 			setSessionOverrideCache: vi.fn(),
 			getGlobalSettingsKey: vi.fn(() => "act"),
+			getSystemDefaultSettingsKey: vi.fn((key: string) => {
+				if (key === "mode") return "act"
+				if (key === "actModeApiProvider" || key === "planModeApiProvider") return "anthropic"
+				return undefined
+			}),
 			getApiConfiguration: vi.fn(() => ({ actModeThinkingBudgetTokens: 1024, planModeThinkingBudgetTokens: 1024 })),
 			getGlobalStateKey: vi.fn((key: string) => (key === "taskHistory" ? mocks.taskHistory : undefined)),
 			setGlobalState: vi.fn(),

@@ -26,6 +26,7 @@ describe("Dify Provider (original)", () => {
 		const config: ApiConfiguration = {
 			apiProvider: "dify",
 			difyApiKey: "test-key",
+			difyBaseUrl: "https://dify.example/v1",
 			planModeApiModelId: TEST_MODEL_IDS.ANTHROPIC,
 			actModeApiModelId: TEST_MODEL_IDS.ANTHROPIC,
 		}
@@ -34,15 +35,14 @@ describe("Dify Provider (original)", () => {
 		handler.should.have.property("createMessage")
 	})
 
-	it("handles missing difyApiKey gracefully", () => {
+	it("rejects a missing Dify API key", () => {
 		const config: ApiConfiguration = {
 			apiProvider: "dify",
 			difyApiKey: undefined,
+			difyBaseUrl: "https://dify.example/v1",
 			planModeApiModelId: TEST_MODEL_IDS.ANTHROPIC,
 			actModeApiModelId: TEST_MODEL_IDS.ANTHROPIC,
 		}
-		const handler = buildApiHandler(config, "plan")
-		handler.should.not.be.undefined()
-		handler.should.have.property("createMessage")
+		should(() => buildApiHandler(config, "plan")).throw("Dify API key is required")
 	})
 })

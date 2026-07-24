@@ -43,6 +43,8 @@ import { XAIHandler } from "./providers/xai"
 import { ZAiHandler } from "./providers/zai"
 import { ApiStream, ApiStreamUsageChunk } from "./transform/stream"
 
+import { ApiConfigurationError, ApiConfigurationErrorCode } from "./ApiConfigurationError"
+export { ApiConfigurationError, ApiConfigurationErrorCode } from "./ApiConfigurationError"
 export type CommonApiHandlerOptions = {
 	onRetryAttempt?: ApiConfiguration["onRetryAttempt"]
 	enableParallelToolCalling?: boolean
@@ -170,12 +172,20 @@ const PROVIDER_REGISTRY: Record<
 		}),
 	openai: (cfg, mc) => {
 		const profile = cfg.openAiCompatibleProfiles?.find((p) => p.name === mc.openAiProfileName)
+		if (mc.openAiProfileName && !profile) {
+			throw new ApiConfigurationError(
+				ApiConfigurationErrorCode.ProfileMissing,
+				`OpenAI-compatible profile not found: ${mc.openAiProfileName}`,
+				"Select an available profile before retrying.",
+			)
+		}
 		const openAiBaseUrl = profile ? profile.baseUrl : cfg.openAiBaseUrl
 		const openAiApiKey = profile ? profile.apiKey : cfg.openAiApiKey
-		const openAiModelId = profile ? profile.modelId : mc.openAiModelId
+		const openAiModelId = mc.openAiModelId ?? profile?.modelId
 		const openAiHeaders = profile ? profile.headers : cfg.openAiHeaders
 		const azureApiVersion = profile ? profile.azureApiVersion : cfg.azureApiVersion
-		let openAiModelInfo = profile ? profile.modelInfo : mc.openAiModelInfo
+		let openAiModelInfo = mc.openAiModelInfo
+		if (!openAiModelInfo && profile && openAiModelId === profile.modelId) openAiModelInfo = profile.modelInfo
 		if (!openAiModelInfo && openAiModelId) openAiModelInfo = getModelInfo(openAiModelId)
 		const isCustomUrl = openAiBaseUrl && openAiBaseUrl.startsWith("http")
 		if (cfg.openAiCompatibleCustomApiKey || isCustomUrl) {
@@ -425,19 +435,63 @@ const PROVIDER_REGISTRY: Record<
 		new WandbHandler({ onRetryAttempt: cfg.onRetryAttempt, wandbApiKey: cfg.wandbApiKey, apiModelId: mc.apiModelId }),
 }
 
+function configuredProvider(configuration: ApiConfiguration, mode: Mode): string | undefined {
+	return (mode === "plan" ? configuration.planModeApiProvider : configuration.actModeApiProvider) ?? configuration.apiProvider
+}
+
+function assertProviderSupported(provider: string | undefined): asserts provider is string {
+	if (!provider) {
+		throw new ApiConfigurationError(
+			ApiConfigurationErrorCode.ProviderMissing,
+			"API provider is not configured",
+			"Select a provider before starting or resuming the task.",
+		)
+	}
+	if (!PROVIDER_REGISTRY[provider]) {
+		throw new ApiConfigurationError(
+			ApiConfigurationErrorCode.ProviderUnsupported,
+			`Unsupported API provider: ${provider}`,
+			"Select a supported provider before retrying.",
+		)
+	}
+}
+
+/**
+ * Validate provider identity and prerequisites for one runtime mode, or for both
+ * persisted modes when no mode is supplied.
+ */
+export function validateApiConfiguration(configuration: ApiConfiguration, mode?: Mode): void {
+	const modes = mode === undefined ? (["plan", "act"] as const) : [mode]
+	for (const selectedMode of modes) {
+		const provider = configuredProvider(configuration, selectedMode)
+		assertProviderSupported(provider)
+		const modeConfig = resolveModeConfig(configuration, selectedMode)
+		if (
+			provider === "openai" &&
+			modeConfig.openAiProfileName &&
+			!configuration.openAiCompatibleProfiles?.some((profile) => profile.name === modeConfig.openAiProfileName)
+		) {
+			throw new ApiConfigurationError(
+				ApiConfigurationErrorCode.ProfileMissing,
+				`OpenAI-compatible profile not found: ${modeConfig.openAiProfileName}`,
+				"Select an available profile before retrying.",
+			)
+		}
+		if (provider === "dify" && (!configuration.difyApiKey || !configuration.difyBaseUrl)) {
+			throw new ApiConfigurationError(
+				ApiConfigurationErrorCode.ProviderConfigurationIncomplete,
+				"Dify requires both an API key and base URL",
+				"Configure both values before selecting Dify.",
+			)
+		}
+	}
+}
+
 export function createRegistryHandler(configuration: ApiConfiguration, mode: Mode): ApiHandler {
 	const m = resolveModeConfig(configuration, mode)
-	const factory = PROVIDER_REGISTRY[configuration.apiProvider ?? ""] || null
-	if (!factory) {
-		return new AnthropicHandler({
-			onRetryAttempt: configuration.onRetryAttempt,
-			apiKey: configuration.apiKey,
-			anthropicBaseUrl: configuration.anthropicBaseUrl,
-			anthropicHeaders: configuration.anthropicHeaders,
-			apiModelId: m.apiModelId,
-			thinkingBudgetTokens: m.thinkingBudgetTokens,
-		})
-	}
+	const provider = configuration.apiProvider
+	assertProviderSupported(provider)
+	const factory = PROVIDER_REGISTRY[provider]
 	return factory(configuration, m)
 }
 
@@ -451,27 +505,20 @@ function createHandlerForProvider(
 }
 
 export function buildApiHandler(configuration: ApiConfiguration, mode: Mode): ApiHandler {
-	const { planModeApiProvider, actModeApiProvider, ...options } = configuration
-	const apiProvider = mode === "plan" ? planModeApiProvider : actModeApiProvider
+	const { planModeApiProvider, actModeApiProvider, apiProvider: fallbackProvider, ...options } = configuration
+	const apiProvider = (mode === "plan" ? planModeApiProvider : actModeApiProvider) ?? fallbackProvider
+	const handler = createHandlerForProvider(apiProvider, options, mode)
+	const { thinkingBudgetTokens } = resolveModeConfig(options, mode)
+	if (!thinkingBudgetTokens || thinkingBudgetTokens < 0) return handler
 
-	// Validate thinking budget tokens against model's maxTokens to prevent API errors
-	try {
-		const { thinkingBudgetTokens } = resolveModeConfig(options, mode)
-		if (thinkingBudgetTokens && thinkingBudgetTokens > 0) {
-			const handler = createHandlerForProvider(apiProvider, options, mode)
-			const modelInfo = handler.getModel().info
-			if (modelInfo?.maxTokens && modelInfo.maxTokens > 0 && thinkingBudgetTokens > modelInfo.maxTokens) {
-				const clippedValue = modelInfo.maxTokens - 1
-				// Mutate the field in the correct mode slot so rebuild picks it up
-				if (mode === "plan") options.planModeThinkingBudgetTokens = clippedValue
-				else options.actModeThinkingBudgetTokens = clippedValue
-			} else {
-				return handler // no clip needed — return early
-			}
-		}
-	} catch (error) {
-		Logger.error("buildApiHandler error:", error)
+	const maxTokens = handler.getModel().info.maxTokens
+	if (!maxTokens || maxTokens <= 0 || thinkingBudgetTokens <= maxTokens) {
+		return handler
 	}
 
-	return createHandlerForProvider(apiProvider, options, mode)
+	const clippedOptions = {
+		...options,
+		[mode === "plan" ? "planModeThinkingBudgetTokens" : "actModeThinkingBudgetTokens"]: maxTokens - 1,
+	}
+	return createHandlerForProvider(apiProvider, clippedOptions, mode)
 }

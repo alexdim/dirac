@@ -41,6 +41,20 @@ const ProviderKeyMap: Partial<Record<ApiProvider, string>> = {
 	"vercel-ai-gateway": "VercelAiGatewayModelId",
 } as const
 
+const ProviderModelInfoKeyMap: Partial<Record<ApiProvider, string>> = {
+	openrouter: "OpenRouterModelInfo",
+	dirac: "DiracModelInfo",
+	openai: "OpenAiModelInfo",
+	litellm: "LiteLlmModelInfo",
+	requesty: "RequestyModelInfo",
+	groq: "GroqModelInfo",
+	baseten: "BasetenModelInfo",
+	huggingface: "HuggingFaceModelInfo",
+	"huawei-cloud-maas": "HuaweiCloudMaasModelInfo",
+	aihubmix: "AihubmixModelInfo",
+	"vercel-ai-gateway": "VercelAiGatewayModelInfo",
+} as const
+
 export const ProviderToBaseUrlKeyMap: Partial<Record<ApiProvider, SettingsKey>> = {
 	openai: "openAiBaseUrl",
 	"openai-native": "openAiBaseUrl",
@@ -130,6 +144,11 @@ export function getProviderModelIdKey(provider: ApiProvider, mode: "act" | "plan
 	// For providers without a specific key (anthropic, gemini, bedrock, etc.),
 	// they use the generic actModeApiModelId/planModeApiModelId
 	return `${mode}ModeApiModelId`
+}
+
+export function getProviderModelInfoKey(provider: ApiProvider, mode: "act" | "plan"): SettingsKey | undefined {
+	const keySuffix = ProviderModelInfoKeyMap[provider]
+	return keySuffix ? (`${mode}Mode${keySuffix}` as SettingsKey) : undefined
 }
 
 export function getProviderDefaultModelId(provider: ApiProvider): string | null {

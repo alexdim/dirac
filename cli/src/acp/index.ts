@@ -79,6 +79,12 @@ export interface AcpModeOptions {
   provider?: string;
   /** Model explicitly selected at process startup */
   model?: string;
+  /** ACP operating mode explicitly selected at process startup */
+  mode?: "plan" | "act" | "auto" | "yolo";
+  /** Extended-thinking token budget explicitly selected at process startup */
+  thinkingBudgetTokens?: number;
+  /** Reasoning effort explicitly selected at process startup */
+  reasoningEffort?: string;
   /** Additional runtime hooks directory */
   hooksDir?: string;
   /** Enable verbose/debug logging to stderr */
@@ -128,6 +134,9 @@ export async function runAcpMode(options: AcpModeOptions = {}): Promise<void> {
       cwd: options.cwd,
       provider: options.provider,
       model: options.model,
+      mode: options.mode,
+      thinkingBudgetTokens: options.thinkingBudgetTokens,
+      reasoningEffort: options.reasoningEffort,
       hooksDir: options.hooksDir,
     });
     return agent;
@@ -177,6 +186,9 @@ async function runDetachedAcpMode(options: AcpModeOptions): Promise<void> {
     cwd: options.cwd,
     provider: options.provider,
     model: options.model,
+    mode: options.mode,
+    thinkingBudgetTokens: options.thinkingBudgetTokens,
+    reasoningEffort: options.reasoningEffort,
     hooksDir: options.hooksDir,
     socketPath: options.listen!,
   });

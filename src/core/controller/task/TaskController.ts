@@ -16,6 +16,7 @@ import type { Controller } from ".."
 export type TaskInitializationOptions = {
 	pinnedContext?: string
 	onContextCompacted?: () => void
+	switchToActMode?: () => Promise<boolean>
 }
 
 export interface ITaskControllerDependencies {
@@ -225,6 +226,7 @@ export class TaskController {
 			taskLockAcquired,
 			pinnedContext: initializationOptions?.pinnedContext,
 			onContextCompacted: initializationOptions?.onContextCompacted,
+			switchToActMode: initializationOptions?.switchToActMode,
 		})
 
 		if (historyItem) {

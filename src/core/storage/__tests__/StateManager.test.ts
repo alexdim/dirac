@@ -228,6 +228,23 @@ describe("StateManager", () => {
 			sm.setSessionOverride("mode", "act")
 			sm.getGlobalSettingsKey("mode").should.equal("act")
 		})
+
+		it("an owned undefined session value blocks task and global runtime inheritance", () => {
+			sm.setGlobalState("actModeApiModelId", "global-model")
+			sm.setTaskSettings("task1", "actModeApiModelId", "task-model")
+			sm.setSessionOverride("actModeApiModelId", undefined)
+
+			const value = sm.getGlobalSettingsKey("actModeApiModelId")
+			;(value === undefined).should.be.true()
+		})
+
+		it("system-default reads ignore task and session runtime state", () => {
+			sm.setGlobalState("actModeApiModelId", "global-model")
+			sm.setTaskSettings("task1", "actModeApiModelId", "task-model")
+			sm.setSessionOverride("actModeApiModelId", "session-model")
+
+			sm.getSystemDefaultSettingsKey("actModeApiModelId")!.should.equal("global-model")
+		})
 	})
 
 	// ---------------------------------------------------------------

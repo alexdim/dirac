@@ -1,5 +1,6 @@
 import { expect } from "chai"
 import * as path from "path"
+import { AwsBedrockHandler } from "../providers/bedrock"
 
 const srcDir = path.join(__dirname, "..", "..", "..")
 
@@ -9,8 +10,8 @@ describe("Bedrock Configuration", () => {
 			const { buildApiHandler } = await import(path.join(srcDir, "core", "api", "index.ts"))
 			const config = {
 				apiKey: "test-key",
-				planModeApiProvider: "aws-bedrock",
-				actModeApiProvider: "aws-bedrock",
+				planModeApiProvider: "bedrock",
+				actModeApiProvider: "bedrock",
 				planModeAwsBedrockCustomSelected: "model-1",
 				actModeAwsBedrockCustomSelected: "model-2",
 			}
@@ -18,13 +19,15 @@ describe("Bedrock Configuration", () => {
 			const actHandler = buildApiHandler(config, "act" as const)
 			expect(planHandler).to.exist
 			expect(actHandler).to.exist
+			expect(planHandler).to.be.instanceOf(AwsBedrockHandler)
+			expect(actHandler).to.be.instanceOf(AwsBedrockHandler)
 		})
 
 		it("should handle plan mode bedrock custom model base ID", async () => {
 			const { buildApiHandler } = await import(path.join(srcDir, "core", "api", "index.ts"))
 			const config = {
 				apiKey: "test-key",
-				planModeApiProvider: "aws-bedrock",
+				planModeApiProvider: "bedrock",
 				planModeAwsBedrockCustomModelBaseId: "claude-3-sonnet",
 			}
 			const handler = buildApiHandler(config, "plan" as const)
@@ -35,7 +38,7 @@ describe("Bedrock Configuration", () => {
 			const { buildApiHandler } = await import(path.join(srcDir, "core", "api", "index.ts"))
 			const config = {
 				apiKey: "test-key",
-				planModeApiProvider: "aws-bedrock",
+				planModeApiProvider: "bedrock",
 				planModeAwsBedrockProfile: "default",
 			}
 			const handler = buildApiHandler(config, "plan" as const)
@@ -46,7 +49,7 @@ describe("Bedrock Configuration", () => {
 			const { buildApiHandler } = await import(path.join(srcDir, "core", "api", "index.ts"))
 			const config = {
 				apiKey: "test-key",
-				planModeApiProvider: "aws-bedrock",
+				planModeApiProvider: "bedrock",
 				awsBedrockEndpoint: "https://custom-endpoint.amazonaws.com",
 			}
 			const handler = buildApiHandler(config, "plan" as const)
@@ -57,7 +60,7 @@ describe("Bedrock Configuration", () => {
 			const { buildApiHandler } = await import(path.join(srcDir, "core", "api", "index.ts"))
 			const config = {
 				apiKey: "test-key",
-				planModeApiProvider: "aws-bedrock",
+				planModeApiProvider: "bedrock",
 				awsProfile: "my-profile",
 			}
 			const handler = buildApiHandler(config, "plan" as const)
@@ -68,7 +71,7 @@ describe("Bedrock Configuration", () => {
 			const { buildApiHandler } = await import(path.join(srcDir, "core", "api", "index.ts"))
 			const config = {
 				apiKey: "test-key",
-				planModeApiProvider: "aws-bedrock",
+				planModeApiProvider: "bedrock",
 				planModeThinkingBudgetTokens: 4096,
 			}
 			const handler = buildApiHandler(config, "plan" as const)
@@ -79,7 +82,7 @@ describe("Bedrock Configuration", () => {
 			const { buildApiHandler } = await import(path.join(srcDir, "core", "api", "index.ts"))
 			const config = {
 				apiKey: "test-key",
-				planModeApiProvider: "aws-bedrock",
+				planModeApiProvider: "bedrock",
 				awsBedrockRegion: "us-east-1",
 			}
 			const handler = buildApiHandler(config, "plan" as const)
@@ -90,7 +93,7 @@ describe("Bedrock Configuration", () => {
 			const { buildApiHandler } = await import(path.join(srcDir, "core", "api", "index.ts"))
 			const config = {
 				apiKey: "test-key",
-				planModeApiProvider: "aws-bedrock",
+				planModeApiProvider: "bedrock",
 				awsBedrockStartConversation: true,
 			}
 			const handler = buildApiHandler(config, "plan" as const)
@@ -101,7 +104,7 @@ describe("Bedrock Configuration", () => {
 			const { buildApiHandler } = await import(path.join(srcDir, "core", "api", "index.ts"))
 			const config = {
 				apiKey: "test-key",
-				planModeApiProvider: "aws-bedrock",
+				planModeApiProvider: "bedrock",
 				awsBedrockUpdateConversation: true,
 			}
 			const handler = buildApiHandler(config, "plan" as const)

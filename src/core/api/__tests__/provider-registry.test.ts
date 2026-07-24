@@ -3,7 +3,11 @@
  */
 import { describe, it } from "mocha"
 import "should"
-import type { ApiConfiguration } from "@shared/api"
+import {
+	type ApiConfiguration,
+	openAiModelInfoSaneDefaults,
+	requestyDefaultModelInfo,
+} from "@shared/api"
 import { buildApiHandler, createRegistryHandler } from "../index"
 import { TEST_MODEL_IDS } from "@test/fixtures/model-ids"
 
@@ -205,6 +209,7 @@ describe("Provider Registry", () => {
 			provider: "dify",
 			config: {
 				difyApiKey: "test-key",
+				difyBaseUrl: "https://dify.example/v1",
 				difyApiSecret: "test-secret",
 				planModeApiModelId: TEST_MODEL_IDS.ANTHROPIC,
 				actModeApiModelId: TEST_MODEL_IDS.ANTHROPIC,
@@ -278,28 +283,24 @@ describe("Provider Registry", () => {
 		}
 	})
 
-	it("unknown provider falls back to Anthropic default via registry", () => {
+	it("rejects an unknown provider instead of using another provider", () => {
 		const config: ApiConfiguration = {
 			apiProvider: "totally-unknown-provider" as any,
 			apiKey: "test-key",
 			planModeApiModelId: TEST_MODEL_IDS.ANTHROPIC,
 			actModeApiModelId: TEST_MODEL_IDS.ANTHROPIC,
 		}
-		const handler = buildApiHandler(config, "plan")
-		handler.should.not.be.undefined()
-		handler.should.have.property("createMessage")
+		should(() => buildApiHandler(config, "plan")).throw("Unsupported API provider: totally-unknown-provider")
 	})
 
-	it("undefined provider falls back to Anthropic default via registry", () => {
+	it("rejects an undefined provider instead of using another provider", () => {
 		const config: ApiConfiguration = {
 			apiProvider: undefined,
 			apiKey: "test-key",
 			planModeApiModelId: TEST_MODEL_IDS.ANTHROPIC,
 			actModeApiModelId: TEST_MODEL_IDS.ANTHROPIC,
 		}
-		const handler = buildApiHandler(config, "plan")
-		handler.should.not.be.undefined()
-		handler.should.have.property("createMessage")
+		should(() => buildApiHandler(config, "plan")).throw("API provider is not configured")
 	})
 
 	it("registry handles mode-specific model selection for plan mode", () => {
@@ -324,8 +325,130 @@ describe("Provider Registry", () => {
 		handler.should.not.be.undefined()
 	})
 
+	it("keeps the task-owned OpenAI model when provider infrastructure uses a profile", () => {
+		const handler = buildApiHandler(
+			{
+				planModeApiProvider: "openai",
+				planModeOpenAiModelId: "task-owned-model",
+				planModeOpenAiModelInfo: openAiModelInfoSaneDefaults,
+				planModeOpenAiProfileName: "profile-a",
+				openAiCompatibleProfiles: [
+					{
+						name: "profile-a",
+						baseUrl: "https://provider.example/v1",
+						modelId: "mutable-profile-model",
+						modelInfo: openAiModelInfoSaneDefaults,
+					},
+				],
+			},
+			"plan",
+		)
+
+		handler.getModel().id.should.equal("task-owned-model")
+	})
+
+	it("does not reuse profile metadata for a task-owned OpenAI model", () => {
+		const profileModelInfo = { ...openAiModelInfoSaneDefaults, contextWindow: 1234, maxTokens: 321 }
+		const handler = buildApiHandler(
+			{
+				planModeApiProvider: "openai",
+				planModeOpenAiModelId: "task-owned-model",
+				planModeOpenAiProfileName: "profile-a",
+				openAiCompatibleProfiles: [
+					{
+						name: "profile-a",
+						baseUrl: "https://provider.example/v1",
+						modelId: "profile-model",
+						modelInfo: profileModelInfo,
+					},
+				],
+			},
+			"plan",
+		)
+
+		handler.getModel().id.should.equal("task-owned-model")
+		handler.getModel().info.contextWindow!.should.equal(openAiModelInfoSaneDefaults.contextWindow)
+		handler.getModel().info.contextWindow!.should.not.equal(profileModelInfo.contextWindow)
+	})
+
+	it("does not resolve model metadata when no thinking budget is configured", () => {
+		const handler = buildApiHandler(
+			{
+				apiProvider: "openrouter",
+				openRouterApiKey: "test-key",
+				planModeOpenRouterModelId: TEST_MODEL_IDS.ANTHROPIC_OPENROUTER,
+			},
+			"plan",
+		)
+		handler.should.not.be.undefined()
+	})
+
+
+	it("clips an oversized thinking budget without changing the input configuration", () => {
+		const config: ApiConfiguration = {
+			apiProvider: "anthropic",
+			apiKey: "test-key",
+			planModeApiModelId: TEST_MODEL_IDS.ANTHROPIC,
+			planModeThinkingBudgetTokens: 1_000_000,
+		}
+		const handler = buildApiHandler(config, "plan") as any
+		const maxTokens = handler.getModel().info.maxTokens
+
+		handler.options.thinkingBudgetTokens.should.equal(maxTokens - 1)
+		config.planModeThinkingBudgetTokens!.should.equal(1_000_000)
+	})
+
+	it("keeps valid and unknown-limit thinking budgets unchanged", () => {
+		const valid = buildApiHandler(
+			{
+				apiProvider: "anthropic",
+				apiKey: "test-key",
+				planModeApiModelId: TEST_MODEL_IDS.ANTHROPIC,
+				planModeThinkingBudgetTokens: 1024,
+			},
+			"plan",
+		) as any
+		valid.options.thinkingBudgetTokens.should.equal(1024)
+
+		const unknownLimit = buildApiHandler(
+			{
+				apiProvider: "openai",
+				planModeOpenAiModelId: "custom-model",
+				planModeThinkingBudgetTokens: 32768,
+			},
+			"plan",
+		) as any
+		unknownLimit.getModel().info.maxTokens.should.equal(-1)
+	})
+
+	it("rejects a missing selected OpenAI profile instead of substituting global infrastructure", () => {
+		should(() =>
+			buildApiHandler(
+				{
+					planModeApiProvider: "openai",
+					planModeOpenAiModelId: "task-owned-model",
+					planModeOpenAiProfileName: "removed-profile",
+					openAiBaseUrl: "https://fallback.example/v1",
+				},
+				"plan",
+			),
+		).throw("OpenAI-compatible profile not found: removed-profile")
+	})
+
+	it("keeps a task-owned Requesty model when model metadata is absent", () => {
+		const handler = buildApiHandler(
+			{
+				planModeApiProvider: "requesty",
+				planModeRequestyModelId: "task-owned-model",
+			},
+			"plan",
+		)
+
+		handler.getModel().should.deepEqual({ id: "task-owned-model", info: requestyDefaultModelInfo })
+	})
+
 	it("registry returns same number of providers as switch cases in buildApiHandler", () => {
-		// The registry must cover all 37 known providers + default fallback
+		// The registry must cover all 37 supported providers.
 		allKnownProviders.length.should.equal(37)
 	})
 })

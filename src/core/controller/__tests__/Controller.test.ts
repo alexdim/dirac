@@ -29,8 +29,10 @@ describe("Controller (original)", () => {
 	let tempDir: string
 	let mockContext: DiracExtensionContext
 	let mockWatcherFactory: sinon.SinonStub
+	let controllers: Controller[]
 
 	beforeEach(async () => {
+		controllers = []
 		sandbox = sinon.createSandbox()
 		tempDir = path.join(os.tmpdir(), `dirac-test-${Date.now()}-${Math.random().toString(36).slice(2)}`)
 		await fs.mkdir(tempDir, { recursive: true })
@@ -137,7 +139,12 @@ describe("Controller (original)", () => {
 			setTaskSettingsBatch: sandbox.stub(),
 			loadTaskSettings: sandbox.stub().resolves(),
 			clearTaskSettings: sandbox.stub().resolves(),
-			getApiConfiguration: sandbox.stub().returns({}),
+			getApiConfiguration: sandbox.stub().returns({
+				planModeApiProvider: "anthropic",
+				actModeApiProvider: "anthropic",
+				planModeApiModelId: "claude-sonnet-4-20250514",
+				actModeApiModelId: "claude-sonnet-4-20250514",
+			}),
 			setApiConfiguration: sandbox.stub(),
 			setSessionOverride: sandbox.stub(),
 			getModelsCache: sandbox.stub().returns(null),
@@ -176,11 +183,20 @@ describe("Controller (original)", () => {
 	})
 
 	afterEach(async () => {
+		for (const controller of controllers) {
+			await controller.clearTask()
+			await controller.taskRunPromise
+		}
 		sandbox.restore()
 		try {
 			await fs.rm(tempDir, { recursive: true, force: true })
 		} catch {}
 	})
+
+	function trackController(controller: Controller): Controller {
+		controllers.push(controller)
+		return controller
+	}
 
 	// Helper: call initTask with mock watcher
 	async function initTask(
@@ -192,6 +208,7 @@ describe("Controller (original)", () => {
 		ts?: any,
 		cuid?: string,
 	) {
+		trackController(c)
 		return c.initTask(task, images, files, hi, ts, cuid, mockWatcherFactory)
 	}
 
@@ -284,7 +301,7 @@ describe("Controller (original)", () => {
 	})
 	it("createTask creates task", async () => {
 		const startTaskStub = sandbox.stub(Task.prototype, "startTask").resolves()
-		const c = new Controller(mockContext)
+		const c = trackController(new Controller(mockContext))
 		await c.createTask("test prompt").should.not.be.rejected()
 		await c.taskRunPromise
 		sinon.assert.calledOnceWithExactly(startTaskStub, "test prompt", undefined, undefined)

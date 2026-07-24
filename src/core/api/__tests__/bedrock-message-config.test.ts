@@ -10,9 +10,9 @@ describe("BedrockMessageConfig Consolidation", () => {
 
 			// Test various bedrock configurations to ensure refactored functions work correctly
 			const configs = [
-				{ apiKey: "test-key", planModeApiProvider: "aws-bedrock", actModeApiProvider: "aws-bedrock" },
-				{ apiKey: "test-key", planModeApiProvider: "aws-bedrock", awsBedrockUsePromptCache: true },
-				{ apiKey: "test-key", planModeApiProvider: "aws-bedrock", thinkingBudgetTokens: 4096 },
+				{ apiKey: "test-key", planModeApiProvider: "bedrock", actModeApiProvider: "bedrock" },
+				{ apiKey: "test-key", planModeApiProvider: "bedrock", awsBedrockUsePromptCache: true },
+				{ apiKey: "test-key", planModeApiProvider: "bedrock", thinkingBudgetTokens: 4096 },
 			]
 
 			for (const config of configs) {
@@ -26,8 +26,8 @@ describe("BedrockMessageConfig Consolidation", () => {
 			const handler = buildApiHandler(
 				{
 					apiKey: "test-key",
-					planModeApiProvider: "aws-bedrock",
-					actModeApiProvider: "aws-bedrock",
+					planModeApiProvider: "bedrock",
+					actModeApiProvider: "bedrock",
 					apiModelId: "amazon.nova-pro-v1:0",
 				},
 				"plan" as const,
@@ -41,8 +41,8 @@ describe("BedrockMessageConfig Consolidation", () => {
 			const handler = buildApiHandler(
 				{
 					apiKey: "test-key",
-					planModeApiProvider: "aws-bedrock",
-					actModeApiProvider: "aws-bedrock",
+					planModeApiProvider: "bedrock",
+					actModeApiProvider: "bedrock",
 					apiModelId: "us.meta.llama-3-2-90b-instruct-v1:0",
 				},
 				"plan" as const,
@@ -56,8 +56,8 @@ describe("BedrockMessageConfig Consolidation", () => {
 			const handler = buildApiHandler(
 				{
 					apiKey: "test-key",
-					planModeApiProvider: "aws-bedrock",
-					actModeApiProvider: "aws-bedrock",
+					planModeApiProvider: "bedrock",
+					actModeApiProvider: "bedrock",
 					apiModelId: "cn.qwen-plus-v25-04-08",
 				},
 				"plan" as const,
@@ -71,8 +71,8 @@ describe("BedrockMessageConfig Consolidation", () => {
 			const handler = buildApiHandler(
 				{
 					apiKey: "test-key",
-					planModeApiProvider: "aws-bedrock",
-					actModeApiProvider: "aws-bedrock",
+					planModeApiProvider: "bedrock",
+					actModeApiProvider: "bedrock",
 					apiModelId: "us.deepseek.r1-v1:0",
 				},
 				"plan" as const,
@@ -86,8 +86,8 @@ describe("BedrockMessageConfig Consolidation", () => {
 			const handler = buildApiHandler(
 				{
 					apiKey: "test-key",
-					planModeApiProvider: "aws-bedrock",
-					actModeApiProvider: "aws-bedrock",
+					planModeApiProvider: "bedrock",
+					actModeApiProvider: "bedrock",
 					apiModelId: "anthropic.claude-3-5-sonnet-20241022-v2:0",
 				},
 				"plan" as const,
@@ -101,8 +101,8 @@ describe("BedrockMessageConfig Consolidation", () => {
 			const handler = buildApiHandler(
 				{
 					apiKey: "test-key",
-					planModeApiProvider: "aws-bedrock",
-					actModeApiProvider: "aws-bedrock",
+					planModeApiProvider: "bedrock",
+					actModeApiProvider: "bedrock",
 					apiModelId: "anthropic.claude-sonnet-4-20250514-v1:0-1m",
 				},
 				"plan" as const,

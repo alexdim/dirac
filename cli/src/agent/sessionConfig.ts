@@ -1,9 +1,10 @@
 import type * as acp from "@agentclientprotocol/sdk"
+import { ApiConfigurationError, ApiConfigurationErrorCode } from "@core/api"
 import type { ApiProvider } from "@shared/api"
-import { getProviderModelIdKey } from "@shared/storage/provider-keys"
+import { getProviderModelIdKey, getProviderModelInfoKey } from "@shared/storage/provider-keys"
 import type { Settings } from "@shared/storage/state-keys"
 import { refreshGithubCopilotModels } from "@/core/controller/models/refreshGithubCopilotModels"
-import { StateManager } from "@/core/storage/StateManager"
+import { Logger } from "@/shared/services/Logger"
 import type { Mode } from "@/shared/storage/types"
 import { filterOpenRouterModelIds } from "@/shared/utils/model-filters"
 import { getDefaultModelId, getModelList, hasStaticModels } from "../utils/model-metadata.js"
@@ -70,23 +71,17 @@ const THINKING_BUDGET_OPTIONS: acp.SessionConfigSelectOption[] = [
 
 export class SessionConfigManager {
 	constructor(private readonly providerConfiguration?: ProviderConfigurationManager) { }
+
 	/**
 	 * Compute the effective ACP mode ID for a session, considering per-session overrides.
-	 *
-	 * When `sessionOverrides` is provided, auto-approve and yolo values are read from
-	 * the overrides rather than the global StateManager. This prevents concurrent ACP
-	 * sessions from interfering with each other's mode state.
 	 */
-	computeCurrentAcpModeId(mode: Mode, sessionOverrides?: Partial<Settings>): AcpModeId {
-		const stateManager = StateManager.get()
-		const autoApprove = Boolean(
-			sessionOverrides?.autoApproveAllToggled ?? stateManager.getGlobalSettingsKey("autoApproveAllToggled"),
-		)
-		const yolo = Boolean(sessionOverrides?.yoloModeToggled ?? stateManager.getGlobalSettingsKey("yoloModeToggled"))
+	computeCurrentAcpModeId(mode: Mode, sessionOverrides: Partial<Settings>): AcpModeId {
+		const autoApprove = Boolean(sessionOverrides.autoApproveAllToggled)
+		const yolo = Boolean(sessionOverrides.yoloModeToggled)
 		return computeAcpModeId(mode, autoApprove, yolo)
 	}
 
-	getSessionModeState(mode: Mode, sessionOverrides?: Partial<Settings>): acp.SessionModeState {
+	getSessionModeState(mode: Mode, sessionOverrides: Partial<Settings>): acp.SessionModeState {
 		return {
 			availableModes: ACP_MODE_OPTIONS.map(({ value, name, description }) => ({
 				id: value,
@@ -99,20 +94,23 @@ export class SessionConfigManager {
 
 	async getSessionConfigOptions(
 		session: DiracAcpSession,
-		sessionOverrides?: Partial<Settings>,
+		sessionOverrides: Partial<Settings>,
 	): Promise<acp.SessionConfigOption[]> {
-		const stateManager = StateManager.get()
 		const providerKey = session.mode === "act" ? "actModeApiProvider" : "planModeApiProvider"
-		const currentProvider = (sessionOverrides?.[providerKey] ?? stateManager.getGlobalSettingsKey(providerKey)) as
-			| ApiProvider
-			| undefined
+		const currentProvider = sessionOverrides[providerKey] as ApiProvider | undefined
 		const currentModelId = await this.getCurrentModeModelId(session.mode, currentProvider, sessionOverrides)
 		const thinkingKey = session.mode === "act" ? "actModeThinkingBudgetTokens" : "planModeThinkingBudgetTokens"
-		const thinkingBudget = String(sessionOverrides?.[thinkingKey] ?? stateManager.getGlobalSettingsKey(thinkingKey) ?? 0)
+		const thinkingBudget = String(sessionOverrides[thinkingKey] ?? 0)
 		const reasoningKey = session.mode === "act" ? "actModeReasoningEffort" : "planModeReasoningEffort"
-		const reasoningEffort = String(
-			sessionOverrides?.[reasoningKey] ?? stateManager.getGlobalSettingsKey(reasoningKey) ?? "medium",
-		)
+		const reasoningEffort = String(sessionOverrides[reasoningKey] ?? "medium")
+
+		const providerOptions = getValidCliProviders().map((provider) => ({
+			value: provider,
+			name: getProviderLabel(provider),
+		}))
+		const providerOptionsWithCurrent = currentProvider
+			? this.withCurrentSelectOption(providerOptions, currentProvider, getProviderLabel(currentProvider))
+			: providerOptions
 
 		return [
 			{
@@ -131,12 +129,7 @@ export class SessionConfigManager {
 				type: "select",
 				category: "_provider",
 				currentValue: currentProvider || "",
-				options: getValidCliProviders()
-					.filter((provider) => this.providerConfiguration?.isProviderEnabled(provider) ?? true)
-					.map((provider) => ({
-						value: provider,
-						name: getProviderLabel(provider),
-					})),
+				options: providerOptionsWithCurrent,
 			},
 			{
 				id: "model",
@@ -171,61 +164,65 @@ export class SessionConfigManager {
 	async applyProviderConfigOption(
 		session: DiracAcpSession,
 		providerValue: string,
-		sessionOverrides?: Partial<Settings>,
+		sessionOverrides: Partial<Settings>,
 	): Promise<void> {
 		if (!isValidCliProvider(providerValue)) {
-			throw new Error(`Invalid provider: ${providerValue}`)
+			throw new ApiConfigurationError(
+				ApiConfigurationErrorCode.ProviderUnsupported,
+				`Provider ${providerValue} is unavailable`,
+				"Select one of the available providers before retrying.",
+			)
 		}
 
 		this.providerConfiguration?.assertProviderEnabled(providerValue as ApiProvider)
 
 		const provider = providerValue as ApiProvider
 		const currentModelId = await this.getCurrentModeModelId(session.mode, provider, sessionOverrides)
+		this.assertModelAvailable(provider, currentModelId)
 		await this.applyProviderAndModel(session, provider, currentModelId, sessionOverrides)
 	}
 
 	async applyModelConfigOption(
 		session: DiracAcpSession,
 		modelValue: string,
-		sessionOverrides?: Partial<Settings>,
+		sessionOverrides: Partial<Settings>,
 	): Promise<void> {
-		const stateManager = StateManager.get()
 		const providerKey = session.mode === "act" ? "actModeApiProvider" : "planModeApiProvider"
-		const provider = (sessionOverrides?.[providerKey] ?? stateManager.getGlobalSettingsKey(providerKey)) as
-			| ApiProvider
-			| undefined
+		const provider = sessionOverrides[providerKey] as ApiProvider | undefined
 
 		if (!provider) {
-			throw new Error("Cannot set model before a provider is selected")
+			throw new ApiConfigurationError(
+				ApiConfigurationErrorCode.ProviderMissing,
+				"Cannot set model before a provider is selected",
+				"Select a provider before choosing a model.",
+			)
 		}
 
+		this.providerConfiguration?.assertProviderEnabled(provider)
+		this.assertModelAvailable(provider, modelValue)
 		await this.applyProviderAndModel(session, provider, modelValue, sessionOverrides)
 	}
 
-	applyReasoningEffortConfigOption(session: DiracAcpSession, effort: string): void {
+	applyReasoningEffortConfigOption(session: DiracAcpSession, effort: string, sessionOverrides: Partial<Settings>): void {
 		if (!REASONING_EFFORT_OPTIONS.some((option) => option.value === effort)) {
 			throw new Error(`Invalid reasoning effort: ${effort}`)
 		}
 
-		this.setModeScopedSessionState(session.mode, (mode) => {
-			StateManager.get().setGlobalState(
-				mode === "act" ? "actModeReasoningEffort" : "planModeReasoningEffort",
-				effort as any,
-			)
+		this.setModeScopedSessionState(session.mode, sessionOverrides, (mode) => {
+			const key = mode === "act" ? "actModeReasoningEffort" : "planModeReasoningEffort"
+				; (sessionOverrides as Record<string, unknown>)[key] = effort
 		})
 	}
 
-	applyThinkingBudgetConfigOption(session: DiracAcpSession, budgetValue: string): void {
+	applyThinkingBudgetConfigOption(session: DiracAcpSession, budgetValue: string, sessionOverrides: Partial<Settings>): void {
 		const budget = Number.parseInt(budgetValue, 10)
 		if (Number.isNaN(budget) || budget < 0) {
 			throw new Error(`Invalid thinking budget: ${budgetValue}`)
 		}
 
-		this.setModeScopedSessionState(session.mode, (mode) => {
-			StateManager.get().setGlobalState(
-				mode === "act" ? "actModeThinkingBudgetTokens" : "planModeThinkingBudgetTokens",
-				budget as any,
-			)
+		this.setModeScopedSessionState(session.mode, sessionOverrides, (mode) => {
+			const key = mode === "act" ? "actModeThinkingBudgetTokens" : "planModeThinkingBudgetTokens"
+				; (sessionOverrides as Record<string, unknown>)[key] = budget
 		})
 	}
 
@@ -233,36 +230,54 @@ export class SessionConfigManager {
 		session: DiracAcpSession,
 		provider: ApiProvider,
 		modelId: string,
-		sessionOverrides?: Partial<Settings>,
+		sessionOverrides: Partial<Settings>,
 	): Promise<void> {
-		this.setModeScopedSessionState(session.mode, (mode) => {
+		this.setModeScopedSessionState(session.mode, sessionOverrides, (mode) => {
 			const providerKey = mode === "act" ? "actModeApiProvider" : "planModeApiProvider"
 			const modelKey = getProviderModelIdKey(provider, mode)
-			if (sessionOverrides) {
-				const overrides = sessionOverrides as Record<string, unknown>
-				overrides[providerKey] = provider
-				overrides[modelKey] = modelId
-			} else {
-				StateManager.get().setGlobalState(providerKey, provider)
-				StateManager.get().setGlobalState(modelKey, modelId as any)
-			}
-
-			if (mode === "act") {
-				session.actModeModelId = `${provider}/${modelId}`
-			} else {
-				session.planModeModelId = `${provider}/${modelId}`
-			}
+			const modelInfoKey = getProviderModelInfoKey(provider, mode)
+			const overrides = sessionOverrides as Record<string, unknown>
+			overrides[providerKey] = provider
+			overrides[modelKey] = modelId
+			if (modelInfoKey) overrides[modelInfoKey] = undefined
 		})
 	}
 
 	async getCurrentModeModelId(mode: Mode, provider?: ApiProvider, sessionOverrides?: Partial<Settings>): Promise<string> {
 		if (!provider) return ""
 		const modelKey = getProviderModelIdKey(provider, mode)
-		return (
-			(sessionOverrides?.[modelKey] as string | undefined) ||
-			(StateManager.get().getGlobalSettingsKey(modelKey) as string | undefined) ||
-			getDefaultModelId(provider)
-		)
+		return (sessionOverrides?.[modelKey] as string | undefined) || getDefaultModelId(provider)
+	}
+
+	assertTaskRuntimeAvailable(session: DiracAcpSession, sessionOverrides: Partial<Settings>): void {
+		const providerKey = session.mode === "act" ? "actModeApiProvider" : "planModeApiProvider"
+		const provider = sessionOverrides[providerKey] as ApiProvider | undefined
+		if (!provider) {
+			throw new ApiConfigurationError(
+				ApiConfigurationErrorCode.ProviderMissing,
+				"No provider is selected for this ACP session",
+				"Select a provider before starting work.",
+			)
+		}
+		if (!isValidCliProvider(provider)) {
+			throw new ApiConfigurationError(
+				ApiConfigurationErrorCode.ProviderUnsupported,
+				`Provider ${provider} is unavailable`,
+				"Select an available provider before starting work.",
+			)
+		}
+		this.providerConfiguration?.assertProviderEnabled(provider)
+
+		const modelKey = getProviderModelIdKey(provider, session.mode)
+		const modelId = sessionOverrides[modelKey] as string | undefined
+		if (!modelId) {
+			throw new ApiConfigurationError(
+				ApiConfigurationErrorCode.ModelUnavailable,
+				`No model is selected for provider ${provider}`,
+				"Select an available model before starting work.",
+			)
+		}
+		this.assertModelAvailable(provider, modelId)
 	}
 
 	private async getModelConfigOptions(
@@ -279,12 +294,19 @@ export class SessionConfigManager {
 		}
 
 		let modelIds: string[] = []
-		if (usesOpenRouterModels(provider)) {
-			modelIds = filterOpenRouterModelIds(await fetchOpenRouterModels(), provider)
-		} else if (provider === "github-copilot") {
-			modelIds = Object.keys(await refreshGithubCopilotModels()).sort((a, b) => a.localeCompare(b))
-		} else if (hasStaticModels(provider)) {
-			modelIds = getModelList(provider)
+		try {
+			if (usesOpenRouterModels(provider)) {
+				modelIds = filterOpenRouterModelIds(await fetchOpenRouterModels(), provider)
+			} else if (provider === "github-copilot") {
+				modelIds = Object.keys(await refreshGithubCopilotModels()).sort((a, b) => a.localeCompare(b))
+			} else if (hasStaticModels(provider)) {
+				modelIds = getModelList(provider)
+			}
+		} catch (error) {
+			Logger.error(
+				`[SessionConfigManager] Could not refresh models for ${provider}; preserving the task's current selection`,
+				error,
+			)
 		}
 
 		if (currentModelId && !modelIds.includes(currentModelId)) {
@@ -305,11 +327,24 @@ export class SessionConfigManager {
 		return [{ value: currentValue, name: currentName }, ...options]
 	}
 
-	private setModeScopedSessionState(currentMode: Mode, setter: (mode: Mode) => void): void {
-		const stateManager = StateManager.get()
+	private assertModelAvailable(provider: ApiProvider, modelId: string): void {
+		if (hasStaticModels(provider) && !getModelList(provider).includes(modelId)) {
+			throw new ApiConfigurationError(
+				ApiConfigurationErrorCode.ModelUnavailable,
+				`Model ${modelId} is unavailable for provider ${provider}`,
+				"Select an available replacement model before retrying.",
+			)
+		}
+	}
+
+	private setModeScopedSessionState(
+		currentMode: Mode,
+		sessionOverrides: Partial<Settings>,
+		setter: (mode: Mode) => void,
+	): void {
 		setter(currentMode)
 
-		const separateModels = stateManager.getGlobalSettingsKey("planActSeparateModelsSetting") ?? false
+		const separateModels = sessionOverrides.planActSeparateModelsSetting ?? false
 		if (!separateModels) {
 			setter(currentMode === "act" ? "plan" : "act")
 		}

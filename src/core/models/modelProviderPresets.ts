@@ -1,6 +1,6 @@
-import { buildApiHandler } from "@core/api"
 import type { StateManager } from "@core/storage/StateManager"
 import type { Controller } from "@core/controller"
+import { applyApiConfigurationTransaction } from "@core/controller/models/apiConfigurationTransaction"
 import type { ApiConfiguration, ApiProvider, ModelInfo, ModelProviderPreset, OpenAiCompatibleProfile } from "@shared/api"
 import type { Mode } from "@shared/storage/types"
 
@@ -214,14 +214,8 @@ export async function activateModelProviderPreset(controller: Controller, preset
 	const updates = controller.stateManager.getGlobalSettingsKey("planActSeparateModelsSetting")
 		? modeUpdates(currentMode, preset, profile)
 		: { ...modeUpdates("plan", preset, profile), ...modeUpdates("act", preset, profile) }
-	controller.stateManager.setApiConfiguration(updates)
+	const candidateConfiguration = { ...configuration, ...updates }
+	applyApiConfigurationTransaction(controller, candidateConfiguration, () => controller.stateManager.setApiConfiguration(updates))
 	upsertPreset(controller.stateManager, { ...preset, lastUsedAt: Date.now() })
-
-	if (controller.task) {
-		controller.task.api = buildApiHandler(
-			{ ...controller.stateManager.getApiConfiguration(), ulid: controller.task.ulid },
-			currentMode,
-		)
-	}
 	await controller.postStateToWebview()
 }

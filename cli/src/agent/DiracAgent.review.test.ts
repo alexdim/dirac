@@ -115,6 +115,11 @@ vi.mock("@/core/storage/StateManager", () => ({
 				if (key === "mode") return "act"
 				return undefined
 			}),
+			getSystemDefaultSettingsKey: vi.fn((key: string) => {
+				if (key === "mode") return "act"
+				if (key === "actModeApiProvider" || key === "planModeApiProvider") return "anthropic"
+				return undefined
+			}),
 			getApiConfiguration: vi.fn(() => ({
 				actModeThinkingBudgetTokens: 1024,
 				planModeThinkingBudgetTokens: 1024,

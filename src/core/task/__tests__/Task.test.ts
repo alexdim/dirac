@@ -59,7 +59,12 @@ describe("Task (original)", () => {
 			setGlobalState: sandbox.stub(),
 			setTaskSettingsBatch: sandbox.stub(),
 			loadTaskSettings: sandbox.stub().resolves(),
-			getApiConfiguration: sandbox.stub().returns({}),
+			getApiConfiguration: sandbox.stub().returns({
+				planModeApiProvider: "anthropic",
+				actModeApiProvider: "anthropic",
+				planModeApiModelId: "claude-sonnet-4-20250514",
+				actModeApiModelId: "claude-sonnet-4-20250514",
+			}),
 			registerCallbacks: sandbox.stub(),
 			getSecretKey: sandbox.stub().returns(undefined),
 		}
@@ -70,7 +75,7 @@ describe("Task (original)", () => {
 		sandbox.restore()
 		try {
 			await fs.rm(tempDir, { recursive: true, force: true })
-		} catch {}
+		} catch { }
 	})
 
 	function createMockContext() {
@@ -110,6 +115,42 @@ describe("Task (original)", () => {
 		})
 		t.should.not.be.undefined()
 		t.taskId.should.equal("test-123")
+	})
+
+	it("propagates a replacement API handler to every task-owned manager", () => {
+		const t = new Task({
+			controller: createMockController(),
+			updateTaskHistory: sandbox.stub().resolves([]),
+			postStateToWebview: sandbox.stub().resolves(),
+			reinitExistingTaskFromId: sandbox.stub().resolves(),
+			cancelTask: sandbox.stub().resolves(),
+			shellIntegrationTimeout: 5000,
+			terminalReuseEnabled: true,
+			terminalOutputLineLimit: 500,
+			defaultTerminalProfile: "default",
+			vscodeTerminalExecutionMode: "vscodeTerminal",
+			cwd: tempDir,
+			stateManager: StateManager.get(),
+			task: "test task",
+			taskId: "test-api-propagation",
+			taskLockAcquired: false,
+		}) as any
+		const replacement = { getModel: () => ({ id: "replacement", info: {} }) }
+		const managers = [
+			t.taskMessenger,
+			t.hookManager,
+			t.toolExecutor,
+			t.environmentManager,
+			t.lifecycleManager,
+			t.apiConversationManager,
+			t.responseProcessor,
+		]
+		const setters = managers.map((manager) => sandbox.stub(manager, "setApi"))
+
+		t.setApiHandler(replacement)
+
+		t.api.should.equal(replacement)
+		setters.forEach((setter) => sinon.assert.calledOnceWithExactly(setter, replacement))
 	})
 
 	it("has cwd set from params", () => {
@@ -222,7 +263,7 @@ describe("Task (original)", () => {
 			taskId: "test-dirty",
 			taskLockAcquired: false,
 		})
-		;(() => t.markToolsDirty("settings_refresh_detected_change" as any)).should.not.throw()
+			; (() => t.markToolsDirty("settings_refresh_detected_change" as any)).should.not.throw()
 	})
 
 	it("resetTransientState resolves", async () => {
@@ -266,8 +307,8 @@ describe("Task (original)", () => {
 			taskId: "test-exec",
 			taskLockAcquired: false,
 		})
-		// Test that the method exists and can be called
-		;(() => t.executeCommandTool("echo test", undefined)).should.not.throw()
+			// Test that the method exists and can be called
+			; (() => t.executeCommandTool("echo test", undefined)).should.not.throw()
 	})
 
 	it("cancelHookExecution does not throw", () => {
@@ -289,7 +330,7 @@ describe("Task (original)", () => {
 			taskId: "test-hook",
 			taskLockAcquired: false,
 		})
-		;(() => t.cancelHookExecution()).should.not.throw()
+			; (() => t.cancelHookExecution()).should.not.throw()
 	})
 
 	it("has ulid property", () => {

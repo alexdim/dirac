@@ -71,16 +71,14 @@ describe("API Error Handling (original)", () => {
 		handler.should.have.property("createMessage")
 	})
 
-	it("handles missing apiProvider gracefully", () => {
+	it("rejects a missing apiProvider", () => {
 		const config: ApiConfiguration = {
 			apiProvider: undefined,
 			apiKey: "test-key",
 			planModeApiModelId: TEST_MODEL_IDS.ANTHROPIC,
 			actModeApiModelId: TEST_MODEL_IDS.ANTHROPIC,
 		}
-		const handler = buildApiHandler(config, "plan")
-		handler.should.not.be.undefined()
-		handler.should.have.property("createMessage")
+		should(() => buildApiHandler(config, "plan")).throw("API provider is not configured")
 	})
 
 	it("handles invalid mode by defaulting to plan", () => {

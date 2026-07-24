@@ -5,7 +5,7 @@
 
 import type { ApiProvider } from "@shared/api"
 import { getProviderModelIdKey, ProviderToApiKeyMap, ProviderToBaseUrlKeyMap } from "@shared/storage"
-import { buildApiHandler } from "@/core/api"
+import { buildCandidateApiHandler } from "@/core/controller/models/apiConfigurationTransaction"
 import type { Controller } from "@/core/controller"
 import { refreshOpenRouterModels } from "@/core/controller/models/refreshOpenRouterModels"
 import { refreshVercelAiGatewayModels } from "@/core/controller/models/refreshVercelAiGatewayModels"
@@ -133,17 +133,19 @@ export async function applyProviderConfig(options: ApplyProviderConfigOptions): 
 		config.azureApiVersion = azureApiVersion
 	}
 
+	const candidateConfiguration = { ...stateManager.getApiConfiguration(), ...config }
+	const candidateHandler = controller
+		? buildCandidateApiHandler(controller, candidateConfiguration)
+		: undefined
+
 	// Save via StateManager
 	stateManager.setApiConfiguration(config)
 	await stateManager.flushPendingState()
 
 	// Rebuild API handler on active task if one exists
-	if (controller?.task) {
-		const currentMode = stateManager.getGlobalSettingsKey("mode")
-		const apiConfig = stateManager.getApiConfiguration()
-		controller.task.api = buildApiHandler({ ...apiConfig, ulid: controller.task.ulid }, currentMode)
-
-		await controller?.postStateToWebview()
+	if (controller?.task && candidateHandler) {
+		controller.task.setApiHandler(candidateHandler)
+		await controller.postStateToWebview()
 	}
 }
 
@@ -220,16 +222,17 @@ export async function applyBedrockConfig(options: ApplyBedrockConfigOptions): Pr
 	if (bedrockConfig.awsSecretKey) config.awsSecretKey = bedrockConfig.awsSecretKey
 	if (bedrockConfig.awsSessionToken) config.awsSessionToken = bedrockConfig.awsSessionToken
 
+	const candidateConfiguration = { ...stateManager.getApiConfiguration(), ...config }
+	const candidateHandler = controller
+		? buildCandidateApiHandler(controller, candidateConfiguration)
+		: undefined
+
 	// Save via StateManager
 	stateManager.setApiConfiguration(config as Record<string, string>)
 	await stateManager.flushPendingState()
 
 	// Rebuild API handler on active task if one exists
-	if (controller?.task) {
-		const currentMode = stateManager.getGlobalSettingsKey("mode")
-		const apiConfig = stateManager.getApiConfiguration()
-		controller.task.api = buildApiHandler({ ...apiConfig, ulid: controller.task.ulid }, currentMode)
-	}
+	if (controller?.task && candidateHandler) controller.task.setApiHandler(candidateHandler)
 
 	await controller?.postStateToWebview()
 }

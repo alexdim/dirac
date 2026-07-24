@@ -1,7 +1,6 @@
 import "should"
 import sinon from "sinon"
 import { TaskStatus } from "@shared/ExtensionMessage"
-import { telemetryService } from "@/services/telemetry"
 import { StateController } from "../StateController"
 
 describe("StateController", () => {
@@ -11,6 +10,9 @@ describe("StateController", () => {
 		const task = {
 			ulid: "task-ulid",
 			api: undefined,
+			setApiHandler: sinon.stub().callsFake((nextApi) => {
+				task.api = nextApi
+			}),
 			taskState: {
 				status,
 				didSwitchToActMode: false,
@@ -26,7 +28,7 @@ describe("StateController", () => {
 		const cancelTaskFn = sinon.stub().resolves()
 		const api = {} as any
 		const buildApiHandlerFn = sinon.stub().returns(api) as any
-		sinon.stub(telemetryService, "captureModeSwitch")
+		const captureModeSwitchFn = sinon.stub()
 
 		const controller = new StateController({
 			stateManager,
@@ -36,6 +38,7 @@ describe("StateController", () => {
 			buildApiHandlerFn,
 			postStateToWebviewFn,
 			cancelTaskFn,
+			captureModeSwitchFn,
 		})
 
 		return { controller, task, stateManager, postStateToWebviewFn, cancelTaskFn, buildApiHandlerFn, api }
@@ -53,7 +56,7 @@ describe("StateController", () => {
 		sinon.assert.calledWith(stateManager.setSessionOverride, "mode", "plan")
 		sinon.assert.calledOnce(postStateToWebviewFn)
 		sinon.assert.calledOnce(buildApiHandlerFn)
-		task.api.should.equal(api)
+		sinon.assert.calledOnceWithExactly(task.setApiHandler, api)
 		sinon.assert.notCalled(cancelTaskFn)
 	})
 

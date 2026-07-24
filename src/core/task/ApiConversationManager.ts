@@ -13,6 +13,10 @@ import { ApiConversationManagerDependencies } from "./types/api-conversation-man
 export class ApiConversationManager {
 	constructor(private dependencies: ApiConversationManagerDependencies) {}
 
+	setApi(api: ApiConversationManagerDependencies["api"]): void {
+		this.dependencies.api = api
+	}
+
 	public calculatePreCompactDeletedRange(apiConversationHistory: DiracStorageMessage[]): [number, number] {
 		const newDeletedRange = this.dependencies.contextManager.getNextTruncationRange(
 			apiConversationHistory,
