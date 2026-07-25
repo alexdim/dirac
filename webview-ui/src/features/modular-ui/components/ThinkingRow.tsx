@@ -1,6 +1,7 @@
 import { ChevronDownIcon, ChevronRightIcon, Lightbulb } from "lucide-react"
 import { memo, useCallback, useEffect, useRef, useState } from "react"
 import { cn } from "@/lib/utils"
+import { useAutoScroll } from "@/shared/hooks/useAutoScroll"
 import { ReasoningTimeline } from "../ReasoningTimeline"
 
 interface ThinkingRowProps {
@@ -43,9 +44,14 @@ export const ThinkingRow = memo(
 			}
 		}, [isStreaming])
 
-		const scrollRef = useRef<HTMLDivElement>(null)
+		const scrollRef = useRef<HTMLDivElement | null>(null)
 		const [canScrollUp, setCanScrollUp] = useState(false)
 		const [canScrollDown, setCanScrollDown] = useState(false)
+		const autoScrollRef = useAutoScroll({
+			dependency: reasoningContent,
+			enabled: isVisible && isExpanded,
+			bottomThreshold: 4,
+		})
 
 		const checkScrollable = useCallback(() => {
 			if (scrollRef.current) {
@@ -55,13 +61,17 @@ export const ThinkingRow = memo(
 			}
 		}, [])
 
-		// Auto-scroll to bottom during streaming
+		const setScrollElement = useCallback(
+			(element: HTMLDivElement | null) => {
+				scrollRef.current = element
+				autoScrollRef(element)
+			},
+			[autoScrollRef],
+		)
+
 		useEffect(() => {
-			if (scrollRef.current && isVisible) {
-				scrollRef.current.scrollTop = scrollRef.current.scrollHeight
-			}
 			checkScrollable()
-		}, [reasoningContent, isVisible, checkScrollable])
+		}, [reasoningContent, isVisible, isExpanded, checkScrollable])
 
 		if (!isVisible) {
 			return null
@@ -147,7 +157,7 @@ export const ThinkingRow = memo(
 						<div
 							className="flex max-h-[200px] overflow-y-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden [direction:ltr]"
 							onScroll={checkScrollable}
-							ref={scrollRef}>
+							ref={setScrollElement}>
 							<div className="flex-1 pr-2 pb-1">
 								<ReasoningTimeline content={reasoningContent || ""} />
 							</div>

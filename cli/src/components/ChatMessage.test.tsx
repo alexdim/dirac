@@ -31,7 +31,7 @@ describe("ChatMessage subagent rendering", () => {
 		}
 
 		const { lastFrame } = render(React.createElement(ChatMessage, { message, mode: "act" }))
-		const frame = lastFrame() || ""
+		const frame = (lastFrame() || "").replace(/\s+/g, " ")
 
 		expect(frame).toContain("Dirac wants to run subagents")
 		expect(frame).toContain("Find codebase stats and size")
@@ -39,7 +39,7 @@ describe("ChatMessage subagent rendering", () => {
 		expect(frame).toContain("Find unusual patterns and history")
 	})
 
-	it("renders subagent progress rows with compact token stats and completion checks", () => {
+	it("collapses running subagent progress to a compact summary", () => {
 		const message: DiracMessage = {
 			id: "2",
 			ts: Date.now(),
@@ -59,8 +59,7 @@ describe("ChatMessage subagent rendering", () => {
 		const frame = lastFrame() || ""
 
 		expect(frame).toContain("Dirac is running subagents")
-		expect(frame).toContain("Find codebase stats and size")
-		expect(frame).toContain("Find funny comments and easter eggs")
-		expect(frame).toContain("Find unusual patterns and history")
+		expect(frame).toContain("Subagent Status (1/3)")
+		expect(frame).not.toContain("24,400")
 	})
 })

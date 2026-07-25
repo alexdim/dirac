@@ -1,33 +1,16 @@
 import { ApiConfiguration } from "@shared/api"
 import { fireEvent, render, screen } from "@testing-library/react"
 import { describe, expect, it, vi } from "vitest"
-import { SettingsStoreProvider, useSettingsStore } from "@/features/settings/store/settingsStore"
+import { useSettingsStore } from "@/features/settings/store/settingsStore"
 import ApiOptions from "../ApiOptions"
 
-vi.mock("../../../context/SettingsStore", async (importOriginal) => {
-	const actual = await importOriginal()
-	return {
-		...(actual || {}),
-		// your mocked methods
-		useSettingsStore: vi.fn(() => ({
-			apiConfiguration: {
-				planModeApiProvider: "requesty",
-				actModeApiProvider: "requesty",
-				requestyApiKey: "",
-				planModeRequestyModelId: "",
-				actModeRequestyModelId: "",
-			},
-			setApiConfiguration: vi.fn(),
-			requestyModels: {},
-			planActSeparateModelsSetting: false,
-		})),
-	}
-})
+vi.mock("../ModelDescriptionMarkdown", () => ({
+	ModelDescriptionMarkdown: () => null,
+}))
 
 const mockExtensionState = (apiConfiguration: Partial<ApiConfiguration>) => {
-	vi.mocked(useSettingsStore).mockReturnValue({
+	useSettingsStore.setState({
 		apiConfiguration,
-		setApiConfiguration: vi.fn(),
 		requestyModels: {},
 		planActSeparateModelsSetting: false,
 	} as any)
@@ -47,21 +30,13 @@ describe("ApiOptions Component", () => {
 	})
 
 	it("renders Requesty API Key input", () => {
-		render(
-			<SettingsStoreProvider>
-				<ApiOptions currentMode="plan" showModelOptions={true} />
-			</SettingsStoreProvider>,
-		)
+		render(<ApiOptions currentMode="plan" showModelOptions={true} />)
 		const apiKeyInput = screen.getByPlaceholderText("Enter API Key...")
 		expect(apiKeyInput).toBeInTheDocument()
 	})
 
 	it("renders Requesty Model ID input", () => {
-		render(
-			<SettingsStoreProvider>
-				<ApiOptions currentMode="plan" showModelOptions={true} />
-			</SettingsStoreProvider>,
-		)
+		render(<ApiOptions currentMode="plan" showModelOptions={true} />)
 		const modelIdInput = screen.getByPlaceholderText("Search and select a model...")
 		expect(modelIdInput).toBeInTheDocument()
 	})
@@ -81,21 +56,13 @@ describe("ApiOptions Component", () => {
 	})
 
 	it("renders Together API Key input", () => {
-		render(
-			<SettingsStoreProvider>
-				<ApiOptions currentMode="plan" showModelOptions={true} />
-			</SettingsStoreProvider>,
-		)
+		render(<ApiOptions currentMode="plan" showModelOptions={true} />)
 		const apiKeyInput = screen.getByPlaceholderText("Enter API Key...")
 		expect(apiKeyInput).toBeInTheDocument()
 	})
 
 	it("renders Together Model ID input", () => {
-		render(
-			<SettingsStoreProvider>
-				<ApiOptions currentMode="plan" showModelOptions={true} />
-			</SettingsStoreProvider>,
-		)
+		render(<ApiOptions currentMode="plan" showModelOptions={true} />)
 		const modelIdInput = screen.getByPlaceholderText("Enter Model ID...")
 		expect(modelIdInput).toBeInTheDocument()
 	})
@@ -121,24 +88,16 @@ describe("ApiOptions Component", () => {
 	})
 
 	it("renders Fireworks API Key input", () => {
-		render(
-			<SettingsStoreProvider>
-				<ApiOptions currentMode="plan" showModelOptions={true} />
-			</SettingsStoreProvider>,
-		)
+		render(<ApiOptions currentMode="plan" showModelOptions={true} />)
 		const apiKeyInput = screen.getByPlaceholderText("Enter API Key...")
 		expect(apiKeyInput).toBeInTheDocument()
 	})
 
 	it("renders Fireworks Model Select", () => {
-		render(
-			<SettingsStoreProvider>
-				<ApiOptions currentMode="plan" showModelOptions={true} />
-			</SettingsStoreProvider>,
-		)
+		render(<ApiOptions currentMode="plan" showModelOptions={true} />)
 		const modelIdSelect = screen.getByLabelText("Model")
 		expect(modelIdSelect).toBeInTheDocument()
-		expect(modelIdSelect).toHaveValue("accounts/fireworks/models/kimi-k2-instruct-0905")
+		expect(modelIdSelect).toHaveValue("accounts/fireworks/models/kimi-k2p6")
 	})
 })
 
@@ -156,35 +115,23 @@ describe("OpenApiInfoOptions", () => {
 	})
 
 	it("renders OpenAI Supports Images input", () => {
-		render(
-			<SettingsStoreProvider>
-				<ApiOptions currentMode="plan" showModelOptions={true} />
-			</SettingsStoreProvider>,
-		)
+		render(<ApiOptions currentMode="plan" showModelOptions={true} />)
 		fireEvent.click(screen.getByText("Model Configuration"))
 		const apiKeyInput = screen.getByText("Supports Images")
 		expect(apiKeyInput).toBeInTheDocument()
 	})
 
 	it("renders OpenAI Context Window Size input", () => {
-		render(
-			<SettingsStoreProvider>
-				<ApiOptions currentMode="plan" showModelOptions={true} />
-			</SettingsStoreProvider>,
-		)
+		render(<ApiOptions currentMode="plan" showModelOptions={true} />)
 		fireEvent.click(screen.getByText("Model Configuration"))
-		const orgIdInput = screen.getByText("Context Window Size")
+		const orgIdInput = screen.getByText("Context Window")
 		expect(orgIdInput).toBeInTheDocument()
 	})
 
 	it("renders OpenAI Max Output Tokens input", () => {
-		render(
-			<SettingsStoreProvider>
-				<ApiOptions currentMode="plan" showModelOptions={true} />
-			</SettingsStoreProvider>,
-		)
+		render(<ApiOptions currentMode="plan" showModelOptions={true} />)
 		fireEvent.click(screen.getByText("Model Configuration"))
-		const modelInput = screen.getByText("Max Output Tokens")
+		const modelInput = screen.getByText("Max Output")
 		expect(modelInput).toBeInTheDocument()
 	})
 })
@@ -205,23 +152,15 @@ describe("ApiOptions Component", () => {
 	})
 
 	it("renders Nebius API Key input", () => {
-		render(
-			<SettingsStoreProvider>
-				<ApiOptions currentMode="plan" showModelOptions={true} />
-			</SettingsStoreProvider>,
-		)
+		render(<ApiOptions currentMode="plan" showModelOptions={true} />)
 		const apiKeyInput = screen.getByPlaceholderText("Enter API Key...")
 		expect(apiKeyInput).toBeInTheDocument()
 	})
 
 	it("renders Nebius Model ID select with a default model", () => {
-		render(
-			<SettingsStoreProvider>
-				<ApiOptions currentMode="plan" showModelOptions={true} />
-			</SettingsStoreProvider>,
-		)
+		render(<ApiOptions currentMode="plan" showModelOptions={true} />)
 		const modelIdSelect = screen.getByLabelText("Model")
 		expect(modelIdSelect).toBeInTheDocument()
-		expect(modelIdSelect).toHaveValue("Qwen/Qwen2.5-32B-Instruct-fast")
+		expect(modelIdSelect).toHaveValue("openai/gpt-oss-120b")
 	})
 })

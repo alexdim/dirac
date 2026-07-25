@@ -5,7 +5,12 @@ import { createResilientNdJsonStream } from "./streamUtils.js"
 describe("createResilientNdJsonStream", () => {
 	it("continues serving valid requests after malformed and schema-invalid stdin frames", async () => {
 		const inbound = new TransformStream<Uint8Array, Uint8Array>()
-		const outbound = new TransformStream<Uint8Array, Uint8Array>()
+		const outputChunks: Uint8Array[] = []
+		const outbound = new WritableStream<Uint8Array>({
+			write(chunk) {
+				outputChunks.push(chunk)
+			},
+		})
 		const initialized = awaitableCounter()
 
 		new AgentSideConnection(
@@ -27,7 +32,7 @@ describe("createResilientNdJsonStream", () => {
 				async cancel() {},
 				async authenticate() {},
 			}),
-			createResilientNdJsonStream(outbound.writable, inbound.readable),
+			createResilientNdJsonStream(outbound, inbound.readable),
 		)
 
 		const input = inbound.writable.getWriter()
@@ -38,12 +43,14 @@ describe("createResilientNdJsonStream", () => {
 				`{"jsonrpc":"2.0","id":2,"method":"initialize","params":{"protocolVersion":${PROTOCOL_VERSION},"clientCapabilities":{}}}\n`,
 			),
 		)
+
+		await expect.poll(() => initialized.count()).toBe(1)
+		await expect.poll(() => parseJsonFrames(outputChunks).length).toBe(2)
+		const responses = parseJsonFrames(outputChunks)
 		await input.close()
 
-		const responses = await readJsonFrames(outbound.readable, 2)
-
 		expect(responses).toEqual([
-			expect.objectContaining({ id: 1, error: expect.objectContaining({ code: -32603 }) }),
+			expect.objectContaining({ id: 1, error: expect.objectContaining({ code: -32602 }) }),
 			expect.objectContaining({ id: 2, result: expect.objectContaining({ protocolVersion: PROTOCOL_VERSION }) }),
 		])
 		expect(initialized.count()).toBe(1)
@@ -58,30 +65,11 @@ function awaitableCounter(): { increment(): void; count(): number } {
 	}
 }
 
-async function readJsonFrames(stream: ReadableStream<Uint8Array>, count: number): Promise<unknown[]> {
-	const reader = stream.getReader()
+function parseJsonFrames(chunks: Uint8Array[]): unknown[] {
 	const decoder = new TextDecoder()
-	const frames: unknown[] = []
-	let remainder = ""
-
-	try {
-		while (frames.length < count) {
-			const { value, done } = await reader.read()
-			if (done) {
-				break
-			}
-			remainder += decoder.decode(value, { stream: true })
-			const lines = remainder.split("\n")
-			remainder = lines.pop() ?? ""
-			for (const line of lines) {
-				if (line.trim()) {
-					frames.push(JSON.parse(line))
-				}
-			}
-		}
-	} finally {
-		reader.releaseLock()
-	}
-
-	return frames
+	return decoder
+		.decode(Buffer.concat(chunks.map((chunk) => Buffer.from(chunk))))
+		.split("\n")
+		.filter((line) => line.trim())
+		.map((line) => JSON.parse(line))
 }

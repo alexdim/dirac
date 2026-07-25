@@ -2,32 +2,37 @@ import { VSCodeCheckbox } from "@vscode/webview-ui-toolkit/react"
 import React, { useEffect, useRef, useState } from "react"
 import { useClickAway } from "react-use"
 import { useSettingsStore } from "@/features/settings/store/settingsStore"
+import { StateServiceClient } from "@/shared/api/grpc-client"
 import { useAutoApproveActions } from "@/shared/hooks/useAutoApproveActions"
 import { getAsVar, VSC_DESCRIPTION_FOREGROUND, VSC_TITLEBAR_INACTIVE_FOREGROUND } from "@/shared/lib/vscStyles"
 import AutoApproveMenuItem from "./AutoApproveMenuItem"
 import { updateAutoApproveSettings } from "./AutoApproveSettingsAPI"
-import { StateServiceClient } from "@/shared/api/grpc-client"
 import { ActionMetadata } from "./types"
 
 const breakpoint = 500
 
+function getCheckboxChecked(event: { target: EventTarget | null }): boolean {
+	return (event.target as HTMLInputElement).checked
+}
+
 interface AutoApproveModalProps {
 	isVisible: boolean
 	setIsVisible: (visible: boolean) => void
-	buttonRef: React.RefObject<HTMLDivElement>
+	buttonRef: React.RefObject<HTMLButtonElement>
 	ACTION_METADATA: ActionMetadata[]
 }
 
 const AutoApproveModal: React.FC<AutoApproveModalProps> = ({ isVisible, setIsVisible, buttonRef, ACTION_METADATA }) => {
-	const { autoApprovalSettings, autoApproveAllToggled, yoloModeToggled } = useSettingsStore()
+	const { autoApprovalSettings, autoApproveAllToggled, remoteConfigSettings, yoloModeToggled } = useSettingsStore()
 	const { isChecked, updateAction } = useAutoApproveActions()
 	const modalRef = useRef<HTMLDivElement>(null)
 	const itemsContainerRef = useRef<HTMLDivElement>(null)
 	const [containerWidth, setContainerWidth] = useState(0)
+	const isYoloRemoteLocked = remoteConfigSettings?.yoloModeToggled !== undefined
 
 	useClickAway(modalRef, (e) => {
 		// Skip if click was on the button that toggles the modal
-		if (buttonRef.current && buttonRef.current.contains(e.target as Node)) {
+		if (buttonRef.current?.contains(e.target as Node)) {
 			return
 		}
 		setIsVisible(false)
@@ -72,7 +77,7 @@ const AutoApproveModal: React.FC<AutoApproveModalProps> = ({ isVisible, setIsVis
 				style={{
 					maxHeight: "60vh",
 				}}>
-				<div className="mb-2.5 text-muted-foreground text-xs cursor-pointer" onClick={() => setIsVisible(false)}>
+				<div className="mb-2.5 text-muted-foreground text-xs">
 					Let Dirac take these actions without asking for approval.
 				</div>
 
@@ -98,7 +103,7 @@ const AutoApproveModal: React.FC<AutoApproveModalProps> = ({ isVisible, setIsVis
 					{ACTION_METADATA.map((action) => (
 						<AutoApproveMenuItem
 							action={action}
-							disabled={autoApproveAllToggled}
+							disabled={autoApproveAllToggled || yoloModeToggled}
 							isChecked={isChecked}
 							key={action.id}
 							onToggle={updateAction}
@@ -116,16 +121,32 @@ const AutoApproveModal: React.FC<AutoApproveModalProps> = ({ isVisible, setIsVis
 					}}
 				/>
 
-				{/* Notifications toggle */}
 				<div className="flex items-center gap-2 mb-1">
 					<VSCodeCheckbox
-						checked={autoApproveAllToggled || yoloModeToggled}
+						checked={yoloModeToggled}
+						disabled={isYoloRemoteLocked}
+						onChange={async (e) => {
+							const checked = getCheckboxChecked(e)
+							await StateServiceClient.updateSettings({ metadata: {}, yoloModeToggled: checked })
+						}}
+						title={
+							isYoloRemoteLocked
+								? "YOLO mode is managed by your organization"
+								: "Run autonomously without confirmation prompts"
+						}>
+						<span className="text-sm">YOLO mode</span>
+					</VSCodeCheckbox>
+				</div>
+
+				<div className="flex items-center gap-2 mb-1">
+					<VSCodeCheckbox
+						checked={autoApproveAllToggled}
 						disabled={yoloModeToggled}
-						title="Auto-approve all, including unsafe commands"
-						onChange={async (e: any) => {
-							const checked = e.target.checked === true
+						onChange={async (e) => {
+							const checked = getCheckboxChecked(e)
 							await StateServiceClient.updateSettings({ metadata: {}, autoApproveAllToggled: checked })
-						}}>
+						}}
+						title="Auto-approve all, including unsafe commands">
 						<span className="text-sm">Approve All</span>
 					</VSCodeCheckbox>
 				</div>
@@ -133,9 +154,9 @@ const AutoApproveModal: React.FC<AutoApproveModalProps> = ({ isVisible, setIsVis
 				<div className="flex items-center gap-2">
 					<VSCodeCheckbox
 						checked={autoApprovalSettings.enableNotifications}
-						disabled={autoApproveAllToggled}
-						onChange={async (e: any) => {
-							const checked = e.target.checked === true
+						disabled={autoApproveAllToggled || yoloModeToggled}
+						onChange={async (e) => {
+							const checked = getCheckboxChecked(e)
 							await updateAutoApproveSettings({
 								...autoApprovalSettings,
 								version: (autoApprovalSettings.version ?? 1) + 1,

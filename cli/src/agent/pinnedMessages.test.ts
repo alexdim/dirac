@@ -30,22 +30,36 @@ const controllerInstances: any[] = []
 vi.mock("@/core/controller", () => ({
 	Controller: class {
 		task: any
+		taskRunPromise: Promise<void> | undefined
 		getStateToPostToWebview = vi.fn(async () => ({ mode: "act" }))
 		dispose = vi.fn()
 		initTask = vi.fn(async (...args: any[]) => {
 			this.task = {
 				taskState: { pinnedContext: args[7]?.pinnedContext },
+				messageStateHandler: {
+					getDiracMessages: vi.fn(() => []),
+					on: vi.fn(),
+					off: vi.fn(),
+				},
 				setContextCompactionObserver: vi.fn(),
 				rebuildApiHandler: vi.fn(),
 			}
+			this.taskRunPromise = Promise.resolve()
 		})
 		reinitExistingTaskFromId = vi.fn(async (...args: any[]) => {
 			this.task = {
-				taskState: { pinnedContext: args[1]?.pinnedContext },
+				taskState: { pinnedContext: args[1]?.pinnedContext, status: "completed" },
+				messageStateHandler: {
+					getDiracMessages: vi.fn(() => []),
+					on: vi.fn(),
+					off: vi.fn(),
+				},
 				setContextCompactionObserver: vi.fn(),
 				rebuildApiHandler: vi.fn(),
 			}
+			this.taskRunPromise = Promise.resolve()
 		})
+		onTaskReplaced = vi.fn(() => () => undefined)
 		constructor() {
 			controllerInstances.push(this)
 		}
@@ -109,7 +123,11 @@ describe("pinned ACP messages", () => {
 		expect(controller.initTask.mock.calls[0][7].pinnedContext).toContain("Use the pinned requirement.")
 		expect(controller.task.taskState.pinnedContext).toContain("Use the pinned requirement.")
 
-		controller.task.messageStateHandler = { getDiracMessages: () => [] }
+		controller.task.messageStateHandler = {
+			getDiracMessages: () => [],
+			on: vi.fn(),
+			off: vi.fn(),
+		}
 		await (agent as any).prompt({
 			sessionId: session.sessionId,
 			prompt: [{ type: "text", text: "replacement" }],

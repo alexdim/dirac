@@ -2,11 +2,12 @@ import { strict as assert } from "node:assert"
 import * as fs from "fs/promises"
 import * as os from "os"
 import * as path from "path"
-import { afterEach, describe, it } from "mocha"
+import { afterEach, beforeEach, describe, it } from "mocha"
 import { ToolDiscoveryService } from "../ToolDiscoveryService"
 import { UserToolLoader } from "../UserToolLoader"
 
 const tempDirs: string[] = []
+let originalDiracDir: string | undefined
 
 async function makeTempDir(): Promise<string> {
 	const dir = await fs.mkdtemp(path.join(os.tmpdir(), "dirac-user-tool-"))
@@ -66,11 +67,22 @@ ${options.extraSource ?? ""}
 	return toolDir
 }
 
-describe("UserToolLoader", () => {
-	afterEach(async () => {
-		await Promise.all(tempDirs.splice(0).map((dir) => fs.rm(dir, { recursive: true, force: true })))
-	})
+beforeEach(async () => {
+	originalDiracDir = process.env.DIRAC_DIR
+	process.env.DIRAC_DIR = await makeTempDir()
+})
 
+afterEach(async () => {
+	await UserToolLoader.purgeStaleCache([])
+	if (originalDiracDir === undefined) {
+		delete process.env.DIRAC_DIR
+	} else {
+		process.env.DIRAC_DIR = originalDiracDir
+	}
+	await Promise.all(tempDirs.splice(0).map((dir) => fs.rm(dir, { recursive: true, force: true })))
+})
+
+describe("UserToolLoader", () => {
 	it("loads a valid manifest-backed TypeScript user tool", async () => {
 		const root = await makeTempDir()
 		const toolDir = await writeUserTool(root)
@@ -127,11 +139,6 @@ export function create() { return { spec() { return spec }, supportedSurfaces() 
 })
 
 describe("ToolDiscoveryService user tools", () => {
-	afterEach(async () => {
-		await Promise.all(tempDirs.splice(0).map((dir) => fs.rm(dir, { recursive: true, force: true })))
-		await UserToolLoader.purgeStaleCache([])
-	})
-
 	it("ignores directories without a sidecar manifest", async () => {
 		const root = await makeTempDir()
 		await fs.mkdir(path.join(root, "random"), { recursive: true })

@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react"
+import { fireEvent, render, screen, within } from "@testing-library/react"
 import { describe, expect, it, vi } from "vitest"
 import FeatureSettingsSection from "./FeatureSettingsSection"
 
@@ -35,17 +35,16 @@ describe("FeatureSettingsSection", () => {
 		const advancedSection = container.querySelector("#advanced-features")
 		const agentSection = container.querySelector("#agent-features")
 
-		expect(advancedSection?.querySelector("#Hooks")).toBeTruthy()
-		expect(agentSection?.querySelector("#Hooks")).toBeNull()
+		expect(advancedSection).toBeTruthy()
+		expect(agentSection).toBeTruthy()
+		expect(within(advancedSection as HTMLElement).getByRole("switch", { name: "Hooks" })).toBeInTheDocument()
+		expect(within(agentSection as HTMLElement).queryByRole("switch", { name: "Hooks" })).not.toBeInTheDocument()
 	})
 
 	it("calls updateSetting with hooksEnabled when toggled", () => {
-		const { container } = render(<FeatureSettingsSection renderSectionHeader={() => null} />)
+		render(<FeatureSettingsSection renderSectionHeader={() => null} />)
 
-		const hooksSwitch = container.querySelector("#Hooks")
-		expect(hooksSwitch).toBeTruthy()
-
-		fireEvent.click(hooksSwitch as Element)
+		fireEvent.click(screen.getByRole("switch", { name: "Hooks" }))
 
 		expect(mockUpdateSetting).toHaveBeenCalledWith("hooksEnabled", true)
 	})

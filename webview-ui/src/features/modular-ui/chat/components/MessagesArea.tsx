@@ -1,7 +1,8 @@
 import type { DiracMessage } from "@shared/ExtensionMessage"
 import type React from "react"
-import { useCallback, useMemo } from "react"
+import { useCallback, useMemo, useRef } from "react"
 import { Virtuoso } from "react-virtuoso"
+import { CHAT_CONSTANTS } from "../constants"
 import type { ChatState, MessageHandlers, ScrollBehavior } from "../types/chatTypes"
 import { MessageRenderer } from "./VirtuosoItemRenderer"
 
@@ -26,84 +27,89 @@ export const MessagesArea: React.FC<MessagesAreaProps> = ({
 }) => {
 	const {
 		virtuosoRef,
-		footerRef,
 		toggleRowExpansion,
-		setIsAtBottom,
-		setShowScrollToBottom,
-		disableAutoScrollRef,
-		programmaticScrollRef,
-		handleRangeChanged,
+		handleAtBottomStateChange,
+		handleListHeightChanged,
+		handleScrollKeyDown,
+		handleScrollPointerDown,
+		handleScrollPointerUp,
+		handleScrollTouchEnd,
+		handleScrollTouchMove,
+		handleScrollTouchStart,
+		handleScrollWheel,
+		followOutput,
 	} = scrollBehavior
 
 	const { activeVoiceStreamId } = chatState
 	const { expandedRows, setActiveQuote, uiActionState } = chatState
 	const activeCardId = uiActionState?.activeCardId
+	const messageHandlersRef = useRef(messageHandlers)
+	messageHandlersRef.current = messageHandlers
+	const stableMessageHandlers = useMemo<MessageHandlers>(
+		() => ({
+			executeButtonAction: (...args) => messageHandlersRef.current.executeButtonAction(...args),
+			handleSendMessage: (...args) => messageHandlersRef.current.handleSendMessage(...args),
+			handleTaskCloseButtonClick: () => messageHandlersRef.current.handleTaskCloseButtonClick(),
+			startNewTask: () => messageHandlersRef.current.startNewTask(),
+		}),
+		[],
+	)
 
 	const itemContent = useCallback(
 		(index: number, message: DiracMessage) => (
 			<MessageRenderer
-				index={index}
-				message={message}
-				renderedMessages={renderedMessages}
-				expandedRows={expandedRows}
-				onToggleExpand={toggleRowExpansion}
-				onSetQuote={setActiveQuote}
-				messageHandlers={messageHandlers}
-				footerActive={false}
 				activeCardId={activeCardId}
 				activeVoiceStreamId={activeVoiceStreamId}
+				expandedRows={expandedRows}
+				isLastMessage={index === renderedMessages.length - 1}
+				message={message}
+				messageHandlers={stableMessageHandlers}
+				onSetQuote={setActiveQuote}
+				onToggleExpand={toggleRowExpansion}
 			/>
 		),
-		[activeCardId, activeVoiceStreamId, expandedRows, messageHandlers, renderedMessages, setActiveQuote, toggleRowExpansion],
-	)
-
-	const virtuosoComponents = useMemo(
-		() => ({
-			Footer: () => <div ref={footerRef} className="min-h-1" />,
-		}),
-		[footerRef],
+		[
+			activeCardId,
+			activeVoiceStreamId,
+			expandedRows,
+			renderedMessages.length,
+			setActiveQuote,
+			stableMessageHandlers,
+			toggleRowExpansion,
+		],
 	)
 
 	return (
 		<div className="relative flex h-full min-h-0 flex-col overflow-hidden">
 			<Virtuoso
-				atBottomStateChange={(isAtBottom) => {
-					if (programmaticScrollRef.current) {
-						if (isAtBottom) {
-							programmaticScrollRef.current = false
-							setIsAtBottom(true)
-							disableAutoScrollRef.current = false
-							setShowScrollToBottom(false)
-						}
-						return
-					}
-					if (scrollBehavior.atBottomDebounceRef.current) {
-						clearTimeout(scrollBehavior.atBottomDebounceRef.current)
-					}
-					scrollBehavior.atBottomDebounceRef.current = setTimeout(() => {
-						setIsAtBottom(isAtBottom)
-						disableAutoScrollRef.current = !isAtBottom
-						setShowScrollToBottom(!isAtBottom)
-					}, 80)
-				}}
-				atBottomThreshold={64}
-				className="grow custom-scrollbar"
-				components={virtuosoComponents}
+				aria-label="Conversation messages"
+				atBottomStateChange={handleAtBottomStateChange}
+				atBottomThreshold={CHAT_CONSTANTS.AT_BOTTOM_THRESHOLD}
+				className="grow custom-scrollbar focus:outline-none"
 				computeItemKey={(_index, message) => message.id}
 				data={renderedMessages}
-				increaseViewportBy={{ top: 1_000, bottom: 800 }}
-				followOutput={() => (disableAutoScrollRef.current ? false : "auto")}
-				initialTopMostItemIndex={Math.max(0, renderedMessages.length - 1)}
+				followOutput={followOutput}
+				increaseViewportBy={{ top: 800, bottom: 200 }}
+				initialTopMostItemIndex={{ index: "LAST", align: "end" }}
 				itemContent={itemContent}
 				key={task.id}
-				rangeChanged={handleRangeChanged}
+				onKeyDownCapture={handleScrollKeyDown}
+				onPointerDownCapture={handleScrollPointerDown}
+				onPointerUpCapture={handleScrollPointerUp}
+				onTouchEndCapture={handleScrollTouchEnd}
+				onTouchMoveCapture={handleScrollTouchMove}
+				onTouchStartCapture={handleScrollTouchStart}
+				onWheelCapture={handleScrollWheel}
 				ref={virtuosoRef}
 				style={{
 					height: "100%",
-					width: "100%",
-					scrollbarWidth: "thin",
 					overflowAnchor: "none",
+					overscrollBehaviorY: "contain",
+					scrollbarWidth: "thin",
+					width: "100%",
 				}}
+				tabIndex={0}
+				totalListHeightChanged={handleListHeightChanged}
 			/>
 		</div>
 	)

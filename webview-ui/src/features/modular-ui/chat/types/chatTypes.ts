@@ -3,7 +3,8 @@
  */
 
 import { DiracMessage, TaskStatus, UIActionState } from "@shared/ExtensionMessage"
-import { ListRange, VirtuosoHandle } from "react-virtuoso"
+import type { HistoryItem } from "@shared/HistoryItem"
+import { VirtuosoHandle } from "react-virtuoso"
 import { ButtonActionType } from "../utils/buttonConfig"
 
 /**
@@ -54,11 +55,6 @@ export interface ChatState {
 	activeVoiceStreamId?: string
 	isApiRequestActive?: boolean
 	taskStatus?: TaskStatus
-
-	// Scroll-related state (will be moved to scroll hook)
-	showScrollToBottom?: boolean
-	isAtBottom?: boolean
-	pendingScrollToMessage?: number | null
 }
 
 /**
@@ -83,23 +79,24 @@ export interface MessageHandlers {
  */
 export interface ScrollBehavior {
 	virtuosoRef: React.RefObject<VirtuosoHandle>
-	footerRef: React.RefObject<HTMLDivElement>
-	disableAutoScrollRef: React.MutableRefObject<boolean>
+	isFollowingRef: React.MutableRefObject<boolean>
 	scrollToBottomSmooth: () => void
 	scrollToBottomAuto: () => void
-	scrollToBottomNow: () => void
+	scrollToTop: () => void
 	scrollToMessage: (messageIndex: number) => void
 	toggleRowExpansion: (id: string) => void
-	programmaticScrollRef: React.MutableRefObject<boolean>
 	showScrollToBottom: boolean
-	setShowScrollToBottom: React.Dispatch<React.SetStateAction<boolean>>
-	isAtBottom: boolean
 	isAtBottomRef: React.MutableRefObject<boolean>
-	setIsAtBottom: React.Dispatch<React.SetStateAction<boolean>>
-	pendingScrollToMessage: number | null
-	setPendingScrollToMessage: React.Dispatch<React.SetStateAction<number | null>>
-	handleRangeChanged: (range: ListRange) => void
-	atBottomDebounceRef: React.MutableRefObject<ReturnType<typeof setTimeout> | null>
+	handleAtBottomStateChange: (isAtBottom: boolean) => void
+	handleListHeightChanged: (height: number) => void
+	handleScrollKeyDown: (event: React.KeyboardEvent) => void
+	handleScrollPointerDown: (event: React.PointerEvent) => void
+	handleScrollPointerUp: (event: React.PointerEvent) => void
+	handleScrollTouchEnd: (event: React.TouchEvent) => void
+	handleScrollTouchMove: (event: React.TouchEvent) => void
+	handleScrollTouchStart: (event: React.TouchEvent) => void
+	handleScrollWheel: (event: React.WheelEvent) => void
+	followOutput: () => "auto" | false
 }
 
 /**
@@ -158,7 +155,7 @@ export interface WelcomeSectionProps {
 	showHistoryView: () => void
 	telemetrySetting: string
 	version: string
-	taskHistory: any[]
+	taskHistory: HistoryItem[]
 	shouldShowQuickWins: boolean
 }
 

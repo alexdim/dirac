@@ -218,8 +218,8 @@ describe("ChatView Exit and Cleanup", () => {
 			// Input field visible
 			expect(frame).toContain("Input:")
 			// Footer with help text
-			expect(frame).toContain("@ for files")
-			expect(frame).toContain("/ for commands")
+			expect(frame).toContain("@ files")
+			expect(frame).toContain("/ commands")
 			// Mode toggle
 			expect(frame).toContain("Plan")
 			expect(frame).toContain("Act")
@@ -253,14 +253,14 @@ describe("ChatView Exit and Cleanup", () => {
 			const { lastFrame } = render(<ChatView onExit={mockOnExit} />)
 
 			// Footer should be visible initially
-			expect(lastFrame()).toContain("@ for files")
+			expect(lastFrame()).toContain("@ files")
 
 			// Fire shutdown event
 			shutdownMockState.fire()
 			await delay()
 
 			// Footer should still be present (only input is hidden)
-			expect(lastFrame()).toContain("@ for files")
+			expect(lastFrame()).toContain("@ files")
 		})
 	})
 

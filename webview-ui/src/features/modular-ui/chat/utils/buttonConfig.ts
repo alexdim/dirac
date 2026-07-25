@@ -1,8 +1,10 @@
+import { UIActionButtonType } from "@shared/ExtensionMessage"
 import { DiracAskResponse } from "@shared/WebviewMessage"
 /**
  * Button action types that determine the behavior
  */
 export type ButtonActionType =
+	| UIActionButtonType
 	| DiracAskResponse.APPROVE // Send approve response
 	| DiracAskResponse.REJECT // Send reject response
 	| "proceed" // Send approve response
