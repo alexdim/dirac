@@ -137,7 +137,7 @@ export function OpenRouterProviderSelector({ modelId }: { modelId: string }) {
 				<FieldLabel htmlFor="openrouter-provider-search">Allowed upstream providers</FieldLabel>
 				{pinnedProviders.length > 0 && <SelectionCount>{pinnedProviders.length} allowed</SelectionCount>}
 			</ProviderHeader>
-			<HelpText>Leave empty to let OpenRouter choose without an upstream filter.</HelpText>
+			<HelpText>You can pin providers for this model! Leave empty to let OpenRouter choose without an upstream filter.</HelpText>
 
 			{pinnedProviders.length > 0 && (
 				<SelectedProviders>
