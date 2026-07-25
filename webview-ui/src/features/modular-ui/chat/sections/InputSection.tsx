@@ -1,6 +1,7 @@
 import { isOpenaiReasoningEffort, OPENAI_REASONING_EFFORT_OPTIONS, type OpenaiReasoningEffort } from "@shared/ExtensionMessage"
 import { StringRequest } from "@shared/proto/dirac/common"
 import React, { useState } from "react"
+import { useAppStore } from "@/app/store/appStore"
 import { supportsReasoningEffortForModelId } from "@/features/settings/components/utils/providerUtils"
 import { useApiConfigurationHandlers } from "@/features/settings/components/utils/useApiConfigurationHandlers"
 import { useSettingsStore } from "@/features/settings/store/settingsStore"
@@ -10,7 +11,8 @@ import { ModularChatTextArea } from "../ModularChatTextArea"
 import { ChatSection, ChatViewContext } from "../types"
 
 const InputSectionContent: React.FC<{ context: ChatViewContext }> = ({ context }) => {
-	const { navigateToSettingsModelPicker, modelProviderPresets, apiConfiguration } = useSettingsStore()
+	const navigateToSettings = useAppStore((state) => state.navigateToSettings)
+	const { modelProviderPresets, apiConfiguration } = useSettingsStore()
 	const { handleModeFieldChange } = useApiConfigurationHandlers()
 	const [modelPresetError, setModelPresetError] = useState<string>()
 	const [isActivatingModelPreset, setIsActivatingModelPreset] = useState(false)
@@ -82,7 +84,7 @@ const InputSectionContent: React.FC<{ context: ChatViewContext }> = ({ context }
 					}
 				}}
 				onModelButtonClick={() => {
-					navigateToSettingsModelPicker({ targetSection: "api-config" })
+					navigateToSettings("api-config")
 				}}
 				onModelProviderPresetSelect={async (presetId) => {
 					setModelPresetError(undefined)
