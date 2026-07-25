@@ -26,10 +26,9 @@ const InputSectionContent: React.FC<{ context: ChatViewContext }> = ({ context }
 		selectedModelInfo,
 	} = context
 
-	const { activeQuote, setActiveQuote, isTextAreaFocused, inputValue, selectedImages, selectedFiles, textAreaRef, taskStatus } =
-		chatState
+	const { activeQuote, setActiveQuote, isTextAreaFocused, inputValue, selectedImages, selectedFiles, taskStatus } = chatState
 
-	const { isAtBottomRef, scrollToBottomAuto } = scrollBehavior
+	const { isFollowingRef, scrollToBottomAuto } = scrollBehavior
 	const activeProfileName =
 		selectedModelInfo.mode === "plan"
 			? apiConfiguration?.planModeOpenAiProfileName
@@ -78,7 +77,7 @@ const InputSectionContent: React.FC<{ context: ChatViewContext }> = ({ context }
 				modelPresetError={modelPresetError}
 				modelProviderPresets={modelProviderPresets}
 				onHeightChange={() => {
-					if (isAtBottomRef.current) {
+					if (isFollowingRef.current) {
 						scrollToBottomAuto()
 					}
 				}}

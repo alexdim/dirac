@@ -6,14 +6,12 @@ import type { MessageHandlers } from "../types/chatTypes"
 import ChatRow from "./ChatRow"
 
 interface MessageRendererProps {
-	index: number
 	message: DiracMessage
-	renderedMessages: DiracMessage[]
+	isLastMessage: boolean
 	expandedRows: Record<string, boolean>
 	onToggleExpand: (id: string) => void
 	onSetQuote: (quote: string | null) => void
 	messageHandlers: MessageHandlers
-	footerActive: boolean
 	activeCardId?: string
 	activeVoiceStreamId?: string
 }
@@ -21,23 +19,19 @@ interface MessageRendererProps {
 /** Renders one virtualized protocol message. */
 export const MessageRenderer = memo(
 	({
-		index,
 		message,
-		renderedMessages,
+		isLastMessage,
 		expandedRows,
 		onToggleExpand,
 		onSetQuote,
 		messageHandlers,
-		footerActive,
 		activeCardId,
 		activeVoiceStreamId,
 	}: MessageRendererProps) => {
-		const isLastMessage = index === renderedMessages.length - 1
-
 		return (
 			<div
 				className={cn({
-					"pb-1.5": isLastMessage && !footerActive,
+					"pb-1.5": isLastMessage,
 				})}
 				data-message-id={message.id}>
 				<ChatRow

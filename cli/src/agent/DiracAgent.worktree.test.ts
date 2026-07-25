@@ -11,7 +11,12 @@ const mocks = vi.hoisted(() => {
 	const taskHistory: any[] = []
 	class MockController {
 		stateManager = {
-			getApiConfiguration: vi.fn(() => ({ actModeThinkingBudgetTokens: 1024, planModeThinkingBudgetTokens: 1024 })),
+			getApiConfiguration: vi.fn(() => ({
+				actModeApiProvider: "anthropic",
+				planModeApiProvider: "anthropic",
+				actModeThinkingBudgetTokens: 1024,
+				planModeThinkingBudgetTokens: 1024,
+			})),
 			getGlobalSettingsKey: vi.fn(() => "act"),
 			getSystemDefaultSettingsKey: vi.fn((key: string) => {
 				if (key === "mode") return "act"
@@ -65,7 +70,12 @@ vi.mock("@/core/storage/StateManager", () => ({
 				if (key === "actModeApiProvider" || key === "planModeApiProvider") return "anthropic"
 				return undefined
 			}),
-			getApiConfiguration: vi.fn(() => ({ actModeThinkingBudgetTokens: 1024, planModeThinkingBudgetTokens: 1024 })),
+			getApiConfiguration: vi.fn(() => ({
+				actModeApiProvider: "anthropic",
+				planModeApiProvider: "anthropic",
+				actModeThinkingBudgetTokens: 1024,
+				planModeThinkingBudgetTokens: 1024,
+			})),
 			getGlobalStateKey: vi.fn((key: string) => (key === "taskHistory" ? mocks.taskHistory : undefined)),
 			setGlobalState: vi.fn(),
 			flushPendingState: vi.fn(async () => {}),

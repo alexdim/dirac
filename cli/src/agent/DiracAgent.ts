@@ -14,7 +14,7 @@
 import * as fs from "node:fs/promises"
 import path from "node:path"
 import type * as acp from "@agentclientprotocol/sdk"
-import { PROTOCOL_VERSION } from "@agentclientprotocol/sdk"
+import { PROTOCOL_VERSION, RequestError } from "@agentclientprotocol/sdk"
 import type { DiracMessageChange } from "@core/task/message-state"
 import type { ApiProvider } from "@shared/api"
 import type { DiracMessage } from "@shared/ExtensionMessage"
@@ -582,19 +582,19 @@ export class DiracAgent implements acp.Agent {
 		const { provider, model, mode, thinkingBudgetTokens, reasoningEffort } = this.options
 
 		if (mode && !["plan", "act", "auto", "yolo"].includes(mode)) {
-			throw new Error(`Invalid startup mode: ${mode}`)
+			throw RequestError.invalidParams(undefined, `Invalid startup mode: ${mode}`)
 		}
 		if (thinkingBudgetTokens !== undefined && (!Number.isFinite(thinkingBudgetTokens) || thinkingBudgetTokens < 0)) {
-			throw new Error(`Invalid --thinking value: ${thinkingBudgetTokens}`)
+			throw RequestError.invalidParams(undefined, `Invalid --thinking value: ${thinkingBudgetTokens}`)
 		}
 		if (reasoningEffort !== undefined && !["none", "low", "medium", "high", "xhigh"].includes(reasoningEffort)) {
-			throw new Error(`Invalid --reasoning-effort value: ${reasoningEffort}`)
+			throw RequestError.invalidParams(undefined, `Invalid --reasoning-effort value: ${reasoningEffort}`)
 		}
 		if (provider && !model) {
-			throw new Error("--provider requires --model to be specified")
+			throw RequestError.invalidParams(undefined, "--provider requires --model to be specified")
 		}
 		if (provider && !provider.startsWith("http://") && !provider.startsWith("https://") && !isValidCliProvider(provider)) {
-			throw new Error(`Invalid provider: ${provider}`)
+			throw RequestError.invalidParams(undefined, `Invalid provider: ${provider}`)
 		}
 
 		if (provider?.startsWith("http://") || provider?.startsWith("https://")) {
@@ -724,7 +724,10 @@ export class DiracAgent implements acp.Agent {
 		const sessionState = this.sessionStates.get(sessionId)
 		if (!sessionState) throw new Error(`Session not found: ${sessionId}`)
 		if (sessionState.status !== AcpSessionStatus.Idle) {
-			throw new Error(`Session ${sessionId} is busy; retry the configuration change after the current operation ends`)
+			throw new RequestError(
+				-32000,
+				`Session ${sessionId} is busy; retry the configuration change after the current operation ends`,
+			)
 		}
 		sessionState.status = AcpSessionStatus.Configuring
 	}

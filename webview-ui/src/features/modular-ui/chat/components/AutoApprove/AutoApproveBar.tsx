@@ -10,21 +10,18 @@ interface AutoApproveBarProps {
 }
 
 const AutoApproveBar = ({ style }: AutoApproveBarProps) => {
-	const { autoApprovalSettings, yoloModeToggled, autoApproveAllToggled, navigateToSettings } = useSettingsStore()
+	const { autoApprovalSettings, yoloModeToggled, autoApproveAllToggled } = useSettingsStore()
 
 	const [isModalVisible, setIsModalVisible] = useState(false)
-	const buttonRef = useRef<HTMLDivElement>(null)
-
-	const handleNavigateToFeatures = (e: React.MouseEvent) => {
-		e.preventDefault()
-		e.stopPropagation()
-		navigateToSettings("features")
-	}
+	const buttonRef = useRef<HTMLButtonElement>(null)
 
 	const getEnabledActionsText = () => {
 		const baseClasses = isModalVisible
 			? "text-foreground truncate"
 			: "text-muted-foreground group-hover:text-foreground truncate"
+		if (yoloModeToggled) {
+			return <span className={baseClasses}>YOLO</span>
+		}
 		if (autoApproveAllToggled) {
 			return <span className={baseClasses}>All</span>
 		}
@@ -69,53 +66,6 @@ const AutoApproveBar = ({ style }: AutoApproveBarProps) => {
 	const borderGradient = `linear-gradient(to bottom, ${borderColor} 0%, transparent 50%)`
 	const bgGradient = `linear-gradient(to bottom, color-mix(in srgb, var(--vscode-sideBar-background) 96%, white) 0%, transparent 80%)`
 
-	// If YOLO mode is enabled, show disabled message
-	if (yoloModeToggled) {
-		return (
-			<div
-				className="mx-4 select-none break-words relative"
-				style={{
-					borderTop: `0.5px solid ${borderColor}`,
-					borderRadius: "4px 4px 0 0",
-					background: bgGradient,
-					opacity: 0.5,
-					...style,
-				}}>
-				{/* Left border gradient */}
-				<div
-					className="absolute left-0 pointer-events-none"
-					style={{
-						width: 0.5,
-						top: 3,
-						height: "100%",
-						background: borderGradient,
-					}}
-				/>
-				{/* Right border gradient */}
-				<div
-					className="absolute right-0 top-0 pointer-events-none"
-					style={{
-						width: 0.5,
-						top: 3,
-						height: "100%",
-						background: borderGradient,
-					}}
-				/>
-
-				<div className="pt-4 pb-3.5 px-3.5">
-					<div className="text-sm mb-1">Auto-approve: YOLO</div>
-					<div className="text-muted-foreground text-xs">
-						YOLO mode is enabled.{" "}
-						<span className="underline cursor-pointer hover:text-foreground" onClick={handleNavigateToFeatures}>
-							Disable it in Settings
-						</span>
-						.
-					</div>
-				</div>
-			</div>
-		)
-	}
-
 	return (
 		<div
 			className="mx-4 select-none break-words relative"
@@ -146,27 +96,21 @@ const AutoApproveBar = ({ style }: AutoApproveBarProps) => {
 				}}
 			/>
 
-			<div
+			<button
+				aria-expanded={isModalVisible}
 				aria-label={isModalVisible ? "Close auto-approve settings" : "Open auto-approve settings"}
-				className="group cursor-pointer pt-3 pb-3.5 pr-2 px-3.5 flex items-center justify-between gap-0"
+				className="group w-full cursor-pointer border-0 bg-transparent pt-3 pb-3.5 pr-2 px-3.5 text-left text-inherit flex items-center justify-between gap-0"
 				onClick={() => {
 					setIsModalVisible((prev) => !prev)
 				}}
-				onKeyDown={(e) => {
-					if (e.key === "Enter" || e.key === " ") {
-						e.preventDefault()
-						e.stopPropagation()
-						setIsModalVisible((prev) => !prev)
-					}
-				}}
 				ref={buttonRef}
-				tabIndex={0}>
+				type="button">
 				<div className="flex flex-nowrap items-center gap-1 min-w-0 flex-1">
 					<span className="whitespace-nowrap">Auto-approve:</span>
 					{getEnabledActionsText()}
 				</div>
 				{isModalVisible ? <ChevronDownIcon size={16} /> : <ChevronRightIcon size={16} />}
-			</div>
+			</button>
 
 			<AutoApproveModal
 				ACTION_METADATA={ACTION_METADATA}

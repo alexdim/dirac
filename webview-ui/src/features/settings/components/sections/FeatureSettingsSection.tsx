@@ -142,6 +142,7 @@ const FeatureRow = memo(
 				<div>{label}</div>
 				<div>
 					<Switch
+						aria-label={label}
 						checked={checked}
 						className="shrink-0"
 						disabled={disabled || isRemoteLocked}

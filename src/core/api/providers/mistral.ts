@@ -1,6 +1,5 @@
 import { Mistral } from "@mistralai/mistralai"
 import { HTTPClient } from "@mistralai/mistralai"
-import { Tool as MistralTool } from "@mistralai/mistralai/models/components"
 import { MistralModelId, ModelInfo, mistralDefaultModelId, mistralModels } from "@shared/api"
 import type { ChatCompletionTool as OpenAITool } from "openai/resources/chat/completions"
 import { buildExternalBasicHeaders } from "@/services/EnvUtils"
@@ -11,6 +10,8 @@ import { withRetry } from "../retry"
 import { convertToMistralMessages } from "../transform/mistral-format"
 import { ApiStream } from "../transform/stream"
 import { ToolCallProcessor } from "../transform/tool-call-processor"
+
+type MistralTool = NonNullable<Parameters<Mistral["chat"]["stream"]>[0]["tools"]>[number]
 
 interface MistralHandlerOptions extends CommonApiHandlerOptions {
 	mistralApiKey?: string

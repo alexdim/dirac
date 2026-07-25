@@ -1,22 +1,19 @@
-import { type DiracMessage, type Mode, type UIActionButton, UIActionButtonType } from "@shared/ExtensionMessage"
+import { type DiracMessage, type UIActionButton, UIActionButtonType } from "@shared/ExtensionMessage"
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
 import React, { useCallback, useEffect, useMemo, useState } from "react"
-import { VirtuosoHandle } from "react-virtuoso"
-import { ButtonActionType } from "../utils/buttonConfig"
-import type { ChatState, MessageHandlers } from "../types/chatTypes"
 import { findActiveNewTaskCard } from "../../utils/newTaskCard"
+import type { ChatState, MessageHandlers } from "../types/chatTypes"
+import { ButtonActionType } from "../utils/buttonConfig"
 
 interface ActionButtonsProps {
 	task?: DiracMessage
 	messages: DiracMessage[]
 	chatState: ChatState
 	messageHandlers: MessageHandlers
-	mode: Mode
 	scrollBehavior: {
 		scrollToBottomSmooth: () => void
-		disableAutoScrollRef: React.MutableRefObject<boolean>
+		scrollToTop: () => void
 		showScrollToBottom: boolean
-		virtuosoRef: React.RefObject<VirtuosoHandle>
 	}
 }
 
@@ -88,7 +85,7 @@ const ActionButtons: React.FC<ActionButtonsProps> = ({ task, messages, chatState
 			if (event.key === "Escape" && hasActiveButtons) {
 				event.preventDefault()
 				event.stopPropagation()
-				handleActionClick("cancel" as any)
+				handleActionClick("cancel")
 			}
 		},
 		[handleActionClick, hasActiveButtons],
@@ -104,7 +101,7 @@ const ActionButtons: React.FC<ActionButtonsProps> = ({ task, messages, chatState
 		return null
 	}
 
-	const { showScrollToBottom, scrollToBottomSmooth, disableAutoScrollRef } = scrollBehavior
+	const { showScrollToBottom, scrollToBottomSmooth, scrollToTop } = scrollBehavior
 
 	const allButtons = [...promotedCardButtons, ...globalButtons]
 	const hasButtons = allButtons.length > 0
@@ -113,45 +110,13 @@ const ActionButtons: React.FC<ActionButtonsProps> = ({ task, messages, chatState
 
 	// Early return for scroll button to avoid unnecessary computation
 	if (!hasButtons) {
-		const handleScrollToBottom = () => {
-			scrollToBottomSmooth()
-			disableAutoScrollRef.current = false
-		}
-
-		// Show scroll to top button when there are no action buttons
-		const handleScrollToTop = () => {
-			scrollBehavior.virtuosoRef.current?.scrollTo({
-				top: 0,
-				behavior: "smooth",
-			})
-			disableAutoScrollRef.current = true
-			// Virtual rendering may not have all items rendered when at bottom,
-			// so scroll again after a delay to ensure we reach the true top
-			setTimeout(() => {
-				scrollBehavior.virtuosoRef.current?.scrollTo({
-					top: 0,
-					behavior: "smooth",
-				})
-			}, 300)
-		}
-
 		return (
 			<div className="flex px-3">
 				<VSCodeButton
 					appearance="icon"
 					aria-label={showScrollToBottom ? "Scroll to bottom" : "Scroll to top"}
 					className="text-lg text-(--vscode-primaryButton-foreground) bg-[color-mix(in_srgb,var(--vscode-toolbar-hoverBackground)_55%,transparent)] rounded-[3px] overflow-hidden cursor-pointer flex justify-center items-center flex-1 h-[25px] hover:bg-[color-mix(in_srgb,var(--vscode-toolbar-hoverBackground)_90%,transparent)] active:bg-[color-mix(in_srgb,var(--vscode-toolbar-hoverBackground)_70%,transparent)] border-0"
-					onClick={showScrollToBottom ? handleScrollToBottom : handleScrollToTop}
-					onKeyDown={(e) => {
-						if (e.key === "Enter" || e.key === " ") {
-							e.preventDefault()
-							if (showScrollToBottom) {
-								handleScrollToBottom()
-							} else {
-								handleScrollToTop()
-							}
-						}
-					}}>
+					onClick={showScrollToBottom ? scrollToBottomSmooth : scrollToTop}>
 					{showScrollToBottom ? (
 						<span className="codicon codicon-chevron-down" />
 					) : (
@@ -166,15 +131,13 @@ const ActionButtons: React.FC<ActionButtonsProps> = ({ task, messages, chatState
 
 	return (
 		<div className="flex px-3 gap-2" style={{ opacity }}>
-			{allButtons.map((button: UIActionButton, index: number) => (
+			{allButtons.map((button: UIActionButton) => (
 				<VSCodeButton
-					key={index}
 					appearance={button.primary ? "primary" : "secondary"}
 					className="flex-1"
 					disabled={!canInteract && button.action !== UIActionButtonType.CANCEL}
-					onClick={() =>
-						handleActionClick(button.action as any, button.value, inputValue, selectedImages, selectedFiles)
-					}>
+					key={`${button.action}:${button.value ?? ""}:${button.label}`}
+					onClick={() => handleActionClick(button.action, button.value, inputValue, selectedImages, selectedFiles)}>
 					{button.label}
 				</VSCodeButton>
 			))}

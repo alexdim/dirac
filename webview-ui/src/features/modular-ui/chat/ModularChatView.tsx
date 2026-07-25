@@ -1,58 +1,56 @@
-import React, { useCallback, useEffect, useMemo } from "react"
-import { useMount } from "react-use"
-import { ChatViewProps, ChatViewContext, ChatSection, ChatViewDecorator } from "./types"
-import { useChatStore } from "@/features/chat/store/chatStore"
-import { useTaskStore } from "@/entities/task/store/taskStore"
-import { useSettingsStore } from "@/features/settings/store/settingsStore"
-import { useAppStore } from "@/app/store/appStore"
-import { useShowNavbar } from "@/context/PlatformContext"
-import { normalizeApiConfiguration } from "@/features/settings/components/utils/providerUtils"
 import { Mode } from "@shared/ExtensionMessage"
 import { getApiMetrics, getLastApiReqInfo } from "@shared/getApiMetrics"
+import { BooleanRequest } from "@shared/proto/dirac/common"
+import React, { useCallback, useEffect, useMemo } from "react"
+import { useMount } from "react-use"
+import { useAppStore } from "@/app/store/appStore"
+import { useShowNavbar } from "@/context/PlatformContext"
+import { useTaskStore } from "@/entities/task/store/taskStore"
+import { useChatStore } from "@/features/chat/store/chatStore"
+import { normalizeApiConfiguration } from "@/features/settings/components/utils/providerUtils"
+import { useSettingsStore } from "@/features/settings/store/settingsStore"
+import { cn } from "@/lib/utils"
+import { FileServiceClient } from "@/shared/api/grpc-client"
+import { useThrottledValue } from "@/shared/lib/useThrottledValue"
+import { Navbar } from "@/shared/ui/Navbar"
+import { ChatLayout } from "./components/ChatLayout"
+import { CHAT_CONSTANTS } from "./constants"
+// Decorators
+import { ActionButtonsDecorator } from "./decorators/view/ActionButtonsDecorator"
+import { AutoApproveDecorator } from "./decorators/view/AutoApproveDecorator"
 import { useChatState } from "./hooks/useChatState"
 import { useMessageHandlers } from "./hooks/useMessageHandlers"
 import { useScrollBehavior } from "./hooks/useScrollBehavior"
-import { filterVisibleMessages } from "./utils/messageUtils"
-import { ChatLayout } from "./components/ChatLayout"
-import { CHAT_CONSTANTS } from "./constants"
-import { Navbar } from "@/shared/ui/Navbar"
-import { cn } from "@/lib/utils"
-import { FileServiceClient } from "@/shared/api/grpc-client"
-import { BooleanRequest } from "@shared/proto/dirac/common"
-
 // Sections
-import { WelcomeSection } from "./sections/WelcomeSection"
-import { TaskSection } from "./sections/TaskSection"
-import { MessagesSection } from "./sections/MessagesSection"
 import { InputSection } from "./sections/InputSection"
+import { MessagesSection } from "./sections/MessagesSection"
+import { TaskSection } from "./sections/TaskSection"
+import { WelcomeSection } from "./sections/WelcomeSection"
+import { ChatSection, ChatViewContext, ChatViewDecorator, ChatViewProps } from "./types"
+import { filterVisibleMessages } from "./utils/messageUtils"
 
-// Decorators
-import { AutoApproveDecorator } from "./decorators/view/AutoApproveDecorator"
-import { ActionButtonsDecorator } from "./decorators/view/ActionButtonsDecorator"
-
-import { useDebouncedValue } from "@/shared/lib/useDebouncedValue"
 const MAX_IMAGES_AND_FILES_PER_MESSAGE = CHAT_CONSTANTS.MAX_IMAGES_AND_FILES_PER_MESSAGE
 
 export const ModularChatView: React.FC<ChatViewProps> = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryView }) => {
 	const showNavbar = useShowNavbar()
 	const hydrate = useChatStore((state) => state.hydrate)
-	const version = useAppStore((state: any) => state.version)
+	const version = useAppStore((state) => state.version)
 	const messages = useChatStore((state) => state.diracMessages)
 	const activeVoiceStreamId = useChatStore((state) => state.activeVoiceStreamId)
 	const isApiRequestActive = useChatStore((state) => state.isApiRequestActive)
 	const taskHistory = useTaskStore((state) => state.taskHistory)
-	const apiConfiguration = useSettingsStore((state: any) => state.apiConfiguration)
+	const apiConfiguration = useSettingsStore((state) => state.apiConfiguration)
 	const telemetrySetting = useSettingsStore((state) => state.telemetrySetting)
 	const mode = useSettingsStore((state) => state.mode)
 	const shouldShowQuickWins = !!taskHistory && taskHistory.length > 0
 
 	const task = useMemo(() => messages.at(0), [messages])
 	const streamingActive = isApiRequestActive || !!activeVoiceStreamId
-	const debouncedMessages = useDebouncedValue(messages, streamingActive ? 150 : 0)
+	const renderedMessageSource = useThrottledValue(messages, streamingActive ? 100 : 0)
 
 	const modifiedMessages = useMemo(() => {
-		return debouncedMessages.slice(1)
-	}, [debouncedMessages])
+		return renderedMessageSource.slice(1)
+	}, [renderedMessageSource])
 
 	const apiMetrics = useMemo(() => getApiMetrics(modifiedMessages), [modifiedMessages])
 	const lastApiReqInfo = useMemo(() => getLastApiReqInfo(modifiedMessages), [modifiedMessages])
@@ -83,12 +81,7 @@ export const ModularChatView: React.FC<ChatViewProps> = ({ isHidden, showAnnounc
 					value: selectedModelInfo.supportsImages,
 				}),
 			)
-			if (
-				response &&
-				response.values1 &&
-				response.values2 &&
-				(response.values1.length > 0 || response.values2.length > 0)
-			) {
+			if (response?.values1 && response.values2 && (response.values1.length > 0 || response.values2.length > 0)) {
 				const currentTotal = selectedImages.length + selectedFiles.length
 				const availableSlots = MAX_IMAGES_AND_FILES_PER_MESSAGE - currentTotal
 
@@ -192,6 +185,8 @@ export const ModularChatView: React.FC<ChatViewProps> = ({ isHidden, showAnnounc
 			shouldShowQuickWins,
 			telemetrySetting,
 			selectedModelInfo,
+			selectedModelId,
+			selectedProvider,
 			mode,
 			shouldDisableFilesAndImages,
 			selectFilesAndImages,

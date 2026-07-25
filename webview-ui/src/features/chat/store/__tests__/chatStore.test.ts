@@ -1,10 +1,14 @@
-import { DiracMessage } from "@shared/ExtensionMessage"
+import type { DiracMessage } from "@shared/ExtensionMessage"
 import { act, renderHook } from "@testing-library/react"
 import { useChatStore } from "../chatStore"
 
 describe("useChatStore", () => {
 	beforeEach(() => {
-		useChatStore.setState({ diracMessages: [] })
+		useChatStore.setState({
+			diracMessages: [],
+			cardCollapsedStates: {},
+			cardUserToggledStates: {},
+		})
 	})
 
 	it("should initialize with empty messages", () => {
@@ -23,41 +27,26 @@ describe("useChatStore", () => {
 		expect(result.current.diracMessages).toEqual(messages)
 	})
 
-	it("should update partial message", () => {
+	it("should track collapsed cards and user toggles", () => {
 		const { result } = renderHook(() => useChatStore())
-		const initialMessages: DiracMessage[] = [
-			{ ts: 1, type: "say", say: "text", text: "hello" },
-			{ ts: 2, type: "say", say: "text", text: "world" },
-		]
 
 		act(() => {
-			result.current.setDiracMessages(initialMessages)
+			result.current.setCardCollapsedState("card-1", true, true)
 		})
 
-		const updatedMessage: DiracMessage = { ts: 2, type: "say", say: "text", text: "updated world" }
-
-		act(() => {
-			result.current.updatePartialMessage(updatedMessage)
-		})
-
-		expect(result.current.diracMessages[1]).toEqual(updatedMessage)
-		expect(result.current.diracMessages[0]).toEqual(initialMessages[0])
+		expect(result.current.cardCollapsedStates).toEqual({ "card-1": true })
+		expect(result.current.cardUserToggledStates).toEqual({ "card-1": true })
 	})
 
-	it("should not update if message ts not found", () => {
+	it("should clear collapsed card state", () => {
 		const { result } = renderHook(() => useChatStore())
-		const initialMessages: DiracMessage[] = [{ ts: 1, type: "say", say: "text", text: "hello" }]
 
 		act(() => {
-			result.current.setDiracMessages(initialMessages)
+			result.current.setCardCollapsedState("card-1", true, true)
+			result.current.clearCardCollapsedStates()
 		})
 
-		const unknownMessage: DiracMessage = { ts: 99, type: "say", say: "text", text: "unknown" }
-
-		act(() => {
-			result.current.updatePartialMessage(unknownMessage)
-		})
-
-		expect(result.current.diracMessages).toEqual(initialMessages)
+		expect(result.current.cardCollapsedStates).toEqual({})
+		expect(result.current.cardUserToggledStates).toEqual({})
 	})
 })

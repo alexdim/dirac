@@ -9,6 +9,7 @@ import * as assert from "assert"
 import * as sinon from "sinon"
 import { DiracEndpoint } from "@/config"
 import { HostProvider } from "@/hosts/host-provider"
+import { mockFetchForTesting } from "@/shared/net"
 import * as diracConfigModule from "@/shared/services/config/dirac-telemetry-config"
 import * as otelConfigModule from "@/shared/services/config/otel-config"
 import { setVscodeHostProviderMock } from "@/test/host-provider-test-utils"
@@ -187,30 +188,24 @@ describe("Telemetry system is abstracted and can easily switch between providers
 	})
 	describe("Dirac Provider", () => {
 		it("should create Dirac provider and track events", async () => {
-			console.log("=== Testing Dirac Provider ===")
-			const providers = await TelemetryProviderFactory.createProviders()
-			const diracProvider = providers.find((p) => !(p instanceof NoOpTelemetryProvider)) || providers[0]
+			const fetchStub = sinon.stub().resolves(new Response(null, { status: 204 }))
 
-			const diracTelemetryService = new TelemetryService([diracProvider], MOCK_METADATA)
+			await mockFetchForTesting(fetchStub as unknown as typeof globalThis.fetch, async () => {
+				const providers = await TelemetryProviderFactory.createProviders()
+				const diracProvider = providers.find((p) => !(p instanceof NoOpTelemetryProvider)) || providers[0]
+				const diracTelemetryService = new TelemetryService([diracProvider], MOCK_METADATA)
 
-			// Test various telemetry methods
-			diracTelemetryService.captureTaskCreated("task-123", "anthropic")
-			diracTelemetryService.identifyAccount(MOCK_USER_INFO)
-			diracTelemetryService.captureTaskCompleted("task-123")
-			diracTelemetryService.captureModelSelected("claude-3", "anthropic", "task-123")
+				diracTelemetryService.captureTaskCreated("task-123", "anthropic")
+				diracTelemetryService.identifyAccount(MOCK_USER_INFO)
+				diracTelemetryService.captureTaskCompleted("task-123")
+				diracTelemetryService.captureModelSelected("claude-3", "anthropic", "task-123")
+				diracProvider.log("test_event", { test: "property" })
+				diracProvider.identifyUser(MOCK_USER_INFO, { additional: "data" })
 
-			// Test provider methods directly
-			diracProvider.log("test_event", { test: "property" })
-			diracProvider.identifyUser(MOCK_USER_INFO, { additional: "data" })
-
-			// Verify provider state
-			const isEnabled = diracProvider.isEnabled()
-			const settings = diracProvider.getSettings()
-
-			console.log("Dirac Provider enabled:", isEnabled)
-			console.log("Dirac Provider settings:", settings)
-
-			await diracProvider.dispose()
+				assert.strictEqual(typeof diracProvider.isEnabled(), "boolean")
+				assert.ok(diracProvider.getSettings())
+				await diracProvider.dispose()
+			})
 		})
 	})
 
