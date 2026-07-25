@@ -74,6 +74,20 @@ export const MODEL_CAPABILITIES: Record<string, ModelCapabilities> = {
 		supportsReasoning: true,
 		supportsAdaptiveThinking: true,
 	},
+	"claude-opus-5": {
+		maxTokens: 128_000,
+		contextWindow: 200_000,
+		supportsImages: true,
+		supportsReasoning: true,
+		supportsAdaptiveThinking: true,
+	},
+	"claude-opus-5:fast": {
+		maxTokens: 128_000,
+		contextWindow: 200_000,
+		supportsImages: true,
+		supportsReasoning: true,
+		supportsAdaptiveThinking: true,
+	},
 	"claude-fable-5": {
 		maxTokens: 128_000,
 		contextWindow: 200_000,
@@ -225,6 +239,26 @@ export const MODEL_CAPABILITIES: Record<string, ModelCapabilities> = {
 		},
 	},
 	"gemini-3.5-flash": {
+		maxTokens: 65536,
+		contextWindow: 1_048_576,
+		supportsImages: true,
+		supportsReasoning: true,
+		thinkingConfig: {
+			geminiThinkingLevel: "high",
+			supportsThinkingLevel: true,
+		},
+	},
+	"gemini-3.6-flash": {
+		maxTokens: 65536,
+		contextWindow: 1_048_576,
+		supportsImages: true,
+		supportsReasoning: true,
+		thinkingConfig: {
+			geminiThinkingLevel: "high",
+			supportsThinkingLevel: true,
+		},
+	},
+	"gemini-3.5-flash-lite": {
 		maxTokens: 65536,
 		contextWindow: 1_048_576,
 		supportsImages: true,

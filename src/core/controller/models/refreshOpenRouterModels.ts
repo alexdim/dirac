@@ -183,6 +183,11 @@ function applyOpenRouterPricingOverrides(
 			modelInfo.cacheWritesPrice = 6.25
 			modelInfo.cacheReadsPrice = 0.5
 			break
+		case "anthropic/claude-opus-5":
+			modelInfo.supportsPromptCache = true
+			modelInfo.cacheWritesPrice = 6.25
+			modelInfo.cacheReadsPrice = 0.5
+			break
 		case "anthropic/claude-opus-4.5":
 			modelInfo.supportsPromptCache = true
 			modelInfo.cacheWritesPrice = 6.25
