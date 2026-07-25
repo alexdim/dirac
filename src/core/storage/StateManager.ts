@@ -16,6 +16,12 @@ import {
 	type SettingsKey,
 } from "@shared/storage/state-keys"
 import type { StorageContext } from "@shared/storage/storage-context"
+import {
+	buildLegacySynthetic1mStateUpdates,
+	normalizeLegacyModelProviderPresets,
+	normalizeLegacyOpenRouterPinMap,
+	normalizeLegacySynthetic1mModelId,
+} from "@shared/storage/legacy-model-id-migration"
 import { initializeDistinctId } from "@/services/logging/distinctId"
 import { Logger } from "@/shared/services/Logger"
 import { AgentConfigLoader } from "../task/tools/subagent/AgentConfigLoader"
@@ -110,6 +116,11 @@ export class StateManager {
 
 			// Load all extension state from file-backed stores
 			const { globalState, secrets, workspaceState } = await StateManager.instance.persistence.readAllFromDisk()
+			const legacyModelIdUpdates = buildLegacySynthetic1mStateUpdates(globalState)
+			if (Object.keys(legacyModelIdUpdates).length > 0) {
+				await storage.globalStateBackingStore.setBatch(legacyModelIdUpdates)
+				Object.assign(globalState, legacyModelIdUpdates)
+			}
 
 			// Populate the cache with all extension state and secrets fields
 			StateManager.instance.populateCache(globalState, secrets, workspaceState)
@@ -179,7 +190,10 @@ export class StateManager {
 
 	setGlobalState<K extends keyof GlobalStateAndSettings>(key: K, value: GlobalStateAndSettings[K]): void {
 		if (!this.isInitialized) throw new Error(STATE_MANAGER_NOT_INITIALIZED)
-		this.globalStateCache[key] = value
+		const normalizedValue = isSettingsKey(key)
+			? this.normalizeLoadedSetting(key as SettingsKey, value as never)
+			: value
+		;(this.globalStateCache as Record<string, unknown>)[key] = normalizedValue
 		this.persistence.addPendingGlobalState(key)
 		this.notifyStateChange()
 	}
@@ -205,27 +219,33 @@ export class StateManager {
 
 	setGlobalStateBatch(updates: Partial<GlobalStateAndSettings>): void {
 		if (!this.isInitialized) throw new Error(STATE_MANAGER_NOT_INITIALIZED)
-		Object.assign(this.globalStateCache, updates)
-		this.persistence.addPendingGlobalStateBatch(Object.keys(updates) as GlobalStateAndSettingsKey[])
+		const normalizedUpdates = { ...updates, ...buildLegacySynthetic1mStateUpdates(updates) }
+		Object.assign(this.globalStateCache, normalizedUpdates)
+		this.persistence.addPendingGlobalStateBatch(Object.keys(normalizedUpdates) as GlobalStateAndSettingsKey[])
 		this.notifyStateChange()
 	}
 
 	setTaskSettings<K extends keyof Settings>(taskId: string, key: K, value: Settings[K]): void {
 		if (!this.isInitialized) throw new Error(STATE_MANAGER_NOT_INITIALIZED)
-		this.taskStateCache[key] = value
+		this.taskStateCache[key] = this.normalizeLoadedSetting(key, value)
 		this.persistence.addPendingTaskState(taskId, key)
 	}
 
 	setTaskSettingsBatch(taskId: string, updates: Partial<Settings>): void {
 		if (!this.isInitialized) throw new Error(STATE_MANAGER_NOT_INITIALIZED)
-		Object.assign(this.taskStateCache, updates)
-		this.persistence.addPendingTaskStateBatch(taskId, Object.keys(updates) as SettingsKey[])
+		const normalizedUpdates = this.normalizeLoadedSettings(updates)
+		Object.assign(this.taskStateCache, normalizedUpdates)
+		this.persistence.addPendingTaskStateBatch(taskId, Object.keys(normalizedUpdates) as SettingsKey[])
 	}
 
 	async loadTaskSettings(taskId: string): Promise<void> {
 		if (!this.isInitialized) throw new Error(STATE_MANAGER_NOT_INITIALIZED)
-		const taskSettings = await this.persistence.loadTaskSettingsFromDisk(taskId)
-		Object.assign(this.taskStateCache, taskSettings)
+		const taskSettings = (await this.persistence.loadTaskSettingsFromDisk(taskId)) as Partial<Settings>
+		const normalizedTaskSettings = this.normalizeLoadedSettings(taskSettings)
+		Object.assign(this.taskStateCache, normalizedTaskSettings)
+		if (JSON.stringify(normalizedTaskSettings) !== JSON.stringify(taskSettings)) {
+			this.persistence.addPendingTaskStateBatch(taskId, Object.keys(normalizedTaskSettings) as SettingsKey[])
+		}
 	}
 
 	async clearTaskSettings(): Promise<void> {
@@ -275,7 +295,7 @@ export class StateManager {
 
 	setSessionOverride<K extends keyof Settings>(key: K, value: Settings[K]): void {
 		if (!this.isInitialized) throw new Error(STATE_MANAGER_NOT_INITIALIZED)
-		this.sessionOverrideCache[key] = value
+		this.sessionOverrideCache[key] = this.normalizeLoadedSetting(key, value)
 	}
 
 	/** Return the current session-override cache (in-memory only). (from main) */
@@ -285,7 +305,7 @@ export class StateManager {
 
 	/** Replace the session-override cache wholesale. In-memory only, never persisted. (from main) */
 	setSessionOverrideCache(overrides: Partial<Settings>): void {
-		this.sessionOverrideCache = { ...overrides }
+		this.sessionOverrideCache = this.normalizeLoadedSettings(overrides)
 	}
 
 	setModelsCache(provider: string, models: Record<string, ModelInfo>): void {
@@ -409,6 +429,27 @@ export class StateManager {
 		Object.assign(this.workspaceStateCache, workspaceState)
 	}
 
+	private normalizeLoadedSettings(settings: Partial<Settings>): Partial<Settings> {
+		const normalized = { ...settings }
+		for (const [key, value] of Object.entries(normalized)) {
+			;(normalized as Record<string, unknown>)[key] = this.normalizeLoadedSetting(key as keyof Settings, value as never)
+		}
+		return normalized
+	}
+
+	private normalizeLoadedSetting<K extends keyof Settings>(key: K, value: Settings[K]): Settings[K] {
+		if (typeof value === "string" && (key.endsWith("ModelId") || key.endsWith("ModelBaseId"))) {
+			return normalizeLegacySynthetic1mModelId(value) as Settings[K]
+		}
+		if (key === "openRouterPinnedProviders") {
+			return normalizeLegacyOpenRouterPinMap(value as Record<string, string[]> | undefined) as Settings[K]
+		}
+		if (key === "modelProviderPresets") {
+			return normalizeLegacyModelProviderPresets(value as ModelProviderPreset[]) as Settings[K]
+		}
+		return value
+	}
+
 	private getSettingWithOverride<K extends keyof Settings>(key: K): Settings[K] {
 		// Precedence: session override > task settings > global settings
 		if (Object.hasOwn(this.sessionOverrideCache, key)) return this.sessionOverrideCache[key] as Settings[K]
@@ -442,7 +483,7 @@ export class StateManager {
 		const envSettings = getSettingsFromEnv()
 		for (const [key, value] of Object.entries(envSettings)) {
 			if (value && isSettingsKey(key) && settings[key] === undefined && !Object.hasOwn(this.sessionOverrideCache, key)) {
-				;(settings as Record<string, unknown>)[key] = value
+				;(settings as Record<string, unknown>)[key] = this.normalizeLoadedSetting(key, value as never)
 			}
 		}
 

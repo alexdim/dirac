@@ -3,8 +3,6 @@ import { Tool as AnthropicTool } from "@anthropic-ai/sdk/resources/index"
 import { AnthropicVertex } from "@anthropic-ai/vertex-sdk"
 import { FunctionDeclaration as GoogleTool } from "@google/genai"
 import {
-	ANTHROPIC_BETAS,
-	CLAUDE_SONNET_1M_SUFFIX,
 	isAnthropicAdaptiveThinkingSupported,
 	ModelInfo,
 	VertexModelId,
@@ -88,14 +86,10 @@ export class VertexHandler implements ApiHandler {
 	@withRetry()
 	async *createMessage(systemPrompt: string, messages: DiracStorageMessage[], tools?: DiracTool[]): ApiStream {
 		const model = this.getModel()
-		const rawModelId = model.id
-		const modelId = rawModelId.endsWith(CLAUDE_SONNET_1M_SUFFIX)
-			? rawModelId.slice(0, -CLAUDE_SONNET_1M_SUFFIX.length)
-			: rawModelId
-		const enable1mContextWindow = rawModelId.endsWith(CLAUDE_SONNET_1M_SUFFIX)
+		const modelId = model.id
 
 		// For Gemini models, use the GeminiHandler
-		if (!rawModelId.includes("claude")) {
+		if (!modelId.includes("claude")) {
 			const geminiHandler = this.ensureGeminiHandler()
 			yield* geminiHandler.createMessage(systemPrompt, messages, tools as GoogleTool[])
 			return
@@ -139,13 +133,6 @@ export class VertexHandler implements ApiHandler {
 				tools: nativeToolsOn ? (tools as AnthropicTool[]) : undefined,
 				tool_choice: nativeToolsOn && !reasoningOn ? { type: "any" } : undefined,
 			} as BetaMessageCreateParamsStreaming,
-			enable1mContextWindow
-				? {
-						headers: {
-							"anthropic-beta": ANTHROPIC_BETAS.CONTEXT_1M,
-						},
-					}
-				: undefined,
 		)
 
 		const lastStartedToolCall = { id: "", name: "", arguments: "" }

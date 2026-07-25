@@ -2,6 +2,7 @@ import "should"
 import { expectLoggerErrors } from "@/test/loggerGuard"
 import { DiracAskResponse } from "@shared/WebviewMessage"
 import { TaskStatus } from "@shared/ExtensionMessage"
+import pWaitFor from "p-wait-for"
 import sinon from "sinon"
 import { LifecycleManager } from "../LifecycleManager"
 
@@ -185,7 +186,7 @@ describe("LifecycleManager", () => {
 			deps.taskState.activeSkillIds.should.eql(["new-tool"])
 		})
 
-		it("restores completed history without entering the resume flow", async () => {
+		it("waits in the completed state and processes a follow-up message", async () => {
 			setupDiskMocks([
 				{
 					id: "completion-card",
@@ -197,11 +198,19 @@ describe("LifecycleManager", () => {
 				},
 			])
 
-			await manager.resumeTaskFromHistory()
+			const resumePromise = manager.resumeTaskFromHistory()
+			await pWaitFor(() => deps.taskState.status === TaskStatus.COMPLETED)
 
-			deps.taskState.status.should.equal(TaskStatus.COMPLETED)
 			sinon.assert.notCalled(deps.initiateTaskLoop)
 			sinon.assert.notCalled(deps.hookManager.runUserPromptSubmitHook)
+
+			deps.taskState.askResponse = DiracAskResponse.MESSAGE
+			deps.taskState.askResponseText = "continue working"
+			await resumePromise
+
+			sinon.assert.calledWith(deps.taskMessenger.upsertText, "continue working", false, undefined, undefined)
+			sinon.assert.calledOnce(deps.hookManager.runUserPromptSubmitHook)
+			sinon.assert.calledOnce(deps.initiateTaskLoop)
 		})
 		it("aborts if abort flag set during pWaitFor", async () => {
 			setupDiskMocks()

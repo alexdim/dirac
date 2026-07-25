@@ -34,6 +34,17 @@ function convertThinkingConfigToProto(config: ModelInfo["thinkingConfig"]): Thin
 	}
 }
 
+function convertStringArrayMapToProto(value: Record<string, string[]> | undefined) {
+	return Object.fromEntries(Object.entries(value || {}).map(([key, values]) => [key, { values }]))
+}
+
+function convertProtoToStringArrayMap(
+	value: Record<string, { values: string[] }> | undefined,
+): Record<string, string[]> | undefined {
+	if (!value || Object.keys(value).length === 0) return undefined
+	return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, item.values]))
+}
+
 // Convert proto ThinkingConfig to application ThinkingConfig
 function convertProtoToThinkingConfig(config: ThinkingConfig | undefined): ModelInfo["thinkingConfig"] | undefined {
 	if (!config) {
@@ -58,6 +69,8 @@ function convertModelInfoToProtoOpenRouter(info: ModelInfo | undefined): OpenRou
 		contextWindow: info.contextWindow,
 		supportsImages: info.supportsImages,
 		supportsPromptCache: info.supportsPromptCache ?? false,
+		supportsReasoning: info.supportsReasoning,
+		supportsReasoningEffort: info.supportsReasoningEffort,
 		inputPrice: info.inputPrice,
 		outputPrice: info.outputPrice,
 		cacheWritesPrice: info.cacheWritesPrice,
@@ -80,6 +93,8 @@ function convertProtoToModelInfo(info: OpenRouterModelInfo | undefined): ModelIn
 		contextWindow: info.contextWindow,
 		supportsImages: info.supportsImages,
 		supportsPromptCache: info.supportsPromptCache,
+		supportsReasoning: info.supportsReasoning,
+		supportsReasoningEffort: info.supportsReasoningEffort,
 		inputPrice: info.inputPrice,
 		outputPrice: info.outputPrice,
 		cacheWritesPrice: info.cacheWritesPrice,
@@ -447,6 +462,8 @@ export function convertApiConfigurationToProto(config: ApiConfiguration): ProtoA
 		anthropicBaseUrl: config.anthropicBaseUrl,
 		openRouterApiKey: config.openRouterApiKey,
 		openRouterProviderSorting: config.openRouterProviderSorting,
+		openRouterPinnedProviders: convertStringArrayMapToProto(config.openRouterPinnedProviders),
+		openRouterPreventFallbacks: config.openRouterPreventFallbacks,
 		awsAccessKey: config.awsAccessKey,
 		awsSecretKey: config.awsSecretKey,
 		awsSessionToken: config.awsSessionToken,
@@ -597,6 +614,8 @@ export function convertProtoToApiConfiguration(protoConfig: ProtoApiConfiguratio
 		anthropicBaseUrl: protoConfig.anthropicBaseUrl,
 		openRouterApiKey: protoConfig.openRouterApiKey,
 		openRouterProviderSorting: protoConfig.openRouterProviderSorting,
+		openRouterPinnedProviders: convertProtoToStringArrayMap(protoConfig.openRouterPinnedProviders),
+		openRouterPreventFallbacks: protoConfig.openRouterPreventFallbacks,
 		awsAccessKey: protoConfig.awsAccessKey,
 		awsSecretKey: protoConfig.awsSecretKey,
 		awsSessionToken: protoConfig.awsSessionToken,

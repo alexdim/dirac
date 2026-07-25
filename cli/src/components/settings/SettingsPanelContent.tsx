@@ -20,6 +20,7 @@ import { ProviderPickerPage, ModelPickerPage, LanguagePickerPage } from "./subpa
 import { ApiKeyInputPage, EditValuePage, ObjectEditorPage } from "./subpages/EditPages"
 import { BedrockSetupPage, BedrockCustomFlowPage } from "./subpages/SetupPages"
 import { CodexAuthPage, GithubAuthPage, AuthErrorPage } from "./subpages/AuthPages"
+import { OpenRouterRoutingPage } from "./subpages/OpenRouterRoutingPage"
 import type { SettingsPanelContentProps, SettingsTab } from "./types"
 import type { TelemetrySetting } from "@shared/TelemetrySetting"
 import type { OpenaiReasoningEffort } from "@shared/storage/types"
@@ -60,6 +61,7 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 	const [editValue, setEditValue] = useState("")
 	const [isBedrockCustomFlow, setIsBedrockCustomFlow] = useState(false)
 	const [objectEditor, setObjectEditor] = useState<ObjectEditorState | null>(null)
+	const [openRouterRoutingModelId, setOpenRouterRoutingModelId] = useState<string | null>(null)
 
 	// Tool toggle state
 	const [availableTools] = useState<ToolMetadata[]>(() => {
@@ -119,6 +121,15 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 	)
 	const [openAiHeaders, setOpenAiHeaders] = useState<Record<string, string>>(
 		() => stateManager.getGlobalSettingsKey("openAiHeaders") ?? {},
+	)
+	const [openRouterPinnedProviders, setOpenRouterPinnedProviders] = useState<Record<string, string[]>>(
+		() => stateManager.getGlobalSettingsKey("openRouterPinnedProviders") ?? {},
+	)
+	const [openRouterProviderSorting, setOpenRouterProviderSorting] = useState<string | undefined>(() =>
+		stateManager.getGlobalSettingsKey("openRouterProviderSorting"),
+	)
+	const [openRouterPreventFallbacks, setOpenRouterPreventFallbacks] = useState(
+		() => stateManager.getGlobalSettingsKey("openRouterPreventFallbacks") ?? false,
 	)
 
 	const [modelRefreshKey, setModelRefreshKey] = useState(0)
@@ -189,6 +200,9 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 		githubIsAuthenticated,
 		githubEmail,
 		openRouterModels,
+		openRouterPinnedProviders,
+		openRouterProviderSorting,
+		openRouterPreventFallbacks,
 		availableTools,
 		toolToggles,
 	})
@@ -213,6 +227,12 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 		setCurrentTab,
 		provider,
 		setProvider,
+		actModelId,
+		planModelId,
+		openRouterProviderSorting,
+		setOpenRouterProviderSorting,
+		setOpenRouterPreventFallbacks,
+		setOpenRouterRoutingModelId,
 		actReasoningEffort,
 		setActReasoningEffort,
 		planReasoningEffort,
@@ -273,6 +293,7 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 		setIsEnteringApiKey(false)
 		setPendingProvider(null)
 		setApiKeyValue("")
+		setOpenRouterRoutingModelId(null)
 	}, [])
 
 	const navigateTabs = useCallback(
@@ -296,6 +317,7 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 		(input, key) => {
 			if (objectEditor) return
 			if (isMouseEscapeSequence(input)) return
+			if (openRouterRoutingModelId) return
 
 			if (isPickingProvider) {
 				if (key.escape) {
@@ -398,6 +420,28 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 	)
 
 	const renderContent = () => {
+		if (openRouterRoutingModelId) {
+			return (
+				<OpenRouterRoutingPage
+					isActive={true}
+					modelId={openRouterRoutingModelId}
+					onCancel={() => setOpenRouterRoutingModelId(null)}
+					onSave={(providers) => {
+						const nextPinnedProviders = { ...openRouterPinnedProviders }
+						if (providers.length > 0) nextPinnedProviders[openRouterRoutingModelId] = providers
+						else delete nextPinnedProviders[openRouterRoutingModelId]
+						setOpenRouterPinnedProviders(nextPinnedProviders)
+						stateManager.setGlobalState(
+							"openRouterPinnedProviders",
+							Object.keys(nextPinnedProviders).length > 0 ? nextPinnedProviders : undefined,
+						)
+						void rebuildTaskApi()
+						setOpenRouterRoutingModelId(null)
+					}}
+					savedProviders={openRouterPinnedProviders[openRouterRoutingModelId] || []}
+				/>
+			)
+		}
 		if (isPickingProvider) {
 			return <ProviderPickerPage isActive={isPickingProvider} onSelect={handleProviderSelect} />
 		}
@@ -499,7 +543,8 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 		!!codexAuthError ||
 		isBedrockCustomFlow ||
 		isWaitingForGithubAuth ||
-		isEditing
+		isEditing ||
+		!!openRouterRoutingModelId
 
 	return (
 		<Panel currentTab={currentTab} isSubpage={isSubpage} label="Settings" tabs={TABS}>

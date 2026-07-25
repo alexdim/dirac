@@ -11,11 +11,9 @@ import {
 } from "@aws-sdk/client-bedrock-runtime"
 import { fromNodeProviderChain } from "@aws-sdk/credential-providers"
 import {
-	ANTHROPIC_BETAS,
 	type BedrockModelId,
 	bedrockDefaultModelId,
 	bedrockModels,
-	CLAUDE_SONNET_1M_SUFFIX,
 	isAnthropicAdaptiveThinkingSupported,
 	type ModelInfo,
 } from "@shared/api"
@@ -55,10 +53,6 @@ export interface BedrockMessageConfig {
 	modelId: string
 	model: { id: string; info: ModelInfo }
 	tools?: DiracTool[]
-}
-
-export interface AnthropicBedrockMessageConfig extends BedrockMessageConfig {
-	enable1mContextWindow: boolean
 }
 
 // Extend AWS SDK types to include additionalModelResponseFields
@@ -157,11 +151,8 @@ interface ProviderChainOptions {
 // https://docs.aws.amazon.com/bedrock/latest/userguide/inference-profiles-support.html
 const JP_SUPPORTED_CRIS_MODELS = [
 	"anthropic.claude-sonnet-4-6",
-	"anthropic.claude-sonnet-4-6:1m",
 	"anthropic.claude-opus-4-6-v1",
-	"anthropic.claude-opus-4-6-v1:1m",
 	"anthropic.claude-sonnet-4-5-20250929-v1:0",
-	"anthropic.claude-sonnet-4-5-20250929-v1:0:1m",
 	"anthropic.claude-haiku-4-5-20251001-v1:0",
 	"anthropic.claude-sonnet-5",
 ]
@@ -352,13 +343,7 @@ export class AwsBedrockHandler implements ApiHandler {
 	@withRetry({ maxRetries: 4 })
 	async *createMessage(systemPrompt: string, messages: DiracStorageMessage[], tools?: DiracTool[]): ApiStream {
 		// cross region inference requires prefixing the model id with the region
-		const rawModelId = await this.getModelId()
-
-		const modelId = rawModelId.endsWith(CLAUDE_SONNET_1M_SUFFIX)
-			? rawModelId.slice(0, -CLAUDE_SONNET_1M_SUFFIX.length)
-			: rawModelId
-
-		const enable1mContextWindow = rawModelId.endsWith(CLAUDE_SONNET_1M_SUFFIX)
+		const modelId = await this.getModelId()
 
 		const model = this.getModel()
 
@@ -394,7 +379,7 @@ export class AwsBedrockHandler implements ApiHandler {
 		}
 
 		// Default: Use Anthropic Converse API for all Anthropic models
-		yield* this.createAnthropicMessage({ ...baseConfig, enable1mContextWindow })
+		yield* this.createAnthropicMessage(baseConfig)
 	}
 
 	getModel(): { id: string; info: ModelInfo } {
@@ -867,8 +852,8 @@ export class AwsBedrockHandler implements ApiHandler {
 	 * Creates a message using Anthropic Claude models through AWS Bedrock Converse API
 	 * Implements support for Anthropic Claude models using the unified Converse API
 	 */
-	private async *createAnthropicMessage(config: AnthropicBedrockMessageConfig): ApiStream {
-		const { systemPrompt, messages, modelId, model, enable1mContextWindow, tools } = config
+	private async *createAnthropicMessage(config: BedrockMessageConfig): ApiStream {
+		const { systemPrompt, messages, modelId, model, tools } = config
 		// Format messages for Anthropic model using unified formatter
 		const formattedMessages = this.formatMessagesForConverseAPI(messages, model.info.supportsImages !== false)
 
@@ -908,9 +893,6 @@ export class AwsBedrockHandler implements ApiHandler {
 				...(reasoningOn &&
 					useAdaptive && {
 					output_config: { effort: this.options.reasoningEffort || "high" },
-				}),
-				...(enable1mContextWindow && {
-					anthropic_beta: [ANTHROPIC_BETAS.CONTEXT_1M],
 				}),
 			},
 		})

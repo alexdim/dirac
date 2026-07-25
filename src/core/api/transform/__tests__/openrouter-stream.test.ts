@@ -1,13 +1,12 @@
+import { expect } from "chai"
 import { describe, it } from "mocha"
-import "should"
 import type { ModelInfo } from "@shared/api"
-import { TEST_MODEL_IDS } from "@test/fixtures/model-ids"
 import sinon from "sinon"
-import { createOpenRouterStream } from "../openrouter-stream"
+import { buildOpenRouterProvider, createOpenRouterStream } from "../openrouter-stream"
 
 describe("createOpenRouterStream", () => {
 	const createAsyncIterable = () => ({
-		async *[Symbol.asyncIterator]() {},
+		async *[Symbol.asyncIterator]() { },
 	})
 
 	const createClient = () => {
@@ -24,95 +23,83 @@ describe("createOpenRouterStream", () => {
 		}
 	}
 
-	const createModelInfo = (maxTokens: number, supportsPromptCache = false): ModelInfo => ({
-		maxTokens,
+	const createModelInfo = (overrides: Partial<ModelInfo> = {}): ModelInfo => ({
+		maxTokens: 65_536,
 		contextWindow: 1_048_576,
 		supportsImages: true,
-		supportsPromptCache,
+		supportsPromptCache: false,
+		...overrides,
 	})
 
-	it("caps Gemini Flash OpenRouter requests to 32768 max_tokens", async () => {
+	it("uses live max-token metadata without a named-model cap", async () => {
 		const { client, create } = createClient()
 
 		await createOpenRouterStream(client as any, "system prompt", [{ role: "user", content: "hello" }] as any, {
 			id: "google/gemini-2.5-flash",
-			info: createModelInfo(65_536),
+			info: createModelInfo(),
 		})
 
-		const payload = create.firstCall.args[0] as Record<string, unknown>
-		payload.should.have.property("max_tokens", 32_768)
+		expect(create.firstCall.args[0]).to.include({ max_tokens: 65_536 })
 	})
 
-	it("keeps lower Gemini Flash max_tokens values when already below 32768", async () => {
+	it("adds cache control only when model metadata reports prompt-cache support", async () => {
 		const { client, create } = createClient()
 
 		await createOpenRouterStream(client as any, "system prompt", [{ role: "user", content: "hello" }] as any, {
-			id: "google/gemini-2.5-flash",
-			info: createModelInfo(4_096),
-		})
-
-		const payload = create.firstCall.args[0] as Record<string, unknown>
-		payload.should.have.property("max_tokens", 4_096)
-	})
-
-	it("caps non-Gemini models to 32768 max_tokens", async () => {
-		const { client, create } = createClient()
-
-		await createOpenRouterStream(client as any, "system prompt", [{ role: "user", content: "hello" }] as any, {
-			id: "anthropic/claude-sonnet-4.5",
-			info: createModelInfo(64_000),
-		})
-
-		const payload = create.firstCall.args[0] as Record<string, unknown>
-		payload.should.have.property("max_tokens", 32_768)
-	})
-
-	it("caps non-Flash Gemini models to 32768 max_tokens", async () => {
-		const { client, create } = createClient()
-
-		await createOpenRouterStream(client as any, "system prompt", [{ role: "user", content: "hello" }] as any, {
-			id: TEST_MODEL_IDS.GEMINI_OPENROUTER,
-			info: createModelInfo(65_536),
-		})
-
-		const payload = create.firstCall.args[0] as Record<string, unknown>
-		payload.should.have.property("max_tokens", 32_768)
-	})
-
-	it("adds cache_control blocks when the model reports supportsPromptCache, regardless of id", async () => {
-		const { client, create } = createClient()
-
-		await createOpenRouterStream(client as any, "system prompt", [{ role: "user", content: "hello" }] as any, {
-			id: "deepseek/deepseek-chat",
-			info: createModelInfo(65_536, true),
+			id: "example/cache-capable",
+			info: createModelInfo({ supportsPromptCache: true }),
 		})
 
 		const payload = create.firstCall.args[0] as any
-		payload.messages[0].content[0].cache_control.should.deepEqual({ type: "ephemeral" })
-		payload.messages[1].content[0].cache_control.should.deepEqual({ type: "ephemeral" })
+		expect(payload.messages[0].content[0].cache_control).to.deep.equal({ type: "ephemeral" })
+		expect(payload.messages[1].content[0].cache_control).to.deep.equal({ type: "ephemeral" })
 	})
 
-	it("adds cache_control blocks for MiniMax models even without the flag", async () => {
+	it("does not infer prompt-cache support from a model name", async () => {
 		const { client, create } = createClient()
 
 		await createOpenRouterStream(client as any, "system prompt", [{ role: "user", content: "hello" }] as any, {
 			id: "minimax/minimax-m2",
-			info: createModelInfo(65_536, false),
+			info: createModelInfo(),
 		})
 
 		const payload = create.firstCall.args[0] as any
-		payload.messages[0].content[0].cache_control.should.deepEqual({ type: "ephemeral" })
+		expect(payload.messages[0].content).to.equal("system prompt")
 	})
 
-	it("does not add cache_control blocks for models without prompt cache support", async () => {
+	it("omits provider routing when the user has no routing settings", async () => {
 		const { client, create } = createClient()
 
 		await createOpenRouterStream(client as any, "system prompt", [{ role: "user", content: "hello" }] as any, {
-			id: "google/gemini-2.5-pro",
-			info: createModelInfo(65_536, false),
+			id: "example/model",
+			info: createModelInfo(),
 		})
 
-		const payload = create.firstCall.args[0] as any
-		payload.messages[0].content.should.be.a.String()
+		expect(create.firstCall.args[0]).not.to.have.property("provider")
+		expect(buildOpenRouterProvider(undefined)).to.equal(undefined)
+	})
+
+	it("uses pinned providers as an explicit order instead of sorting the unrestricted provider pool", async () => {
+		const { client, create } = createClient()
+		const routing = {
+			sort: "throughput",
+			allowedProviders: ["deepinfra/turbo", "novita/fp8"],
+			preventFallbacks: true,
+		}
+
+		await createOpenRouterStream(
+			client as any,
+			"system prompt",
+			[{ role: "user", content: "hello" }] as any,
+			{ id: "example/model", info: createModelInfo() },
+			undefined,
+			undefined,
+			routing,
+		)
+
+		expect(create.firstCall.args[0].provider).to.deep.equal({
+			order: ["deepinfra/turbo", "novita/fp8"],
+			allow_fallbacks: false,
+		})
 	})
 })

@@ -1,6 +1,5 @@
 import { geminiModels, ModelInfo } from "@shared/api"
-import { VSCodeDropdown, VSCodeOption } from "@vscode/webview-ui-toolkit/react"
-import { useState } from "react"
+import { type ReactNode, useState } from "react"
 import styled from "styled-components"
 import { ModelDescriptionMarkdown } from "../ModelDescriptionMarkdown"
 import { formatPrice, hasThinkingBudget, supportsBrowserUse, supportsImages, supportsPromptCache } from "../utils/pricingUtils"
@@ -75,18 +74,6 @@ const AdvancedLabel = styled.span``
 
 const AdvancedValue = styled.span`
 	color: var(--vscode-foreground);
-`
-
-const ProviderRoutingContainer = styled.div`
-	margin-top: 8px;
-	margin-bottom: 8px;
-`
-
-const ProviderRoutingLabel = styled.label`
-	display: block;
-	font-size: 12px;
-	color: var(--vscode-descriptionForeground);
-	margin-bottom: 4px;
 `
 
 // ========== Helper Functions ==========
@@ -170,10 +157,7 @@ interface ModelInfoViewProps {
 	selectedModelId: string
 	modelInfo: ModelInfo
 	isPopup?: boolean
-	// Provider routing props (optional - only shown for Dirac provider)
-	providerSorting?: string
-	onProviderSortingChange?: (value: string) => void
-	showProviderRouting?: boolean
+	advancedContent?: ReactNode
 }
 
 // ========== Component ==========
@@ -182,9 +166,7 @@ export const ModelInfoView = ({
 	selectedModelId,
 	modelInfo,
 	isPopup,
-	providerSorting,
-	onProviderSortingChange,
-	showProviderRouting,
+	advancedContent,
 }: ModelInfoViewProps) => {
 	const [advancedExpanded, setAdvancedExpanded] = useState(false)
 
@@ -295,35 +277,7 @@ export const ModelInfoView = ({
 						</div>
 					)}
 
-					{/* Provider Routing */}
-					{showProviderRouting && onProviderSortingChange && (
-						<ProviderRoutingContainer>
-							<ProviderRoutingLabel>Provider Routing</ProviderRoutingLabel>
-							<VSCodeDropdown
-								onChange={(e: any) => onProviderSortingChange(e.target.value)}
-								style={{ width: "100%" }}
-								value={providerSorting || ""}>
-								<VSCodeOption value="">Default</VSCodeOption>
-								<VSCodeOption value="price">Price</VSCodeOption>
-								<VSCodeOption value="throughput">Throughput</VSCodeOption>
-								<VSCodeOption value="latency">Latency</VSCodeOption>
-							</VSCodeDropdown>
-							<p
-								style={{
-									fontSize: "11px",
-									marginTop: 4,
-									marginBottom: 0,
-									color: "var(--vscode-descriptionForeground)",
-								}}>
-								{!providerSorting &&
-									"Load balance across providers (AWS, Google Vertex, etc.), prioritizing price while considering uptime"}
-								{providerSorting === "price" && "Sort by price, prioritizing the lowest cost provider"}
-								{providerSorting === "throughput" &&
-									"Sort by throughput, prioritizing highest throughput (may increase cost)"}
-								{providerSorting === "latency" && "Sort by response time, prioritizing lowest latency"}
-							</p>
-						</ProviderRoutingContainer>
-					)}
+					{advancedContent}
 				</AdvancedSection>
 			</CollapsibleContent>
 		</div>

@@ -1,7 +1,7 @@
 import { setTimeout as setTimeoutPromise } from "node:timers/promises"
 import { StateManager } from "@core/storage/StateManager"
 import { ModelInfo, openRouterDefaultModelId, openRouterDefaultModelInfo, stripOpenRouterPreset } from "@shared/api"
-import { shouldSkipReasoningForModel } from "@utils/model-utils"
+import { normalizeLegacySynthetic1mModelId } from "@shared/storage/legacy-model-id-migration"
 import axios from "axios"
 import OpenAI from "openai"
 import type { ChatCompletionTool as OpenAITool } from "openai/resources/chat/completions"
@@ -21,6 +21,8 @@ interface OpenRouterHandlerOptions extends CommonApiHandlerOptions {
 	openRouterModelId?: string
 	openRouterModelInfo?: ModelInfo
 	openRouterProviderSorting?: string
+	openRouterPinnedProviders?: Record<string, string[]>
+	openRouterPreventFallbacks?: boolean
 	reasoningEffort?: string
 	thinkingBudgetTokens?: number
 	enableParallelToolCalling?: boolean
@@ -62,22 +64,49 @@ export class OpenRouterHandler implements ApiHandler {
 		const client = this.ensureClient()
 		this.lastGenerationId = undefined
 
+		const model = this.getModel()
+		const routingModelId = normalizeLegacySynthetic1mModelId(model.id)
+		Logger.info(
+			`[OpenRouter routing] ${JSON.stringify({
+				model: model.id,
+				routingModelId,
+				providerSorting: this.options.openRouterProviderSorting,
+				allowedProviders: this.options.openRouterPinnedProviders?.[routingModelId],
+				preventFallbacks: this.options.openRouterPreventFallbacks,
+			})}`,
+		)
 		const stream = await createOpenRouterStream(
 			client,
 			systemPrompt,
 			messages,
-			this.getModel(),
+			model,
 			this.options.reasoningEffort,
 			this.options.thinkingBudgetTokens,
-			this.options.openRouterProviderSorting,
+			{
+				sort: this.options.openRouterProviderSorting,
+				allowedProviders: this.options.openRouterPinnedProviders?.[routingModelId],
+				preventFallbacks: this.options.openRouterPreventFallbacks,
+			},
 			tools,
 			this.options.enableParallelToolCalling,
 		)
 
+		let didLogResponseMetadata = false
 		let didOutputUsage = false
 		const toolCallProcessor = new ToolCallProcessor()
 
 		for await (const chunk of stream) {
+			if (!didLogResponseMetadata) {
+				const responseMetadata = chunk as typeof chunk & { provider?: string; model?: string }
+				Logger.info(
+					`[OpenRouter response] ${JSON.stringify({
+						generationId: chunk.id,
+						model: responseMetadata.model,
+						provider: responseMetadata.provider,
+					})}`,
+				)
+				didLogResponseMetadata = true
+			}
 			// openrouter returns an error object instead of the openai sdk throwing an error
 			// Check for error field directly on chunk
 			if ("error" in chunk) {
@@ -124,14 +153,7 @@ export class OpenRouterHandler implements ApiHandler {
 				yield* toolCallProcessor.processToolCallDeltas(delta.tool_calls)
 			}
 
-			// Reasoning tokens are returned separately from the content
-			// Skip reasoning content for Grok 4 models since it only displays "thinking" without providing useful information
-			if (
-				delta &&
-				"reasoning" in delta &&
-				delta.reasoning &&
-				!shouldSkipReasoningForModel(this.options.openRouterModelId)
-			) {
+			if (delta && "reasoning" in delta && delta.reasoning) {
 				yield {
 					type: "reasoning",
 					reasoning: typeof delta.reasoning === "string" ? delta.reasoning : JSON.stringify(delta.reasoning),
@@ -143,10 +165,8 @@ export class OpenRouterHandler implements ApiHandler {
 			if (
 				delta &&
 				"reasoning_details" in delta &&
-				delta.reasoning_details &&
-				// @ts-expect-error-next-line
-				delta.reasoning_details.length && // exists and non-0
-				!shouldSkipReasoningForModel(this.options.openRouterModelId)
+				Array.isArray(delta.reasoning_details) &&
+				delta.reasoning_details.length > 0
 			) {
 				yield {
 					type: "reasoning",
@@ -208,7 +228,15 @@ export class OpenRouterHandler implements ApiHandler {
 				timeout: 15_000, // this request hangs sometimes
 				...getAxiosSettings(),
 			})
-			yield response.data?.data
+			const generation = response.data?.data
+			Logger.info(
+				`[OpenRouter generation] ${JSON.stringify({
+					generationId: genId,
+					model: generation?.model,
+					provider: generation?.provider_name ?? generation?.provider,
+				})}`,
+			)
+			yield generation
 		} catch (error) {
 			// ignore if fails
 			Logger.error("Error fetching OpenRouter generation details:", error)
@@ -217,7 +245,7 @@ export class OpenRouterHandler implements ApiHandler {
 	}
 
 	getModel(): { id: string; info: ModelInfo } {
-		const modelId = this.options.openRouterModelId || openRouterDefaultModelId
+		const modelId = normalizeLegacySynthetic1mModelId(this.options.openRouterModelId || openRouterDefaultModelId)
 		const baseModelId = stripOpenRouterPreset(modelId)
 		const cachedModelInfo = StateManager.get().getModelInfo("openRouter", baseModelId || modelId)
 		return {

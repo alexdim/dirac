@@ -279,7 +279,6 @@ const VercelModelPicker: React.FC<VercelModelPickerProps> = ({ isPopup, currentM
 						isPopup={isPopup}
 						modelInfo={selectedModelInfo}
 						selectedModelId={selectedModelId}
-						showProviderRouting={false}
 					/>
 				</>
 			) : (

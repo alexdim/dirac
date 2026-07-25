@@ -49,6 +49,8 @@ service ModelsService {
   rpc getAihubmixModels(EmptyRequest) returns (OpenRouterCompatibleModelInfo);
   // Refreshes and returns Vercel AI Gateway models
   rpc refreshVercelAiGatewayModelsRpc(EmptyRequest) returns (OpenRouterCompatibleModelInfo);
+  // Lazily fetches upstream endpoints for one selected OpenRouter model.
+  rpc getOpenRouterEndpoints(OpenRouterEndpointsRequest) returns (OpenRouterEndpointsResponse);
 }
 
 // List of VS Code LM models
@@ -107,11 +109,40 @@ message OpenRouterModelInfo {
   optional bool supports_tools = 17;
   optional bool supports_adaptive_thinking = 18;
   optional bool supports_strict_tools = 19;
+  optional bool supports_reasoning_effort = 20;
 }
 
 // Shared response message for model information
 message OpenRouterCompatibleModelInfo {
   map<string, OpenRouterModelInfo> models = 1;
+}
+
+message OpenRouterEndpointsRequest {
+  string model_id = 1;
+  bool force_refresh = 2;
+}
+
+message OpenRouterEndpoint {
+  string tag = 1;
+  string provider_name = 2;
+  optional string quantization = 3;
+  optional int32 status = 4;
+  optional double uptime_last_30m = 5;
+  optional double latency_last_30m = 6;
+  optional double throughput_last_30m = 7;
+}
+
+enum OpenRouterEndpointsStatus {
+  OPENROUTER_ENDPOINTS_STATUS_FRESH = 0;
+  OPENROUTER_ENDPOINTS_STATUS_STALE = 1;
+  OPENROUTER_ENDPOINTS_STATUS_UNAVAILABLE = 2;
+}
+
+message OpenRouterEndpointsResponse {
+  string model_id = 1;
+  repeated OpenRouterEndpoint endpoints = 2;
+  OpenRouterEndpointsStatus status = 3;
+  optional string error_message = 4;
 }
 
 // Request for fetching OpenAI models
@@ -200,6 +231,8 @@ message ModelsApiOptions {
   optional string aihubmix_base_url = 42;
   optional string aihubmix_app_code = 43;
   optional bool azure_identity = 44;
+  map<string, StringArray> open_router_pinned_providers = 45;
+  optional bool open_router_prevent_fallbacks = 46;
 
   // Plan mode configurations
   optional ApiProvider plan_mode_api_provider = 100;
@@ -548,6 +581,8 @@ message ModelsApiConfiguration {
   optional string nous_research_api_key = 85;
   optional bool azure_identity = 86;
   optional string wandb_api_key = 87;
+  map<string, StringArray> open_router_pinned_providers = 89;
+  optional bool open_router_prevent_fallbacks = 90;
 
   // Plan mode configurations
   optional ApiProvider plan_mode_api_provider = 100;

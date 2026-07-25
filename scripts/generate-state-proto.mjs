@@ -70,6 +70,9 @@ function inferProtoType(typeText, fieldName) {
 	if (/Record\s*<\s*string\s*,\s*string\s*>/.test(cleanType)) {
 		return "map<string, string>"
 	}
+	if (/Record\s*<\s*string\s*,\s*string\[\]\s*>/.test(cleanType)) {
+		return "map<string, StringArray>"
+	}
 
 	// Handle specific known types that map to proto messages/enums
 	// Order matters! More specific types must come before generic ones

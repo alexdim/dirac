@@ -7,12 +7,10 @@ import { Tool as AnthropicTool } from "@anthropic-ai/sdk/resources/index"
 import type { MessageCreateParamsStreaming as AnthropicMessageCreateParamsStreaming } from "@anthropic-ai/sdk/resources/messages/messages"
 import { Stream as AnthropicStream } from "@anthropic-ai/sdk/streaming"
 import {
-	ANTHROPIC_BETAS,
 	ANTHROPIC_FAST_MODE_SUFFIX,
 	AnthropicModelId,
 	anthropicDefaultModelId,
 	anthropicModels,
-	CLAUDE_SONNET_1M_SUFFIX,
 	isAnthropicAdaptiveThinkingSupported,
 	ModelInfo,
 } from "@shared/api"
@@ -75,14 +73,7 @@ export class AnthropicHandler implements ApiHandler {
 		let stream: AnthropicStream<Anthropic.RawMessageStreamEvent> | AsyncIterable<BetaRawMessageStreamEvent>
 
 		const useFastMode = model.id.endsWith(ANTHROPIC_FAST_MODE_SUFFIX)
-		const baseModelId = useFastMode ? model.id.slice(0, -ANTHROPIC_FAST_MODE_SUFFIX.length) : model.id
-		const modelId = baseModelId.endsWith(CLAUDE_SONNET_1M_SUFFIX)
-			? baseModelId.slice(0, -CLAUDE_SONNET_1M_SUFFIX.length)
-			: baseModelId
-		const enable1mContextWindow = baseModelId.endsWith(CLAUDE_SONNET_1M_SUFFIX)
-		const fastModeBetas = enable1mContextWindow
-			? [ANTHROPIC_FAST_MODE_BETA, ANTHROPIC_BETAS.CONTEXT_1M]
-			: [ANTHROPIC_FAST_MODE_BETA]
+		const modelId = useFastMode ? model.id.slice(0, -ANTHROPIC_FAST_MODE_SUFFIX.length) : model.id
 		const createFastModeMessage = (
 			body: AnthropicMessageCreateParamsStreaming,
 		): Promise<AsyncIterable<BetaRawMessageStreamEvent>> => {
@@ -92,7 +83,7 @@ export class AnthropicHandler implements ApiHandler {
 				) => Promise<AsyncIterable<BetaRawMessageStreamEvent>>
 			)({
 				...body,
-				betas: fastModeBetas,
+				betas: [ANTHROPIC_FAST_MODE_BETA],
 				speed: "fast",
 			})
 		}
@@ -139,22 +130,7 @@ export class AnthropicHandler implements ApiHandler {
 				tool_choice: nativeToolsOn && !reasoningOn ? { type: "any" } : undefined,
 			}
 
-			stream = useFastMode
-				? await createFastModeMessage(requestBody)
-				: await client.messages.create(
-						requestBody,
-						(() => {
-							// 1m context window beta header
-							if (enable1mContextWindow) {
-								return {
-									headers: {
-										"anthropic-beta": ANTHROPIC_BETAS.CONTEXT_1M,
-									},
-								}
-							}
-							return undefined
-						})(),
-					)
+			stream = useFastMode ? await createFastModeMessage(requestBody) : await client.messages.create(requestBody)
 		} else {
 			const requestBody: AnthropicMessageCreateParamsStreaming = {
 				model: modelId,

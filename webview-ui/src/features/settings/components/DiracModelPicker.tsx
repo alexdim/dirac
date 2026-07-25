@@ -1,4 +1,4 @@
-import { CLAUDE_SONNET_1M_SUFFIX, openRouterDefaultModelId } from "@shared/api"
+import { openRouterDefaultModelId } from "@shared/api"
 import type { Mode } from "@shared/ExtensionMessage"
 import { StringRequest } from "@shared/proto/dirac/common"
 import { VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
@@ -10,7 +10,6 @@ import styled from "styled-components"
 import { useSettingsStore } from "@/features/settings/store/settingsStore"
 import { StateServiceClient } from "@/shared/api/grpc-client"
 import { highlight } from "../../history/components/HistoryView/HistoryView"
-import { ContextWindowSwitcher } from "./common/ContextWindowSwitcher"
 import { ModelInfoView } from "./common/ModelInfoView"
 import ReasoningEffortSelector from "./ReasoningEffortSelector"
 import ThinkingBudgetSlider from "./ThinkingBudgetSlider"
@@ -18,7 +17,6 @@ import {
 	filterOpenRouterModelIds,
 	getModeSpecificFields,
 	normalizeApiConfiguration,
-	supportsReasoningEffortForModelId,
 } from "./utils/providerUtils"
 import { useApiConfigurationHandlers } from "./utils/useApiConfigurationHandlers"
 
@@ -46,15 +44,14 @@ const StarIcon = ({ isFavorite, onClick }: { isFavorite: boolean; onClick: (e: R
 export interface DiracModelPickerProps {
 	isPopup?: boolean
 	currentMode: Mode
-	showProviderRouting?: boolean
 }
 
 function normalizeModelId(modelId: string): string {
 	return modelId.trim().toLowerCase()
 }
 
-const DiracModelPicker: React.FC<DiracModelPickerProps> = ({ isPopup, currentMode, showProviderRouting }) => {
-	const { handleModeFieldsChange, handleFieldChange } = useApiConfigurationHandlers()
+const DiracModelPicker: React.FC<DiracModelPickerProps> = ({ isPopup, currentMode }) => {
+	const { handleModeFieldsChange } = useApiConfigurationHandlers()
 	const { apiConfiguration, favoritedModelIds, diracModels, refreshDiracModels } = useSettingsStore()
 	const modeFields = getModeSpecificFields(apiConfiguration, currentMode)
 	const [searchTerm, setSearchTerm] = useState(modeFields.diracModelId || openRouterDefaultModelId)
@@ -215,31 +212,8 @@ const DiracModelPicker: React.FC<DiracModelPickerProps> = ({ isPopup, currentMod
 		}
 	}, [selectedIndex])
 
-	const selectedModelIdLower = selectedModelId?.toLowerCase() || ""
-	const showReasoningEffort = useMemo(() => supportsReasoningEffortForModelId(selectedModelId), [selectedModelId])
-
-	const showBudgetSlider = useMemo(() => {
-		if (showReasoningEffort) {
-			return false
-		}
-		return (
-			Object.entries(diracModels ?? {})?.some(([id, m]) => id === selectedModelId && (m as any).thinkingConfig) ||
-			selectedModelIdLower.includes("claude-opus-4.6") ||
-			selectedModelIdLower.includes("claude-haiku-4.5") ||
-			selectedModelIdLower.includes("claude-4.5-haiku") ||
-			selectedModelIdLower.includes("claude-sonnet-4.6") ||
-			selectedModelIdLower.includes("claude-sonnet-4-6") ||
-			selectedModelIdLower.includes("claude-4.6-sonnet") ||
-			selectedModelIdLower.includes("claude-sonnet-4.5") ||
-			selectedModelIdLower.includes("claude-sonnet-4") ||
-			selectedModelIdLower.includes("claude-opus-4.1") ||
-			selectedModelIdLower.includes("claude-opus-4") ||
-			selectedModelIdLower.includes("claude-opus-4.5") ||
-			selectedModelIdLower.includes("claude-3-7-sonnet") ||
-			selectedModelIdLower.includes("claude-3.7-sonnet") ||
-			selectedModelIdLower.includes("claude-3.7-sonnet:thinking")
-		)
-	}, [diracModels, selectedModelId, selectedModelIdLower, showReasoningEffort])
+	const showReasoningEffort = selectedModelInfo.supportsReasoningEffort === true
+	const showBudgetSlider = !showReasoningEffort && !!selectedModelInfo.thinkingConfig
 
 	return (
 		<div style={{ width: "100%", paddingBottom: 2 }}>
@@ -330,37 +304,6 @@ const DiracModelPicker: React.FC<DiracModelPickerProps> = ({ isPopup, currentMod
 					)}
 				</DropdownWrapper>
 
-				{/* Context window switcher for Claude Opus 4.6 */}
-				<ContextWindowSwitcher
-					base1mModelId={`anthropic/claude-opus-4.6${CLAUDE_SONNET_1M_SUFFIX}`}
-					base200kModelId="anthropic/claude-opus-4.6"
-					onModelChange={handleModelChange}
-					selectedModelId={selectedModelId}
-				/>
-
-				{/* Context window switcher for Claude Sonnet 4.6 */}
-				<ContextWindowSwitcher
-					base1mModelId={`anthropic/claude-sonnet-4.6${CLAUDE_SONNET_1M_SUFFIX}`}
-					base200kModelId="anthropic/claude-sonnet-4.6"
-					onModelChange={handleModelChange}
-					selectedModelId={selectedModelId}
-				/>
-
-				{/* Context window switcher for Claude Sonnet 4.5 */}
-				<ContextWindowSwitcher
-					base1mModelId={`anthropic/claude-sonnet-4.5${CLAUDE_SONNET_1M_SUFFIX}`}
-					base200kModelId="anthropic/claude-sonnet-4.5"
-					onModelChange={handleModelChange}
-					selectedModelId={selectedModelId}
-				/>
-
-				{/* Context window switcher for Claude Sonnet 4 */}
-				<ContextWindowSwitcher
-					base1mModelId={`anthropic/claude-sonnet-4${CLAUDE_SONNET_1M_SUFFIX}`}
-					base200kModelId="anthropic/claude-sonnet-4"
-					onModelChange={handleModelChange}
-					selectedModelId={selectedModelId}
-				/>
 			</div>
 
 			{hasInfo ? (
@@ -371,10 +314,7 @@ const DiracModelPicker: React.FC<DiracModelPickerProps> = ({ isPopup, currentMod
 					<ModelInfoView
 						isPopup={isPopup}
 						modelInfo={selectedModelInfo}
-						onProviderSortingChange={(value) => handleFieldChange("openRouterProviderSorting", value)}
-						providerSorting={apiConfiguration?.openRouterProviderSorting}
 						selectedModelId={selectedModelId}
-						showProviderRouting={showProviderRouting}
 					/>
 				</>
 			) : (

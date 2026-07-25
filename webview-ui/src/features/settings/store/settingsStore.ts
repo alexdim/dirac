@@ -21,10 +21,21 @@ import {
 } from "@shared/api"
 import type { ModelProviderPreset } from "@shared/api"
 import { fromProtobufModels } from "@shared/proto-conversions/models/typeConversion"
-import { OpenAiModelsRequest } from "@shared/proto/dirac/models"
+import {
+	OpenAiModelsRequest,
+	type OpenRouterEndpoint,
+	OpenRouterEndpointsRequest,
+	OpenRouterEndpointsStatus,
+} from "@shared/proto/dirac/models"
 import { EmptyRequest } from "@shared/proto/dirac/common"
 import { ModelsServiceClient, StateServiceClient } from "@/shared/api/grpc-client"
 import { create } from "zustand"
+
+export interface OpenRouterEndpointState {
+	status: "loading" | "fresh" | "stale" | "unavailable"
+	endpoints: OpenRouterEndpoint[]
+	errorMessage?: string
+}
 
 interface SettingsState {
 	version: string
@@ -40,6 +51,8 @@ interface SettingsState {
 	refreshDiracModels: () => void
 	openRouterModels: any
 	refreshOpenRouterModels: () => void
+	openRouterEndpointStates: Record<string, OpenRouterEndpointState>
+	fetchOpenRouterEndpoints: (modelId: string, forceRefresh?: boolean) => Promise<void>
 	refreshBasetenModels: () => void
 	refreshGroqModels: () => void
 	refreshHuggingFaceModels: () => void
@@ -166,7 +179,7 @@ interface SettingsState {
 	setRequestyModels: (models: any) => void
 }
 
-export const useSettingsStore = create<SettingsState>((set) => ({
+export const useSettingsStore = create<SettingsState>((set, get) => ({
 	autoApprovalSettings: DEFAULT_AUTO_APPROVAL_SETTINGS,
 	browserSettings: DEFAULT_BROWSER_SETTINGS,
 	preferredLanguage: "English",
@@ -264,6 +277,50 @@ export const useSettingsStore = create<SettingsState>((set) => ({
 	},
 	openRouterModels: {
 		[openRouterDefaultModelId]: openRouterDefaultModelInfo,
+	},
+	openRouterEndpointStates: {},
+	fetchOpenRouterEndpoints: async (modelId, forceRefresh = false) => {
+		const current = get().openRouterEndpointStates[modelId]
+		set((state) => ({
+			openRouterEndpointStates: {
+				...state.openRouterEndpointStates,
+				[modelId]: { status: "loading", endpoints: current?.endpoints || [] },
+			},
+		}))
+
+		try {
+			const response = await ModelsServiceClient.getOpenRouterEndpoints(
+				OpenRouterEndpointsRequest.create({ modelId, forceRefresh }),
+			)
+			const status =
+				response.status === OpenRouterEndpointsStatus.OPENROUTER_ENDPOINTS_STATUS_FRESH
+					? "fresh"
+					: response.status === OpenRouterEndpointsStatus.OPENROUTER_ENDPOINTS_STATUS_STALE
+						? "stale"
+						: "unavailable"
+			set((state) => ({
+				openRouterEndpointStates: {
+					...state.openRouterEndpointStates,
+					[modelId]: {
+						status,
+						endpoints: response.endpoints,
+						errorMessage: response.errorMessage || undefined,
+					},
+				},
+			}))
+		} catch (error) {
+			const endpoints = current?.endpoints || []
+			set((state) => ({
+				openRouterEndpointStates: {
+					...state.openRouterEndpointStates,
+					[modelId]: {
+						status: endpoints.length > 0 ? "stale" : "unavailable",
+						endpoints,
+						errorMessage: error instanceof Error ? error.message : "Endpoint metadata is unavailable",
+					},
+				},
+			}))
+		}
 	},
 	refreshOpenRouterModels: async () => {
 		try {

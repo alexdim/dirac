@@ -113,4 +113,32 @@ describe("OpenRouterHandler", () => {
 			payload.parallel_tool_calls.should.equal(testCase.expectedParallelToolCalls)
 		})
 	}
+
+	it("applies allowed providers only to the active model ID", async () => {
+		const handler = new OpenRouterHandler({
+			openRouterApiKey: "test-api-key",
+			openRouterProviderSorting: "price",
+			openRouterPinnedProviders: {
+				"author/model-a": ["provider-a"],
+			},
+			openRouterPreventFallbacks: true,
+		})
+		const createStub = sinon.stub().resolves(createAsyncIterable([]))
+		sinon.stub(handler as any, "ensureClient").returns({
+			chat: { completions: { create: createStub } },
+		} as any)
+		sinon.stub(handler, "getModel").returns({
+			id: "author/model-b",
+			info: openRouterDefaultModelInfo,
+		})
+
+		for await (const _chunk of handler.createMessage("system", [{ role: "user", content: "hi" }])) {
+			// drain stream
+		}
+
+		createStub.firstCall.args[0].provider.should.deepEqual({
+			sort: "price",
+			allow_fallbacks: false,
+		})
+	})
 })

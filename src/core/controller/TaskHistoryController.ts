@@ -6,7 +6,7 @@ import fs from "fs/promises"
 import { Logger } from "@/shared/services/Logger"
 import type { HistoryItem } from "@shared/HistoryItem"
 import type { Anthropic } from "@anthropic-ai/sdk"
-import { appendDiracStealthModels } from "./models/refreshOpenRouterModels"
+import { removeLegacySynthetic1mModelEntries } from "@shared/storage/legacy-model-id-migration"
 
 export class TaskHistoryController {
 	constructor(private readonly stateManager: import("@core/storage/StateManager").StateManager) {}
@@ -17,7 +17,7 @@ export class TaskHistoryController {
 			if (await fileExistsAtPath(openRouterModelsFilePath)) {
 				const fileContents = await fs.readFile(openRouterModelsFilePath, "utf8")
 				const models = JSON.parse(fileContents)
-				return appendDiracStealthModels(models)
+				return removeLegacySynthetic1mModelEntries(models)
 			}
 		} catch (error) {
 			Logger.error("Error reading cached OpenRouter models:", error)

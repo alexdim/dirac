@@ -133,6 +133,8 @@ const PROVIDER_REGISTRY: Record<
 			openRouterModelId: mc.openRouterModelId,
 			openRouterModelInfo: mc.openRouterModelInfo,
 			openRouterProviderSorting: cfg.openRouterProviderSorting,
+			openRouterPinnedProviders: cfg.openRouterPinnedProviders,
+			openRouterPreventFallbacks: cfg.openRouterPreventFallbacks,
 			reasoningEffort: mc.reasoningEffort,
 			thinkingBudgetTokens: mc.thinkingBudgetTokens,
 			enableParallelToolCalling: cfg.enableParallelToolCalling,
