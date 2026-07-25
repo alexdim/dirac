@@ -562,6 +562,10 @@ export class LifecycleManager {
 				}
 			}
 
+			this.dependencies.taskState.isApiRequestActive = false
+			this.dependencies.taskState.activeVoiceStreamId = undefined
+			this.dependencies.taskState.isWaitingForFirstChunk = false
+			this.dependencies.taskState.didFinishAbortingStream = true
 			this.dependencies.taskState.status = TaskStatus.CANCELLED
 
 			try {
