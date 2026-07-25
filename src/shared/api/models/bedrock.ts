@@ -118,6 +118,15 @@ export const bedrockModels = {
 		cacheReadsPrice: 0.5,
 		tiers: CLAUDE_OPUS_1M_TIERS,
 	},
+	"anthropic.claude-opus-5-v1": {
+		...MODEL_CAPABILITIES["claude-opus-5"],
+		supportsPromptCache: true,
+		supportsGlobalEndpoint: true,
+		inputPrice: 5.0,
+		outputPrice: 25.0,
+		cacheWritesPrice: 6.25,
+		cacheReadsPrice: 0.5,
+	},
 	"anthropic.claude-fable-5-v1": {
 		...MODEL_CAPABILITIES["claude-fable-5"],
 		supportsPromptCache: true,

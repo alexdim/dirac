@@ -46,6 +46,11 @@ export const claudeCodeModels = {
 		supportsImages: false,
 		supportsPromptCache: false,
 	},
+	"claude-opus-5": {
+		...anthropicModels["claude-opus-5"],
+		supportsImages: false,
+		supportsPromptCache: false,
+	},
 	"claude-sonnet-5": {
 		...anthropicModels["claude-sonnet-5"],
 		supportsImages: false,
