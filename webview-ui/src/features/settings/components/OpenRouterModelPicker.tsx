@@ -11,7 +11,7 @@ import { useSettingsStore } from "@/features/settings/store/settingsStore"
 import { StateServiceClient } from "@/shared/api/grpc-client"
 import { highlight } from "../../history/components/HistoryView/HistoryView"
 import { ModelInfoView } from "./common/ModelInfoView"
-import { OpenRouterRoutingControls } from "./OpenRouterRoutingControls"
+import { OpenRouterProviderSelector, OpenRouterRoutingControls } from "./OpenRouterRoutingControls"
 import ReasoningEffortSelector from "./ReasoningEffortSelector"
 import ThinkingBudgetSlider from "./ThinkingBudgetSlider"
 import {
@@ -293,6 +293,7 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({ isPopup, 
 				</DropdownWrapper>
 
 			</div>
+			<OpenRouterProviderSelector modelId={selectedModelId} />
 
 			{hasInfo ? (
 				<>
@@ -300,7 +301,7 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({ isPopup, 
 					{showReasoningEffort && <ReasoningEffortSelector currentMode={currentMode} />}
 
 					<ModelInfoView
-						advancedContent={<OpenRouterRoutingControls modelId={selectedModelId} />}
+						advancedContent={<OpenRouterRoutingControls />}
 						isPopup={isPopup}
 						modelInfo={selectedModelInfo}
 						selectedModelId={selectedModelId}
@@ -336,7 +337,7 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({ isPopup, 
 						Advanced
 					</AdvancedToggle>
 					<AdvancedContent $isExpanded={customModelAdvancedExpanded}>
-						<OpenRouterRoutingControls modelId={selectedModelId} />
+						<OpenRouterRoutingControls />
 					</AdvancedContent>
 				</>
 			)}
