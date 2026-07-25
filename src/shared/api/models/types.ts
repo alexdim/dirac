@@ -15,6 +15,7 @@ export interface ModelCapabilities {
 	contextWindow?: number
 	supportsImages?: boolean
 	supportsReasoning?: boolean
+	supportsReasoningEffort?: boolean
 	supportsAdaptiveThinking?: boolean
 	supportsTools?: boolean
 	supportsStrictTools?: boolean

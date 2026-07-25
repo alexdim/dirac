@@ -1,12 +1,5 @@
 import { Anthropic } from "@anthropic-ai/sdk"
-import {
-	CLAUDE_SONNET_1M_SUFFIX,
-	ModelInfo,
-	openRouterClaudeOpus461mModelId,
-	openRouterClaudeSonnet41mModelId,
-	openRouterClaudeSonnet451mModelId,
-	openRouterClaudeSonnet461mModelId,
-} from "@shared/api"
+import { ModelInfo } from "@shared/api"
 import { normalizeOpenaiReasoningEffort } from "@shared/storage/types"
 import { shouldSkipReasoningForModel, supportsReasoningEffortForModel } from "@utils/model-utils"
 import OpenAI from "openai"
@@ -29,16 +22,6 @@ export async function createVercelAIGatewayStream(
 		{ role: "system", content: systemPrompt },
 		...convertToOpenAiMessages(messages as any),
 	]
-
-	const isClaude1m =
-		model.id === openRouterClaudeSonnet41mModelId ||
-		model.id === openRouterClaudeSonnet451mModelId ||
-		model.id === openRouterClaudeSonnet461mModelId ||
-		model.id === openRouterClaudeOpus461mModelId
-	if (isClaude1m) {
-		// remove the custom :1m suffix, to create the model id the API expects
-		model.id = model.id.slice(0, -CLAUDE_SONNET_1M_SUFFIX.length)
-	}
 
 	// Sanitize messages for Gemini models (removes tool_calls without reasoning_details)
 	openAiMessages = sanitizeGeminiMessages(openAiMessages, model.id)

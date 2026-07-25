@@ -1,5 +1,5 @@
 import "should"
-import { ANTHROPIC_BETAS, vertexDefaultModelId, vertexModels } from "@shared/api"
+import { vertexDefaultModelId, vertexModels } from "@shared/api"
 import { expect } from "chai"
 import { afterEach, describe, it } from "mocha"
 import sinon from "sinon"
@@ -394,29 +394,16 @@ describe("VertexHandler", () => {
 		})
 	})
 
-	describe("createMessage - 1m context window", () => {
-		it("should strip the :1m suffix and send the context-1m beta header", async () => {
-			const handler = new VertexHandler({ vertexProjectId: "proj", vertexRegion: "us-east1" })
-			stubClaudeModel(handler, "claude-sonnet-4-6:1m")
-			const createStub = stubAnthropicClient(handler, createAsyncIterable([]))
-
-			await collect(handler.createMessage("system", [{ role: "user", content: "hi" }]))
-
-			sinon.assert.calledOnce(createStub)
-			const [params, options] = createStub.firstCall.args
-			params.model.should.equal("claude-sonnet-4-6")
-			expect(options).to.not.be.null
-			expect(options.headers["anthropic-beta"]).to.equal(ANTHROPIC_BETAS.CONTEXT_1M)
-		})
-
-		it("should not send the context-1m beta header for a non-1m model", async () => {
+	describe("createMessage - canonical model IDs", () => {
+		it("sends a canonical Claude model ID unchanged without a legacy beta header", async () => {
 			const handler = new VertexHandler({ vertexProjectId: "proj", vertexRegion: "us-east1" })
 			stubClaudeModel(handler, "claude-sonnet-4-6")
 			const createStub = stubAnthropicClient(handler, createAsyncIterable([]))
 
 			await collect(handler.createMessage("system", [{ role: "user", content: "hi" }]))
 
-			const [, options] = createStub.firstCall.args
+			const [params, options] = createStub.firstCall.args
+			params.model.should.equal("claude-sonnet-4-6")
 			expect(options).to.be.undefined
 		})
 	})

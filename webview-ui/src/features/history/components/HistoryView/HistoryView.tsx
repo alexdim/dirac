@@ -339,7 +339,7 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 		}
 		return (
 			<GroupedVirtuoso
-				computeItemKey={(_, item) => item.id}
+				computeItemKey={(index) => groupedTasks[index].id}
 				data={groupedTasks}
 				groupContent={(index) => (
 					<div className="sticky top-0 z-10 border-b border-border-panel bg-sidebar-background px-4 py-2 text-xs font-bold uppercase tracking-wide text-description">

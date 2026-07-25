@@ -260,19 +260,14 @@ export class LifecycleManager {
 			lastDiracMessage?.content.type === "card" &&
 			lastDiracMessage.content.card.header === "Task Completed" &&
 			lastDiracMessage.content.card.status === CardStatus.SUCCESS
-		if (completedTask) {
-			this.dependencies.taskState.status = TaskStatus.COMPLETED
-			await this.dependencies.postStateToWebview()
-			return
-		}
-
-		// Reset askResponse state before waiting
+		// Reset askResponse state before waiting. Completed tasks remain available for
+		// follow-up messages just like cancelled tasks; only their displayed status differs.
 		this.dependencies.taskState.askResponse = undefined
 		this.dependencies.taskState.askResponseText = undefined
 		this.dependencies.taskState.askResponseImages = undefined
 		this.dependencies.taskState.askResponseFiles = undefined
 
-		this.dependencies.taskState.status = TaskStatus.CANCELLED
+		this.dependencies.taskState.status = completedTask ? TaskStatus.COMPLETED : TaskStatus.CANCELLED
 		await this.dependencies.postStateToWebview()
 
 		await pWaitFor(() => this.dependencies.taskState.askResponse !== undefined || this.dependencies.taskState.abort, {

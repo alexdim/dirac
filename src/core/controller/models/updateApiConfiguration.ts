@@ -113,6 +113,13 @@ export async function updateApiConfiguration(controller: Controller, request: Up
 						options.planModeApiProvider = convertProtoToApiProvider(value)
 					} else if (key === "actModeApiProvider") {
 						options.actModeApiProvider = convertProtoToApiProvider(value)
+					} else if (key === "openRouterPinnedProviders") {
+						options.openRouterPinnedProviders = Object.fromEntries(
+							Object.entries(value as Record<string, { values: string[] }>).map(([modelId, tags]) => [
+								modelId,
+								tags.values,
+							]),
+						)
 					} else {
 						options[key as keyof ApiHandlerOptions] = value
 					}

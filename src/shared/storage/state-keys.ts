@@ -80,6 +80,8 @@ const API_HANDLER_SETTINGS_FIELDS = {
 	anthropicBaseUrl: { default: undefined as string | undefined },
 	anthropicHeaders: { default: {} as Record<string, string> },
 	openRouterProviderSorting: { default: undefined as string | undefined },
+	openRouterPinnedProviders: { default: undefined as Record<string, string[]> | undefined },
+	openRouterPreventFallbacks: { default: undefined as boolean | undefined },
 	awsRegion: { default: undefined as string | undefined },
 	awsUseCrossRegionInference: { default: undefined as boolean | undefined },
 	awsUseGlobalInference: { default: undefined as boolean | undefined },

@@ -1,5 +1,6 @@
 import type { ModelInfo } from "./types"
 import { anthropicModels } from "./anthropic"
+import { CLAUDE_OPUS_1M_TIERS, CLAUDE_SONNET_1M_TIERS } from "./shared-tiers"
 
 export type ClaudeCodeModelId = keyof typeof claudeCodeModels
 
@@ -7,7 +8,9 @@ export const claudeCodeDefaultModelId: ClaudeCodeModelId = "claude-sonnet-5"
 
 export const claudeCodeModels = {
 	"opus[1m]": {
-		...anthropicModels["claude-opus-4-6:1m"],
+		...anthropicModels["claude-opus-4-6"],
+		contextWindow: 1_000_000,
+		tiers: CLAUDE_OPUS_1M_TIERS,
 		supportsImages: false,
 		supportsPromptCache: false,
 	},
@@ -22,7 +25,9 @@ export const claudeCodeModels = {
 		supportsPromptCache: false,
 	},
 	"claude-sonnet-4-6[1m]": {
-		...anthropicModels["claude-sonnet-4-6:1m"],
+		...anthropicModels["claude-sonnet-4-6"],
+		contextWindow: 1_000_000,
+		tiers: CLAUDE_SONNET_1M_TIERS,
 		supportsImages: false,
 		supportsPromptCache: false,
 	},
@@ -32,7 +37,9 @@ export const claudeCodeModels = {
 		supportsPromptCache: false,
 	},
 	"claude-opus-4-6[1m]": {
-		...anthropicModels["claude-opus-4-6:1m"],
+		...anthropicModels["claude-opus-4-6"],
+		contextWindow: 1_000_000,
+		tiers: CLAUDE_OPUS_1M_TIERS,
 		supportsImages: false,
 		supportsPromptCache: false,
 	},
@@ -42,7 +49,9 @@ export const claudeCodeModels = {
 		supportsPromptCache: false,
 	},
 	"claude-opus-4-8[1m]": {
-		...anthropicModels["claude-opus-4-8:1m"],
+		...anthropicModels["claude-opus-4-8"],
+		contextWindow: 1_000_000,
+		tiers: CLAUDE_OPUS_1M_TIERS,
 		supportsImages: false,
 		supportsPromptCache: false,
 	},

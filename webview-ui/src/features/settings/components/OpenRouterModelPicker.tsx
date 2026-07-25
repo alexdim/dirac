@@ -1,4 +1,4 @@
-import { CLAUDE_SONNET_1M_SUFFIX, openRouterDefaultModelId } from "@shared/api"
+import { openRouterDefaultModelId } from "@shared/api"
 import type { Mode } from "@shared/ExtensionMessage"
 import { StringRequest } from "@shared/proto/dirac/common"
 import { VSCodeLink, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
@@ -10,15 +10,14 @@ import styled from "styled-components"
 import { useSettingsStore } from "@/features/settings/store/settingsStore"
 import { StateServiceClient } from "@/shared/api/grpc-client"
 import { highlight } from "../../history/components/HistoryView/HistoryView"
-import { ContextWindowSwitcher } from "./common/ContextWindowSwitcher"
 import { ModelInfoView } from "./common/ModelInfoView"
+import { OpenRouterRoutingControls } from "./OpenRouterRoutingControls"
 import ReasoningEffortSelector from "./ReasoningEffortSelector"
 import ThinkingBudgetSlider from "./ThinkingBudgetSlider"
 import {
 	filterOpenRouterModelIds,
 	getModeSpecificFields,
 	normalizeApiConfiguration,
-	supportsReasoningEffortForModelId,
 } from "./utils/providerUtils"
 import { useApiConfigurationHandlers } from "./utils/useApiConfigurationHandlers"
 
@@ -46,16 +45,16 @@ const StarIcon = ({ isFavorite, onClick }: { isFavorite: boolean; onClick: (e: R
 export interface OpenRouterModelPickerProps {
 	isPopup?: boolean
 	currentMode: Mode
-	showProviderRouting?: boolean
 }
 
-const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({ isPopup, currentMode, showProviderRouting }) => {
-	const { handleModeFieldsChange, handleFieldChange } = useApiConfigurationHandlers()
+const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({ isPopup, currentMode }) => {
+	const { handleModeFieldsChange } = useApiConfigurationHandlers()
 	const { apiConfiguration, favoritedModelIds, openRouterModels, refreshOpenRouterModels } = useSettingsStore()
 	const modeFields = getModeSpecificFields(apiConfiguration, currentMode)
 	const [searchTerm, setSearchTerm] = useState(modeFields.openRouterModelId || openRouterDefaultModelId)
 	const [isDropdownVisible, setIsDropdownVisible] = useState(false)
 	const [selectedIndex, setSelectedIndex] = useState(-1)
+	const [customModelAdvancedExpanded, setCustomModelAdvancedExpanded] = useState(false)
 	const dropdownRef = useRef<HTMLDivElement>(null)
 	const itemRefs = useRef<(HTMLDivElement | null)[]>([])
 	const dropdownListRef = useRef<HTMLDivElement>(null)
@@ -201,34 +200,8 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({ isPopup, 
 		}
 	}, [selectedIndex])
 
-	const selectedModelIdLower = selectedModelId?.toLowerCase() || ""
-	const showReasoningEffort = useMemo(
-		() => supportsReasoningEffortForModelId(selectedModelId, selectedModelInfo),
-		[selectedModelId, selectedModelInfo],
-	)
-
-	const showBudgetSlider = useMemo(() => {
-		if (showReasoningEffort) {
-			return false
-		}
-		return (
-			Object.entries(openRouterModels)?.some(([id, m]) => id === selectedModelId && (m as any).thinkingConfig) ||
-			selectedModelIdLower.includes("claude-opus-4.6") ||
-			selectedModelIdLower.includes("claude-haiku-4.5") ||
-			selectedModelIdLower.includes("claude-4.5-haiku") ||
-			selectedModelIdLower.includes("claude-sonnet-4.6") ||
-			selectedModelIdLower.includes("claude-sonnet-4-6") ||
-			selectedModelIdLower.includes("claude-4.6-sonnet") ||
-			selectedModelIdLower.includes("claude-sonnet-4.5") ||
-			selectedModelIdLower.includes("claude-sonnet-4") ||
-			selectedModelIdLower.includes("claude-opus-4.1") ||
-			selectedModelIdLower.includes("claude-opus-4") ||
-			selectedModelIdLower.includes("claude-opus-4.5") ||
-			selectedModelIdLower.includes("claude-3-7-sonnet") ||
-			selectedModelIdLower.includes("claude-3.7-sonnet") ||
-			selectedModelIdLower.includes("claude-3.7-sonnet:thinking")
-		)
-	}, [openRouterModels, selectedModelId, selectedModelIdLower, showReasoningEffort])
+	const showReasoningEffort = selectedModelInfo.supportsReasoningEffort === true
+	const showBudgetSlider = !showReasoningEffort && !!selectedModelInfo.thinkingConfig
 
 	return (
 		<div style={{ width: "100%", paddingBottom: 2 }}>
@@ -319,37 +292,6 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({ isPopup, 
 					)}
 				</DropdownWrapper>
 
-				{/* Context window switcher for Claude Opus 4.6 */}
-				<ContextWindowSwitcher
-					base1mModelId={`anthropic/claude-opus-4.6${CLAUDE_SONNET_1M_SUFFIX}`}
-					base200kModelId="anthropic/claude-opus-4.6"
-					onModelChange={handleModelChange}
-					selectedModelId={selectedModelId}
-				/>
-
-				{/* Context window switcher for Claude Sonnet 4.6 */}
-				<ContextWindowSwitcher
-					base1mModelId={`anthropic/claude-sonnet-4.6${CLAUDE_SONNET_1M_SUFFIX}`}
-					base200kModelId="anthropic/claude-sonnet-4.6"
-					onModelChange={handleModelChange}
-					selectedModelId={selectedModelId}
-				/>
-
-				{/* Context window switcher for Claude Sonnet 4.5 */}
-				<ContextWindowSwitcher
-					base1mModelId={`anthropic/claude-sonnet-4.5${CLAUDE_SONNET_1M_SUFFIX}`}
-					base200kModelId="anthropic/claude-sonnet-4.5"
-					onModelChange={handleModelChange}
-					selectedModelId={selectedModelId}
-				/>
-
-				{/* Context window switcher for Claude Sonnet 4 */}
-				<ContextWindowSwitcher
-					base1mModelId={`anthropic/claude-sonnet-4${CLAUDE_SONNET_1M_SUFFIX}`}
-					base200kModelId="anthropic/claude-sonnet-4"
-					onModelChange={handleModelChange}
-					selectedModelId={selectedModelId}
-				/>
 			</div>
 
 			{hasInfo ? (
@@ -358,12 +300,10 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({ isPopup, 
 					{showReasoningEffort && <ReasoningEffortSelector currentMode={currentMode} />}
 
 					<ModelInfoView
+						advancedContent={<OpenRouterRoutingControls modelId={selectedModelId} />}
 						isPopup={isPopup}
 						modelInfo={selectedModelInfo}
-						onProviderSortingChange={(value) => handleFieldChange("openRouterProviderSorting", value)}
-						providerSorting={apiConfiguration?.openRouterProviderSorting}
 						selectedModelId={selectedModelId}
-						showProviderRouting={showProviderRouting}
 					/>
 				</>
 			) : (
@@ -385,6 +325,20 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({ isPopup, 
 					</VSCodeLink>
 					You can also try searching "free" for no-cost options currently available.
 				</p>
+			)}
+			{!hasInfo && (
+				<>
+					<AdvancedToggle
+						aria-expanded={customModelAdvancedExpanded}
+						onClick={() => setCustomModelAdvancedExpanded((expanded) => !expanded)}
+						type="button">
+						<AdvancedArrow $isExpanded={customModelAdvancedExpanded}>▶</AdvancedArrow>
+						Advanced
+					</AdvancedToggle>
+					<AdvancedContent $isExpanded={customModelAdvancedExpanded}>
+						<OpenRouterRoutingControls modelId={selectedModelId} />
+					</AdvancedContent>
+				</>
 			)}
 		</div>
 	)
@@ -426,4 +380,37 @@ const DropdownItem = styled.div<{ isSelected: boolean }>`
 	&:hover {
 		background-color: var(--vscode-list-activeSelectionBackground);
 	}
+`
+
+const AdvancedToggle = styled.button`
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	margin-top: 12px;
+	padding: 0;
+	border: 0;
+	background: transparent;
+	color: var(--vscode-descriptionForeground);
+	cursor: pointer;
+	font-family: inherit;
+	font-size: 11px;
+	font-weight: 600;
+	letter-spacing: 0.5px;
+	text-transform: uppercase;
+
+	&:hover {
+		color: var(--vscode-foreground);
+	}
+`
+
+const AdvancedArrow = styled.span<{ $isExpanded: boolean }>`
+	font-size: 10px;
+	transition: transform 0.15s ease;
+	transform: rotate(${({ $isExpanded }) => ($isExpanded ? "90deg" : "0deg")});
+`
+
+const AdvancedContent = styled.div<{ $isExpanded: boolean }>`
+	max-height: ${({ $isExpanded }) => ($isExpanded ? "600px" : "0")};
+	overflow: ${({ $isExpanded }) => ($isExpanded ? "visible" : "hidden")};
+	transition: max-height 0.2s ease;
 `

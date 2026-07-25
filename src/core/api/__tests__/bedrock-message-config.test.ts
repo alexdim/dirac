@@ -96,21 +96,6 @@ describe("BedrockMessageConfig Consolidation", () => {
 			expect(handler).to.exist
 		})
 
-		it("should support 1M context window with refactored createAnthropicMessage enable1mContextWindow flag", async () => {
-			const { buildApiHandler } = await import(path.join(srcDir, "core", "api", "index.ts"))
-			const handler = buildApiHandler(
-				{
-					apiKey: "test-key",
-					planModeApiProvider: "bedrock",
-					actModeApiProvider: "bedrock",
-					apiModelId: "anthropic.claude-sonnet-4-20250514-v1:0-1m",
-				},
-				"plan" as const,
-			)
-
-			expect(handler).to.exist
-		})
-
 		it("should handle cache control with refactored applyCacheControlToMessages signature", async () => {
 			const bedrockModule = await import(path.join(srcDir, "core", "api", "providers", "bedrock.ts"))
 			const handler = new bedrockModule.AwsBedrockHandler({

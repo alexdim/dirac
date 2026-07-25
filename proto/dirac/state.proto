@@ -276,6 +276,8 @@ message Settings {
   map<string, string> anthropic_headers = 197;
   map<string, string> acp_disabled_providers = 199;
   map<string, string> acp_provider_api_types = 200;
+  map<string, StringArray> open_router_pinned_providers = 201;
+  optional bool open_router_prevent_fallbacks = 202;
 }
 
 message State {

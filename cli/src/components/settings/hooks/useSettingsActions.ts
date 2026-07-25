@@ -29,6 +29,12 @@ interface UseSettingsActionsProps {
 	setCurrentTab: (tab: SettingsTab) => void
 	provider: string
 	setProvider: (provider: string) => void
+	actModelId: string
+	planModelId: string
+	openRouterProviderSorting?: string
+	setOpenRouterProviderSorting: (sorting: string | undefined) => void
+	setOpenRouterPreventFallbacks: (preventFallbacks: boolean) => void
+	setOpenRouterRoutingModelId: (modelId: string | null) => void
 	actReasoningEffort: OpenaiReasoningEffort
 	setActReasoningEffort: (effort: OpenaiReasoningEffort) => void
 	planReasoningEffort: OpenaiReasoningEffort
@@ -88,6 +94,12 @@ export function useSettingsActions({
 	setCurrentTab,
 	provider,
 	setProvider,
+	actModelId,
+	planModelId,
+	openRouterProviderSorting,
+	setOpenRouterProviderSorting,
+	setOpenRouterPreventFallbacks,
+	setOpenRouterRoutingModelId,
 	actReasoningEffort,
 	setActReasoningEffort,
 	planReasoningEffort,
@@ -246,6 +258,15 @@ export function useSettingsActions({
 		}
 
 		if (item.type === "cycle") {
+			if (item.key === "openRouterProviderSorting") {
+				const sortingOptions = [undefined, "price", "throughput", "latency"]
+				const currentIndex = sortingOptions.indexOf(openRouterProviderSorting)
+				const nextSorting = sortingOptions[(currentIndex + 1) % sortingOptions.length]
+				setOpenRouterProviderSorting(nextSorting)
+				stateManager.setGlobalState("openRouterProviderSorting", nextSorting)
+				rebuildTaskApi()
+				return
+			}
 			const targetMode = item.key === "actReasoningEffort" ? "act" : item.key === "planReasoningEffort" ? "plan" : undefined
 			if (targetMode) {
 				const currentEffort = targetMode === "act" ? actReasoningEffort : planReasoningEffort
@@ -255,6 +276,11 @@ export function useSettingsActions({
 		}
 
 		if (item.type === "editable") {
+			if (item.key === "actOpenRouterProviders" || item.key === "planOpenRouterProviders") {
+				const modelId = item.key === "actOpenRouterProviders" ? actModelId : planModelId
+				if (modelId) setOpenRouterRoutingModelId(modelId)
+				return
+			}
 			if (item.key === "provider") {
 				setIsPickingProvider(true)
 				return
@@ -334,6 +360,13 @@ export function useSettingsActions({
 			return
 		}
 
+		if (item.key === "openRouterPreventFallbacks") {
+			setOpenRouterPreventFallbacks(newValue)
+			stateManager.setGlobalState("openRouterPreventFallbacks", newValue || undefined)
+			rebuildTaskApi()
+			return
+		}
+
 		if (item.key === "telemetry") {
 			const newTelemetry: TelemetrySetting = newValue ? "enabled" : "disabled"
 			setTelemetry(newTelemetry)
@@ -395,6 +428,12 @@ export function useSettingsActions({
 		setTelemetry,
 		setAutoApproveSettings,
 		provider,
+		actModelId,
+		planModelId,
+		openRouterProviderSorting,
+		setOpenRouterProviderSorting,
+		setOpenRouterPreventFallbacks,
+		setOpenRouterRoutingModelId,
 		availableTools,
 	])
 

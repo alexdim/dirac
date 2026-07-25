@@ -1,6 +1,5 @@
 import type { ModelInfo } from "./types"
 import { MODEL_CAPABILITIES } from "./capabilities"
-import { CLAUDE_SONNET_1M_TIERS, CLAUDE_OPUS_1M_TIERS } from "./shared-tiers"
 
 export type VertexModelId = keyof typeof vertexModels
 
@@ -95,15 +94,6 @@ export const vertexModels = {
 		cacheWritesPrice: 3.75,
 		cacheReadsPrice: 0.3,
 	},
-	"claude-sonnet-4-6:1m": {
-		...MODEL_CAPABILITIES["claude-sonnet-4-6:1m"],
-		supportsPromptCache: true,
-		inputPrice: 3.0,
-		outputPrice: 15.0,
-		cacheWritesPrice: 3.75,
-		cacheReadsPrice: 0.3,
-		tiers: CLAUDE_SONNET_1M_TIERS,
-	},
 	"claude-sonnet-5": {
 		...MODEL_CAPABILITIES["claude-sonnet-5"],
 		supportsPromptCache: true,
@@ -130,16 +120,6 @@ export const vertexModels = {
 		cacheWritesPrice: 6.25,
 		cacheReadsPrice: 0.5,
 	},
-	"claude-opus-4-6:1m": {
-		...MODEL_CAPABILITIES["claude-opus-4-6:1m"],
-		supportsPromptCache: true,
-		supportsGlobalEndpoint: true,
-		inputPrice: 5.0,
-		outputPrice: 25.0,
-		cacheWritesPrice: 6.25,
-		cacheReadsPrice: 0.5,
-		tiers: CLAUDE_OPUS_1M_TIERS,
-	},
 	"claude-opus-4-8": {
 		...MODEL_CAPABILITIES["claude-opus-4-8"],
 		supportsPromptCache: true,
@@ -148,16 +128,6 @@ export const vertexModels = {
 		outputPrice: 25.0,
 		cacheWritesPrice: 6.25,
 		cacheReadsPrice: 0.5,
-	},
-	"claude-opus-4-8:1m": {
-		...MODEL_CAPABILITIES["claude-opus-4-8:1m"],
-		supportsPromptCache: true,
-		supportsGlobalEndpoint: true,
-		inputPrice: 5.0,
-		outputPrice: 25.0,
-		cacheWritesPrice: 6.25,
-		cacheReadsPrice: 0.5,
-		tiers: CLAUDE_OPUS_1M_TIERS,
 	},
 	"claude-opus-5": {
 		...MODEL_CAPABILITIES["claude-opus-5"],

@@ -195,6 +195,9 @@ export class ModelsServiceClient extends ProtoBusClient {
 	static async refreshVercelAiGatewayModelsRpc(request: proto.dirac.EmptyRequest): Promise<proto.dirac.OpenRouterCompatibleModelInfo> {
 		return this.makeUnaryRequest("refreshVercelAiGatewayModelsRpc", request, proto.dirac.EmptyRequest.toJSON, proto.dirac.OpenRouterCompatibleModelInfo.fromJSON)
 	}
+	static async getOpenRouterEndpoints(request: proto.dirac.OpenRouterEndpointsRequest): Promise<proto.dirac.OpenRouterEndpointsResponse> {
+		return this.makeUnaryRequest("getOpenRouterEndpoints", request, proto.dirac.OpenRouterEndpointsRequest.toJSON, proto.dirac.OpenRouterEndpointsResponse.fromJSON)
+	}
 }
 export class SlashServiceClient extends ProtoBusClient {
 	static override serviceName: string = "dirac.SlashService"

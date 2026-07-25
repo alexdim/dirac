@@ -35,6 +35,9 @@ interface UseSettingsItemsProps {
 	githubIsAuthenticated: boolean
 	githubEmail?: string
 	openRouterModels?: string[]
+	openRouterPinnedProviders: Record<string, string[]>
+	openRouterProviderSorting?: string
+	openRouterPreventFallbacks: boolean
 	availableTools: ToolMetadata[]
 	toolToggles: Record<string, boolean>
 }
@@ -51,6 +54,9 @@ export function useSettingsItems({
 	planReasoningEffort,
 	autoApproveSettings,
 	openRouterModels,
+	openRouterPinnedProviders,
+	openRouterProviderSorting,
+	openRouterPreventFallbacks,
 	features,
 	preferredLanguage,
 	telemetry,
@@ -71,6 +77,13 @@ export function useSettingsItems({
 		const showPlanReasoningEffort = supportsReasoningEffortForModel(planModelId || "")
 		const showActThinkingOption = !providerUsesReasoningEffort && !showActReasoningEffort
 		const showPlanThinkingOption = !providerUsesReasoningEffort && !showPlanReasoningEffort
+		const isOpenRouter = provider === "openrouter"
+		const actPinnedProviderCount = openRouterPinnedProviders[actModelId]?.length || 0
+		const planPinnedProviderCount = openRouterPinnedProviders[planModelId]?.length || 0
+		const formatPinnedProviderCount = (count: number) => (count > 0 ? `${count} allowed` : "Unrestricted")
+		const providerSortingLabel = openRouterProviderSorting
+			? openRouterProviderSorting[0].toUpperCase() + openRouterProviderSorting.slice(1)
+			: "Default"
 
 		switch (currentTab) {
 			case "api": {
@@ -167,6 +180,16 @@ export function useSettingsItems({
 									},
 								]
 								: []),
+							...(isOpenRouter
+								? [
+									{
+										key: "actOpenRouterProviders",
+										label: "Allowed upstream providers",
+										type: "editable" as const,
+										value: formatPinnedProviderCount(actPinnedProviderCount),
+									},
+								]
+								: []),
 							...(showActThinkingOption
 								? [
 									{
@@ -201,6 +224,19 @@ export function useSettingsItems({
 										label: "Preset/Model",
 										type: "editable" as const,
 										value: planModelId === CUSTOM_MODEL_ID ? "" : planModelId,
+									},
+								]
+								: []),
+							...(isOpenRouter
+								? [
+									{
+										key: "planOpenRouterProviders",
+										label:
+											planModelId === actModelId
+												? "Allowed upstream providers (shared with Act)"
+												: "Allowed upstream providers",
+										type: "editable" as const,
+										value: formatPinnedProviderCount(planPinnedProviderCount),
 									},
 								]
 								: []),
@@ -243,6 +279,16 @@ export function useSettingsItems({
 									},
 								]
 								: []),
+							...(isOpenRouter
+								? [
+									{
+										key: "actOpenRouterProviders",
+										label: "Allowed upstream providers",
+										type: "editable" as const,
+										value: formatPinnedProviderCount(actPinnedProviderCount),
+									},
+								]
+								: []),
 							...(showActThinkingOption
 								? [
 									{
@@ -264,6 +310,22 @@ export function useSettingsItems({
 								]
 								: []),
 						]),
+					...(isOpenRouter
+						? [
+							{
+								key: "openRouterProviderSorting",
+								label: "Provider sorting",
+								type: "cycle" as const,
+								value: providerSortingLabel,
+							},
+							{
+								key: "openRouterPreventFallbacks",
+								label: "Prevent fallbacks",
+								type: "checkbox" as const,
+								value: openRouterPreventFallbacks,
+							},
+						]
+						: []),
 					{
 						key: "separateModels",
 						label: "Use separate models for Plan and Act",
@@ -423,6 +485,9 @@ export function useSettingsItems({
 		githubIsAuthenticated,
 		githubEmail,
 		openRouterModels,
+		openRouterPinnedProviders,
+		openRouterProviderSorting,
+		openRouterPreventFallbacks,
 		availableTools,
 		toolToggles,
 	])
