@@ -257,6 +257,35 @@ describe("Controller (original)", () => {
 		await initTask(c, "test")
 		await c.cancelTask().should.not.be.rejected()
 	})
+	it("allows reinitialization requested from inside the current task run", async () => {
+		let releaseReplacement!: () => void
+		const replacementGate = new Promise<void>((resolve) => {
+			releaseReplacement = resolve
+		})
+		let replacementStarted = false
+		let c: Controller
+
+		sandbox.stub(Task.prototype, "abortTask").resolves()
+		sandbox.stub(Task.prototype, "startTask").callsFake(async (task) => {
+			if (task === "first") {
+				await replacementGate
+				await c.initTask("second")
+				return
+			}
+			replacementStarted = task === "second"
+		})
+
+		c = trackController(new Controller(mockContext))
+		await c.initTask("first")
+		const firstRun = c.taskRunPromise!
+		releaseReplacement()
+
+		await firstRun
+
+		replacementStarted.should.equal(true)
+		await c.taskRunPromise
+	})
+
 	it("toggleActModeForYoloMode returns boolean", async () => {
 		const c = new Controller(mockContext)
 		const r = await c.toggleActModeForYoloMode()

@@ -226,6 +226,21 @@ describe("LifecycleManager", () => {
 			deps.taskState.status.should.equal(TaskStatus.CANCELLED)
 		})
 
+		it("clears streaming state before publishing CANCELLED", async () => {
+			deps.taskState.isApiRequestActive = true
+			deps.taskState.activeVoiceStreamId = "voice-stream"
+			deps.taskState.isWaitingForFirstChunk = true
+			deps.taskState.didFinishAbortingStream = false
+
+			await manager.abortTask()
+
+			deps.taskState.isApiRequestActive.should.equal(false)
+			;(deps.taskState.activeVoiceStreamId === undefined).should.equal(true)
+			deps.taskState.isWaitingForFirstChunk.should.equal(false)
+			deps.taskState.didFinishAbortingStream.should.equal(true)
+			deps.taskState.status.should.equal(TaskStatus.CANCELLED)
+		})
+
 		it("cancels active hook if present", async () => {
 			deps.hookManager.getActiveHookExecution = sinon.stub().resolves({ id: "hook1" })
 			await manager.abortTask()

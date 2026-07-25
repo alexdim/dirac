@@ -51,7 +51,6 @@ export class TaskController {
 	private _backgroundCommandTaskId?: string
 	private cancelInProgress = false
 	private _taskRunPromise?: Promise<void>
-	private initializingReplacement = false
 	private readonly taskReplacementListeners = new Set<(taskId: string) => void | Promise<void>>()
 	private currentConversationUlid?: string
 	private currentInitializationOptions?: TaskInitializationOptions
@@ -110,23 +109,18 @@ export class TaskController {
 
 		const replacement = task.taskState.pendingTaskReplacement
 		task.taskState.pendingTaskReplacement = undefined
-		this.initializingReplacement = true
-		try {
-			const taskId = await this.initTask(
-				replacement.context,
-				replacement.images,
-				replacement.files,
-				undefined,
-				undefined,
-				this.currentConversationUlid,
-				undefined,
-				this.currentInitializationOptions,
-			)
-			await Promise.all([...this.taskReplacementListeners].map((listener) => listener(taskId)))
-			await this._taskRunPromise
-		} finally {
-			this.initializingReplacement = false
-		}
+		const taskId = await this.initTask(
+			replacement.context,
+			replacement.images,
+			replacement.files,
+			undefined,
+			undefined,
+			this.currentConversationUlid,
+			undefined,
+			this.currentInitializationOptions,
+		)
+		await Promise.all([...this.taskReplacementListeners].map((listener) => listener(taskId)))
+		await this._taskRunPromise
 	}
 
 	async initTask(
@@ -146,9 +140,7 @@ export class TaskController {
 		const controller = this.deps.controller
 		this.currentConversationUlid = conversationUlid
 		this.currentInitializationOptions = initializationOptions
-		const previousRun = this._taskRunPromise
 		await this.clearTask()
-		if (previousRun && !this.initializingReplacement) await previousRun
 		this.deps.stateManager.refreshModelProviderPresetsFromDisk()
 
 		const autoApprovalSettings = this.deps.stateManager.getGlobalSettingsKey("autoApprovalSettings")
