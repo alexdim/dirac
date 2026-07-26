@@ -34,7 +34,7 @@ export const ModularCard: React.FC<ModularCardProps> = ({
 			paddingLeft={1}>
 			<CardHeader header={header} icon={icon} isCollapsed={false} status={status} />
 			{body && !suppressBody && (
-				<Box flexDirection="column" paddingLeft={2}>
+				<Box flexDirection="column" paddingLeft={4}>
 					<CardBody body={body} maxLines={maxBodyLines} renderType={renderType} scrollOffset={scrollOffset} />
 				</Box>
 			)}

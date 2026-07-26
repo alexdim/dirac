@@ -129,6 +129,33 @@ describe("ChatMessage card rendering", () => {
 		expect(frame).not.toContain("Complete§")
 	})
 
+	it("indents tool bodies four columns from their headers", () => {
+		const message: DiracMessage = {
+			id: "indented-card",
+			ts: Date.now(),
+			content: {
+				type: DiracMessageType.CARD,
+				card: {
+					id: "indented-card",
+					header: "Tool header",
+					status: "success" as any,
+					renderType: "text",
+					body: "Tool body",
+				},
+			},
+		}
+
+		const frame = render(React.createElement(ChatMessage, { message, mode: "act" })).lastFrame() || ""
+		const plainFrame = frame.replace(/\u001B\[[0-9;]*m/g, "")
+		const lines = plainFrame.split("\n")
+		const headerLine = lines.find((line) => line.includes("Tool header")) || ""
+		const bodyLine = lines.find((line) => line.includes("Tool body")) || ""
+		const headerIndent = headerLine.match(/^│( *)/)?.[1].length
+		const bodyIndent = bodyLine.match(/^│( *)/)?.[1].length
+
+		expect(bodyIndent).toBe((headerIndent ?? 0) + 4)
+	})
+
 	it("uses category color only for tool accents and distinct neutral colors for headers and outputs", () => {
 		const message: DiracMessage = {
 			id: "completed-colors",
