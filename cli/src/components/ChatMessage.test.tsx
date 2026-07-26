@@ -53,6 +53,48 @@ describe("ChatMessage transcript roles", () => {
 })
 
 
+describe("ChatMessage reasoning rendering", () => {
+	const reasoningMessage: DiracMessage = {
+		id: "reasoning",
+		ts: Date.now(),
+		content: {
+			type: DiracMessageType.MARKDOWN,
+			role: "assistant",
+			isReasoning: true,
+			content: [
+				"reasoning line 1",
+				"reasoning line 2",
+				"reasoning line 3",
+				"reasoning line 4",
+				"reasoning line 5",
+			].join("\n"),
+		},
+	}
+
+	it("keeps live reasoning limited to the latest three visual lines", () => {
+		const frame = render(React.createElement(ChatMessage, { message: reasoningMessage, mode: "act" })).lastFrame() || ""
+
+		expect(frame).not.toContain("reasoning line 1")
+		expect(frame).not.toContain("reasoning line 2")
+		expect(frame).toContain("reasoning line 3")
+		expect(frame).toContain("reasoning line 4")
+		expect(frame).toContain("reasoning line 5")
+	})
+
+	it("renders the complete reasoning content for the static transcript", () => {
+		const frame = render(
+			React.createElement(ChatMessage, {
+				message: reasoningMessage,
+				mode: "act",
+				reasoningDisplay: "full",
+			}),
+		).lastFrame() || ""
+
+		for (let line = 1; line <= 5; line++) {
+			expect(frame).toContain(`reasoning line ${line}`)
+		}
+	})
+})
 describe("ChatMessage card rendering", () => {
 	it("renders subagent approval prompts as a tree", () => {
 		const message: DiracMessage = {

@@ -36,6 +36,7 @@ interface ChatMessageProps {
 	mode?: "act" | "plan"
 	activeVoiceStreamId?: string
 	showReasoning?: boolean
+	reasoningDisplay?: "tail" | "full"
 	compact?: boolean
 	tailOnly?: boolean
 	maxContentLines?: number
@@ -87,17 +88,18 @@ const ReasoningMessage: React.FC<{
 	content: string
 	isStreaming: boolean
 	showReasoning: boolean
+	display: "tail" | "full"
 	compact?: boolean
 	mode?: "act" | "plan"
 	columns: number
-}> = ({ content, isStreaming, showReasoning, compact = false, mode = "act", columns }) => {
+}> = ({ content, isStreaming, showReasoning, display, compact = false, mode = "act", columns }) => {
 	if (!showReasoning) {
 		return null
 	}
 
 	const reasoningAccent = isStreaming ? getModeColor(mode) : styles.conversation.reasoningTitle.color
 	const reasoningColor = styles.conversation.reasoning.color
-	const visibleContent = clipReasoningText(content, Math.max(1, columns - 4))
+	const visibleContent = display === "full" ? content : clipReasoningText(content, Math.max(1, columns - 4))
 
 	if (!visibleContent.trim()) {
 		return null
@@ -140,6 +142,7 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
 	isStreaming: isStreamingProp,
 	activeVoiceStreamId,
 	showReasoning = true,
+	reasoningDisplay = "tail",
 	compact = false,
 	tailOnly = false,
 	maxContentLines,
@@ -167,6 +170,7 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
 							content={message.content.content}
 							mode={mode}
 							isStreaming={isStreaming}
+							display={reasoningDisplay}
 							showReasoning={showReasoning}
 						/>
 					)

@@ -877,6 +877,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
 								mode={mode}
 								activeVoiceStreamId={taskState.activeVoiceStreamId}
 								showReasoning={true}
+								reasoningDisplay={quietMode ? "tail" : "full"}
 								suppressCardBody={shouldSuppressCardBody(item.message)}
 							/>
 						</Box>
