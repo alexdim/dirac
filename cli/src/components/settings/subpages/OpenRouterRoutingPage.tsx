@@ -1,3 +1,4 @@
+import { theme } from "../../../constants/theme"
 import { getOpenRouterEndpoints, type OpenRouterEndpoint } from "@/core/api/openrouter/openrouter-endpoints"
 import { Box, Text, useInput } from "ink"
 import Spinner from "ink-spinner"
@@ -6,7 +7,7 @@ import { COLORS } from "../../../constants/colors"
 import { useStdinContext } from "../../../context/StdinContext"
 import { useScrollableList } from "../../../hooks/useScrollableList"
 import { fuzzyFilter } from "../../../utils/fuzzy-search"
-import { isMouseEscapeSequence } from "../../../utils/input"
+import { shouldIgnoreTerminalInput } from "../../../utils/input"
 
 interface OpenRouterRoutingPageProps {
 	isActive: boolean
@@ -102,7 +103,7 @@ export const OpenRouterRoutingPage: React.FC<OpenRouterRoutingPageProps> = ({
 
 	useInput(
 		(input, key) => {
-			if (isMouseEscapeSequence(input)) return
+			if (shouldIgnoreTerminalInput(input, key)) return
 			if (key.escape) {
 				onCancel()
 				return
@@ -148,34 +149,34 @@ export const OpenRouterRoutingPage: React.FC<OpenRouterRoutingPageProps> = ({
 	return (
 		<Box flexDirection="column">
 			<Text bold>Allowed upstream providers</Text>
-			<Text color="gray">{modelId}</Text>
+			<Text color={theme.muted}>{modelId}</Text>
 			<Text> </Text>
 			<Box>
-				<Text color="gray">Search: </Text>
+				<Text color={theme.muted}>Search: </Text>
 				<Text>{search}</Text>
-				<Text inverse> </Text>
+				<Text backgroundColor={theme.cursorBg} color={theme.cursorText}> </Text>
 			</Box>
 			<Text> </Text>
 
 			{endpointState.status === "loading" && (
-				<Text color="gray">
+				<Text color={theme.muted}>
 					<Spinner type="dots" />{" "}
 					{endpointState.endpoints.length > 0 ? "Refreshing upstream providers…" : "Loading upstream providers…"}
 				</Text>
 			)}
 			{endpointState.status === "stale" && (
-				<Text color="yellow">
+				<Text color={theme.warning}>
 					{endpointState.errorMessage || "Showing cached endpoint metadata"} · Ctrl+R to retry
 				</Text>
 			)}
 			{endpointState.status === "unavailable" && (
 				<Box flexDirection="column">
-					<Text color="red">{endpointState.errorMessage || "Endpoint metadata is unavailable"}</Text>
-					<Text color="gray">Saved pins are read-only · Ctrl+R to retry</Text>
+					<Text color={theme.error}>{endpointState.errorMessage || "Endpoint metadata is unavailable"}</Text>
+					<Text color={theme.muted}>Saved pins are read-only · Ctrl+R to retry</Text>
 				</Box>
 			)}
 
-			{showTopIndicator && <Text color="gray">… {visibleStart} more above</Text>}
+			{showTopIndicator && <Text color={theme.muted}>… {visibleStart} more above</Text>}
 			{visibleEndpoints.map((endpoint, visibleIndex) => {
 				const index = visibleStart + visibleIndex
 				const isFocused = index === selectedIndex
@@ -187,19 +188,19 @@ export const OpenRouterRoutingPage: React.FC<OpenRouterRoutingPageProps> = ({
 							{selectedProviders.has(endpoint.tag) ? "[x]" : "[ ]"} {endpoint.providerName}
 							{isUnavailable ? " (unavailable)" : ""}
 						</Text>
-						<Text color="gray">    {formatEndpointMetadata(endpoint)}</Text>
+						<Text color={theme.muted}>    {formatEndpointMetadata(endpoint)}</Text>
 					</Box>
 				)
 			})}
 			{showBottomIndicator && (
-				<Text color="gray">… {filteredEndpoints.length - visibleStart - visibleCount} more below</Text>
+				<Text color={theme.muted}>… {filteredEndpoints.length - visibleStart - visibleCount} more below</Text>
 			)}
 			{endpointState.status !== "loading" && filteredEndpoints.length === 0 && (
-				<Text color="gray">{search ? `No matches for "${search}"` : "No upstream providers available"}</Text>
+				<Text color={theme.muted}>{search ? `No matches for "${search}"` : "No upstream providers available"}</Text>
 			)}
 
 			<Text> </Text>
-			<Text color="gray">
+			<Text color={theme.muted}>
 				{endpointEditingDisabled
 					? "Providers read-only · Enter save · Escape cancel"
 					: "Space toggle · Enter save · Escape cancel"}

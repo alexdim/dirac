@@ -1,5 +1,4 @@
 import { version as CLI_VERSION } from "../package.json"
-import { window } from "./vscode-shim"
 import type { CliContext, InitOptions } from "./types"
 import { setActiveContext } from "./utils/state"
 
@@ -7,6 +6,7 @@ import { setActiveContext } from "./utils/state"
  * Initialize all CLI infrastructure and return context needed for commands
  */
 export async function initializeCli(options: InitOptions): Promise<CliContext> {
+	const { window } = await import("./vscode-shim")
 	const { setRuntimeHooksDir } = await import("@/core/storage/disk")
 	const { initializeCliContext } = await import("./vscode-context")
 	const { Logger } = await import("@/shared/services/Logger")
@@ -65,6 +65,10 @@ export async function initializeCli(options: InitOptions): Promise<CliContext> {
 	// helper so the ACP entrypoint can't drift out of sync (see initCoreServices).
 	await initCoreServices({ extensionDir: EXTENSION_DIR, storageContext })
 
+	const stateManager = StateManager.get()
+	const { configureTerminalTheme } = await import("./constants/theme")
+	configureTerminalTheme(stateManager.getGlobalSettingsKey("cliTerminalColorMode"))
+
 	// Auto-update check (after endpoints initialized, so we can detect bundled configs)
 	autoUpdateOnStartup(CLI_VERSION)
 
@@ -79,7 +83,6 @@ export async function initializeCli(options: InitOptions): Promise<CliContext> {
 		`Dirac CLI initialized. Data dir: ${DATA_DIR}, Extension dir: ${EXTENSION_DIR}, Log dir: ${DIRAC_CLI_DIR.log}`,
 	)
 
-	const stateManager = StateManager.get()
 	const { getProviderFromEnv } = await import("@shared/storage/env-config")
 	const envProvider = getProviderFromEnv()
 	if (envProvider) {

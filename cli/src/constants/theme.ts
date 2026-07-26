@@ -1,24 +1,230 @@
+import { CardStatus } from "@shared/ExtensionMessage"
+
+export enum TerminalColorMode {
+	DARK = "dark",
+	LIGHT = "light",
+}
+
+export enum TerminalColorPreference {
+	AUTO = "auto",
+	DARK = "dark",
+	LIGHT = "light",
+}
+
+function isLightIndexedColor(index: number): boolean {
+	if (index < 0 || index > 255) return false
+	if (index < 16) return index === 7 || index === 15
+	if (index >= 232) return 8 + (index - 232) * 10 >= 160
+
+	const cubeIndex = index - 16
+	const levels = [0, 95, 135, 175, 215, 255]
+	const red = levels[Math.floor(cubeIndex / 36)]
+	const green = levels[Math.floor((cubeIndex % 36) / 6)]
+	const blue = levels[cubeIndex % 6]
+	return (0.2126 * red + 0.7152 * green + 0.0722 * blue) / 255 >= 0.62
+}
+
+function detectColorFgBg(value: string | undefined): TerminalColorMode | null {
+	const backgroundIndexText = value?.split(";").at(-1)?.trim()
+	if (!backgroundIndexText || !/^\d+$/.test(backgroundIndexText)) return null
+	return isLightIndexedColor(Number(backgroundIndexText)) ? TerminalColorMode.LIGHT : TerminalColorMode.DARK
+}
+
 /**
- * Semantic color palette for the Dirac CLI.
- * Single source of truth for all colors, enabling future --theme support.
- *
- * Two kinds of color values are exported:
- *   - ANSI codes  → used by display.ts (non-interactive / plain-text renderer)
- *   - Hex / Ink names → used by Ink components (interactive renderer)
+ * Resolve terminal colors without sending terminal queries. COLORFGBG is used
+ * when the terminal provides it; otherwise the established dark palette wins.
  */
+export function resolveTerminalColorMode(
+	env: NodeJS.ProcessEnv = process.env,
+	savedPreference?: string,
+): TerminalColorMode {
+	const environmentPreference = env.DIRAC_COLOR_MODE?.trim().toLowerCase()
+	if (environmentPreference === TerminalColorPreference.LIGHT) return TerminalColorMode.LIGHT
+	if (environmentPreference === TerminalColorPreference.DARK) return TerminalColorMode.DARK
+	if (environmentPreference !== undefined) return detectColorFgBg(env.COLORFGBG) ?? TerminalColorMode.DARK
+	if (savedPreference === TerminalColorPreference.LIGHT) return TerminalColorMode.LIGHT
+	if (savedPreference === TerminalColorPreference.DARK) return TerminalColorMode.DARK
 
-// ---------------------------------------------------------------------------
-// ANSI escape codes (for plain-text / pipe mode)
-// ---------------------------------------------------------------------------
+	return detectColorFgBg(env.COLORFGBG) ?? TerminalColorMode.DARK
+}
 
-export const ansi = {
+export let terminalColorMode = resolveTerminalColorMode()
+
+export function shouldUseAnsiColors(isTTY: boolean, env: NodeJS.ProcessEnv = process.env): boolean {
+	if (env.NO_COLOR !== undefined || env.FORCE_COLOR === "0") return false
+	if (env.FORCE_COLOR !== undefined) return true
+	return isTTY
+}
+
+// Transcript styling rules:
+// - role/category colors identify who or what produced an update;
+// - status colors identify lifecycle state;
+// - bold marks active or attention-required UI;
+// - italic marks secondary annotations, never primary content.
+
+const DARK_THEME = {
+	primary: "#7FA9C8",
+	plan: "#C8A96B",
+	text: "#E7EAF0",
+	strongText: "#F4F6FA",
+	muted: "#9299AA",
+	subtle: "#676E7D",
+	transcriptText: "#D7DBE4",
+	userMessage: "#D2A77D",
+	assistantMessage: "#A7C7DD",
+	toolHeader: "#C2C8D3",
+	toolBody: "#AAB2C0",
+	toolMetadata: "#858D9D",
+	success: "#73B98A",
+	error: "#D97878",
+	warning: "#C8A96B",
+	info: "#70B7C4",
+	link: "#78A7D6",
+	magenta: "#B69ACB",
+	codeText: "#A8C7DC",
+	codeBg: "#222734",
+	highlightBg: "#343A4C",
+	highlightText: "#EDF0F5",
+	selectionBg: "#30364A",
+	selectionText: "#F4F6FA",
+	cursorBg: "#C6CBDD",
+	cursorText: "#1B1E27",
+	inputMention: "#C4A7D5",
+	inputCommand: "#AAB4E8",
+	buttonText: "#F7F8FC",
+	buttonPrimaryBg: "#4F587D",
+	buttonPlanBg: "#665938",
+	buttonPrimaryText: "#F4F6FA",
+	buttonSecondaryBg: "#333947",
+	buttonSecondaryText: "#E7EAF0",
+	buttonDangerBg: "#75474B",
+	buttonDangerText: "#F7EFF0",
+	separator: "#555D6D",
+	border: "#596273",
+	toolRead: "#73A7BF",
+	toolEdit: "#D09A72",
+	toolSearch: "#8FA8D8",
+	toolExecute: "#70AD85",
+	toolInspect: "#6F9FC7",
+	toolDiagnostic: "#B99A60",
+	toolCommunicate: "#83A6B8",
+	toolComplete: "#73B98A",
+	diff: {
+		addBg: "#102419",
+		addFg: "#73B98A",
+		removeBg: "#2B1719",
+		removeFg: "#D97878",
+		gutterFg: "#676E7D",
+		contextFg: "#9AA2B1",
+	},
+} as const
+
+const LIGHT_THEME = {
+	primary: "#315F89",
+	plan: "#805B17",
+	text: "#2A2D33",
+	strongText: "#17191E",
+	muted: "#626975",
+	subtle: "#7B818B",
+	transcriptText: "#343840",
+	userMessage: "#7A4B2C",
+	assistantMessage: "#285F82",
+	toolHeader: "#414751",
+	toolBody: "#555C67",
+	toolMetadata: "#707781",
+	success: "#277440",
+	error: "#A83E38",
+	warning: "#805B17",
+	info: "#176F78",
+	link: "#275D98",
+	magenta: "#71457D",
+	codeText: "#344E70",
+	codeBg: "#E9EBF2",
+	highlightBg: "#E1E4EF",
+	highlightText: "#252A4A",
+	selectionBg: "#E2E5F0",
+	selectionText: "#252A4A",
+	cursorBg: "#30364A",
+	cursorText: "#FFFFFF",
+	inputMention: "#6E4778",
+	inputCommand: "#46538F",
+	buttonText: "#FFFFFF",
+	buttonPrimaryBg: "#59649A",
+	buttonPlanBg: "#735B2C",
+	buttonPrimaryText: "#FFFFFF",
+	buttonSecondaryBg: "#D7DBE5",
+	buttonSecondaryText: "#25282E",
+	buttonDangerBg: "#9B4944",
+	buttonDangerText: "#FFFFFF",
+	separator: "#7B818B",
+	border: "#7B818B",
+	toolRead: "#286A82",
+	toolEdit: "#8A552E",
+	toolSearch: "#405F91",
+	toolExecute: "#2F7045",
+	toolInspect: "#315F89",
+	toolDiagnostic: "#7B5B1F",
+	toolCommunicate: "#356779",
+	toolComplete: "#277440",
+	diff: {
+		addBg: "#E7F2E9",
+		addFg: "#277440",
+		removeBg: "#F7E7E5",
+		removeFg: "#A83E38",
+		gutterFg: "#7B818B",
+		contextFg: "#5F6670",
+	},
+} as const
+
+function createTheme(mode: TerminalColorMode) {
+	const selectedTheme = mode === TerminalColorMode.LIGHT ? LIGHT_THEME : DARK_THEME
+	return {
+		...selectedTheme,
+		status: {
+			success: selectedTheme.success,
+			error: selectedTheme.error,
+			cancelled: selectedTheme.error,
+			running: selectedTheme.link,
+			waiting: selectedTheme.warning,
+			building: selectedTheme.warning,
+			pending: selectedTheme.warning,
+			skipped: selectedTheme.muted,
+			abandoned: selectedTheme.muted,
+			default: selectedTheme.muted,
+		},
+		dimText: selectedTheme.muted,
+		costWarning: 1,
+		costDanger: 5,
+		contextWarning: 0.5,
+		contextDanger: 0.8,
+	}
+}
+
+function createColors(activeTheme: ReturnType<typeof createTheme>) {
+	return {
+		primary: activeTheme.primary,
+		plan: activeTheme.plan,
+		text: activeTheme.text,
+		strongText: activeTheme.strongText,
+		success: activeTheme.success,
+		error: activeTheme.error,
+		warning: activeTheme.warning,
+		info: activeTheme.info,
+		muted: activeTheme.muted,
+		subtle: activeTheme.subtle,
+		link: activeTheme.link,
+		magenta: activeTheme.magenta,
+		codeText: activeTheme.codeText,
+		codeBg: activeTheme.codeBg,
+	}
+}
+
+const ANSI_BASE = {
 	reset: "\x1b[0m",
 	bold: "\x1b[1m",
 	dim: "\x1b[2m",
 	italic: "\x1b[3m",
 	underline: "\x1b[4m",
-
-	// Foreground
 	black: "\x1b[30m",
 	red: "\x1b[31m",
 	green: "\x1b[32m",
@@ -27,8 +233,6 @@ export const ansi = {
 	magenta: "\x1b[35m",
 	cyan: "\x1b[36m",
 	white: "\x1b[37m",
-
-	// Bright foreground
 	brightBlack: "\x1b[90m",
 	brightRed: "\x1b[91m",
 	brightGreen: "\x1b[92m",
@@ -37,8 +241,6 @@ export const ansi = {
 	brightMagenta: "\x1b[95m",
 	brightCyan: "\x1b[96m",
 	brightWhite: "\x1b[97m",
-
-	// Background
 	bgBlack: "\x1b[40m",
 	bgRed: "\x1b[41m",
 	bgGreen: "\x1b[42m",
@@ -49,156 +251,146 @@ export const ansi = {
 	bgWhite: "\x1b[47m",
 } as const
 
-// ---------------------------------------------------------------------------
-// Semantic theme (Ink / hex values)
-// ---------------------------------------------------------------------------
+export function ansiForeground(hex: string): string {
+	const [red, green, blue] = hex
+		.slice(1)
+		.match(/.{2}/g)!
+		.map((component) => Number.parseInt(component, 16))
+	return `\x1b[38;2;${red};${green};${blue}m`
+}
 
-/**
- * Semantic color tokens (Ink names/hex).
- * Used by `styles` below and by components that need raw color values
- * for dynamic logic (e.g. threshold-based coloring).
- */
-export const colors = {
-	primary: "#B1B9F9",
-	plan: "yellow",
+function ansiBackground(hex: string): string {
+	const [red, green, blue] = hex
+		.slice(1)
+		.match(/.{2}/g)!
+		.map((component) => Number.parseInt(component, 16))
+	return `\x1b[48;2;${red};${green};${blue}m`
+}
 
-	success: "green",
-	error: "red",
-	warning: "yellow",
-	info: "cyan",
-	muted: "gray",
+function createAnsi(mode: TerminalColorMode) {
+	const selectedTheme = mode === TerminalColorMode.LIGHT ? LIGHT_THEME : DARK_THEME
+	const compatibilityColors =
+		mode === TerminalColorMode.LIGHT
+			? {
+					...ANSI_BASE,
+					brightWhite: ANSI_BASE.black,
+					brightCyan: ANSI_BASE.cyan,
+					bgBlack: ANSI_BASE.bgWhite,
+				}
+			: { ...ANSI_BASE }
 
-	brightWhite: "brightWhite",
-	brightBlack: "brightBlack",
-	brightCyan: "brightCyan",
-	blue: "blue",
-	magenta: "magenta",
-	gray: "gray",
-	cyan: "cyan",
+	return {
+		...compatibilityColors,
+		text: ansiForeground(selectedTheme.text),
+		strongText: ansiForeground(selectedTheme.strongText),
+		muted: ansiForeground(selectedTheme.muted),
+		subtle: ansiForeground(selectedTheme.subtle),
+		primary: ansiForeground(selectedTheme.primary),
+		success: ansiForeground(selectedTheme.success),
+		error: ansiForeground(selectedTheme.error),
+		warning: ansiForeground(selectedTheme.warning),
+		info: ansiForeground(selectedTheme.info),
+		link: ansiForeground(selectedTheme.link),
+		codeText: ansiForeground(selectedTheme.codeText),
+		codeBackground: ansiBackground(selectedTheme.codeBg),
+		transcriptText: ansiForeground(selectedTheme.transcriptText),
+		toolHeader: ansiForeground(selectedTheme.toolHeader),
+		toolBody: ansiForeground(selectedTheme.toolBody),
+		toolMetadata: ansiForeground(selectedTheme.toolMetadata),
+	}
+}
 
-	// Inline code background (dark purple-gray, visible on dark terminals)
-	codeBg: "#2a2a3e",
-} as const
+function createStyles(activeTheme: ReturnType<typeof createTheme>) {
+	return {
+		markdown: {
+			heading: { bold: true, color: activeTheme.strongText },
+			headingSub: { bold: true, color: activeTheme.text },
+			strong: { bold: true, color: activeTheme.strongText },
+			emphasis: { italic: true },
+			link: { color: activeTheme.link, underline: true },
+			inlineCode: { color: activeTheme.codeText, backgroundColor: activeTheme.codeBg },
+			codeBlock: { color: activeTheme.codeText },
+			codeBorder: { color: activeTheme.subtle },
+			blockquote: { color: activeTheme.muted },
+			blockquoteBar: { color: activeTheme.subtle },
+			tableBorder: { color: activeTheme.subtle },
+			tableHeader: { bold: true, color: activeTheme.strongText },
+			hr: { color: activeTheme.separator },
+		},
+		tool: {
+			// Category colors are reserved for the icon and border. Text styling describes lifecycle and content role.
+			header: { color: activeTheme.toolHeader },
+			activeHeader: { color: activeTheme.toolHeader, bold: true },
+			attentionHeader: { color: activeTheme.warning, bold: true },
+			errorHeader: { color: activeTheme.error, bold: true },
+			body: { color: activeTheme.toolBody },
+			metadata: { color: activeTheme.toolMetadata },
+			annotation: { color: activeTheme.toolMetadata, italic: true },
+			attention: { color: activeTheme.warning, bold: true },
+		},
+		thinking: {
+			shimmerDim: { color: activeTheme.muted, dimColor: true },
+			shimmerBright: { color: activeTheme.text },
+			elapsed: { color: activeTheme.muted },
+			breadcrumb: { color: activeTheme.subtle },
+		},
+		conversation: {
+			user: { color: activeTheme.userMessage },
+			assistant: { color: activeTheme.assistantMessage },
+			planModeTint: { color: activeTheme.plan },
+			completion: { color: activeTheme.success, bold: true },
+			divider: { color: activeTheme.separator },
+			reasoning: { color: activeTheme.muted },
+			reasoningTitle: { color: activeTheme.subtle },
+			typeChangeSep: { color: activeTheme.separator },
+		},
+	}
+}
 
-/**
- * Style recipes for Ink <Text> components.
- * Each entry is a spreadable props object: <Text {...styles.markdown.heading}>
- *
- * STATIC TOKENS ONLY — no logic. Dynamic rules (status → color, mode → tint)
- * live in the components that know the context.
- *
- * To experiment with the visual style, change values here.
- */
-export const styles = {
-	// --- Markdown / prose tokens (consumed by Markdown.tsx) ---
-	markdown: {
-		heading: { bold: true, color: "brightWhite" },
-		headingSub: { bold: true },
-		strong: { bold: true, color: "brightWhite" },
-		emphasis: { italic: true },
-		link: { color: "blue", underline: true },
-		inlineCode: { color: "brightCyan", backgroundColor: "#2a2a3e" },
-		codeBlock: { color: "brightCyan" },
-		codeBorder: { color: "brightBlack" },
-		blockquote: { dimColor: true },
-		blockquoteBar: { color: "brightBlack" },
-		tableBorder: { color: "brightBlack" },
-		tableHeader: { bold: true },
-		hr: { color: "gray" },
-	},
+export const theme = createTheme(terminalColorMode)
+export const colors = createColors(theme)
+export const ansi = createAnsi(terminalColorMode)
+export const styles = createStyles(theme)
 
-	// --- Thinking indicator (consumed by ThinkingIndicator.tsx) ---
-	thinking: {
-		shimmerDim: { color: "gray", dimColor: true },
-		shimmerBright: { color: "brightWhite", bold: true },
-		elapsed: { color: "gray" },
-		breadcrumb: { color: "gray", dimColor: true },
-	},
+/** Configure the process-wide CLI palette after persisted settings are loaded. */
+export function configureTerminalTheme(
+	savedPreference?: string,
+	env: NodeJS.ProcessEnv = process.env,
+): TerminalColorMode {
+	terminalColorMode = resolveTerminalColorMode(env, savedPreference)
+	const nextTheme = createTheme(terminalColorMode)
+	const existingStatus = theme.status
+	const existingDiff = theme.diff
+	Object.assign(existingStatus, nextTheme.status)
+	Object.assign(existingDiff, nextTheme.diff)
+	Object.assign(theme, nextTheme, { status: existingStatus, diff: existingDiff })
+	Object.assign(colors, createColors(theme))
+	Object.assign(ansi, createAnsi(terminalColorMode))
 
-	// --- Conversation markers (consumed by ChatMessage.tsx) ---
-	conversation: {
-		user: { color: colors.success },
-		assistant: { color: colors.primary },
-		planModeTint: { color: "yellow" },
-		completion: { color: "green", bold: true },
-		divider: { color: "gray", dimColor: true },
-		reasoning: { color: "gray" },
-		reasoningTitle: { color: "gray", dimColor: true },
-		typeChangeSep: { color: "gray" },
-	},
-} as const
+	const nextStyles = createStyles(theme)
+	Object.assign(styles.markdown, nextStyles.markdown)
+	Object.assign(styles.tool, nextStyles.tool)
+	Object.assign(styles.thinking, nextStyles.thinking)
+	Object.assign(styles.conversation, nextStyles.conversation)
+	return terminalColorMode
+}
 
-export const theme = {
-	// Brand
-	primary: "#B1B9F9", // primaryBlue — act mode accent
-	plan: "yellow", // plan mode accent
-
-	// Status (general)
-	success: "green",
-	error: "red",
-	warning: "yellow",
-	info: "cyan",
-	muted: "gray",
-
-	// Status (per CardStatus)
-	status: {
-		success: "green",
-		error: "red",
-		cancelled: "red",
-		running: "blue",
-		waiting: "magenta",
-		building: "yellow",
-		pending: "yellow",
-		skipped: "gray",
-		abandoned: "gray",
-		default: "gray",
-	},
-
-	// Diff colors (Ink hex)
-	diff: {
-		addBg: "#080f0a",
-		addFg: "#52C97A",
-		removeBg: "#120707",
-		removeFg: "#DD6B68",
-		gutterFg: "#505866",
-	},
-
-	// UI elements
-	separator: "gray",
-	border: "gray",
-	dimText: "gray",
-
-	// Cost thresholds (dollars)
-	costWarning: 1.0,
-	costDanger: 5.0,
-
-	// Context bar thresholds (0-1 ratio)
-	contextWarning: 0.5,
-	contextDanger: 0.8,
-} as const
-
-// ---------------------------------------------------------------------------
-// ANSI → semantic helpers (for plain-text renderer)
-// ---------------------------------------------------------------------------
-
-/** Map a CardStatus to an ANSI color code. */
-export function statusAnsi(status: string): string {
+export function statusAnsi(status: CardStatus): string {
 	switch (status) {
-		case "success":
-			return ansi.green
-		case "error":
-		case "cancelled":
-			return ansi.red
-		case "running":
-			return ansi.blue
-		case "waiting_for_input":
-			return ansi.magenta
-		case "building":
-		case "pending":
-			return ansi.yellow
-		case "skipped":
-		case "abandoned":
-		default:
-			return ansi.brightBlack
+		case CardStatus.SUCCESS:
+			return ansi.success
+		case CardStatus.ERROR:
+		case CardStatus.CANCELLED:
+			return ansi.error
+		case CardStatus.RUNNING:
+			return ansi.link
+		case CardStatus.WAITING_FOR_INPUT:
+			return ansi.warning
+		case CardStatus.BUILDING:
+		case CardStatus.PENDING:
+			return ansi.warning
+		case CardStatus.SKIPPED:
+		case CardStatus.ABANDONED:
+			return ansi.muted
 	}
 }

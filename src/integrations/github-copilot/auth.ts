@@ -3,6 +3,7 @@ import { fetch } from "@/shared/net"
 import { Logger } from "@/shared/services/Logger"
 import { z } from "zod"
 import { jsonHeaders } from "@shared/net"
+import { setTimeout as delay } from "node:timers/promises"
 
 const CLIENT_ID = "Iv1.b507a08c87ecfe98"
 const GITHUB_DEVICE_CODE_URL = "https://github.com/login/device/code"
@@ -97,7 +98,7 @@ export class GithubCopilotAuthManager {
 		return await response.json()
 	}
 
-	async pollForToken(deviceCode: string, interval: number): Promise<GithubCopilotCredentials> {
+	async pollForToken(deviceCode: string, interval: number, signal?: AbortSignal): Promise<GithubCopilotCredentials> {
 		let currentInterval = interval
 		while (true) {
 			const response = await fetch(GITHUB_ACCESS_TOKEN_URL, {
@@ -111,6 +112,7 @@ export class GithubCopilotAuthManager {
 					device_code: deviceCode,
 					grant_type: "urn:ietf:params:oauth:grant-type:device_code",
 				}),
+				signal,
 			})
 
 			if (!response.ok) {
@@ -147,13 +149,13 @@ export class GithubCopilotAuthManager {
 			}
 
 			if (data.error === "authorization_pending") {
-				await new Promise((resolve) => setTimeout(resolve, currentInterval * 1000 + OAUTH_POLLING_SAFETY_MARGIN_MS))
+				await delay(currentInterval * 1000 + OAUTH_POLLING_SAFETY_MARGIN_MS, undefined, { signal })
 				continue
 			}
 
 			if (data.error === "slow_down") {
 				currentInterval = (data.interval || currentInterval) + 5
-				await new Promise((resolve) => setTimeout(resolve, currentInterval * 1000 + OAUTH_POLLING_SAFETY_MARGIN_MS))
+				await delay(currentInterval * 1000 + OAUTH_POLLING_SAFETY_MARGIN_MS, undefined, { signal })
 				continue
 			}
 

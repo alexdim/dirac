@@ -1,10 +1,12 @@
+import { theme } from "../constants/theme"
 /**
  * Sub-components and types for ConfigView
  */
 
 import { Box, Text, useInput } from "ink"
-import React, { useState } from "react"
+import React, { useEffect, useState } from "react"
 import { useStdinContext } from "../context/StdinContext"
+import { useTerminalSize } from "../hooks/useTerminalSize"
 
 // ============================================================================
 // Types & Constants
@@ -61,7 +63,6 @@ export const EXCLUDED_KEYS = new Set(["taskHistory", "primaryRootIndex", "welcom
 
 export const EDITABLE_TYPES: Set<ValueType> = new Set(["string", "number", "boolean", "object"])
 export const MAX_VISIBLE = 12
-export const SEPARATOR = "─".repeat(80)
 
 export const TABS: { key: TabView; label: string; requiresFlag?: "hooks" | "skills" }[] = [
 	{ key: "settings", label: "Settings" },
@@ -136,18 +137,19 @@ export function formatValue(value: unknown, maxLen = 50): string {
 
 export function parseValue(input: string, type: ValueType): unknown {
 	if (type === "boolean") {
-		return input.toLowerCase() === "true" || input === "1"
+		const normalized = input.trim().toLowerCase()
+		if (normalized === "true" || normalized === "1") return true
+		if (normalized === "false" || normalized === "0") return false
+		throw new Error("Boolean values must be true, false, 1, or 0")
 	}
 	if (type === "number") {
-		const num = Number.parseFloat(input)
-		return Number.isNaN(num) ? 0 : num
+		if (!input.trim()) throw new Error("Number values cannot be empty")
+		const number = Number(input)
+		if (!Number.isFinite(number)) throw new Error(`Invalid number: ${input}`)
+		return number
 	}
 	if (type === "object") {
-		try {
-			return JSON.parse(input)
-		} catch {
-			return {}
-		}
+		return JSON.parse(input)
 	}
 	return input
 }
@@ -180,7 +182,12 @@ export function buildToggleEntries(
 }
 
 export function getFileName(path: string): string {
-	return path.split("/").pop() || path
+	return path.replaceAll("\\", "/").split("/").pop() || path
+}
+
+export const ConfigSeparator: React.FC = () => {
+	const { columns } = useTerminalSize()
+	return <Text color={theme.muted}>{"─".repeat(Math.max(1, columns))}</Text>
 }
 
 // ============================================================================
@@ -216,14 +223,14 @@ export const TextInput: React.FC<TextInputProps> = ({ label, onChange, onCancel,
 
 	return (
 		<Box flexDirection="column" marginTop={1}>
-			<Text bold color="cyan">
+			<Text bold color={theme.info}>
 				Edit: {label}
 			</Text>
 			<Box>
-				<Text color="white">{value}</Text>
-				<Text color="cyan">|</Text>
+				<Text color={theme.text}>{value}</Text>
+				<Text color={theme.info}>|</Text>
 			</Box>
-			<Text color="gray">Type: {type} • Enter to save • Esc to cancel</Text>
+			<Text color={theme.muted}>Type: {type} • Enter to save • Esc to cancel</Text>
 		</Box>
 	)
 }
@@ -254,29 +261,29 @@ export const BooleanSelect: React.FC<BooleanSelectProps> = ({ label, onCancel, o
 
 	return (
 		<Box flexDirection="column" marginTop={1}>
-			<Text bold color="cyan">
+			<Text bold color={theme.info}>
 				Edit: {label}
 			</Text>
 			<Box flexDirection="column">
-				<Text color={selected ? "green" : undefined}>{selected ? "❯ " : "  "}true</Text>
-				<Text color={!selected ? "green" : undefined}>{!selected ? "❯ " : "  "}false</Text>
+				<Text color={selected ? theme.success : undefined}>{selected ? "❯ " : "  "}true</Text>
+				<Text color={!selected ? theme.success : undefined}>{!selected ? "❯ " : "  "}false</Text>
 			</Box>
-			<Text color="gray">↑/↓ to toggle • Enter to save • Esc to cancel</Text>
+			<Text color={theme.muted}>↑/↓ to toggle • Enter to save • Esc to cancel</Text>
 		</Box>
 	)
 }
 
 export const ConfigRow: React.FC<{ entry: ConfigEntry; isSelected: boolean }> = ({ entry, isSelected }) => {
-	const valueColor = entry.type === "boolean" ? (entry.value ? "green" : "red") : "white"
+	const valueColor = entry.type === "boolean" ? (entry.value ? theme.success : theme.error) : theme.text
 
 	return (
 		<Box>
-			<Text color={isSelected ? "cyan" : undefined}>
+			<Text color={isSelected ? theme.info : undefined}>
 				{isSelected ? "❯ " : "  "}
-				<Text color="cyan">{entry.key}</Text>
-				<Text color="gray">: </Text>
+				<Text color={theme.info}>{entry.key}</Text>
+				<Text color={theme.muted}>: </Text>
 				<Text color={valueColor}>{formatValue(entry.value)}</Text>
-				{!entry.isEditable && <Text color="gray"> (read-only)</Text>}
+				{!entry.isEditable && <Text color={theme.muted}> (read-only)</Text>}
 			</Text>
 		</Box>
 	)
@@ -292,12 +299,12 @@ export const ToggleRow: React.FC<{
 
 	return (
 		<Box>
-			<Text color={isSelected ? "cyan" : undefined}>
+			<Text color={isSelected ? theme.info : undefined}>
 				{isSelected ? "❯ " : "  "}
-				<Text color={entry.enabled ? "green" : "red"}>{entry.enabled ? "●" : "○"}</Text>
+				<Text color={entry.enabled ? theme.success : theme.error}>{entry.enabled ? "●" : "○"}</Text>
 				<Text> </Text>
-				<Text color="white">{fileName}</Text>
-				{showType && <Text color="gray">{typeLabel}</Text>}
+				<Text color={theme.text}>{fileName}</Text>
+				{showType && <Text color={theme.muted}>{typeLabel}</Text>}
 			</Text>
 		</Box>
 	)
@@ -309,11 +316,11 @@ export const HookRow: React.FC<{
 }> = ({ hook, isSelected }) => {
 	return (
 		<Box>
-			<Text color={isSelected ? "cyan" : undefined}>
+			<Text color={isSelected ? theme.info : undefined}>
 				{isSelected ? "❯ " : "  "}
-				<Text color={hook.enabled ? "green" : "red"}>{hook.enabled ? "●" : "○"}</Text>
+				<Text color={hook.enabled ? theme.success : theme.error}>{hook.enabled ? "●" : "○"}</Text>
 				<Text> </Text>
-				<Text color="white">{hook.name}</Text>
+				<Text color={theme.text}>{hook.name}</Text>
 			</Text>
 		</Box>
 	)
@@ -326,18 +333,18 @@ export const SkillRow: React.FC<{
 	return (
 		<Box flexDirection="column">
 			<Box>
-				<Text color={isSelected ? "cyan" : undefined}>
+				<Text color={isSelected ? theme.info : undefined}>
 					{isSelected ? "❯ " : "  "}
-					<Text color={skill.enabled ? "green" : "red"}>{skill.enabled ? "●" : "○"}</Text>
+					<Text color={skill.enabled ? theme.success : theme.error}>{skill.enabled ? "●" : "○"}</Text>
 					<Text> </Text>
-					<Text bold color="white">
+					<Text bold color={theme.text}>
 						{skill.name}
 					</Text>
 				</Text>
 			</Box>
 			{skill.description && (
 				<Box marginLeft={4}>
-					<Text color="gray">
+					<Text color={theme.muted}>
 						{skill.description.length > 60 ? skill.description.slice(0, 57) + "..." : skill.description}
 					</Text>
 				</Box>
@@ -366,8 +373,8 @@ export const TabBar: React.FC<{
 		<Box marginBottom={1}>
 			{visibleTabs.map((tab, idx) => (
 				<React.Fragment key={tab.key}>
-					{idx > 0 && <Text color="gray"> │ </Text>}
-					<Text bold={currentTab === tab.key} color={currentTab === tab.key ? "cyan" : "gray"}>
+					{idx > 0 && <Text color={theme.muted}> │ </Text>}
+					<Text bold={currentTab === tab.key} color={currentTab === tab.key ? theme.info : theme.muted}>
 						{currentTab === tab.key ? `[${tab.label}]` : tab.label}
 					</Text>
 				</React.Fragment>
@@ -378,7 +385,7 @@ export const TabBar: React.FC<{
 
 export const SectionHeader: React.FC<{ title: string }> = ({ title }) => (
 	<Box marginTop={1}>
-		<Text bold color="yellow">
+		<Text bold color={theme.warning}>
 			{title}
 		</Text>
 	</Box>
@@ -402,15 +409,25 @@ export const ObjectEditorPanel: React.FC<ObjectEditorPanelProps> = ({
 	setObjectValueAtPath,
 }) => {
 	const { isRawModeSupported } = useStdinContext()
+	const [validationError, setValidationError] = useState<string | null>(null)
 	const currentNode = getObjectAtPath(state.value, state.path)
 	const objectEntries = Object.entries(currentNode).sort(([a], [b]) => a.localeCompare(b))
 	const selectedEntry = objectEntries[state.selectedIndex]
 	const breadcrumb = [state.key, ...state.path].join(" › ")
 
+	useEffect(() => {
+		setState((previous) =>
+			previous
+				? { ...previous, selectedIndex: Math.max(0, Math.min(previous.selectedIndex, objectEntries.length - 1)) }
+				: previous,
+		)
+	}, [objectEntries.length, setState])
+
 	useInput(
 		(input, key) => {
 			if (state.isAddingKey) {
 				if (key.escape) {
+					setValidationError(null)
 					setState((prev) => (prev ? { ...prev, isAddingKey: false, editValue: "" } : prev))
 					return
 				}
@@ -420,6 +437,10 @@ export const ObjectEditorPanel: React.FC<ObjectEditorPanelProps> = ({
 						return
 					}
 					const newKey = state.editValue.trim()
+					if (Object.hasOwn(currentNode, newKey)) {
+						setValidationError(`Key already exists: ${newKey}`)
+						return
+					}
 					const nextObject = setObjectValueAtPath(state.value, state.path, newKey, "")
 					onPersist(nextObject)
 					setState((prev) =>
@@ -437,10 +458,12 @@ export const ObjectEditorPanel: React.FC<ObjectEditorPanelProps> = ({
 					return
 				}
 				if (key.backspace || key.delete) {
+					setValidationError(null)
 					setState((prev) => (prev ? { ...prev, editValue: prev.editValue.slice(0, -1) } : prev))
 					return
 				}
 				if (input && !key.ctrl && !key.meta) {
+					setValidationError(null)
 					setState((prev) => (prev ? { ...prev, editValue: prev.editValue + input } : prev))
 				}
 				return
@@ -448,6 +471,7 @@ export const ObjectEditorPanel: React.FC<ObjectEditorPanelProps> = ({
 
 			if (state.isEditingValue) {
 				if (key.escape) {
+					setValidationError(null)
 					setState((prev) => (prev ? { ...prev, isEditingValue: false, editValue: "" } : prev))
 					return
 				}
@@ -457,23 +481,26 @@ export const ObjectEditorPanel: React.FC<ObjectEditorPanelProps> = ({
 						return
 					}
 					const [entryKey, entryValue] = selectedEntry
-					let parsed: unknown = state.editValue
-					if (typeof entryValue === "boolean") {
-						parsed = state.editValue.toLowerCase() === "true" || state.editValue === "1"
-					} else if (typeof entryValue === "number") {
-						const maybeNum = Number(state.editValue)
-						parsed = Number.isNaN(maybeNum) ? 0 : maybeNum
+					let parsed: unknown
+					try {
+						parsed = parseValue(state.editValue, getValueType(entryValue))
+					} catch (error) {
+						setValidationError(error instanceof Error ? error.message : String(error))
+						return
 					}
+					setValidationError(null)
 					const nextObject = setObjectValueAtPath(state.value, state.path, entryKey, parsed)
 					onPersist(nextObject)
 					setState((prev) => (prev ? { ...prev, value: nextObject, isEditingValue: false, editValue: "" } : prev))
 					return
 				}
 				if (key.backspace || key.delete) {
+					setValidationError(null)
 					setState((prev) => (prev ? { ...prev, editValue: prev.editValue.slice(0, -1) } : prev))
 					return
 				}
 				if (input && !key.ctrl && !key.meta) {
+					setValidationError(null)
 					setState((prev) => (prev ? { ...prev, editValue: prev.editValue + input } : prev))
 				}
 				return
@@ -498,14 +525,6 @@ export const ObjectEditorPanel: React.FC<ObjectEditorPanelProps> = ({
 					const [entryKey] = selectedEntry
 					const currentNode = getObjectAtPath(state.value, state.path)
 					const { [entryKey]: _, ...rest } = currentNode
-					const nextObject = setObjectValueAtPath(
-						state.value,
-						state.path.slice(0, -1),
-						state.path[state.path.length - 1],
-						rest,
-					)
-					// Wait, setObjectValueAtPath needs to be used carefully here.
-					// If path is empty, we just update the root.
 					let updatedRoot: Record<string, unknown>
 					if (state.path.length === 0) {
 						updatedRoot = rest
@@ -592,62 +611,64 @@ export const ObjectEditorPanel: React.FC<ObjectEditorPanelProps> = ({
 
 	return (
 		<Box flexDirection="column">
-			<Text bold color="white">
+			<Text bold color={theme.text}>
 				⚙️ Edit Nested Object
 			</Text>
-			<Text color="gray">{SEPARATOR}</Text>
-			<Text color="cyan">{breadcrumb}</Text>
+			<ConfigSeparator />
+			<Text color={theme.info}>{breadcrumb}</Text>
 			{state.isAddingKey ? (
 				<Box flexDirection="column" marginTop={1}>
-					<Text color="yellow">Add new key:</Text>
+					<Text color={theme.warning}>Add new key:</Text>
 					<Box>
-						<Text color="white">{state.editValue}</Text>
-						<Text color="cyan">|</Text>
+						<Text color={theme.text}>{state.editValue}</Text>
+						<Text color={theme.info}>|</Text>
 					</Box>
-					<Text color="gray">Enter to add • Esc to cancel</Text>
+					<Text color={theme.muted}>Enter to add • Esc to cancel</Text>
+					{validationError && <Text color={theme.error}>{validationError}</Text>}
 				</Box>
 			) : state.isEditingValue ? (
 				<Box flexDirection="column" marginTop={1}>
 					<Box>
-						<Text color="white">{state.editValue}</Text>
-						<Text color="cyan">|</Text>
+						<Text color={theme.text}>{state.editValue}</Text>
+						<Text color={theme.info}>|</Text>
 					</Box>
-					<Text color="gray">Enter to save • Esc to cancel</Text>
+					<Text color={theme.muted}>Enter to save • Esc to cancel</Text>
+					{validationError && <Text color={theme.error}>{validationError}</Text>}
 				</Box>
 			) : (
 				<Box flexDirection="column" marginTop={1}>
 					{objectEntries.length === 0 ? (
-						<Text color="gray">No nested keys at this level.</Text>
+						<Text color={theme.muted}>No nested keys at this level.</Text>
 					) : (
 						objectEntries.map(([key, value], idx) => {
 							const isSelected = idx === state.selectedIndex
 							const valueText =
 								value && typeof value === "object" && !Array.isArray(value) ? "{...}" : String(value)
 							return (
-								<Text color={isSelected ? "cyan" : undefined} key={key}>
+								<Text color={isSelected ? theme.info : undefined} key={key}>
 									{isSelected ? "❯ " : "  "}
-									<Text color="cyan">{key}</Text>
-									<Text color="gray">: </Text>
-									<Text color="white">{valueText}</Text>
+									<Text color={theme.info}>{key}</Text>
+									<Text color={theme.muted}>: </Text>
+									<Text color={theme.text}>{valueText}</Text>
 								</Text>
 							)
 						})
 					)}
 					<Box>
-						<Text color="gray">↑/↓ </Text>
-						<Text color="cyan">Navigate</Text>
-						<Text color="gray"> • </Text>
-						<Text color="gray">Enter/Tab </Text>
-						<Text color="cyan">Edit</Text>
-						<Text color="gray"> • </Text>
-						<Text color="cyan">a</Text>
-						<Text color="gray"> Add</Text>
-						<Text color="gray"> • </Text>
-						<Text color="cyan">d</Text>
-						<Text color="gray"> Delete</Text>
-						<Text color="gray"> • </Text>
-						<Text color="cyan">Esc</Text>
-						<Text color="gray"> Back</Text>
+						<Text color={theme.muted}>↑/↓ </Text>
+						<Text color={theme.info}>Navigate</Text>
+						<Text color={theme.muted}> • </Text>
+						<Text color={theme.muted}>Enter/Tab </Text>
+						<Text color={theme.info}>Edit</Text>
+						<Text color={theme.muted}> • </Text>
+						<Text color={theme.info}>a</Text>
+						<Text color={theme.muted}> Add</Text>
+						<Text color={theme.muted}> • </Text>
+						<Text color={theme.info}>d</Text>
+						<Text color={theme.muted}> Delete</Text>
+						<Text color={theme.muted}> • </Text>
+						<Text color={theme.info}>Esc</Text>
+						<Text color={theme.muted}> Back</Text>
 					</Box>
 				</Box>
 			)}

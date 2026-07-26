@@ -1,3 +1,4 @@
+import { theme } from "../constants/theme"
 /**
  * Interactive config view component for displaying and editing configuration values
  * Supports tabs for Settings, Rules, Workflows, Hooks, and Skills
@@ -11,7 +12,8 @@ import {
 	SETTINGS_DEFAULTS,
 } from "@shared/storage/state-keys"
 import { Box, Text, useApp, useInput } from "ink"
-import React, { useMemo, useState } from "react"
+import React, { useEffect, useMemo, useState } from "react"
+import { Logger } from "@/shared/services/Logger"
 import { useStdinContext } from "../context/StdinContext"
 import { fuzzyFilter } from "../utils/fuzzy-search"
 import {
@@ -19,13 +21,13 @@ import {
 	buildConfigEntries,
 	buildToggleEntries,
 	ConfigRow,
+	ConfigSeparator,
 	HookInfo,
 	HookRow,
 	MAX_VISIBLE,
 	ObjectEditorPanel,
 	ObjectEditorState,
 	parseValue,
-	SEPARATOR,
 	SectionHeader,
 	SkillInfo,
 	SkillRow,
@@ -55,31 +57,38 @@ interface ConfigViewProps {
 	dataDir: string
 	globalState: Record<string, unknown>
 	workspaceState: Record<string, unknown>
-	onUpdateGlobal?: (key: GlobalStateAndSettingsKey, value: GlobalStateAndSettings[GlobalStateAndSettingsKey]) => void
-	onUpdateWorkspace?: (key: LocalStateKey, value: LocalState[LocalStateKey]) => void
+	onUpdateGlobal?: (
+		key: GlobalStateAndSettingsKey,
+		value: GlobalStateAndSettings[GlobalStateAndSettingsKey],
+	) => void | Promise<void>
+	onUpdateWorkspace?: (key: LocalStateKey, value: LocalState[LocalStateKey]) => void | Promise<void>
 	// Rules toggles
 	globalDiracRulesToggles?: Record<string, boolean>
 	localDiracRulesToggles?: Record<string, boolean>
 	localCursorRulesToggles?: Record<string, boolean>
 	localWindsurfRulesToggles?: Record<string, boolean>
 	localAgentsRulesToggles?: Record<string, boolean>
-	onToggleRule?: (isGlobal: boolean, rulePath: string, enabled: boolean, ruleType: string) => void
+	onToggleRule?: (isGlobal: boolean, rulePath: string, enabled: boolean, ruleType: string) => void | Promise<void>
 	// Workflow toggles
 	globalWorkflowToggles?: Record<string, boolean>
 	localWorkflowToggles?: Record<string, boolean>
-	onToggleWorkflow?: (isGlobal: boolean, workflowPath: string, enabled: boolean) => void
+	onToggleWorkflow?: (isGlobal: boolean, workflowPath: string, enabled: boolean) => void | Promise<void>
 	// Hooks
 	hooksEnabled?: boolean
 	globalHooks?: HookInfo[]
 	workspaceHooks?: WorkspaceHooks[]
-	onToggleHook?: (isGlobal: boolean, hookName: string, enabled: boolean, workspaceName?: string) => void
+	onToggleHook?: (isGlobal: boolean, hookName: string, enabled: boolean, workspaceName?: string) => void | Promise<void>
 	// Skills
 	skillsEnabled?: boolean
 	globalSkills?: SkillInfo[]
 	localSkills?: SkillInfo[]
-	onToggleSkill?: (isGlobal: boolean, skillPath: string, enabled: boolean) => void
+	onToggleSkill?: (isGlobal: boolean, skillPath: string, enabled: boolean) => void | Promise<void>
 	// Open folder callback
-	onOpenFolder?: (folderType: "rules" | "workflows" | "hooks" | "skills", isGlobal: boolean) => void
+	onOpenFolder?: (
+		folderType: "rules" | "workflows" | "hooks" | "skills",
+		isGlobal: boolean,
+	) => void | Promise<void>
+	errorMessage?: string | null
 }
 
 // ============================================================================
@@ -110,6 +119,7 @@ export const ConfigView: React.FC<ConfigViewProps> = ({
 	localSkills = [],
 	onToggleSkill,
 	onOpenFolder,
+	errorMessage,
 }) => {
 	const { exit } = useApp()
 	const { isRawModeSupported } = useStdinContext()
@@ -119,6 +129,26 @@ export const ConfigView: React.FC<ConfigViewProps> = ({
 	const [editValue, setEditValue] = useState("")
 	const [searchQuery, setSearchQuery] = useState("")
 	const [objectEditor, setObjectEditor] = useState<ObjectEditorState | null>(null)
+	const [actionError, setActionError] = useState<string | null>(null)
+	const [isApplyingChange, setIsApplyingChange] = useState(false)
+	const actionInProgressRef = React.useRef(false)
+
+	const runConfigAction = (context: string, action: () => void | Promise<void>) => {
+		if (actionInProgressRef.current) return
+		actionInProgressRef.current = true
+		setIsApplyingChange(true)
+		setActionError(null)
+		Promise.resolve()
+			.then(action)
+			.catch((error) => {
+				Logger.error(`Configuration ${context} failed:`, error)
+				setActionError(error instanceof Error ? error.message : String(error))
+			})
+			.finally(() => {
+				actionInProgressRef.current = false
+				setIsApplyingChange(false)
+			})
+	}
 
 	// Build entries for settings tab
 	const configEntries = useMemo(
@@ -214,6 +244,19 @@ export const ConfigView: React.FC<ConfigViewProps> = ({
 		})
 	}, [hooksEnabled, skillsEnabled])
 
+	useEffect(() => {
+		setSelectedIndex((currentIndex) => Math.max(0, Math.min(currentIndex, currentListLength - 1)))
+	}, [currentListLength])
+
+	useEffect(() => {
+		if (!availableTabs.some((tab) => tab.key === currentTab)) {
+			setCurrentTab(availableTabs[0].key)
+			setSelectedIndex(0)
+			setIsEditing(false)
+			setObjectEditor(null)
+		}
+	}, [availableTabs, currentTab])
+
 	// Reset selection when changing tabs
 	const handleTabChange = (newTab: TabView) => {
 		setCurrentTab(newTab)
@@ -225,52 +268,52 @@ export const ConfigView: React.FC<ConfigViewProps> = ({
 	// Settings tab handlers
 	const selectedConfigEntry = filteredConfigEntries[selectedIndex]
 
-	const handleSettingsSave = (value: string | boolean) => {
+	const handleSettingsSave = async (value: string | boolean) => {
 		if (!selectedConfigEntry) {
 			return
 		}
 		const parsed = typeof value === "boolean" ? value : parseValue(value, selectedConfigEntry.type)
 
 		if (selectedConfigEntry.source === "global" && onUpdateGlobal) {
-			onUpdateGlobal(selectedConfigEntry.key as GlobalStateAndSettingsKey, parsed as never)
+			await onUpdateGlobal(selectedConfigEntry.key as GlobalStateAndSettingsKey, parsed as never)
 		} else if (selectedConfigEntry.source === "workspace" && onUpdateWorkspace) {
-			onUpdateWorkspace(selectedConfigEntry.key as LocalStateKey, parsed as never)
+			await onUpdateWorkspace(selectedConfigEntry.key as LocalStateKey, parsed as never)
 		}
 		setIsEditing(false)
 	}
 
-	const persistObjectEditor = (nextObject: Record<string, unknown>, source: "global" | "workspace", key: string) => {
+	const persistObjectEditor = async (nextObject: Record<string, unknown>, source: "global" | "workspace", key: string) => {
 		if (source === "global" && onUpdateGlobal) {
-			onUpdateGlobal(key as GlobalStateAndSettingsKey, nextObject as never)
+			await onUpdateGlobal(key as GlobalStateAndSettingsKey, nextObject as never)
 		} else if (source === "workspace" && onUpdateWorkspace) {
-			onUpdateWorkspace(key as LocalStateKey, nextObject as never)
+			await onUpdateWorkspace(key as LocalStateKey, nextObject as never)
 		}
 	}
 
-	const handleSettingsReset = () => {
+	const handleSettingsReset = async () => {
 		if (!selectedConfigEntry?.isEditable || selectedConfigEntry.source !== "global") {
 			return
 		}
 		const defaultValue = (SETTINGS_DEFAULTS as Record<string, unknown>)[selectedConfigEntry.key]
 		if (defaultValue !== undefined && onUpdateGlobal) {
-			onUpdateGlobal(selectedConfigEntry.key as GlobalStateAndSettingsKey, defaultValue as never)
+			await onUpdateGlobal(selectedConfigEntry.key as GlobalStateAndSettingsKey, defaultValue as never)
 		}
 	}
 
 	// Toggle handlers for rules/workflows/hooks/skills
-	const handleToggle = () => {
+	const handleToggle = async () => {
 		if (currentTab === "rules" && ruleEntries[selectedIndex] && onToggleRule) {
 			const entry = ruleEntries[selectedIndex]
-			onToggleRule(entry.source === "global", entry.path, !entry.enabled, entry.ruleType || "dirac")
+			await onToggleRule(entry.source === "global", entry.path, !entry.enabled, entry.ruleType || "dirac")
 		} else if (currentTab === "workflows" && workflowEntries[selectedIndex] && onToggleWorkflow) {
 			const entry = workflowEntries[selectedIndex]
-			onToggleWorkflow(entry.source === "global", entry.path, !entry.enabled)
+			await onToggleWorkflow(entry.source === "global", entry.path, !entry.enabled)
 		} else if (currentTab === "hooks" && hookEntries[selectedIndex] && onToggleHook) {
 			const entry = hookEntries[selectedIndex]
-			onToggleHook(entry.isGlobal, entry.hook.name, !entry.hook.enabled, entry.workspaceName)
+			await onToggleHook(entry.isGlobal, entry.hook.name, !entry.hook.enabled, entry.workspaceName)
 		} else if (currentTab === "skills" && skillEntries[selectedIndex] && onToggleSkill) {
 			const entry = skillEntries[selectedIndex]
-			onToggleSkill(entry.isGlobal, entry.skill.path, !entry.skill.enabled)
+			await onToggleSkill(entry.isGlobal, entry.skill.path, !entry.skill.enabled)
 		}
 	}
 
@@ -283,6 +326,7 @@ export const ConfigView: React.FC<ConfigViewProps> = ({
 
 			if (key.escape) {
 				exit()
+				return
 			}
 
 			if (key.leftArrow || key.rightArrow || (input >= "1" && input <= "5")) {
@@ -301,8 +345,10 @@ export const ConfigView: React.FC<ConfigViewProps> = ({
 
 			// List navigation (arrow keys and vim-style j/k)
 			if (key.upArrow) {
+				if (currentListLength === 0) return
 				setSelectedIndex((i) => (i > 0 ? i - 1 : currentListLength - 1))
 			} else if (key.downArrow) {
+				if (currentListLength === 0) return
 				setSelectedIndex((i) => (i < currentListLength - 1 ? i + 1 : 0))
 			}
 
@@ -310,7 +356,7 @@ export const ConfigView: React.FC<ConfigViewProps> = ({
 			if (currentTab === "settings") {
 				if ((key.return || key.tab) && selectedConfigEntry?.isEditable) {
 					if (selectedConfigEntry.type === "boolean") {
-						handleSettingsSave(!selectedConfigEntry.value)
+						runConfigAction("save", () => handleSettingsSave(!selectedConfigEntry.value))
 						return
 					}
 					if (selectedConfigEntry.type === "object") {
@@ -333,7 +379,7 @@ export const ConfigView: React.FC<ConfigViewProps> = ({
 					setEditValue(selectedConfigEntry.value !== undefined ? String(selectedConfigEntry.value) : "")
 					setIsEditing(true)
 				} else if (key.ctrl && input.toLowerCase() === "r") {
-					handleSettingsReset()
+					runConfigAction("reset", handleSettingsReset)
 				} else if (key.backspace || key.delete) {
 					setSearchQuery((prev) => prev.slice(0, -1))
 				} else if (input && !key.ctrl && !key.meta && !key.escape && !key.upArrow && !key.downArrow) {
@@ -341,7 +387,7 @@ export const ConfigView: React.FC<ConfigViewProps> = ({
 				}
 			} else if (key.return || key.tab || input === " ") {
 				// Toggle for rules/workflows/hooks/skills
-				handleToggle()
+				runConfigAction("toggle", handleToggle)
 			}
 
 			// Open folder (for rules/workflows/hooks/skills tabs)
@@ -357,7 +403,9 @@ export const ConfigView: React.FC<ConfigViewProps> = ({
 				} else if (currentTab === "skills" && skillEntries[selectedIndex]) {
 					isGlobal = skillEntries[selectedIndex].isGlobal
 				}
-				onOpenFolder(currentTab as "rules" | "workflows" | "hooks" | "skills", isGlobal)
+				runConfigAction("folder open", () =>
+					onOpenFolder(currentTab as "rules" | "workflows" | "hooks" | "skills", isGlobal),
+				)
 			}
 		},
 		{ isActive: isRawModeSupported && !isEditing },
@@ -371,10 +419,12 @@ export const ConfigView: React.FC<ConfigViewProps> = ({
 	if (isEditing && selectedConfigEntry && currentTab === "settings") {
 		const header = (
 			<React.Fragment>
-				<Text bold color="white">
+				<Text bold color={theme.text}>
 					⚙️ Edit Configuration
 				</Text>
-				<Text color="gray">{SEPARATOR}</Text>
+				<ConfigSeparator />
+				{(actionError || errorMessage) && <Text color={theme.error}>Configuration error: {actionError || errorMessage}</Text>}
+				{isApplyingChange && <Text color={theme.muted}>Applying change…</Text>}
 			</React.Fragment>
 		)
 
@@ -385,7 +435,7 @@ export const ConfigView: React.FC<ConfigViewProps> = ({
 					<BooleanSelect
 						label={selectedConfigEntry.key}
 						onCancel={() => setIsEditing(false)}
-						onSelect={handleSettingsSave}
+						onSelect={(value) => runConfigAction("save", () => handleSettingsSave(value))}
 						value={Boolean(selectedConfigEntry.value)}
 					/>
 				</Box>
@@ -399,7 +449,7 @@ export const ConfigView: React.FC<ConfigViewProps> = ({
 					label={selectedConfigEntry.key}
 					onCancel={() => setIsEditing(false)}
 					onChange={setEditValue}
-					onSubmit={handleSettingsSave}
+					onSubmit={(value) => runConfigAction("save", () => handleSettingsSave(value))}
 					type={selectedConfigEntry.type}
 					value={editValue}
 				/>
@@ -409,14 +459,24 @@ export const ConfigView: React.FC<ConfigViewProps> = ({
 
 	if (objectEditor && currentTab === "settings") {
 		return (
-			<ObjectEditorPanel
-				getObjectAtPath={getObjectAtPath}
-				onClose={() => setObjectEditor(null)}
-				onPersist={(nextObject) => persistObjectEditor(nextObject, objectEditor.source, objectEditor.key)}
-				setObjectValueAtPath={setObjectValueAtPath}
-				setState={setObjectEditor}
-				state={objectEditor}
-			/>
+			<Box flexDirection="column">
+				{(actionError || errorMessage) && (
+					<Text color={theme.error}>Configuration error: {actionError || errorMessage}</Text>
+				)}
+				{isApplyingChange && <Text color={theme.muted}>Applying change…</Text>}
+				<ObjectEditorPanel
+					getObjectAtPath={getObjectAtPath}
+					onClose={() => setObjectEditor(null)}
+					onPersist={(nextObject) =>
+						runConfigAction("object save", () =>
+							persistObjectEditor(nextObject, objectEditor.source, objectEditor.key),
+						)
+					}
+					setObjectValueAtPath={setObjectValueAtPath}
+					setState={setObjectEditor}
+					state={objectEditor}
+				/>
+			</Box>
 		)
 	}
 
@@ -429,16 +489,16 @@ export const ConfigView: React.FC<ConfigViewProps> = ({
 					<React.Fragment>
 						<Box>
 							<Text>Search: </Text>
-							<Text color="white">{searchQuery}</Text>
-							<Text inverse> </Text>
+							<Text color={theme.text}>{searchQuery}</Text>
+							<Text backgroundColor={theme.cursorBg} color={theme.cursorText}> </Text>
 						</Box>
 						<Box>
 							<Text>Data directory: </Text>
-							<Text color="blue" underline>
+							<Text color={theme.link} underline>
 								{dataDir}
 							</Text>
 						</Box>
-						<Text color="gray">{SEPARATOR}</Text>
+						<ConfigSeparator />
 						<Box flexDirection="column">
 							{visibleEntries.map((entry, idx) => {
 								const actualIndex = startIndex + idx
@@ -465,7 +525,7 @@ export const ConfigView: React.FC<ConfigViewProps> = ({
 				if (ruleEntries.length === 0) {
 					return (
 						<Box>
-							<Text color="gray">
+							<Text color={theme.muted}>
 								No rules configured. Add .diracrules files to your workspace or global config.
 							</Text>
 						</Box>
@@ -496,7 +556,7 @@ export const ConfigView: React.FC<ConfigViewProps> = ({
 				if (workflowEntries.length === 0) {
 					return (
 						<Box>
-							<Text color="gray">No workflows configured. Add workflow files to enable this feature.</Text>
+							<Text color={theme.muted}>No workflows configured. Add workflow files to enable this feature.</Text>
 						</Box>
 					)
 				}
@@ -527,7 +587,7 @@ export const ConfigView: React.FC<ConfigViewProps> = ({
 				if (hookEntries.length === 0) {
 					return (
 						<Box>
-							<Text color="gray">No hooks configured. Add hook scripts to enable automation.</Text>
+							<Text color={theme.muted}>No hooks configured. Add hook scripts to enable automation.</Text>
 						</Box>
 					)
 				}
@@ -562,7 +622,7 @@ export const ConfigView: React.FC<ConfigViewProps> = ({
 				if (skillEntries.length === 0) {
 					return (
 						<Box>
-							<Text color="gray">No skills configured. Add SKILL.md files to enable skills.</Text>
+							<Text color={theme.muted}>No skills configured. Add SKILL.md files to enable skills.</Text>
 						</Box>
 					)
 				}
@@ -604,20 +664,23 @@ export const ConfigView: React.FC<ConfigViewProps> = ({
 
 	return (
 		<Box flexDirection="column">
-			<Text bold color="white">
+			<Text bold color={theme.text}>
 				⚙️ Dirac Configuration
 			</Text>
-			<Text color="gray">{SEPARATOR}</Text>
+			<ConfigSeparator />
 
 			<TabBar currentTab={currentTab} hooksEnabled={hooksEnabled} skillsEnabled={skillsEnabled} tabs={TABS} />
 
-			<Text color="gray">{SEPARATOR}</Text>
+			<ConfigSeparator />
 
 			{renderTabContent()}
 
+			{(actionError || errorMessage) && <Text color={theme.error}>Configuration error: {actionError || errorMessage}</Text>}
+			{isApplyingChange && <Text color={theme.muted}>Applying change…</Text>}
+
 			{currentListLength > MAX_VISIBLE && (
 				<Box marginTop={1}>
-					<Text color="gray">
+					<Text color={theme.muted}>
 						{startIndex > 0 ? "↑ " : "  "}
 						Showing {startIndex + 1}-{Math.min(startIndex + MAX_VISIBLE, currentListLength)} of {currentListLength}
 						{startIndex + MAX_VISIBLE < currentListLength ? " ↓" : "  "}
@@ -625,16 +688,16 @@ export const ConfigView: React.FC<ConfigViewProps> = ({
 				</Box>
 			)}
 
-			<Text color="gray">{SEPARATOR}</Text>
+			<ConfigSeparator />
 
 			<Box flexDirection="column">
-				<Text color="gray">{getHelpText()}</Text>
+				<Text color={theme.muted}>{getHelpText()}</Text>
 				{currentTab === "settings" && selectedConfigEntry && !selectedConfigEntry.isEditable && (
-					<Text color="yellow">This field is read-only ({selectedConfigEntry.type} type or not a setting)</Text>
+					<Text color={theme.warning}>This field is read-only ({selectedConfigEntry.type} type or not a setting)</Text>
 				)}
 				{currentTab === "settings" && selectedConfigEntry && SETTING_HELP_TEXT[selectedConfigEntry.key] && (
 					<Box marginTop={1}>
-						<Text color="blue">Hint: {SETTING_HELP_TEXT[selectedConfigEntry.key]}</Text>
+						<Text color={theme.link}>Hint: {SETTING_HELP_TEXT[selectedConfigEntry.key]}</Text>
 					</Box>
 				)}
 			</Box>

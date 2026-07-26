@@ -1,4 +1,5 @@
 import type { Controller } from "@/core/controller"
+import type { OpenaiReasoningEffort } from "@/shared/storage/types"
 
 /**
  * Common options shared between runTask and resumeTask
@@ -9,18 +10,19 @@ export interface TaskOptions {
 	provider?: string
 	kanban?: boolean
 	model?: string
+	images?: string[]
 	verbose?: boolean
 	cwd?: string
 	continue?: boolean
 	config?: string
-	thinking?: boolean | string
-	reasoningEffort?: string
-	maxConsecutiveMistakes?: string
+	thinking?: boolean | string | number
+	reasoningEffort?: OpenaiReasoningEffort
+	maxConsecutiveMistakes?: string | number
 	yolo?: boolean
 	autoApproveAll?: boolean
 	doubleCheckCompletion?: boolean
 	autoCondense?: boolean
-	timeout?: string
+	timeout?: string | number
 	json?: boolean
 	stdinWasPiped?: boolean
 	hooksDir?: string

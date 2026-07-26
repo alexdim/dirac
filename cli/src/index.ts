@@ -3,11 +3,13 @@
  */
 
 import { exit } from "node:process"
-import { Command } from "commander"
+import { Command, Option } from "commander"
 import { version as CLI_VERSION } from "../package.json"
 import { suppressConsoleUnlessVerbose } from "./utils/console"
 import { CLI_LOG_FILE } from "./vscode-shim"
 import { setupSignalHandlers } from "./utils/errors"
+import { parseTimeoutSeconds } from "./utils/task-timeout"
+import { parsePositiveInteger, parseReasoningEffort, parseThinkingBudget } from "./utils/command-parsers"
 
 // CLI-only behavior: suppress console output unless verbose mode is enabled.
 // Kept explicit here so importing the library bundle does not mutate global console methods.
@@ -32,20 +34,25 @@ program
 	.command("task")
 	.alias("t")
 	.description("Run a new task")
-	.argument("<prompt>", "The task prompt")
-	.option("-a, --act", "Run in act mode")
-	.option("-p, --plan", "Run in plan mode")
+	.argument("[prompt]", "The task prompt")
+	.addOption(new Option("-a, --act", "Run in act mode").conflicts("plan"))
+	.addOption(new Option("-p, --plan", "Run in plan mode").conflicts("act"))
 	.option("-y, --yolo", "Enable yes/yolo mode (auto-approve actions)")
 	.option("--auto-approve-all", "Enable auto-approve all actions while keeping interactive mode")
-	.option("-t, --timeout <seconds>", "Optional timeout in seconds (applies only when provided)")
+	.option("-t, --timeout <seconds>", "Optional timeout in seconds (applies only when provided)", parseTimeoutSeconds)
 	.option("-m, --model <model>", "Model to use for the task")
+	.option("-i, --images <paths...>", "Image file paths to include with the task")
 	.option("--provider <provider>", "API provider to use (requires --model)")
 	.option("-v, --verbose", "Show verbose output")
 	.option("-c, --cwd <path>", "Working directory for the task")
 	.option("--config <path>", "Path to Dirac configuration directory")
-	.option("--thinking [tokens]", "Enable extended thinking (default: 1024 tokens)")
-	.option("--reasoning-effort <effort>", "Reasoning effort: none|low|medium|high|xhigh")
-	.option("--max-consecutive-mistakes <count>", "Maximum consecutive mistakes before halting in yolo mode")
+	.option("--thinking [tokens]", "Enable extended thinking (default: 1024 tokens)", parseThinkingBudget)
+	.option("--reasoning-effort <effort>", "Reasoning effort: none|low|medium|high|xhigh", parseReasoningEffort)
+	.option(
+		"--max-consecutive-mistakes <count>",
+		"Maximum consecutive mistakes before halting in yolo mode",
+		parsePositiveInteger,
+	)
 	.option("--json", "Output messages as JSON instead of styled text")
 	.option("--double-check-completion", "Reject first completion attempt to force re-verification")
 	.option("--auto-condense", "Enable AI-powered context compaction instead of mechanical truncation")
@@ -53,22 +60,32 @@ program
 	.option("--hooks-dir <path>", "Path to additional hooks directory for runtime hook injection")
 	.option("--no-index", "Disable symbol indexing for the workspace")
 	.option("--no-emoji", "Disable emoji icons (use unicode/ascii fallbacks)")
+	.option("--headers <headers>", "Custom headers for OpenAI-compatible provider (key1=value1,key2=value2 or JSON)")
 	.option("-T, --taskId <id>", "Resume an existing task by ID")
 	.action(async (prompt, options) => {
+		const { combinePromptWithPipedInput, isEmptyPipedInput, readStdinIfPiped } = await import("./utils/piped")
+		const stdinInput = await readStdinIfPiped()
+		if (isEmptyPipedInput(stdinInput) && !prompt && !options.images?.length) {
+			const { printWarning } = await import("./utils/display")
+			printWarning("Empty input received from stdin. Please provide content to process.")
+			exit(1)
+		}
+		const effectivePrompt = combinePromptWithPipedInput(prompt, stdinInput)
+		const taskOptions = { ...options, stdinWasPiped: stdinInput !== null }
 		const { runTask } = await import("./commands/task")
 		const { resumeTask } = await import("./commands/resume")
 		if (options.taskId) {
-			return resumeTask(options.taskId, { ...options, initialPrompt: prompt })
+			return resumeTask(options.taskId, { ...taskOptions, initialPrompt: effectivePrompt })
 		}
-		return runTask(prompt, options)
+		return runTask(effectivePrompt || "", taskOptions)
 	})
 
 program
 	.command("history")
 	.alias("h")
 	.description("List task history")
-	.option("-n, --limit <number>", "Number of tasks to show", "10")
-	.option("-p, --page <number>", "Page number (1-based)", "1")
+	.option("-n, --limit <number>", "Number of tasks to show", parsePositiveInteger, 10)
+	.option("-p, --page <number>", "Page number (1-based)", parsePositiveInteger, 1)
 	.option("--config <path>", "Path to Dirac configuration directory")
 	.action(async (options) => {
 		const { listHistory } = await import("./commands/history")
@@ -139,19 +156,24 @@ devCommand
 // Interactive mode (default when no command given)
 program
 	.argument("[prompt]", "Task prompt (starts task immediately)")
-	.option("-a, --act", "Run in act mode")
-	.option("-p, --plan", "Run in plan mode")
+	.addOption(new Option("-a, --act", "Run in act mode").conflicts("plan"))
+	.addOption(new Option("-p, --plan", "Run in plan mode").conflicts("act"))
 	.option("-y, --yolo", "Enable yolo mode (auto-approve actions)")
 	.option("--auto-approve-all", "Enable auto-approve all actions while keeping interactive mode")
-	.option("-t, --timeout <seconds>", "Optional timeout in seconds (applies only when provided)")
+	.option("-t, --timeout <seconds>", "Optional timeout in seconds (applies only when provided)", parseTimeoutSeconds)
 	.option("-m, --model <model>", "Model to use for the task")
+	.option("-i, --images <paths...>", "Image file paths to include with the task")
 	.option("--provider <provider>", "API provider to use (requires --model)")
 	.option("-v, --verbose", "Show verbose output")
 	.option("-c, --cwd <path>", "Working directory")
 	.option("--config <path>", "Configuration directory")
-	.option("--thinking [tokens]", "Enable extended thinking (default: 1024 tokens)")
-	.option("--reasoning-effort <effort>", "Reasoning effort: none|low|medium|high|xhigh")
-	.option("--max-consecutive-mistakes <count>", "Maximum consecutive mistakes before halting in yolo mode")
+	.option("--thinking [tokens]", "Enable extended thinking (default: 1024 tokens)", parseThinkingBudget)
+	.option("--reasoning-effort <effort>", "Reasoning effort: none|low|medium|high|xhigh", parseReasoningEffort)
+	.option(
+		"--max-consecutive-mistakes <count>",
+		"Maximum consecutive mistakes before halting in yolo mode",
+		parsePositiveInteger,
+	)
 	.option("--json", "Output messages as JSON instead of styled text")
 	.option("--double-check-completion", "Reject first completion attempt to force re-verification")
 	.option("--auto-condense", "Enable AI-powered context compaction instead of mechanical truncation")
@@ -197,9 +219,9 @@ program
 				thinkingBudgetTokens:
 					options.thinking === undefined
 						? undefined
-						: typeof options.thinking === "string"
-							? Number.parseInt(options.thinking, 10)
-							: 1024,
+						: typeof options.thinking === "boolean"
+							? 1024
+							: Number(options.thinking),
 				reasoningEffort: options.reasoningEffort,
 				hooksDir: options.hooksDir,
 				verbose: options.verbose,
@@ -209,12 +231,12 @@ program
 		}
 
 		// Always check for piped stdin content
-		const { readStdinIfPiped } = await import("./utils/piped")
+		const { combinePromptWithPipedInput, isEmptyPipedInput, readStdinIfPiped } = await import("./utils/piped")
 		const stdinInput = await readStdinIfPiped()
 
 		// Track whether stdin was actually piped (even if empty) vs not piped (null)
 		// stdinInput === null means stdin wasn't piped (TTY or not FIFO/file)
-		// stdinInput === "" means stdin was piped but empty
+		// Empty or whitespace-only input still counts as piped and is classified below.
 		// stdinInput has content means stdin was piped with data
 		const stdinWasPiped = stdinInput !== null
 
@@ -242,21 +264,14 @@ program
 		// - `echo "" | dirac` -> error (empty stdin, no prompt)
 		// - `dirac "prompt"` in GitHub Actions -> OK (empty stdin ignored, has prompt)
 		// - `cat file | dirac "explain"` -> OK (has stdin AND prompt)
-		if (stdinInput === "" && !prompt) {
+		if (isEmptyPipedInput(stdinInput) && !prompt && !options.images?.length) {
 			printWarning("Empty input received from stdin. Please provide content to process.")
 			exit(1)
 		}
 
 		// If no prompt argument, check if input is piped via stdin
-		let effectivePrompt = prompt
+		const effectivePrompt = combinePromptWithPipedInput(prompt, stdinInput)
 		if (stdinInput) {
-			if (effectivePrompt) {
-				// Prepend stdin content to the prompt
-				effectivePrompt = `${stdinInput}\n\n${effectivePrompt}`
-			} else {
-				effectivePrompt = stdinInput
-			}
-
 			// Debug: show that we received piped input
 			if (options.verbose) {
 				process.stderr.write(`[debug] Received ${stdinInput.length} bytes from stdin\n`)
@@ -274,10 +289,10 @@ program
 			return
 		}
 
-		if (effectivePrompt) {
+		if (effectivePrompt || options.images?.length) {
 			const { runTask } = await import("./commands/task")
 			// Pass stdinWasPiped flag so runTask knows to use plain text mode
-			await runTask(effectivePrompt, { ...options, stdinWasPiped })
+			await runTask(effectivePrompt || "", { ...options, stdinWasPiped })
 		} else {
 			const { showWelcome } = await import("./commands/welcome")
 			// Show welcome prompt if no prompt given
@@ -287,5 +302,5 @@ program
 
 // Parse and run
 if (process.env.VITEST !== "true") {
-	program.parse()
+	await program.parseAsync()
 }

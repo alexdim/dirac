@@ -2,14 +2,6 @@ import fs from "node:fs"
 import os from "node:os"
 import path from "node:path"
 
-export function jsonParseSafe<T>(data: string, defaultValue: T): T {
-	try {
-		return JSON.parse(data) as T
-	} catch {
-		return defaultValue
-	}
-}
-
 const IMAGE_EXTENSIONS = new Set([".png", ".jpg", ".jpeg", ".gif", ".webp"])
 
 /**
@@ -31,7 +23,9 @@ function getMimeType(ext: string): string {
 		".gif": "image/gif",
 		".webp": "image/webp",
 	}
-	return mimeTypes[ext.toLowerCase()] || "image/png"
+	const mimeType = mimeTypes[ext.toLowerCase()]
+	if (!mimeType) throw new Error(`Unsupported image extension: ${ext}`)
+	return mimeType
 }
 
 /**
@@ -40,6 +34,7 @@ function getMimeType(ext: string): string {
 export async function imageFileToDataUrl(filePath: string): Promise<string> {
 	const resolvedPath = path.resolve(filePath)
 	const ext = path.extname(resolvedPath).toLowerCase()
+	if (!IMAGE_EXTENSIONS.has(ext)) throw new Error(`Unsupported image type: ${filePath}`)
 	const mimeType = getMimeType(ext)
 
 	const buffer = await fs.promises.readFile(resolvedPath)
@@ -50,7 +45,7 @@ export async function imageFileToDataUrl(filePath: string): Promise<string> {
 
 /**
  * Parse input text and extract image file paths.
- * Supports formats like: "prompt text @/path/to/image.png" or just file paths
+ * Supports workspace mentions like "prompt text @/path/to/image.png" and ordinary file paths.
  * Returns the clean prompt text and array of image paths
  */
 /**
@@ -63,20 +58,6 @@ function expandHome(p: string): string {
 	return p
 }
 
-/**
- * Check if a path exists on disk (handles unescaping and home expansion)
- */
-function fileExists(p: string): boolean {
-	try {
-		const unescaped = unescapePath(p)
-		const expanded = expandHome(unescaped)
-		const resolved = path.resolve(expanded)
-		return fs.existsSync(resolved)
-	} catch {
-		return false
-	}
-}
-
 function unescapePath(p: string): string {
 	if ((p.startsWith('"') && p.endsWith('"')) || (p.startsWith("'") && p.endsWith("'"))) {
 		return p.slice(1, -1)
@@ -85,11 +66,39 @@ function unescapePath(p: string): string {
 	return p.replace(/\\(.)/g, "$1")
 }
 
-export function parseImagesFromInput(input: string): { prompt: string; imagePaths: string[] } {
+interface ImagePathCandidate {
+	attachmentPath: string
+	resolvedPath: string
+}
+
+function resolveImagePathCandidate(
+	pathText: string,
+	baseDirectory: string,
+	isWorkspaceMention: boolean,
+): ImagePathCandidate {
+	const unescapedPath = unescapePath(pathText)
+	const attachmentPath = isWorkspaceMention && unescapedPath.startsWith("/") ? unescapedPath.slice(1) : unescapedPath
+	return {
+		attachmentPath,
+		resolvedPath: path.resolve(baseDirectory, expandHome(attachmentPath)),
+	}
+}
+
+function findExistingImagePath(
+	pathText: string,
+	baseDirectory: string,
+	isWorkspaceMention: boolean,
+): ImagePathCandidate | null {
+	const candidate = resolveImagePathCandidate(pathText, baseDirectory, isWorkspaceMention)
+	return fs.existsSync(candidate.resolvedPath) ? candidate : null
+}
+
+export function parseImagesFromInput(input: string, baseDirectory = process.cwd()): { prompt: string; imagePaths: string[] } {
 	const imagePaths: string[] = []
+	const resolvedImagePaths = new Set<string>()
 
 	// Match @path/to/image.ext patterns (with space or at start)
-	// Supports: @/abs/path, @./rel/path, @path/to/file, @C:\path\to\file, @~/path
+	// Supports: @/workspace/path, @./rel/path, @path/to/file, @C:\path\to\file, @~/path
 	// Also supports quoted paths and escaped spaces
 	const atPathPattern =
 		/@(?:"([^"]+\.(?:png|jpg|jpeg|gif|webp))"|'([^']+\.(?:png|jpg|jpeg|gif|webp))'|((?:[a-zA-Z]:\\|\/|\.\/|\.\.\/|~|[^\s@])(?:[^\s]|\\ )*?\.(?:png|jpg|jpeg|gif|webp)))/gi
@@ -104,35 +113,33 @@ export function parseImagesFromInput(input: string): { prompt: string; imagePath
 	// First pass: find all potential image paths that actually exist
 	while ((match = atPathPattern.exec(input)) !== null) {
 		const p = match[1] || match[2] || match[3]
-		if (p && fileExists(p)) {
-			const unescaped = unescapePath(p)
-			if (!imagePaths.includes(unescaped)) {
-				imagePaths.push(unescaped)
-			}
-		}
+		if (!p) continue
+		const candidate = findExistingImagePath(p, baseDirectory, true)
+		if (!candidate || resolvedImagePaths.has(candidate.resolvedPath)) continue
+		resolvedImagePaths.add(candidate.resolvedPath)
+		imagePaths.push(candidate.attachmentPath)
 	}
 
 	while ((match = standalonePathPattern.exec(input)) !== null) {
 		const p = match[1] || match[2] || match[3]
-		if (p && fileExists(p)) {
-			const unescaped = unescapePath(p)
-			if (!imagePaths.includes(unescaped)) {
-				imagePaths.push(unescaped)
-			}
-		}
+		if (!p) continue
+		const candidate = findExistingImagePath(p, baseDirectory, false)
+		if (!candidate || resolvedImagePaths.has(candidate.resolvedPath)) continue
+		resolvedImagePaths.add(candidate.resolvedPath)
+		imagePaths.push(candidate.attachmentPath)
 	}
 
 	// Second pass: only remove paths from the prompt if they were successfully matched and exist
 	const prompt = input
 		.replace(atPathPattern, (match, p1, p2, p3) => {
 			const p = p1 || p2 || p3
-			return p && fileExists(p) ? " " : match
+			return p && findExistingImagePath(p, baseDirectory, true) ? " " : match
 		})
 		.replace(standalonePathPattern, (match, p1, p2, p3) => {
 			const p = p1 || p2 || p3
 			// For standalone paths, we need to preserve the leading separator if it was part of the match
 			const prefix = match.match(/^[ \t\n\r\f\v]/) ? match[0] : ""
-			return p && fileExists(p) ? prefix + " " : match
+			return p && findExistingImagePath(p, baseDirectory, false) ? prefix + " " : match
 		})
 		.replace(/[ \t]+/g, " ")
 		.trim()
@@ -148,42 +155,46 @@ export function parseImagesFromInput(input: string): { prompt: string; imagePath
 export function parseHeaders(headersString: string): Record<string, string> {
 	const trimmed = headersString.trim()
 	if (trimmed.startsWith("{")) {
-		try {
-			return JSON.parse(trimmed)
-		} catch (error) {
-			// Fall back to comma-separated if JSON parsing fails
+		const parsed: unknown = JSON.parse(trimmed)
+		if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+			throw new Error("Custom headers JSON must be an object")
 		}
+		for (const [key, value] of Object.entries(parsed)) {
+			if (!key.trim() || typeof value !== "string") {
+				throw new Error("Custom header names and values must be strings")
+			}
+		}
+		return parsed as Record<string, string>
 	}
 
 	const headers: Record<string, string> = {}
 	const pairs = trimmed.split(",")
 	for (const pair of pairs) {
 		const [key, ...valueParts] = pair.split("=")
-		if (key && valueParts.length > 0) {
-			headers[key.trim()] = valueParts.join("=").trim()
-		}
+		if (!key?.trim() || valueParts.length === 0) throw new Error(`Invalid custom header: ${pair}`)
+		headers[key.trim()] = valueParts.join("=").trim()
 	}
 	return headers
 }
 
 /**
  * Process image file paths into base64 data URLs
- * Returns only successfully converted images
+ * Rejects invalid or unreadable paths so callers can preserve the user's draft and report the failure.
  */
-export async function processImagePaths(imagePaths: string[]): Promise<string[]> {
+export async function processImagePaths(imagePaths: string[], baseDirectory = process.cwd()): Promise<string[]> {
 	const dataUrls: string[] = []
+	const processedPaths = new Set<string>()
 
 	for (const imagePath of imagePaths) {
-		try {
-			const expandedPath = expandHome(imagePath)
-			const resolvedPath = path.resolve(expandedPath)
-			if (fs.existsSync(resolvedPath) && isImagePath(resolvedPath)) {
-				const dataUrl = await imageFileToDataUrl(resolvedPath)
-				dataUrls.push(dataUrl)
-			}
-		} catch {
-			// Skip files that can't be read
-		}
+		const expandedPath = expandHome(imagePath)
+		const resolvedPath = path.resolve(baseDirectory, expandedPath)
+		if (!fs.existsSync(resolvedPath)) throw new Error(`Image file not found: ${imagePath}`)
+		if (!isImagePath(resolvedPath)) throw new Error(`Unsupported image type: ${imagePath}`)
+		const pathKey = process.platform === "win32" ? resolvedPath.toLowerCase() : resolvedPath
+		if (processedPaths.has(pathKey)) continue
+		processedPaths.add(pathKey)
+		const dataUrl = await imageFileToDataUrl(resolvedPath)
+		dataUrls.push(dataUrl)
 	}
 
 	return dataUrls

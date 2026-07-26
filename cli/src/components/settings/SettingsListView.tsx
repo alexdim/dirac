@@ -1,8 +1,8 @@
+import { theme } from "../../constants/theme"
 import React from "react"
 import { Box, Text } from "ink"
-import { COLORS } from "../../constants/colors"
 import { Checkbox } from "../Checkbox"
-import type { ListItem } from "./types"
+import { SettingsItemType, type ListItem } from "./types"
 
 interface SettingsListViewProps {
 	items: ListItem[]
@@ -15,25 +15,25 @@ export const SettingsListView: React.FC<SettingsListViewProps> = ({ items, selec
 			{items.map((item, idx) => {
 				const isSelected = idx === selectedIndex
 
-				if (item.type === "header") {
+				if (item.type === SettingsItemType.HEADER) {
 					return (
 						<Box key={item.key} marginTop={idx > 0 ? 0 : 0}>
-							<Text bold color="white">
+							<Text bold color={theme.text}>
 								{item.label}
 							</Text>
 						</Box>
 					)
 				}
 
-				if (item.type === "spacer") {
+				if (item.type === SettingsItemType.SPACER) {
 					return <Box key={item.key} marginTop={1} />
 				}
 
-				if (item.type === "separator") {
+				if (item.type === SettingsItemType.SEPARATOR) {
 					return (
 						<Box
 							borderBottom={false}
-							borderColor="gray"
+							borderColor={theme.border}
 							borderDimColor
 							borderLeft={false}
 							borderRight={false}
@@ -45,7 +45,7 @@ export const SettingsListView: React.FC<SettingsListViewProps> = ({ items, selec
 					)
 				}
 
-				if (item.type === "checkbox") {
+				if (item.type === SettingsItemType.CHECKBOX) {
 					return (
 						<Box key={item.key} marginLeft={item.isSubItem ? 2 : 0}>
 							<Checkbox
@@ -59,29 +59,29 @@ export const SettingsListView: React.FC<SettingsListViewProps> = ({ items, selec
 				}
 
 				// Action item (button-like, no value display)
-				if (item.type === "action") {
+				if (item.type === SettingsItemType.ACTION) {
 					return (
 						<Text key={item.key}>
-							<Text bold color={isSelected ? COLORS.primaryBlue : undefined}>
+							<Text bold color={isSelected ? theme.primary : theme.subtle}>
 								{isSelected ? "❯" : " "}{" "}
 							</Text>
-							<Text color={isSelected ? COLORS.primaryBlue : "white"}>{item.label}</Text>
-							{isSelected && <Text color="gray"> (Enter)</Text>}
+							<Text bold={isSelected} color={isSelected ? theme.strongText : theme.text}>{item.label}</Text>
+							{isSelected && <Text color={theme.muted}> (Enter)</Text>}
 						</Text>
 					)
 				}
 
-				if (item.type === "cycle") {
+				if (item.type === SettingsItemType.CYCLE) {
 					return (
 						<Text key={item.key}>
-							<Text bold color={isSelected ? COLORS.primaryBlue : undefined}>
+							<Text bold color={isSelected ? theme.primary : theme.subtle}>
 								{isSelected ? "❯" : " "}{" "}
 							</Text>
-							<Text color={isSelected ? COLORS.primaryBlue : "white"}>{item.label}: </Text>
-							<Text color={COLORS.primaryBlue}>
+							<Text bold={isSelected} color={isSelected ? theme.strongText : theme.text}>{item.label}: </Text>
+							<Text color={theme.primary}>
 								{typeof item.value === "string" ? item.value : String(item.value)}
 							</Text>
-							{isSelected && <Text color="gray"> (Tab to cycle)</Text>}
+							{isSelected && <Text color={theme.muted}> (Tab to cycle)</Text>}
 						</Text>
 					)
 				}
@@ -89,14 +89,18 @@ export const SettingsListView: React.FC<SettingsListViewProps> = ({ items, selec
 				// Readonly or editable field
 				return (
 					<Text key={item.key}>
-						<Text bold color={isSelected ? COLORS.primaryBlue : undefined}>
+						<Text bold color={isSelected ? theme.primary : theme.subtle}>
 							{isSelected ? "❯" : " "}{" "}
 						</Text>
-						{item.label && <Text color={isSelected ? COLORS.primaryBlue : "white"}>{item.label}: </Text>}
-						<Text color={item.type === "readonly" ? "gray" : COLORS.primaryBlue}>
-							{typeof item.value === "string" ? item.value : item.type === "object" ? "{...}" : String(item.value)}
+						{item.label && <Text bold={isSelected} color={isSelected ? theme.strongText : theme.text}>{item.label}: </Text>}
+						<Text color={item.type === SettingsItemType.READONLY ? theme.muted : theme.primary}>
+							{typeof item.value === "string"
+								? item.value
+								: item.type === SettingsItemType.OBJECT
+									? "{...}"
+									: String(item.value)}
 						</Text>
-						{item.type === "editable" && isSelected && <Text color="gray"> (Tab to edit)</Text>}
+						{item.type === SettingsItemType.EDITABLE && isSelected && <Text color={theme.muted}> (Tab to edit)</Text>}
 					</Text>
 				)
 			})}

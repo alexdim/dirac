@@ -9,8 +9,9 @@ import type { DiracMessage, ExtensionState } from "@shared/ExtensionMessage"
 import { originalConsoleError, originalConsoleLog } from "./console"
 
 // ANSI color codes — re-exported from the centralized theme
-import { ansi as colors } from "../constants/theme"
-import { getIcon } from "./icon-mapping"
+import { ansi as colors, ansiForeground, shouldUseAnsiColors } from "../constants/theme"
+import { getIcon, getIconCategoryColor } from "./icon-mapping"
+import { cardBodyForDisplay } from "./card-body"
 
 // Backward-compatible alias so existing code using `colors.xxx` keeps working
 // const colors = ansi  // (already aliased in the import above)
@@ -25,31 +26,52 @@ export function centerText(text: string, terminalWidth?: number): string {
 }
 
 export function colorize(text: string, ...colorCodes: string[]): string {
+	if (!shouldUseAnsiColors(process.stdout.isTTY === true)) return text
 	return colorCodes.join("") + text + colors.reset
 }
 
-// Helper functions for common color combinations
+export function colorizeStderr(text: string, ...colorCodes: string[]): string {
+	if (!shouldUseAnsiColors(process.stderr.isTTY === true)) return text
+	return colorCodes.join("") + text + colors.reset
+}
+
+// Semantic styles shared by formatted stdout and stderr transcripts.
 export const style = {
 	bold: (text: string) => colorize(text, colors.bold),
-	dim: (text: string) => colorize(text, colors.dim),
+	dim: (text: string) => colorize(text, colors.muted),
 	italic: (text: string) => colorize(text, colors.italic),
 
-	error: (text: string) => colorize(text, colors.red, colors.bold),
-	warning: (text: string) => colorize(text, colors.yellow),
-	success: (text: string) => colorize(text, colors.green),
-	info: (text: string) => colorize(text, colors.cyan),
+	error: (text: string) => colorize(text, colors.error, colors.bold),
+	warning: (text: string) => colorize(text, colors.warning),
+	success: (text: string) => colorize(text, colors.success),
+	info: (text: string) => colorize(text, colors.info),
 
 	// Message type colors
-	task: (text: string) => colorize(text, colors.brightWhite, colors.bold),
-	tool: (text: string) => colorize(text, colors.blue),
-	command: (text: string) => colorize(text, colors.magenta),
-	api: (text: string) => colorize(text, colors.brightBlack),
-	user: (text: string) => colorize(text, colors.green),
-	assistant: (text: string) => colorize(text, colors.cyan),
+	task: (text: string) => colorize(text, colors.toolHeader),
+	tool: (text: string, icon?: string) => colorize(text, ansiForeground(getIconCategoryColor(icon))),
+	toolBody: (text: string) => colorize(text, colors.toolBody),
+	metadata: (text: string) => colorize(text, colors.toolMetadata),
+	command: (text: string) => colorize(text, colors.primary),
+	api: (text: string) => colorize(text, colors.toolMetadata),
+	user: (text: string) => colorize(text, colors.success),
+	assistant: (text: string) => colorize(text, colors.transcriptText),
 
 	// Special formatting
-	path: (text: string) => colorize(text, colors.underline, colors.blue),
-	code: (text: string) => colorize(text, colors.bgBlack, colors.brightWhite),
+	path: (text: string) => colorize(text, colors.underline, colors.link),
+	code: (text: string) => colorize(text, colors.codeBackground, colors.codeText),
+}
+
+export const stderrStyle = {
+	dim: (text: string) => colorizeStderr(text, colors.muted),
+	error: (text: string) => colorizeStderr(text, colors.error, colors.bold),
+	warning: (text: string) => colorizeStderr(text, colors.warning),
+	success: (text: string) => colorizeStderr(text, colors.success),
+	info: (text: string) => colorizeStderr(text, colors.info),
+	tool: (text: string, icon?: string) => colorizeStderr(text, ansiForeground(getIconCategoryColor(icon))),
+	toolBody: (text: string) => colorizeStderr(text, colors.toolBody),
+	metadata: (text: string) => colorizeStderr(text, colors.toolMetadata),
+	assistant: (text: string) => colorizeStderr(text, colors.transcriptText),
+	api: (text: string) => colorizeStderr(text, colors.toolMetadata),
 }
 
 /**
@@ -122,7 +144,7 @@ function formatCardMessage(message: DiracMessage, prefix: string, verbose: boole
 	const { card } = message.content
 
 	const lines: string[] = []
-	const headerStyle = card.status === CardStatus.ERROR ? style.error : style.tool
+	const styledHeader = card.status === CardStatus.ERROR ? style.error(card.header) : style.tool(card.header, card.icon)
 	const statusIndicator =
 		card.status === CardStatus.SUCCESS ? style.success("✓ ") : card.status === CardStatus.ERROR ? style.error("✕ ") : ""
 	const elapsed = card.startTime && card.endTime ? ` · ${((card.endTime - card.startTime) / 1000).toFixed(1)}s` : ""
@@ -132,16 +154,18 @@ function formatCardMessage(message: DiracMessage, prefix: string, verbose: boole
 			? ` (${card.status})`
 			: ""
 
-	lines.push(`${prefix} ${statusIndicator}${headerStyle(card.header)}${statusStr}${outcome}${elapsed}`)
+	lines.push(
+		`${prefix} ${statusIndicator}${styledHeader}${style.metadata(`${statusStr}${outcome}${elapsed}`)}`,
+	)
 
 	if (card.body) {
-		const body = card.body.trim()
+		const body = cardBodyForDisplay(card.body, card.renderType).trim()
 		if (body) {
 			const truncated = body.length > 1000 ? body.substring(0, 1000) + "..." : body
 			lines.push(
 				truncated
 					.split("\n")
-					.map((line) => `${" ".repeat(prefix.length + 1)}${style.dim(line)}`)
+					.map((line) => `${" ".repeat(prefix.length + 1)}${style.toolBody(line)}`)
 					.join("\n"),
 			)
 		}
@@ -320,7 +344,7 @@ export function print(message: string) {
  * Uses original console.error to work even when console is suppressed
  */
 export function printError(message: string) {
-	originalConsoleError(style.error(message))
+	originalConsoleError(stderrStyle.error(message))
 }
 
 /**
@@ -341,7 +365,7 @@ export function printInfo(message: string) {
  * Print a warning message
  */
 export function printWarning(message: string) {
-	originalConsoleLog(style.warning(message))
+	originalConsoleError(stderrStyle.warning(message))
 }
 
 /**
@@ -375,10 +399,12 @@ export async function promptConfirmation(question: string): Promise<boolean> {
  * Returns { filled, empty } strings to allow different coloring
  */
 export function createContextBar(used: number, total: number, width = 8): { filled: string; empty: string } {
-	const ratio = Math.min(used / total, 1)
+	const safeWidth = Math.max(0, width)
+	if (total <= 0) return { filled: "", empty: "█".repeat(safeWidth) }
+	const ratio = Math.max(0, Math.min(used / total, 1))
 	// Use ceil so any usage > 0 shows at least one bar
-	const filledCount = used > 0 ? Math.max(1, Math.ceil(ratio * width)) : 0
-	const emptyCount = width - filledCount
+	const filledCount = used > 0 ? Math.max(1, Math.ceil(ratio * safeWidth)) : 0
+	const emptyCount = safeWidth - filledCount
 	return { filled: "█".repeat(filledCount), empty: "█".repeat(emptyCount) }
 }
 
@@ -389,7 +415,12 @@ export function createContextBar(used: number, total: number, width = 8): { fill
 export function setTerminalTitle(title: string): void {
 	if (process.stdout.isTTY) {
 		const maxLength = 80
-		const truncated = title.length > maxLength ? title.slice(0, maxLength) + "..." : title
+		const safeTitle = sanitizeTerminalTitle(title)
+		const truncated = safeTitle.length > maxLength ? safeTitle.slice(0, maxLength - 1) + "…" : safeTitle
 		process.stdout.write(`\x1b]0;${truncated}\x07`)
 	}
+}
+
+export function sanitizeTerminalTitle(title: string): string {
+	return title.replace(/[\u0000-\u001f\u007f-\u009f]/g, " ").replace(/\s+/g, " ").trim()
 }

@@ -13,10 +13,10 @@ export async function showWelcome(options: TaskOptions) {
 	const { isAuthConfigured } = await import("../utils/auth")
 	const { StateManager } = await import("@/core/storage/StateManager")
 	const { checkRawModeSupport } = await import("../context/StdinContext")
-	const React = (await import("react")).default
-	const { App } = await import("../components/App")
 
 	const ctx = await initializeCli({ ...options, enableAuth: true })
+	const React = (await import("react")).default
+	const { App } = await import("../components/App")
 
 	// Check if auth is configured
 	const hasAuth = await isAuthConfigured()

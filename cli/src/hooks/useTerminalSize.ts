@@ -1,113 +1,97 @@
-import { useCallback, useEffect, useRef, useState } from "react"
+import { useSyncExternalStore } from "react"
 
-/**
- * Reactive terminal size hook with resize recovery.
- *
- * WHY THIS EXISTS:
- * Ink tracks how many lines it rendered last frame (`previousLineCount` in log-update.js,
- * `lastOutputHeight` in ink.js). On re-render it erases that many lines then writes new
- * output. When the terminal resizes, text wrapping changes so the actual number of lines
- * on screen no longer matches what Ink thinks it rendered. This causes cascading visual
- * artifacts: old content doesn't get fully erased, and new content renders on top of it.
- *
- * We tried several approaches that didn't work:
- * - Writing \x1b[2J\x1b[H before state update: Ink overwrites the clear with its own
- *   stale-count erasure immediately after.
- * - Calling Ink's clear() via prependListener on resize: clear() itself uses the stale
- *   previousLineCount to erase, so it erases the wrong number of lines too.
- * - Patching Ink's resized() to reset lastOutputHeight: The dynamic region renders
- *   cleanly but Static content (already printed to scrollback) is gone and Ink won't
- *   re-render it since it tracks which Static items have been rendered by key.
- *
- * WHAT WORKS (borrowed from Gemini CLI's approach):
- * 1. Debounce resize events (300ms) so we wait until the user stops dragging
- * 2. Clear the visible terminal screen (\x1b[2J\x1b[H)
- * 3. Increment a `resizeKey` used as a React key on the content tree, forcing React
- *    to unmount and remount everything from scratch. This resets Ink's internal tracking
- *    AND re-renders Static content since the components are brand new instances.
- *
- * We only run this full recovery when terminal width changes. Height-only resizes do not
- * affect wrapping in the same way and should not restart the task view.
- *
- * Gemini CLI does the same thing in AppContainer.tsx: debounce 300ms, then
- * stdout.write(ansiEscapes.clearTerminal) + setHistoryRemountKey(prev => prev + 1).
- *
- * USAGE:
- * - `columns`/`rows`: Current terminal dimensions, updated live during resize
- * - `resizeKey`: Increments after resize settles. Use as a React `key` on the root
- *   content wrapper to force full remount.
- */
-export function useTerminalSize() {
-	const [size, setSize] = useState({
+interface TerminalSizeSnapshot {
+	columns: number
+	rows: number
+	resizeKey: number
+}
+
+const RESIZE_DEBOUNCE_MS = 300
+const CLEAR_TERMINAL = "\x1b[2J\x1b[H"
+
+const subscribers = new Set<() => void>()
+let snapshot: TerminalSizeSnapshot = {
+	columns: process.stdout.columns || 80,
+	rows: process.stdout.rows || 24,
+	resizeKey: 0,
+}
+let previousColumns = snapshot.columns
+let resizeTimeout: ReturnType<typeof setTimeout> | null = null
+let isListening = false
+
+function readTerminalDimensions(): Pick<TerminalSizeSnapshot, "columns" | "rows"> {
+	return {
 		columns: process.stdout.columns || 80,
 		rows: process.stdout.rows || 24,
+	}
+}
+
+function publish(nextSnapshot: TerminalSizeSnapshot): void {
+	snapshot = nextSnapshot
+	for (const subscriber of subscribers) subscriber()
+}
+
+function remountAfterWidthResize(): void {
+	process.stdout.write(CLEAR_TERMINAL, () => {
+		publish({ ...snapshot, resizeKey: snapshot.resizeKey + 1 })
 	})
-	const [resizeKey, setResizeKey] = useState(0)
-	const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-	const previousColumnsRef = useRef(process.stdout.columns || 80)
-	const pendingWidthRefreshRef = useRef(false)
-	const suppressResizeRef = useRef(false)
+}
 
-	const refreshAfterResize = useCallback(() => {
-		suppressResizeRef.current = true
-		// Clear terminal + scrollback to wipe stale content from old width
-		// \x1b[2J clears visible screen, \x1b[H moves cursor home
-		// Use process.stdout directly with callback to ensure clear completes before React re-renders.
-		// Without the callback, the state update can trigger a re-render that interleaves with
-		// the buffered escape sequences, causing visual artifacts in the scrollback.
-		process.stdout.write("\x1b[2J\x1b[H", () => {
-			// Increment key to force React remount only after clear is flushed
-			setResizeKey((prev) => prev + 1)
-			// Suppress resize events for 500ms after full recovery to break
-			// the clear→remount→resize feedback loop
-			setTimeout(() => {
-				suppressResizeRef.current = false
-			}, 500)
-		})
-	}, [])
+function handleResize(): void {
+	const dimensions = readTerminalDimensions()
+	const widthChanged = dimensions.columns !== previousColumns
+	previousColumns = dimensions.columns
 
-	useEffect(() => {
-		function updateSize() {
-			if (suppressResizeRef.current) return
-			const nextColumns = process.stdout.columns || 80
-			const nextRows = process.stdout.rows || 24
-			const didWidthChange = nextColumns !== previousColumnsRef.current
-			previousColumnsRef.current = nextColumns
+	if (dimensions.columns !== snapshot.columns || dimensions.rows !== snapshot.rows) {
+		publish({ ...snapshot, ...dimensions })
+	}
 
-			setSize({
-				columns: nextColumns,
-				rows: nextRows,
-			})
+	if (!widthChanged) return
+	if (resizeTimeout) clearTimeout(resizeTimeout)
+	resizeTimeout = setTimeout(() => {
+		resizeTimeout = null
+		remountAfterWidthResize()
+	}, RESIZE_DEBOUNCE_MS)
+}
 
-			if (didWidthChange) {
-				pendingWidthRefreshRef.current = true
-			}
+function startListening(): void {
+	if (isListening) return
+	const dimensions = readTerminalDimensions()
+	snapshot = { ...snapshot, ...dimensions }
+	previousColumns = dimensions.columns
+	process.stdout.on("resize", handleResize)
+	isListening = true
+}
 
-			if (!pendingWidthRefreshRef.current) {
-				return
-			}
+function stopListening(): void {
+	if (!isListening) return
+	process.stdout.off("resize", handleResize)
+	if (resizeTimeout) {
+		clearTimeout(resizeTimeout)
+		resizeTimeout = null
+	}
+	isListening = false
+}
 
-			// Debounce: wait 300ms after last resize event to do full recovery
-			if (debounceRef.current) {
-				clearTimeout(debounceRef.current)
-			}
-			debounceRef.current = setTimeout(() => {
-				if (pendingWidthRefreshRef.current) {
-					refreshAfterResize()
-					pendingWidthRefreshRef.current = false
-				}
-				debounceRef.current = null
-			}, 300)
-		}
-		process.stdout.on("resize", updateSize)
-		return () => {
-			process.stdout.off("resize", updateSize)
-			if (debounceRef.current) {
-				clearTimeout(debounceRef.current)
-			}
-			pendingWidthRefreshRef.current = false
-		}
-	}, [refreshAfterResize])
+function subscribe(subscriber: () => void): () => void {
+	subscribers.add(subscriber)
+	startListening()
 
-	return { ...size, resizeKey }
+	return () => {
+		subscribers.delete(subscriber)
+		if (subscribers.size === 0) stopListening()
+	}
+}
+
+function getSnapshot(): TerminalSizeSnapshot {
+	return snapshot
+}
+
+/**
+ * Return the shared terminal dimensions and a remount key that advances after
+ * debounced width changes. All consumers share one stdout resize listener and
+ * one terminal-clear/remount cycle.
+ */
+export function useTerminalSize(): TerminalSizeSnapshot {
+	return useSyncExternalStore(subscribe, getSnapshot, getSnapshot)
 }

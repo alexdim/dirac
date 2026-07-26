@@ -1,10 +1,11 @@
+import { theme } from "../constants/theme"
 import BedrockData from "@shared/providers/bedrock.json"
 import { Box, Text, useInput } from "ink"
 import React, { useCallback, useMemo, useState } from "react"
 import { COLORS } from "../constants/colors"
 import { useStdinContext } from "../context/StdinContext"
 import { useScrollableList } from "../hooks/useScrollableList"
-import { isMouseEscapeSequence } from "../utils/input"
+import { shouldIgnoreTerminalInput } from "../utils/input"
 
 type AuthMethod = "profile" | "credentials" | "default"
 
@@ -57,7 +58,7 @@ const CredentialInput: React.FC<{
 
 	useInput(
 		(input, key) => {
-			if (isMouseEscapeSequence(input)) return
+			if (shouldIgnoreTerminalInput(input, key)) return
 			if (key.escape) {
 				onCancel()
 			} else if (key.return) {
@@ -78,15 +79,15 @@ const CredentialInput: React.FC<{
 
 	return (
 		<Box flexDirection="column">
-			<Text color="white">{label}</Text>
-			{description && <Text color="gray">{description}</Text>}
+			<Text color={theme.text}>{label}</Text>
+			{description && <Text color={theme.muted}>{description}</Text>}
 			<Text> </Text>
 			<Box>
-				<Text color="white">{displayValue}</Text>
-				<Text inverse> </Text>
+				<Text color={theme.text}>{displayValue}</Text>
+				<Text backgroundColor={theme.cursorBg} color={theme.cursorText}> </Text>
 			</Box>
 			<Text> </Text>
-			<Text color="gray">Enter to continue, Esc to go back</Text>
+			<Text color={theme.muted}>Enter to continue, Esc to go back</Text>
 		</Box>
 	)
 }
@@ -200,7 +201,7 @@ export const BedrockSetup: React.FC<BedrockSetupProps> = ({ isActive, onComplete
 	// Handle input for auth_method, region, and options steps
 	useInput(
 		(input, key) => {
-			if (isMouseEscapeSequence(input)) return
+			if (shouldIgnoreTerminalInput(input, key)) return
 
 			if (step === "auth_method") {
 				if (key.escape) {
@@ -251,7 +252,7 @@ export const BedrockSetup: React.FC<BedrockSetupProps> = ({ isActive, onComplete
 	if (step === "auth_method") {
 		return (
 			<Box flexDirection="column">
-				<Text color="white">Authentication method</Text>
+				<Text color={theme.text}>Authentication method</Text>
 				<Text> </Text>
 				{AUTH_METHODS.map((method, i) => (
 					<Box flexDirection="column" key={method.value} marginBottom={i < AUTH_METHODS.length - 1 ? 1 : 0}>
@@ -260,12 +261,12 @@ export const BedrockSetup: React.FC<BedrockSetupProps> = ({ isActive, onComplete
 							{method.label}
 						</Text>
 						<Box paddingLeft={2}>
-							<Text color="gray">{method.description}</Text>
+							<Text color={theme.muted}>{method.description}</Text>
 						</Box>
 					</Box>
 				))}
 				<Text> </Text>
-				<Text color="gray">Arrows to navigate, Enter to select, Esc to go back</Text>
+				<Text color={theme.muted}>Arrows to navigate, Enter to select, Esc to go back</Text>
 			</Box>
 		)
 	}
@@ -338,15 +339,15 @@ export const BedrockSetup: React.FC<BedrockSetupProps> = ({ isActive, onComplete
 	if (step === "region") {
 		return (
 			<Box flexDirection="column">
-				<Text color="white">AWS Region</Text>
+				<Text color={theme.text}>AWS Region</Text>
 				<Text> </Text>
 				<Box>
-					<Text color="gray">Search or enter custom region: </Text>
-					<Text color="white">{regionSearch}</Text>
-					<Text inverse> </Text>
+					<Text color={theme.muted}>Search or enter custom region: </Text>
+					<Text color={theme.text}>{regionSearch}</Text>
+					<Text backgroundColor={theme.cursorBg} color={theme.cursorText}> </Text>
 				</Box>
 				<Text> </Text>
-				{showRegionTop && <Text color="gray">... {regionVisibleStart} more above</Text>}
+				{showRegionTop && <Text color={theme.muted}>... {regionVisibleStart} more above</Text>}
 				{visibleRegions.map((region, i) => {
 					const actualIndex = regionVisibleStart + i
 					return (
@@ -359,10 +360,10 @@ export const BedrockSetup: React.FC<BedrockSetupProps> = ({ isActive, onComplete
 					)
 				})}
 				{showRegionBottom && (
-					<Text color="gray">... {filteredRegions.length - regionVisibleStart - regionVisibleCount} more below</Text>
+					<Text color={theme.muted}>... {filteredRegions.length - regionVisibleStart - regionVisibleCount} more below</Text>
 				)}
 				<Text> </Text>
-				<Text color="gray">Type to search, arrows to navigate, Enter to select, Esc to go back</Text>
+				<Text color={theme.muted}>Type to search, arrows to navigate, Enter to select, Esc to go back</Text>
 			</Box>
 		)
 	}
@@ -370,7 +371,7 @@ export const BedrockSetup: React.FC<BedrockSetupProps> = ({ isActive, onComplete
 	if (step === "options") {
 		return (
 			<Box flexDirection="column">
-				<Text color="white">Options</Text>
+				<Text color={theme.text}>Options</Text>
 				<Text> </Text>
 				<Text color={optionIndex === 0 ? COLORS.primaryBlue : undefined}>
 					{optionIndex === 0 ? "❯ " : "  "}
@@ -382,7 +383,7 @@ export const BedrockSetup: React.FC<BedrockSetupProps> = ({ isActive, onComplete
 					Done
 				</Text>
 				<Text> </Text>
-				<Text color="gray">Arrows to navigate, Enter to select, Esc to go back</Text>
+				<Text color={theme.muted}>Arrows to navigate, Enter to select, Esc to go back</Text>
 			</Box>
 		)
 	}

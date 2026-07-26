@@ -52,10 +52,12 @@ vi.mock("@shared/services/Session", () => ({
 	},
 }))
 
+const stableTaskController = {}
+const stableClearState = vi.fn()
 vi.mock("../context/TaskContext", () => ({
 	useTaskContext: () => ({
-		controller: {},
-		clearState: vi.fn(),
+		controller: stableTaskController,
+		clearState: stableClearState,
 	}),
 	useTaskState: () => ({
 		diracMessages: [],
@@ -132,8 +134,7 @@ describe("Quit Command (/q and /exit)", () => {
 		// Simulate pressing Enter to confirm the slash menu selection.
 		selectTopSlashCommand()
 
-		// handleExit has a 150ms timeout before calling app.exit()
-		await delay(200)
+		await delay()
 
 		expect(mockExit).toHaveBeenCalled()
 		expect(mockOnExit).toHaveBeenCalled()
@@ -150,8 +151,7 @@ describe("Quit Command (/q and /exit)", () => {
 		// Simulate pressing Enter to confirm the /exit slash menu selection.
 		selectTopSlashCommand()
 
-		// handleExit has a 150ms timeout before calling app.exit()
-		await delay(200)
+		await delay()
 
 		expect(mockExit).toHaveBeenCalled()
 		expect(mockOnExit).toHaveBeenCalled()

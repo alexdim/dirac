@@ -1,48 +1,48 @@
 const DEFAULT_COLUMNS = 80
 
-export function estimateVisualLineCount(text: string, columns = DEFAULT_COLUMNS): number {
+function splitIntoVisualRows(text: string, columns: number): string[] {
 	const width = Math.max(1, columns)
-	const lines = text.split("\n")
-	return lines.reduce((total, line) => total + Math.max(1, Math.ceil(line.length / width)), 0)
+	return text.split("\n").flatMap((line) => {
+		if (line.length === 0) return [""]
+		const rows: string[] = []
+		for (let offset = 0; offset < line.length; offset += width) {
+			rows.push(line.slice(offset, offset + width))
+		}
+		return rows
+	})
+}
+
+function truncateRow(text: string, width: number): string {
+	if (width <= 0) return ""
+	if (text.length <= width) return text
+	if (width === 1) return "…"
+	return `${text.slice(0, width - 1)}…`
+}
+
+function prependClippingMarker(rows: string[], marker: string, width: number, lineBudget: number): string[] {
+	if (!marker) return rows.slice(-lineBudget)
+	if (lineBudget === 1) {
+		const latest = rows.at(-1) ?? ""
+		return [truncateRow(`…${latest.slice(-(Math.max(1, width - 1)))}`, width)]
+	}
+	return [truncateRow(marker, width), ...rows.slice(-(lineBudget - 1))]
+}
+
+export function estimateVisualLineCount(text: string, columns = DEFAULT_COLUMNS): number {
+	return splitIntoVisualRows(text, columns).length
 }
 
 export function clipTextToLastVisualLines(
 	text: string,
 	maxLines: number,
 	columns = DEFAULT_COLUMNS,
-	marker = "… earlier output clipped …",
+	marker = "… earlier live output clipped …",
 ): string {
 	const lineBudget = Math.max(1, maxLines)
 	const width = Math.max(1, columns)
-	const lines = text.split("\n")
-	const kept: string[] = []
-	let usedLines = 0
-	let clipped = false
-
-	for (let index = lines.length - 1; index >= 0; index--) {
-		const line = lines[index]
-		const visualLines = Math.max(1, Math.ceil(line.length / width))
-		if (usedLines + visualLines <= lineBudget) {
-			kept.unshift(line)
-			usedLines += visualLines
-			continue
-		}
-
-		const remainingLines = lineBudget - usedLines
-		if (remainingLines > 0) {
-			kept.unshift(line.slice(-remainingLines * width))
-			usedLines = lineBudget
-		}
-		clipped = true
-		break
-	}
-
-	const result = kept.join("\n")
-	if (!clipped && lines.length === kept.length) {
-		return result
-	}
-
-	return `${marker}\n${result}`
+	const rows = splitIntoVisualRows(text, width)
+	if (rows.length <= lineBudget) return text
+	return prependClippingMarker(rows, marker, width, lineBudget).join("\n")
 }
 
 export function summarizeFirstLine(text: string, maxLength = 100): string {
@@ -60,70 +60,48 @@ export function summarizeFirstLine(text: string, maxLength = 100): string {
 		.replace(/^>\s+/, "")
 
 	if (plain.length <= maxLength) return plain
-	return `${plain.slice(0, maxLength - 1)}…`
+	return `${plain.slice(0, Math.max(0, maxLength - 1))}…`
 }
 
 /**
- * Clip text to a window of maxLines visual lines, offset from the bottom.
- *
- * scrollFromBottom = 0 → equivalent to clipTextToLastVisualLines (last N lines)
- * scrollFromBottom = K → window shifted K visual lines up from the bottom
+ * Clip text to a visual-row window offset from the bottom. Long logical lines
+ * are sliced as well as counted, so the returned text cannot exceed maxLines.
  */
 export function clipTextToWindow(
 	text: string,
 	maxLines: number,
 	columns = DEFAULT_COLUMNS,
 	scrollFromBottom = 0,
-	marker = "… earlier output clipped …",
+	marker = "… earlier live output clipped …",
 ): { visibleText: string; hasMoreAbove: boolean; hasMoreBelow: boolean } {
 	const lineBudget = Math.max(1, maxLines)
 	const width = Math.max(1, columns)
-	const lines = text.split("\n")
-
-	// Compute cumulative visual line count for each logical line
-	const cumulativeVisual: number[] = []
-	let total = 0
-	for (const line of lines) {
-		total += Math.max(1, Math.ceil(line.length / width))
-		cumulativeVisual.push(total)
-	}
-	const totalVisualLines = total
-
-	if (totalVisualLines <= lineBudget) {
+	const rows = splitIntoVisualRows(text, width)
+	if (rows.length <= lineBudget) {
 		return { visibleText: text, hasMoreAbove: false, hasMoreBelow: false }
 	}
 
-	const maxScroll = totalVisualLines - lineBudget
+	const maxScroll = rows.length - lineBudget
 	const clampedScroll = Math.min(Math.max(0, scrollFromBottom), maxScroll)
+	const windowEnd = rows.length - clampedScroll
+	const hasMoreBelow = windowEnd < rows.length
+	let contentBudget = lineBudget
+	let windowStart = Math.max(0, windowEnd - contentBudget)
+	const hasMoreAbove = windowStart > 0
 
-	// Window in visual line coordinates (0-indexed from top)
-	const windowEndVisual = totalVisualLines - clampedScroll
-	const windowStartVisual = windowEndVisual - lineBudget
-
-	// Map visual coordinates back to logical line indices
-	let startLineIdx = 0
-	for (let i = 0; i < cumulativeVisual.length; i++) {
-		if (cumulativeVisual[i] > windowStartVisual) {
-			startLineIdx = i
-			break
-		}
-	}
-	let endLineIdx = lines.length - 1
-	for (let i = startLineIdx; i < cumulativeVisual.length; i++) {
-		endLineIdx = i
-		if (cumulativeVisual[i] >= windowEndVisual) break
+	if (hasMoreAbove && marker && lineBudget > 1) {
+		contentBudget -= 1
+		windowStart = Math.max(0, windowEnd - contentBudget)
 	}
 
-	const visibleLines = lines.slice(startLineIdx, endLineIdx + 1)
-	const visibleText = visibleLines.join("\n")
-
-	const hasMoreAbove = clampedScroll < maxScroll
-	const hasMoreBelow = clampedScroll > 0
-
-	let result = visibleText
-	if (startLineIdx > 0) {
-		result = `${marker}\n${result}`
+	let visibleRows = rows.slice(windowStart, windowEnd)
+	if (hasMoreAbove) {
+		visibleRows = prependClippingMarker(visibleRows, marker, width, lineBudget)
 	}
 
-	return { visibleText: result, hasMoreAbove, hasMoreBelow }
+	return {
+		visibleText: visibleRows.join("\n"),
+		hasMoreAbove,
+		hasMoreBelow,
+	}
 }

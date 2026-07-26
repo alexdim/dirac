@@ -1,10 +1,10 @@
+import { theme } from "../constants/theme"
 /**
  * Reusable Checkbox component for settings panels
  */
 
 import { Box, Text } from "ink"
 import React from "react"
-import { COLORS } from "../constants/colors"
 
 interface CheckboxProps {
 	/** Label displayed next to the checkbox */
@@ -21,16 +21,16 @@ export const Checkbox: React.FC<CheckboxProps> = ({ label, checked, isSelected =
 	return (
 		<Box flexDirection="column">
 			<Text>
-				<Text bold color={isSelected ? COLORS.primaryBlue : undefined}>
+				<Text bold color={isSelected ? theme.primary : theme.subtle}>
 					{isSelected ? "❯" : " "}{" "}
 				</Text>
-				<Text color={isSelected || checked ? COLORS.primaryBlue : "gray"}>{checked ? "[✓]" : "[ ]"}</Text>
-				<Text color={isSelected ? COLORS.primaryBlue : "white"}> {label}</Text>
-				{isSelected && <Text color="gray"> (Space to toggle)</Text>}
+				<Text color={checked ? theme.success : theme.muted}>{checked ? "[✓]" : "[ ]"}</Text>
+				<Text bold={isSelected} color={isSelected ? theme.strongText : theme.text}> {label}</Text>
+				{isSelected && <Text color={theme.muted}> (Space to toggle)</Text>}
 			</Text>
 			{description && (
 				<Box marginLeft={6}>
-					<Text color="gray">{description}</Text>
+					<Text color={theme.muted}>{description}</Text>
 				</Box>
 			)}
 		</Box>

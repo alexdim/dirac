@@ -1,6 +1,8 @@
+import { theme } from "../constants/theme"
 import React, { useMemo } from "react"
 import { Box, Text } from "ink"
 import { HighlightedInput } from "./HighlightedInput"
+import { createInputViewport } from "../utils/input-viewport"
 
 interface ChatInputBarProps {
 	borderColor: string
@@ -26,54 +28,16 @@ export const ChatInputBar: React.FC<ChatInputBarProps> = ({
 	const MAX_INPUT_LINES = 10
 	const BORDER_OVERHEAD = 4 // border chars + padding
 
-	const maxInputHeight = MAX_INPUT_LINES
+	const maxInputHeight = Math.max(1, Math.min(MAX_INPUT_LINES, Math.floor((terminalRows ?? 24) / 2) - 2))
 
-	const contentWidth = (terminalColumns ?? 80) - BORDER_OVERHEAD
+	const contentWidth = Math.max(1, (terminalColumns ?? 80) - BORDER_OVERHEAD)
 
 	/**
 	 * Front-clip text so its wrapped visual line count fits within maxInputHeight.
 	 * Returns the clipped text and how many characters were removed from the front.
 	 */
-	const { clippedText, adjustedCursorPos } = useMemo(() => {
-		if (!textInput) return { clippedText: "", adjustedCursorPos: 0 }
-
-		// Split by explicit newlines and count visual (wrapped) lines
-		const logicalLines = textInput.split("\n")
-		let totalVisualLines = 0
-		for (const line of logicalLines) {
-			totalVisualLines += Math.max(1, Math.ceil(line.length / Math.max(1, contentWidth)))
-		}
-
-		if (totalVisualLines <= maxInputHeight) {
-			return { clippedText: textInput, adjustedCursorPos: cursorPos }
-		}
-
-		// Walk backwards from the end, accumulating visual lines until we fill maxInputHeight
-		let linesFromEnd = 0
-		let charIndex = textInput.length
-		for (let i = logicalLines.length - 1; i >= 0; i--) {
-			const line = logicalLines[i]
-			const lineVisual = Math.max(1, Math.ceil(line.length / Math.max(1, contentWidth)))
-			if (linesFromEnd + lineVisual > maxInputHeight) {
-				// Partial line: take the tail that fits
-				const remainingVisualLines = maxInputHeight - linesFromEnd
-				const charsThatFit = remainingVisualLines * contentWidth
-				charIndex -= charsThatFit
-				linesFromEnd = maxInputHeight
-				break
-			}
-			linesFromEnd += lineVisual
-			charIndex -= line.length
-			if (i > 0) charIndex -= 1 // account for the \n separator
-		}
-
-		charIndex = Math.max(0, charIndex)
-		const prefix = "..."
-		const visible = textInput.slice(charIndex)
-		const clipped = prefix + visible
-		const adjusted = Math.max(0, cursorPos - charIndex + prefix.length)
-
-		return { clippedText: clipped, adjustedCursorPos: adjusted }
+	const viewport = useMemo(() => {
+		return createInputViewport(textInput, cursorPos, contentWidth, maxInputHeight)
 	}, [textInput, cursorPos, contentWidth, maxInputHeight])
 	if (!show) return null
 
@@ -90,12 +54,26 @@ export const ChatInputBar: React.FC<ChatInputBarProps> = ({
 				overflow="hidden"
 				width="100%">
 				<Box>
+					{viewport.hasHiddenBefore && (
+						<Text color={theme.muted} dimColor>
+							↑ 
+						</Text>
+					)}
 					{inputPrompt && (
 						<Text color={borderColor} bold>
 							{inputPrompt}{" "}
 						</Text>
 					)}
-					<HighlightedInput availableCommands={availableCommands} cursorPos={adjustedCursorPos} text={clippedText} />
+					<HighlightedInput
+						availableCommands={availableCommands}
+						cursorPos={viewport.cursorPosition}
+						text={viewport.text}
+					/>
+					{viewport.hasHiddenAfter && (
+						<Text color={theme.muted} dimColor>
+							 ↓
+						</Text>
+					)}
 				</Box>
 			</Box>
 		</Box>

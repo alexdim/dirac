@@ -1,62 +1,15 @@
+import { theme } from "../constants/theme"
 /**
  * Action buttons component for CLI
  * Shows primary/secondary buttons above the input field
  * Supports keyboard navigation (1/2 for buttons, arrows to navigate, esc to cancel)
  */
 
-import { type UIActionState } from "@shared/ExtensionMessage"
-import { DiracAskResponse } from "@shared/WebviewMessage"
+import type { UIActionState } from "@shared/ExtensionMessage"
 import { Box, Text } from "ink"
 import React from "react"
-import { COLORS } from "../constants/colors"
 import { useTerminalSize } from "../hooks/useTerminalSize"
 import { getVisibleGlobalActionButtons } from "../utils/action-buttons"
-
-/**
- * Button action types that determine the behavior
- */
-export type ButtonActionType =
-	| DiracAskResponse.APPROVE // Send approve response
-	| DiracAskResponse.REJECT // Send reject response
-	| "proceed" // Send approve response
-	| "new_task" // Start a new task
-	| "cancel" // Cancel streaming
-	| "retry" // Retry the last action
-
-/**
- * Button configuration for different message states
- */
-export interface ButtonConfig {
-	sendingDisabled: boolean
-	enableButtons: boolean
-	primaryText?: string
-	secondaryText?: string
-	primaryAction?: ButtonActionType
-	secondaryAction?: ButtonActionType
-}
-
-/**
- * Centralized button state configurations based on task lifecycle
- */
-
-const errorTypes = ["api_req_failed", "mistake_limit_reached"]
-
-interface ActionButtonsProps {
-	isProcessing?: boolean
-	config: ButtonConfig
-	mode?: "act" | "plan"
-}
-
-/**
- * Determine which buttons are actually visible based on config
- * Cancel is hidden in the CLI (ThinkingIndicator handles that with esc)
- */
-export function getVisibleButtons(config: ButtonConfig) {
-	const hiddenActions = ["cancel"]
-	const hasPrimary = !!config.primaryText && !hiddenActions.includes(config.primaryAction || "")
-	const hasSecondary = !!config.secondaryText && !hiddenActions.includes(config.secondaryAction || "")
-	return { hasPrimary, hasSecondary }
-}
 
 export const ActionButtons: React.FC<{
 	uiActionState: UIActionState
@@ -73,31 +26,62 @@ export const ActionButtons: React.FC<{
 	}
 
 	const buttonCount = buttons.length
-	const gapWidth = buttonCount > 1 ? 1 : 0
-	const availableWidth = terminalWidth - 2 - gapWidth
-	const buttonWidth = Math.floor(availableWidth / buttonCount)
+	const stackButtons = terminalWidth < Math.max(24, buttonCount * 10)
+	const totalGapWidth = stackButtons ? 0 : Math.max(0, buttonCount - 1)
+	const availableWidth = Math.max(1, terminalWidth - (terminalWidth > 2 ? 2 : 0) - totalGapWidth)
+	const buttonWidth = stackButtons ? availableWidth : Math.max(1, Math.floor(availableWidth / buttonCount))
 
-	const buttonColor = isProcessing ? "gray" : mode === "plan" ? "yellow" : COLORS.primaryBlue
+	const modeButtonBg = mode === "plan" ? theme.buttonPlanBg : theme.buttonPrimaryBg
 
-	const renderButton = (text: string, shortcut: string, style?: string) => {
-		const label = ` ${text} (${shortcut}) `
+	const renderButton = (text: string, shortcut: string, style: string | undefined, key: string) => {
+		const fullLabel = ` ${text} (${shortcut}) `
+		const shortcutLabel = `[${shortcut}]`
+		const label =
+			fullLabel.length <= buttonWidth
+				? fullLabel
+				: buttonWidth <= shortcutLabel.length
+					? shortcutLabel.slice(0, buttonWidth)
+					: ` ${text.slice(0, Math.max(0, buttonWidth - shortcutLabel.length - 3))}…${shortcutLabel}`.slice(0, buttonWidth)
 		const padding = Math.max(0, buttonWidth - label.length)
 		const leftPad = Math.floor(padding / 2)
 		const rightPad = padding - leftPad
 		const paddedLabel = " ".repeat(leftPad) + label + " ".repeat(rightPad)
 
-		const bgColor = style === "danger" ? "red" : style === "secondary" ? "gray" : buttonColor
+		const bgColor = isProcessing
+			? theme.buttonSecondaryBg
+			: style === "danger"
+				? theme.buttonDangerBg
+				: style === "secondary"
+					? theme.buttonSecondaryBg
+					: modeButtonBg
+		const textColor = style === "danger"
+			? theme.buttonDangerText
+			: style === "secondary" || isProcessing
+				? theme.buttonSecondaryText
+				: theme.buttonPrimaryText
 
 		return (
-			<Text backgroundColor={bgColor} color="black">
+			<Text backgroundColor={bgColor} color={textColor} key={key}>
 				{paddedLabel}
 			</Text>
 		)
 	}
 
 	return (
-		<Box flexDirection="row" gap={1} marginLeft={1} width="100%" marginBottom={1}>
-			{buttons.map((button, index) => renderButton(button.label, String(index + 1), button.style))}
+		<Box
+			flexDirection={stackButtons ? "column" : "row"}
+			gap={stackButtons ? 0 : 1}
+			marginLeft={terminalWidth > 2 ? 1 : 0}
+			width="100%"
+			marginBottom={1}>
+			{buttons.map((button, index) =>
+				renderButton(
+					button.label,
+					String(index + 1),
+					button.style,
+					`${button.action}-${button.value ?? index}`,
+				),
+			)}
 		</Box>
 	)
 }

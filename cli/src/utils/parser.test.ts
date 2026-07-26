@@ -1,37 +1,14 @@
 import fs from "node:fs"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
-import { imageFileToDataUrl, isImagePath, jsonParseSafe, parseImagesFromInput, processImagePaths } from "./parser"
+import {
+	imageFileToDataUrl,
+	isImagePath,
+	parseHeaders,
+	parseImagesFromInput,
+	processImagePaths,
+} from "./parser"
 
 describe("parser", () => {
-	describe("jsonParseSafe", () => {
-		it("should parse valid JSON", () => {
-			const result = jsonParseSafe('{"key": "value"}', {})
-			expect(result).toEqual({ key: "value" })
-		})
-
-		it("should return default value for invalid JSON", () => {
-			const defaultValue = { fallback: true }
-			const result = jsonParseSafe("not valid json", defaultValue)
-			expect(result).toEqual(defaultValue)
-		})
-
-		it("should parse arrays", () => {
-			const result = jsonParseSafe("[1, 2, 3]", [])
-			expect(result).toEqual([1, 2, 3])
-		})
-
-		it("should handle empty string", () => {
-			const result = jsonParseSafe("", "default")
-			expect(result).toBe("default")
-		})
-
-		it("should parse nested objects", () => {
-			const json = '{"outer": {"inner": "value"}}'
-			const result = jsonParseSafe(json, {})
-			expect(result).toEqual({ outer: { inner: "value" } })
-		})
-	})
-
 	describe("isImagePath", () => {
 		it("should return true for .png files", () => {
 			expect(isImagePath("/path/to/image.png")).toBe(true)
@@ -69,6 +46,25 @@ describe("parser", () => {
 		})
 	})
 
+	describe("parseHeaders", () => {
+		it("parses JSON and comma-separated headers", () => {
+			expect(parseHeaders('{"Authorization":"Bearer token"}')).toEqual({ Authorization: "Bearer token" })
+			expect(parseHeaders("X-One=one,Authorization=Bearer token=extra")).toEqual({
+				"X-One": "one",
+				Authorization: "Bearer token=extra",
+			})
+		})
+
+		it("rejects malformed JSON and malformed pairs", () => {
+			expect(() => parseHeaders('{"broken"')).toThrow()
+			expect(() => parseHeaders("missing-value")).toThrow("Invalid custom header")
+		})
+
+		it("rejects non-string JSON values", () => {
+			expect(() => parseHeaders('{"X-Retries":3}')).toThrow("must be strings")
+		})
+	})
+
 	describe("parseImagesFromInput", () => {
 		beforeEach(() => {
 			vi.spyOn(fs, "existsSync").mockReturnValue(true)
@@ -81,15 +77,23 @@ describe("parser", () => {
 		it("should extract image paths with @ prefix", () => {
 			const input = "analyze this image @/path/to/image.png"
 			const result = parseImagesFromInput(input)
-			expect(result.imagePaths).toContain("/path/to/image.png")
+			expect(result.imagePaths).toContain("path/to/image.png")
 			expect(result.prompt).toBe("analyze this image")
+		})
+
+		it("should resolve slash-prefixed mentions from the workspace", () => {
+			const input = "analyze @/images/image.png"
+			const result = parseImagesFromInput(input, "/workspace")
+
+			expect(fs.existsSync).toHaveBeenCalledWith("/workspace/images/image.png")
+			expect(result.imagePaths).toEqual(["images/image.png"])
 		})
 
 		it("should extract multiple images", () => {
 			const input = "compare @/img1.png and @/img2.jpg"
 			const result = parseImagesFromInput(input)
-			expect(result.imagePaths).toContain("/img1.png")
-			expect(result.imagePaths).toContain("/img2.jpg")
+			expect(result.imagePaths).toContain("img1.png")
+			expect(result.imagePaths).toContain("img2.jpg")
 		})
 
 		it("should handle standalone image paths", () => {
@@ -108,7 +112,7 @@ describe("parser", () => {
 		it("should handle image at start of input", () => {
 			const input = "@/start.png is the image"
 			const result = parseImagesFromInput(input)
-			expect(result.imagePaths).toContain("/start.png")
+			expect(result.imagePaths).toContain("start.png")
 		})
 
 		it("should handle all supported image extensions", () => {
@@ -118,10 +122,9 @@ describe("parser", () => {
 		})
 
 		it("should not duplicate image paths", () => {
-			const input = "@/same.png /same.png"
+			const input = "@/same.png @\"/same.png\""
 			const result = parseImagesFromInput(input)
-			// Both patterns match the same path, should not duplicate
-			expect(result.imagePaths.filter((p) => p === "/same.png").length).toBeLessThanOrEqual(2)
+			expect(result.imagePaths).toEqual(["same.png"])
 		})
 
 		it("should clean up extra whitespace in prompt", () => {
@@ -148,7 +151,7 @@ describe("parser", () => {
 		it("should handle quoted paths with spaces and narrow non-breaking spaces", () => {
 			const input = 'analyze @"/path with spaces/Screenshot\u202fPM.png"'
 			const result = parseImagesFromInput(input)
-			expect(result.imagePaths).toContain("/path with spaces/Screenshot\u202fPM.png")
+			expect(result.imagePaths).toContain("path with spaces/Screenshot\u202fPM.png")
 			expect(result.prompt).toBe("analyze")
 		})
 
@@ -256,20 +259,16 @@ describe("parser", () => {
 			expect(result[0]).toMatch(/^data:image\/png;base64,/)
 		})
 
-		it("should skip non-existent files", async () => {
+		it("should reject non-existent files", async () => {
 			vi.mocked(fs.existsSync).mockReturnValue(false)
 
-			const result = await processImagePaths(["/nonexistent/image.png"])
-
-			expect(result).toHaveLength(0)
+			await expect(processImagePaths(["/nonexistent/image.png"])).rejects.toThrow("Image file not found")
 		})
 
-		it("should skip non-image files", async () => {
+		it("should reject non-image files", async () => {
 			vi.mocked(fs.existsSync).mockReturnValue(true)
 
-			const result = await processImagePaths(["/path/to/file.txt"])
-
-			expect(result).toHaveLength(0)
+			await expect(processImagePaths(["/path/to/file.txt"])).rejects.toThrow("Unsupported image type")
 		})
 
 		it("should process multiple images", async () => {
@@ -281,13 +280,21 @@ describe("parser", () => {
 			expect(result).toHaveLength(3)
 		})
 
-		it("should handle read errors gracefully", async () => {
+		it("should process the same resolved image only once", async () => {
+			vi.mocked(fs.existsSync).mockReturnValue(true)
+			vi.mocked(fs.promises.readFile).mockResolvedValue(Buffer.from("image data"))
+
+			const result = await processImagePaths(["images/a.png", "./images/a.png"], "/workspace")
+
+			expect(result).toHaveLength(1)
+			expect(fs.promises.readFile).toHaveBeenCalledTimes(1)
+		})
+
+		it("should report read errors", async () => {
 			vi.mocked(fs.existsSync).mockReturnValue(true)
 			vi.mocked(fs.promises.readFile).mockRejectedValue(new Error("Read error"))
 
-			const result = await processImagePaths(["/path/to/image.png"])
-
-			expect(result).toHaveLength(0)
+			await expect(processImagePaths(["/path/to/image.png"])).rejects.toThrow("Read error")
 		})
 
 		it("should handle empty input", async () => {

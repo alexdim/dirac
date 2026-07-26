@@ -50,3 +50,7 @@ export function isMouseEscapeSequence(input: string): boolean {
 	// They contain [< followed by numbers, semicolons, and end with M or m
 	return input.includes("[<") && /\[<\d+;\d+;\d+[Mm]/.test(input)
 }
+
+export function shouldIgnoreTerminalInput(input: string, key: any): boolean {
+	return isMouseEscapeSequence(input) || isTerminalResponseSequence(input, key)
+}

@@ -22,18 +22,19 @@ export async function listHistory(options: { config?: string; limit?: number; pa
 	const { telemetryService } = await import("@/services/telemetry")
 	const { printInfo } = await import("../utils/display")
 	const { checkRawModeSupport } = await import("../context/StdinContext")
+
+	const ctx = await initializeCli(options)
 	const React = (await import("react")).default
 	const { App } = await import("../components/App")
 
-	const ctx = await initializeCli(options)
-
 	const taskHistory = StateManager.get().getGlobalStateKey("taskHistory") || []
 	// Sort by timestamp (newest first) before pagination
-	const sortedHistory = [...taskHistory].sort((a: any, b: any) => (b.ts || 0) - (a.ts || 0))
-	const limit = typeof options.limit === "string" ? Number.parseInt(options.limit, 10) : options.limit || 10
-	const initialPage = typeof options.page === "string" ? Number.parseInt(options.page, 10) : options.page || 1
+	const sortedHistory = [...taskHistory].sort((a: HistoryItem, b: HistoryItem) => (b.ts || 0) - (a.ts || 0))
+	const limit = options.limit || 10
+	const requestedPage = options.page || 1
 	const totalCount = sortedHistory.length
 	const totalPages = Math.ceil(totalCount / limit)
+	const initialPage = Math.min(requestedPage, Math.max(1, totalPages))
 
 	telemetryService.captureHostEvent("history_command", "executed")
 

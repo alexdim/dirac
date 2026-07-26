@@ -1,18 +1,19 @@
+import { theme } from "../constants/theme"
 /**
  * Skills panel content for inline display in ChatView
  * Shows installed skills with toggle and use functionality
  */
 
-import { exec } from "node:child_process"
-import os from "node:os"
 import { Box, Text, useInput } from "ink"
 import React, { useCallback, useEffect, useMemo, useState } from "react"
 import type { Controller } from "@/core/controller"
 import { refreshSkills } from "@/core/controller/file/refreshSkills"
 import { toggleSkill } from "@/core/controller/file/toggleSkill"
+import { Logger } from "@/shared/services/Logger"
+import { openExternal } from "@/utils/env"
 import { COLORS } from "../constants/colors"
 import { useStdinContext } from "../context/StdinContext"
-import { isMouseEscapeSequence } from "../utils/input"
+import { shouldIgnoreTerminalInput } from "../utils/input"
 import { Panel } from "./Panel"
 
 const SKILLS_MARKETPLACE_URL = "https://skills.sh/"
@@ -38,21 +39,31 @@ export const SkillsPanelContent: React.FC<SkillsPanelContentProps> = ({ controll
 	const [localSkills, setLocalSkills] = useState<SkillInfo[]>([])
 	const [selectedIndex, setSelectedIndex] = useState(0)
 	const [isLoading, setIsLoading] = useState(true)
+	const [interactionError, setInteractionError] = useState<string | null>(null)
+	const [pendingSkillPath, setPendingSkillPath] = useState<string | null>(null)
 
 	// Load skills on mount
 	useEffect(() => {
+		let cancelled = false
 		const loadSkills = async () => {
+			setInteractionError(null)
 			try {
 				const skillsData = await refreshSkills(controller)
+				if (cancelled) return
 				setGlobalSkills(skillsData.globalSkills || [])
 				setLocalSkills(skillsData.localSkills || [])
-			} catch (_error) {
-				// Skills loading failed, show empty state
+			} catch (error) {
+				Logger.error("Failed to load skills:", error)
+				if (cancelled) return
+				setInteractionError(error instanceof Error ? error.message : String(error))
 			} finally {
-				setIsLoading(false)
+				if (!cancelled) setIsLoading(false)
 			}
 		}
 		loadSkills()
+		return () => {
+			cancelled = true
+		}
 	}, [controller])
 
 	// Build flat list of skills with source info (global first, then local, alphabetical within each)
@@ -69,7 +80,7 @@ export const SkillsPanelContent: React.FC<SkillsPanelContentProps> = ({ controll
 	// Handle toggle
 	const handleToggle = useCallback(async () => {
 		const entry = skillEntries[selectedIndex]
-		if (!entry) return
+		if (!entry || pendingSkillPath) return
 
 		const newEnabled = !entry.skill.enabled
 		const setter = entry.isGlobal ? setGlobalSkills : setLocalSkills
@@ -77,6 +88,8 @@ export const SkillsPanelContent: React.FC<SkillsPanelContentProps> = ({ controll
 			setter((prev) => prev.map((s) => (s.path === entry.skill.path ? { ...s, enabled } : s)))
 
 		// Optimistic update
+		setInteractionError(null)
+		setPendingSkillPath(entry.skill.path)
 		update(newEnabled)
 
 		try {
@@ -86,11 +99,15 @@ export const SkillsPanelContent: React.FC<SkillsPanelContentProps> = ({ controll
 				isGlobal: entry.isGlobal,
 				enabled: newEnabled,
 			})
-		} catch {
+		} catch (error) {
 			// Revert on failure
 			update(!newEnabled)
+			Logger.error("Failed to toggle skill:", error)
+			setInteractionError(error instanceof Error ? error.message : String(error))
+		} finally {
+			setPendingSkillPath(null)
 		}
-	}, [controller, skillEntries, selectedIndex])
+	}, [controller, pendingSkillPath, skillEntries, selectedIndex])
 
 	// Handle use skill (insert @ mention)
 	const handleUse = useCallback(() => {
@@ -100,31 +117,27 @@ export const SkillsPanelContent: React.FC<SkillsPanelContentProps> = ({ controll
 	}, [skillEntries, selectedIndex, onUseSkill])
 
 	// Handle opening the marketplace URL
-	const openMarketplace = useCallback(() => {
-		const platform = os.platform()
-		let command: string
-		if (platform === "darwin") {
-			command = `open "${SKILLS_MARKETPLACE_URL}"`
-		} else if (platform === "win32") {
-			command = `start "${SKILLS_MARKETPLACE_URL}"`
-		} else {
-			command = `xdg-open "${SKILLS_MARKETPLACE_URL}"`
+	const openMarketplace = useCallback(async () => {
+		setInteractionError(null)
+		try {
+			await openExternal(SKILLS_MARKETPLACE_URL)
+		} catch (error) {
+			Logger.error("Failed to open skills marketplace:", error)
+			setInteractionError(error instanceof Error ? error.message : String(error))
 		}
-		exec(command, (err) => {
-			if (err) {
-				// Fallback: show URL in terminal if browser open fails
-				console.error(`Visit: ${SKILLS_MARKETPLACE_URL}`)
-			}
-		})
 	}, [])
 
 	// Total items = skills + 1 for marketplace link
 	const totalItems = skillEntries.length + 1
 	const isMarketplaceSelected = selectedIndex === skillEntries.length
 
+	useEffect(() => {
+		setSelectedIndex((currentIndex) => Math.min(currentIndex, totalItems - 1))
+	}, [totalItems])
+
 	useInput(
 		(input, key) => {
-			if (isMouseEscapeSequence(input)) {
+			if (shouldIgnoreTerminalInput(input, key)) {
 				return
 			}
 			if (key.escape) {
@@ -145,7 +158,7 @@ export const SkillsPanelContent: React.FC<SkillsPanelContentProps> = ({ controll
 			// Actions
 			if (key.return) {
 				if (isMarketplaceSelected) {
-					openMarketplace()
+					void openMarketplace()
 				} else {
 					handleUse()
 				}
@@ -166,7 +179,7 @@ export const SkillsPanelContent: React.FC<SkillsPanelContentProps> = ({ controll
 	if (isLoading) {
 		return (
 			<Panel label="Skills">
-				<Text color="gray">Loading skills...</Text>
+				<Text color={theme.muted}>Loading skills...</Text>
 			</Panel>
 		)
 	}
@@ -178,11 +191,12 @@ export const SkillsPanelContent: React.FC<SkillsPanelContentProps> = ({ controll
 	return (
 		<Panel label="Skills">
 			<Box flexDirection="column" gap={1}>
+				{interactionError && <Text color={theme.error}>Skills error: {interactionError}</Text>}
 				{skillEntries.length === 0 ? (
 					<Box flexDirection="column" gap={1}>
-						<Text color="gray">No skills installed.</Text>
+						<Text color={theme.muted}>No skills installed.</Text>
 						<Text>
-							Install skills with: <Text color="white">npx skills add owner/repo</Text>
+							Install skills with: <Text color={theme.text}>npx skills add owner/repo</Text>
 						</Text>
 					</Box>
 				) : (
@@ -198,12 +212,16 @@ export const SkillsPanelContent: React.FC<SkillsPanelContentProps> = ({ controll
 									<React.Fragment key={entry.skill.path}>
 										{showHeader && (
 											<Box marginTop={actualIndex > 0 ? 1 : 0}>
-												<Text bold color="gray">
+												<Text bold color={theme.muted}>
 													{entry.isGlobal ? "Global Skills:" : "Workspace Skills:"}
 												</Text>
 											</Box>
 										)}
-										<SkillRow isSelected={actualIndex === selectedIndex} skill={entry.skill} />
+										<SkillRow
+											isPending={pendingSkillPath === entry.skill.path}
+											isSelected={actualIndex === selectedIndex}
+											skill={entry.skill}
+										/>
 									</React.Fragment>
 								)
 							})}
@@ -213,7 +231,7 @@ export const SkillsPanelContent: React.FC<SkillsPanelContentProps> = ({ controll
 				{/* Marketplace link - selectable */}
 				{showMarketplace && (
 					<Box marginTop={1}>
-						<Text color={isMarketplaceSelected ? "cyan" : undefined}>
+						<Text color={isMarketplaceSelected ? theme.info : undefined}>
 							{isMarketplaceSelected ? "❯ " : "  "}
 							<Text color={COLORS.primaryBlue}>Browse more skills at https://skills.sh/</Text>
 						</Text>
@@ -222,7 +240,7 @@ export const SkillsPanelContent: React.FC<SkillsPanelContentProps> = ({ controll
 
 				{/* Help text */}
 				<Box marginTop={1}>
-					<Text color="gray">
+					<Text color={theme.muted}>
 						↑/↓ Navigate • Enter {isMarketplaceSelected ? "Open" : "Use"}
 						{!isMarketplaceSelected && " • Space Toggle"}
 					</Text>
@@ -232,22 +250,28 @@ export const SkillsPanelContent: React.FC<SkillsPanelContentProps> = ({ controll
 	)
 }
 
-const SkillRow: React.FC<{ skill: SkillInfo; isSelected: boolean }> = ({ skill, isSelected }) => {
+const SkillRow: React.FC<{ skill: SkillInfo; isSelected: boolean; isPending: boolean }> = ({
+	skill,
+	isSelected,
+	isPending,
+}) => {
 	return (
 		<Box flexDirection="column">
 			<Box>
-				<Text color={isSelected ? "cyan" : undefined}>
+				<Text color={isSelected ? theme.info : undefined}>
 					{isSelected ? "❯ " : "  "}
-					<Text color={skill.enabled ? "green" : "red"}>{skill.enabled ? "●" : "○"}</Text>
+					<Text color={isPending ? theme.warning : skill.enabled ? theme.success : theme.error}>
+						{isPending ? "◌" : skill.enabled ? "●" : "○"}
+					</Text>
 					<Text> </Text>
-					<Text bold color="white">
+					<Text bold color={theme.text}>
 						{skill.name}
 					</Text>
 				</Text>
 			</Box>
 			{skill.description && (
 				<Box marginLeft={4}>
-					<Text color="gray">
+					<Text color={theme.muted}>
 						{skill.description.length > 60 ? skill.description.slice(0, 57) + "..." : skill.description}
 					</Text>
 				</Box>

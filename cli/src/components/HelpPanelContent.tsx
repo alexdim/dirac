@@ -1,3 +1,4 @@
+import { theme } from "../constants/theme"
 /**
  * Help panel content for inline display in ChatView
  * Explains Dirac CLI features and links to documentation
@@ -7,8 +8,9 @@ import { Box, Text, useInput } from "ink"
 import React from "react"
 import { COLORS } from "../constants/colors"
 import { useStdinContext } from "../context/StdinContext"
-import { isMouseEscapeSequence } from "../utils/input"
+import { shouldIgnoreTerminalInput } from "../utils/input"
 import { Panel } from "./Panel"
+import { useTerminalSize } from "../hooks/useTerminalSize"
 
 interface HelpPanelContentProps {
 	onClose: () => void
@@ -16,10 +18,13 @@ interface HelpPanelContentProps {
 
 export const HelpPanelContent: React.FC<HelpPanelContentProps> = ({ onClose }) => {
 	const { isRawModeSupported } = useStdinContext()
+	const { columns } = useTerminalSize()
+	const separatorWidth = Math.max(1, Math.min(40, columns - 4))
+	const keyColumnWidth = Math.max(10, Math.min(22, Math.floor(columns * 0.35)))
 
 	useInput(
 		(input, key) => {
-			if (isMouseEscapeSequence(input)) {
+			if (shouldIgnoreTerminalInput(input, key)) {
 				return
 			}
 			if (key.escape) {
@@ -39,13 +44,13 @@ export const HelpPanelContent: React.FC<HelpPanelContentProps> = ({ onClose }) =
 						Plan vs Act Mode
 					</Text>
 					<Text>
-						Use <Text color="yellow">Plan</Text> mode to discuss and strategize before making changes. Use{" "}
+						Use <Text color={theme.warning}>Plan</Text> mode to discuss and strategize before making changes. Use{" "}
 						<Text color={COLORS.primaryBlue}>Act</Text> mode when you're ready for Dirac to edit files and run
-						commands. Toggle between them with <Text color="white">Tab</Text>.
+						commands. Toggle between them with <Text color={theme.text}>Tab</Text>.
 					</Text>
 				</Box>
 
-				<Text color="gray">{"─".repeat(40)}</Text>
+				<Text color={theme.muted}>{"─".repeat(separatorWidth)}</Text>
 
 				<Box flexDirection="column">
 					<Text bold color={COLORS.primaryBlue}>
@@ -64,22 +69,22 @@ export const HelpPanelContent: React.FC<HelpPanelContentProps> = ({ onClose }) =
 					].map(([key, desc], i) => (
 						<Text key={i}>
 							{"  "}
-							<Box width={22}>
-								<Text color="white">{key}</Text>
+							<Box width={keyColumnWidth}>
+								<Text color={theme.text}>{key}</Text>
 							</Box>
 							<Text>{desc}</Text>
 						</Text>
 					))}
 				</Box>
 
-				<Text color="gray">{"─".repeat(40)}</Text>
+				<Text color={theme.muted}>{"─".repeat(separatorWidth)}</Text>
 
 				<Box flexDirection="column">
 					<Text bold color={COLORS.primaryBlue}>
 						Slash Commands
 					</Text>
 					<Text>
-						Type <Text color="white">/</Text> to see available commands. Key ones include:
+						Type <Text color={theme.text}>/</Text> to see available commands. Key ones include:
 					</Text>
 					{[
 						["/settings", "Configure your API provider and preferences"],
@@ -90,15 +95,15 @@ export const HelpPanelContent: React.FC<HelpPanelContentProps> = ({ onClose }) =
 					].map(([cmd, desc], i) => (
 						<Text key={i}>
 							{"  "}
-							<Box width={22}>
-								<Text color="white">{cmd}</Text>
+							<Box width={keyColumnWidth}>
+								<Text color={theme.text}>{cmd}</Text>
 							</Box>
 							<Text>{desc}</Text>
 						</Text>
 					))}
 				</Box>
 
-				<Text color="gray">{"─".repeat(40)}</Text>
+				<Text color={theme.muted}>{"─".repeat(separatorWidth)}</Text>
 
 				<Text>
 					For more help use /askDirac or go to <Text color={COLORS.primaryBlue}>https://dirac.run/docs/dirac</Text>

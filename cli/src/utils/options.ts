@@ -25,39 +25,28 @@ export async function normalizeReasoningEffort(value?: string): Promise<OpenaiRe
 		return normalized
 	}
 	const { OPENAI_REASONING_EFFORT_OPTIONS } = await import("@/shared/storage/types")
-	const { printWarning } = await import("./display")
-	printWarning(
-		`Invalid --reasoning-effort '${value}'. Using 'medium'. Valid values: ${OPENAI_REASONING_EFFORT_OPTIONS.join(", ")}.`,
-	)
-	return "medium"
+	throw new Error(`Invalid reasoning effort '${value}'. Valid values: ${OPENAI_REASONING_EFFORT_OPTIONS.join(", ")}.`)
 }
 
-export async function validate_provider(provider: string): Promise<void> {
-	const { ALL_MODEL_MAPS, ALL_PROVIDERS } = await import("@shared/api")
-	const { printError } = await import("./display")
-	const { exit } = await import("node:process")
-
+export async function validateProvider(provider: string): Promise<void> {
 	if (provider.startsWith("http://") || provider.startsWith("https://")) {
 		return
 	}
 
-	const validProviders = ALL_PROVIDERS || Array.from(new Set(ALL_MODEL_MAPS.map(([p]) => p)))
-	if (!validProviders.includes(provider as any)) {
-		printError(`Invalid provider '${provider}'. Valid providers: ${validProviders.sort().join(", ")}`)
-		exit(1)
+	const { ALL_PROVIDERS } = await import("@shared/api")
+	if (!ALL_PROVIDERS.includes(provider as ApiProvider)) {
+		throw new Error(`Invalid provider '${provider}'. Valid providers: ${[...ALL_PROVIDERS].sort().join(", ")}`)
 	}
 }
 
-export async function normalizeMaxConsecutiveMistakes(value?: string): Promise<number | undefined> {
+export async function normalizeMaxConsecutiveMistakes(value?: string | number): Promise<number | undefined> {
 	if (value === undefined) {
 		return undefined
 	}
 
-	const parsed = Number.parseInt(value, 10)
-	if (Number.isNaN(parsed) || parsed < 1) {
-		const { printWarning } = await import("./display")
-		printWarning(`Invalid --max-consecutive-mistakes value '${value}'. Expected integer >= 1.`)
-		return undefined
+	const parsed = typeof value === "number" ? value : Number(value)
+	if (!Number.isSafeInteger(parsed) || parsed < 1) {
+		throw new Error(`Invalid maximum consecutive mistakes '${value}'. Expected an integer greater than zero.`)
 	}
 
 	return parsed
@@ -107,7 +96,7 @@ export async function applyTaskOptions(options: TaskOptions): Promise<void> {
 		const currentMode = (stateManager.getGlobalSettingsKey("mode") || "act") as "act" | "plan"
 
 		if (options.provider) {
-			await validate_provider(options.provider)
+			await validateProvider(options.provider)
 		}
 
 		// Determine the target provider based on current mode or explicit flag
@@ -142,9 +131,9 @@ export async function applyTaskOptions(options: TaskOptions): Promise<void> {
 	// Set thinking budget based on --thinking flag (boolean or number)
 	if (options.thinking !== undefined) {
 		let thinkingBudget = 1024
-		if (typeof options.thinking === "string") {
-			const parsed = Number.parseInt(options.thinking, 10)
-			if (Number.isNaN(parsed) || parsed < 0) {
+		if (typeof options.thinking === "string" || typeof options.thinking === "number") {
+			const parsed = typeof options.thinking === "number" ? options.thinking : Number(options.thinking)
+			if (!Number.isInteger(parsed) || parsed < 0) {
 				printWarning(`Invalid --thinking value '${options.thinking}'. Using default 1024.`)
 			} else {
 				thinkingBudget = parsed

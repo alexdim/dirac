@@ -1,11 +1,34 @@
 import type { Controller } from "@/core/controller"
 
-export type SettingsTab = "api" | "auto-approve" | "features" | "tools" | "other"
+export enum SettingsTab {
+	API = "api",
+	AUTO_APPROVE = "auto-approve",
+	FEATURES = "features",
+	TOOLS = "tools",
+	OTHER = "other",
+}
+
+export enum SettingsItemType {
+	CHECKBOX = "checkbox",
+	READONLY = "readonly",
+	EDITABLE = "editable",
+	SEPARATOR = "separator",
+	HEADER = "header",
+	SPACER = "spacer",
+	ACTION = "action",
+	CYCLE = "cycle",
+	OBJECT = "object",
+}
+
+export enum SettingsNavigationDirection {
+	UP = "up",
+	DOWN = "down",
+}
 
 export interface ListItem {
 	key: string
 	label: string
-	type: "checkbox" | "readonly" | "editable" | "separator" | "header" | "spacer" | "action" | "cycle" | "object"
+	type: SettingsItemType
 	value: any
 	description?: string
 	isSubItem?: boolean

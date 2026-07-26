@@ -30,6 +30,7 @@ const shutdownMockState = {
 	},
 }
 
+
 vi.mock("ink-picture", () => ({
 	TerminalInfoProvider: ({ children }: any) => children,
 }))
@@ -224,6 +225,7 @@ describe("ChatView Exit and Cleanup", () => {
 			expect(frame).toContain("Plan")
 			expect(frame).toContain("Act")
 		})
+
 	})
 
 	describe("Shutdown event handling", () => {

@@ -1,9 +1,9 @@
+import { theme } from "../constants/theme"
 import { Card as CardType } from "@shared/ExtensionMessage"
 import { Box, Text } from "ink"
 import React from "react"
-import { COLORS } from "../constants/colors"
-import { useTerminalSize } from "../hooks/useTerminalSize"
 import { clipTextToWindow } from "../utils/text-clipping"
+import { cardBodyForDisplay } from "../utils/card-body"
 import { CardBody } from "./modular-ui/CardBody"
 import { CardHeader } from "./modular-ui/CardHeader"
 
@@ -13,6 +13,8 @@ interface PermissionModalProps {
 	maxScrollOffset: number
 	bodyLines: number
 	bodyColumns: number
+	width: number
+	height: number
 }
 
 export const PermissionModal: React.FC<PermissionModalProps> = ({
@@ -21,25 +23,25 @@ export const PermissionModal: React.FC<PermissionModalProps> = ({
 	maxScrollOffset,
 	bodyLines,
 	bodyColumns,
+	width,
+	height,
 }) => {
-	const { columns, rows } = useTerminalSize()
-	const modalWidth = Math.max(1, Math.min(columns - 2, Math.floor(columns * 0.8)))
-	const modalHeight = Math.min(Math.max(12, rows - 4), 32)
-	const body = card.body || ""
+	const body = cardBodyForDisplay(card.body, card.renderType)
 	const clipped = clipTextToWindow(body, bodyLines, bodyColumns, scrollOffset, "… earlier content clipped …")
-	const borderColor = card.requireApproval ? "yellow" : COLORS.primaryBlue
+	const borderColor = card.requireApproval ? theme.warning : theme.status.waiting
+	const title = card.requireApproval ? "Permission required" : "Input required"
 
 	return (
 		<Box
 			borderColor={borderColor}
 			borderStyle="round"
 			flexDirection="column"
-			height={modalHeight}
+			height={height}
 			paddingX={1}
-			width={modalWidth}>
+			width={width}>
 			<Box flexShrink={0}>
 				<Text bold color={borderColor}>
-					Permission required
+					{title}
 				</Text>
 			</Box>
 			<Box flexDirection="column" flexGrow={1} overflow="hidden">
@@ -62,28 +64,21 @@ function renderFooter(card: CardType, scrollOffset: number, maxScrollOffset: num
 	return (
 		<Box flexDirection="column">
 			{maxScrollOffset > 0 && (
-				<Text bold color="yellow">
-					{canScrollUp ? "↑" : " "} / {canScrollDown ? "↓" : " "} SCROLL
+				<Text color={theme.muted}>
+					{canScrollUp ? "↑" : " "} / {canScrollDown ? "↓" : " "} scroll
 				</Text>
 			)}
 			{card.requireApproval && (!card.actions || card.actions.length === 0) && (
-				<Text color="gray">
-					[
-					<Text bold color="white">
-						y
-					</Text>
-					]es / [
-					<Text bold color="white">
-						n
-					</Text>
-					]o
+				<Text color={theme.muted}>
+					<Text backgroundColor={theme.buttonPrimaryBg} color={theme.buttonPrimaryText}> y </Text> approve{"  "}
+					<Text backgroundColor={theme.buttonSecondaryBg} color={theme.buttonSecondaryText}> n </Text> deny
 				</Text>
 			)}
 			{card.requireFeedback && card.actions && card.actions.length > 0 && (
-				<Text color="gray">
+				<Text color={theme.muted}>
 					{card.actions.map((action, index) => (
 						<Text key={action.value || action.label}>
-							<Text bold color={action.style === "danger" ? "red" : "cyan"}>
+							<Text bold color={action.style === "danger" ? theme.error : theme.info}>
 								{index + 1}
 							</Text>{" "}
 							{action.label}
@@ -93,7 +88,7 @@ function renderFooter(card: CardType, scrollOffset: number, maxScrollOffset: num
 				</Text>
 			)}
 			{card.requireFeedback && (!card.actions || card.actions.length === 0) && (
-				<Text color="gray">Type response and press Enter</Text>
+				<Text color={theme.muted}>Type response and press Enter</Text>
 			)}
 		</Box>
 	)

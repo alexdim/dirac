@@ -8,8 +8,10 @@ import * as path from "path"
 import { anthropicDefaultModelId, geminiDefaultModelId, openAiNativeDefaultModelId } from "@/shared/api"
 import providersData from "@/shared/providers/providers.json"
 
-// Import source types
-export type ImportSource = "codex" | "opencode"
+export enum ImportSource {
+	CODEX = "codex",
+	OPENCODE = "opencode",
+}
 
 // Imported key structure
 export interface ImportedKey {
@@ -169,7 +171,7 @@ export function importFromCodex(): ImportResult | null {
 			return null
 		}
 
-		return { source: "codex", keys }
+		return { source: ImportSource.CODEX, keys }
 	} catch {
 		return null
 	}
@@ -220,7 +222,7 @@ export function importFromOpenCode(): ImportResult | null {
 			return null
 		}
 
-		return { source: "opencode", keys }
+		return { source: ImportSource.OPENCODE, keys }
 	} catch {
 		return null
 	}
@@ -231,12 +233,10 @@ export function importFromOpenCode(): ImportResult | null {
  */
 export function getSourceDisplayName(source: ImportSource): string {
 	switch (source) {
-		case "codex":
+		case ImportSource.CODEX:
 			return "OpenAI Codex CLI"
-		case "opencode":
+		case ImportSource.OPENCODE:
 			return "OpenCode"
-		default:
-			return source
 	}
 }
 

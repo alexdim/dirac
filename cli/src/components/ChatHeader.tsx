@@ -1,3 +1,4 @@
+import { theme } from "../constants/theme"
 import React from "react"
 import { Box, Text } from "ink"
 import { AsciiMotionCli, StaticRobotFrame } from "./AsciiMotionCli"
@@ -15,12 +16,12 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({ isWelcomeState, quote, o
 		<React.Fragment>
 			{isWelcomeState ? <AsciiMotionCli onInteraction={onInteraction} /> : <StaticRobotFrame />}
 			<Text> </Text>
-			<Text bold color="white">
+			<Text bold color={theme.text}>
 				{centerText(`Questions about Dirac? Query the code (v${CLI_VERSION}) directly using /askDirac`)}
 			</Text>
 			{isWelcomeState && quote ? (
 				<Box marginTop={1}>
-					<Text color="cyan" italic>
+					<Text color={theme.info} italic>
 						{centerText(`“${quote}”`)}
 					</Text>
 				</Box>

@@ -1,4 +1,4 @@
-import { useCallback } from "react"
+import { useCallback, useRef } from "react"
 import { StateManager } from "@/core/storage/StateManager"
 import { getProviderModelIdKey, ProviderToApiKeyMap } from "@shared/storage"
 import { openAiCodexOAuthManager } from "@/integrations/openai-codex/oauth"
@@ -11,7 +11,12 @@ import { usesOpenRouterModels } from "../../../utils/openrouter-models"
 import { openExternal } from "@/utils/env"
 import { Logger } from "@/shared/services/Logger"
 import type { Controller } from "@/core/controller"
-import type { ListItem, SettingsTab } from "../types"
+import {
+	SettingsItemType,
+	SettingsNavigationDirection,
+	type ListItem,
+} from "../types"
+import { getNextSelectableSettingsIndex } from "../navigation"
 import type { AutoApprovalSettings } from "@shared/AutoApprovalSettings"
 import type { TelemetrySetting } from "@shared/TelemetrySetting"
 import type { OpenaiReasoningEffort } from "@shared/storage/types"
@@ -25,8 +30,6 @@ interface UseSettingsActionsProps {
 	items: ListItem[]
 	selectedIndex: number
 	setSelectedIndex: (index: number | ((i: number) => number)) => void
-	currentTab: SettingsTab
-	setCurrentTab: (tab: SettingsTab) => void
 	provider: string
 	setProvider: (provider: string) => void
 	actModelId: string
@@ -51,6 +54,7 @@ interface UseSettingsActionsProps {
 	setFeatures: (
 		features: Record<FeatureKey, boolean> | ((prev: Record<FeatureKey, boolean>) => Record<FeatureKey, boolean>),
 	) => void
+	setLightTerminalTheme: (value: boolean) => void
 	preferredLanguage: string
 	setPreferredLanguage: (language: string) => void
 	telemetry: TelemetrySetting
@@ -78,7 +82,7 @@ interface UseSettingsActionsProps {
 	setIsConfiguringBedrock: (value: boolean) => void
 	controller?: Controller
 	stateManager: StateManager
-	rebuildTaskApi: () => void
+	rebuildTaskApi: () => Promise<void>
 	refreshModelIds: () => void
 	onClose: () => void
 	initialMode?: string
@@ -90,8 +94,6 @@ export function useSettingsActions({
 	items,
 	selectedIndex,
 	setSelectedIndex,
-	currentTab,
-	setCurrentTab,
 	provider,
 	setProvider,
 	actModelId,
@@ -114,6 +116,7 @@ export function useSettingsActions({
 	setAutoApproveSettings,
 	features,
 	setFeatures,
+	setLightTerminalTheme,
 	preferredLanguage,
 	setPreferredLanguage,
 	telemetry,
@@ -148,20 +151,23 @@ export function useSettingsActions({
 	availableTools,
 	setToolToggles,
 }: UseSettingsActionsProps) {
+	const cancelCodexAuthWaitRef = useRef<(() => void) | null>(null)
+	const githubAuthAbortControllerRef = useRef<AbortController | null>(null)
+
 	const toggleFeature = useCallback(
-		(key: FeatureKey) => {
+		async (key: FeatureKey) => {
 			const config = FEATURE_SETTINGS[key]
 			const newValue = !features[key]
 			setFeatures((prev) => ({ ...prev, [key]: newValue }))
 			stateManager.setGlobalState(config.stateKey, newValue)
 
-			rebuildTaskApi()
+			await rebuildTaskApi()
 		},
 		[features, stateManager, setFeatures, rebuildTaskApi],
 	)
 
 	const setReasoningEffortForMode = useCallback(
-		(mode: "act" | "plan", effort: OpenaiReasoningEffort) => {
+		async (mode: "act" | "plan", effort: OpenaiReasoningEffort) => {
 			if (mode === "act") {
 				setActReasoningEffort(effort)
 				stateManager.setGlobalState("actModeReasoningEffort", effort)
@@ -173,7 +179,7 @@ export function useSettingsActions({
 				setPlanReasoningEffort(effort)
 				stateManager.setGlobalState("planModeReasoningEffort", effort)
 			}
-			rebuildTaskApi()
+			await rebuildTaskApi()
 		},
 		[separateModels, rebuildTaskApi, stateManager, setActReasoningEffort, setPlanReasoningEffort],
 	)
@@ -185,13 +191,21 @@ export function useSettingsActions({
 			const authUrl = openAiCodexOAuthManager.startAuthorizationFlow()
 			setCodexAuthUrl(authUrl)
 			await openExternal(authUrl)
-			await openAiCodexOAuthManager.waitForCallback()
+			const completed = await Promise.race([
+				openAiCodexOAuthManager.waitForCallback().then(() => true),
+				new Promise<false>((resolve) => {
+					cancelCodexAuthWaitRef.current = () => resolve(false)
+				}),
+			])
+			cancelCodexAuthWaitRef.current = null
+			if (!completed) return
 			await applyProviderConfig({ providerId: "openai-codex", controller })
 			setProvider("openai-codex")
 			refreshModelIds()
 			setIsWaitingForCodexAuth(false)
 			setCodexAuthUrl(null)
 		} catch (error) {
+			cancelCodexAuthWaitRef.current = null
 			openAiCodexOAuthManager.cancelAuthorizationFlow()
 			setCodexAuthError(error instanceof Error ? error.message : String(error))
 			setIsWaitingForCodexAuth(false)
@@ -199,51 +213,74 @@ export function useSettingsActions({
 		}
 	}, [controller, setIsWaitingForCodexAuth, setCodexAuthError, setCodexAuthUrl, setProvider, refreshModelIds])
 
+	const cancelCodexAuth = useCallback(() => {
+		openAiCodexOAuthManager.cancelAuthorizationFlow()
+		cancelCodexAuthWaitRef.current?.()
+		cancelCodexAuthWaitRef.current = null
+		setIsWaitingForCodexAuth(false)
+		setCodexAuthUrl(null)
+	}, [setCodexAuthUrl, setIsWaitingForCodexAuth])
+
 	const startGithubAuth = useCallback(async () => {
+		const abortController = new AbortController()
+		githubAuthAbortControllerRef.current?.abort()
+		githubAuthAbortControllerRef.current = abortController
 		try {
 			setIsWaitingForGithubAuth(true)
 			const data = await githubCopilotAuthManager.initiateDeviceFlow()
 			setGithubAuthData(data)
 			await openExternal(data.verification_uri)
-			await githubCopilotAuthManager.pollForToken(data.device_code, data.interval)
+			await githubCopilotAuthManager.pollForToken(data.device_code, data.interval, abortController.signal)
+			if (abortController.signal.aborted) return
 			await applyProviderConfig({ providerId: "github-copilot", controller })
 			setProvider("github-copilot")
 			refreshModelIds()
 			setIsWaitingForGithubAuth(false)
 			setGithubAuthData(null)
 		} catch (error) {
+			if (abortController.signal.aborted) return
 			setIsWaitingForGithubAuth(false)
 			setGithubAuthData(null)
 			Logger.error("[github-copilot-auth] Auth failed:", error)
+			throw error
+		} finally {
+			if (githubAuthAbortControllerRef.current === abortController) {
+				githubAuthAbortControllerRef.current = null
+			}
 		}
 	}, [controller, setIsWaitingForGithubAuth, setGithubAuthData, setProvider, refreshModelIds])
 
-	const handleAction = useCallback(() => {
+	const cancelGithubAuth = useCallback(() => {
+		githubAuthAbortControllerRef.current?.abort()
+		githubAuthAbortControllerRef.current = null
+		setIsWaitingForGithubAuth(false)
+		setGithubAuthData(null)
+	}, [setGithubAuthData, setIsWaitingForGithubAuth])
+
+	const handleAction = useCallback(async () => {
 		const item = items[selectedIndex]
-		if (!item || item.type === "readonly" || item.type === "separator" || item.type === "header" || item.type === "spacer")
+		if (!item || item.type === SettingsItemType.READONLY || item.type === SettingsItemType.SEPARATOR || item.type === SettingsItemType.HEADER || item.type === SettingsItemType.SPACER)
 			return
 
-		if (item.type === "action") {
+		if (item.type === SettingsItemType.ACTION) {
 			if (item.key === "codexSignOut") {
-				openAiCodexOAuthManager.clearCredentials().then(() => {
-					rebuildTaskApi()
-				})
+				await openAiCodexOAuthManager.clearCredentials()
+				await rebuildTaskApi()
 				return
 			}
 			if (item.key === "githubSignOut") {
-				githubCopilotAuthManager.clearCredentials().then(() => {
-					rebuildTaskApi()
-				})
+				await githubCopilotAuthManager.clearCredentials()
+				await rebuildTaskApi()
 				return
 			}
 			if (item.key === "githubSignIn") {
-				startGithubAuth()
+				await startGithubAuth()
 				return
 			}
 			return
 		}
 
-		if (item.type === "object") {
+		if (item.type === SettingsItemType.OBJECT) {
 			setObjectEditor({
 				source: "global",
 				key: item.key,
@@ -257,25 +294,25 @@ export function useSettingsActions({
 			return
 		}
 
-		if (item.type === "cycle") {
+		if (item.type === SettingsItemType.CYCLE) {
 			if (item.key === "openRouterProviderSorting") {
 				const sortingOptions = [undefined, "price", "throughput", "latency"]
 				const currentIndex = sortingOptions.indexOf(openRouterProviderSorting)
 				const nextSorting = sortingOptions[(currentIndex + 1) % sortingOptions.length]
 				setOpenRouterProviderSorting(nextSorting)
 				stateManager.setGlobalState("openRouterProviderSorting", nextSorting)
-				rebuildTaskApi()
+				await rebuildTaskApi()
 				return
 			}
 			const targetMode = item.key === "actReasoningEffort" ? "act" : item.key === "planReasoningEffort" ? "plan" : undefined
 			if (targetMode) {
 				const currentEffort = targetMode === "act" ? actReasoningEffort : planReasoningEffort
-				setReasoningEffortForMode(targetMode, nextReasoningEffort(currentEffort))
+				await setReasoningEffortForMode(targetMode, nextReasoningEffort(currentEffort))
 			}
 			return
 		}
 
-		if (item.type === "editable") {
+		if (item.type === SettingsItemType.EDITABLE) {
 			if (item.key === "actOpenRouterProviders" || item.key === "planOpenRouterProviders") {
 				const modelId = item.key === "actOpenRouterProviders" ? actModelId : planModelId
 				if (modelId) setOpenRouterRoutingModelId(modelId)
@@ -302,8 +339,15 @@ export function useSettingsActions({
 		// Checkbox handling
 		const newValue = !item.value
 
+		if (item.key === "lightTerminalTheme") {
+			setLightTerminalTheme(newValue)
+			stateManager.setGlobalState("cliTerminalColorMode", newValue ? "light" : "dark")
+			await stateManager.flushPendingState()
+			return
+		}
+
 		if (item.key in FEATURE_SETTINGS) {
-			toggleFeature(item.key as FeatureKey)
+			await toggleFeature(item.key as FeatureKey)
 			return
 		}
 
@@ -313,7 +357,7 @@ export function useSettingsActions({
 			const toolId = item.key
 			ToolRegistry.getInstance().toggleAndPersist(toolId, newValue)
 			setToolToggles((prev) => ({ ...prev, [toolId]: newValue }))
-			rebuildTaskApi()
+			await rebuildTaskApi()
 			return
 		}
 
@@ -338,7 +382,7 @@ export function useSettingsActions({
 				stateManager.setGlobalState("planModeReasoningEffort", actEffort)
 				setPlanReasoningEffort(actEffort)
 			}
-			rebuildTaskApi()
+			await rebuildTaskApi()
 			return
 		}
 
@@ -349,21 +393,21 @@ export function useSettingsActions({
 				setPlanThinkingEnabled(newValue)
 				stateManager.setGlobalState("planModeThinkingBudgetTokens", newValue ? 1024 : 0)
 			}
-			rebuildTaskApi()
+			await rebuildTaskApi()
 			return
 		}
 
 		if (item.key === "planThinkingEnabled") {
 			setPlanThinkingEnabled(newValue)
 			stateManager.setGlobalState("planModeThinkingBudgetTokens", newValue ? 1024 : 0)
-			rebuildTaskApi()
+			await rebuildTaskApi()
 			return
 		}
 
 		if (item.key === "openRouterPreventFallbacks") {
 			setOpenRouterPreventFallbacks(newValue)
 			stateManager.setGlobalState("openRouterPreventFallbacks", newValue || undefined)
-			rebuildTaskApi()
+			await rebuildTaskApi()
 			return
 		}
 
@@ -371,9 +415,8 @@ export function useSettingsActions({
 			const newTelemetry: TelemetrySetting = newValue ? "enabled" : "disabled"
 			setTelemetry(newTelemetry)
 			stateManager.setGlobalState("telemetrySetting", newTelemetry)
-			void stateManager.flushPendingState().then(() => {
-				controller?.updateTelemetrySetting(newTelemetry)
-			})
+			await stateManager.flushPendingState()
+			await controller?.updateTelemetrySetting(newTelemetry)
 			return
 		}
 
@@ -385,7 +428,7 @@ export function useSettingsActions({
 			}
 			setAutoApproveSettings(newSettings)
 			stateManager.setGlobalState("autoApprovalSettings", newSettings)
-			rebuildTaskApi()
+			await rebuildTaskApi()
 			return
 		}
 
@@ -401,7 +444,7 @@ export function useSettingsActions({
 		const newSettings = { ...autoApproveSettings, version: (autoApproveSettings.version ?? 1) + 1, actions: newActions }
 		setAutoApproveSettings(newSettings)
 		stateManager.setGlobalState("autoApprovalSettings", newSettings)
-		rebuildTaskApi()
+		await rebuildTaskApi()
 	}, [
 		items,
 		selectedIndex,
@@ -421,6 +464,7 @@ export function useSettingsActions({
 		setIsPickingLanguage,
 		setEditValue,
 		setIsEditing,
+		setLightTerminalTheme,
 		setSeparateModels,
 		setPlanThinkingEnabled,
 		setPlanReasoningEffort,
@@ -543,7 +587,7 @@ export function useSettingsActions({
 				setIsPickingProvider(false)
 				const isAuthenticated = await githubCopilotAuthManager.isAuthenticated()
 				if (!isAuthenticated) {
-					startGithubAuth()
+					await startGithubAuth()
 				} else {
 					await applyProviderConfig({ providerId, controller })
 					setProvider(providerId)
@@ -562,7 +606,7 @@ export function useSettingsActions({
 
 			if (providerId === "openai-codex") {
 				setIsPickingProvider(false)
-				startCodexAuth()
+				await startCodexAuth()
 				return
 			}
 
@@ -694,12 +738,12 @@ export function useSettingsActions({
 	)
 
 	const handleBedrockComplete = useCallback(
-		(bedrockConfig: BedrockConfig) => {
+		async (bedrockConfig: BedrockConfig) => {
+			await applyBedrockConfig({ bedrockConfig, controller })
 			setProvider("bedrock")
 			refreshModelIds()
 			setIsConfiguringBedrock(false)
 			setPendingProvider(null)
-			applyBedrockConfig({ bedrockConfig, controller })
 			if (initialMode) onClose()
 		},
 		[controller, refreshModelIds, initialMode, onClose, setProvider, setIsConfiguringBedrock, setPendingProvider],
@@ -716,7 +760,7 @@ export function useSettingsActions({
 			}
 			await applyBedrockConfig({ bedrockConfig, modelId: arn, customModelBaseId: baseModelId, controller })
 			await stateManager.flushPendingState()
-			rebuildTaskApi()
+			await rebuildTaskApi()
 			refreshModelIds()
 			setIsBedrockCustomFlow(false)
 			setPickingModelKey(null)
@@ -736,26 +780,19 @@ export function useSettingsActions({
 	)
 
 	const handleLanguageSelect = useCallback(
-		(language: string) => {
+		async (language: string) => {
 			setPreferredLanguage(language)
 			stateManager.setGlobalState("preferredLanguage", language)
 			setIsPickingLanguage(false)
 
-			rebuildTaskApi()
+			await rebuildTaskApi()
 		},
 		[stateManager, setPreferredLanguage, setIsPickingLanguage, rebuildTaskApi],
 	)
 
 	const navigateItems = useCallback(
-		(direction: "up" | "down") => {
-			setSelectedIndex((i) => {
-				let next = direction === "up" ? (i > 0 ? i - 1 : items.length - 1) : i < items.length - 1 ? i + 1 : 0
-				const skipTypes = ["separator", "header", "spacer"]
-				while (skipTypes.includes(items[next]?.type) && next !== i) {
-					next = direction === "up" ? (next > 0 ? next - 1 : items.length - 1) : next < items.length - 1 ? next + 1 : 0
-				}
-				return next
-			})
+		(direction: SettingsNavigationDirection) => {
+			setSelectedIndex((currentIndex) => getNextSelectableSettingsIndex(items, currentIndex, direction))
 		},
 		[items, setSelectedIndex],
 	)
@@ -771,6 +808,8 @@ export function useSettingsActions({
 		handleLanguageSelect,
 		startCodexAuth,
 		startGithubAuth,
+		cancelCodexAuth,
+		cancelGithubAuth,
 		navigateItems,
 		toggleFeature,
 		setReasoningEffortForMode,

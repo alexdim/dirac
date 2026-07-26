@@ -8,7 +8,6 @@ import { promises as fs } from "node:fs"
 import { basename, dirname, join, relative } from "node:path"
 import { createInterface } from "node:readline"
 import type { Fzf, FzfResultItem } from "fzf"
-import { Logger } from "@/shared/services/Logger"
 
 export interface FileSearchResult {
 	path: string
@@ -47,7 +46,7 @@ function checkRipgrep(): boolean {
 		return ripgrepAvailable
 	}
 	try {
-		execFileSync("which", ["rg"], { stdio: "ignore" })
+		execFileSync("rg", ["--version"], { stdio: "ignore" })
 		ripgrepAvailable = true
 	} catch {
 		ripgrepAvailable = false
@@ -76,35 +75,31 @@ async function listFilesWithNodeFs(workspacePath: string, limit: number): Promis
 			return
 		}
 
-		try {
-			const entries = await fs.readdir(dir, { withFileTypes: true })
+		const entries = await fs.readdir(dir, { withFileTypes: true })
 
-			for (const entry of entries) {
-				if (files.length >= limit) {
-					break
-				}
-
-				const name = entry.name
-				if (entry.isDirectory() && EXCLUDED_DIRS.has(name)) {
-					continue
-				}
-				if (name.startsWith(".") && !name.startsWith(".dirac")) {
-					continue
-				}
-
-				const fullPath = join(dir, name)
-				const relativePath = relative(workspacePath, fullPath)
-
-				if (entry.isDirectory()) {
-					dirs.add(relativePath)
-					await walk(fullPath)
-				} else if (entry.isFile()) {
-					files.push({ path: relativePath, type: "file", label: name })
-					addParentDirs(relativePath, dirs)
-				}
+		for (const entry of entries) {
+			if (files.length >= limit) {
+				break
 			}
-		} catch {
-			return
+
+			const name = entry.name
+			if (entry.isDirectory() && EXCLUDED_DIRS.has(name)) {
+				continue
+			}
+			if (name.startsWith(".") && !name.startsWith(".dirac")) {
+				continue
+			}
+
+			const fullPath = join(dir, name)
+			const relativePath = relative(workspacePath, fullPath)
+
+			if (entry.isDirectory()) {
+				dirs.add(relativePath)
+				await walk(fullPath)
+			} else if (entry.isFile()) {
+				files.push({ path: relativePath, type: "file", label: name })
+				addParentDirs(relativePath, dirs)
+			}
 		}
 	}
 
@@ -207,54 +202,53 @@ export async function searchWorkspaceFiles(
 	selectedType?: "file" | "folder",
 	extensionFilter?: string[],
 ): Promise<FileSearchResult[]> {
-	try {
-		let items = await listWorkspaceFiles(workspacePath, 5000)
+	let items = await listWorkspaceFiles(workspacePath, 5000)
 
-		if (selectedType) {
-			items = items.filter((item) => item.type === selectedType)
-		}
-
-		if (extensionFilter && extensionFilter.length > 0) {
-			items = items.filter((item) => {
-				if (item.type !== "file") return true
-				const ext = item.path.split(".").pop()?.toLowerCase()
-				return ext ? extensionFilter.includes(ext) : false
-			})
-		}
-
-		if (!query.trim()) {
-			return items.slice(0, limit)
-		}
-
-		// Lazy load fzf module
-		if (!fzfModule) {
-			fzfModule = await import("fzf")
-		}
-
-		const fzf = new fzfModule.Fzf(items, {
-			selector: (item: FileSearchResult) => `${item.label} ${item.path}`,
-			tiebreakers: [orderByMatchScore, fzfModule.byLengthAsc],
-			limit: limit * 2,
-		})
-
-		return fzf
-			.find(query)
-			.slice(0, limit)
-			.map((r) => r.item)
-	} catch (error) {
-		Logger.error("File search error:", error)
-		return []
+	if (selectedType) {
+		items = items.filter((item) => item.type === selectedType)
 	}
+
+	if (extensionFilter && extensionFilter.length > 0) {
+		items = items.filter((item) => {
+			if (item.type !== "file") return false
+			const ext = item.path.split(".").pop()?.toLowerCase()
+			return ext ? extensionFilter.includes(ext) : false
+		})
+	}
+
+	if (!query.trim()) {
+		return items.slice(0, limit)
+	}
+
+	// Lazy load fzf module
+	if (!fzfModule) {
+		fzfModule = await import("fzf")
+	}
+
+	const fzf = new fzfModule.Fzf(items, {
+		selector: (item: FileSearchResult) => `${item.label} ${item.path}`,
+		tiebreakers: [orderByMatchScore, fzfModule.byLengthAsc],
+		limit: limit * 2,
+	})
+
+	return fzf
+		.find(query)
+		.slice(0, limit)
+		.map((r) => r.item)
 }
 
-export function extractMentionQuery(text: string): { inMentionMode: boolean; query: string; atIndex: number } {
-	const lastAtIndex = text.lastIndexOf("@")
+export function extractMentionQuery(
+	text: string,
+	cursorPosition = text.length,
+): { inMentionMode: boolean; query: string; atIndex: number } {
+	const beforeCursor = text.slice(0, cursorPosition)
+	const lastAtIndex = beforeCursor.lastIndexOf("@")
 
 	if (lastAtIndex === -1 || (lastAtIndex > 0 && !/\s/.test(text[lastAtIndex - 1]))) {
 		return { inMentionMode: false, query: "", atIndex: -1 }
 	}
 
-	const afterAt = text.slice(lastAtIndex + 1)
+	const afterAt = beforeCursor.slice(lastAtIndex + 1)
 	if (afterAt.includes(" ")) {
 		return { inMentionMode: false, query: "", atIndex: -1 }
 	}
@@ -262,12 +256,27 @@ export function extractMentionQuery(text: string): { inMentionMode: boolean; que
 	return { inMentionMode: true, query: afterAt, atIndex: lastAtIndex }
 }
 
-export function insertMention(text: string, atIndex: number, filePath: string): string {
-	const endIndex = text.indexOf(" ", atIndex)
-	const end = endIndex === -1 ? text.length : endIndex
+export interface MentionInsertion {
+	text: string
+	cursorPosition: number
+}
+
+export function insertMention(
+	text: string,
+	atIndex: number,
+	filePath: string,
+	cursorPosition = text.length,
+): MentionInsertion {
+	const tokenEndOffset = text.slice(cursorPosition).search(/\s/)
+	const tokenEnd = tokenEndOffset === -1 ? text.length : cursorPosition + tokenEndOffset
 	// Ensure path starts with / for proper mention format
 	const normalizedPath = filePath.startsWith("/") ? filePath : `/${filePath}`
 	// Quote the path if it contains spaces or other special characters that might break parsing
 	const mention = /[\s()\[\]]/.test(normalizedPath) ? `@"${normalizedPath}"` : `@${normalizedPath}`
-	return text.slice(0, atIndex) + mention + " " + text.slice(end).trimStart()
+	const beforeMention = text.slice(0, atIndex)
+	const afterMention = text.slice(tokenEnd).trimStart()
+	return {
+		text: beforeMention + mention + " " + afterMention,
+		cursorPosition: beforeMention.length + mention.length + 1,
+	}
 }

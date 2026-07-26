@@ -6,6 +6,7 @@ export let isShuttingDown = false
 // Track if we're in plain text mode (no Ink UI) - set by runTask when piped stdin detected
 export let isPlainTextMode = false
 export let telemetryDisposed = false
+export let shutdownExitCode: number | null = null
 
 export function setActiveContext(ctx: CliContext | null) {
 	activeContext = ctx
@@ -21,4 +22,8 @@ export function setIsPlainTextMode(value: boolean) {
 
 export function setTelemetryDisposed(value: boolean) {
 	telemetryDisposed = value
+}
+
+export function setShutdownExitCode(value: number | null) {
+	shutdownExitCode = value
 }

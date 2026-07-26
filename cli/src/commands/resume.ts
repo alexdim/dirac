@@ -17,14 +17,24 @@ export async function resumeTask(
 	options: TaskOptions & { initialPrompt?: string },
 	existingContext?: CliContext,
 ) {
+	const path = await import("node:path")
 	const { printWarning, printInfo } = await import("../utils/display")
 	const { telemetryService } = await import("@/services/telemetry")
 	const { StateManager } = await import("@/core/storage/StateManager")
 	const { checkRawModeSupport } = await import("../context/StdinContext")
-	const React = (await import("react")).default
-	const { App } = await import("../components/App")
+	const { parseImagesFromInput, processImagePaths } = await import("../utils/parser")
+	const { parseTimeoutSeconds } = await import("../utils/task-timeout")
+
+	const timeoutSeconds = parseTimeoutSeconds(options.timeout)
+	const workspacePath = path.resolve(existingContext?.workspacePath || options.cwd || process.cwd())
+	const parsedInput = parseImagesFromInput(options.initialPrompt || "", workspacePath)
+	const allImagePaths = [...(options.images || []), ...parsedInput.imagePaths]
+	const imageDataUrls = await processImagePaths(allImagePaths, workspacePath)
+	const resumePrompt = options.initialPrompt === undefined ? undefined : parsedInput.prompt
 
 	const ctx = existingContext || (await initializeCli({ ...options, enableAuth: true }))
+	const React = (await import("react")).default
+	const { App } = await import("../components/App")
 
 	// Validate task exists
 	const historyItem = await findTaskInHistory(taskId)
@@ -35,7 +45,10 @@ export async function resumeTask(
 		exit(1)
 	}
 
-	telemetryService.captureHostEvent("resume_task_command", options.initialPrompt ? "with_prompt" : "interactive")
+	telemetryService.captureHostEvent(
+		"resume_task_command",
+		resumePrompt || imageDataUrls.length > 0 ? "with_prompt" : "interactive",
+	)
 
 	// Capture piped stdin telemetry now that HostProvider is initialized
 	if (options.stdinWasPiped) {
@@ -49,8 +62,10 @@ export async function resumeTask(
 	// Use plain text mode for non-interactive scenarios
 	if (await shouldUsePlainTextMode(options)) {
 		return runTaskInPlainTextMode(ctx, options, {
-			prompt: options.initialPrompt,
+			prompt: resumePrompt,
 			taskId: taskId,
+			imageDataUrls: imageDataUrls.length > 0 ? imageDataUrls : undefined,
+			timeoutSeconds,
 		})
 	}
 
@@ -64,7 +79,9 @@ export async function resumeTask(
 			verbose: options.verbose,
 			controller: ctx.controller,
 			isRawModeSupported: checkRawModeSupport(),
-			initialPrompt: options.initialPrompt || undefined,
+			initialPrompt: resumePrompt,
+			initialImages: imageDataUrls.length > 0 ? imageDataUrls : undefined,
+			timeoutSeconds,
 			onError: () => {
 				taskError = true
 			},

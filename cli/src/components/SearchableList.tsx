@@ -1,3 +1,4 @@
+import { theme } from "../constants/theme"
 /**
  * Generic searchable list component with keyboard navigation
  * Used by ProviderPicker, ModelPicker, LanguagePicker, etc.
@@ -6,11 +7,10 @@
 import { Box, Text, useInput } from "ink"
 // biome-ignore lint/correctness/noUnusedImports: React is needed for JSX at runtime
 import React, { useEffect, useMemo, useState } from "react"
-import { COLORS } from "../constants/colors"
 import { useStdinContext } from "../context/StdinContext"
 import { useScrollableList } from "../hooks/useScrollableList"
 import { fuzzyFilter } from "../utils/fuzzy-search"
-import { isMouseEscapeSequence } from "../utils/input"
+import { shouldIgnoreTerminalInput } from "../utils/input"
 
 export interface SearchableListItem {
 	id: string
@@ -60,21 +60,27 @@ export function SearchableList<T extends SearchableListItem>({
 		return filteredItems.slice(visibleStart, visibleStart + visibleCount)
 	}, [filteredItems, visibleStart, visibleCount])
 
-	// Reset index when search changes
+	// Reset selection when the query changes, and clamp it when async items change.
 	useEffect(() => {
 		setIndex(0)
 	}, [search])
 
+	useEffect(() => {
+		setIndex((currentIndex) => Math.max(0, Math.min(currentIndex, filteredItems.length - 1)))
+	}, [filteredItems.length])
+
 	useInput(
 		(input, key) => {
 			// Filter out mouse escape sequences
-			if (isMouseEscapeSequence(input)) {
+			if (shouldIgnoreTerminalInput(input, key)) {
 				return
 			}
 
 			if (key.upArrow) {
+				if (filteredItems.length === 0) return
 				setIndex((prev) => Math.max(0, prev - 1))
 			} else if (key.downArrow) {
+				if (filteredItems.length === 0) return
 				setIndex((prev) => Math.min(filteredItems.length - 1, prev + 1))
 			} else if (key.return || key.tab) {
 				if (filteredItems[index]) {
@@ -92,27 +98,27 @@ export function SearchableList<T extends SearchableListItem>({
 	return (
 		<Box flexDirection="column">
 			<Box>
-				<Text color="gray">Search: </Text>
-				<Text color="white">{search}</Text>
-				<Text inverse> </Text>
+				<Text color={theme.muted}>Search: </Text>
+				<Text color={theme.text}>{search}</Text>
+				<Text backgroundColor={theme.cursorBg} color={theme.cursorText}> </Text>
 			</Box>
 			<Text> </Text>
-			{showTopIndicator && <Text color="gray">... {visibleStart} more above</Text>}
+			{showTopIndicator && <Text color={theme.muted}>... {visibleStart} more above</Text>}
 			{visibleItems.map((item, i) => {
 				const actualIndex = visibleStart + i
 				const isSelected = actualIndex === index
 				return (
 					<Box key={item.id}>
-						<Text color={isSelected ? COLORS.primaryBlue : undefined}>
-							{isSelected ? "❯ " : "  "}
+						<Text color={isSelected ? theme.primary : theme.subtle}>{isSelected ? "❯ " : "  "}</Text>
+						<Text bold={isSelected} color={isSelected ? theme.strongText : theme.text}>
 							{item.label}
-							{item.suffix && <Text color="gray"> {item.suffix}</Text>}
 						</Text>
+						{item.suffix && <Text color={theme.muted}> {item.suffix}</Text>}
 					</Box>
 				)
 			})}
-			{showBottomIndicator && <Text color="gray">... {filteredItems.length - visibleStart - visibleCount} more below</Text>}
-			{filteredItems.length === 0 && <Text color="gray">No matches for "{search}"</Text>}
+			{showBottomIndicator && <Text color={theme.muted}>... {filteredItems.length - visibleStart - visibleCount} more below</Text>}
+			{filteredItems.length === 0 && <Text color={theme.muted}>No matches for "{search}"</Text>}
 		</Box>
 	)
 }

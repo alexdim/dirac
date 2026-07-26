@@ -1,365 +1,184 @@
-# Dirac CLI
+# Developing the Dirac CLI
 
-The official CLI for Dirac. Run Dirac tasks directly from the terminal with the same underlying functionality as the VS Code extension.
+The CLI is the terminal host for Dirac. It reuses the core controller, task loop, providers, tools, and storage while implementing terminal-specific input, rendering, approvals, and process lifecycle behavior.
 
-## Features
+## Requirements
 
-- **Reuses Core Codebase**: Shares the same Controller, Task, and API handling as the VS Code extension
-- **Terminal Output**: Displays Dirac messages directly in your terminal with colored output
-- **Task History**: Access your task history from the command line
-- **Configurable**: Use custom configuration directories and working directories
-- **Image Support**: Attach images to your prompts using file paths or inline references
+- Node.js 22.13 through 24.x
+- npm
+- The repository dependencies installed from the repository root
 
-## Prerequisites
+Node.js 20 cannot load the current `node:sqlite` dependency, and Node.js 25 is intentionally unsupported.
 
-- Node.js 20.x or later
-- npm or yarn
-- The parent Dirac project dependencies installed
+## Build and run
 
-## Installation
-
-From the repository root:
+Run repository scripts from the repository root:
 
 ```bash
-# Install all dependencies first
 npm run install:all
-
-# Ensure protos are generated
-npm run protos
-
-# Build and link the CLI globally
-npm run cli:link
+npm run cli:build
+node cli/dist/cli.mjs --help
 ```
 
-## Usage
+`npm run cli:build` generates protobuf bindings, type-checks the CLI, bundles the executable and library entry points, and emits declarations. Use `npm run cli:build:production` for a minified production bundle.
 
-### Interactive Mode (Default)
-
-When you run `dirac` without any command, it launches an interactive welcome prompt:
-
-```bash
-# Launch interactive mode
-dirac
-
-# Or run a task directly
-dirac "Create a hello world function in Python"
-
-# With options
-dirac -v --thinking "Analyze this codebase"
-```
-
-### Commands
-
-#### `task` (alias: `t`)
-
-Run a new task with a prompt.
-
-```bash
-dirac task "Create a hello world function in Python"
-dirac t "Create a hello world function"
-```
-
-**Options:**
-
-| Option | Description |
-|--------|-------------|
-| `-a, --act` | Run in act mode |
-| `-p, --plan` | Run in plan mode |
-| `-y, --yolo` | Enable yolo mode (auto-approve actions) |
-| `-m, --model <model>` | Model to use for the task |
-| `-i, --images <paths...>` | Image file paths to include with the task |
-| `-v, --verbose` | Show verbose output including reasoning |
-| `-c, --cwd <path>` | Working directory for the task |
-| `--config <path>` | Path to Dirac configuration directory |
-| `-t, --thinking` | Enable extended thinking (1024 token budget) |
-
-**Examples:**
-
-```bash
-# Run in plan mode with verbose output
-dirac task -p -v "Design a REST API"
-
-# Use a specific model with yolo mode
-dirac task -m claude-sonnet-4-5-20250929 -y "Refactor this function"
-
-# Include images with your prompt
-dirac task -i screenshot.png diagram.jpg "Fix the UI based on these images"
-
-# Or use inline image references in the prompt
-dirac task "Fix the layout shown in @./screenshot.png"
-
-# Enable extended thinking for complex tasks
-dirac task -t "Architect a microservices system"
-
-# Specify working directory
-dirac task -c /path/to/project "Add unit tests"
-```
-
-#### `history` (alias: `h`)
-
-List task history with pagination support.
-
-```bash
-dirac history
-dirac h
-```
-
-**Options:**
-
-| Option | Description |
-|--------|-------------|
-| `-n, --limit <number>` | Number of tasks to show (default: 10) |
-| `-p, --page <number>` | Page number, 1-based (default: 1) |
-| `--config <path>` | Path to Dirac configuration directory |
-
-**Examples:**
-
-```bash
-# Show last 10 tasks (default)
-dirac history
-
-# Show 20 tasks
-dirac history -n 20
-
-# Show page 2 with 5 tasks per page
-dirac history -n 5 -p 2
-```
-
-#### `config`
-
-Show current configuration including global and workspace state.
-
-```bash
-dirac config
-```
-
-**Options:**
-
-| Option | Description |
-|--------|-------------|
-| `--config <path>` | Path to Dirac configuration directory |
-
-#### `auth`
-
-Authenticate a provider and configure what model is used.
-
-```bash
-dirac auth
-```
-
-**Options:**
-
-| Option | Description |
-|--------|-------------|
-| `-p, --provider <id>` | Provider ID for quick setup (e.g., openai-native, anthropic) |
-| `-k, --apikey <key>` | API key for the provider |
-| `-m, --modelid <id>` | Model ID to configure (e.g., gpt-4o, claude-sonnet-4-5-20250929) |
-| `-b, --baseurl <url>` | Base URL (optional, only for openai provider) |
-| `-v, --verbose` | Show verbose output |
-| `-c, --cwd <path>` | Working directory for the task |
-| `--config <path>` | Path to Dirac configuration directory |
-
-**Examples:**
-
-```bash
-# Interactive authentication
-dirac auth
-
-# Quick setup with provider and API key
-dirac auth -p anthropic -k sk-ant-xxxxx
-
-# Full quick setup with model
-dirac auth -p openai-native -k sk-xxxxx -m gpt-4o
-
-# OpenAI-compatible provider with custom base URL
-dirac auth -p openai -k your-api-key -b https://api.example.com/v1
-```
-
-### Global Options
-
-These options are available for the default command (running a task directly):
-
-| Option | Description |
-|--------|-------------|
-| `-v, --verbose` | Show verbose output |
-| `-c, --cwd <path>` | Working directory |
-| `--config <path>` | Configuration directory |
-| `--thinking` | Enable extended thinking (1024 token budget) |
-
-## Development
-
-### Quick Start
-
-```bash
-# 1. Install all dependencies (root, webview-ui, cli)
-npm run install:all
-
-# 2. Build and link globally so you can run `dirac` from anywhere
-npm run cli:link
-
-# 3. Test it
-dirac --help
-```
-
-### Scripts
-
-Run these from the repository root:
-
-| Script | Description |
-|--------|-------------|
-| `npm run install:all` | Install deps for root, webview-ui, and cli |
-| `npm run cli:build` | Generate protos and build CLI |
-| `npm run cli:build:production` | Production build (minified) |
-| `npm run cli:link` | Build and `npm link` so you can run `dirac` from anywhere |
-| `npm run cli:unlink` | Remove the global `dirac` symlink |
-| `npm run cli:dev` | Link + watch mode for development |
-| `npm run cli:watch` | Watch mode only (no initial build) |
-| `npm run cli:test` | Run CLI tests |
-
-### Development Workflow
-
-1. Run `npm run cli:dev` - this links the CLI globally and starts watch mode
-2. Make changes to files in `cli/src/`
-3. The build automatically rebuilds on save
-4. Test your changes by running `dirac` in another terminal
-5. When done, run `npm run cli:unlink` to clean up
-
-### Proto Generation
-
-The CLI uses proto-generated types for message passing (same as the VS Code extension). If you modify any `.proto` files, run:
+For iterative development:
 
 ```bash
 npm run protos
+npm run cli:watch
 ```
 
-This generates TypeScript types in `src/generated/` that both the CLI and extension use.
+The watch process rebuilds source changes. Run `node cli/dist/cli.mjs` in another terminal. Global linking is optional and is not required to build, run, or test the CLI.
 
-## Publish
+## Verification
 
-#### 1. Publish to npm
 ```bash
-npm publish
+npm run cli:build
+npm run cli:test -- --run
+npm run lint
 ```
 
-#### 2. Update the Homebrew formula
-```bash
-npm run update-brew-formula
-```
+CLI tests use Vitest. The suite includes interactive Ink rendering, standalone execution and stream contracts, parser behavior, task resumption, ACP conformance, and the public library surface. Some ACP tests create local Unix sockets, so the environment must allow temporary socket creation.
 
-#### 3. Test the formula locally
-```bash
-# Create a local tap
-brew tap-new dirac/local
-cp ./cli/dirac.rb "$(brew --repository)/Library/Taps/dirac/homebrew-local/Formula/dirac.rb"
+## Runtime paths
 
-# Build from Source
-brew install --build-from-source dirac/local/dirac
+The CLI deliberately has two rendering paths:
 
-# Install from your local tap
-brew install dirac/local/dirac
+1. Interactive mode renders the React/Ink interface when stdin and stdout are TTYs.
+2. Standalone mode runs without Ink when `--yolo` or `--json` is set, stdin is piped, stdin is redirected, or stdout is redirected.
 
-# Clean up when done
-brew untap dirac/local
-```
+`--auto-approve-all` is the interactive auto-approval option. `--yolo` always selects standalone mode. In standalone text mode stdout is reserved for the final result, while diagnostics and progress go to stderr. JSON mode emits newline-delimited events on stdout.
 
-#### 4. If using a tap, commit and push
-```bash
-git add dirac.rb
-git commit -m "Update dirac to v2.0.0"
-git push
-```
+Changes to task startup, resumption, approvals, rendering, cleanup, or output must be checked in both paths. Never assume an Ink component affects standalone execution or that a plain-text formatter affects the TUI.
 
 ## Architecture
 
-### How It Works
+```text
+cli/src/index.ts
+  command definitions and lazy command dispatch
+          |
+          +-- cli/src/commands/
+          |     auth, config, history, task, resume, welcome, kanban
+          |
+          +-- cli/src/components/ and cli/src/hooks/
+          |     interactive React/Ink UI
+          |
+          +-- cli/src/utils/plain-text-task.ts
+          |     standalone task lifecycle and stream contract
+          |
+          +-- cli/src/acp/
+          |     Agent Client Protocol host and detached server
+          |
+          +-- cli/src/agent/
+                embeddable agent/session API
 
-The CLI directly imports and reuses the core Dirac TypeScript codebase (the same code that powers the VS Code extension). This means feature parity is easy to maintain - when core gets updated, the CLI automatically benefits.
-
+All paths initialize and communicate with the shared core controller and task engine.
 ```
-┌─────────────────────────────────────────────────────────┐
-│                     CLI (cli/)                          │
-│  - React Ink terminal UI                                │
-│  - Command parsing (commander)                          │
-│  - Terminal-specific adapters                           │
-└─────────────────────────────────────────────────────────┘
-                          │
-                          │ direct imports
-                          ▼
-┌─────────────────────────────────────────────────────────┐
-│                  Core (src/core/)                       │
-│  - Controller: task lifecycle, state management         │
-│  - Task: AI API calls, tool execution                   │
-│  - StateManager: persistent storage                     │
-│  - Proto types: message definitions                     │
-└─────────────────────────────────────────────────────────┘
+
+Important files and directories:
+
+| Path | Responsibility |
+| --- | --- |
+| `cli/src/index.ts` | Commander option definitions and top-level routing |
+| `cli/src/commands/task.ts` | Shared task initialization and interactive/standalone selection |
+| `cli/src/utils/mode-selection.ts` | Pure output-mode decision |
+| `cli/src/utils/plain-text-task.ts` | Standalone task execution, approval policy, stdout/stderr contract |
+| `cli/src/components/App.tsx` | Interactive application shell and navigation |
+| `cli/src/components/ChatView.tsx` | Interactive task conversation |
+| `cli/src/context/TaskContext.tsx` | Interactive task state subscription |
+| `cli/src/controllers/CliWebviewProvider.ts` | Terminal implementation of the core host bridge |
+| `cli/src/constants/theme.ts` | Semantic dark/light Ink and ANSI palettes |
+| `cli/src/utils/cleanup.ts` | Process cleanup and output draining |
+| `cli/src/acp/` | ACP transport, sessions, terminals, and conformance tests |
+| `cli/src/agent/` | Public library implementation |
+| `cli/src/exports.ts` | Public package exports |
+| `cli/esbuild.mts` | Executable and library bundling |
+
+The CLI runs the core in the same Node.js process. Terminal-specific behavior crosses the core boundary through the host bridge; tool implementation details remain in the core tool layer.
+
+## Command changes
+
+The default command and `task` subcommand intentionally duplicate most task options in Commander. When adding or changing a task option:
+
+1. Update both definitions unless the option is explicitly root-only.
+2. Add it to `TaskOptions` with the exported core type or enum where one exists.
+3. Apply state overrides in `cli/src/utils/options.ts`.
+4. Verify interactive and standalone behavior.
+5. Update `cli/README.md` and `cli/man/dirac.1.md`, then regenerate `cli/man/dirac.1`.
+
+Root-only options currently include ACP startup, detached socket listening, Kanban, and `--continue`.
+
+Commander parsers must reject invalid values rather than silently changing them. Prefer shared exported enums and option collections over duplicated string literals.
+
+## Interactive UI
+
+Components render terminal state; hooks own input and stateful interaction. Keep task execution outside rendering components. The `TaskContext` subscription is the boundary from core state into the TUI.
+
+Input handlers must ignore terminal control sequences they do not own. Layout code must account for live terminal resizing and very narrow terminals. Modal lists clamp their selection and viewport whenever their contents or available height changes.
+
+Use semantic tokens from `cli/src/constants/theme.ts`; do not place raw named colors in components. Dark mode is the fallback. Light mode is selected by `DIRAC_COLOR_MODE=light` or a light background reported through `COLORFGBG`.
+
+Transcript rendering uses a restrained hierarchy for long-running terminal sessions. Assistant prose, tool headers, tool bodies, metadata, and diff context each have semantic roles. Tool bodies must use an explicit foreground rather than inheriting the terminal default. Tool identity remains delightfully color coded through category-tinted icons, borders, and headers, while status colors stay localized to short markers and urgent states. Do not color entire output blocks. Prefer explicit palette colors over terminal `dim` styling, whose readability varies by emulator.
+
+## Standalone output contract
+
+Standalone execution is designed for shell composition:
+
+- stdout contains the final completion text only in normal text mode.
+- stderr contains task IDs, progress, tool cards, verbose reasoning, summaries, warnings, and errors.
+- redirected streams do not contain ANSI escapes unless `FORCE_COLOR` enables them.
+- `--json` writes one complete JSON value per line to stdout.
+- tasks that require unavailable feedback fail clearly.
+- actionable approval cards require `--yolo` and are serialized before approval.
+- an explicit timeout aborts the task and exits unsuccessfully.
+
+Do not move diagnostic output to stdout. Test both TTY and redirected stream behavior when changing display utilities.
+
+## Images and piped input
+
+The CLI accepts PNG, JPEG, GIF, and WebP images through `--images`, inline mentions, interactive file mentions, and clipboard paste. Inline `@/path` mentions are workspace-relative. Ordinary absolute paths remain absolute. Resolve and deduplicate canonical paths before reading them.
+
+Piped stdin is preserved byte-for-byte and prepended to the optional prompt. Whitespace-only stdin is empty for task validation but must not make an otherwise valid prompt or image-only task fail.
+
+## Storage
+
+The default Dirac home is `~/.dirac`; state is stored below `~/.dirac/data`:
+
+```text
+~/.dirac/
+  data/
+    globalState.json
+    secrets.json
+    workspaces/<workspace-hash>/workspaceState.json
+    tasks/
+    logs/
 ```
 
-Unlike a client-server architecture, the CLI runs everything in a single Node.js process. The "host bridge" pattern provides terminal-appropriate implementations for things the VS Code extension would handle differently (clipboard, file dialogs, etc.).
+`--config <path>` and `DIRAC_DIR` override the Dirac home. The selected working directory determines workspace storage and defaults to the current directory.
 
-### Key Files
+## Public library
 
-| File | Purpose |
-|------|---------|
-| `src/index.ts` | Entry point, command definitions |
-| `src/components/App.tsx` | Main React Ink app |
-| `src/components/ChatView.tsx` | Task conversation UI |
-| `src/controllers/CliWebviewProvider.ts` | Bridges core messages to terminal output |
-| `src/vscode-context.ts` | Mock VS Code extension context for core compatibility |
-| `src/vscode-shim.ts` | Shims for VS Code APIs that core depends on |
-| `src/constants/colors.ts` | Terminal color definitions |
+The package exports its embeddable API from `cli/src/exports.ts`. Importing the library bundle must not install CLI signal handlers, suppress the caller's console, parse argv, or otherwise mutate process-global CLI state. Keep command-entry side effects in `cli/src/index.ts`.
 
-### React Ink
+## Manual page
 
-The CLI uses [React Ink](https://github.com/vadimdemedes/ink) for its terminal UI. This lets us build the interface with React components that render to the terminal. Key patterns:
-
-- Components in `src/components/` render terminal UI
-- Hooks in `src/hooks/` manage terminal-specific state (size, scrolling)
-- The `useStateSubscriber` hook subscribes to core state changes
-
-## Configuration
-
-The CLI stores its data in `~/.dirac/data/` by default:
-
-- `globalState.json`: Global settings and state
-- `secrets.json`: API keys and secrets
-- `workspace/`: Workspace-specific state
-- `tasks/`: Task history and conversation data
-
-Override with the `--config` option or `DIRAC_DIR` environment variable.
-
-## Troubleshooting
-
-### Build Errors
-
-If you encounter build errors:
+Edit `cli/man/dirac.1.md`, then regenerate the roff file with:
 
 ```bash
-# Make sure all deps are installed
-npm run install:all
-
-# Regenerate proto types
-npm run protos
-
-# Then rebuild
-npm run cli:build
+pandoc --standalone --to man cli/man/dirac.1.md --output cli/man/dirac.1
 ```
 
-### "command not found: dirac"
+Inspect both the Markdown source and generated man page whenever command options or environment behavior changes.
 
-The CLI isn't linked globally. Run:
+## Publishing
+
+From `cli/`, the package scripts can build a tarball and update the Homebrew formula:
 
 ```bash
-npm run cli:link
+npm run build:production
+npm run package
+npm run package:brew
 ```
 
-### Changes Not Reflected
-
-If your code changes aren't showing up:
-
-1. Make sure watch mode is running (`npm run cli:dev`)
-2. Check for TypeScript errors in the watch output
-3. Try unlinking and relinking: `npm run cli:unlink && npm run cli:link`
-
-### Import Errors from Core
-
-The CLI imports from `@core/`, `@shared/`, etc. These paths are defined in the root `tsconfig.json`. If you see import errors, make sure you're building from the repo root, not from inside `cli/`.
+Publishing a package or formula is a release operation and is separate from the normal build and verification workflow.

@@ -2,368 +2,384 @@
 title: DIRAC
 section: 1
 header: User Commands
-footer: Dirac CLI 2.0
-date: January 2026
+footer: Dirac CLI
+date: July 2026
 ---
 
 # NAME
 
-dirac - AI coding assistant in your terminal
+dirac - run the Dirac coding agent in a terminal
 
 # SYNOPSIS
 
-**dirac** [*prompt*] [*options*]
+**dirac** [*options*] [*prompt*]
 
-**dirac** *command* [*options*] [*arguments*]
+**dirac task** [*options*] [*prompt*]
+
+**dirac** *command* [*options*]
 
 # DESCRIPTION
 
-**dirac** is a command-line interface for the Dirac AI coding assistant. It provides the same powerful AI capabilities as the VS Code extension, directly in your terminal.
+**dirac** runs the Dirac coding agent against a workspace. It can inspect and edit files, execute commands, use browser tools, maintain task history, and resume earlier work.
 
-Dirac is an autonomous AI agent that can read, write, and execute code across your projects. He can create and edit files, run terminal commands, use a headless browser, and more—all while asking for your approval before taking actions.
+The CLI has an interactive React/Ink interface and a standalone output path for unattended tasks, pipes, redirection, and machine-readable output. Both paths use the same core task engine and configuration.
 
-The CLI supports both interactive mode (with a rich terminal UI) and plain text mode (for piped input and scripted workflows).
+# OUTPUT MODES
 
-# MODES OF OPERATION
+**Interactive mode** is used when stdin and stdout are terminal devices and neither **--yolo** nor **--json** is present. With no prompt, Dirac opens the composer. With a prompt, it submits the first turn immediately. The interface supports approvals, feedback, follow-up messages, history, settings, model selection, skills, and task resumption.
 
-**Interactive Mode** :   When you run **dirac** without arguments, it launches an interactive welcome prompt with a rich terminal UI. You can type your task, view conversation history, and interact with Dirac in real-time.
+**Standalone mode** is selected when **--yolo** or **--json** is present, stdin was piped, stdin is redirected, or stdout is redirected. It does not render the Ink interface.
 
-**Task Mode** :   Run **dirac "prompt"** or **dirac task "prompt"** to immediately start a task. If stdin is a TTY, you'll see the interactive UI. If stdin is piped or output is redirected, the CLI automatically switches to plain text mode.
+In standalone text mode, stdout is reserved for the final completion result. Task IDs, progress, tool activity, verbose reasoning, summaries, warnings, and errors are written to stderr. Redirected output has no ANSI escape sequences unless color is explicitly forced.
 
-**Plain Text Mode** :   Activated automatically when stdin is piped, output is redirected, or **\--json**/**\--yolo** flags are used. Outputs clean text without the Ink UI, suitable for scripting and CI/CD pipelines.
+Without **--yolo**, a standalone task fails if it needs an approval or user feedback. **--yolo** auto-approves actionable cards. **--auto-approve-all** provides auto-approval while retaining interactive mode when the terminal supports it.
 
-# AGENT BEHAVIOR
+# TASK MODES
 
-Dirac operates in two primary modes:
+**Act mode** allows Dirac to use tools to carry out the task. It is the default unless the saved configuration selects another mode.
 
-**ACT MODE** :   Dirac actively uses tools to accomplish tasks. He can read files, write code, execute commands, use a headless browser, and more. This is the default mode for task execution.
+**Plan mode** directs Dirac to investigate and develop a plan before implementation.
 
-**PLAN MODE** :   Dirac gathers information and creates a detailed plan before implementation. He explores the codebase, asks clarifying questions, and presents a strategy for user approval before switching to ACT MODE.
+**--act** and **--plan** conflict and cannot be supplied together.
 
 # COMMANDS
 
-## task (alias: t)
+## task, t
 
-Run a new task with a prompt.
+Run a new task, or resume the task given by **--taskId**. The optional prompt may be combined with piped stdin and images.
 
-**dirac task** *prompt* [*options*]
+**dirac task** [*options*] [*prompt*]
 
-**dirac t** *prompt* [*options*] :   Create and run a new task. Options:
+The task subcommand accepts every option in TASK OPTIONS. ACP, Kanban, and **--continue** are available only on the default root command.
 
-**-a**, **\--act** :   Run in act mode (default)
+## history, h
 
-**-p**, **\--plan** :   Run in plan mode
+List task history.
 
-**-y**, **\--yolo** :   Enable yolo/yes mode (auto-approve all actions, output in plain mode, exit process automatically when task complete)
+**dirac history** [**--limit** *number*] [**--page** *number*] [**--config** *path*]
 
-**-t**, **\--timeout** *seconds* :   Optional timeout in seconds. Only applied when explicitly provided.
+**-n**, **--limit** *number*
+: Show this many tasks per page. The default is 10. The value must be a positive integer.
 
-**-m**, **\--model** *model* :   Model to use for the task
+**-p**, **--page** *number*
+: Show this 1-based page. The default is 1. Requests beyond the available history are clamped to the last page.
 
-**-i**, **\--images** *paths...* :   Image file paths to include with the task
-
-**-v**, **\--verbose** :   Show verbose output including reasoning
-
-**-c**, **\--cwd** *path* :   Working directory for the task
-
-**\--config** *path* :   Path to Dirac configuration directory
-
-**\--thinking** :   Enable extended thinking (1024 token budget)
-
-**\--json** :   Output messages as JSON instead of styled text
-
-**-T**, **\--taskId** *id* :   Resume an existing task by ID. The prompt argument becomes an optional follow-up message.
-
-## history (alias: h)
-
-List task history with pagination.
-
-**dirac history** [*options*]
-
-**dirac h** [*options*] :   Display previous tasks. Options:
-
-**-n**, **\--limit** *number* :   Number of tasks to show (default: 10)
-
-**-p**, **\--page** *number* :   Page number, 1-based (default: 1)
-
-**\--config** *path* :   Path to Dirac configuration directory
+**--config** *path*
+: Use another Dirac home directory.
 
 ## config
 
-Show current configuration.
+Show the effective global and workspace configuration.
 
-**dirac config** [*options*] :   Display global and workspace state. Options:
-
-**\--config** *path* :   Path to Dirac configuration directory
+**dirac config** [**--config** *path*]
 
 ## auth
 
-Authenticate a provider and configure the model.
+Open the interactive provider setup or perform quick setup with flags.
 
-**dirac auth** [*options*] :   Launch interactive authentication wizard, or use quick setup flags. Options:
+**dirac auth** [*options*]
 
-**-p**, **\--provider** *id* :   Provider ID for quick setup (e.g., openai-native, anthropic, openrouter)
+**-p**, **--provider** *id*
+: Provider ID, such as `openai-native`, `anthropic`, or `moonshot`.
 
-**-k**, **\--apikey** *key* :   API key for the provider
+**-k**, **--apikey** *key*
+: Provider API key.
 
-**-m**, **\--modelid** *id* :   Model ID to configure (e.g., gpt-4o, claude-sonnet-4-5-20250929)
+**-m**, **--modelid** *id*
+: Model ID to configure.
 
-**-b**, **\--baseurl** *url* :   Base URL (optional, for OpenAI-compatible providers)
+**-b**, **--baseurl** *url*
+: Base URL for an OpenAI-compatible provider.
 
-**-v**, **\--verbose** :   Show verbose output
+**--azure-api-version** *version*
+: Azure API version for Azure OpenAI.
 
-**-c**, **\--cwd** *path* :   Working directory
+**-v**, **--verbose**
+: Show verbose diagnostics.
 
-**\--config** *path* :   Path to Dirac configuration directory
+**-c**, **--cwd** *path*
+: Select the workspace directory.
 
-## update
-
-Check for updates and install if available.
-
-**dirac update** [*options*] :   Check npm for newer versions. Options:
-
-**-v**, **\--verbose** :   Show verbose output
+**--config** *path*
+: Use another Dirac home directory.
 
 ## version
 
-Show the CLI version number.
+Print the Dirac CLI version.
 
-**dirac version**
+## update
 
-## dev
+Check npm for a newer CLI version and offer to install it.
 
-Developer tools and utilities.
+**dirac update** [**--verbose**]
 
-**dirac dev log** :   Open the log file for debugging.
+## kanban
 
-# DEFAULT COMMAND OPTIONS
+Run `npx kanban --agent dirac`.
 
-When running **dirac** with just a prompt (no subcommand), these options are available:
+The equivalent root option is **dirac --kanban**. Neither form accepts a task prompt.
 
-**-a**, **\--act** :   Run in act mode (default)
+## dev log
 
-**-p**, **\--plan** :   Run in plan mode
+Open the CLI log using the platform's configured external application.
 
-**-y**, **\--yolo** :   Enable yolo mode (auto-approve all actions). Also forces plain text output mode.
+# TASK OPTIONS
 
-**-t**, **\--timeout** *seconds* :   Optional timeout in seconds. Only applied when explicitly provided.
+These options apply to both **dirac** [*prompt*] and **dirac task** [*prompt*], except where noted.
 
-**-m**, **\--model** *model* :   Model to use for the task
+**-a**, **--act**
+: Run in act mode. Conflicts with **--plan**.
 
-**-v**, **\--verbose** :   Show verbose output
+**-p**, **--plan**
+: Run in plan mode. Conflicts with **--act**.
 
-**-c**, **\--cwd** *path* :   Working directory
+**-y**, **--yolo**
+: Select standalone mode and auto-approve actions.
 
-**\--config** *path* :   Configuration directory
+**--auto-approve-all**
+: Auto-approve actions while keeping the interactive interface when stdin and stdout are TTYs.
 
-**\--thinking** :   Enable extended thinking (1024 token budget)
+**-t**, **--timeout** *seconds*
+: Abort after a positive number of seconds. No timeout is applied unless this option is supplied.
 
-**\--json** :   Output messages as JSON instead of styled text. Forces plain text mode.
+**-m**, **--model** *model*
+: Override the configured model for this invocation.
 
-**-T**, **\--taskId** *id* :   Resume an existing task by ID instead of starting a new one. The prompt becomes an optional follow-up message.
+**--provider** *provider*
+: Override the API provider. A provider ID or OpenAI-compatible base URL may be supplied. Requires **--model**.
 
-**\--continue** :   Resume the most recent task from the current working directory instead of starting a new one.
+**-i**, **--images** *paths...*
+: Attach one or more PNG, JPEG, GIF, or WebP images. Relative paths are resolved from the selected workspace.
 
-# JSON OUTPUT FORMAT
+**-v**, **--verbose**
+: Expand reasoning and task diagnostics. In the interactive interface, the existing transcript starts expanded.
 
-When using **\--json**, each message is output as a JSON object with these fields:
+**-c**, **--cwd** *path*
+: Select the task workspace. The default is the current directory.
 
-**Required fields:**
+**--config** *path*
+: Use another Dirac home directory instead of `~/.dirac`.
 
-- **type**: "ask" or "say"
-- **text**: message text
-- **ts**: Unix epoch timestamp in milliseconds
+**--thinking** [*tokens*]
+: Enable extended thinking. The default budget is 1024 tokens when no value is supplied. The value must be a non-negative integer.
 
-**Optional fields:**
+**--reasoning-effort** *effort*
+: Set reasoning effort to `none`, `low`, `medium`, `high`, or `xhigh`. Matching is case-insensitive.
 
-- **reasoning**: reasoning text
-- **say**: say subtype (when type is "say")
-- **ask**: ask subtype (when type is "ask")
-- **partial**: streaming flag
-- **images**: list of image URIs
-- **files**: list of file paths
+**--max-consecutive-mistakes** *count*
+: Stop a yolo task after this many consecutive mistakes. The value must be a positive integer.
 
-# EXAMPLES
+**--json**
+: Select standalone mode and emit newline-delimited JSON events.
 
-## Basic Usage
+**--double-check-completion**
+: Reject the first completion attempt so the agent must re-verify its result.
+
+**--auto-condense**
+: Use AI-powered context compaction instead of mechanical truncation.
+
+**--subagents**
+: Enable subagents for this task.
+
+**--headers** *headers*
+: Set custom headers for an OpenAI-compatible provider. Accepts a JSON object or comma-separated `key=value` pairs.
+
+**--hooks-dir** *path*
+: Load additional runtime hooks from this directory.
+
+**--no-index**
+: Disable symbol indexing for the workspace.
+
+**--no-emoji**
+: Use Unicode/ASCII icon fallbacks instead of emoji.
+
+**-T**, **--taskId** *id*
+: Resume this task. An optional prompt, piped stdin, and images become a follow-up turn. With no follow-up content, the historical task is displayed.
+
+# ROOT-ONLY OPTIONS
+
+**-V**, **--version**
+: Print the package version and exit.
+
+**--continue**
+: Resume the most recent task associated with the current workspace. This option does not accept a prompt or piped stdin and conflicts with **--taskId**.
+
+**--acp**
+: Run as an Agent Client Protocol server for editor integration.
+
+**--listen** *socket*
+: Run ACP detached on a Unix socket. Implies **--acp**.
+
+**--kanban**
+: Run `npx kanban --agent dirac`. This option does not accept a prompt.
+
+# INPUT
+
+## Piped input
+
+Piped stdin is preserved byte-for-byte and placed before the optional prompt, separated from it by a blank line. Piped input selects standalone mode.
+
+Whitespace-only stdin is treated as empty for validation. It does not invalidate a supplied prompt or image-only task.
+
+Examples:
 
 ```bash
-# Launch interactive mode
-dirac
-
-# Run a task directly
-dirac "Create a hello world function in Python"
-
-# Run with verbose output and extended thinking
-dirac -v --thinking "Analyze this codebase architecture"
+git diff | dirac "Review these changes"
+cat error.log | dirac --yolo "Find and fix the cause"
 ```
 
-## Mode Selection
+## Images
 
-```bash
-# Run in plan mode (gather info before acting)
-dirac -p "Design a REST API for user management"
+Images may be supplied with **--images** or mentioned in the prompt. `@/images/screenshot.png` means a path relative to the selected workspace. Ordinary `/absolute/path.png`, `./relative/path.png`, `~/path.png`, quoted paths, and backslash-escaped spaces are also accepted when the file exists.
 
-# Run in act mode with auto-approval (yolo)
-dirac -y "Fix the typo in README.md"
+Duplicate canonical paths are attached only once. An image-only task is valid.
+
+# JSON OUTPUT
+
+**--json** writes one JSON value per line to stdout. The stream begins with:
+
+```json
+{"type":"task_started","taskId":"..."}
 ```
 
-## Using Specific Models
+Task state messages follow in their internal `DiracMessage` shape, including message identifiers, timestamps, and typed content for Markdown, cards, or API status. A standalone failure produces:
 
-```bash
-# Use a specific model
-dirac -m claude-sonnet-4-5-20250929 "Refactor this function"
-
-# Quick auth setup with model
-dirac auth -p anthropic -k sk-ant-xxxxx -m claude-sonnet-4-5-20250929
+```json
+{"type":"error","message":"..."}
 ```
 
-## Including Images
+Consumers should parse the output as NDJSON rather than as one JSON array.
+
+# TASK RESUMPTION
 
 ```bash
-# Include images with explicit flag
-dirac task -i screenshot.png diagram.jpg "Fix the UI based on these images"
-
-# Or use inline image references in the prompt
-dirac "Fix the layout shown in @./screenshot.png"
-```
-
-## Piped Input
-
-```bash
-# Pipe file contents to Dirac
-cat README.md | dirac "Summarize this document"
-
-# Pipe with additional prompt
-echo "function add(a, b) { return a + b }" | dirac "Add TypeScript types to this"
-
-# Combine piped input with a prompt
-git diff | dirac "Review these changes and suggest improvements"
-```
-
-## Scripting and Automation
-
-```bash
-# JSON output for parsing
-dirac --json "What files are in this directory?" | jq '.text'
-
-# Yolo mode for automated workflows (auto-approves all actions), forces plain text output
-dirac -y "Run the test suite and fix any failures"
-```
-
-## Task History
-
-```bash
-# List recent tasks
 dirac history
-
-# Show more tasks with pagination
-dirac history -n 20 -p 2
-```
-
-## Resuming Tasks
-
-```bash
-# Resume a task by ID (get IDs from dirac history)
-dirac -T abc123def
-
-# Resume a task with a follow-up message
-dirac -T abc123def "Now add unit tests for the changes"
-
-# Resume the most recent task from the current directory
+dirac --taskId abc123
+dirac --taskId abc123 "Add tests for that change"
 dirac --continue
-
-# Resume in plan mode to review before continuing
-dirac -T abc123def -p "What's left to do?"
-
-# Resume with yolo mode for automated continuation
-dirac -T abc123def -y "Continue with the implementation"
+dirac task --taskId abc123 --yolo "Finish the implementation"
 ```
 
-## Authentication
+A follow-up submitted to a completed task starts a new turn; the historical completed state does not terminate the new turn.
+
+# AUTHENTICATION EXAMPLES
 
 ```bash
-# Interactive authentication wizard
 dirac auth
-
-# Quick setup for Anthropic
-dirac auth -p anthropic -k sk-ant-api-xxxxx
-
-# Quick setup for OpenAI
-dirac auth -p openai-native -k sk-xxxxx -m gpt-4o
-
-# OpenAI-compatible provider with custom base URL
-dirac auth -p openai -k your-api-key -b https://api.example.com/v1
+dirac auth --provider anthropic --apikey "$ANTHROPIC_API_KEY" --modelid claude-sonnet-4-6
+dirac auth --provider openai --apikey "$OPENAI_API_KEY" --modelid gpt-4o --baseurl https://api.example.com/v1
 ```
+
+Interactive setup masks keys in terminal output. Quick setup validates the provider and required values instead of falling back silently.
+
+# TERMINAL COLORS
+
+Dirac uses semantic dark and light palettes in both interactive and standalone output. Dark mode is the fallback.
+
+The **Light terminal theme** checkbox under **Settings → Features** persists the selected light or dark palette for the next CLI launch.
+
+**DIRAC_COLOR_MODE**
+: Set to `dark` or `light` to override the saved setting. Set to `auto` or supply an unrecognized value to use `COLORFGBG` detection with a dark fallback.
+
+**COLORFGBG**
+: When provided by the terminal, its background color index is used to detect a light terminal.
+
+**NO_COLOR**
+: Disable ANSI colors when present.
+
+**FORCE_COLOR**
+: Force ANSI colors when present. A value of `0` disables them. `NO_COLOR` takes precedence.
+
+Redirected output is uncolored by default.
 
 # ENVIRONMENT
 
-**DIRAC_DIR** :   Override the default configuration directory. When set, Dirac stores all data in this directory instead of `~/.dirac/data/`.
+**DIRAC_DIR**
+: Override the Dirac home directory. The default is `~/.dirac`.
 
-**DIRAC_COMMAND_PERMISSIONS** :   JSON configuration for restricting which shell commands Dirac can execute. When set, commands are validated against allow/deny patternks before execution. When not set, all commands are allowed.
+**DIRAC_NO_AUTO_UPDATE**
+: Set to `1` to disable the background update check.
 
-Format: `{"allow": ["pattern1", "pattern2"], "deny": ["pattern3"], "allowRedirects": true}`
+**DIRAC_NO_EMOJI**
+: When set, use Unicode/ASCII icon fallbacks. Equivalent to **--no-emoji**.
 
-**Fields:**
+**CUSTOM_HEADERS**
+: OpenAI-compatible custom headers in JSON or comma-separated `key=value` form. **--headers** takes precedence.
 
-- **allow** (array of strings): Glob patterns for allowed commands. If specified, only matching commands are permitted. Uses `*` to match any characters and `?` to match a single character. Setting allow on anything will deny all others.
-- **deny** (array of strings): Glob patterns for denied commands. Deny rules take precedence over allow rules.
-- **allowRedirects** (boolean): Whether to allow shell redirects (`>`, `>>`, `<`, etc.). Defaults to false.
+**OPENAI_COMPATIBLE_CUSTOM_KEY**
+: API key for an OpenAI-compatible endpoint. A provider URL or `OPENAI_API_BASE` and a model must also be configured.
 
-**Rule evaluation:**
+Provider-specific API key variables such as `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `OPENROUTER_API_KEY`, `GEMINI_API_KEY`, `GROQ_API_KEY`, `MISTRAL_API_KEY`, `XAI_API_KEY`, and `HF_TOKEN` can bypass interactive authentication.
 
-1. Check for dangerous characters (backticks outside single quotes, unquoted newlines)
-2. Parse command into segments split by operators (`&&`, `||`, `|`, `;`)
-3. If redirects detected and `allowRedirects` is not true, command is denied
-4. Each segment is validated against deny rules first, then allow rules
-5. Subshell contents (`$(...)` and `(...)`) are recursively validated
-6. All segments must pass for the command to be allowed
+**DIRAC_COMMAND_PERMISSIONS**
+: JSON configuration that restricts shell commands. If no configuration is supplied, commands are allowed subject to normal task approval behavior.
 
-**Examples:**
+The object supports:
+
+- `allow`: glob patterns for commands that may run. Once present, unmatched commands are denied.
+- `deny`: glob patterns that are rejected before allow rules.
+- `allowRedirects`: whether shell redirects are allowed. The default is false when command permission rules are active.
+
+Every command segment separated by shell operators is checked, and deny rules take precedence.
 
 ```bash
-# Allow only npm and git commands.
-export DIRAC_COMMAND_PERMISSIONS='{"allow": ["npm *", "git *"]}'
-
-# Allow development commands but deny dangerous ones. Deny not strictly required here since allow is set.
-export DIRAC_COMMAND_PERMISSIONS='{"allow": ["npm *", "git *", "node *"], "deny": ["rm -rf *", "sudo *"]}'
-
-# Allow file operations with redirects
-export DIRAC_COMMAND_PERMISSIONS='{"allow": ["cat *", "echo *"], "allowRedirects": true}'
+export DIRAC_COMMAND_PERMISSIONS='{"allow":["npm *","git *"],"deny":["git push *"]}'
 ```
 
+# FILES
 
-# CONFIGURATION FILES
+The default storage layout is:
 
-```
+```text
 ~/.dirac/
-├── data/                    # Default configuration directory
-│   ├── globalState.json     # Global settings and state
-│   ├── secrets.json         # API keys and secrets (stored securely)
-│   ├── workspace/           # Workspace-specific state
-│   └── tasks/               # Task history and conversation data
-└── log/                     # Log files for debugging
+  data/
+    globalState.json
+    secrets.json
+    workspaces/<workspace-hash>/workspaceState.json
+    tasks/
+    logs/
 ```
 
-View logs with `dirac dev log`.
+`secrets.json` is created with owner-only permissions. Use **dirac dev log** to open the CLI log.
 
+# EXIT STATUS
+
+Dirac exits with status 0 after successful completion or a normal interactive exit. It exits nonzero for invalid arguments, missing authentication in standalone mode, unavailable approvals or feedback, timeouts, task failures, and initialization errors.
+
+# EXAMPLES
+
+```bash
+# Open the interactive composer
+dirac
+
+# Submit an interactive task immediately
+dirac --plan "Design a REST API"
+
+# Keep the TUI but auto-approve actions
+dirac --auto-approve-all "Fix the lint failures"
+
+# Run unattended with standalone output
+dirac --yolo "Run the tests and fix failures"
+
+# Attach images
+dirac --images screenshot.png diagram.webp "Implement this layout"
+dirac "Compare @/screens/before.png and @/screens/after.png"
+
+# Override model configuration
+dirac --provider openai-native --model gpt-4o --reasoning-effort high "Audit this module"
+
+# Consume NDJSON
+dirac --json "Describe the repository" | jq -c 'select(.type == "task_started")'
+```
 
 # BUGS
 
-Report bugs at: <https://github.com/dirac-run/dirac/issues>
-
-For real-time help, join the Discord community at: <https://discord.gg/wcYTx9BGea>
-
-# SEE ALSO
-
-Full documentation: <https://docs.dirac.bot>
-
-VS Code extension: <https://marketplace.visualstudio.com/items?itemName=dirac-run.dirac>
+Report bugs at <https://github.com/dirac-run/dirac/issues>.
 
 # AUTHORS
 
-Dirac is developed by Dirac Bot Inc. and the open source community.
+Dirac is developed by Dirac Delta Labs and open-source contributors.
 
 # COPYRIGHT
 
-Copyright © 2025 Dirac Bot Inc. Licensed under the Apache License 2.0.
+Licensed under the Apache License 2.0.

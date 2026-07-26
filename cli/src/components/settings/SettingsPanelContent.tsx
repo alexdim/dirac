@@ -1,12 +1,12 @@
+import { terminalColorMode, TerminalColorMode, theme } from "../../constants/theme"
 import React, { useCallback, useMemo, useState } from "react"
-import { useInput } from "ink"
+import { Text, useInput } from "ink"
 import { StateManager } from "@/core/storage/StateManager"
 import { buildApiHandler } from "@/core/api"
 import { getProviderModelIdKey, isSettingsKey } from "@shared/storage"
 import { DEFAULT_AUTO_APPROVAL_SETTINGS } from "@shared/AutoApprovalSettings"
-import { openAiCodexOAuthManager } from "@/integrations/openai-codex/oauth"
 import { useStdinContext } from "../../context/StdinContext"
-import { isMouseEscapeSequence } from "../../utils/input"
+import { shouldIgnoreTerminalInput } from "../../utils/input"
 import { copyToClipboardNative } from "../../utils/clipboard"
 import { Panel } from "../Panel"
 import { TABS, FEATURE_SETTINGS, type FeatureKey } from "./constants"
@@ -21,7 +21,8 @@ import { ApiKeyInputPage, EditValuePage, ObjectEditorPage } from "./subpages/Edi
 import { BedrockSetupPage, BedrockCustomFlowPage } from "./subpages/SetupPages"
 import { CodexAuthPage, GithubAuthPage, AuthErrorPage } from "./subpages/AuthPages"
 import { OpenRouterRoutingPage } from "./subpages/OpenRouterRoutingPage"
-import type { SettingsPanelContentProps, SettingsTab } from "./types"
+import { SettingsNavigationDirection, SettingsTab, type SettingsPanelContentProps } from "./types"
+import { getFirstSelectableSettingsIndex, isSelectableSettingsItem } from "./navigation"
 import type { TelemetrySetting } from "@shared/TelemetrySetting"
 import type { OpenaiReasoningEffort } from "@shared/storage/types"
 import type { AutoApprovalSettings } from "@shared/AutoApprovalSettings"
@@ -29,6 +30,7 @@ import type { ObjectEditorState } from "../ConfigViewComponents"
 
 import { ToolRegistry } from "@/core/task/tools/registry/ToolRegistry"
 import type { ToolMetadata } from "@shared/ExtensionMessage"
+import { Logger } from "@/shared/services/Logger"
 export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 	onClose,
 	controller,
@@ -39,7 +41,7 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 	const stateManager = StateManager.get()
 
 	// UI state
-	const [currentTab, setCurrentTab] = useState<SettingsTab>("api")
+	const [currentTab, setCurrentTab] = useState<SettingsTab>(SettingsTab.API)
 	const [selectedIndex, setSelectedIndex] = useState(0)
 	const [isEditing, setIsEditing] = useState(false)
 	const [isPickingModel, setIsPickingModel] = useState(initialMode === "model-picker")
@@ -62,6 +64,26 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 	const [isBedrockCustomFlow, setIsBedrockCustomFlow] = useState(false)
 	const [objectEditor, setObjectEditor] = useState<ObjectEditorState | null>(null)
 	const [openRouterRoutingModelId, setOpenRouterRoutingModelId] = useState<string | null>(null)
+	const [settingsError, setSettingsError] = useState<string | null>(null)
+	const [isApplyingSetting, setIsApplyingSetting] = useState(false)
+	const actionInProgressRef = React.useRef(false)
+
+	const runSettingsAction = useCallback((context: string, action: () => void | Promise<void>) => {
+		if (actionInProgressRef.current) return
+		actionInProgressRef.current = true
+		setIsApplyingSetting(true)
+		setSettingsError(null)
+		Promise.resolve()
+			.then(action)
+			.catch((error) => {
+				Logger.error(`Settings ${context} failed:`, error)
+				setSettingsError(error instanceof Error ? error.message : String(error))
+			})
+			.finally(() => {
+				actionInProgressRef.current = false
+				setIsApplyingSetting(false)
+			})
+	}, [])
 
 	// Tool toggle state
 	const [availableTools] = useState<ToolMetadata[]>(() => {
@@ -89,6 +111,10 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 		return initial as Record<FeatureKey, boolean>
 	})
 
+	const [lightTerminalTheme, setLightTerminalTheme] = useState<boolean>(() => {
+		const savedPreference = stateManager.getGlobalSettingsKey("cliTerminalColorMode")
+		return savedPreference ? savedPreference === "light" : terminalColorMode === TerminalColorMode.LIGHT
+	})
 	const [separateModels, setSeparateModels] = useState<boolean>(
 		() => stateManager.getGlobalSettingsKey("planActSeparateModelsSetting") ?? false,
 	)
@@ -135,12 +161,25 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 	const [modelRefreshKey, setModelRefreshKey] = useState(0)
 	const [openRouterModels, setOpenRouterModels] = useState<string[]>([])
 	React.useEffect(() => {
-		if (usesOpenRouterModels(provider)) {
-			controller?.readOpenRouterModels().then((models) => {
-				if (models) {
-					setOpenRouterModels(Object.keys(models))
+		if (!usesOpenRouterModels(provider) || !controller) {
+			setOpenRouterModels([])
+			return
+		}
+		let cancelled = false
+		controller
+			.readOpenRouterModels()
+			.then((models) => {
+				if (!cancelled) setOpenRouterModels(models ? Object.keys(models) : [])
+			})
+			.catch((error) => {
+				Logger.error("Failed to load OpenRouter models for settings:", error)
+				if (!cancelled) {
+					setOpenRouterModels([])
+					setSettingsError(error instanceof Error ? error.message : String(error))
 				}
 			})
+		return () => {
+			cancelled = true
 		}
 	}, [provider, controller, modelRefreshKey])
 	const refreshModelIds = useCallback(() => setModelRefreshKey((k) => k + 1), [])
@@ -174,10 +213,7 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 		openAiCodexEmail,
 		githubIsAuthenticated,
 		githubEmail,
-		setOpenAiCodexIsAuthenticated,
-		setOpenAiCodexEmail,
-		setGithubIsAuthenticated,
-		setGithubEmail,
+		authStatusError,
 	} = useAuthStatus(provider, isWaitingForCodexAuth, isWaitingForGithubAuth)
 
 	const items = useSettingsItems({
@@ -192,6 +228,7 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 		planReasoningEffort,
 		autoApproveSettings,
 		features,
+		lightTerminalTheme,
 		preferredLanguage,
 		telemetry,
 		openAiHeaders,
@@ -207,6 +244,12 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 		toolToggles,
 	})
 
+	React.useEffect(() => {
+		setSelectedIndex((currentIndex) =>
+			isSelectableSettingsItem(items[currentIndex]) ? currentIndex : getFirstSelectableSettingsIndex(items),
+		)
+	}, [items])
+
 	const {
 		handleAction,
 		handleSave,
@@ -216,15 +259,13 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 		handleBedrockComplete,
 		handleBedrockCustomFlowComplete,
 		handleLanguageSelect,
-		startCodexAuth,
-		startGithubAuth,
+		cancelCodexAuth,
+		cancelGithubAuth,
 		navigateItems,
 	} = useSettingsActions({
 		items,
 		selectedIndex,
 		setSelectedIndex,
-		currentTab,
-		setCurrentTab,
 		provider,
 		setProvider,
 		actModelId,
@@ -247,6 +288,7 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 		setAutoApproveSettings,
 		features,
 		setFeatures,
+		setLightTerminalTheme,
 		preferredLanguage,
 		setPreferredLanguage,
 		telemetry,
@@ -283,6 +325,7 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 	})
 
 	const handleTabChange = useCallback((tabKey: string) => {
+		setSettingsError(null)
 		setCurrentTab(tabKey as SettingsTab)
 		setSelectedIndex(0)
 		setIsEditing(false)
@@ -316,7 +359,7 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 	useInput(
 		(input, key) => {
 			if (objectEditor) return
-			if (isMouseEscapeSequence(input)) return
+			if (shouldIgnoreTerminalInput(input, key)) return
 			if (openRouterRoutingModelId) return
 
 			if (isPickingProvider) {
@@ -351,16 +394,14 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 					return
 				}
 				if (key.escape) {
-					openAiCodexOAuthManager.cancelAuthorizationFlow()
-					setIsWaitingForCodexAuth(false)
+					cancelCodexAuth()
 				}
 				return
 			}
 
 			if (isWaitingForGithubAuth) {
 				if (key.escape) {
-					setIsWaitingForGithubAuth(false)
-					setGithubAuthData(null)
+					cancelGithubAuth()
 				}
 				return
 			}
@@ -378,7 +419,7 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 					return
 				}
 				if (key.return) {
-					handleSave(editValue)
+					runSettingsAction("save", () => handleSave(editValue))
 					return
 				}
 				if (key.backspace || key.delete) {
@@ -404,15 +445,15 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 				return
 			}
 			if (key.upArrow) {
-				navigateItems("up")
+				navigateItems(SettingsNavigationDirection.UP)
 				return
 			}
 			if (key.downArrow) {
-				navigateItems("down")
+				navigateItems(SettingsNavigationDirection.DOWN)
 				return
 			}
 			if (key.tab || key.return || input === " ") {
-				handleAction()
+				runSettingsAction("update", handleAction)
 				return
 			}
 		},
@@ -423,7 +464,7 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 		if (openRouterRoutingModelId) {
 			return (
 				<OpenRouterRoutingPage
-					isActive={true}
+					isActive={!isApplyingSetting}
 					modelId={openRouterRoutingModelId}
 					onCancel={() => setOpenRouterRoutingModelId(null)}
 					onSave={(providers) => {
@@ -435,27 +476,36 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 							"openRouterPinnedProviders",
 							Object.keys(nextPinnedProviders).length > 0 ? nextPinnedProviders : undefined,
 						)
-						void rebuildTaskApi()
-						setOpenRouterRoutingModelId(null)
+						runSettingsAction("routing update", async () => {
+							await rebuildTaskApi()
+							setOpenRouterRoutingModelId(null)
+						})
 					}}
 					savedProviders={openRouterPinnedProviders[openRouterRoutingModelId] || []}
 				/>
 			)
 		}
 		if (isPickingProvider) {
-			return <ProviderPickerPage isActive={isPickingProvider} onSelect={handleProviderSelect} />
+			return (
+				<ProviderPickerPage
+					isActive={isPickingProvider && !isApplyingSetting}
+					onSelect={(providerId) =>
+						runSettingsAction("provider update", () => handleProviderSelect(providerId))
+					}
+				/>
+			)
 		}
 		if (isEnteringApiKey && pendingProvider) {
 			return (
 				<ApiKeyInputPage
-					isActive={isEnteringApiKey}
+					isActive={isEnteringApiKey && !isApplyingSetting}
 					onCancel={() => {
 						setIsEnteringApiKey(false)
 						setPendingProvider(null)
 						setApiKeyValue("")
 					}}
 					onChange={setApiKeyValue}
-					onSubmit={handleApiKeySubmit}
+					onSubmit={(value) => runSettingsAction("API key update", () => handleApiKeySubmit(value))}
 					pendingProvider={pendingProvider}
 					apiKeyValue={apiKeyValue}
 				/>
@@ -464,12 +514,12 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 		if (isConfiguringBedrock) {
 			return (
 				<BedrockSetupPage
-					isActive={isConfiguringBedrock}
+					isActive={isConfiguringBedrock && !isApplyingSetting}
 					onCancel={() => {
 						setIsConfiguringBedrock(false)
 						setPendingProvider(null)
 					}}
-					onComplete={handleBedrockComplete}
+					onComplete={(config) => runSettingsAction("Bedrock setup", () => handleBedrockComplete(config))}
 				/>
 			)
 		}
@@ -487,25 +537,34 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 			return (
 				<ModelPickerPage
 					controller={controller}
-					isActive={isPickingModel}
-					onSelect={handleModelSelect}
+					isActive={isPickingModel && !isApplyingSetting}
+					onSelect={(modelId) => runSettingsAction("model update", () => handleModelSelect(modelId))}
 					provider={provider}
 					label={label}
 				/>
 			)
 		}
 		if (isPickingLanguage) {
-			return <LanguagePickerPage isActive={isPickingLanguage} onSelect={handleLanguageSelect} />
+			return (
+				<LanguagePickerPage
+					isActive={isPickingLanguage && !isApplyingSetting}
+					onSelect={(language) => runSettingsAction("language update", () => handleLanguageSelect(language))}
+				/>
+			)
 		}
 		if (isBedrockCustomFlow) {
 			return (
 				<BedrockCustomFlowPage
-					isActive={isBedrockCustomFlow}
+					isActive={isBedrockCustomFlow && !isApplyingSetting}
 					onCancel={() => {
 						setIsBedrockCustomFlow(false)
 						setIsPickingModel(true)
 					}}
-					onComplete={handleBedrockCustomFlowComplete}
+					onComplete={(arn, modelId) =>
+						runSettingsAction("custom Bedrock model update", () =>
+							handleBedrockCustomFlowComplete(arn, modelId),
+						)
+					}
 				/>
 			)
 		}
@@ -523,7 +582,7 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 							const headers = nextObject as Record<string, string>
 							setOpenAiHeaders(headers)
 							stateManager.setGlobalState("openAiHeaders", headers)
-							rebuildTaskApi()
+							runSettingsAction("custom header update", rebuildTaskApi)
 						}
 					}}
 				/>
@@ -544,10 +603,15 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 		isBedrockCustomFlow ||
 		isWaitingForGithubAuth ||
 		isEditing ||
+		!!objectEditor ||
 		!!openRouterRoutingModelId
 
 	return (
 		<Panel currentTab={currentTab} isSubpage={isSubpage} label="Settings" tabs={TABS}>
+			{(settingsError || authStatusError) && (
+				<Text color={theme.error}>Settings error: {settingsError || authStatusError}</Text>
+			)}
+			{isApplyingSetting && <Text color={theme.muted}>Applying change…</Text>}
 			{renderContent()}
 		</Panel>
 	)

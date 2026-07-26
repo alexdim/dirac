@@ -8,11 +8,17 @@ const SPINNER_INTERVAL_MS = 140
 
 import { theme } from "../../constants/theme"
 
-const toneColors: Record<TaskStatusTone, string> = {
-	muted: theme.muted,
-	active: theme.info,
-	warning: theme.warning,
-	success: theme.success,
+function getToneColor(tone: TaskStatusTone): string {
+	switch (tone) {
+		case "muted":
+			return theme.muted
+		case "active":
+			return theme.info
+		case "warning":
+			return theme.warning
+		case "success":
+			return theme.success
+	}
 }
 
 interface TaskStatusIndicatorProps {
@@ -36,13 +42,13 @@ export const TaskStatusIndicator: React.FC<TaskStatusIndicatorProps> = ({ status
 		return () => clearInterval(interval)
 	}, [projection.isBusy])
 
-	const color = toneColors[projection.tone]
+	const color = getToneColor(projection.tone)
 	const dimColor = projection.tone === "muted" || projection.tone === "success"
 
 	return (
 		<Box>
 			{projection.isBusy && (
-				<Text color={color} dimColor>
+				<Text color={color}>
 					{ASCII_SPINNER_FRAMES[frameIndex]}{" "}
 				</Text>
 			)}
