@@ -80,7 +80,11 @@ export interface AcpModeOptions {
   /** Model explicitly selected at process startup */
   model?: string;
   /** ACP operating mode explicitly selected at process startup */
-  mode?: "plan" | "act" | "auto" | "yolo";
+  mode?: "plan" | "act";
+  /** Whether auto-approve is explicitly enabled at process startup */
+  autoApprove?: boolean;
+  /** Whether YOLO is explicitly enabled at process startup */
+  yolo?: boolean;
   /** Extended-thinking token budget explicitly selected at process startup */
   thinkingBudgetTokens?: number;
   /** Reasoning effort explicitly selected at process startup */
@@ -135,6 +139,8 @@ export async function runAcpMode(options: AcpModeOptions = {}): Promise<void> {
       provider: options.provider,
       model: options.model,
       mode: options.mode,
+      autoApprove: options.autoApprove,
+      yolo: options.yolo,
       thinkingBudgetTokens: options.thinkingBudgetTokens,
       reasoningEffort: options.reasoningEffort,
       hooksDir: options.hooksDir,
@@ -187,6 +193,8 @@ async function runDetachedAcpMode(options: AcpModeOptions): Promise<void> {
     provider: options.provider,
     model: options.model,
     mode: options.mode,
+    autoApprove: options.autoApprove,
+    yolo: options.yolo,
     thinkingBudgetTokens: options.thinkingBudgetTokens,
     reasoningEffort: options.reasoningEffort,
     hooksDir: options.hooksDir,

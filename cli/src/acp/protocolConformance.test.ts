@@ -160,15 +160,47 @@ describe("ACP protocol conformance over raw stdio", () => {
 		const session = await client.request("session/new", { cwd, mcpServers: [] })
 		const sessionId = session.result?.sessionId as string
 
+		const initialOptions = session.result?.configOptions as Array<Record<string, unknown>>
+		expect(initialOptions).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({ id: "mode", type: "select", currentValue: "act" }),
+				expect.objectContaining({ id: "auto_approve", type: "boolean", currentValue: false }),
+				expect.objectContaining({ id: "yolo", type: "boolean", currentValue: false }),
+			]),
+		)
+
+		await client.request("session/set_config_option", {
+			sessionId,
+			configId: "auto_approve",
+			type: "boolean",
+			value: true,
+		})
+		await client.request("session/set_config_option", {
+			sessionId,
+			configId: "yolo",
+			type: "boolean",
+			value: true,
+		})
+		await client.request("session/set_config_option", {
+			sessionId,
+			configId: "auto_approve",
+			type: "boolean",
+			value: false,
+		})
 		const configured = await client.request("session/set_config_option", {
 			sessionId,
 			configId: "mode",
 			value: "plan",
 		})
 		expect(configured.result?.configOptions).toEqual(
-			expect.arrayContaining([expect.objectContaining({ id: "mode", currentValue: "plan" })]),
+			expect.arrayContaining([
+				expect.objectContaining({ id: "mode", currentValue: "plan" }),
+				expect.objectContaining({ id: "auto_approve", currentValue: false }),
+				expect.objectContaining({ id: "yolo", currentValue: true }),
+			]),
 		)
 		await waitForUpdate(client, "config_option_update")
+		await waitForUpdate(client, "current_mode_update")
 	})
 
 	it("uses explicit startup provider and model until the ACP client changes them", async () => {
@@ -207,7 +239,9 @@ describe("ACP protocol conformance over raw stdio", () => {
 		expect((modelOptions[0].options as Array<Record<string, unknown>>).map((option) => option.value)).not.toContain("deepseek")
 		expect(configOptions).toEqual(
 			expect.arrayContaining([
-				expect.objectContaining({ id: "mode", currentValue: "yolo" }),
+				expect.objectContaining({ id: "mode", currentValue: "act" }),
+				expect.objectContaining({ id: "auto_approve", currentValue: false }),
+				expect.objectContaining({ id: "yolo", currentValue: true }),
 				expect.objectContaining({ id: "thinking_budget", currentValue: "4096" }),
 				expect.objectContaining({ id: "reasoning_effort", currentValue: "high" }),
 			]),
@@ -315,15 +349,19 @@ describe("ACP protocol conformance over raw stdio", () => {
 		})
 		const permission = await client.waitForPermission(30_000)
 		expect(permission.params?.sessionId).toBe(sessionId)
-		await expect(
-			client.request("session/set_config_option", {
-				sessionId,
-				configId: "thinking_budget",
-				value: "8192",
-			}),
-		).resolves.toMatchObject({
-			error: { message: expect.stringContaining("busy") },
+		const updatedDuringTurn = await client.request("session/set_config_option", {
+			sessionId,
+			configId: "auto_approve",
+			type: "boolean",
+			value: true,
 		})
+		expect(updatedDuringTurn.result?.configOptions).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({ id: "mode", currentValue: "act" }),
+				expect.objectContaining({ id: "auto_approve", currentValue: true }),
+				expect.objectContaining({ id: "yolo", currentValue: false }),
+			]),
+		)
 		client.notify("session/cancel", { sessionId })
 
 		await expect(prompt).resolves.toMatchObject({ result: { stopReason: "cancelled" } })
@@ -384,6 +422,18 @@ describe("ACP protocol conformance over raw stdio", () => {
 			configId: "reasoning_effort",
 			value: "high",
 		})
+		await first.request("session/set_config_option", {
+			sessionId,
+			configId: "auto_approve",
+			type: "boolean",
+			value: true,
+		})
+		await first.request("session/set_config_option", {
+			sessionId,
+			configId: "yolo",
+			type: "boolean",
+			value: true,
+		})
 		await first.request("session/close", { sessionId })
 		await first.close()
 
@@ -398,6 +448,9 @@ describe("ACP protocol conformance over raw stdio", () => {
 
 		expect(loaded.result?.configOptions).toEqual(
 			expect.arrayContaining([
+				expect.objectContaining({ id: "mode", currentValue: "act" }),
+				expect.objectContaining({ id: "auto_approve", currentValue: true }),
+				expect.objectContaining({ id: "yolo", currentValue: true }),
 				expect.objectContaining({ id: "provider", currentValue: "deepseek" }),
 				expect.objectContaining({ id: "model", currentValue: "deepseek-v4-pro" }),
 				expect.objectContaining({ id: "reasoning_effort", currentValue: "high" }),

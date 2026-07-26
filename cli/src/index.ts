@@ -207,15 +207,9 @@ program
 				cwd: options.cwd,
 				provider: options.provider,
 				model: options.model,
-				mode: options.plan
-					? "plan"
-					: options.yolo
-						? "yolo"
-						: options.autoApproveAll
-							? "auto"
-							: options.act
-								? "act"
-								: undefined,
+				mode: options.plan ? "plan" : options.act ? "act" : undefined,
+				autoApprove: options.autoApproveAll ? true : undefined,
+				yolo: options.yolo ? true : undefined,
 				thinkingBudgetTokens:
 					options.thinking === undefined
 						? undefined
