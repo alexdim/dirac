@@ -23,6 +23,7 @@ interface UseChatInputHandlerProps {
 	insertTextAtCursor: (text: string) => void
 	toggleMode: () => void
 	toggleAutoApproveAll: () => void
+	toggleQuietMode: () => void
 	handleSubmit: (text: string, images: string[]) => void
 	handleExit: () => void
 	clearViewAndResetTask: () => void
@@ -85,6 +86,7 @@ export function useChatInputHandler({
 	insertTextAtCursor,
 	toggleMode,
 	toggleAutoApproveAll,
+	toggleQuietMode,
 	handleSubmit,
 	handleExit,
 	clearViewAndResetTask,
@@ -172,6 +174,7 @@ export function useChatInputHandler({
 						},
 						clearViewAndResetTask,
 						handleExit,
+						toggleQuietMode,
 					})
 
 					if (wasLocalCommand) {

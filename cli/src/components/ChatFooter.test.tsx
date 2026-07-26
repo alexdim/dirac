@@ -1,0 +1,42 @@
+import { render } from "ink-testing-library"
+import React from "react"
+import { describe, expect, it, vi } from "vitest"
+import { ChatFooter } from "./ChatFooter"
+
+vi.mock("../hooks/useTerminalSize", () => ({
+	useTerminalSize: () => ({ columns: 120, rows: 40, resizeKey: 0 }),
+}))
+
+function renderFooter(quietMode: boolean) {
+	return render(
+		<ChatFooter
+			autoApproveAll={false}
+			cacheHitRate={0}
+			contextWindowSize={100_000}
+			gitBranch={null}
+			gitDiffStats={null}
+			lastApiReqTotalTokens={0}
+			mode="act"
+			modelId="test-model"
+			provider="test-provider"
+			quietMode={quietMode}
+			totalCost={0}
+			workspacePath="/workspace/project"
+			yoloMode={false}
+		/>,
+	)
+}
+
+describe("ChatFooter modes", () => {
+	it("separates auto-approve, YOLO, and quiet mode with middle dots", () => {
+		const frame = renderFooter(false).lastFrame() || ""
+		expect(frame).toContain(
+			"Auto-approve all disabled (Shift+Tab) · YOLO mode disabled · Quiet mode disabled (/quiet)",
+		)
+	})
+
+	it("shows when quiet mode is enabled", () => {
+		const frame = renderFooter(true).lastFrame() || ""
+		expect(frame).toContain("Quiet mode enabled (/quiet)")
+	})
+})

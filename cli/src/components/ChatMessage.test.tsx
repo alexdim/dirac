@@ -44,6 +44,8 @@ describe("ChatMessage transcript roles", () => {
 	})
 
 	it("keeps user input and model responses visually distinct", () => {
+		expect(theme.userMessage).toBe("#73B98A")
+		expect(theme.assistantMessage).toBe("#D09A72")
 		expect(theme.userMessage).not.toBe(theme.assistantMessage)
 		expect(theme.userMessage).not.toBe(theme.toolHeader)
 		expect(theme.assistantMessage).not.toBe(theme.toolBody)
@@ -203,6 +205,55 @@ describe("ChatMessage card rendering", () => {
 		expect(frame).toContain("Updated the CLI completion rendering.")
 		expect(frame).not.toContain("Updated§")
 		expect(frame).not.toContain("✓ success")
+	})
+
+
+	it("renders a normal card header without its body when suppression is requested", () => {
+		const message: DiracMessage = {
+			id: "quiet-card",
+			ts: Date.now(),
+			content: {
+				type: DiracMessageType.CARD,
+				card: {
+					id: "quiet-card",
+					header: "Quiet tool card",
+					status: "success" as any,
+					renderType: "text",
+					body: "Hidden tool output",
+				},
+			},
+		}
+
+		const frame = render(
+			React.createElement(ChatMessage, { message, mode: "act", suppressCardBody: true }),
+		).lastFrame() || ""
+
+		expect(frame).toContain("Quiet tool card")
+		expect(frame).not.toContain("Hidden tool output")
+	})
+
+	it("can suppress the Task Completed body while retaining its header", () => {
+		const message: DiracMessage = {
+			id: "quiet-completion",
+			ts: Date.now(),
+			content: {
+				type: DiracMessageType.CARD,
+				card: {
+					id: "quiet-completion",
+					header: "Task Completed",
+					status: "success" as any,
+					renderType: "markdown",
+					body: "Hidden completion output",
+				},
+			},
+		}
+
+		const frame = render(
+			React.createElement(ChatMessage, { message, mode: "act", suppressCardBody: true }),
+		).lastFrame() || ""
+
+		expect(frame).toContain("Task Completed")
+		expect(frame).not.toContain("Hidden completion output")
 	})
 
 

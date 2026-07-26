@@ -208,7 +208,14 @@ describe("LifecycleManager", () => {
 			deps.taskState.askResponseText = "continue working"
 			await resumePromise
 
-			sinon.assert.calledWith(deps.taskMessenger.upsertText, "continue working", false, undefined, undefined)
+			sinon.assert.calledWith(
+				deps.taskMessenger.upsertText,
+				"continue working",
+				false,
+				undefined,
+				undefined,
+				"user",
+			)
 			sinon.assert.calledOnce(deps.hookManager.runUserPromptSubmitHook)
 			sinon.assert.calledOnce(deps.initiateTaskLoop)
 		})

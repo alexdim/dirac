@@ -44,7 +44,11 @@ describe("terminal color mode", () => {
 		expect(activeTheme.styles.conversation.user).toEqual({ color: activeTheme.theme.userMessage })
 		expect(activeTheme.styles.conversation.assistant).toEqual({ color: activeTheme.theme.assistantMessage })
 		expect(activeTheme.theme.userMessage).not.toBe(activeTheme.theme.assistantMessage)
+		expect(activeTheme.theme.userMessage).toBe("#277440")
+		expect(activeTheme.theme.assistantMessage).toBe("#8A552E")
 		activeTheme.configureTerminalTheme(TerminalColorMode.DARK, {})
+		expect(activeTheme.theme.userMessage).toBe("#73B98A")
+		expect(activeTheme.theme.assistantMessage).toBe("#D09A72")
 	})
 
 	it("detects standard and extended light backgrounds from COLORFGBG", () => {

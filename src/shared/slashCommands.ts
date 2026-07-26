@@ -97,4 +97,10 @@ export const CLI_ONLY_COMMANDS: SlashCommand[] = [
 		section: "default",
 		cliCompatible: true,
 	},
+	{
+		name: "quiet",
+		description: "Toggle card bodies for future tool output",
+		section: "default",
+		cliCompatible: true,
+	},
 ]

@@ -63,6 +63,7 @@ export interface ComposerActions {
 	) => void
 	toggleMode: () => void
 	toggleAutoApproveAll: () => void
+	toggleQuietMode: () => void
 }
 
 interface UseComposerProps {
@@ -376,6 +377,7 @@ export function useComposer({
 		insertTextAtCursor,
 		toggleMode: () => actionsRef.current.toggleMode(),
 		toggleAutoApproveAll: () => actionsRef.current.toggleAutoApproveAll(),
+		toggleQuietMode: () => actionsRef.current.toggleQuietMode(),
 		handleSubmit: (text, images) => actionsRef.current.handleSubmit(text, images),
 		handleExit: () => actionsRef.current.handleExit(),
 		clearViewAndResetTask: () => actionsRef.current.clearViewAndResetTask(),

@@ -150,7 +150,7 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
 	const { columns } = useTerminalSize()
 	const isStreaming = isStreamingProp || message.id === activeVoiceStreamId
 	if (tailOnly && maxContentLines) {
-		return renderTimelineTail(message, maxContentLines, columns)
+		return renderTimelineTail(message, maxContentLines, columns, suppressCardBody)
 	}
 	if (maxContentLines && message.content.type === DiracMessageType.MARKDOWN && !message.content.isReasoning) {
 		return renderBoundedMarkdownMessage(message.content, maxContentLines, columns, scrollOffset ?? 0)
@@ -206,6 +206,7 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
 							card={message.content.card}
 							maxBodyLines={maxContentLines}
 							scrollOffset={scrollOffset}
+							suppressBody={suppressCardBody}
 						/>
 					)
 				}
@@ -260,7 +261,12 @@ function renderBoundedMarkdownMessage(
 }
 
 
-function renderTimelineTail(message: DiracMessage, maxLines: number, columns: number): React.ReactNode {
+function renderTimelineTail(
+	message: DiracMessage,
+	maxLines: number,
+	columns: number,
+	suppressCardBody = false,
+): React.ReactNode {
 	const width = Math.max(1, columns - 4)
 	if (message.content.type === DiracMessageType.MARKDOWN) {
 		const color = message.content.isReasoning
@@ -272,6 +278,7 @@ function renderTimelineTail(message: DiracMessage, maxLines: number, columns: nu
 	}
 
 	if (message.content.type === DiracMessageType.CARD) {
+		if (suppressCardBody) return <ModularCard card={message.content.card} suppressBody />
 		const body = cardBodyForDisplay(message.content.card.body, message.content.card.renderType)
 		if (body) {
 			return <Text {...styles.tool.body}>{clipTextToLastVisualLines(body, maxLines, width, "")}</Text>

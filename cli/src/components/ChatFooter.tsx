@@ -21,6 +21,7 @@ interface ChatFooterProps {
 	gitDiffStats: GitDiffStats | null
 	autoApproveAll: boolean
 	yoloMode: boolean
+	quietMode: boolean
 	taskStatus?: TaskStatus
 	show?: boolean
 }
@@ -38,6 +39,7 @@ export const ChatFooter: React.FC<ChatFooterProps> = ({
 	gitDiffStats,
 	autoApproveAll,
 	yoloMode,
+	quietMode,
 	taskStatus,
 	show = true,
 }) => {
@@ -121,21 +123,30 @@ export const ChatFooter: React.FC<ChatFooterProps> = ({
 				</Text>
 			</Box>
 
-			{/* Row 4: Auto-approve toggle and YOLO mode indicator */}
-			<Box paddingLeft={1} paddingRight={1} gap={2}>
-				{autoApproveAll ? (
-					<Text wrap="truncate-end">
-						<Text color={theme.success}>⏵⏵ Auto-approve all enabled</Text>
-						<Text color={theme.muted}> (Shift+Tab)</Text>
-					</Text>
-				) : (
-					<Text color={theme.muted} wrap="truncate-end">Auto-approve all disabled (Shift+Tab)</Text>
-				)}
-				{yoloMode ? (
-					<Text bold color={theme.warning}>⚠ YOLO mode enabled</Text>
-				) : (
-					<Text color={theme.muted}>YOLO mode disabled</Text>
-				)}
+			{/* Row 4: Auto-approve, YOLO, and quiet mode indicators */}
+			<Box paddingLeft={1} paddingRight={1}>
+				<Text wrap="truncate-end">
+					{autoApproveAll ? (
+						<React.Fragment>
+							<Text color={theme.success}>⏵⏵ Auto-approve all enabled</Text>
+							<Text color={theme.muted}> (Shift+Tab)</Text>
+						</React.Fragment>
+					) : (
+						<Text color={theme.muted}>Auto-approve all disabled (Shift+Tab)</Text>
+					)}
+					<Text color={theme.muted}> · </Text>
+					{yoloMode ? (
+						<Text bold color={theme.warning}>⚠ YOLO mode enabled</Text>
+					) : (
+						<Text color={theme.muted}>YOLO mode disabled</Text>
+					)}
+					<Text color={theme.muted}> · </Text>
+					{quietMode ? (
+						<Text color={theme.success}>Quiet mode enabled (/quiet)</Text>
+					) : (
+						<Text color={theme.muted}>Quiet mode disabled (/quiet)</Text>
+					)}
+				</Text>
 			</Box>
 		</Box>
 	)

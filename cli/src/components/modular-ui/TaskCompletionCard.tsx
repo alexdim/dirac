@@ -8,10 +8,16 @@ interface TaskCompletionCardProps {
 	card: Card
 	maxBodyLines?: number
 	scrollOffset?: number
+	suppressBody?: boolean
 }
 
-export const TaskCompletionCard: React.FC<TaskCompletionCardProps> = ({ card, maxBodyLines, scrollOffset }) => {
-	const hasBody = Boolean(card.body)
+export const TaskCompletionCard: React.FC<TaskCompletionCardProps> = ({
+	card,
+	maxBodyLines,
+	scrollOffset,
+	suppressBody = false,
+}) => {
+	const hasBody = Boolean(card.body) && !suppressBody
 	return (
 		<Box
 			borderColor={theme.toolComplete}
