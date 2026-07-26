@@ -172,9 +172,11 @@ async function* processResponseEvent(
 		case "response.output_item.done":
 			yield* handleOutputItemDone(chunk.item, functionCallByItemId)
 			break
-		case "response.reasoning_summary_part.added":
-			yield { type: "reasoning", id: chunk.item_id, reasoning: chunk.part.text }
+		case "response.reasoning_summary_part.added": {
+			const stepSeparator = chunk.summary_index > 0 ? "\n\n" : ""
+			yield { type: "reasoning", id: chunk.item_id, reasoning: `${stepSeparator}${chunk.part.text}` }
 			break
+		}
 		case "response.reasoning_summary_text.delta":
 			yield { type: "reasoning", id: chunk.item_id, reasoning: chunk.delta }
 			break

@@ -124,7 +124,9 @@ const ReasoningMessage: React.FC<{
 					<Text color={reasoningAccent}>
 						Thinking
 					</Text>
-					<Text color={reasoningColor}>{visibleContent}</Text>
+					<Markdown color={reasoningColor} width={Math.max(1, columns - 4)}>
+						{visibleContent}
+					</Markdown>
 				</Box>
 			</DotRow>
 			<Text>{"\n"}</Text>

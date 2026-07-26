@@ -1,5 +1,5 @@
 import "should"
-import { buildResponseCreateParams, shouldRetryWithFullContext } from "../openai-responses-utils"
+import { buildResponseCreateParams, processResponsesEvents, shouldRetryWithFullContext } from "../openai-responses-utils"
 
 // Characterization tests for shouldRetryWithFullContext.
 // The function decides whether a failed request should be retried with the full
@@ -59,5 +59,50 @@ describe("buildResponseCreateParams", () => {
 	it("includes parallel_tool_calls when disabled", () => {
 		const params = buildResponseCreateParams({ ...baseArgs, enableParallelToolCalling: false }) as any
 		params.parallel_tool_calls.should.equal(false)
+	})
+})
+describe("processResponsesEvents", () => {
+	it("separates OpenAI reasoning summary parts into distinct paragraphs", async () => {
+		async function* stream() {
+			yield {
+				type: "response.reasoning_summary_part.added",
+				item_id: "reasoning-1",
+				summary_index: 0,
+				part: { text: "" },
+			}
+			yield {
+				type: "response.reasoning_summary_text.delta",
+				item_id: "reasoning-1",
+				summary_index: 0,
+				delta: "**Planning layout restoration**",
+			}
+			yield {
+				type: "response.reasoning_summary_part.done",
+				item_id: "reasoning-1",
+				summary_index: 0,
+				part: { text: "**Planning layout restoration**" },
+			}
+			yield {
+				type: "response.reasoning_summary_part.added",
+				item_id: "reasoning-1",
+				summary_index: 1,
+				part: { text: "" },
+			}
+			yield {
+				type: "response.reasoning_summary_text.delta",
+				item_id: "reasoning-1",
+				summary_index: 1,
+				delta: "**Refining spacing**",
+			}
+		}
+
+		const chunks: any[] = []
+		for await (const chunk of processResponsesEvents(stream() as any, {} as any)) chunks.push(chunk)
+
+		const reasoning = chunks
+			.filter((chunk) => chunk.type === "reasoning")
+			.map((chunk) => chunk.reasoning)
+			.join("")
+		reasoning.should.equal("**Planning layout restoration**\n\n**Refining spacing**")
 	})
 })

@@ -42,4 +42,18 @@ describe("ThinkingRow", () => {
 		fireEvent.click(screen.getByRole("button", { name: /Thinking/i }))
 		expect(onToggle).toHaveBeenCalledTimes(1)
 	})
+	it("renders summarized reasoning steps as Markdown", () => {
+		render(
+			<ThinkingRow
+				isExpanded={true}
+				isVisible={true}
+				reasoningContent="**Planning layout restoration**\n\n**Refining spacing**"
+				showTitle={true}
+			/>,
+		)
+
+		expect(screen.getByText("Planning layout restoration").tagName).toBe("STRONG")
+		expect(screen.getByText("Refining spacing").tagName).toBe("STRONG")
+		expect(screen.queryByText(/\*\*/)).not.toBeInTheDocument()
+	})
 })
