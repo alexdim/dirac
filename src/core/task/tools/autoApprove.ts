@@ -69,6 +69,8 @@ export class AutoApprove {
 				case DiracDefaultTool.BASH:
 				case DiracDefaultTool.BROWSER:
 					return true
+				default:
+					return true
 			}
 		}
 

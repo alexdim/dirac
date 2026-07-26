@@ -1,4 +1,5 @@
 import { DiracAskResponse } from "@shared/WebviewMessage"
+import { CardStatus } from "@shared/ExtensionMessage"
 import type { IUITrait, IInteractionTrait, ICardHandle, CardParams } from "../../interfaces/IToolEnvironment"
 import type { TaskConfig } from "../../types/TaskConfig"
 import { CardHandle } from "../CardHandle"
@@ -52,8 +53,22 @@ export async function createCardFromMessenger(
 	params: CardParams,
 	tracker: CardHandle[],
 ): Promise<ICardHandle> {
-	const handle = await config.taskMessenger.createCard(params)
-	const adapterHandle = new CardHandle(handle, params)
+	const autoApprovedAction =
+		params.requireApproval && config.yoloModeToggled
+			? (params.actions?.find((candidate) => candidate.primary)?.value ?? DiracAskResponse.APPROVE)
+			: undefined
+	const displayedParams = autoApprovedAction
+		? {
+				...params,
+				status: params.status === CardStatus.WAITING_FOR_INPUT ? CardStatus.RUNNING : params.status,
+				requireApproval: false,
+				requireFeedback: false,
+				feedbackPlaceholder: undefined,
+				actions: undefined,
+			}
+		: params
+	const handle = await config.taskMessenger.createCard(displayedParams)
+	const adapterHandle = new CardHandle(handle, displayedParams, autoApprovedAction)
 	tracker.push(adapterHandle)
 	return adapterHandle
 }

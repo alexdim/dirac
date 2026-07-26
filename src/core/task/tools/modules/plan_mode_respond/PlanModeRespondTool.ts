@@ -63,27 +63,41 @@ export class PlanModeRespondTool implements IDiracTool {
 			)
 		}
 
-		if (env.config.yoloModeToggled && env.config.mode === "act") {
-			return formatResponse.toolResult(`[Go ahead and execute.]`)
-		}
-
 		const options = parsePartialArrayString(optionsRaw || "[]")
 		const sharedMessage = { response, options, selected: "" } satisfies DiracPlanModeResponse
+		const yoloMode = env.config.yoloModeToggled
 
-		const actModeSwitchResult = await this.switchToActMode(sharedMessage, env)
-		if (actModeSwitchResult) return actModeSwitchResult
-
-		env.orchestration.setTaskState("isAwaitingPlanResponse", true)
+		if (!yoloMode) {
+			env.orchestration.setTaskState("isAwaitingPlanResponse", true)
+		}
 		const cardHandle = await env.ui.createCard({
 			header: PLAN_CARD_HEADER,
 			icon: DiracIcon.PLAN,
 			body: response,
 			renderType: "markdown",
-			requireFeedback: true,
+			requireFeedback: !yoloMode,
 			collapsed: false,
 			maxHeight: 10000,
 			do_not_auto_collapse: true,
 		})
+
+		if (yoloMode) {
+			const wasPlanMode = env.config.mode === "plan"
+			if (wasPlanMode) {
+				const switchSuccessful = await env.orchestration.switchToActMode()
+				if (!switchSuccessful) {
+					await cardHandle.finalize(CardStatus.ERROR, true)
+					return formatResponse.toolError("Failed to switch to ACT MODE.")
+				}
+			}
+
+			await cardHandle.update({ header: PLAN_ACCEPTED_HEADER })
+			await cardHandle.finalize(CardStatus.SUCCESS, true)
+			return formatResponse.toolResult(
+				wasPlanMode ? `[The user has switched to ACT MODE, so you may now proceed with the task.]` : `[Go ahead and execute.]`,
+			)
+		}
+
 		const { text, images, files: planResponseFiles } = await cardHandle.waitForInteraction()
 		env.orchestration.setTaskState("isAwaitingPlanResponse", false)
 
@@ -124,17 +138,6 @@ export class PlanModeRespondTool implements IDiracTool {
 		return formatResponse.toolResult(`<user_message>\n${userText}\n</user_message>`, images, fileContentString)
 	}
 
-	private async switchToActMode(sharedMessage: DiracPlanModeResponse, env: IToolEnvironment): Promise<any | null> {
-		if (env.config.mode !== "plan" || !env.config.yoloModeToggled) {
-			return null
-		}
-
-		const switchSuccessful = await env.orchestration.switchToActMode()
-		if (!switchSuccessful) return null
-
-		await this.patchLastPlanCard(sharedMessage, env)
-		return formatResponse.toolResult(`[The user has switched to ACT MODE, so you may now proceed with the task.]`)
-	}
 
 	private async promptUserDecision(
 		text: string,

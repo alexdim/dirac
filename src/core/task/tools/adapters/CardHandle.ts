@@ -38,6 +38,7 @@ export class CardHandle implements ICardHandle {
 	constructor(
 		private protocolHandle: IProtocolCardHandle,
 		params: CardParams,
+		private readonly autoApprovedAction?: string,
 	) {
 		this.id = protocolHandle.id
 		this.header = params.header
@@ -136,6 +137,14 @@ export class CardHandle implements ICardHandle {
 		files?: string[]
 		userEdits?: Record<string, string>
 	}> {
+		if (this.autoApprovedAction) {
+			return {
+				action: this.autoApprovedAction,
+				response: DiracAskResponse.APPROVE,
+				value: this.autoApprovedAction,
+			}
+		}
+
 		const result = await this.protocolHandle.waitForInteraction()
 
 		let action = result.action || (result.response as string)

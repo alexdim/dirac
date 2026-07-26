@@ -1,5 +1,6 @@
 import "should"
 import { DiracAskResponse } from "@shared/WebviewMessage"
+import { CardStatus } from "@shared/ExtensionMessage"
 import { expect } from "chai"
 import sinon from "sinon"
 import { Logger } from "@/shared/services/Logger"
@@ -96,6 +97,65 @@ describe("SurfaceAdapter", () => {
 			const handle = await adapter.ui.createCard({ header: "Test" })
 			handle.id.should.equal("card-1")
 			sinon.assert.calledOnce(config.taskMessenger.createCard)
+		})
+
+		it("auto-approves approval cards without waiting for protocol interaction", async () => {
+			const fakeHandle = {
+				id: "card-1",
+				update: sinon.stub().resolves(),
+				appendBody: sinon.stub().resolves(),
+				finalize: sinon.stub().resolves(),
+				waitForInteraction: sinon.stub().resolves({ action: DiracAskResponse.REJECT }),
+			}
+			config.yoloModeToggled = true
+			config.taskMessenger.createCard = sinon.stub().resolves(fakeHandle)
+
+			const handle = await adapter.ui.createCard({
+				header: "Permission",
+				status: CardStatus.WAITING_FOR_INPUT,
+				requireApproval: true,
+			})
+			const result = await handle.waitForInteraction()
+
+			sinon.assert.calledWithMatch(config.taskMessenger.createCard, {
+				status: CardStatus.RUNNING,
+				requireApproval: false,
+				actions: undefined,
+			})
+			sinon.assert.notCalled(fakeHandle.waitForInteraction)
+			result.action.should.equal(DiracAskResponse.APPROVE)
+			result.response.should.equal(DiracAskResponse.APPROVE)
+			result.value!.should.equal(DiracAskResponse.APPROVE)
+		})
+
+		it("uses the primary custom action for an auto-approved card", async () => {
+			const fakeHandle = {
+				id: "card-1",
+				update: sinon.stub().resolves(),
+				appendBody: sinon.stub().resolves(),
+				finalize: sinon.stub().resolves(),
+				waitForInteraction: sinon.stub(),
+			}
+			config.yoloModeToggled = true
+			config.taskMessenger.createCard = sinon.stub().resolves(fakeHandle)
+
+			const handle = await adapter.ui.createCard({
+				header: "New Task",
+				requireApproval: true,
+				requireFeedback: true,
+				actions: [{ label: "Approve New Task", value: "new_task", primary: true }],
+			})
+			const result = await handle.waitForInteraction()
+
+			sinon.assert.calledWithMatch(config.taskMessenger.createCard, {
+				requireApproval: false,
+				requireFeedback: false,
+				actions: undefined,
+			})
+			sinon.assert.notCalled(fakeHandle.waitForInteraction)
+			result.action.should.equal("new_task")
+			result.response.should.equal(DiracAskResponse.APPROVE)
+			result.value!.should.equal("new_task")
 		})
 
 		it("upsertText delegates to taskMessenger.upsertText", async () => {
