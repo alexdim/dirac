@@ -35,12 +35,16 @@ export const CardHeader: React.FC<CardHeaderProps> = ({ header, status, icon, co
 	const isRunning = status === CardStatus.RUNNING || status === CardStatus.BUILDING
 	const headerPresentation = getHeaderPresentation(status)
 	const statusLabel = status.toLowerCase().replaceAll("_", " ")
+	const headerColor = headerPresentation.color
+	const headerBold = headerPresentation.bold ?? false
 
 	if (compact) {
 		return (
 			<Text>
 				<Text color={categoryColor}>{getIcon(icon)}</Text>{" "}
-				<Text {...headerPresentation}>{header}</Text>{" "}
+				<Text bold={headerBold}>
+					<Text color={headerColor}>{header}</Text>
+				</Text>{" "}
 				<Text color={statusColor}>{isRunning ? <Spinner type="dots" /> : statusIcon}</Text>
 			</Text>
 		)
@@ -49,7 +53,9 @@ export const CardHeader: React.FC<CardHeaderProps> = ({ header, status, icon, co
 	return (
 		<Text>
 			<Text color={categoryColor}>{getIcon(icon)}</Text>{" "}
-			<Text {...headerPresentation}>{header}</Text>{" "}
+			<Text bold={headerBold}>
+				<Text color={headerColor}>{header}</Text>
+			</Text>{" "}
 			<Text color={statusColor}>{isRunning ? <Spinner type="dots" /> : statusIcon}</Text>{" "}
 			<Text {...styles.tool.metadata}>{statusLabel}</Text>
 		</Text>

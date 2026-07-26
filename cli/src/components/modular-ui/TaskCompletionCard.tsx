@@ -25,7 +25,9 @@ export const TaskCompletionCard: React.FC<TaskCompletionCardProps> = ({
 			flexDirection="column"
 			paddingX={1}
 			width="100%">
-			<Text bold color={theme.toolComplete}>✔ Task Completed</Text>
+			<Text bold>
+				<Text color={theme.toolComplete}>✔ Task Completed</Text>
+			</Text>
 			{hasBody && (
 				<Box marginTop={1} paddingLeft={1}>
 					<CardBody
