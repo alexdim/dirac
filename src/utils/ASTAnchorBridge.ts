@@ -38,8 +38,8 @@ export class ASTAnchorBridge {
 
 		const fileContent = await fs.readFile(absolutePath, "utf8")
 		const lines = fileContent.split("\n")
-		const anchors = AnchorStateManager.reconcile(absolutePath, lines, taskId)
 		const revealAnchors = options?.includeAnchors === true
+		const anchors = revealAnchors ? AnchorStateManager.reconcile(absolutePath, lines, taskId) : []
 
 		let formattedOutput = ""
 		let lastLineAdded = -1
@@ -111,8 +111,8 @@ export class ASTAnchorBridge {
 			}
 
 			const allLines = fileContent.split(/\r?\n/)
-			const allAnchors = AnchorStateManager.reconcile(absolutePath, allLines, taskId)
 			const revealAnchors = includeAnchors === true
+			const allAnchors = revealAnchors ? AnchorStateManager.reconcile(absolutePath, allLines, taskId) : []
 
 			const matches = query.matches(parsedTree.rootNode)
 			const nodeToMatch = new Map<number, any>()
@@ -188,6 +188,7 @@ export class ASTAnchorBridge {
 							parser,
 							ext,
 							anchors: allAnchors,
+							includeAnchors: revealAnchors,
 							rootNode: parsedTree.rootNode,
 						})
 

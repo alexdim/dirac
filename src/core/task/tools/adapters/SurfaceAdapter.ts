@@ -2,6 +2,7 @@ import { IDiracContext } from "../interfaces/IDiracContext"
 import {
 	CardParams,
 	IASTTrait,
+	IAnchorTrait,
 	IBrowserTrait,
 	ICardHandle,
 	IDiagnosticsTrait,
@@ -29,6 +30,7 @@ import { buildSystemTrait } from "./traits/SystemTraitBuilder"
 import { buildInteractionTrait, buildUiTrait, createCardFromMessenger } from "./traits/UiTraitBuilder"
 import { buildTelemetryTrait, buildWorkspaceTrait } from "./traits/WorkspaceTraitBuilder"
 
+import { AnchorStateManager } from "@utils/AnchorStateManager"
 /**
  * SurfaceAdapter provides the standard implementation of IToolEnvironment for the Dirac surface.
  * It connects modular tools to the core services and capabilities of the Dirac application.
@@ -42,6 +44,7 @@ export class SurfaceAdapter implements IToolEnvironment {
 	public readonly telemetry: ITelemetryTrait
 	public readonly workspace: IWorkspaceTrait
 	public readonly ast: IASTTrait
+	public readonly anchors: IAnchorTrait
 	public readonly diagnostics: IDiagnosticsTrait
 	public readonly editor: IEditorTrait
 	public readonly symbol: ISymbolTrait
@@ -66,6 +69,11 @@ export class SurfaceAdapter implements IToolEnvironment {
 		this.telemetry = buildTelemetryTrait(this)
 		this.workspace = buildWorkspaceTrait(config)
 		this.ast = buildAstTrait(config)
+		this.anchors = {
+			reconcile: (absolutePath, lines) => AnchorStateManager.reconcile(absolutePath, lines, config.ulid),
+			getDocumentFingerprint: (absolutePath) =>
+				AnchorStateManager.getDocumentFingerprint(absolutePath, config.ulid),
+		}
 		this.diagnostics = buildDiagnosticsTrait()
 		this.editor = buildEditorTrait(config)
 		this.symbol = buildSymbolTrait()

@@ -6,6 +6,8 @@ import { DiracDefaultTool } from "@shared/tools"
 import { ANCHOR_DELIMITER } from "@shared/utils/line-hashing"
 import { DiracAskResponse } from "@shared/WebviewMessage"
 import { AnchorStateManager } from "@utils/AnchorStateManager"
+import { DiracContext } from "../../../context/DiracContext"
+import { ReadFileTool } from "../../read_file/ReadFileTool"
 import * as pathUtils from "@utils/path"
 import { afterEach, beforeEach, describe, it } from "mocha"
 import sinon from "sinon"
@@ -22,7 +24,7 @@ import { EditFileTool } from "../EditFileTool"
 class EditFileToolHandler {
 	private tool = new EditFileTool()
 	public diagnosticsTimeoutMs = 0
-	constructor(_validator: any, _forceSyntaxChecker: boolean) {}
+	constructor(_validator: any, _forceSyntaxChecker: boolean) { }
 	async execute(config: TaskConfig, block: any) {
 		const env = new SurfaceAdapter(config)
 		return this.tool.processCall(block.params, env)
@@ -129,6 +131,7 @@ function createConfig() {
 					planModeApiProvider: "openai",
 					actModeApiProvider: "openai",
 				}),
+				flushPendingState: sinon.stub().resolves(),
 			},
 			fileContextTracker: {
 				trackFileContext: sinon.stub().resolves(),
@@ -179,6 +182,7 @@ describe("EditFileTool.execute – partial success", () => {
 		sandbox = sinon.createSandbox()
 		tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "dirac-edit-test-"))
 		sandbox.stub(pathUtils, "isLocatedInWorkspace").resolves(true)
+		AnchorStateManager.reset("ulid-1")
 
 		sandbox.stub(getDiagnosticsProvidersModule, "getDiagnosticsProviders").returns([
 			{
@@ -203,9 +207,10 @@ describe("EditFileTool.execute – partial success", () => {
 	})
 
 	afterEach(async () => {
+		AnchorStateManager.reset("ulid-1")
 		sandbox.restore()
 		HostProvider.reset()
-		await fs.rm(tmpDir, { recursive: true, force: true }).catch(() => {})
+		await fs.rm(tmpDir, { recursive: true, force: true }).catch(() => { })
 	})
 
 	it("applies all valid edits in a batch even if some fail", async () => {
@@ -242,7 +247,7 @@ describe("EditFileTool.execute – partial success", () => {
 		assert.ok(typeof result === "string")
 		assert.ok(
 			result.includes("Partial success: 2 of 3 edits were applied; 1 failed") &&
-				result.includes("Do not retry the 2 applied edits"),
+			result.includes("Do not retry the 2 applied edits"),
 			"Should include an explicit partial-success summary",
 		)
 		assert.ok(
@@ -318,6 +323,97 @@ describe("EditFileTool.execute – partial success", () => {
 		assert.ok(result.includes("new line 1"))
 		assert.ok(result.includes("new line 3"))
 	})
+
+	it("does not suppress the fresh mapping seeded by a failed edit with old anchors", async () => {
+		const { config, taskState, validator } = createConfig()
+		const handler = new EditFileToolHandler(validator, false)
+		const fileName = "failed-edit-seeded-state.txt"
+		const filePath = path.join(tmpDir, fileName)
+		const originalContent = "line 1\nline 2"
+		await fs.writeFile(filePath, originalContent)
+		const randomStub = sandbox.stub(Math, "random").returns(0)
+
+		const readTool = new ReadFileTool()
+		const firstRead = (await readTool.processCall(
+			{ paths: [fileName], include_anchors: true },
+			new SurfaceAdapter(config),
+		)) as string
+		const oldAnchor = firstRead.match(/^([A-Z][a-zA-Z]*§line 2)$/m)?.[1]
+		assert.ok(oldAnchor)
+		const emittedFingerprint = AnchorStateManager.getDocumentFingerprint(filePath, config.ulid)
+
+		AnchorStateManager.reset(config.ulid)
+		randomStub.returns(0.999999)
+		const block = makeMultiEditBlock(fileName, [
+			{ edit_type: "replace", anchor: oldAnchor, end_anchor: oldAnchor, text: "should not apply" },
+		])
+		taskState.assistantMessageContent = [block]
+		const failedEdit = await handler.execute(config, block)
+
+		assert.ok(typeof failedEdit === "string" && failedEdit.includes("not found in the file"))
+		assert.equal(await fs.readFile(filePath, "utf8"), originalContent)
+		assert.notEqual(AnchorStateManager.getDocumentFingerprint(filePath, config.ulid), emittedFingerprint)
+
+		const reread = (await readTool.processCall(
+			{ paths: [fileName], include_anchors: true },
+			new SurfaceAdapter(config),
+		)) as string
+		assert.ok(!reread.includes("no changes have been made"))
+		assert.ok(/^[A-Z][a-zA-Z]*§line 2$/m.test(reread))
+	})
+
+
+	it("restores persisted anchors before editing after task reconstruction", async () => {
+		const { config, taskState, validator } = createConfig()
+		const handler = new EditFileToolHandler(validator, false)
+		const fileName = "reconstructed-anchor-edit.txt"
+		const filePath = path.join(tmpDir, fileName)
+		const originalContent = "line 1\nline 2\nline 3"
+		await fs.writeFile(filePath, originalContent)
+
+		const originalDiracDir = process.env.DIRAC_DIR
+		process.env.DIRAC_DIR = path.join(tmpDir, "dirac-home")
+		try {
+			config.taskId = "anchor-reconstruction"
+			const firstContext = new DiracContext(config.taskId, config.services.stateManager, config.ulid)
+			config.context = firstContext
+			await firstContext.load()
+
+			const readResult = (await new ReadFileTool().processCall(
+				{ paths: [fileName], include_anchors: true },
+				new SurfaceAdapter(config),
+			)) as string
+			const oldAnchor = readResult.match(/^([A-Z][a-zA-Z]*§line 2)$/m)?.[1]
+			assert.ok(oldAnchor)
+			const emittedFingerprint = AnchorStateManager.getDocumentFingerprint(filePath, config.ulid)
+			await firstContext.save()
+
+			AnchorStateManager.reset(config.ulid)
+			const reconstructedContext = new DiracContext(config.taskId, config.services.stateManager, config.ulid)
+			await reconstructedContext.load()
+			config.context = reconstructedContext
+			assert.equal(AnchorStateManager.getDocumentFingerprint(filePath, config.ulid), emittedFingerprint)
+
+			const repeatedRead = (await new ReadFileTool().processCall(
+				{ paths: [fileName], include_anchors: true },
+				new SurfaceAdapter(config),
+			)) as string
+			assert.ok(repeatedRead.includes("no changes have been made to the file since your last read"))
+
+			const block = makeMultiEditBlock(fileName, [
+				{ edit_type: "replace", anchor: oldAnchor, end_anchor: oldAnchor, text: "restored line 2" },
+			])
+			taskState.assistantMessageContent = [block]
+			const result = await handler.execute(config, block)
+
+			assert.ok(typeof result === "string" && result.includes("Applied 1 edit(s) successfully"))
+			assert.equal(await fs.readFile(filePath, "utf8"), "line 1\nrestored line 2\nline 3")
+		} finally {
+			if (originalDiracDir === undefined) delete process.env.DIRAC_DIR
+			else process.env.DIRAC_DIR = originalDiracDir
+		}
+	})
+
 
 	it("returns concise format in 'additions-only' mode", async () => {
 		const { config, taskState, validator } = createConfig()

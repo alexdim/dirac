@@ -9,6 +9,9 @@ function createEnv() {
 	return {
 		config: { isSubagentExecution: true },
 		context,
+		anchors: {
+			getDocumentFingerprint: sinon.stub().returns("anchor-revision"),
+		},
 		workspace: {
 			resolvePath: sinon.stub().resolves({ absolutePath: "/tmp/example.ts", displayPath: "example.ts" }),
 		},
@@ -58,5 +61,13 @@ describe("GetFunctionTool include_anchors visibility and cache", () => {
 			env,
 		)) as string
 		assert.ok(repeatedAnchoredResult.includes("no changes have been made to the function since your last read"))
+
+		env.anchors.getDocumentFingerprint.returns("different-anchor-revision")
+		const changedMappingResult = (await tool.processCall(
+			{ paths: ["example.ts"], function_names: ["target"], include_anchors: true },
+			env,
+		)) as string
+		assert.ok(!changedMappingResult.includes("no changes have been made"))
+		assert.ok(changedMappingResult.includes("Anchor§function target()"))
 	})
 })

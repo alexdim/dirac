@@ -1,4 +1,3 @@
-import { AnchorStateManager } from "@utils/AnchorStateManager"
 import { CardStatus } from "@/shared/ExtensionMessage"
 import type { IToolEnvironment } from "../../interfaces/IToolEnvironment"
 import type { ToolResponse } from "../../types/ToolResponse"
@@ -7,7 +6,7 @@ import { EditFormatter } from "./utils/EditFormatter"
 
 // Applies prepared batches to disk, formats files, and produces final diagnostic results.
 export class EditFileApplier {
-	constructor(private resultsFormatter: EditFormatter) {}
+	constructor(private resultsFormatter: EditFormatter) { }
 
 	async applyAndSave(
 		env: IToolEnvironment,
@@ -54,7 +53,7 @@ export class EditFileApplier {
 					saveResult,
 					finalContent,
 					finalLines,
-					newLineHashes: AnchorStateManager.reconcile(batch.absolutePath, finalLines, env.config.ulid),
+					newLineHashes: env.anchors.reconcile(batch.absolutePath, finalLines),
 				})
 
 				const card = cards[batch.absolutePath]

@@ -1,5 +1,4 @@
 import { formatResponse } from "@core/formatResponse"
-import { AnchorStateManager } from "@utils/AnchorStateManager"
 import { contentHash, formatLinesForModel } from "@utils/line-hashing"
 import { CardStatus } from "@/shared/ExtensionMessage"
 import { DiracIcon } from "@/shared/icons"
@@ -27,6 +26,11 @@ interface TextSelection {
 	startIndex: number
 	endIndex: number
 	coversWholeFile: boolean
+}
+
+interface FullReadCacheRecord {
+	contentHash: string
+	anchorFingerprint?: string
 }
 
 const MAX_TEXT_READ_SIZE = 50 * 1024
@@ -90,7 +94,7 @@ export class ReadFileTool implements IDiracTool<ReadFileArgs> {
 		const lineRange = this.parseLineRange(args.start_line, args.end_line)
 		const results: string[] = []
 		const contentBlocks: any[] = []
-		const fileHashes = env.context.task.get<Record<string, string>>("fileHashes") || {}
+		const fileHashes = env.context.task.get<Record<string, string | FullReadCacheRecord>>("fileHashes") || {}
 		let anySucceeded = false
 
 		for (const relPath of paths) {
@@ -124,7 +128,7 @@ export class ReadFileTool implements IDiracTool<ReadFileArgs> {
 		relPath: string,
 		isMultiFile: boolean,
 		lineRange: LineRange | undefined,
-		fileHashes: Record<string, string>,
+		fileHashes: Record<string, string | FullReadCacheRecord>,
 		env: IToolEnvironment,
 		includeAnchors: boolean,
 	): Promise<{ success: boolean; result: string; contentBlock?: any }> {
@@ -143,10 +147,10 @@ export class ReadFileTool implements IDiracTool<ReadFileArgs> {
 			const rangeLabel = lineRange ? `lines ${lineRange.start}-${lineRange.end ?? "end"}` : undefined
 			card = !env.config.isSubagentExecution
 				? await env.ui.createCard({
-						header: rangeLabel ? `Reading ${rangeLabel} from ${displayPath}` : `Reading from ${displayPath}`,
-						icon: DiracIcon.FILE_READ,
-						collapsed: true,
-					})
+					header: rangeLabel ? `Reading ${rangeLabel} from ${displayPath}` : `Reading from ${displayPath}`,
+					icon: DiracIcon.FILE_READ,
+					collapsed: true,
+				})
 				: undefined
 
 			const fileContent = await env.workspace.readRichFile(absolutePath)
@@ -168,8 +172,23 @@ export class ReadFileTool implements IDiracTool<ReadFileArgs> {
 
 			const currentHash = contentHash(fileContent.text)
 			const cacheKey = `${absolutePath}#${includeAnchors ? "anchored" : "plain"}`
-			const hasUsableAnchorState = !includeAnchors || AnchorStateManager.isTracking(absolutePath, env.config.ulid)
-			if (selection.coversWholeFile && fileHashes[cacheKey] === currentHash && hasUsableAnchorState) {
+			let anchors: string[] | undefined
+			let anchorFingerprint: string | undefined
+			if (includeAnchors) {
+				const allLines = fileContent.text.split(/\r?\n/)
+				anchors = env.anchors.reconcile(absolutePath, allLines)
+				anchorFingerprint = env.anchors.getDocumentFingerprint(absolutePath) ?? undefined
+			}
+
+			const cachedRead = fileHashes[cacheKey]
+			const contentMatches =
+				typeof cachedRead === "string" ? cachedRead === currentHash : cachedRead?.contentHash === currentHash
+			const anchorMappingMatches =
+				!includeAnchors ||
+				(anchorFingerprint !== undefined &&
+					typeof cachedRead !== "string" &&
+					cachedRead?.anchorFingerprint === anchorFingerprint)
+			if (selection.coversWholeFile && contentMatches && anchorMappingMatches) {
 				const result = `${header}no changes have been made to the file since your last read (Hash: ${currentHash})`
 				if (card) {
 					await card.update({
@@ -184,9 +203,7 @@ export class ReadFileTool implements IDiracTool<ReadFileArgs> {
 			}
 
 			let formattedContent = selection.text
-			if (includeAnchors) {
-				const allLines = fileContent.text.split(/\r?\n/)
-				const anchors = AnchorStateManager.reconcile(absolutePath, allLines, env.config.ulid)
+			if (anchors) {
 				formattedContent = formatLinesForModel(
 					selection.lines,
 					anchors.slice(selection.startIndex, selection.endIndex),
@@ -207,7 +224,9 @@ export class ReadFileTool implements IDiracTool<ReadFileArgs> {
 			}
 
 			if (selection.coversWholeFile) {
-				fileHashes[cacheKey] = currentHash
+				fileHashes[cacheKey] = includeAnchors
+					? { contentHash: currentHash, anchorFingerprint }
+					: { contentHash: currentHash }
 			}
 			this.captureReadTelemetry(relPath, usedWorkspaceHint, env)
 			return { success: true, result }

@@ -2,9 +2,12 @@ import * as fs from "fs/promises"
 import * as path from "path"
 import * as os from "os"
 import { Logger } from "@shared/services/Logger"
+import { AnchorStateManager, PersistedAnchorState } from "@utils/AnchorStateManager"
 
 import { IDiracContext } from "../interfaces/IDiracContext"
 import { StateManager } from "../../../storage/StateManager"
+
+const ANCHOR_STATE_KEY = "anchorState"
 
 export class DiracContext implements IDiracContext {
 	private taskData: Record<string, any> = {}
@@ -13,15 +16,20 @@ export class DiracContext implements IDiracContext {
 	constructor(
 		private taskId: string,
 		private stateManager: StateManager,
+		private conversationUlid: string,
 	) {
-		this.taskPath = path.join(os.homedir(), ".dirac", "data", "tasks", taskId, "tool_context.json")
+		const diracHome = process.env.DIRAC_DIR || path.join(os.homedir(), ".dirac")
+		this.taskPath = path.join(diracHome, "data", "tasks", taskId, "tool_context.json")
 	}
 
 	public async load(): Promise<void> {
 		this.taskData = await this.readJson(this.taskPath)
+		const persistedAnchorState = this.taskData[ANCHOR_STATE_KEY] as PersistedAnchorState | undefined
+		AnchorStateManager.hydrate(this.conversationUlid, persistedAnchorState)
 	}
 
 	public async save(): Promise<void> {
+		this.taskData[ANCHOR_STATE_KEY] = AnchorStateManager.exportState(this.conversationUlid)
 		if (this.taskId.toLowerCase().includes("test")) {
 			return
 		}
@@ -34,16 +42,21 @@ export class DiracContext implements IDiracContext {
 			const content = await fs.readFile(filePath, "utf-8")
 			return JSON.parse(content)
 		} catch (error) {
-			return {}
+			if ((error as NodeJS.ErrnoException).code === "ENOENT") return {}
+			throw error
 		}
 	}
 
 	private async writeJson(filePath: string, data: Record<string, any>): Promise<void> {
+		const temporaryPath = `${filePath}.${process.pid}.${Date.now()}.tmp`
 		try {
 			await fs.mkdir(path.dirname(filePath), { recursive: true })
-			await fs.writeFile(filePath, JSON.stringify(data, null, 2), "utf-8")
+			await fs.writeFile(temporaryPath, JSON.stringify(data, null, 2), "utf-8")
+			await fs.rename(temporaryPath, filePath)
 		} catch (error) {
+			await fs.rm(temporaryPath, { force: true })
 			Logger.error(`Failed to write context to ${filePath}:`, error)
+			throw error
 		}
 	}
 
@@ -62,7 +75,9 @@ export class DiracContext implements IDiracContext {
 	}
 
 	public async resetTaskContext(): Promise<void> {
-		this.taskData = {}
+		this.taskData = {
+			[ANCHOR_STATE_KEY]: AnchorStateManager.exportState(this.conversationUlid),
+		}
 		await this.save()
 	}
 
