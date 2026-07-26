@@ -102,10 +102,26 @@ describe("SessionConfigManager task runtime behavior", () => {
 		const options = await new SessionConfigManager().getSessionConfigOptions(session(), linkedDeepSeekRuntime())
 		expect(options.map(({ id, category }) => [id, category])).toEqual([
 			["mode", "mode"],
+			["auto_approve", "mode"],
+			["yolo", "mode"],
 			["provider", "_provider"],
 			["model", "model"],
 			["reasoning_effort", "thought_level"],
 			["thinking_budget", "thought_level"],
 		])
 	})
+
+	it("advertises independent Plan/Act, auto-approve, and YOLO values", async () => {
+		const runtime = { ...linkedDeepSeekRuntime(), mode: "plan" as const, autoApproveAllToggled: false, yoloModeToggled: true }
+		const options = await new SessionConfigManager().getSessionConfigOptions(session("act"), runtime)
+		const mode = options.find((option) => option.id === "mode")
+		expect(mode).toMatchObject({ type: "select", currentValue: "plan" })
+		expect(mode && "options" in mode ? mode.options : []).toEqual([
+			expect.objectContaining({ value: "plan" }),
+			expect.objectContaining({ value: "act" }),
+		])
+		expect(options.find((option) => option.id === "auto_approve")).toMatchObject({ type: "boolean", currentValue: false })
+		expect(options.find((option) => option.id === "yolo")).toMatchObject({ type: "boolean", currentValue: true })
+	})
+
 })

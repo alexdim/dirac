@@ -94,7 +94,11 @@ export interface DiracAgentOptions {
 	/** Model explicitly selected for this agent process */
 	model?: string
 	/** ACP operating mode explicitly selected for this agent process */
-	mode?: "plan" | "act" | "auto" | "yolo"
+	mode?: "plan" | "act"
+	/** Whether auto-approve is explicitly enabled for sessions created by this process */
+	autoApprove?: boolean
+	/** Whether YOLO is explicitly enabled for sessions created by this process */
+	yolo?: boolean
 	/** Extended-thinking token budget explicitly selected for this agent process */
 	thinkingBudgetTokens?: number
 	/** Reasoning effort explicitly selected for this agent process */
@@ -120,7 +124,11 @@ export interface AcpAgentOptions {
 	/** Model explicitly selected for this agent process */
 	model?: string
 	/** ACP operating mode explicitly selected for this agent process */
-	mode?: "plan" | "act" | "auto" | "yolo"
+	mode?: "plan" | "act"
+	/** Whether auto-approve is explicitly enabled for sessions created by this process */
+	autoApprove?: boolean
+	/** Whether YOLO is explicitly enabled for sessions created by this process */
+	yolo?: boolean
 	/** Extended-thinking token budget explicitly selected for this agent process */
 	thinkingBudgetTokens?: number
 	/** Reasoning effort explicitly selected for this agent process */
@@ -178,8 +186,6 @@ export interface DiracAcpSession {
 export enum AcpSessionStatus {
 	/** Session is idle, waiting for a prompt */
 	Idle = "idle",
-	/** Session is atomically applying a runtime configuration change */
-	Configuring = "configuring",
 	/** Session is actively processing a prompt */
 	Processing = "processing",
 	/** Session processing was cancelled */

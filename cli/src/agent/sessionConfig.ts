@@ -13,44 +13,13 @@ import { getProviderLabel, getValidCliProviders, isValidCliProvider } from "../u
 import type { ProviderConfigurationManager } from "./providerConfiguration.js"
 import type { DiracAcpSession } from "./public-types.js"
 
-/**
- * ACP-level mode IDs surfaced to clients.
- *
- * The two extra modes beyond Dirac's internal {@link Mode} are derived states:
- *   - `auto`  → internal `act` mode with auto-approve on
- *   - `yolo`  → internal `act` mode with auto-approve + yolo on
- *
- * Clients see four modes; internally the mode/auto-approve/yolo toggles are
- * still three separate state keys.
- */
-export type AcpModeId = "plan" | "act" | "auto" | "yolo"
+/** ACP operating modes are mutually exclusive; approval qualifiers are separate booleans. */
+export type AcpModeId = Mode
 
 const ACP_MODE_OPTIONS: { value: AcpModeId; name: string; description: string }[] = [
 	{ value: "plan", name: "Plan", description: "Gather information and create a detailed plan" },
-	{ value: "act", name: "Act", description: "Execute actions, asking permission for each tool call" },
-	{ value: "auto", name: "Auto-approve", description: "Execute actions, auto-approving all tool calls" },
-	{ value: "yolo", name: "YOLO", description: "Execute actions with no safety prompts" },
+	{ value: "act", name: "Act", description: "Execute actions" },
 ]
-
-export function acpModeToInternalState(acpMode: AcpModeId): { mode: Mode; autoApprove: boolean; yolo: boolean } {
-	switch (acpMode) {
-		case "plan":
-			return { mode: "plan", autoApprove: false, yolo: false }
-		case "act":
-			return { mode: "act", autoApprove: false, yolo: false }
-		case "auto":
-			return { mode: "act", autoApprove: true, yolo: false }
-		case "yolo":
-			return { mode: "act", autoApprove: true, yolo: true }
-	}
-}
-
-export function computeAcpModeId(mode: Mode, autoApprove: boolean, yolo: boolean): AcpModeId {
-	if (mode === "plan") return "plan"
-	if (yolo) return "yolo"
-	if (autoApprove) return "auto"
-	return "act"
-}
 
 const REASONING_EFFORT_OPTIONS: acp.SessionConfigSelectOption[] = [
 	{ value: "none", name: "None" },
@@ -72,13 +41,12 @@ const THINKING_BUDGET_OPTIONS: acp.SessionConfigSelectOption[] = [
 export class SessionConfigManager {
 	constructor(private readonly providerConfiguration?: ProviderConfigurationManager) { }
 
-	/**
-	 * Compute the effective ACP mode ID for a session, considering per-session overrides.
-	 */
 	computeCurrentAcpModeId(mode: Mode, sessionOverrides: Partial<Settings>): AcpModeId {
-		const autoApprove = Boolean(sessionOverrides.autoApproveAllToggled)
-		const yolo = Boolean(sessionOverrides.yoloModeToggled)
-		return computeAcpModeId(mode, autoApprove, yolo)
+		return sessionOverrides.mode === "plan" || sessionOverrides.mode === "act" ? sessionOverrides.mode : mode
+	}
+
+	private getSessionMode(session: DiracAcpSession, sessionOverrides: Partial<Settings>): Mode {
+		return this.computeCurrentAcpModeId(session.mode, sessionOverrides)
 	}
 
 	getSessionModeState(mode: Mode, sessionOverrides: Partial<Settings>): acp.SessionModeState {
@@ -96,12 +64,13 @@ export class SessionConfigManager {
 		session: DiracAcpSession,
 		sessionOverrides: Partial<Settings>,
 	): Promise<acp.SessionConfigOption[]> {
-		const providerKey = session.mode === "act" ? "actModeApiProvider" : "planModeApiProvider"
+		const mode = this.getSessionMode(session, sessionOverrides)
+		const providerKey = mode === "act" ? "actModeApiProvider" : "planModeApiProvider"
 		const currentProvider = sessionOverrides[providerKey] as ApiProvider | undefined
-		const currentModelId = await this.getCurrentModeModelId(session.mode, currentProvider, sessionOverrides)
-		const thinkingKey = session.mode === "act" ? "actModeThinkingBudgetTokens" : "planModeThinkingBudgetTokens"
+		const currentModelId = await this.getCurrentModeModelId(mode, currentProvider, sessionOverrides)
+		const thinkingKey = mode === "act" ? "actModeThinkingBudgetTokens" : "planModeThinkingBudgetTokens"
 		const thinkingBudget = String(sessionOverrides[thinkingKey] ?? 0)
-		const reasoningKey = session.mode === "act" ? "actModeReasoningEffort" : "planModeReasoningEffort"
+		const reasoningKey = mode === "act" ? "actModeReasoningEffort" : "planModeReasoningEffort"
 		const reasoningEffort = String(sessionOverrides[reasoningKey] ?? "medium")
 
 		const providerOptions = getValidCliProviders().map((provider) => ({
@@ -119,8 +88,24 @@ export class SessionConfigManager {
 				description: "Session operating mode",
 				type: "select",
 				category: "mode",
-				currentValue: this.computeCurrentAcpModeId(session.mode, sessionOverrides),
+				currentValue: mode,
 				options: ACP_MODE_OPTIONS,
+			},
+			{
+				id: "auto_approve",
+				name: "Auto-approve",
+				description: "Automatically approve actions when YOLO is disabled",
+				type: "boolean",
+				category: "mode",
+				currentValue: Boolean(sessionOverrides.autoApproveAllToggled),
+			},
+			{
+				id: "yolo",
+				name: "YOLO",
+				description: "Bypass approval and safety prompts; takes priority over auto-approve",
+				type: "boolean",
+				category: "mode",
+				currentValue: Boolean(sessionOverrides.yoloModeToggled),
 			},
 			{
 				id: "provider",
@@ -177,7 +162,7 @@ export class SessionConfigManager {
 		this.providerConfiguration?.assertProviderEnabled(providerValue as ApiProvider)
 
 		const provider = providerValue as ApiProvider
-		const currentModelId = await this.getCurrentModeModelId(session.mode, provider, sessionOverrides)
+		const currentModelId = await this.getCurrentModeModelId(this.getSessionMode(session, sessionOverrides), provider, sessionOverrides)
 		this.assertModelAvailable(provider, currentModelId)
 		await this.applyProviderAndModel(session, provider, currentModelId, sessionOverrides)
 	}
@@ -187,7 +172,7 @@ export class SessionConfigManager {
 		modelValue: string,
 		sessionOverrides: Partial<Settings>,
 	): Promise<void> {
-		const providerKey = session.mode === "act" ? "actModeApiProvider" : "planModeApiProvider"
+		const providerKey = this.getSessionMode(session, sessionOverrides) === "act" ? "actModeApiProvider" : "planModeApiProvider"
 		const provider = sessionOverrides[providerKey] as ApiProvider | undefined
 
 		if (!provider) {
@@ -208,7 +193,7 @@ export class SessionConfigManager {
 			throw new Error(`Invalid reasoning effort: ${effort}`)
 		}
 
-		this.setModeScopedSessionState(session.mode, sessionOverrides, (mode) => {
+		this.setModeScopedSessionState(this.getSessionMode(session, sessionOverrides), sessionOverrides, (mode) => {
 			const key = mode === "act" ? "actModeReasoningEffort" : "planModeReasoningEffort"
 				; (sessionOverrides as Record<string, unknown>)[key] = effort
 		})
@@ -220,7 +205,7 @@ export class SessionConfigManager {
 			throw new Error(`Invalid thinking budget: ${budgetValue}`)
 		}
 
-		this.setModeScopedSessionState(session.mode, sessionOverrides, (mode) => {
+		this.setModeScopedSessionState(this.getSessionMode(session, sessionOverrides), sessionOverrides, (mode) => {
 			const key = mode === "act" ? "actModeThinkingBudgetTokens" : "planModeThinkingBudgetTokens"
 				; (sessionOverrides as Record<string, unknown>)[key] = budget
 		})
@@ -232,7 +217,7 @@ export class SessionConfigManager {
 		modelId: string,
 		sessionOverrides: Partial<Settings>,
 	): Promise<void> {
-		this.setModeScopedSessionState(session.mode, sessionOverrides, (mode) => {
+		this.setModeScopedSessionState(this.getSessionMode(session, sessionOverrides), sessionOverrides, (mode) => {
 			const providerKey = mode === "act" ? "actModeApiProvider" : "planModeApiProvider"
 			const modelKey = getProviderModelIdKey(provider, mode)
 			const modelInfoKey = getProviderModelInfoKey(provider, mode)
@@ -250,7 +235,8 @@ export class SessionConfigManager {
 	}
 
 	assertTaskRuntimeAvailable(session: DiracAcpSession, sessionOverrides: Partial<Settings>): void {
-		const providerKey = session.mode === "act" ? "actModeApiProvider" : "planModeApiProvider"
+		const mode = this.getSessionMode(session, sessionOverrides)
+		const providerKey = mode === "act" ? "actModeApiProvider" : "planModeApiProvider"
 		const provider = sessionOverrides[providerKey] as ApiProvider | undefined
 		if (!provider) {
 			throw new ApiConfigurationError(
@@ -268,7 +254,7 @@ export class SessionConfigManager {
 		}
 		this.providerConfiguration?.assertProviderEnabled(provider)
 
-		const modelKey = getProviderModelIdKey(provider, session.mode)
+		const modelKey = getProviderModelIdKey(provider, mode)
 		const modelId = sessionOverrides[modelKey] as string | undefined
 		if (!modelId) {
 			throw new ApiConfigurationError(

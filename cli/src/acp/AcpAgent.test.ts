@@ -150,7 +150,9 @@ describe("AcpAgent", () => {
 			diracDir: "/tmp/dirac-config",
 			cwd: "/tmp/workspace",
 			hooksDir: "/tmp/hooks",
-			mode: "yolo",
+			mode: "plan",
+			autoApprove: false,
+			yolo: true,
 			thinkingBudgetTokens: 4096,
 			reasoningEffort: "high",
 		})
@@ -159,7 +161,9 @@ describe("AcpAgent", () => {
 			diracDir: "/tmp/dirac-config",
 			cwd: "/tmp/workspace",
 			hooksDir: "/tmp/hooks",
-			mode: "yolo",
+			mode: "plan",
+			autoApprove: false,
+			yolo: true,
 			thinkingBudgetTokens: 4096,
 			reasoningEffort: "high",
 		})
