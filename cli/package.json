@@ -51,17 +51,22 @@
 	},
 	"keywords": [
 		"dirac",
-		"claude",
-		"dev",
-		"openrouter",
-		"coding",
-		"agent",
-		"autonomous",
-		"chatgpt",
-		"sonnet",
-		"ai",
-		"llama",
-		"cli"
+		"dirac-cli",
+		"coding-agent",
+		"ai-coding-agent",
+		"terminal-coding-agent",
+		"autonomous-coding-agent",
+		"ai-code-assistant",
+		"agentic-coding",
+		"code-generation",
+		"code-refactoring",
+		"code-review",
+		"software-engineering",
+		"developer-tools",
+		"terminal-ai",
+		"open-source-ai",
+		"ast-editing",
+		"hash-anchored-edits"
 	],
 	"author": {
 		"name": "Dirac Delta Labs"

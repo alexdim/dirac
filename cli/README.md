@@ -1,6 +1,20 @@
 # Dirac CLI
 
-Dirac is an autonomous coding agent for the terminal. The CLI shares Dirac's task engine, providers, tools, storage, and task history with the other Dirac clients while providing terminal-native interactive and standalone workflows.
+<p align="center">
+  <img src="https://github.com/dirac-run/dirac/blob/master/assets/media/diraccli1.png?raw=true" width="70%" />
+</p>
+
+<p align="center">
+  <a href="https://github.com/dirac-run/dirac"><strong>GitHub</strong></a> |
+  <a href="https://www.npmjs.com/package/dirac-cli"><strong>NPM</strong></a> |
+  <a href="https://discord.gg/wcYTx9BGea"><strong>Discord</strong></a>
+</p>
+
+It is a well studied phenomenon that any given model's reasoning ability degrades with the context length. If we can keep context tightly curated, we improve both accuracy and cost while making larger changes tractable in a single task.
+
+Dirac is an open-source coding agent built with this in mind. It reduces API costs by **64.8%** on average while producing better and faster work through hash-anchored parallel edits, AST manipulation, and a suite of advanced optimizations. Oh, and no MCP.
+
+Our goal: Optimize for bang-for-the-buck on tooling with bare minimum prompting instead of going blindly minimalistic.
 
 ## Requirements
 
