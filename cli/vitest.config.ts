@@ -15,7 +15,15 @@ export default defineConfig({
 				test: {
 					name: "unit",
 					include: ["src/**/*.test.{ts,tsx}", "tests/**/*.test.{ts,tsx}"],
-					exclude: ["src/**/*.markdown.test.tsx"],
+					exclude: ["src/**/*.markdown.test.tsx", "src/components/ChatMessage.test.tsx"],
+				},
+			},
+			{
+				extends: true,
+				test: {
+					name: "rendering",
+					include: ["src/components/ChatMessage.test.tsx"],
+					env: { FORCE_COLOR: "3", COLORTERM: "truecolor" },
 				},
 			},
 			{
@@ -23,7 +31,7 @@ export default defineConfig({
 				test: {
 					name: "markdown",
 					include: ["src/**/*.markdown.test.tsx"],
-					env: { FORCE_COLOR: "3" },
+					env: { FORCE_COLOR: "3", COLORTERM: "truecolor" },
 				},
 			},
 		],

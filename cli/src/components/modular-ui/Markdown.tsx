@@ -99,6 +99,7 @@ function renderToken(token: Token, key: number, color?: string, width?: number):
 						<Text key={i}>
 							<Text color={theme.muted}>{ordered ? `${Number(start ?? 1) + i}. ` : "• "}</Text>
 							{renderTokens(item.tokens, color, width)}
+							{"\n"}
 						</Text>
 					))}
 				</React.Fragment>
