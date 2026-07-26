@@ -16,10 +16,10 @@ import { theme } from "../constants/theme"
  *      Ink's line tracking and prevent "ghosting" artifacts.
  *
  * 2. Static Transcript + Bounded Live Tail:
- *    We use Ink's <Static> component for finalized transcript items and keep only
- *    mutable messages in a fixed-height live viewport. Streaming output is clipped
- *    to prevent dynamic-region overflow; final output is printed once in full so
- *    native terminal scrollback remains available.
+ *    We use Ink's <Static> component for an append-only transcript prefix and keep
+ *    a row-budgeted rolling suffix in a fixed-height live viewport. Finalized items
+ *    enter terminal scrollback only after all of their rows leave the live window.
+ *    Oversized output is rendered through a bounded, scrollable window.
  *
  * References:
  * - @jrichman/ink fork: https://github.com/jacob314/ink
@@ -135,6 +135,8 @@ export const ChatView: React.FC<ChatViewProps> = ({
 		() => StateManager.get().getGlobalSettingsKey("autoApproveAllToggled") ?? false,
 	)
 
+	const [timelineScrollOffset, setTimelineScrollOffset] = useState(0)
+
 	const layoutRows = calculateChatLayoutRows({
 		terminalRows,
 		hasConversationContent: true,
@@ -143,7 +145,15 @@ export const ChatView: React.FC<ChatViewProps> = ({
 		hasPanel: false,
 	})
 
-	const { displayMessages, staticItems, dynamicItems, taskSwitchKey, setTaskSwitchKey } = useChatTimeline({
+	const {
+		displayMessages,
+		staticItems,
+		dynamicItems,
+		dynamicScrollMessageId,
+		dynamicScrollMaxOffset,
+		taskSwitchKey,
+		setTaskSwitchKey,
+	} = useChatTimeline({
 		messages: taskState.diracMessages || [],
 		activeVoiceStreamId: taskState.activeVoiceStreamId,
 		isApiRequestActive: taskState.isApiRequestActive,
@@ -152,7 +162,13 @@ export const ChatView: React.FC<ChatViewProps> = ({
 			(taskState.diracMessages || []).some((message) => message.content?.type !== DiracMessageType.API_STATUS) ||
 			userScrolled,
 		layoutRows,
+		terminalColumns,
+		scrollOffset: timelineScrollOffset,
 	})
+
+	useEffect(() => {
+		setTimelineScrollOffset(0)
+	}, [dynamicScrollMessageId])
 
 	useEffect(() => {
 		if (taskState.mode && taskState.mode !== mode) {
@@ -265,7 +281,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
 	const permissionModalLayout = calculatePermissionModalLayout(terminalColumns, terminalRows)
 
 	// Permission modal scroll state — offset from the bottom of the pending card body.
-	const [cardScrollOffset, setCardScrollOffset] = useState(0)
+	const [permissionCardScrollOffset, setPermissionCardScrollOffset] = useState(0)
 
 	const scrollableCardMaxOffset = useMemo(() => {
 		if (!permissionCard) return 0
@@ -277,8 +293,21 @@ export const ChatView: React.FC<ChatViewProps> = ({
 
 	// Reset scroll offset when pending ask changes
 	useEffect(() => {
-		setCardScrollOffset(0)
+		setPermissionCardScrollOffset(0)
 	}, [pendingAsk?.id])
+
+	const activeScrollableMaxOffset = permissionCard ? scrollableCardMaxOffset : dynamicScrollMaxOffset
+	const activeScrollOffset = permissionCard ? permissionCardScrollOffset : timelineScrollOffset
+	const setActiveScrollOffset = useCallback(
+		(offset: number) => {
+			if (permissionCard) {
+				setPermissionCardScrollOffset(offset)
+				return
+			}
+			setTimelineScrollOffset(offset)
+		},
+		[permissionCard],
+	)
 
 	const {
 		textInput,
@@ -315,9 +344,9 @@ export const ChatView: React.FC<ChatViewProps> = ({
 		actionsRef: composerActionsRef,
 		isYoloSuppressed,
 		isEmptyConversation,
-		scrollableCardMaxOffset,
-		cardScrollOffset,
-		setCardScrollOffset,
+		scrollableCardMaxOffset: activeScrollableMaxOffset,
+		cardScrollOffset: activeScrollOffset,
+		setCardScrollOffset: setActiveScrollOffset,
 	})
 	resetComposerInputRef.current = resetInput
 
@@ -643,7 +672,9 @@ export const ChatView: React.FC<ChatViewProps> = ({
 					activeVoiceStreamId={taskState.activeVoiceStreamId}
 					showReasoning={true}
 					compact={item.isCompact}
+					tailOnly={item.tailOnly}
 					maxContentLines={item.maxContentLines}
+					scrollOffset={item.scrollOffset}
 					suppressCardBody={shouldSuppressCardBody(card)}
 				/>
 			</React.Fragment>
@@ -683,7 +714,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
 			flexDirection="column"
 			flexShrink={0}
 			height={layoutRows.liveViewportRows}
-			justifyContent="flex-end"
+			justifyContent="flex-start"
 			overflow="hidden"
 			width="100%">
 			{dynamicItemsContent}
@@ -705,7 +736,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
 				card={permissionCard}
 				height={permissionModalLayout.height}
 				maxScrollOffset={scrollableCardMaxOffset}
-				scrollOffset={cardScrollOffset}
+				scrollOffset={permissionCardScrollOffset}
 				width={permissionModalLayout.width}
 			/>
 		</Box>

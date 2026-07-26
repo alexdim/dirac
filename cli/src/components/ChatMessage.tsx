@@ -16,7 +16,13 @@ import { getModeColor } from "../constants/colors"
 import { useTerminalSize } from "../hooks/useTerminalSize"
 import { ModularCard } from "./modular-ui/ModularCard"
 import { TaskCompletionCard } from "./modular-ui/TaskCompletionCard"
-import { clipTextToLastVisualLines, estimateVisualLineCount, summarizeFirstLine } from "../utils/text-clipping"
+import {
+	clipTextToLastVisualLines,
+	clipTextToWindow,
+	estimateVisualLineCount,
+	summarizeFirstLine,
+} from "../utils/text-clipping"
+import { cardBodyForDisplay } from "../utils/card-body"
 
 /**
  * Add "(Tab)" hint after "Act mode" mentions in plain text.
@@ -31,6 +37,7 @@ interface ChatMessageProps {
 	activeVoiceStreamId?: string
 	showReasoning?: boolean
 	compact?: boolean
+	tailOnly?: boolean
 	maxContentLines?: number
 	scrollOffset?: number
 	suppressCardBody?: boolean
@@ -134,6 +141,7 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
 	activeVoiceStreamId,
 	showReasoning = true,
 	compact = false,
+	tailOnly = false,
 	maxContentLines,
 	scrollOffset,
 	suppressCardBody,
@@ -141,6 +149,12 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
 }) => {
 	const { columns } = useTerminalSize()
 	const isStreaming = isStreamingProp || message.id === activeVoiceStreamId
+	if (tailOnly && maxContentLines) {
+		return renderTimelineTail(message, maxContentLines, columns)
+	}
+	if (maxContentLines && message.content.type === DiracMessageType.MARKDOWN && !message.content.isReasoning) {
+		return renderBoundedMarkdownMessage(message.content, maxContentLines, columns, scrollOffset ?? 0)
+	}
 	// --- New Protocol Dispatcher ---
 	if ("content" in message) {
 		switch (message.content.type) {
@@ -187,7 +201,13 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
 				)
 			case DiracMessageType.CARD:
 				if (isTaskCompletionCard(message.content.card)) {
-					return <TaskCompletionCard card={message.content.card} />
+					return (
+						<TaskCompletionCard
+							card={message.content.card}
+							maxBodyLines={maxContentLines}
+							scrollOffset={scrollOffset}
+						/>
+					)
 				}
 				return (
 					<ModularCard
@@ -217,6 +237,52 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
 		</Box>
 	)
 }
+function renderBoundedMarkdownMessage(
+	content: Extract<DiracMessage["content"], { type: DiracMessageType.MARKDOWN }>,
+	maxLines: number,
+	columns: number,
+	scrollOffset: number,
+): React.ReactNode {
+	const role = content.role === "user" ? "user" : "assistant"
+	const color = role === "user" ? styles.conversation.user.color : styles.conversation.assistant.color
+	const { visibleText } = clipTextToWindow(
+		content.content,
+		maxLines,
+		Math.max(1, columns - 4),
+		scrollOffset,
+		"",
+	)
+	return (
+		<DotRow color={color} prefix={role === "user" ? "❯" : undefined}>
+			<Text color={color}>{visibleText}</Text>
+		</DotRow>
+	)
+}
+
+
+function renderTimelineTail(message: DiracMessage, maxLines: number, columns: number): React.ReactNode {
+	const width = Math.max(1, columns - 4)
+	if (message.content.type === DiracMessageType.MARKDOWN) {
+		const color = message.content.isReasoning
+			? styles.conversation.reasoning.color
+			: message.content.role === "user"
+				? styles.conversation.user.color
+				: styles.conversation.assistant.color
+		return <Text color={color}>{clipTextToLastVisualLines(message.content.content, maxLines, width, "")}</Text>
+	}
+
+	if (message.content.type === DiracMessageType.CARD) {
+		const body = cardBodyForDisplay(message.content.card.body, message.content.card.renderType)
+		if (body) {
+			return <Text {...styles.tool.body}>{clipTextToLastVisualLines(body, maxLines, width, "")}</Text>
+		}
+		return <ModularCard card={message.content.card} suppressBody />
+	}
+
+	return null
+}
+
+
 
 /**
  * Information

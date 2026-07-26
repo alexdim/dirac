@@ -25,7 +25,7 @@ export const CardBody: React.FC<CardBodyProps> = ({ body, maxLines, renderType, 
 		: { visibleText: displayBody, hasMoreAbove: false, hasMoreBelow: false }
 	return (
 		<React.Fragment>
-			{renderContent(visibleText, renderType, columns)}
+			{maxLines ? <Text {...styles.tool.body}>{visibleText}</Text> : renderContent(visibleText, renderType, columns)}
 			{(hasMoreAbove || hasMoreBelow) && (
 				<Box marginTop={0}>
 					<Text {...styles.tool.metadata}>

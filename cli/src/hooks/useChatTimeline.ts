@@ -5,6 +5,11 @@ import { DiracMessageType, isFinalStatus, type TaskStatus } from "@shared/Extens
 import type { DiracMessage } from "@shared/ExtensionMessage"
 import { useTranscriptPartition } from "./useTranscriptPartition"
 import type { ChatLayoutRows } from "../utils/chat-layout"
+import {
+	calculateTimelineBodyLineBudget,
+	estimateTimelineMessageBodyRows,
+	estimateTimelineMessageRows,
+} from "../utils/timeline-rows"
 
 export type TimelineMessageKind = "card" | "markdown" | "reasoning" | "checkpoint"
 
@@ -14,7 +19,9 @@ export interface TimelineMessageItem {
 	message: DiracMessage
 	kind: TimelineMessageKind
 	isCompact?: boolean
+	tailOnly?: boolean
 	maxContentLines?: number
+	scrollOffset?: number
 }
 
 export interface TimelineNoticeItem {
@@ -40,6 +47,8 @@ export interface ChatTimelineResult {
 	displayMessages: DiracMessage[]
 	staticItems: TimelineStaticItem[]
 	dynamicItems: TimelineDynamicItem[]
+	dynamicScrollMessageId?: string
+	dynamicScrollMaxOffset: number
 	taskSwitchKey: number
 	setTaskSwitchKey: Dispatch<SetStateAction<number>>
 }
@@ -51,6 +60,14 @@ interface ChatTimelineOptions {
 	taskStatus?: TaskStatus
 	showHeader: boolean
 	layoutRows: ChatLayoutRows
+	terminalColumns: number
+	scrollOffset?: number
+}
+
+interface DynamicTimelinePlan {
+	items: TimelineDynamicItem[]
+	scrollMessageId?: string
+	maxScrollOffset: number
 }
 
 export function useChatTimeline({
@@ -58,6 +75,8 @@ export function useChatTimeline({
 	activeVoiceStreamId,
 	showHeader,
 	layoutRows,
+	terminalColumns,
+	scrollOffset = 0,
 }: ChatTimelineOptions): ChatTimelineResult {
 	const [taskSwitchKey, setTaskSwitchKey] = useState(0)
 	const prevFirstMessageId = useRef<string | null>(null)
@@ -73,10 +92,16 @@ export function useChatTimeline({
 	}, [firstMessageId])
 
 	const isMessageMutable = (message: DiracMessage) => isMutableTimelineMessage(message, activeVoiceStreamId)
+	const estimateRows = (message: DiracMessage) =>
+		estimateTimelineMessageRows(message, terminalColumns, shouldSuppressCardBody(message))
 	const { staticPrefix, dynamicTail } = useTranscriptPartition(
 		displayMessages,
 		isMessageMutable,
 		firstMessageId ?? undefined,
+		{
+			rowBudget: layoutRows.activeContentRows,
+			estimateRows,
+		},
 	)
 
 	const staticItems = useMemo(
@@ -84,15 +109,17 @@ export function useChatTimeline({
 		[staticPrefix, showHeader],
 	)
 
-	const dynamicItems = useMemo(
-		() => createDynamicTimelineItems(dynamicTail, activeVoiceStreamId, layoutRows),
-		[dynamicTail, activeVoiceStreamId, layoutRows],
+	const dynamicPlan = useMemo(
+		() => createDynamicTimelineItems(dynamicTail, activeVoiceStreamId, layoutRows, terminalColumns, scrollOffset),
+		[dynamicTail, activeVoiceStreamId, layoutRows, terminalColumns, scrollOffset],
 	)
 
 	return {
 		displayMessages,
 		staticItems,
-		dynamicItems,
+		dynamicItems: dynamicPlan.items,
+		dynamicScrollMessageId: dynamicPlan.scrollMessageId,
+		dynamicScrollMaxOffset: dynamicPlan.maxScrollOffset,
 		taskSwitchKey,
 		setTaskSwitchKey,
 	}
@@ -117,35 +144,100 @@ function createStaticTimelineItems(
 	return items
 }
 
-function createDynamicTimelineItems(
+export function createDynamicTimelineItems(
 	dynamicMessages: DiracMessage[],
-	activeVoiceStreamId: string | undefined,
+	_activeVoiceStreamId: string | undefined,
 	layoutRows: ChatLayoutRows,
-): TimelineDynamicItem[] {
-	if (dynamicMessages.length === 0) return []
+	terminalColumns: number,
+	scrollOffset = 0,
+): DynamicTimelinePlan {
+	if (dynamicMessages.length === 0) return { items: [], maxScrollOffset: 0 }
 
+	const rowBudget = Math.max(1, layoutRows.activeContentRows)
 	const latestMessage = dynamicMessages[dynamicMessages.length - 1]
-	const activeItemLineBudget = layoutRows.activeContentRows
-	const olderMessageBudget = Math.min(1, layoutRows.compactHistoryRows)
-	const olderMessages = dynamicMessages.slice(0, -1)
-	const keptOlderMessages = olderMessageBudget > 0 ? olderMessages.slice(-olderMessageBudget) : []
-	const omittedCount = olderMessages.length - keptOlderMessages.length
-
-	const items: TimelineDynamicItem[] = []
-	if (omittedCount > 0) {
-		items.push({
-			key: "dynamic-omitted",
-			type: "notice",
-			message: `… ${omittedCount} earlier active update${omittedCount === 1 ? "" : "s"} clipped …`,
-		})
+	const latestRows = estimateMessageRows(latestMessage, terminalColumns)
+	if (latestRows >= rowBudget) {
+		return createExclusiveMessagePlan(latestMessage, rowBudget, terminalColumns, scrollOffset)
 	}
 
-	items.push(...keptOlderMessages.map((message) => ({ ...createMessageItem(message), isCompact: true })))
-	items.push({
-		...createMessageItem(latestMessage),
-		maxContentLines: activeItemLineBudget,
-	})
-	return items
+	let remainingRows = rowBudget
+	const allocations: Array<{ message: DiracMessage; rows: number; partial: boolean }> = []
+	for (let index = dynamicMessages.length - 1; index >= 0 && remainingRows > 0; index--) {
+		const message = dynamicMessages[index]
+		const messageRows = estimateMessageRows(message, terminalColumns)
+		const allocatedRows = Math.min(messageRows, remainingRows)
+		allocations.push({ message, rows: allocatedRows, partial: allocatedRows < messageRows })
+		remainingRows -= allocatedRows
+	}
+
+	allocations.reverse()
+	return {
+		items: allocations.map(({ message, rows, partial }) =>
+			createProjectedMessageItem(message, rows, terminalColumns, partial),
+		),
+		maxScrollOffset: 0,
+	}
+}
+
+function createExclusiveMessagePlan(
+	message: DiracMessage,
+	rowBudget: number,
+	terminalColumns: number,
+	scrollOffset: number,
+): DynamicTimelinePlan {
+	const suppressCardBody = shouldSuppressCardBody(message)
+	const bodyRows = estimateTimelineMessageBodyRows(message, terminalColumns, suppressCardBody)
+	const bodyLineBudget = calculateTimelineBodyLineBudget(message, rowBudget, terminalColumns, suppressCardBody)
+	if (bodyRows === 0 || bodyLineBudget <= 0) {
+		return {
+			items: [{ ...createMessageItem(message), isCompact: true }],
+			maxScrollOffset: 0,
+		}
+	}
+
+	const maxScrollOffset = Math.max(0, bodyRows - bodyLineBudget)
+	return {
+		items: [
+			{
+				...createMessageItem(message),
+				maxContentLines: bodyLineBudget,
+				scrollOffset: Math.min(scrollOffset, maxScrollOffset),
+			},
+		],
+		scrollMessageId: maxScrollOffset > 0 ? message.id : undefined,
+		maxScrollOffset,
+	}
+}
+
+function createProjectedMessageItem(
+	message: DiracMessage,
+	allocatedRows: number,
+	terminalColumns: number,
+	partial: boolean,
+): TimelineMessageItem {
+	if (partial) {
+		return {
+			...createMessageItem(message),
+			tailOnly: true,
+			maxContentLines: allocatedRows,
+		}
+	}
+
+	const suppressCardBody = shouldSuppressCardBody(message)
+	const bodyRows = estimateTimelineMessageBodyRows(message, terminalColumns, suppressCardBody)
+	return {
+		...createMessageItem(message),
+		maxContentLines: bodyRows > 0 ? bodyRows : undefined,
+	}
+}
+
+function estimateMessageRows(message: DiracMessage, terminalColumns: number): number {
+	return estimateTimelineMessageRows(message, terminalColumns, shouldSuppressCardBody(message))
+}
+
+function shouldSuppressCardBody(message: DiracMessage): boolean {
+	if (message.content.type !== DiracMessageType.CARD) return false
+	return Boolean(message.content.card.requireApproval || message.content.card.requireFeedback)
 }
 
 function isMutableTimelineMessage(message: DiracMessage, activeVoiceStreamId: string | undefined): boolean {

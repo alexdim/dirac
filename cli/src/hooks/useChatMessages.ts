@@ -21,6 +21,7 @@ export function useChatMessages(
 			hasFooter: true,
 			hasPanel: false,
 		}),
+		terminalColumns: process.stdout.columns || 80,
 	})
 
 	return {
