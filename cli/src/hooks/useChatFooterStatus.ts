@@ -1,7 +1,7 @@
 import type { ApiProvider, ModelInfo } from "@shared/api"
-import { TaskStatus, type ExtensionState } from "@shared/ExtensionMessage"
+import { DiracMessageType, TaskStatus, type ExtensionState } from "@shared/ExtensionMessage"
 import { getApiMetrics, getLastApiReqTotalTokens } from "@shared/getApiMetrics"
-import { getProviderDefaultModelId, getProviderModelIdKey } from "@shared/storage"
+import { getProviderDefaultModelId, getProviderModelIdKey, getProviderModelInfoKey } from "@shared/storage"
 import type { Mode } from "@shared/storage/types"
 import { StateManager } from "@/core/storage/StateManager"
 import { useEffect, useMemo, useState } from "react"
@@ -76,6 +76,7 @@ export function useChatFooterStatus({ ctrl, mode, taskState }: UseChatFooterStat
 
 	const lastMsg = (taskState.diracMessages || [])[(taskState.diracMessages || []).length - 1]
 	useEffect(() => {
+		setGitBranch(getGitBranch(workspacePath))
 		setGitDiffStats(getGitDiffStats(workspacePath))
 	}, [taskState.diracMessages?.length, taskState.activeVoiceStreamId, lastMsg?.id, workspacePath])
 
@@ -85,13 +86,31 @@ export function useChatFooterStatus({ ctrl, mode, taskState }: UseChatFooterStat
 		[taskState.diracMessages],
 	)
 	const contextWindowSize = useMemo(() => {
+		const messages = taskState.diracMessages || []
+		for (let index = messages.length - 1; index >= 0; index--) {
+			const message = messages[index]
+			if (message.content.type === DiracMessageType.API_STATUS && message.content.status.contextWindow) {
+				return message.content.status.contextWindow
+			}
+		}
+
+		const modelInfoKey = getProviderModelInfoKey(provider as ApiProvider, mode)
+		if (modelInfoKey) {
+			const stateManagerModelInfo = StateManager.get().getGlobalSettingsKey(modelInfoKey) as ModelInfo | undefined
+			if (stateManagerModelInfo?.contextWindow) return stateManagerModelInfo.contextWindow
+			const configModelInfo = (taskState.apiConfiguration as Record<string, unknown> | undefined)?.[modelInfoKey] as
+				| ModelInfo
+				| undefined
+			if (configModelInfo?.contextWindow) return configModelInfo.contextWindow
+		}
+
 		const providerData = providerModels[provider]
 		if (providerData && modelId in providerData.models) {
 			const modelInfo = providerData.models[modelId] as ModelInfo
 			if (modelInfo?.contextWindow) return modelInfo.contextWindow
 		}
 		return DEFAULT_CONTEXT_WINDOW
-	}, [provider, modelId])
+	}, [provider, modelId, mode, taskState.apiConfiguration, taskState.diracMessages])
 
 	return {
 		provider,

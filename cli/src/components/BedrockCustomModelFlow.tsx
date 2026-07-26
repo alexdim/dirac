@@ -1,3 +1,4 @@
+import { theme } from "../constants/theme"
 /**
  * Bedrock Custom Model Flow component
  * Two-step flow: ARN/custom model ID input → base model selection for capability detection.
@@ -70,18 +71,18 @@ export const BedrockCustomModelFlow: React.FC<BedrockCustomModelFlowProps> = ({ 
 					Custom Model ID
 				</Text>
 				<Box marginTop={1}>
-					<Text color="gray">Enter your Application Inference Profile ARN or custom model ID</Text>
+					<Text color={theme.muted}>Enter your Application Inference Profile ARN or custom model ID</Text>
 				</Box>
 				<Box marginTop={1}>
 					{customArn ? (
-						<Text color="white">{customArn}</Text>
+						<Text color={theme.text}>{customArn}</Text>
 					) : (
-						<Text color="gray">e.g. arn:aws:bedrock:region:account:application-inference-profile/...</Text>
+						<Text color={theme.muted}>e.g. arn:aws:bedrock:region:account:application-inference-profile/...</Text>
 					)}
-					<Text inverse> </Text>
+					<Text backgroundColor={theme.cursorBg} color={theme.cursorText}> </Text>
 				</Box>
 				<Box marginTop={1}>
-					<Text color="gray">Enter to continue, Esc to go back</Text>
+					<Text color={theme.muted}>Enter to continue, Esc to go back</Text>
 				</Box>
 			</Box>
 		)
@@ -93,7 +94,7 @@ export const BedrockCustomModelFlow: React.FC<BedrockCustomModelFlowProps> = ({ 
 			<Text bold color={COLORS.primaryBlue}>
 				Base Inference Model
 			</Text>
-			<Text color="gray">Select the base model your inference profile uses (for capability detection)</Text>
+			<Text color={theme.muted}>Select the base model your inference profile uses (for capability detection)</Text>
 			<Box marginTop={1}>
 				<SearchableList
 					isActive={isActive && step === "base_model"}
@@ -104,7 +105,7 @@ export const BedrockCustomModelFlow: React.FC<BedrockCustomModelFlowProps> = ({ 
 				/>
 			</Box>
 			<Box marginTop={1}>
-				<Text color="gray">Type to search, arrows to navigate, Enter to select, Esc to go back</Text>
+				<Text color={theme.muted}>Type to search, arrows to navigate, Enter to select, Esc to go back</Text>
 			</Box>
 		</Box>
 	)

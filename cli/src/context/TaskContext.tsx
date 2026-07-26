@@ -5,6 +5,11 @@
 
 import type { ExtensionState } from "@shared/ExtensionMessage"
 import React, { createContext, ReactNode, useContext, useEffect, useRef, useState } from "react"
+import { EmptyRequest } from "@shared/proto/dirac/common"
+import { subscribeToState } from "@/core/controller/state/subscribeToState"
+import { getRequestRegistry } from "@/core/controller/grpc-handler"
+
+let taskContextSubscriptionCounter = 0
 
 interface TaskContextType {
 	state: Partial<ExtensionState>
@@ -40,45 +45,48 @@ export const TaskContextProvider: React.FC<TaskContextProviderProps> = ({ contro
 
 	// Subscribe to controller state updates
 	useEffect(() => {
-		const originalPostState = controller.postStateToWebview.bind(controller)
-
-		const handleStateUpdate = async () => {
+		let disposed = false
+		const requestId = `cli-task-context-${++taskContextSubscriptionCounter}`
+		const receiveStateUpdate = async ({ stateJson }: { stateJson: string }) => {
 			try {
-				const newState = await controller.getStateToPostToWebview()
-				// Ignore transient empty messages state during cancel/reinit
-				// When clearTask() runs, messages briefly become [] before new task loads them
+				const newState = JSON.parse(stateJson) as ExtensionState
+				if (disposed) return
+				// Preserve the visible transcript across a transient empty snapshot, but
+				// still accept status/buttons/model changes carried by that snapshot.
 				const hadMessages = (stateRef.current.diracMessages?.length ?? 0) > 0
 				const hasMessages = (newState.diracMessages?.length ?? 0) > 0
-				if (hadMessages && !hasMessages) {
-					return
-				}
-				setState(newState)
+				const previousTaskId = stateRef.current.currentTaskItem?.id
+				const nextTaskId = newState.currentTaskItem?.id
+				const preserveTranscript = hadMessages && !hasMessages && (!nextTaskId || nextTaskId === previousTaskId)
+				setState(preserveTranscript ? { ...newState, diracMessages: stateRef.current.diracMessages } : newState)
 			} catch (error) {
-				setLastError(error instanceof Error ? error.message : String(error))
+				if (!disposed) setLastError(error instanceof Error ? error.message : String(error))
 			}
 		}
 
-		// Override postStateToWebview to update React state
-		controller.postStateToWebview = async () => {
-			await originalPostState()
-			await handleStateUpdate()
-		}
+		void subscribeToState(controller, EmptyRequest.create(), receiveStateUpdate, requestId).then(
+			() => {
+				if (disposed) getRequestRegistry().cancelRequest(requestId)
+			},
+			(error) => {
+				if (!disposed) setLastError(error instanceof Error ? error.message : String(error))
+			},
+		)
 
-		// Get initial state
-		handleStateUpdate()
-
-		// Cleanup
 		return () => {
-			controller.postStateToWebview = originalPostState
+			disposed = true
+			getRequestRegistry().cancelRequest(requestId)
 		}
 	}, [controller])
 
 	// Force clear state (bypasses the empty messages check for intentional clears like /clear)
 	const clearState = () => {
-		setState({
+		const clearedState = {
 			diracMessages: [],
 			currentTaskItem: null,
-		} as unknown as Partial<ExtensionState>)
+		} as unknown as Partial<ExtensionState>
+		stateRef.current = clearedState
+		setState(clearedState)
 	}
 
 	const value: TaskContextType = {

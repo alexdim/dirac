@@ -1,3 +1,4 @@
+import { theme } from "../constants/theme"
 /**
  * Unified Chat View component
  * Combines the welcome screen layout with task message display
@@ -14,12 +15,11 @@
  *    - Resize Recovery: useTerminalSize hook forces a full remount on resize to reset
  *      Ink's line tracking and prevent "ghosting" artifacts.
  *
- * 2. Static + Dynamic Split:
- *    We use Ink's <Static> component to split content into two regions:
- *    - Static Region: Header and completed messages. Rendered once, scrolls up like
- *      terminal logs, and has zero re-render overhead.
- *    - Dynamic Region: Current streaming message and input UI. Kept small to ensure
- *      efficient line-erasing and synchronized updates.
+ * 2. Static Transcript + Bounded Live Tail:
+ *    We use Ink's <Static> component for finalized transcript items and keep only
+ *    mutable messages in a fixed-height live viewport. Streaming output is clipped
+ *    to prevent dynamic-region overflow; final output is printed once in full so
+ *    native terminal scrollback remains available.
  *
  * References:
  * - @jrichman/ink fork: https://github.com/jacob314/ink
@@ -49,6 +49,7 @@ import path from "node:path"
 import Image from "ink-picture"
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { StateManager } from "@/core/storage/StateManager"
+import { Logger } from "@/shared/services/Logger"
 import { COLORS } from "../constants/colors"
 import { useTaskContext, useTaskState } from "../context/TaskContext"
 import { useIsSpinnerActive } from "../hooks/useStateSubscriber"
@@ -57,7 +58,6 @@ import { setTerminalTitle } from "../utils/display"
 import { processImagePaths } from "../utils/parser"
 import { ActionButtons } from "./ActionButtons"
 
-import { AskPrompt } from "./AskPrompt"
 import { ChatMessage } from "./ChatMessage"
 import { FileMentionMenu } from "./FileMentionMenu"
 import { HelpPanelContent } from "./HelpPanelContent"
@@ -75,8 +75,10 @@ import { useChatTimeline } from "../hooks/useChatTimeline"
 import { useChatFooterStatus } from "../hooks/useChatFooterStatus"
 import { useChatTask } from "../hooks/useChatTask"
 import { expandPastedTexts, getAskPromptType, isYoloSuppressed, parseAskOptions } from "../utils/chat"
-import { calculateChatLayoutRows } from "../utils/chat-layout"
+import { calculateChatLayoutRows, calculatePermissionModalLayout } from "../utils/chat-layout"
 import { estimateVisualLineCount } from "../utils/text-clipping"
+import { cardBodyForDisplay } from "../utils/card-body"
+import { clearTaskDeadline, getTaskDeadline, hasTaskTimedOut, markTaskTimedOut } from "../utils/task-timeout"
 
 interface ChatViewProps {
 	controller?: any
@@ -86,6 +88,8 @@ interface ChatViewProps {
 	initialPrompt?: string
 	initialImages?: string[]
 	taskId?: string
+	timeoutSeconds?: number
+	verbose?: boolean
 }
 
 export const ChatView: React.FC<ChatViewProps> = ({
@@ -96,12 +100,13 @@ export const ChatView: React.FC<ChatViewProps> = ({
 	initialPrompt,
 	initialImages,
 	taskId,
+	timeoutSeconds,
 }) => {
 	const quote = useMemo(() => getRandomQuote(), [])
 	const { stdout } = useStdout()
 	const { columns: terminalColumns, rows: terminalRows } = useTerminalSize()
 	const taskState = useTaskState()
-	const { controller: taskController, clearState } = useTaskContext()
+	const { controller: taskController, clearState, lastError, setLastError } = useTaskContext()
 	const { isActive: isSpinnerActive, startTime: spinnerStartTime } = useIsSpinnerActive()
 	const ctrl = useMemo(() => controller || taskController, [controller, taskController])
 
@@ -114,31 +119,10 @@ export const ChatView: React.FC<ChatViewProps> = ({
 		handleButtonAction: () => { },
 		toggleMode: () => { },
 		toggleAutoApproveAll: () => { },
-		toggleTranscriptVerbosity: () => { },
 	})
 
 	const [respondedToAsk, setRespondedToAsk] = useState<string | null>(null)
 	const [userScrolled, setUserScrolled] = useState(false)
-	const [cardExpansions, setCardExpansions] = useState<Map<string, "auto" | "expanded" | "collapsed">>(new Map())
-	const [isVerboseTranscript, setIsVerboseTranscript] = useState(false)
-
-	const handleCardCollapse = useCallback((cardId: string) => {
-		setCardExpansions((prev) => {
-			const next = new Map(prev)
-			next.set(cardId, "collapsed")
-			return next
-		})
-	}, [])
-
-	const getIsCardExpanded = (card: { id: string; collapsed?: boolean; body?: string }): boolean => {
-		const expansion = cardExpansions.get(card.id)
-		if (expansion === "expanded") return true
-		if (expansion === "collapsed") return false
-		if (card.collapsed === false) return true
-		if (isVerboseTranscript && card.body) return true
-		return false
-	}
-
 	const [activePanel, setActivePanel] = useState<ActivePanel>(null)
 
 	const [mode, setMode] = useState<Mode>(() => {
@@ -151,6 +135,14 @@ export const ChatView: React.FC<ChatViewProps> = ({
 		() => StateManager.get().getGlobalSettingsKey("autoApproveAllToggled") ?? false,
 	)
 
+	const layoutRows = calculateChatLayoutRows({
+		terminalRows,
+		hasConversationContent: true,
+		hasComposer: true,
+		hasFooter: true,
+		hasPanel: false,
+	})
+
 	const { displayMessages, staticItems, dynamicItems, taskSwitchKey, setTaskSwitchKey } = useChatTimeline({
 		messages: taskState.diracMessages || [],
 		activeVoiceStreamId: taskState.activeVoiceStreamId,
@@ -159,26 +151,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
 		showHeader:
 			(taskState.diracMessages || []).some((message) => message.content?.type !== DiracMessageType.API_STATUS) ||
 			userScrolled,
-		layoutRows: calculateChatLayoutRows({
-			terminalRows,
-			hasConversationContent: true,
-			hasActivity: taskState.isApiRequestActive === true,
-			hasComposer: true,
-			hasFooter: true,
-			hasPanel: false,
-		}),
-	})
-
-	const { isProcessing, setIsProcessing, isExiting, handleCancel, handleExit, clearViewAndResetTask } = useChatTask({
-		ctrl,
-		taskId,
-		initialPrompt,
-		initialImages,
-		resetComposerInput: () => resetComposerInputRef.current(),
-		onExit,
-		onError,
-		clearState,
-		setTaskSwitchKey,
+		layoutRows,
 	})
 
 	useEffect(() => {
@@ -212,6 +185,55 @@ export const ChatView: React.FC<ChatViewProps> = ({
 		taskState,
 	})
 
+	const reportInteractionError = useCallback(
+		(context: string, error: unknown) => {
+			const message = error instanceof Error ? error.message : String(error)
+			Logger.error(`${context}:`, error)
+			setLastError(`${context}: ${message}`)
+			onError?.()
+		},
+		[onError, setLastError],
+	)
+
+	const { isProcessing, setIsProcessing, isExiting, handleCancel, handleExit, clearViewAndResetTask } = useChatTask({
+		ctrl,
+		taskId,
+		initialPrompt,
+		initialImages,
+		resetComposerInput: () => resetComposerInputRef.current(),
+		onExit,
+		onError,
+		onInteractionError: reportInteractionError,
+		clearState,
+		setTaskSwitchKey,
+	})
+
+	const activeTaskId = ctrl?.task?.taskId
+	const isTaskActive =
+		taskState.taskStatus !== TaskStatus.IDLE &&
+		taskState.taskStatus !== TaskStatus.COMPLETED &&
+		taskState.taskStatus !== TaskStatus.CANCELLED
+	useEffect(() => {
+		if (!timeoutSeconds || !activeTaskId) return
+		if (!isTaskActive) {
+			clearTaskDeadline(activeTaskId)
+			return
+		}
+		if (hasTaskTimedOut(activeTaskId)) return
+
+		const deadline = getTaskDeadline(activeTaskId, timeoutSeconds)
+		const remainingMs = Math.max(0, deadline - Date.now())
+		const timeout = setTimeout(() => {
+			markTaskTimedOut(activeTaskId)
+			const timeoutError = new Error(`Task timed out after ${timeoutSeconds} seconds.`)
+			reportInteractionError("Task timeout", timeoutError)
+			ctrl.task
+				?.abortTask()
+				.catch((error: unknown) => reportInteractionError("Failed to cancel timed-out task", error))
+		}, remainingMs)
+		return () => clearTimeout(timeout)
+	}, [activeTaskId, ctrl, isTaskActive, reportInteractionError, timeoutSeconds])
+
 	const isEmptyConversation = displayMessages.length === 0
 	const isWelcomeState = isEmptyConversation && !userScrolled
 
@@ -240,19 +262,18 @@ export const ChatView: React.FC<ChatViewProps> = ({
 			(pendingAsk.content.card.requireApproval || pendingAsk.content.card.requireFeedback)
 			? pendingAsk.content.card
 			: null
-	const permissionModalWidth = Math.max(1, Math.min(terminalColumns - 2, Math.floor(terminalColumns * 0.8)))
-	const permissionModalHeight = Math.min(Math.max(12, terminalRows - 4), 32)
-	const permissionModalBodyLines = Math.max(1, permissionModalHeight - 7)
-	const permissionModalBodyColumns = Math.max(1, permissionModalWidth - 6)
+	const permissionModalLayout = calculatePermissionModalLayout(terminalColumns, terminalRows)
 
 	// Permission modal scroll state — offset from the bottom of the pending card body.
 	const [cardScrollOffset, setCardScrollOffset] = useState(0)
 
 	const scrollableCardMaxOffset = useMemo(() => {
-		if (!permissionCard?.body) return 0
-		const totalLines = estimateVisualLineCount(permissionCard.body, permissionModalBodyColumns)
-		return Math.max(0, totalLines - permissionModalBodyLines)
-	}, [permissionCard, permissionModalBodyColumns, permissionModalBodyLines])
+		if (!permissionCard) return 0
+		const body = cardBodyForDisplay(permissionCard.body, permissionCard.renderType)
+		if (!body) return 0
+		const totalLines = estimateVisualLineCount(body, permissionModalLayout.bodyColumns)
+		return Math.max(0, totalLines - permissionModalLayout.bodyLines)
+	}, [permissionCard, permissionModalLayout.bodyColumns, permissionModalLayout.bodyLines])
 
 	// Reset scroll offset when pending ask changes
 	useEffect(() => {
@@ -277,6 +298,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
 		showFileMenu,
 		isSearching,
 		showRipgrepWarning,
+		fileSearchError,
 		imagePaths,
 	} = useComposer({
 		ctrl,
@@ -312,29 +334,43 @@ export const ChatView: React.FC<ChatViewProps> = ({
 
 	const sendAskResponse = useCallback(
 		async (responseType: DiracAskResponse | string, text?: string, value?: string, images?: string[]) => {
-			if (!ctrl?.task || !pendingAsk) return
+			if (!ctrl?.task || !pendingAsk) return false
 			if (!isProcessing) setIsProcessing(true)
 			const expandedText = text ? expandPastedTexts(text, pastedTexts) : text
-			setRespondedToAsk(pendingAsk.id)
-			resetInput()
+			setLastError(null)
 			try {
 				await ctrl.task.submitCardResponse(pendingAsk.id, responseType, expandedText, images, undefined, value)
+				setRespondedToAsk(pendingAsk.id)
+				resetInput()
+				return true
 			} catch (error) {
+				reportInteractionError("Failed to send response", error)
+				return false
 			} finally {
 				setIsProcessing(false)
 			}
 		},
-		[ctrl, pendingAsk, pastedTexts, isProcessing, setIsProcessing, resetInput],
+		[
+			ctrl,
+			pendingAsk,
+			pastedTexts,
+			isProcessing,
+			setIsProcessing,
+			resetInput,
+			setLastError,
+			reportInteractionError,
+		],
 	)
 
 	const submitResumeResponse = useCallback(
 		async (responseType: DiracAskResponse, text?: string, images?: string[]) => {
 			if (!ctrl?.task) return
 			const expandedText = text ? expandPastedTexts(text, pastedTexts) : text
+			setLastError(null)
 			await ctrl.task.submitCardResponse("", responseType, expandedText, images)
 			resetInput()
 		},
-		[ctrl, pastedTexts, resetInput],
+		[ctrl, pastedTexts, resetInput, setLastError],
 	)
 
 	const uiActionState = taskState.uiActionState
@@ -355,10 +391,11 @@ export const ChatView: React.FC<ChatViewProps> = ({
 				handleExit()
 				return true
 			}
-			await submitResumeResponse(DiracAskResponse.MESSAGE, trimmedText, images)
+			const validImages = images.length > 0 ? await processImagePaths(images, footerStatus.workspacePath) : undefined
+			await submitResumeResponse(DiracAskResponse.MESSAGE, trimmedText, validImages)
 			return true
 		},
-		[isResumeChoiceActive, submitResumeResponse, handleExit],
+		[isResumeChoiceActive, submitResumeResponse, handleExit, footerStatus.workspacePath],
 	)
 
 	useEffect(() => {
@@ -376,6 +413,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
 		async (action: UIActionButtonType | string | undefined, _isPrimary: boolean = true, value?: string) => {
 			if (!action || !ctrl || isProcessing) return
 			setIsProcessing(true)
+			setLastError(null)
 			try {
 				switch (action) {
 					case UIActionButtonType.APPROVE:
@@ -408,12 +446,14 @@ export const ChatView: React.FC<ChatViewProps> = ({
 						break
 					default: {
 						const expandedText = textInput.trim() ? expandPastedTexts(textInput, pastedTexts).trim() : undefined
-						const validImages = imagePaths.length > 0 ? await processImagePaths(imagePaths) : undefined
+						const validImages =
+							imagePaths.length > 0 ? await processImagePaths(imagePaths, footerStatus.workspacePath) : undefined
 						await sendAskResponse(DiracAskResponse.APPROVE, expandedText, value ?? action, validImages)
 						break
 					}
 				}
 			} catch (error) {
+				reportInteractionError("Failed to perform action", error)
 			} finally {
 				setIsProcessing(false)
 			}
@@ -432,6 +472,9 @@ export const ChatView: React.FC<ChatViewProps> = ({
 			textInput,
 			pastedTexts,
 			imagePaths,
+			footerStatus.workspacePath,
+			setLastError,
+			reportInteractionError,
 		],
 	)
 
@@ -457,7 +500,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
 				if (options.length > 0) {
 					const num = Number.parseInt(input, 10)
 					if (!Number.isNaN(num) && num >= 1 && num <= options.length) {
-						handleButtonAction("utility", false, card.actions![num - 1].value)
+						handleButtonAction(UIActionButtonType.UTILITY, false, card.actions![num - 1].value)
 						return true
 					}
 				}
@@ -470,13 +513,19 @@ export const ChatView: React.FC<ChatViewProps> = ({
 
 			return false
 		},
-		[pendingAsk, isProcessing, handleButtonAction, sendAskResponse, handleExit, isCompletionChoiceActive],
+		[pendingAsk, isProcessing, handleButtonAction, handleExit, isCompletionChoiceActive],
 	)
 
 	const handleSubmit = useCallback(
 		async (text: string, images: string[]) => {
-			if (!ctrl || !text.trim() || isProcessing) return
-			if (await submitResumeTextResponse(text, images)) return
+			if (!ctrl || (!text.trim() && images.length === 0) || isProcessing) return
+			setLastError(null)
+			try {
+				if (await submitResumeTextResponse(text, images)) return
+			} catch (error) {
+				reportInteractionError("Failed to resume task", error)
+				return
+			}
 			if (pendingAsk && pendingAsk.content.type === DiracMessageType.CARD) {
 				const prompt = text.trim()
 				const normalized = prompt.toLowerCase()
@@ -496,29 +545,28 @@ export const ChatView: React.FC<ChatViewProps> = ({
 				if (card.requireApproval && (!card.actions || card.actions.length === 0) && (normalized === "y" || normalized === "yes")) {
 					await sendAskResponse(DiracAskResponse.APPROVE)
 				} else {
-					const validImages = images.length > 0 ? await processImagePaths(images) : undefined
+					const validImages =
+						images.length > 0 ? await processImagePaths(images, footerStatus.workspacePath) : undefined
 					await sendAskResponse(DiracAskResponse.MESSAGE, prompt, undefined, validImages)
 				}
-				resetInput()
 				return
 			}
 			setIsProcessing(true)
 			const expandedText = expandPastedTexts(text, pastedTexts)
 
-			resetInput()
 			try {
-				const validImages = await processImagePaths(images)
+				const validImages = await processImagePaths(images, footerStatus.workspacePath)
 				setTerminalTitle(expandedText.trim())
 				await ctrl.initTask(expandedText.trim(), validImages.length > 0 ? validImages : undefined)
+				resetInput()
 			} catch (_error) {
-				onError?.()
+				reportInteractionError("Failed to start task", _error)
 			} finally {
 				setIsProcessing(false)
 			}
 		},
 		[
 			ctrl,
-			onError,
 			pastedTexts,
 			isProcessing,
 			setIsProcessing,
@@ -529,10 +577,13 @@ export const ChatView: React.FC<ChatViewProps> = ({
 			resetInput,
 			isCompletionChoiceActive,
 			isResumeChoiceActive,
+			setLastError,
+			reportInteractionError,
+			footerStatus.workspacePath,
 		],
 	)
 
-	const borderColor = mode === "act" ? COLORS.primaryBlue : "yellow"
+	const borderColor = mode === "act" ? COLORS.primaryBlue : theme.plan
 	let inputPrompt = ""
 	if (pendingAsk && !yolo && askType === "options" && askOptions.length > 0) {
 		inputPrompt = `(1-${askOptions.length} or type)`
@@ -548,17 +599,15 @@ export const ChatView: React.FC<ChatViewProps> = ({
 		handleButtonAction,
 		toggleMode,
 		toggleAutoApproveAll,
-		toggleTranscriptVerbosity: () => setIsVerboseTranscript((verbose) => !verbose),
 	}
 
-	const shouldShowAskPrompt = pendingAsk && !permissionCard && !isYoloSuppressed(yolo, pendingAsk) && !isSpinnerActive
 	const shouldShowActionButtons = uiActionState && !permissionCard && !activePanel && !isExiting
 	const shouldShowComposerInput = !activePanel && !isExiting
-	const shouldShowFooter = !showSlashMenu && !showFileMenu && !activePanel
+	const shouldShowFooter = !activePanel
 
 	const renderTurnBoundary = (key: string) => (
 		<Box key={key} paddingX={1}>
-			<Text color="gray" dimColor>
+			<Text color={theme.muted} dimColor>
 				{"─".repeat(Math.max(1, Math.min(48, terminalColumns - 4)))}
 			</Text>
 		</Box>
@@ -572,7 +621,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
 		if (item.type === "notice") {
 			return (
 				<Box key={item.key} paddingX={1}>
-					<Text color="gray" dimColor>
+					<Text color={theme.muted} dimColor>
 						{item.message}
 					</Text>
 				</Box>
@@ -591,8 +640,6 @@ export const ChatView: React.FC<ChatViewProps> = ({
 					isStreaming={msg.id === taskState.activeVoiceStreamId}
 					message={msg}
 					mode={mode}
-					isExpanded={card ? getIsCardExpanded(card) : false}
-					onCollapse={card ? () => handleCardCollapse(card.id) : undefined}
 					activeVoiceStreamId={taskState.activeVoiceStreamId}
 					showReasoning={true}
 					compact={item.isCompact}
@@ -607,14 +654,9 @@ export const ChatView: React.FC<ChatViewProps> = ({
 
 	const activityContent = (
 		<React.Fragment>
-			{shouldShowAskPrompt && (
-				<Box paddingX={1}>
-					<AskPrompt />
-				</Box>
-			)}
-
 			{isSpinnerActive && (
 				<ThinkingIndicator
+					isActive={!activePanel}
 					mode={mode}
 					onCancel={handleCancel}
 					startTime={spinnerStartTime}
@@ -622,7 +664,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
 						const msgs = taskState.diracMessages ?? []
 						for (let i = msgs.length - 1; i >= 0; i--) {
 							const m = msgs[i]
-							if (m.content.type === "card" && m.content.card.endTime) {
+							if (m.content.type === DiracMessageType.CARD && m.content.card.endTime) {
 								return m.content.card.header
 							}
 						}
@@ -636,7 +678,14 @@ export const ChatView: React.FC<ChatViewProps> = ({
 	)
 
 	const liveViewportContent = (
-		<Box key="live-viewport" flexDirection="column" overflow="hidden" width="100%">
+		<Box
+			key="live-viewport"
+			flexDirection="column"
+			flexShrink={0}
+			height={layoutRows.liveViewportRows}
+			justifyContent="flex-end"
+			overflow="hidden"
+			width="100%">
 			{dynamicItemsContent}
 			{activityContent}
 		</Box>
@@ -651,11 +700,13 @@ export const ChatView: React.FC<ChatViewProps> = ({
 			justifyContent="center"
 			width="100%">
 			<PermissionModal
-				bodyColumns={permissionModalBodyColumns}
-				bodyLines={permissionModalBodyLines}
+				bodyColumns={permissionModalLayout.bodyColumns}
+				bodyLines={permissionModalLayout.bodyLines}
 				card={permissionCard}
+				height={permissionModalLayout.height}
 				maxScrollOffset={scrollableCardMaxOffset}
 				scrollOffset={cardScrollOffset}
+				width={permissionModalLayout.width}
 			/>
 		</Box>
 	) : (
@@ -664,16 +715,10 @@ export const ChatView: React.FC<ChatViewProps> = ({
 
 	const composerFooterContent = (
 		<React.Fragment>
-			{shouldShowComposerInput && (
-				<ChatInputBar
-					availableCommands={availableCommands.map((c) => c.name)}
-					borderColor={borderColor}
-					cursorPos={cursorPos}
-					inputPrompt={inputPrompt}
-					textInput={textInput}
-					terminalColumns={terminalColumns}
-					terminalRows={terminalRows}
-				/>
+			{lastError && !activePanel && (
+				<Box paddingLeft={1} paddingRight={1}>
+					<Text color={theme.error}>! {lastError}</Text>
+				</Box>
 			)}
 
 			{activePanel?.type === "settings" && (
@@ -707,6 +752,13 @@ export const ChatView: React.FC<ChatViewProps> = ({
 				/>
 			)}
 
+			{imagePaths.length > 0 && !activePanel && !permissionCard && (
+				<Box paddingLeft={1} paddingRight={1}>
+					<Text color={theme.magenta}>
+						{imagePaths.length} image{imagePaths.length > 1 ? "s" : ""} attached
+					</Text>
+				</Box>
+			)}
 			{showSlashMenu && !activePanel && (
 				<Box paddingLeft={1} paddingRight={1}>
 					<SlashCommandMenu commands={filteredCommands} query={slashInfo.query} selectedIndex={selectedSlashIndex} />
@@ -716,6 +768,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
 			{showFileMenu && !activePanel && (
 				<Box paddingLeft={1} paddingRight={1}>
 					<FileMentionMenu
+						error={fileSearchError}
 						isLoading={isSearching}
 						query={mentionInfo.query}
 						results={fileResults}
@@ -725,17 +778,22 @@ export const ChatView: React.FC<ChatViewProps> = ({
 				</Box>
 			)}
 
-			{imagePaths.length > 0 && !activePanel && !permissionCard && (
-				<Box paddingLeft={1} paddingRight={1}>
-					<Text color="magenta">
-						{imagePaths.length} image{imagePaths.length > 1 ? "s" : ""} attached
-					</Text>
-				</Box>
+			{shouldShowComposerInput && (
+				<ChatInputBar
+					availableCommands={availableCommands.map((c) => c.name)}
+					borderColor={borderColor}
+					cursorPos={cursorPos}
+					inputPrompt={inputPrompt}
+					textInput={textInput}
+					terminalColumns={terminalColumns}
+					terminalRows={terminalRows}
+				/>
 			)}
 
 			{shouldShowFooter && (
 				<ChatFooter
 					autoApproveAll={autoApproveAll}
+					yoloMode={yolo}
 					contextWindowSize={footerStatus.contextWindowSize}
 					gitBranch={footerStatus.gitBranch}
 					gitDiffStats={footerStatus.gitDiffStats}
@@ -773,8 +831,6 @@ export const ChatView: React.FC<ChatViewProps> = ({
 							<ChatMessage
 								message={item.message}
 								mode={mode}
-								isExpanded={card ? getIsCardExpanded(card) : false}
-								onCollapse={card ? () => handleCardCollapse(card.id) : undefined}
 								activeVoiceStreamId={taskState.activeVoiceStreamId}
 								showReasoning={true}
 								suppressCardBody={shouldSuppressCardBody(card)}
@@ -836,14 +892,14 @@ export const ChatView: React.FC<ChatViewProps> = ({
 						paddingBottom: 1,
 					} as any)}>
 					<Box flexDirection="column" alignItems="flex-end">
-						<Box borderStyle="round" borderColor="magenta">
+						<Box borderStyle="round" borderColor={theme.magenta}>
 							<Image
 								key={imagePaths[imagePaths.length - 1]}
 								src={path.resolve(imagePaths[imagePaths.length - 1])}
 								width={30}
 							/>
 						</Box>
-						<Text color="gray" dimColor>
+						<Text color={theme.muted} dimColor>
 							{path.basename(imagePaths[imagePaths.length - 1])}
 						</Text>
 					</Box>

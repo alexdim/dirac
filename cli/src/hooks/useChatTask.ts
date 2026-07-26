@@ -8,7 +8,6 @@ import { DiracAskResponse } from "@shared/WebviewMessage"
 import { shutdownEvent } from "../vscode-shim"
 import { showTaskWithId } from "@/core/controller/task/showTaskWithId"
 import { StringRequest } from "@shared/proto/dirac/common"
-import { waitFor } from "../utils/timeout"
 import { setTerminalTitle } from "../utils/display"
 
 interface UseChatTaskProps {
@@ -19,6 +18,7 @@ interface UseChatTaskProps {
 	resetComposerInput: () => void
 	onExit?: () => void
 	onError?: () => void
+	onInteractionError?: (context: string, error: unknown) => void
 	clearState: () => void
 	setTaskSwitchKey: React.Dispatch<React.SetStateAction<number>>
 }
@@ -31,12 +31,30 @@ export function useChatTask({
 	resetComposerInput,
 	onExit,
 	onError,
+	onInteractionError,
 	clearState,
 	setTaskSwitchKey,
 }: UseChatTaskProps) {
 	const { exit: inkExit } = useApp()
 	const [isProcessing, setIsProcessing] = useState(false)
 	const [isExiting, setIsExiting] = useState(false)
+	const exitRequestedRef = React.useRef(false)
+	const startupRequestRef = React.useRef({ taskId, initialPrompt, initialImages })
+	const startupStartedRef = React.useRef(false)
+
+	const reportError = useCallback(
+		(context: string, error: unknown) => {
+			if (onInteractionError) {
+				onInteractionError(context, error)
+				return
+			}
+			Logger.error(`${context}:`, error)
+			onError?.()
+		},
+		[onError, onInteractionError],
+	)
+	const reportErrorRef = React.useRef(reportError)
+	reportErrorRef.current = reportError
 
 	// Handle cancel/interrupt
 	const handleCancel = useCallback(async () => {
@@ -44,21 +62,20 @@ export function useChatTask({
 		setIsProcessing(true)
 		try {
 			await ctrl.cancelTask()
-		} catch {
-			// Controller may be disposed
+		} catch (error) {
+			reportError("Failed to cancel task", error)
 		} finally {
 			setIsProcessing(false)
 		}
-	}, [ctrl, isProcessing])
+	}, [ctrl, isProcessing, reportError])
 
 	// Handle exit
 	const handleExit = useCallback(() => {
+		if (exitRequestedRef.current) return
+		exitRequestedRef.current = true
 		setIsExiting(true)
-		// Delay to allow Ink to re-render with session summary visible
-		setTimeout(() => {
-			inkExit()
-			onExit?.()
-		}, 150)
+		inkExit()
+		onExit?.()
 	}, [inkExit, onExit])
 
 	// Clear view and reset task
@@ -71,48 +88,55 @@ export function useChatTask({
 		clearState()
 		resetComposerInput()
 		if (ctrl) {
-			ctrl.postStateToWebview()
+			await ctrl.postStateToWebview()
 		}
 	}, [ctrl, clearState, resetComposerInput, setTaskSwitchKey])
 
-	// Load existing task
+	// Load the requested task and submit an optional initial follow-up as one
+	// ordered startup operation. This prevents a follow-up from being sent to a
+	// previously active task while the requested history item is still loading.
 	useEffect(() => {
-		if (!taskId || !ctrl || ctrl.task?.taskId === taskId) return
-		showTaskWithId(ctrl, StringRequest.create({ value: taskId })).catch((error) => {
-			Logger.error(`Error loading task: ${error}`)
-			onError?.()
-		})
-	}, [taskId, ctrl, onError])
+		if (!ctrl || startupStartedRef.current) return
+		const startupRequest = startupRequestRef.current
+		const hasInitialContent = Boolean(startupRequest.initialPrompt || startupRequest.initialImages?.length)
+		if (!startupRequest.taskId && !hasInitialContent) return
 
-	// Auto-submit initial prompt
-	useEffect(() => {
-		const autoSubmit = async () => {
-			if (!initialPrompt && (!initialImages || initialImages.length === 0)) return
-			if (!ctrl) return
-
-			await new Promise((resolve) => setTimeout(resolve, 100))
-
+		startupStartedRef.current = true
+		let cancelled = false
+		const start = async () => {
 			try {
-				if (initialPrompt) {
-					setTerminalTitle(initialPrompt)
+				if (startupRequest.taskId && ctrl.task?.taskId !== startupRequest.taskId) {
+					await showTaskWithId(ctrl, StringRequest.create({ value: startupRequest.taskId }))
+				}
+				if (cancelled || !hasInitialContent) return
+
+				if (startupRequest.initialPrompt) {
+					setTerminalTitle(startupRequest.initialPrompt)
 				}
 
-				if (taskId) {
-					const task = await waitFor(() => ctrl.task, 5000)
-					if (task) {
-						await task.submitCardResponse("", DiracAskResponse.MESSAGE, initialPrompt || "")
-					} else {
-						await ctrl.initTask(initialPrompt || "", initialImages)
-					}
-				} else {
-					await ctrl.initTask(initialPrompt || "", initialImages)
+				if (!startupRequest.taskId) {
+					await ctrl.initTask(startupRequest.initialPrompt || "", startupRequest.initialImages)
+					return
 				}
+
+				if (ctrl.task?.taskId !== startupRequest.taskId) {
+					throw new Error(`Loaded task does not match requested task ${startupRequest.taskId}`)
+				}
+				await ctrl.task.submitCardResponse(
+					"",
+					DiracAskResponse.MESSAGE,
+					startupRequest.initialPrompt || "",
+					startupRequest.initialImages,
+				)
 			} catch (error) {
-				onError?.()
+				if (!cancelled) reportErrorRef.current("Failed to initialize task", error)
 			}
 		}
-		autoSubmit()
-	}, [])
+		void start()
+		return () => {
+			cancelled = true
+		}
+	}, [ctrl])
 
 	// Shutdown listener
 	useEffect(() => {

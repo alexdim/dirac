@@ -14,7 +14,6 @@ import { ChatView } from "./ChatView"
 import { ConfigView } from "./ConfigView"
 import { ErrorBoundary } from "./ErrorBoundary"
 import { HistoryView } from "./HistoryView"
-import { TaskJsonView } from "./TaskJsonView"
 
 export type ViewType = "task" | "history" | "config" | "auth" | "welcome"
 
@@ -49,7 +48,6 @@ interface AppProps {
 	controller?: any
 	// Output Style
 	verbose?: boolean
-	jsonOutput?: boolean
 	// Status Callbacks
 	onComplete?: () => void
 	onError?: () => void
@@ -83,11 +81,10 @@ interface AppProps {
 	globalSkills?: SkillInfo[]
 	localSkills?: SkillInfo[]
 	onToggleSkill?: (isGlobal: boolean, skillPath: string, enabled: boolean) => void
-	// For welcome view
-	onWelcomeSubmit?: (prompt: string, imagePaths: string[]) => void
 	onWelcomeExit?: () => void
 	initialPrompt?: string
 	initialImages?: string[]
+	timeoutSeconds?: number
 	// Stdin support
 	isRawModeSupported?: boolean
 }
@@ -108,7 +105,6 @@ const InternalApp: React.FC<AppProps> = ({
 	view: initialView,
 	taskId,
 	verbose = false,
-	jsonOutput = false,
 	controller,
 	onComplete,
 	onError,
@@ -140,10 +136,10 @@ const InternalApp: React.FC<AppProps> = ({
 	globalSkills,
 	localSkills,
 	onToggleSkill,
-	onWelcomeSubmit,
 	onWelcomeExit,
 	initialPrompt,
 	initialImages,
+	timeoutSeconds,
 	isRawModeSupported = true,
 }) => {
 	const { resizeKey } = useTerminalSize()
@@ -169,40 +165,6 @@ const InternalApp: React.FC<AppProps> = ({
 	const handleNavigateToWelcome = useCallback(() => {
 		setCurrentView("welcome")
 	}, [])
-
-	// Handle welcome submit when navigating internally (e.g., from auth -> welcome)
-	const _handleInternalWelcomeSubmit = useCallback(
-		async (prompt: string, imagePaths: string[]) => {
-			if (onWelcomeSubmit) {
-				// If external handler provided, use it
-				onWelcomeSubmit(prompt, imagePaths)
-			} else if (controller && prompt.trim()) {
-				// Otherwise, start a task directly via controller
-				setCurrentView("task")
-				// Convert image paths to data URLs if needed
-				const imageDataUrls =
-					imagePaths.length > 0
-						? await Promise.all(
-								imagePaths.map(async (p) => {
-									try {
-										const fs = await import("fs/promises")
-										const path = await import("path")
-										const data = await fs.readFile(p)
-										const ext = path.extname(p).toLowerCase().slice(1)
-										const mimeType = ext === "jpg" ? "jpeg" : ext
-										return `data:image/${mimeType};base64,${data.toString("base64")}`
-									} catch {
-										return null
-									}
-								}),
-							)
-						: []
-				const validImages = imageDataUrls.filter((img): img is string => img !== null)
-				await controller.initTask(prompt.trim(), validImages.length > 0 ? validImages : undefined)
-			}
-		},
-		[onWelcomeSubmit, controller],
-	)
 
 	let content: ReactNode
 
@@ -262,19 +224,17 @@ const InternalApp: React.FC<AppProps> = ({
 		case "welcome":
 			content = (
 				<TaskContextProvider controller={controller}>
-					{jsonOutput ? (
-						<TaskJsonView onComplete={onComplete} onError={onError} taskId={selectedTaskId} verbose={verbose} />
-					) : (
-						<ChatView
-							controller={controller}
-							initialImages={pendingInitialImages}
-							initialPrompt={pendingInitialPrompt}
-							onComplete={onComplete}
-							onError={onError}
-							onExit={onWelcomeExit}
-							taskId={selectedTaskId}
-						/>
-					)}
+					<ChatView
+						controller={controller}
+						initialImages={pendingInitialImages}
+						initialPrompt={pendingInitialPrompt}
+						verbose={verbose}
+						timeoutSeconds={timeoutSeconds}
+						onComplete={onComplete}
+						onError={onError}
+						onExit={onWelcomeExit}
+						taskId={selectedTaskId}
+					/>
 				</TaskContextProvider>
 			)
 			break

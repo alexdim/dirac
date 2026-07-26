@@ -1,3 +1,4 @@
+import { theme } from "../constants/theme"
 /**
  * Auth view component
  * Handles interactive authentication and provider configuration
@@ -17,8 +18,8 @@ import { copyToClipboardNative, terminalLink } from "../utils/clipboard"
 import { COLORS } from "../constants/colors"
 import { useStdinContext } from "../context/StdinContext"
 import { useScrollableList } from "../hooks/useScrollableList"
-import { type DetectedSources, detectImportSources, type ImportSource } from "../utils/import-configs"
-import { isMouseEscapeSequence } from "../utils/input"
+import { type DetectedSources, detectImportSources, ImportSource } from "../utils/import-configs"
+import { shouldIgnoreTerminalInput } from "../utils/input"
 import { applyBedrockConfig, applyProviderConfig } from "../utils/provider-config"
 import { useValidProviders } from "../utils/providers"
 import { ApiKeyInput } from "./ApiKeyInput"
@@ -86,7 +87,7 @@ const Select: React.FC<{
 	return (
 		<Box flexDirection="column">
 			{label && (
-				<Text bold color="cyan">
+				<Text bold color={theme.info}>
 					{label}
 				</Text>
 			)}
@@ -98,7 +99,7 @@ const Select: React.FC<{
 					</Text>
 				</Box>
 			))}
-			<Text color="gray">(Use arrow keys to navigate, Enter to select)</Text>
+			<Text color={theme.muted}>(Use arrow keys to navigate, Enter to select)</Text>
 		</Box>
 	)
 }
@@ -118,7 +119,7 @@ const TextInput: React.FC<{
 	useInput(
 		(input, key) => {
 			// Filter out mouse escape sequences
-			if (isMouseEscapeSequence(input)) {
+			if (shouldIgnoreTerminalInput(input, key)) {
 				return
 			}
 
@@ -138,11 +139,11 @@ const TextInput: React.FC<{
 	return (
 		<Box>
 			{!displayValue && placeholder ? (
-				<Text color="gray">e.g. {placeholder}</Text>
+				<Text color={theme.muted}>e.g. {placeholder}</Text>
 			) : (
-				<Text color="white">{displayValue || ""}</Text>
+				<Text color={theme.text}>{displayValue || ""}</Text>
 			)}
-			<Text inverse> </Text>
+			<Text backgroundColor={theme.cursorBg} color={theme.cursorText}> </Text>
 		</Box>
 	)
 }
@@ -284,10 +285,10 @@ export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onEr
 			} else if (value === "configure_byo") {
 				setStep("provider")
 			} else if (value === "import_codex") {
-				setImportSource("codex")
+				setImportSource(ImportSource.CODEX)
 				setStep("import")
 			} else if (value === "import_opencode") {
-				setImportSource("opencode")
+				setImportSource(ImportSource.OPENCODE)
 				setStep("import")
 			}
 		},
@@ -531,15 +532,15 @@ export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onEr
 			case "provider": {
 				return (
 					<Box flexDirection="column">
-						<Text color="white">Select a provider</Text>
+						<Text color={theme.text}>Select a provider</Text>
 						<Text> </Text>
 						<Box>
-							<Text color="gray">Search: </Text>
-							<Text color="white">{providerSearch}</Text>
-							<Text inverse> </Text>
+							<Text color={theme.muted}>Search: </Text>
+							<Text color={theme.text}>{providerSearch}</Text>
+							<Text backgroundColor={theme.cursorBg} color={theme.cursorText}> </Text>
 						</Box>
 						<Text> </Text>
-						{showProviderTopIndicator && <Text color="gray">... {providerVisibleStart} more above</Text>}
+						{showProviderTopIndicator && <Text color={theme.muted}>... {providerVisibleStart} more above</Text>}
 						{visibleProviderItems.map((item, i) => {
 							const actualIndex = providerVisibleStart + i
 							return (
@@ -552,13 +553,13 @@ export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onEr
 							)
 						})}
 						{showProviderBottomIndicator && (
-							<Text color="gray">
+							<Text color={theme.muted}>
 								... {providerItems.length - providerVisibleStart - providerVisibleCount} more below
 							</Text>
 						)}
-						{providerItems.length === 0 && <Text color="gray">No providers match "{providerSearch}"</Text>}
+						{providerItems.length === 0 && <Text color={theme.muted}>No providers match "{providerSearch}"</Text>}
 						<Text> </Text>
-						<Text color="gray">Type to search, arrows to navigate, Enter to select, Esc to go back</Text>
+						<Text color={theme.muted}>Type to search, arrows to navigate, Enter to select, Esc to go back</Text>
 					</Box>
 				)
 			}
@@ -580,7 +581,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onEr
 				if (hasModelPicker(selectedProvider)) {
 					return (
 						<Box flexDirection="column">
-							<Text color="white">Select a model</Text>
+							<Text color={theme.text}>Select a model</Text>
 							<Text> </Text>
 							<ModelPicker
 								controller={controller}
@@ -590,29 +591,29 @@ export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onEr
 								provider={selectedProvider}
 							/>
 							<Text> </Text>
-							<Text color="gray">Type to search, arrows to navigate, Enter to select, Esc to go back</Text>
+							<Text color={theme.muted}>Type to search, arrows to navigate, Enter to select, Esc to go back</Text>
 						</Box>
 					)
 				}
 				// Fall back to text input for providers without static model lists
 				return (
 					<Box flexDirection="column">
-						<Text color="white">Model ID</Text>
+						<Text color={theme.text}>Model ID</Text>
 						<Text> </Text>
-						<Text color="gray">e.g., claude-sonnet-4-6, gpt-4o</Text>
+						<Text color={theme.muted}>e.g., claude-sonnet-4-6, gpt-4o</Text>
 						<Text> </Text>
 						<TextInput onChange={setModelId} onSubmit={handleModelIdSubmit} placeholder="model-id" value={modelId} />
 						<Text> </Text>
-						<Text color="gray">Enter to continue, Esc to go back</Text>
+						<Text color={theme.muted}>Enter to continue, Esc to go back</Text>
 					</Box>
 				)
 
 			case "baseurl":
 				return (
 					<Box flexDirection="column">
-						<Text color="white">Base URL (optional)</Text>
+						<Text color={theme.text}>Base URL (optional)</Text>
 						<Text> </Text>
-						<Text color="gray">For self-hosted or proxy endpoints</Text>
+						<Text color={theme.muted}>For self-hosted or proxy endpoints</Text>
 						<Text> </Text>
 						<TextInput
 							onChange={setBaseUrl}
@@ -621,7 +622,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onEr
 							value={baseUrl}
 						/>
 						<Text> </Text>
-						<Text color="gray">Enter to skip or continue, Esc to go back</Text>
+						<Text color={theme.muted}>Enter to skip or continue, Esc to go back</Text>
 					</Box>
 				)
 
@@ -631,7 +632,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onEr
 						<Text color={COLORS.primaryBlue}>
 							<Spinner type="dots" />
 						</Text>
-						<Text color="white"> Saving configuration...</Text>
+						<Text color={theme.text}> Saving configuration...</Text>
 					</Box>
 				)
 
@@ -642,39 +643,39 @@ export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onEr
 							<Text color={COLORS.primaryBlue}>
 								<Spinner type="dots" />
 							</Text>
-							<Text color="white"> Waiting for ChatGPT sign-in...</Text>
+							<Text color={theme.text}> Waiting for ChatGPT sign-in...</Text>
 						</Box>
 						<Text> </Text>
-						<Text color="gray">Sign in with your ChatGPT account in the browser.</Text>
+						<Text color={theme.muted}>Sign in with your ChatGPT account in the browser.</Text>
 						{codexAuthUrl && (
 							<Box flexDirection="column" marginTop={1}>
-								<Text color="gray">If the browser didn't open, use this link:</Text>
+								<Text color={theme.muted}>If the browser didn't open, use this link:</Text>
 								<Box marginTop={1}>
-									<Text bold color="cyan">
+									<Text bold color={theme.info}>
 										{terminalLink("👉 Click here to sign in with ChatGPT", codexAuthUrl)}
 									</Text>
 								</Box>
 
 								<Box marginTop={1}>
 									{copied ? (
-										<Text color="green">✔ Copied to clipboard!</Text>
+										<Text color={theme.success}>✔ Copied to clipboard!</Text>
 									) : (
-										<Text color="gray">(Press 'c' to copy the full URL)</Text>
+										<Text color={theme.muted}>(Press 'c' to copy the full URL)</Text>
 									)}
 								</Box>
 
 								<Box marginTop={1}>
-									<Text color="yellow">
+									<Text color={theme.warning}>
 										Note: If you are on a remote machine, you may need to set up SSH port forwarding:
 									</Text>
 								</Box>
-								<Text color="gray">ssh -L 1455:localhost:1455 your-remote-host</Text>
+								<Text color={theme.muted}>ssh -L 1455:localhost:1455 your-remote-host</Text>
 							</Box>
 						)}
 						<Text> </Text>
-						<Text color="gray">Requires ChatGPT Plus, Pro, or Team subscription.</Text>
+						<Text color={theme.muted}>Requires ChatGPT Plus, Pro, or Team subscription.</Text>
 						<Text> </Text>
-						<Text color="gray">Esc to cancel</Text>
+						<Text color={theme.muted}>Esc to cancel</Text>
 					</Box>
 				)
 
@@ -742,11 +743,11 @@ export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onEr
 			case "error":
 				return (
 					<Box flexDirection="column">
-						<Text bold color="red">
+						<Text bold color={theme.error}>
 							Something went wrong
 						</Text>
 						<Text> </Text>
-						<Text color="yellow">{errorMessage}</Text>
+						<Text color={theme.warning}>{errorMessage}</Text>
 						<Text> </Text>
 						<Select items={errorMenuItems} onSelect={handleErrorMenuSelect} />
 					</Box>
@@ -825,14 +826,14 @@ export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onEr
 			<StaticRobotFrame />
 
 			<Box justifyContent="center" marginTop={1} paddingX={4}>
-				<Text color="cyan" italic>
+				<Text color={theme.info} italic>
 					“{quote}”
 				</Text>
 			</Box>
 
 			{/* Auth box with border */}
 			<Box
-				borderColor="gray"
+				borderColor={theme.border}
 				borderStyle="round"
 				flexDirection="column"
 				marginTop={1}
@@ -842,7 +843,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onEr
 				paddingTop={1}>
 				{step === "menu" ? (
 					<Box flexDirection="column">
-						<Text color="gray">How would you like to get started?</Text>
+						<Text color={theme.muted}>How would you like to get started?</Text>
 						<Text> </Text>
 						{mainMenuItems.map((item, index) => (
 							<Box key={item.value}>
@@ -855,7 +856,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onEr
 							</Box>
 						))}
 						<Text> </Text>
-						<Text color="gray">Use arrow keys, Enter to select</Text>
+						<Text color={theme.muted}>Use arrow keys, Enter to select</Text>
 					</Box>
 				) : (
 					renderAuthContent()

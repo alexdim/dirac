@@ -1,3 +1,4 @@
+import { theme } from "../constants/theme"
 /**
  * Slash command menu component for CLI
  * Displays a list of matching slash commands when user types /
@@ -18,7 +19,7 @@ interface SlashCommandMenuProps {
 
 export const SlashCommandMenu: React.FC<SlashCommandMenuProps> = ({ commands, selectedIndex, query }) => {
 	const { columns: terminalWidth } = useTerminalSize()
-	const contentWidth = Math.max(10, terminalWidth - 4)
+	const contentWidth = Math.max(1, terminalWidth - 4)
 
 	const truncateText = (text: string, maxLength: number): string => {
 		if (maxLength <= 0) return ""
@@ -30,7 +31,7 @@ export const SlashCommandMenu: React.FC<SlashCommandMenuProps> = ({ commands, se
 	if (commands.length === 0) {
 		return (
 			<Box flexDirection="column" marginBottom={1} paddingLeft={1} paddingRight={1}>
-				<Text color="gray">{query ? `No commands matching "/${query}"` : "Type to search commands..."}</Text>
+				<Text color={theme.muted}>{query ? `No commands matching "/${query}"` : "Type to search commands..."}</Text>
 			</Box>
 		)
 	}
@@ -54,11 +55,11 @@ export const SlashCommandMenu: React.FC<SlashCommandMenuProps> = ({ commands, se
 				return (
 					<Box flexWrap="nowrap" key={cmd.name} width={contentWidth}>
 						<Text color={isSelected ? COLORS.primaryBlue : undefined}>{commandText}</Text>
-						{descText && <Text color="gray">{descText}</Text>}
+						{descText && <Text color={theme.muted}>{descText}</Text>}
 					</Box>
 				)
 			})}
-			{hasMoreBelow && <Text color="gray">{"  "}▼</Text>}
+			{hasMoreBelow && <Text color={theme.muted}>{"  "}▼</Text>}
 		</Box>
 	)
 }

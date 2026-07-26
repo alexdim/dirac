@@ -1,4 +1,6 @@
+import { styles } from "../../constants/theme"
 import { RenderType } from "@shared/ExtensionMessage"
+import { cardBodyForDisplay } from "../../utils/card-body"
 import React from "react"
 import { Text, Box } from "ink"
 import { Diff } from "./Diff"
@@ -15,17 +17,18 @@ interface CardBodyProps {
 }
 
 export const CardBody: React.FC<CardBodyProps> = ({ body, maxLines, renderType, scrollOffset, renderWidth }) => {
-	if (!body) return null
+	const displayBody = cardBodyForDisplay(body, renderType)
+	if (!displayBody) return null
 	const columns = Math.max(1, renderWidth ?? (process.stdout.columns || 80) - 6)
 	const { visibleText, hasMoreAbove, hasMoreBelow } = maxLines
-		? clipTextToWindow(body, maxLines, columns, scrollOffset ?? 0)
-		: { visibleText: body, hasMoreAbove: false, hasMoreBelow: false }
+		? clipTextToWindow(displayBody, maxLines, columns, scrollOffset ?? 0)
+		: { visibleText: displayBody, hasMoreAbove: false, hasMoreBelow: false }
 	return (
 		<React.Fragment>
 			{renderContent(visibleText, renderType, columns)}
 			{(hasMoreAbove || hasMoreBelow) && (
 				<Box marginTop={0}>
-					<Text color="gray" dimColor>
+					<Text {...styles.tool.metadata}>
 						{hasMoreAbove ? "↑ " : ""}scroll{hasMoreBelow ? " ↓" : ""}
 					</Text>
 				</Box>
@@ -37,11 +40,11 @@ export const CardBody: React.FC<CardBodyProps> = ({ body, maxLines, renderType, 
 function renderContent(body: string, renderType: RenderType, width: number): React.ReactNode {
 	switch (renderType) {
 		case "markdown":
-			return <Markdown width={width}>{body}</Markdown>
+			return <Markdown color={styles.tool.body.color} width={width}>{body}</Markdown>
 		case "diff":
 			return <Diff content={body} width={width} />
 		case "text":
 		default:
-			return <Text>{linkifyPaths(body)}</Text>
+			return <Text {...styles.tool.body}>{linkifyPaths(body)}</Text>
 	}
 }

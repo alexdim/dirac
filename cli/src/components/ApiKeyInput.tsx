@@ -1,3 +1,4 @@
+import { theme } from "../constants/theme"
 /**
  * Reusable API key input component
  * Shows a password-masked input field for entering API keys
@@ -7,7 +8,7 @@ import { Box, Text, useInput } from "ink"
 import React from "react"
 import { COLORS } from "../constants/colors"
 import { useStdinContext } from "../context/StdinContext"
-import { isMouseEscapeSequence } from "../utils/input"
+import { shouldIgnoreTerminalInput } from "../utils/input"
 
 interface ApiKeyInputProps {
 	providerName: string
@@ -31,7 +32,7 @@ export const ApiKeyInput: React.FC<ApiKeyInputProps> = ({
 	useInput(
 		(input, key) => {
 			// Filter out mouse escape sequences
-			if (isMouseEscapeSequence(input)) {
+			if (shouldIgnoreTerminalInput(input, key)) {
 				return
 			}
 
@@ -60,14 +61,14 @@ export const ApiKeyInput: React.FC<ApiKeyInputProps> = ({
 				{providerName} API Key
 			</Text>
 			<Box marginTop={1}>
-				<Text color="gray">Paste your API key below</Text>
+				<Text color={theme.muted}>Paste your API key below</Text>
 			</Box>
 			<Box marginTop={1}>
-				<Text color="white">{"•".repeat(value.length)}</Text>
-				<Text inverse> </Text>
+				<Text color={theme.text}>{"•".repeat(value.length)}</Text>
+				<Text backgroundColor={theme.cursorBg} color={theme.cursorText}> </Text>
 			</Box>
 			<Box marginTop={1}>
-				<Text color="gray">Enter to save, Esc to cancel</Text>
+				<Text color={theme.muted}>Enter to save, Esc to cancel</Text>
 			</Box>
 		</Box>
 	)

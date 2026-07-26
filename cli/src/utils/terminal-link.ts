@@ -1,11 +1,14 @@
 import path from "node:path"
+import { pathToFileURL } from "node:url"
 import { PATH_REGEX, extractFirstPath } from "@shared/string"
 
 /**
  * Wraps text in OSC 8 escape sequences to create a terminal link.
  */
 export function terminalLink(text: string, url: string): string {
-	return `\u001b]8;;${url}\u001b\\${text}\u001b]8;;\u001b\\`
+	const safeText = text.replace(/[\u001b\u0007]/g, "")
+	const safeUrl = url.replace(/[\u001b\u0007]/g, "")
+	return `\u001b]8;;${safeUrl}\u001b\\${safeText}\u001b]8;;\u001b\\`
 }
 
 /**
@@ -40,8 +43,7 @@ export function getPathUrl(filePath: string): string {
 	if (!path.isAbsolute(filePath)) {
 		absolutePath = path.resolve(cwd, filePath)
 	}
-	// Use file:// URL with forward slashes (required for some terminals)
-	return `file://${absolutePath.replace(/\\/g, "/")}`
+	return pathToFileURL(absolutePath).href
 }
 
 export { extractFirstPath }

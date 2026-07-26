@@ -6,15 +6,16 @@
  * - ⎿ for tool results (indented)
  */
 
-import { DiracMessage, DiracMessageType } from "@shared/ExtensionMessage"
+import { DiracMessage, DiracMessageType, type Card } from "@shared/ExtensionMessage"
 import { Box, Text } from "ink"
 import Spinner from "ink-spinner"
 import React from "react"
 import { Markdown } from "./modular-ui/Markdown"
-import { styles } from "../constants/theme"
+import { styles, theme } from "../constants/theme"
 import { getModeColor } from "../constants/colors"
 import { useTerminalSize } from "../hooks/useTerminalSize"
 import { ModularCard } from "./modular-ui/ModularCard"
+import { TaskCompletionCard } from "./modular-ui/TaskCompletionCard"
 import { clipTextToLastVisualLines, estimateVisualLineCount, summarizeFirstLine } from "../utils/text-clipping"
 
 /**
@@ -27,8 +28,6 @@ interface ChatMessageProps {
 	isStreaming?: boolean
 	isExecuting?: boolean
 	mode?: "act" | "plan"
-	isExpanded?: boolean
-	onCollapse?: () => void
 	activeVoiceStreamId?: string
 	showReasoning?: boolean
 	compact?: boolean
@@ -89,7 +88,8 @@ const ReasoningMessage: React.FC<{
 		return null
 	}
 
-	const reasoningColor = isStreaming ? getModeColor(mode) : styles.conversation.reasoning.color
+	const reasoningAccent = isStreaming ? getModeColor(mode) : styles.conversation.reasoningTitle.color
+	const reasoningColor = styles.conversation.reasoning.color
 	const visibleContent = clipReasoningText(content, Math.max(1, columns - 4))
 
 	if (!visibleContent.trim()) {
@@ -99,9 +99,9 @@ const ReasoningMessage: React.FC<{
 	if (compact) {
 		return (
 			<Text>
-				<Text color="gray">⎿ </Text>
-				<Text color={reasoningColor}>Thinking</Text>
-				<Text color={reasoningColor} dimColor={!isStreaming}>
+				<Text color={theme.muted}>⎿ </Text>
+				<Text color={reasoningAccent}>Thinking</Text>
+				<Text color={theme.muted}>
 					{summarizeFirstLine(content) ? ` · ${summarizeFirstLine(content)}` : ""}
 				</Text>
 			</Text>
@@ -110,9 +110,9 @@ const ReasoningMessage: React.FC<{
 
 	return (
 		<React.Fragment>
-			<DotRow color={reasoningColor} prefix="◇">
+			<DotRow color={reasoningAccent} prefix="◇">
 				<Box flexDirection="column">
-					<Text color={reasoningColor} dimColor={!isStreaming}>
+					<Text color={reasoningAccent}>
 						Thinking
 					</Text>
 					<Text color={reasoningColor}>{visibleContent}</Text>
@@ -123,17 +123,20 @@ const ReasoningMessage: React.FC<{
 	)
 }
 
+function isTaskCompletionCard(card: Card): boolean {
+	return card.header === "Task Completed"
+}
+
+
 export const ChatMessage: React.FC<ChatMessageProps> = ({
 	message,
 	isStreaming: isStreamingProp,
 	activeVoiceStreamId,
-	isExpanded,
 	showReasoning = true,
 	compact = false,
 	maxContentLines,
 	scrollOffset,
 	suppressCardBody,
-	onCollapse,
 	mode,
 }) => {
 	const { columns } = useTerminalSize()
@@ -141,7 +144,7 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
 	// --- New Protocol Dispatcher ---
 	if ("content" in message) {
 		switch (message.content.type) {
-			case "markdown":
+			case DiracMessageType.MARKDOWN:
 				if (message.content.isReasoning) {
 					return (
 						<ReasoningMessage
@@ -156,15 +159,14 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
 				}
 				const markdownRole = message.content.role === "user" ? "user" : "assistant"
 				const roleColor = markdownRole === "user" ? styles.conversation.user.color : styles.conversation.assistant.color
-				const contentColor =
-					markdownRole === "assistant" && mode === "plan" ? styles.conversation.planModeTint.color : roleColor
+				const contentColor = roleColor
 
 				if (compact) {
 					return (
 						<Text>
-							<Text color="gray">⎿ </Text>
+							<Text color={theme.muted}>⎿ </Text>
 							<Text color={roleColor}>{markdownRole === "user" ? "User" : "Assistant"}</Text>
-							<Text color="gray" dimColor>
+							<Text color={theme.muted} dimColor>
 								{summarizeFirstLine(message.content.content)
 									? ` · ${summarizeFirstLine(message.content.content)}`
 									: ""}
@@ -183,26 +185,25 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
 						<Text>{"\n"}</Text>
 					</React.Fragment>
 				)
-			case "card":
+			case DiracMessageType.CARD:
+				if (isTaskCompletionCard(message.content.card)) {
+					return <TaskCompletionCard card={message.content.card} />
+				}
 				return (
 					<ModularCard
 						card={message.content.card}
-						isCompact={compact}
-						isExpanded={isExpanded}
-						isStreaming={isStreaming}
 						maxBodyLines={maxContentLines}
-						onCollapse={onCollapse}
 						scrollOffset={scrollOffset}
 						suppressBody={suppressCardBody}
 					/>
 				)
-			case "api_status":
+			case DiracMessageType.API_STATUS:
 				// API status is summarized in the status bar in CLI
 				return null
 			default:
 				return (
-					<Box borderStyle="single" borderColor="red" paddingX={1}>
-						<Text color="red">Protocol Error: Unknown primitive type "{(message.content as any).type}"</Text>
+					<Box borderStyle="single" borderColor={theme.error} paddingX={1}>
+						<Text color={theme.error}>Protocol Error: Unknown primitive type "{(message.content as any).type}"</Text>
 					</Box>
 				)
 		}
@@ -211,8 +212,8 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
 	// If we reach here, it means the message doesn't have the 'content' field,
 	// which should be impossible according to the new DiracMessage type.
 	return (
-		<Box borderStyle="single" borderColor="red" paddingX={1}>
-			<Text color="red">Protocol Error: Message is missing "content" field.</Text>
+		<Box borderStyle="single" borderColor={theme.error} paddingX={1}>
+			<Text color={theme.error}>Protocol Error: Message is missing "content" field.</Text>
 		</Box>
 	)
 }
@@ -257,14 +258,18 @@ export const ChatMessageList: React.FC<ChatMessageListProps> = ({
 				<React.Fragment key={msg.id || msg.ts}>
 					{idx > 0 && messagesToShow[idx - 1].content.type !== msg.content.type && (
 						<Box key={`sep-${idx}`}>
-							<Text {...styles.conversation.typeChangeSep}>{"─".repeat(Math.min(40, columns - 4))}</Text>
+							<Text {...styles.conversation.typeChangeSep}>
+								{"─".repeat(Math.max(1, Math.min(40, columns - 4)))}
+							</Text>
 						</Box>
 					)}
 					{idx > 0 &&
 						messagesToShow[idx - 1].content.type === msg.content.type &&
 						msg.content.type === DiracMessageType.MARKDOWN && (
 							<Box key={`sep-md-${idx}`}>
-								<Text {...styles.conversation.divider}>{"── · ── · ──".repeat(3)}</Text>
+								<Text {...styles.conversation.divider} wrap="truncate-end">
+									{"── · ── · ──".repeat(3)}
+								</Text>
 							</Box>
 						)}
 					<ChatMessage

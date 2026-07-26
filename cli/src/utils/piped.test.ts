@@ -1,7 +1,19 @@
 import { EventEmitter } from "node:events"
 import * as fs from "node:fs"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
-import { readStdinIfPiped } from "./piped"
+import { combinePromptWithPipedInput, isEmptyPipedInput, readStdinIfPiped } from "./piped"
+
+describe("piped prompt composition", () => {
+	it("preserves piped bytes before an explicit prompt", () => {
+		expect(combinePromptWithPipedInput("explain", "  code\n")).toBe("  code\n\n\nexplain")
+	})
+
+	it("distinguishes whitespace-only pipes from absent stdin", () => {
+		expect(isEmptyPipedInput(" \n")).toBe(true)
+		expect(isEmptyPipedInput("")).toBe(true)
+		expect(isEmptyPipedInput(null)).toBe(false)
+	})
+})
 
 // Mock fs.fstatSync to simulate pipe detection
 vi.mock("node:fs", async () => {
@@ -173,14 +185,14 @@ describe("readStdinIfPiped", () => {
 			{
 				name: "whitespace only",
 				input: "   \n  \t  \n   ",
-				expected: "",
-				description: "should return empty string for whitespace-only input",
+				expected: "   \n  \t  \n   ",
+				description: "should preserve whitespace-only input for the caller to classify",
 			},
 			{
 				name: "leading and trailing whitespace",
 				input: "  hello world  \n",
-				expected: "hello world",
-				description: "should trim leading and trailing whitespace",
+				expected: "  hello world  \n",
+				description: "should preserve leading and trailing whitespace",
 			},
 			{
 				name: "large input",
@@ -230,14 +242,17 @@ describe("readStdinIfPiped", () => {
 	})
 
 	describe("error handling", () => {
-		it("should return null on stdin error", async () => {
+		it("should reject on stdin error and preserve unrelated listeners", async () => {
 			setTTY(false)
+			const unrelatedDataListener = vi.fn()
+			mockStdin.on("data", unrelatedDataListener)
 
 			const promise = readStdinIfPiped()
-			emitError(new Error("EAGAIN: resource temporarily unavailable"))
-			const result = await promise
+			const error = new Error("EAGAIN: resource temporarily unavailable")
+			emitError(error)
 
-			expect(result).toBeNull()
+			await expect(promise).rejects.toBe(error)
+			expect(mockStdin.listeners("data")).toContain(unrelatedDataListener)
 		})
 	})
 
@@ -267,7 +282,7 @@ describe("readStdinIfPiped", () => {
 			{
 				name: "echo command with newline",
 				input: "Hello World\n",
-				expected: "Hello World",
+				expected: "Hello World\n",
 			},
 			{
 				name: "command output with ANSI codes",

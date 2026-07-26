@@ -7,11 +7,13 @@ import { moveCursorDown, moveCursorUp } from "../utils/cursor"
 import { parseImagesFromInput } from "../utils/parser"
 import { readImageFromClipboard } from "../utils/clipboard-image"
 import { getVisibleGlobalActionButtons } from "../utils/action-buttons"
+import { DiracMessageType, UIActionButtonType } from "@shared/ExtensionMessage"
 
 interface UseChatInputHandlerProps {
+	workspacePath: string
 	textInputRef: React.MutableRefObject<string>
 	cursorPosRef: React.MutableRefObject<number>
-	setTextInput: (text: string) => void
+	setTextInput: React.Dispatch<React.SetStateAction<string>>
 	setCursorPos: (pos: number | ((prev: number) => number)) => void
 	activePanel: any
 	setActivePanel: (panel: any) => void
@@ -62,7 +64,6 @@ interface UseChatInputHandlerProps {
 	PASTE_UPDATE_DEBOUNCE_MS: number
 	// Other
 	mode: string
-	toggleTranscriptVerbosity: () => void
 	isEmptyConversation: boolean
 	// Card scroll state
 	scrollableCardMaxOffset: number
@@ -71,6 +72,7 @@ interface UseChatInputHandlerProps {
 }
 
 export function useChatInputHandler({
+	workspacePath,
 	textInputRef,
 	cursorPosRef,
 	setTextInput,
@@ -118,7 +120,6 @@ export function useChatInputHandler({
 	PASTE_CHUNK_WINDOW_MS,
 	PASTE_UPDATE_DEBOUNCE_MS,
 	mode,
-	toggleTranscriptVerbosity,
 	isEmptyConversation,
 	scrollableCardMaxOffset,
 	cardScrollOffset,
@@ -126,10 +127,11 @@ export function useChatInputHandler({
 }: UseChatInputHandlerProps) {
 	useInput((input, key) => {
 		if (isMouseEscapeSequence(input) || isTerminalResponseSequence(input, key)) return
+		if (activePanel) return
 
 		const currentTextInput = textInputRef.current
 		const currentCursorPos = cursorPosRef.current
-		const currentMentionInfo = extractMentionQuery(currentTextInput)
+		const currentMentionInfo = extractMentionQuery(currentTextInput, currentCursorPos)
 		const currentSlashInfo = extractSlashQuery(currentTextInput, currentCursorPos)
 
 		if (handleAskShortcuts(input, key, currentTextInput)) return
@@ -145,8 +147,6 @@ export function useChatInputHandler({
 				return
 			}
 		}
-
-		if (activePanel) return
 
 		const inSlashMenu = currentSlashInfo.inSlashMode && filteredCommands.length > 0 && !slashMenuDismissed
 		const inFileMenu = currentMentionInfo.inMentionMode && fileResults.length > 0 && !inSlashMenu
@@ -180,9 +180,14 @@ export function useChatInputHandler({
 						return
 					}
 
-					const newText = insertSlashCommand(currentTextInput, currentSlashInfo.slashIndex, cmd.name)
-					setTextInput(newText)
-					setCursorPos(newText.length)
+					const insertion = insertSlashCommand(
+						currentTextInput,
+						currentSlashInfo.slashIndex,
+						cmd.name,
+						currentCursorPos,
+					)
+					setTextInput(insertion.text)
+					setCursorPos(insertion.cursorPosition)
 					setSelectedSlashIndex(0)
 				}
 				return
@@ -206,9 +211,14 @@ export function useChatInputHandler({
 			if (key.tab || key.return) {
 				const file = fileResults[selectedIndex]
 				if (file) {
-					const newText = insertMention(currentTextInput, currentMentionInfo.atIndex, file.path)
-					setTextInput(newText)
-					setCursorPos(newText.length)
+					const insertion = insertMention(
+						currentTextInput,
+						currentMentionInfo.atIndex,
+						file.path,
+						currentCursorPos,
+					)
+					setTextInput(insertion.text)
+					setCursorPos(insertion.cursorPosition)
 					setFileResults([])
 					setSelectedIndex(0)
 				}
@@ -293,17 +303,12 @@ export function useChatInputHandler({
 			}
 		}
 
-		const card = pendingAsk?.content?.type === "card" ? pendingAsk.content.card : null
+		const card = pendingAsk?.content?.type === DiracMessageType.CARD ? pendingAsk.content.card : null
 		if (currentTextInput === "" && !isProcessing) {
-			if (!key.ctrl && input === "v") {
-				toggleTranscriptVerbosity()
-				return
-			}
-
 			if (card?.actions && card.actions.length > 0) {
 				const num = Number.parseInt(input, 10)
 				if (!Number.isNaN(num) && num >= 1 && num <= card.actions.length) {
-					handleButtonAction("utility", false, card.actions[num - 1].value)
+					handleButtonAction(UIActionButtonType.UTILITY, false, card.actions[num - 1].value)
 					return
 				}
 			}
@@ -317,7 +322,9 @@ export function useChatInputHandler({
 				if (!(process.env.SSH_CONNECTION || process.env.SSH_CLIENT || process.env.SSH_TTY)) {
 					const imagePath = await readImageFromClipboard()
 					if (imagePath) {
-						insertTextAtCursor(`@${imagePath} `)
+						// Clipboard images are absolute temporary files. `@/…` is reserved
+						// for workspace-relative mentions, so insert a standalone quoted path.
+						insertTextAtCursor(`"${imagePath}" `)
 					}
 				}
 			})()
@@ -345,9 +352,16 @@ export function useChatInputHandler({
 				pasteUpdateTimeoutRef.current = setTimeout(() => {
 					const newPlaceholder = `[Pasted text #${pasteNum} +${activePasteLinesRef.current} lines]`
 					const pattern = new RegExp(`\\[Pasted text #${pasteNum} \\+\\d+ lines\\]`)
-					const newText = currentTextInput.replace(pattern, newPlaceholder)
-					setTextInput(newText)
-					setCursorPos(activePasteStartPosRef.current + newPlaceholder.length)
+					const latestText = textInputRef.current
+					const match = pattern.exec(latestText)
+					if (!match) return
+
+					const oldPlaceholderEnd = match.index + match[0].length
+					const cursorWasAfterPlaceholder = cursorPosRef.current === oldPlaceholderEnd
+					setTextInput((text) => text.replace(pattern, newPlaceholder))
+					if (cursorWasAfterPlaceholder) {
+						setCursorPos(match.index + newPlaceholder.length)
+					}
 				}, PASTE_UPDATE_DEBOUNCE_MS)
 				return
 			}
@@ -392,7 +406,10 @@ export function useChatInputHandler({
 			!isSpinnerActive &&
 			!isProcessing
 		) {
-			const { prompt: currentPrompt, imagePaths: currentImagePaths } = parseImagesFromInput(currentTextInput)
+			const { prompt: currentPrompt, imagePaths: currentImagePaths } = parseImagesFromInput(
+				currentTextInput,
+				workspacePath,
+			)
 			if (currentPrompt.trim() || currentImagePaths.length > 0) {
 				handleSubmit(currentPrompt.trim(), currentImagePaths)
 			}

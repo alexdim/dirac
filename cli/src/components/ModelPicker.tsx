@@ -1,3 +1,4 @@
+import { theme } from "../constants/theme"
 /**
  * Model picker component for model selection
  * Supports static model lists and async loading for OpenRouter
@@ -11,6 +12,7 @@ import { refreshGithubCopilotModels } from "@/core/controller/models/refreshGith
 import { type ApiProvider } from "@/shared/api"
 import { filterOpenRouterModelIds } from "@/shared/utils/model-filters"
 import { COLORS } from "../constants/colors"
+import { Logger } from "@/shared/services/Logger"
 import { getDefaultModelId, getModelList, hasModelPicker, hasStaticModels, providerModels } from "../utils/model-metadata"
 import { usesOpenRouterModels } from "../utils/openrouter-models"
 import { SearchableList, SearchableListItem } from "./SearchableList"
@@ -31,31 +33,47 @@ interface ModelPickerProps {
 export const ModelPicker: React.FC<ModelPickerProps> = ({ provider, controller, onChange, onSubmit, isActive = true }) => {
 	const [isLoading, setIsLoading] = useState(false)
 	const [asyncModels, setAsyncModels] = useState<string[]>([])
+	const [loadError, setLoadError] = useState<string | null>(null)
 
 	// Fetch async models (OpenRouter) when needed
 	useEffect(() => {
-		if (usesOpenRouterModels(provider)) {
-			setIsLoading(true)
-			refreshOpenRouterModels(controller)
-				.then((models) => {
-					const modelIds = Object.keys(models).sort((a, b) => a.localeCompare(b))
-					const filtered = filterOpenRouterModelIds(modelIds, provider as ApiProvider)
-					setAsyncModels(filtered)
-				})
-				.finally(() => {
-					setIsLoading(false)
-				})
+		const loadsOpenRouterModels = usesOpenRouterModels(provider)
+		const loadsGithubModels = provider === "github-copilot"
+		if (!loadsOpenRouterModels && !loadsGithubModels) {
+			setAsyncModels([])
+			setLoadError(null)
+			setIsLoading(false)
+			return
 		}
 
-		if (provider === "github-copilot") {
-			setIsLoading(true)
-			refreshGithubCopilotModels()
-				.then((models) => {
-					setAsyncModels(Object.keys(models).sort((a, b) => a.localeCompare(b)))
-				})
-				.finally(() => {
-					setIsLoading(false)
-				})
+		let cancelled = false
+		setAsyncModels([])
+		setLoadError(null)
+		setIsLoading(true)
+
+		const loadModels = loadsOpenRouterModels ? refreshOpenRouterModels(controller) : refreshGithubCopilotModels()
+		loadModels.then(
+			(models) => {
+				if (cancelled) return
+				const modelIds = Object.keys(models).sort((a, b) => a.localeCompare(b))
+				if (modelIds.length === 0) {
+					setLoadError("The provider returned no models.")
+				}
+				setAsyncModels(
+					loadsOpenRouterModels ? filterOpenRouterModelIds(modelIds, provider as ApiProvider) : modelIds,
+				)
+				setIsLoading(false)
+			},
+			(error) => {
+				Logger.error(`Failed to load models for ${provider}:`, error)
+				if (cancelled) return
+				setLoadError(error instanceof Error ? error.message : String(error))
+				setIsLoading(false)
+			},
+		)
+
+		return () => {
+			cancelled = true
 		}
 	}, [provider, controller])
 
@@ -97,24 +115,26 @@ export const ModelPicker: React.FC<ModelPickerProps> = ({ provider, controller, 
 				<Text color={COLORS.primaryBlue}>
 					<Spinner type="dots" />
 				</Text>
-				<Text color="gray"> Loading models...</Text>
+				<Text color={theme.muted}> Loading models...</Text>
 			</Box>
 		)
 	}
 
-	// If async fetch returned no models, render nothing
-	if ((usesOpenRouterModels(provider) || provider === "github-copilot") && modelList.length === 0) {
-		return null
+	if (loadError && !supportsCustomModel) {
+		return <Text color={theme.error}>Could not load models: {loadError}</Text>
 	}
 
 	return (
-		<SearchableList
-			isActive={isActive}
-			items={items}
-			onSelect={(item) => {
-				onChange(item.id)
-				onSubmit(item.id)
-			}}
-		/>
+		<Box flexDirection="column">
+			{loadError && <Text color={theme.warning}>Model list unavailable; enter a custom model ID.</Text>}
+			<SearchableList
+				isActive={isActive}
+				items={items}
+				onSelect={(item) => {
+					onChange(item.id)
+					onSubmit(item.id)
+				}}
+			/>
+		</Box>
 	)
 }

@@ -1,7 +1,6 @@
 export interface ChatLayoutInput {
 	terminalRows: number
 	hasConversationContent: boolean
-	hasActivity: boolean
 	hasComposer: boolean
 	hasFooter: boolean
 	hasPanel: boolean
@@ -11,6 +10,13 @@ export interface ChatLayoutRows {
 	liveViewportRows: number
 	activeContentRows: number
 	compactHistoryRows: number
+}
+
+export interface PermissionModalLayout {
+	width: number
+	height: number
+	bodyLines: number
+	bodyColumns: number
 }
 
 interface Bounds {
@@ -27,7 +33,6 @@ const ROWS = {
 	composer: 3,
 	footer: 4,
 	panel: 10,
-	activity: 3,
 	margin: 2,
 	liveViewport: {
 		min: MIN_LIVE_VIEWPORT_ROWS,
@@ -65,25 +70,42 @@ function calculateReservedRows(input: ChatLayoutInput): number {
 	return [
 		input.hasComposer ? ROWS.composer : 0,
 		input.hasFooter ? ROWS.footer : 0,
-		input.hasActivity ? ROWS.activity : 0,
 		ROWS.margin,
 	].reduce((total, rows) => total + rows, 0)
 }
 
 function calculateActiveContentRows(liveViewportRows: number): number {
-	const availableContentRows = Math.max(ROWS.activeContent.min, liveViewportRows - ACTIVE_CONTENT_CHROME_ROWS)
+	const availableContentRows = Math.max(1, liveViewportRows - ACTIVE_CONTENT_CHROME_ROWS)
 	const targetContentRows = boundedRows(liveViewportRows, ROWS.activeContent)
 
 	return Math.min(availableContentRows, targetContentRows)
 }
 
 function boundedRows(availableRows: number, bounds: Bounds): number {
-	const maximumRows = Math.max(bounds.min, Math.floor(availableRows * bounds.maxRatio))
-	const targetRows = Math.floor(availableRows * bounds.targetRatio)
+	const safeAvailableRows = Math.max(1, availableRows)
+	const minimumRows = Math.min(bounds.min, safeAvailableRows)
+	const maximumRows = Math.max(minimumRows, Math.min(safeAvailableRows, Math.floor(safeAvailableRows * bounds.maxRatio)))
+	const targetRows = Math.floor(safeAvailableRows * bounds.targetRatio)
 
-	return clamp(targetRows, bounds.min, maximumRows)
+	return clamp(targetRows, minimumRows, maximumRows)
 }
 
 function clamp(value: number, min: number, max: number): number {
 	return Math.min(Math.max(value, min), max)
+}
+
+export function calculatePermissionModalLayout(terminalColumns: number, terminalRows: number): PermissionModalLayout {
+	const columns = Math.max(1, terminalColumns)
+	const rows = Math.max(1, terminalRows)
+	const availableWidth = Math.max(1, columns - 2)
+	const desiredWidth = Math.max(1, Math.floor(columns * 0.8))
+	const width = Math.min(availableWidth, desiredWidth)
+	const height = Math.max(1, Math.min(32, rows - 4))
+
+	return {
+		width,
+		height,
+		bodyLines: Math.max(1, height - 7),
+		bodyColumns: Math.max(1, width - 6),
+	}
 }

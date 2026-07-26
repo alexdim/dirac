@@ -1,5 +1,6 @@
+import { styles, theme } from "../../constants/theme"
 import { ActionButton } from "@shared/ExtensionMessage"
-import { Text } from "ink"
+import { Box, Text } from "ink"
 import React from "react"
 
 interface CardInteractionsProps {
@@ -12,30 +13,28 @@ export const CardInteractions: React.FC<CardInteractionsProps> = ({ requireFeedb
 	if (!requireFeedback && (!actions || actions.length === 0)) return null
 
 	return (
-		<React.Fragment>
+		<Box flexDirection="column" marginLeft={2}>
 			{requireFeedback && (
-				<Text color="cyan" italic>
-					{"   "}
-					{feedbackPlaceholder || "Waiting for feedback..."}
-					{"\n"}
+				<Text {...styles.tool.attention}>
+					◇ {feedbackPlaceholder || "Waiting for feedback..."}
 				</Text>
 			)}
-
 			{actions && actions.length > 0 && (
 				<Text>
-					{"   "}
-					{actions.map((action, idx) => (
-						<Text key={idx}>
-							<Text color="gray">[{idx + 1}] </Text>
-							<Text color={action.style === "danger" ? "red" : action.primary ? "cyan" : "green"} bold>
-								{action.label}
+					{actions.map((action, idx) => {
+						const actionColor = action.style === "danger" ? theme.error : action.primary ? theme.primary : theme.text
+						return (
+							<Text key={idx}>
+								<Text color={theme.subtle}>[{idx + 1}]</Text>{" "}
+								<Text bold={action.primary} color={actionColor}>
+									{action.label}
+								</Text>
+								{idx < actions.length - 1 ? "   " : ""}
 							</Text>
-							{idx < actions.length - 1 ? "   " : ""}
-						</Text>
-					))}
-					{"\n"}
+						)
+					})}
 				</Text>
 			)}
-		</React.Fragment>
+		</Box>
 	)
 }

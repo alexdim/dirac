@@ -1,11 +1,11 @@
-import { execSync } from "child_process"
+import { execFileSync } from "node:child_process"
 
 /**
  * Get current git branch name
  */
 export function getGitBranch(cwd?: string): string | null {
 	try {
-		const branch = execSync("git rev-parse --abbrev-ref HEAD", {
+		const branch = execFileSync("git", ["rev-parse", "--abbrev-ref", "HEAD"], {
 			cwd: cwd || process.cwd(),
 			encoding: "utf-8",
 			stdio: ["pipe", "pipe", "pipe"],
@@ -27,7 +27,7 @@ export interface GitDiffStats {
  */
 export function getGitDiffStats(cwd?: string): GitDiffStats | null {
 	try {
-		const output = execSync("git diff --shortstat", {
+		const output = execFileSync("git", ["diff", "--shortstat"], {
 			cwd: cwd || process.cwd(),
 			encoding: "utf-8",
 			stdio: ["pipe", "pipe", "pipe"],

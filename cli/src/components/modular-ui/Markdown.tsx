@@ -2,7 +2,27 @@ import { Text } from "ink"
 import { lexer, type Token, type Tokens } from "marked"
 import React, { useMemo } from "react"
 import { linkifyPaths } from "../../utils/terminal-link"
-import { styles } from "../../constants/theme"
+import { styles, theme } from "../../constants/theme"
+
+function truncateCell(text: string, width: number): string {
+	if (width <= 0) return ""
+	if (text.length <= width) return text
+	if (width === 1) return "…"
+	return `${text.slice(0, width - 1)}…`
+}
+
+function allocateColumnWidths(naturalWidths: number[], availableWidth: number): number[] {
+	const widths = naturalWidths.map((width) => Math.max(1, width))
+	const naturalTotal = widths.reduce((sum, width) => sum + width, 0)
+	if (naturalTotal <= availableWidth) return widths
+
+	const remainingWidth = Math.max(0, availableWidth - widths.length)
+	const expandableTotal = widths.reduce((sum, width) => sum + Math.max(0, width - 1), 0)
+	return widths.map((width) => {
+		if (expandableTotal === 0) return 1
+		return 1 + Math.floor((Math.max(0, width - 1) / expandableTotal) * remainingWidth)
+	})
+}
 
 /**
  * Render an array of marked tokens as Ink React nodes.
@@ -26,7 +46,7 @@ function renderToken(token: Token, key: number, color?: string, width?: number):
 			return (
 				<React.Fragment key={key}>
 					{depth <= 2 && <Text>{"\n"}</Text>}
-					<Text {...headingStyle} {...(depth > 2 && color ? { color } : {})}>
+					<Text {...headingStyle} {...(color ? { color } : {})}>
 						{renderTokens(tokens, color, width)}
 					</Text>
 					<Text>{"\n"}</Text>
@@ -44,10 +64,10 @@ function renderToken(token: Token, key: number, color?: string, width?: number):
 			)
 
 		case "code": {
-			const maxCodeWidth = (width ?? process.stdout.columns ?? 80) - 4
+			const maxCodeWidth = Math.max(1, (width ?? process.stdout.columns ?? 80) - 4)
 			const rawLines = (token as Tokens.Code).text.split("\n")
 			const wrappedLines = rawLines.flatMap((line) => {
-				if (line.length <= maxCodeWidth || maxCodeWidth <= 0) return [line]
+				if (line.length <= maxCodeWidth) return [line]
 				const chunks: string[] = []
 				for (let i = 0; i < line.length; i += maxCodeWidth) {
 					chunks.push(line.slice(i, i + maxCodeWidth))
@@ -58,15 +78,15 @@ function renderToken(token: Token, key: number, color?: string, width?: number):
 			return (
 				<React.Fragment key={key}>
 					<Text>{"\n"}</Text>
-					<Text color="brightBlack">{"┌" + "─".repeat(padWidth + 2) + "┐\n"}</Text>
+					<Text color={theme.subtle}>{"┌" + "─".repeat(padWidth + 2) + "┐\n"}</Text>
 					{wrappedLines.map((line, i) => (
 						<Text key={i}>
-							<Text color="brightBlack">{"│ "}</Text>
+							<Text color={theme.subtle}>{"│ "}</Text>
 							<Text {...styles.markdown.codeBlock}>{(line || " ").padEnd(padWidth)}</Text>
-							<Text color="brightBlack">{" │\n"}</Text>
+							<Text color={theme.subtle}>{" │\n"}</Text>
 						</Text>
 					))}
-					<Text color="brightBlack">{"└" + "─".repeat(padWidth + 2) + "┘\n"}</Text>
+					<Text color={theme.subtle}>{"└" + "─".repeat(padWidth + 2) + "┘\n"}</Text>
 				</React.Fragment>
 			)
 		}
@@ -77,7 +97,7 @@ function renderToken(token: Token, key: number, color?: string, width?: number):
 				<React.Fragment key={key}>
 					{items.map((item, i) => (
 						<Text key={i}>
-							<Text color="gray">{ordered ? `${Number(start ?? 1) + i}. ` : "• "}</Text>
+							<Text color={theme.muted}>{ordered ? `${Number(start ?? 1) + i}. ` : "• "}</Text>
 							{renderTokens(item.tokens, color, width)}
 						</Text>
 					))}
@@ -147,7 +167,7 @@ function renderToken(token: Token, key: number, color?: string, width?: number):
 		case "hr":
 			return (
 				<React.Fragment key={key}>
-					<Text {...styles.markdown.hr}>{"─".repeat(width ?? process.stdout.columns ?? 80)}</Text>
+					<Text {...styles.markdown.hr}>{"─".repeat(Math.max(1, width ?? process.stdout.columns ?? 80))}</Text>
 					<Text>{"\n"}</Text>
 				</React.Fragment>
 			)
@@ -165,30 +185,38 @@ function renderToken(token: Token, key: number, color?: string, width?: number):
 				const maxRowWidth = rowTexts.reduce((max, row) => Math.max(max, (row[ci] || "").length), 0)
 				return Math.max(h.length, maxRowWidth)
 			})
-			// Cap table width to fit within terminal to prevent overflow on Static commit
-			const tableIndent = 6 // msg paddingX(1) + card paddingLeft(5)
-			const maxTableWidth = (width ?? process.stdout.columns ?? 80) - tableIndent
+			const maxTableWidth = Math.max(1, width ?? process.stdout.columns ?? 80)
 			const borderOverhead = colWidths.length * 3 + 1 // "│" + 2 padding per col + outer borders
 			const availableForContent = maxTableWidth - borderOverhead
-			if (availableForContent > 0) {
-				const totalNatural = colWidths.reduce((s, w) => s + w, 0)
-				if (totalNatural > availableForContent) {
-					const scale = availableForContent / totalNatural
-					colWidths = colWidths.map((w) => Math.max(8, Math.floor(w * scale)))
-				}
+			if (availableForContent < colWidths.length) {
+				const fallbackRows = [headerTexts, ...rowTexts]
+				return (
+					<React.Fragment key={key}>
+						{fallbackRows.map((row, rowIndex) => (
+							<Text
+								key={rowIndex}
+								{...(rowIndex === 0 ? styles.markdown.tableHeader : {})}
+								{...(color ? { color } : {})}>
+								{truncateCell(row.join(" | "), maxTableWidth)}
+								{"\n"}
+							</Text>
+						))}
+					</React.Fragment>
+				)
 			}
+			colWidths = allocateColumnWidths(colWidths, availableForContent)
 			const topBorder = colWidths.map((w) => "─".repeat(w + 2)).join("┬")
 			const headerSep = colWidths.map((w) => "─".repeat(w + 2)).join("┼")
 			const bottomBorder = colWidths.map((w) => "─".repeat(w + 2)).join("┴")
 			const renderRow = (cells: string[]): string =>
-				"│" + cells.map((c, ci) => ` ${c.padEnd(colWidths[ci])} `).join("│") + "│"
+				"│" + cells.map((cell, columnIndex) => ` ${truncateCell(cell, colWidths[columnIndex]).padEnd(colWidths[columnIndex])} `).join("│") + "│"
 			return (
 				<React.Fragment key={key}>
 					<Text {...styles.markdown.tableBorder}>{`┌${topBorder}┐\n`}</Text>
-					<Text {...styles.markdown.tableHeader}>{`${renderRow(headerTexts)}\n`}</Text>
+					<Text {...styles.markdown.tableHeader} {...(color ? { color } : {})}>{`${renderRow(headerTexts)}\n`}</Text>
 					<Text {...styles.markdown.tableBorder}>{`├${headerSep}┤\n`}</Text>
 					{rowTexts.map((row, ri) => (
-						<Text key={ri}>{`${renderRow(row)}\n`}</Text>
+						<Text color={color} key={ri}>{`${renderRow(row)}\n`}</Text>
 					))}
 					<Text {...styles.markdown.tableBorder}>{`└${bottomBorder}┘\n`}</Text>
 				</React.Fragment>

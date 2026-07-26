@@ -1,3 +1,4 @@
+import { theme } from "../../../constants/theme"
 import React from "react"
 import { Box, Text } from "ink"
 import { COLORS } from "../../../constants/colors"
@@ -44,10 +45,10 @@ export const EditValuePage: React.FC<EditValuePageProps> = ({ label, value }) =>
 			Edit: {label}
 		</Text>
 		<Box marginTop={1}>
-			<Text color="white">{value}</Text>
-			<Text color="gray">|</Text>
+			<Text color={theme.text}>{value}</Text>
+			<Text color={theme.muted}>|</Text>
 		</Box>
-		<Text color="gray">Enter to save, Esc to cancel</Text>
+		<Text color={theme.muted}>Enter to save, Esc to cancel</Text>
 	</Box>
 )
 

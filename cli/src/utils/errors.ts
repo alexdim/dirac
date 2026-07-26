@@ -1,6 +1,11 @@
 import { shutdownEvent } from "../vscode-shim"
-import { activeContext, isShuttingDown, isPlainTextMode, setIsShuttingDown } from "./state"
-import { disposeCliContext } from "./cleanup"
+import {
+	activeContext,
+	isShuttingDown,
+	setIsShuttingDown,
+	setShutdownExitCode,
+} from "./state"
+import { disposeCliContext, drainOutput } from "./cleanup"
 
 export async function captureUnhandledException(reason: Error, context: string) {
 	try {
@@ -47,35 +52,21 @@ export async function onUnhandledException(reason: unknown, context: string) {
 }
 
 export function setupSignalHandlers() {
-	const shutdown = async (signal: string) => {
+	const shutdown = async (signal: NodeJS.Signals, exitCode: number) => {
 		const { printWarning } = await import("./display")
 		if (isShuttingDown) {
-			// Force exit on second signal
-			process.exit(1)
+			process.exit(exitCode)
 		}
 		setIsShuttingDown(true)
+		setShutdownExitCode(exitCode)
 
-		// Notify components to hide UI before shutdown
 		shutdownEvent.fire()
-
-		// Only clear Ink UI lines if we're not in plain text mode
-		// In plain text mode, there's no Ink UI to clear and the ANSI codes
-		// would corrupt the streaming output
-		if (!isPlainTextMode) {
-			// Clear several lines to remove the input field and footer from display
-			// Move cursor up and clear lines (input box + footer rows)
-			const linesToClear = 8 // Input box (3 lines with border) + footer (4-5 lines)
-			process.stdout.write(`\x1b[${linesToClear}A\x1b[J`)
-		}
-
 		printWarning(`${signal} received, shutting down...`)
 
 		try {
 			if (activeContext) {
 				const task = activeContext.controller.task
-				if (task) {
-					task.abortTask()
-				}
+				if (task) await task.abortTask()
 				await disposeCliContext(activeContext)
 			} else {
 				// Best-effort flush of restored yolo state when no active context
@@ -93,34 +84,21 @@ export function setupSignalHandlers() {
 				}
 				await disposeCliContext(null) // This will call disposeTelemetryServices
 			}
-		} catch {
-			// Best effort cleanup
+		} catch (error) {
+			printWarning(`Shutdown cleanup failed: ${error instanceof Error ? error.message : String(error)}`)
+			setShutdownExitCode(1)
+			exitCode = 1
 		}
 
-		process.exit(0)
+		await drainOutput()
+		process.exit(exitCode)
 	}
 
-	process.on("SIGINT", () => shutdown("SIGINT"))
-	process.on("SIGTERM", () => shutdown("SIGTERM"))
+	process.on("SIGINT", () => void shutdown("SIGINT", 130))
+	process.on("SIGTERM", () => void shutdown("SIGTERM", 143))
 
-	// Suppress known abort errors from unhandled rejections
-	// These occur when task is cancelled and async operations throw "Dirac instance aborted"
 	process.on("unhandledRejection", async (reason: unknown) => {
-		const message = reason instanceof Error ? reason.message : String(reason)
-		// Silently ignore abort-related errors - they're expected during task cancellation
-		if (message.includes("aborted") || message.includes("abort")) {
-			try {
-				const { Logger } = await import("@/shared/services/Logger")
-				Logger.info("Suppressed unhandled rejection due to abort:", message)
-			} catch {
-				// Logger not available
-			}
-			return
-		}
-
-		// For other unhandled rejections, capture the exception and log to file via Logger (if available)
-		// This won't show in terminal but will be in log files for debugging
-		onUnhandledException(reason, "unhandledRejection")
+		await onUnhandledException(reason, "unhandledRejection")
 	})
 
 	process.on("uncaughtException", (reason: unknown) => {

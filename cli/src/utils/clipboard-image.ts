@@ -1,101 +1,106 @@
-import { execSync } from "node:child_process"
+import { execFileSync } from "node:child_process"
+import { randomUUID } from "node:crypto"
 import fs from "node:fs"
 import os from "node:os"
 import path from "node:path"
 
+const MAX_CLIPBOARD_IMAGE_BYTES = 50 * 1024 * 1024
+const clipboardImagePaths = new Set<string>()
+
+function registerClipboardImage(filePath: string): string | null {
+	if (!fs.existsSync(filePath) || fs.statSync(filePath).size === 0) return null
+	clipboardImagePaths.add(filePath)
+	return filePath
+}
+
+function writeCommandImage(filePath: string, command: string, args: string[]): string | null {
+	const image = execFileSync(command, args, { maxBuffer: MAX_CLIPBOARD_IMAGE_BYTES })
+	if (image.length === 0) return null
+	fs.writeFileSync(filePath, image)
+	return registerClipboardImage(filePath)
+}
+
+function readMacOsClipboardImage(filePath: string): string | null {
+	const escapedPath = filePath.replace(/\\/g, "\\\\").replace(/"/g, '\\"')
+	const script = `
+		set found to false
+		set theData to missing value
+		try
+			set theData to the clipboard as «class PNGf»
+			set found to true
+		on error
+			try
+				set theData to the clipboard as «class TIFF»
+				set found to true
+			on error
+				try
+					set theData to the clipboard as JPEG picture
+					set found to true
+				end try
+			end try
+		end try
+		if found then
+			set theFile to (open for access POSIX file "${escapedPath}" with write permission)
+			set eof theFile to 0
+			write theData to theFile
+			close access theFile
+			return "OK"
+		end if
+		return "NO_IMAGE"
+	`
+	const result = execFileSync("osascript", ["-e", script], { encoding: "utf8" }).trim()
+	return result === "OK" ? registerClipboardImage(filePath) : null
+}
+
+function readLinuxClipboardImage(filePath: string): string | null {
+	try {
+		execFileSync("wl-paste", ["--version"], { stdio: "ignore" })
+		return writeCommandImage(filePath, "wl-paste", ["-t", "image/png"])
+	} catch {
+		return writeCommandImage(filePath, "xclip", ["-selection", "clipboard", "-t", "image/png", "-o"])
+	}
+}
+
+function readWindowsClipboardImage(filePath: string): string | null {
+	const escapedPath = filePath.replace(/'/g, "''")
+	const command = `Add-Type -AssemblyName System.Windows.Forms; if ([System.Windows.Forms.Clipboard]::ContainsImage()) { $img = [System.Windows.Forms.Clipboard]::GetImage(); $img.Save('${escapedPath}', [System.Drawing.Imaging.ImageFormat]::Png); Write-Output 'OK' }`
+	const result = execFileSync("powershell", ["-NoProfile", "-NonInteractive", "-Command", command], {
+		encoding: "utf8",
+	}).trim()
+	return result === "OK" ? registerClipboardImage(filePath) : null
+}
+
 /**
- * Read image from system clipboard and save to a temporary file.
- * Returns the path to the temporary file, or null if no image in clipboard.
+ * Read an image from the system clipboard and save it to a tracked temporary file.
+ * A text-only or unavailable clipboard returns null.
  */
 export async function readImageFromClipboard(): Promise<string | null> {
-	const tmpDir = os.tmpdir()
-	const tmpPath = path.join(tmpDir, `dirac-clipboard-${Date.now()}.png`)
+	const temporaryPath = path.join(os.tmpdir(), `dirac-clipboard-${randomUUID()}.png`)
 
 	try {
-		if (process.platform === "darwin") {
-			// macOS: Use osascript to save clipboard image to file
-			// We try multiple formats: PNG, TIFF, and JPEG
-			const script = `
-				set found to false
-				set theData to missing value
-				
-				-- Try PNG first
-				try
-					set theData to the clipboard as «class PNGf»
-					set found to true
-				on error
-					-- Try TIFF
-					try
-						set theData to the clipboard as «class TIFF»
-						set found to true
-					on error
-						-- Try JPEG
-						try
-							set theData to the clipboard as JPEG picture
-							set found to true
-						end try
-					end try
-				end try
-
-				if found then
-					try
-						set theFile to (open for access POSIX file "${tmpPath}" with write permission)
-						set eof theFile to 0
-						write theData to theFile
-						close access theFile
-						return "OK"
-					on error
-						try
-							close access theFile
-						end try
-						return "ERR_WRITE"
-					end try
-				else
-					return "ERR_NO_IMAGE"
-				end if
-			`
-			const result = execSync(`osascript -e '${script.replace(/\n/g, " ")}'`)
-				.toString()
-				.trim()
-			if (result === "OK" && fs.existsSync(tmpPath)) {
-				return tmpPath
-			}
-		} else if (process.platform === "linux") {
-			// Linux: Try wl-paste (Wayland) first, then xclip (X11)
-			try {
-				// Check for wl-paste
-				execSync("wl-paste --version", { stdio: "ignore" })
-				execSync(`wl-paste -t image/png > "${tmpPath}"`, { stdio: "ignore" })
-				if (fs.existsSync(tmpPath) && fs.statSync(tmpPath).size > 0) {
-					return tmpPath
-				}
-			} catch {
-				// Fallback to xclip
-				try {
-					execSync(`xclip -selection clipboard -t image/png -o > "${tmpPath}"`, { stdio: "ignore" })
-					if (fs.existsSync(tmpPath) && fs.statSync(tmpPath).size > 0) {
-						return tmpPath
-					}
-				} catch {
-					// Fallback or tools not installed
-				}
-			}
-		} else if (process.platform === "win32") {
-			// Windows: Use PowerShell to save clipboard image to file
-			const psCommand = `Add-Type -AssemblyName System.Windows.Forms; if ([System.Windows.Forms.Clipboard]::ContainsImage()) { $img = [System.Windows.Forms.Clipboard]::GetImage(); $img.Save('${tmpPath}', [System.Drawing.Imaging.ImageFormat]::Png); echo "OK" }`
-			execSync(`powershell -command "${psCommand}"`, { stdio: "ignore" })
-			if (fs.existsSync(tmpPath)) {
-				return tmpPath
-			}
+		switch (process.platform) {
+			case "darwin":
+				return readMacOsClipboardImage(temporaryPath)
+			case "linux":
+				return readLinuxClipboardImage(temporaryPath)
+			case "win32":
+				return readWindowsClipboardImage(temporaryPath)
+			default:
+				return null
 		}
-	} catch (error) {
-		// console.error("Error reading image from clipboard:", error)
+	} catch {
+		return null
+	} finally {
+		if (!clipboardImagePaths.has(temporaryPath) && fs.existsSync(temporaryPath)) {
+			fs.unlinkSync(temporaryPath)
+		}
 	}
+}
 
-	if (fs.existsSync(tmpPath)) {
-		try {
-			fs.unlinkSync(tmpPath)
-		} catch {}
+/** Remove temporary clipboard images created during this CLI process. */
+export function disposeClipboardImages(): void {
+	for (const imagePath of clipboardImagePaths) {
+		if (fs.existsSync(imagePath)) fs.unlinkSync(imagePath)
+		clipboardImagePaths.delete(imagePath)
 	}
-	return null
 }

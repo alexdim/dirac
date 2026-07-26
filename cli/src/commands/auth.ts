@@ -102,10 +102,10 @@ export async function runAuth(options: {
 	const { telemetryService } = await import("@/services/telemetry")
 	const { printWarning, printInfo } = await import("../utils/display")
 	const { checkRawModeSupport } = await import("../context/StdinContext")
-	const React = (await import("react")).default
-	const { App } = await import("../components/App")
 
 	const ctx = await initializeCli({ ...options, enableAuth: true })
+	const React = (await import("react")).default
+	const { App } = await import("../components/App")
 
 	let provider = options.provider
 	let apikey = options.apikey

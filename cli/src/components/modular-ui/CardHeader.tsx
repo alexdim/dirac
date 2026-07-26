@@ -1,3 +1,4 @@
+import { styles } from "../../constants/theme"
 import { CardStatus } from "@shared/ExtensionMessage"
 import { Text } from "ink"
 import Spinner from "ink-spinner"
@@ -12,27 +13,45 @@ interface CardHeaderProps {
 	compact?: boolean
 }
 
+function getHeaderPresentation(status: CardStatus) {
+	switch (status) {
+		case CardStatus.ERROR:
+		case CardStatus.CANCELLED:
+			return styles.tool.errorHeader
+		case CardStatus.WAITING_FOR_INPUT:
+			return styles.tool.attentionHeader
+		case CardStatus.RUNNING:
+		case CardStatus.BUILDING:
+			return styles.tool.activeHeader
+		default:
+			return styles.tool.header
+	}
+}
+
 export const CardHeader: React.FC<CardHeaderProps> = ({ header, status, icon, compact }) => {
-	const color = getStatusColor(status)
+	const statusColor = getStatusColor(status)
+	const categoryColor = getIconCategoryColor(icon)
 	const statusIcon = getStatusIcon(status)
-	const isRunning = status === "running" || status === "building"
+	const isRunning = status === CardStatus.RUNNING || status === CardStatus.BUILDING
+	const headerPresentation = getHeaderPresentation(status)
+	const statusLabel = status.toLowerCase().replaceAll("_", " ")
 
 	if (compact) {
 		return (
-			<Text bold>
-				<Text color={getIconCategoryColor(icon)}>{getIcon(icon)}</Text> {header}{" "}
-				<Text color={color}>{isRunning ? <Spinner type="dots" /> : statusIcon}</Text>
+			<Text>
+				<Text color={categoryColor}>{getIcon(icon)}</Text>{" "}
+				<Text {...headerPresentation}>{header}</Text>{" "}
+				<Text color={statusColor}>{isRunning ? <Spinner type="dots" /> : statusIcon}</Text>
 			</Text>
 		)
 	}
 
 	return (
-		<Text bold>
-			<Text color={color}>{isRunning ? <Spinner type="dots" /> : statusIcon}</Text>{" "}
-			<Text color={getIconCategoryColor(icon)}>{getIcon(icon)}</Text> {header}{" "}
-			<Text color={color} dimColor>
-				{status.toUpperCase()}
-			</Text>
+		<Text>
+			<Text color={categoryColor}>{getIcon(icon)}</Text>{" "}
+			<Text {...headerPresentation}>{header}</Text>{" "}
+			<Text color={statusColor}>{isRunning ? <Spinner type="dots" /> : statusIcon}</Text>{" "}
+			<Text {...styles.tool.metadata}>{statusLabel}</Text>
 		</Text>
 	)
 }

@@ -35,10 +35,9 @@ vi.mock("@/core/controller/file/toggleSkill", () => ({
 	toggleSkill: (...args: unknown[]) => mockToggleSkill(...args),
 }))
 
-// Mock child_process exec
-const mockExec = vi.fn()
-vi.mock("node:child_process", () => ({
-	exec: (...args: unknown[]) => mockExec(...args),
+const mockOpenExternal = vi.fn()
+vi.mock("@/utils/env", () => ({
+	openExternal: (...args: unknown[]) => mockOpenExternal(...args),
 }))
 
 // Mock StdinContext
@@ -107,6 +106,7 @@ describe("SkillsPanelContent", () => {
 			globalSkills: [],
 			localSkills: [],
 		})
+		mockOpenExternal.mockResolvedValue(undefined)
 	})
 
 	describe("keyboard interactions", () => {
@@ -178,10 +178,7 @@ describe("SkillsPanelContent", () => {
 			pressKey("", { return: true })
 			await delay()
 
-			// Should have called exec with open command
-			expect(mockExec).toHaveBeenCalled()
-			const execCall = mockExec.mock.calls[0][0]
-			expect(execCall).toContain("https://skills.sh/")
+			expect(mockOpenExternal).toHaveBeenCalledWith("https://skills.sh/")
 		})
 
 		it("should navigate through skills with arrow keys", async () => {
@@ -267,7 +264,7 @@ describe("SkillsPanelContent", () => {
 			await delay()
 
 			// Should have opened marketplace (wrapped to last item)
-			expect(mockExec).toHaveBeenCalled()
+			expect(mockOpenExternal).toHaveBeenCalledWith("https://skills.sh/")
 		})
 	})
 

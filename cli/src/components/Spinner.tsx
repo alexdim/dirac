@@ -1,3 +1,4 @@
+import { theme } from "../constants/theme"
 /**
  * Loading spinner component using ink-spinner
  */
@@ -14,10 +15,10 @@ export const LoadingSpinner: React.FC<LoadingSpinnerProps> = ({ mode = "act" }) 
 	const message = mode === "plan" ? "Planning" : "Thinking"
 	return (
 		<Box>
-			<Text color="cyan">
+			<Text color={theme.info}>
 				<Spinner type="dots" />
 			</Text>
-			<Text color="cyan"> {message}...</Text>
+			<Text color={theme.info}> {message}...</Text>
 		</Box>
 	)
 }

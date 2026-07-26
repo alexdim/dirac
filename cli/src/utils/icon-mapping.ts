@@ -1,28 +1,64 @@
 /**
- * Tool-category color mapping.
- * Maps icon names to a semantic color for the category of tool.
- * Used by CardHeader to tint icons in collapsed cards.
+ * Terminal icon and color mapping for tool cards. Tool category communicates
+ * what is happening; status color communicates how it is going.
  */
-const ICON_CATEGORIES: Record<string, string> = {
-	"file-text": "cyan",
-	code: "cyan",
-	edit: "cyan",
-	search: "magenta",
-	terminal: "green",
-	eye: "blue",
-	globe: "blue",
-	cpu: "yellow",
-}
+import { CardStatus } from "@shared/ExtensionMessage"
+import { theme } from "../constants/theme"
 
-export function getIconCategoryColor(iconName?: string): string | undefined {
-	if (!iconName) return undefined
-	return ICON_CATEGORIES[iconName]
+export function getIconCategoryColor(iconName?: string): string {
+	if (!iconName) return theme.toolCommunicate
+	const iconCategories: Record<string, string> = {
+		"book-open-check": theme.toolRead,
+		"file-text": theme.toolRead,
+		"folder-tree": theme.toolRead,
+		folder: theme.toolRead,
+		"file-pen-line": theme.toolEdit,
+		"file-plus-2": theme.toolEdit,
+		"arrow-right-left": theme.toolEdit,
+		edit: theme.toolEdit,
+		code: theme.toolEdit,
+		component: theme.toolSearch,
+		"square-function": theme.toolSearch,
+		"list-tree": theme.toolSearch,
+		search: theme.toolSearch,
+		terminal: theme.toolExecute,
+		play: theme.toolExecute,
+		"shield-check": theme.toolDiagnostic,
+		bug: theme.toolDiagnostic,
+		eye: theme.toolInspect,
+		globe: theme.toolInspect,
+		users: theme.toolCommunicate,
+		"clipboard-list": theme.toolCommunicate,
+		"message-square": theme.toolCommunicate,
+		"message-square-quote": theme.toolCommunicate,
+		map: theme.plan,
+		zap: theme.toolExecute,
+		"check-circle": theme.toolComplete,
+		"check-circle-2": theme.toolComplete,
+	}
+	return iconCategories[iconName] ?? theme.toolCommunicate
 }
 
 export const ICON_MAP: Record<string, { emoji: string; unicode: string; ascii: string }> = {
+	"book-open-check": { emoji: "📖", unicode: "▤", ascii: "READ" },
 	"file-text": { emoji: "📄", unicode: "┃", ascii: "FILE" },
+	"file-pen-line": { emoji: "📝", unicode: "✎", ascii: "EDIT" },
+	"file-plus-2": { emoji: "📄", unicode: "+", ascii: "WRITE" },
+	"arrow-right-left": { emoji: "⇄", unicode: "⇄", ascii: "SWAP" },
+	component: { emoji: "◈", unicode: "◈", ascii: "SYMBOL" },
+	"square-function": { emoji: "ƒ", unicode: "ƒ", ascii: "FUNC" },
+	"list-tree": { emoji: "☷", unicode: "☷", ascii: "TREE" },
+	"folder-tree": { emoji: "📂", unicode: "▸", ascii: "FILES" },
 	search: { emoji: "🔍", unicode: "⌕", ascii: "SEARCH" },
 	terminal: { emoji: "💻", unicode: "⌘", ascii: "TERM" },
+	"shield-check": { emoji: "🛡", unicode: "◇", ascii: "CHECK" },
+	users: { emoji: "♟", unicode: "♟", ascii: "AGENTS" },
+	"clipboard-list": { emoji: "📋", unicode: "☷", ascii: "SUMMARY" },
+	"message-square-quote": { emoji: "❝", unicode: "❝", ascii: "ASK" },
+	"check-circle-2": { emoji: "✔", unicode: "✓", ascii: "DONE" },
+	bug: { emoji: "🐞", unicode: "◆", ascii: "BUG" },
+	map: { emoji: "🗺", unicode: "◇", ascii: "PLAN" },
+	zap: { emoji: "⚡", unicode: "ϟ", ascii: "SKILL" },
 	code: { emoji: "📝", unicode: "✎", ascii: "CODE" },
 	folder: { emoji: "📁", unicode: "▸", ascii: "DIR" },
 	check: { emoji: "✔", unicode: "✓", ascii: "OK" },
@@ -35,7 +71,7 @@ export const ICON_MAP: Record<string, { emoji: string; unicode: string; ascii: s
 	"stop-circle": { emoji: "🛑", unicode: "■", ascii: "STOP" },
 	"refresh-cw": { emoji: "🔄", unicode: "↻", ascii: "RELOAD" },
 	"trash-2": { emoji: "🗑", unicode: "⌫", ascii: "DEL" },
-	plus: { emoji: "➕", unicode: "+", ascii: "ADD" },
+	plus: { emoji: "+", unicode: "+", ascii: "ADD" },
 	edit: { emoji: "✏", unicode: "✎", ascii: "EDIT" },
 	"external-link": { emoji: "🔗", unicode: "⤴", ascii: "LINK" },
 	settings: { emoji: "⚙", unicode: "⚙", ascii: "SET" },
@@ -68,47 +104,47 @@ export function getIcon(name?: string, mode?: IconMode): string {
 	return icon[effectiveMode]
 }
 
-export function getStatusIcon(status: string): string {
+export function getStatusIcon(status: CardStatus): string {
 	switch (status) {
-		case "building":
-		case "pending":
+		case CardStatus.BUILDING:
+		case CardStatus.PENDING:
 			return "⋯"
-		case "running":
+		case CardStatus.RUNNING:
 			return "⠋"
-		case "success":
+		case CardStatus.SUCCESS:
 			return "✓"
-		case "error":
+		case CardStatus.ERROR:
 			return "✕"
-		case "skipped":
+		case CardStatus.SKIPPED:
 			return "↷"
-		case "cancelled":
+		case CardStatus.CANCELLED:
 			return "⊘"
-		case "abandoned":
-			return "👻"
-		case "waiting_for_input":
-			return "⍰"
-		default:
-			return "•"
+		case CardStatus.ABANDONED:
+			return "◌"
+		case CardStatus.WAITING_FOR_INPUT:
+			return "?"
 	}
 }
 
-export function getStatusColor(status: string): string {
+export function getStatusColor(status: CardStatus): string {
 	switch (status) {
-		case "success":
-			return "green"
-		case "error":
-		case "cancelled":
-			return "red"
-		case "running":
-			return "blue"
-		case "waiting_for_input":
-			return "magenta"
-		case "building":
-		case "pending":
-			return "yellow"
-		case "skipped":
-		case "abandoned":
-		default:
-			return "gray"
+		case CardStatus.SUCCESS:
+			return theme.status.success
+		case CardStatus.ERROR:
+			return theme.status.error
+		case CardStatus.CANCELLED:
+			return theme.status.cancelled
+		case CardStatus.RUNNING:
+			return theme.status.running
+		case CardStatus.WAITING_FOR_INPUT:
+			return theme.status.waiting
+		case CardStatus.BUILDING:
+			return theme.status.building
+		case CardStatus.PENDING:
+			return theme.status.pending
+		case CardStatus.SKIPPED:
+			return theme.status.skipped
+		case CardStatus.ABANDONED:
+			return theme.status.abandoned
 	}
 }

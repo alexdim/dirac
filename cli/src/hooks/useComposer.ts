@@ -7,6 +7,7 @@ import { StateManager } from "@/core/storage/StateManager"
 import { arePathsEqual } from "@/utils/path"
 import { UIActionButtonType } from "@shared/ExtensionMessage"
 import type { DiracAskResponse } from "@shared/WebviewMessage"
+import { Logger } from "@/shared/services/Logger"
 
 import { useHomeEndKeys } from "./useHomeEndKeys"
 import { useRawBackspaceKeys } from "./useRawBackspaceKeys"
@@ -55,10 +56,13 @@ export interface ComposerActions {
 	handleSubmit: (text: string, images: string[]) => void
 	handleExit: () => void
 	clearViewAndResetTask: () => void
-	handleButtonAction: (action: UIActionButtonType | string | DiracAskResponse | undefined, isPrimary: boolean) => void
+	handleButtonAction: (
+		action: UIActionButtonType | string | DiracAskResponse | undefined,
+		isPrimary: boolean,
+		value?: string,
+	) => void
 	toggleMode: () => void
 	toggleAutoApproveAll: () => void
-	toggleTranscriptVerbosity: () => void
 }
 
 interface UseComposerProps {
@@ -142,12 +146,14 @@ export function useComposer({
 	const activePasteStartPosRef = useRef<number>(0)
 	const activePasteLinesRef = useRef<number>(0)
 	const pasteUpdateTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+	const ripgrepWarningTimeoutRef = useRef<NodeJS.Timeout | null>(null)
 
 	const [fileResults, setFileResults] = useState<FileSearchResult[]>([])
 	const [selectedIndex, setSelectedIndex] = useState(0)
 	const [historyIndex, setHistoryIndex] = useState(-1)
 	const [savedInput, setSavedInput] = useState("")
 	const [isSearching, setIsSearching] = useState(false)
+	const [fileSearchError, setFileSearchError] = useState<string | null>(null)
 	const [showRipgrepWarning, setShowRipgrepWarning] = useState(false)
 
 	const [availableCommands, setAvailableCommands] = useState<SlashCommandInfo[]>([])
@@ -157,9 +163,11 @@ export function useComposer({
 
 	const searchRef = useRef({
 		searchTimeout: null as NodeJS.Timeout | null,
-		lastQuery: "",
+		lastQuery: null as string | null,
 		hasCheckedRipgrep: false,
+		requestId: 0,
 	})
+	const skipNextPersistRef = useRef(false)
 
 	const handleHome = useCallback(() => setCursorPos(0), [setCursorPos])
 	const handleEnd = useCallback(() => setCursorPos(textInputRef.current.length), [setCursorPos, textInputRef])
@@ -177,16 +185,27 @@ export function useComposer({
 	})
 
 	useEffect(() => {
+		skipNextPersistRef.current = true
 		const stored = inputStateStorage.get(storageKey)
 		if (stored) {
 			setTextInput(stored.text)
 			setCursorPos(stored.cursorPos)
-			setPastedTexts(stored.pastedTexts)
+			setPastedTexts(new Map(stored.pastedTexts))
 			pasteCounterRef.current = stored.pasteCounter
+			return
 		}
+
+		setTextInput("")
+		setCursorPos(0)
+		setPastedTexts(new Map())
+		pasteCounterRef.current = 0
 	}, [storageKey, setTextInput, setCursorPos])
 
 	useEffect(() => {
+		if (skipNextPersistRef.current) {
+			skipNextPersistRef.current = false
+			return
+		}
 		if (textInput || pastedTexts.size > 0) {
 			inputStateStorage.set(storageKey, {
 				text: textInput,
@@ -194,10 +213,13 @@ export function useComposer({
 				pastedTexts: new Map(pastedTexts),
 				pasteCounter: pasteCounterRef.current,
 			})
+			return
 		}
+
+		inputStateStorage.delete(storageKey)
 	}, [storageKey, textInput, cursorPos, pastedTexts])
 
-	const mentionInfo = useMemo(() => extractMentionQuery(textInput), [textInput])
+	const mentionInfo = useMemo(() => extractMentionQuery(textInput, cursorPos), [textInput, cursorPos])
 	const slashInfo = useMemo(() => extractSlashQuery(textInput, cursorPos), [textInput, cursorPos])
 	const filteredCommands = useMemo(
 		() => filterCommands(availableCommands, slashInfo.query),
@@ -213,22 +235,40 @@ export function useComposer({
 	}, [slashInfo.slashIndex])
 
 	useEffect(() => {
-		const loadCommands = async () => {
-			if (!ctrl) return
-			try {
-				const response = await getAvailableSlashCommands(ctrl, EmptyRequest.create())
-				const cliCommands = response.commands.filter((cmd) => cmd.cliCompatible !== false)
-				const cliOnlyCommands: SlashCommandInfo[] = CLI_ONLY_COMMANDS.map((cmd) => ({
-					name: cmd.name,
-					description: cmd.description || "",
-					section: cmd.section || "default",
-					cliCompatible: true,
-				}))
-				setAvailableCommands([...cliOnlyCommands, ...sortCommandsWorkflowsFirst(cliCommands)])
-			} catch {}
+		const cliOnlyCommands: SlashCommandInfo[] = CLI_ONLY_COMMANDS.map((cmd) => ({
+			name: cmd.name,
+			description: cmd.description || "",
+			section: cmd.section || "default",
+			cliCompatible: true,
+		}))
+		setAvailableCommands(cliOnlyCommands)
+		if (!ctrl) return
+
+		let cancelled = false
+		getAvailableSlashCommands(ctrl, EmptyRequest.create()).then(
+			(response) => {
+				if (cancelled) return
+				const backendCommands = response.commands.filter((cmd) => cmd.cliCompatible !== false)
+				setAvailableCommands([...cliOnlyCommands, ...sortCommandsWorkflowsFirst(backendCommands)])
+			},
+			(error) => {
+				Logger.error("Failed to load slash commands:", error)
+			},
+		)
+
+		return () => {
+			cancelled = true
 		}
-		loadCommands()
 	}, [ctrl])
+
+	useEffect(() => {
+		return () => {
+			searchRef.current.requestId += 1
+			if (searchRef.current.searchTimeout) clearTimeout(searchRef.current.searchTimeout)
+			if (pasteUpdateTimeoutRef.current) clearTimeout(pasteUpdateTimeoutRef.current)
+			if (ripgrepWarningTimeoutRef.current) clearTimeout(ripgrepWarningTimeoutRef.current)
+		}
+	}, [])
 
 	const getHistoryItems = useCallback(() => {
 		const history = StateManager.get().getGlobalStateKey("taskHistory")
@@ -251,8 +291,12 @@ export function useComposer({
 	useEffect(() => {
 		const { current: r } = searchRef
 		if (!mentionInfo.inMentionMode) {
+			r.requestId += 1
+			r.lastQuery = null
 			setFileResults([])
 			setSelectedIndex(0)
+			setIsSearching(false)
+			setFileSearchError(null)
 			if (r.searchTimeout) {
 				clearTimeout(r.searchTimeout)
 				r.searchTimeout = null
@@ -263,7 +307,10 @@ export function useComposer({
 			r.hasCheckedRipgrep = true
 			if (checkAndWarnRipgrepMissing()) {
 				setShowRipgrepWarning(true)
-				setTimeout(() => setShowRipgrepWarning(false), RIPGREP_WARNING_DURATION_MS)
+				ripgrepWarningTimeoutRef.current = setTimeout(
+					() => setShowRipgrepWarning(false),
+					RIPGREP_WARNING_DURATION_MS,
+				)
 			}
 		}
 		const { query } = mentionInfo
@@ -271,6 +318,8 @@ export function useComposer({
 		r.lastQuery = query
 		if (r.searchTimeout) clearTimeout(r.searchTimeout)
 		setIsSearching(true)
+		setFileSearchError(null)
+		const requestId = ++r.requestId
 		r.searchTimeout = setTimeout(async () => {
 			try {
 				let results: FileSearchResult[]
@@ -283,7 +332,7 @@ export function useComposer({
 					} else {
 						imageQuery = query.slice(5)
 					}
-					results = await searchWorkspaceFiles(imageQuery, workspacePath, MAX_SEARCH_RESULTS, undefined, [
+					results = await searchWorkspaceFiles(imageQuery, workspacePath, MAX_SEARCH_RESULTS, "file", [
 						"png",
 						"jpg",
 						"jpeg",
@@ -293,12 +342,18 @@ export function useComposer({
 				} else {
 					results = await searchWorkspaceFiles(query, workspacePath, MAX_SEARCH_RESULTS)
 				}
-				setFileResults(results)
-				setSelectedIndex(0)
-			} catch {
-				setFileResults([])
+				if (requestId === r.requestId) {
+					setFileResults(results)
+					setSelectedIndex(0)
+				}
+			} catch (error) {
+				Logger.error("Failed to search workspace files:", error)
+				if (requestId === r.requestId) {
+					setFileResults([])
+					setFileSearchError(error instanceof Error ? error.message : String(error))
+				}
 			} finally {
-				setIsSearching(false)
+				if (requestId === r.requestId) setIsSearching(false)
 			}
 		}, SEARCH_DEBOUNCE_MS)
 		return () => {
@@ -307,6 +362,7 @@ export function useComposer({
 	}, [mentionInfo.inMentionMode, mentionInfo.query, workspacePath])
 
 	useChatInputHandler({
+		workspacePath,
 		isEmptyConversation,
 		textInputRef,
 		cursorPosRef,
@@ -342,7 +398,8 @@ export function useComposer({
 		uiActionState,
 		yolo,
 		pendingAsk,
-		handleButtonAction: (action, isPrimary) => actionsRef.current.handleButtonAction(action, isPrimary),
+		handleButtonAction: (action, isPrimary, value) =>
+			actionsRef.current.handleButtonAction(action, isPrimary, value),
 		isYoloSuppressed,
 		lastPasteTimeRef,
 		activePasteNumRef,
@@ -359,7 +416,6 @@ export function useComposer({
 		cardScrollOffset,
 		setCardScrollOffset,
 
-		toggleTranscriptVerbosity: () => actionsRef.current.toggleTranscriptVerbosity(),
 	})
 
 	const resetInput = useCallback(() => {
@@ -370,7 +426,7 @@ export function useComposer({
 		inputStateStorage.delete(storageKey)
 	}, [setTextInput, setCursorPos, storageKey])
 
-	const { imagePaths } = parseImagesFromInput(textInput)
+	const { imagePaths } = parseImagesFromInput(textInput, workspacePath)
 	const showSlashMenu = slashInfo.inSlashMode && !slashMenuDismissed
 	const showFileMenu = mentionInfo.inMentionMode && !showSlashMenu
 
@@ -395,6 +451,7 @@ export function useComposer({
 		showFileMenu,
 		isSearching,
 		showRipgrepWarning,
+		fileSearchError,
 		imagePaths,
 	}
 }

@@ -10,13 +10,12 @@ vi.mock("ink-picture", () => ({
 
 // Mock the child components to isolate App routing logic
 vi.mock("./ChatView", () => ({
-	ChatView: ({ taskId, controller }: any) =>
-		React.createElement(Text, null, `ChatView: ${taskId || "no-id"} controller=${controller ? "present" : "none"}`),
-}))
-
-vi.mock("./TaskJsonView", () => ({
-	TaskJsonView: ({ taskId, verbose }: any) =>
-		React.createElement(Text, null, `TaskJsonView: ${taskId || "no-id"} verbose=${String(verbose)}`),
+	ChatView: ({ taskId, controller, verbose }: any) =>
+		React.createElement(
+			Text,
+			null,
+			`ChatView: ${taskId || "no-id"} controller=${controller ? "present" : "none"} verbose=${String(verbose)}`,
+		),
 }))
 
 vi.mock("./HistoryView", () => ({
@@ -61,12 +60,6 @@ describe("App", () => {
 			expect(lastFrame()).toContain("test-task")
 		})
 
-		it("should render TaskJsonView when view is task with jsonOutput", () => {
-			const { lastFrame } = render(<App controller={mockController} jsonOutput={true} taskId="test-task" view="task" />)
-			expect(lastFrame()).toContain("TaskJsonView")
-			expect(lastFrame()).toContain("test-task")
-		})
-
 		it("should render HistoryView when view is history", () => {
 			const historyItems = [
 				{ id: "1", ts: Date.now(), task: "Task 1" },
@@ -92,18 +85,13 @@ describe("App", () => {
 
 		it("should render ChatView when view is welcome", () => {
 			const { lastFrame } = render(
-				<App controller={mockController} onWelcomeExit={() => {}} onWelcomeSubmit={() => {}} view="welcome" />,
+				<App controller={mockController} onWelcomeExit={() => {}} view="welcome" />,
 			)
 			expect(lastFrame()).toContain("ChatView")
 		})
 	})
 
 	describe("default props", () => {
-		it("should use default verbose=false with jsonOutput", () => {
-			const { lastFrame } = render(<App controller={mockController} jsonOutput={true} view="task" />)
-			expect(lastFrame()).toContain("verbose=false")
-		})
-
 		it("should use empty array for historyItems by default", () => {
 			const { lastFrame } = render(<App controller={mockController} view="history" />)
 			expect(lastFrame()).toContain("0 items")
@@ -111,8 +99,8 @@ describe("App", () => {
 	})
 
 	describe("props passing", () => {
-		it("should pass verbose to TaskJsonView", () => {
-			const { lastFrame } = render(<App controller={mockController} jsonOutput={true} verbose={true} view="task" />)
+		it("should pass verbose to ChatView", () => {
+			const { lastFrame } = render(<App controller={mockController} verbose={true} view="task" />)
 			expect(lastFrame()).toContain("verbose=true")
 		})
 

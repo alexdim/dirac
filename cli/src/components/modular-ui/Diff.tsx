@@ -1,7 +1,7 @@
 import { Box, Text } from "ink"
 import React, { useMemo } from "react"
 import { type ComputedDiff, computeDiff, type DiffBlock, type DiffLine, getGutterWidth } from "../../utils/DiffComputer"
-import { theme } from "../../constants/theme"
+import { styles, theme } from "../../constants/theme"
 import { useTerminalSize } from "../../hooks/useTerminalSize"
 import { linkifyPaths } from "../../utils/terminal-link"
 
@@ -51,11 +51,11 @@ function prefixForType(type: "add" | "remove" | "context" | undefined): string {
 function colorsForType(type: "add" | "remove" | "context" | undefined): {
 	bgColor?: string
 	fgColor?: string
-	dimColor?: boolean
 } {
 	if (type === "add") return { bgColor: DIFF_COLORS.addBg, fgColor: DIFF_COLORS.addFg }
 	if (type === "remove") return { bgColor: DIFF_COLORS.removeBg, fgColor: DIFF_COLORS.removeFg }
-	return { dimColor: type === "context" }
+	if (type === "context") return { fgColor: DIFF_COLORS.contextFg }
+	return {}
 }
 
 function truncateLine(text: string, width: number): string {
@@ -78,18 +78,18 @@ const UnifiedDiffLineRow: React.FC<{
 	const lineNumStr = lineNum !== undefined ? lineNum.toString().padStart(gutterWidth, " ") : " ".repeat(gutterWidth)
 	const type = line.type
 	const prefix = prefixForType(type)
-	const { bgColor, fgColor, dimColor } = colorsForType(type)
+	const { bgColor, fgColor } = colorsForType(type)
 
 	return (
 		<Box flexDirection="row" width="100%">
 			<Box flexShrink={0} width={gutterWidth + 2}>
-				<Text color={DIFF_COLORS.gutterFg} dimColor>
+				<Text color={DIFF_COLORS.gutterFg}>
 					{lineNumStr}
 					{"  "}
 				</Text>
 			</Box>
 			<Box backgroundColor={bgColor} flexGrow={1} paddingX={1}>
-				<Text color={fgColor} dimColor={dimColor}>
+				<Text color={fgColor}>
 					{prefix} {linkifyPaths(line.content || " ")}
 				</Text>
 			</Box>
@@ -103,7 +103,7 @@ const BlockSeparator: React.FC<{ width?: number }> = ({ width }) => {
 	const ruleWidth = Math.min(40, Math.max(10, availableWidth - 4))
 	return (
 		<Box marginY={0}>
-			<Text color="gray">{"─".repeat(ruleWidth)}</Text>
+			<Text color={theme.muted}>{"─".repeat(ruleWidth)}</Text>
 		</Box>
 	)
 }
@@ -111,10 +111,10 @@ const BlockSeparator: React.FC<{ width?: number }> = ({ width }) => {
 const UnifiedCollapsedRow: React.FC<{ count: number; gutterWidth: number }> = ({ count, gutterWidth }) => (
 	<Box flexDirection="row">
 		<Box flexShrink={0}>
-			<Text color="gray">{" ".repeat(gutterWidth)} </Text>
+			<Text color={theme.muted}>{" ".repeat(gutterWidth)} </Text>
 		</Box>
 		<Box flexGrow={1}>
-			<Text color="gray" dimColor italic>
+			<Text {...styles.tool.annotation}>
 				{"  "}... {count} unchanged line{count === 1 ? "" : "s"} ...
 			</Text>
 		</Box>
@@ -122,7 +122,7 @@ const UnifiedCollapsedRow: React.FC<{ count: number; gutterWidth: number }> = ({
 )
 
 const SplitCollapsedRow: React.FC<{ count: number; width: number }> = ({ count, width }) => (
-	<Text color="gray" dimColor italic>
+	<Text {...styles.tool.annotation}>
 		{truncateLine(`... ${count} unchanged line${count === 1 ? "" : "s"} ...`, width)}
 	</Text>
 )
@@ -137,19 +137,19 @@ const SplitCell: React.FC<{
 	const lineNum = lineNumberForSide(line, side)
 	const lineNumStr = lineNum !== undefined ? lineNum.toString().padStart(gutterWidth, " ") : " ".repeat(gutterWidth)
 	const prefix = prefixForType(type)
-	const { bgColor, fgColor, dimColor } = colorsForType(type)
+	const { bgColor, fgColor } = colorsForType(type)
 	const contentWidth = Math.max(1, width - gutterWidth - 3)
 	const content = line ? truncateLine(line.content || " ", contentWidth) : ""
 
 	return (
 		<Box backgroundColor={bgColor} flexDirection="row" flexShrink={0} width={width}>
 			<Box flexShrink={0} width={gutterWidth + 1}>
-				<Text color={DIFF_COLORS.gutterFg} dimColor>
+				<Text color={DIFF_COLORS.gutterFg}>
 					{lineNumStr}
 				</Text>
 			</Box>
 			<Box flexShrink={0} width={Math.max(1, width - gutterWidth - 1)}>
-				<Text color={fgColor} dimColor={dimColor}>
+				<Text color={fgColor}>
 					{prefix} {linkifyPaths(content)}
 				</Text>
 			</Box>
@@ -170,7 +170,7 @@ const SplitDiffRow: React.FC<{
 	return (
 		<Box flexDirection="row" width="100%">
 			<SplitCell gutterWidth={gutterWidth} line={row.oldLine} side="old" width={sideWidth} />
-			<Text color="gray" dimColor>
+			<Text {...styles.tool.metadata}>
 				{SPLIT_SEPARATOR}
 			</Text>
 			<SplitCell gutterWidth={gutterWidth} line={row.newLine} side="new" width={sideWidth} />

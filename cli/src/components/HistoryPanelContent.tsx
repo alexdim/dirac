@@ -1,3 +1,4 @@
+import { theme } from "../constants/theme"
 /**
  * History panel content for inline display in ChatView
  * Shows task history with search and keyboard navigation
@@ -13,8 +14,9 @@ import { showTaskWithId } from "@/core/controller/task/showTaskWithId"
 import { COLORS } from "../constants/colors"
 import { useStdinContext } from "../context/StdinContext"
 import { useTerminalSize } from "../hooks/useTerminalSize"
-import { isMouseEscapeSequence } from "../utils/input"
+import { shouldIgnoreTerminalInput } from "../utils/input"
 import { Panel } from "./Panel"
+import { Logger } from "@/shared/services/Logger"
 
 interface TaskHistoryItem {
 	id: string
@@ -32,8 +34,7 @@ interface HistoryPanelContentProps {
 	controller: Controller
 }
 
-function formatRelativeDate(ts: number): string {
-	const now = Date.now()
+function formatRelativeDate(ts: number, now: number): string {
 	const diff = now - ts
 	const minutes = Math.floor(diff / 60000)
 	const hours = Math.floor(diff / 3600000)
@@ -58,6 +59,9 @@ export const HistoryPanelContent: React.FC<HistoryPanelContentProps> = ({ onClos
 	const [searchQuery, setSearchQuery] = useState("")
 	const [selectedIndex, setSelectedIndex] = useState(0)
 	const [loading, setLoading] = useState(true)
+	const [loadError, setLoadError] = useState<string | null>(null)
+	const [isOpeningTask, setIsOpeningTask] = useState(false)
+	const [now, setNow] = useState(Date.now())
 
 	// Calculate how many items fit in the panel
 	// Panel has border (2) + header (1) + separator (1) + search bar (1) + hint (1) = 6 lines overhead
@@ -68,14 +72,17 @@ export const HistoryPanelContent: React.FC<HistoryPanelContentProps> = ({ onClos
 
 	// Load history
 	useEffect(() => {
-		const load = async () => {
+		let cancelled = false
+		const timeout = setTimeout(async () => {
 			setLoading(true)
+			setLoadError(null)
 			try {
 				const request = GetTaskHistoryRequest.create({
 					sortBy: "newest",
 					searchQuery: searchQuery || undefined,
 				})
 				const result = await getTaskHistory(controller, request)
+				if (cancelled) return
 				setItems(
 					result.tasks.map((t) => ({
 						id: t.id,
@@ -87,29 +94,50 @@ export const HistoryPanelContent: React.FC<HistoryPanelContentProps> = ({ onClos
 						isFavorited: t.isFavorited,
 					})),
 				)
-			} catch {
+			} catch (error) {
+				Logger.error("Failed to load task history:", error)
+				if (cancelled) return
 				setItems([])
+				setLoadError(error instanceof Error ? error.message : String(error))
 			}
-			setLoading(false)
+			if (!cancelled) setLoading(false)
+		}, searchQuery ? 150 : 0)
+
+		return () => {
+			cancelled = true
+			clearTimeout(timeout)
 		}
-		load()
 	}, [controller, searchQuery])
+
+	useEffect(() => {
+		const interval = setInterval(() => setNow(Date.now()), 60_000)
+		return () => clearInterval(interval)
+	}, [])
 
 	// Reset selection when search changes
 	useEffect(() => {
 		setSelectedIndex(0)
 	}, [searchQuery])
 
+	useEffect(() => {
+		setSelectedIndex((currentIndex) => Math.max(0, Math.min(currentIndex, items.length - 1)))
+	}, [items.length])
+
 	const handleSelect = useCallback(
 		async (item: TaskHistoryItem) => {
+			if (isOpeningTask) return
+			setIsOpeningTask(true)
+			setLoadError(null)
 			try {
 				await showTaskWithId(controller, StringRequest.create({ value: item.id }))
 				onSelectTask(item.id)
 			} catch (error) {
-				console.error("Error opening task:", error)
+				Logger.error("Failed to open task from history:", error)
+				setLoadError(error instanceof Error ? error.message : String(error))
+				setIsOpeningTask(false)
 			}
 		},
-		[controller, onSelectTask],
+		[controller, onSelectTask, isOpeningTask],
 	)
 
 	// Visible window
@@ -129,7 +157,7 @@ export const HistoryPanelContent: React.FC<HistoryPanelContentProps> = ({ onClos
 
 	useInput(
 		(input, key) => {
-			if (isMouseEscapeSequence(input)) {
+			if (shouldIgnoreTerminalInput(input, key)) {
 				return
 			}
 
@@ -143,15 +171,18 @@ export const HistoryPanelContent: React.FC<HistoryPanelContentProps> = ({ onClos
 			}
 
 			if (key.return && items[selectedIndex]) {
+				if (isOpeningTask) return
 				handleSelect(items[selectedIndex])
 				return
 			}
 
 			if (key.upArrow) {
+				if (items.length === 0) return
 				setSelectedIndex((i) => Math.max(0, i - 1))
 				return
 			}
 			if (key.downArrow) {
+				if (items.length === 0) return
 				setSelectedIndex((i) => Math.min(items.length - 1, i + 1))
 				return
 			}
@@ -172,21 +203,25 @@ export const HistoryPanelContent: React.FC<HistoryPanelContentProps> = ({ onClos
 
 	const renderContent = () => {
 		if (loading) {
-			return <Text color="gray">Loading history...</Text>
+			return <Text color={theme.muted}>Loading history...</Text>
+		}
+
+		if (loadError) {
+			return <Text color={theme.error}>Could not load history: {loadError}</Text>
 		}
 
 		if (items.length === 0) {
-			return <Text color="gray">{searchQuery ? "No tasks match your search." : "No task history."}</Text>
+			return <Text color={theme.muted}>{searchQuery ? "No tasks match your search." : "No task history."}</Text>
 		}
 
 		return (
 			<Box flexDirection="column">
-				<Text color="gray">{showUpIndicator ? "  ▲" : " "}</Text>
+				<Text color={theme.muted}>{showUpIndicator ? "  ▲" : " "}</Text>
 				{visibleItems.map((item, idx) => {
 					const actualIndex = scrollOffset + idx
 					const isSelected = actualIndex === selectedIndex
 					const taskText = item.task.replace(/\n/g, " ")
-					const meta = [formatRelativeDate(item.ts), formatCost(item.totalCost)].filter(Boolean).join(" · ")
+					const meta = [formatRelativeDate(item.ts, now), formatCost(item.totalCost)].filter(Boolean).join(" · ")
 
 					return (
 						<Box flexDirection="column" key={item.id}>
@@ -197,7 +232,7 @@ export const HistoryPanelContent: React.FC<HistoryPanelContentProps> = ({ onClos
 								</Text>
 							</Box>
 							<Box>
-								<Text color="gray">
+								<Text color={theme.muted}>
 									{"  "}
 									{meta}
 								</Text>
@@ -205,7 +240,7 @@ export const HistoryPanelContent: React.FC<HistoryPanelContentProps> = ({ onClos
 						</Box>
 					)
 				})}
-				<Text color="gray">{showDownIndicator ? "  ▼" : " "}</Text>
+				<Text color={theme.muted}>{showDownIndicator ? "  ▼" : " "}</Text>
 			</Box>
 		)
 	}
@@ -213,12 +248,14 @@ export const HistoryPanelContent: React.FC<HistoryPanelContentProps> = ({ onClos
 	return (
 		<Panel label="History">
 			<Box>
-				<Text color="gray">Search: </Text>
-				<Text color="white">{searchQuery}</Text>
-				<Text inverse> </Text>
+				<Text color={theme.muted}>Search: </Text>
+				<Text color={theme.text}>{searchQuery}</Text>
+				<Text backgroundColor={theme.cursorBg} color={theme.cursorText}> </Text>
 			</Box>
 			<Box>
-				<Text color="gray">{searchQuery ? "Esc to clear" : "Enter to open · Esc to close"}</Text>
+				<Text color={theme.muted}>
+					{isOpeningTask ? "Opening task..." : searchQuery ? "Esc to clear" : "Enter to open · Esc to close"}
+				</Text>
 			</Box>
 			{renderContent()}
 		</Panel>

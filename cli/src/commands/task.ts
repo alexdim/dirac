@@ -1,7 +1,7 @@
 import { exit } from "node:process"
 import type { CliContext, TaskOptions } from "../types"
 import { setIsPlainTextMode } from "../utils/state"
-import { disposeCliContext, drainStdout, createInkCleanup } from "../utils/cleanup"
+import { disposeCliContext, drainOutput, createInkCleanup } from "../utils/cleanup"
 import { getPlainTextModeReason, shouldUsePlainTextMode } from "../utils/mode"
 import { applyTaskOptions } from "../utils/options"
 import { initializeCli } from "../init"
@@ -18,6 +18,7 @@ export async function runTaskInPlainTextMode(
 		prompt?: string
 		taskId?: string
 		imageDataUrls?: string[]
+		timeoutSeconds?: number
 	},
 ): Promise<never> {
 	const { isAuthConfigured } = await import("../utils/auth")
@@ -34,6 +35,7 @@ export async function runTaskInPlainTextMode(
 	if (!hasAuth) {
 		printWarning("Not authenticated. Please run 'dirac auth' first to configure your API credentials.")
 		await disposeCliContext(ctx)
+		await drainOutput()
 		exit(1)
 	}
 
@@ -49,40 +51,45 @@ export async function runTaskInPlainTextMode(
 		imageDataUrls: taskConfig.imageDataUrls,
 		verbose: options.verbose,
 		jsonOutput: options.json,
-		timeoutSeconds: options.timeout ? Number.parseInt(options.timeout, 10) : undefined,
+		timeoutSeconds: taskConfig.timeoutSeconds,
 	})
 
 	// Cleanup
 	await disposeCliContext(ctx)
 
-	// Ensure stdout is fully drained before exiting - critical for piping
-	await drainStdout()
+	// Ensure result and diagnostic streams are fully drained before exiting.
+	await drainOutput()
 	exit(success ? 0 : 1)
 }
 
 /**
- * Run a task with the given prompt - uses welcome view for consistent behavior
+ * Run a task with the given prompt through the shared interactive or standalone startup path.
  */
-export async function runTask(prompt: string, options: TaskOptions & { images?: string[] }, existingContext?: CliContext) {
+export async function runTask(prompt: string, options: TaskOptions, existingContext?: CliContext) {
+	const path = await import("node:path")
 	const { parseImagesFromInput, processImagePaths } = await import("../utils/parser")
 	const { telemetryService } = await import("@/services/telemetry")
 	const { StateManager } = await import("@/core/storage/StateManager")
 	const { checkRawModeSupport } = await import("../context/StdinContext")
-	const React = (await import("react")).default
-	const { App } = await import("../components/App")
+	const { parseTimeoutSeconds } = await import("../utils/task-timeout")
 
-	const ctx = existingContext || (await initializeCli({ ...options, enableAuth: true }))
+	const timeoutSeconds = parseTimeoutSeconds(options.timeout)
+	const workspacePath = path.resolve(existingContext?.workspacePath || options.cwd || process.cwd())
 
 	// Parse images from the prompt text (e.g., @/path/to/image.png)
-	const { prompt: cleanPrompt, imagePaths: parsedImagePaths } = parseImagesFromInput(prompt)
+	const { prompt: cleanPrompt, imagePaths: parsedImagePaths } = parseImagesFromInput(prompt, workspacePath)
 
 	// Combine parsed image paths with explicit --images option
 	const allImagePaths = [...(options.images || []), ...parsedImagePaths]
 	// Convert image file paths to base64 data URLs
-	const imageDataUrls = await processImagePaths(allImagePaths)
+	const imageDataUrls = await processImagePaths(allImagePaths, workspacePath)
 
 	// Use clean prompt (with image refs removed)
-	const taskPrompt = cleanPrompt || prompt
+	const taskPrompt = cleanPrompt
+
+	const ctx = existingContext || (await initializeCli({ ...options, enableAuth: true }))
+	const React = (await import("react")).default
+	const { App } = await import("../components/App")
 
 	// Task without prompt starts in interactive mode
 	telemetryService.captureHostEvent("task_command", prompt ? "task" : "interactive")
@@ -101,10 +108,11 @@ export async function runTask(prompt: string, options: TaskOptions & { images?: 
 		return runTaskInPlainTextMode(ctx, options, {
 			prompt: taskPrompt,
 			imageDataUrls: imageDataUrls.length > 0 ? imageDataUrls : undefined,
+			timeoutSeconds,
 		})
 	}
 
-	// Interactive mode: Render the welcome view with optional initial prompt/images
+	// Interactive mode: render the application with an optional initial prompt/images.
 	// If prompt provided (dirac task "prompt"), ChatView will auto-submit
 	// If no prompt (dirac interactive), user will type it in
 	let taskError = false
@@ -117,6 +125,7 @@ export async function runTask(prompt: string, options: TaskOptions & { images?: 
 			isRawModeSupported: checkRawModeSupport(),
 			initialPrompt: taskPrompt || undefined,
 			initialImages: imageDataUrls.length > 0 ? imageDataUrls : undefined,
+			timeoutSeconds,
 			onError: () => {
 				taskError = true
 			},

@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from "react"
 import type { Dispatch, SetStateAction } from "react"
 import { combineCardSequences } from "@shared/combineCardSequences"
-import { DiracMessageType, isFinalStatus } from "@shared/ExtensionMessage"
+import { DiracMessageType, isFinalStatus, type TaskStatus } from "@shared/ExtensionMessage"
 import type { DiracMessage } from "@shared/ExtensionMessage"
-import { useTurnCommit } from "./useTurnCommit"
+import { useTranscriptPartition } from "./useTranscriptPartition"
 import type { ChatLayoutRows } from "../utils/chat-layout"
 
 export type TimelineMessageKind = "card" | "markdown" | "reasoning" | "checkpoint"
@@ -48,7 +48,7 @@ interface ChatTimelineOptions {
 	messages: DiracMessage[]
 	activeVoiceStreamId?: string
 	isApiRequestActive?: boolean
-	taskStatus?: string
+	taskStatus?: TaskStatus
 	showHeader: boolean
 	layoutRows: ChatLayoutRows
 }
@@ -56,8 +56,6 @@ interface ChatTimelineOptions {
 export function useChatTimeline({
 	messages,
 	activeVoiceStreamId,
-	isApiRequestActive,
-	taskStatus,
 	showHeader,
 	layoutRows,
 }: ChatTimelineOptions): ChatTimelineResult {
@@ -74,16 +72,21 @@ export function useChatTimeline({
 		prevFirstMessageId.current = firstMessageId
 	}, [firstMessageId])
 
-	const { committed, live } = useTurnCommit(displayMessages, isApiRequestActive ?? false, activeVoiceStreamId, taskStatus)
+	const isMessageMutable = (message: DiracMessage) => isMutableTimelineMessage(message, activeVoiceStreamId)
+	const { staticPrefix, dynamicTail } = useTranscriptPartition(
+		displayMessages,
+		isMessageMutable,
+		firstMessageId ?? undefined,
+	)
 
 	const staticItems = useMemo(
-		() => createStaticTimelineItems(committed, live, showHeader, activeVoiceStreamId),
-		[committed, live, showHeader, activeVoiceStreamId],
+		() => createStaticTimelineItems(staticPrefix, showHeader),
+		[staticPrefix, showHeader],
 	)
 
 	const dynamicItems = useMemo(
-		() => createDynamicTimelineItems(live, activeVoiceStreamId, layoutRows),
-		[live, activeVoiceStreamId, layoutRows],
+		() => createDynamicTimelineItems(dynamicTail, activeVoiceStreamId, layoutRows),
+		[dynamicTail, activeVoiceStreamId, layoutRows],
 	)
 
 	return {
@@ -101,10 +104,8 @@ export function prepareTranscriptMessages(messages: DiracMessage[]): DiracMessag
 }
 
 function createStaticTimelineItems(
-	committedMessages: DiracMessage[],
-	liveMessages: DiracMessage[],
+	staticMessages: DiracMessage[],
 	showHeader: boolean,
-	activeVoiceStreamId?: string,
 ): TimelineStaticItem[] {
 	const items: TimelineStaticItem[] = []
 
@@ -112,25 +113,22 @@ function createStaticTimelineItems(
 		items.push({ key: "header", type: "header" })
 	}
 
-	const staticLiveMessages = liveMessages.filter((message) => canRenderLiveMessageStatically(message, activeVoiceStreamId))
-	items.push(...createTurnSeparatedMessageItems([...committedMessages, ...staticLiveMessages], "static"))
-
+	items.push(...createTurnSeparatedMessageItems(staticMessages, "static"))
 	return items
 }
 
 function createDynamicTimelineItems(
-	liveMessages: DiracMessage[],
+	dynamicMessages: DiracMessage[],
 	activeVoiceStreamId: string | undefined,
 	layoutRows: ChatLayoutRows,
 ): TimelineDynamicItem[] {
-	const dynamicMessages = liveMessages.filter((message) => !canRenderLiveMessageStatically(message, activeVoiceStreamId))
 	if (dynamicMessages.length === 0) return []
 
 	const latestMessage = dynamicMessages[dynamicMessages.length - 1]
 	const activeItemLineBudget = layoutRows.activeContentRows
-	const olderRowBudget = layoutRows.compactHistoryRows
+	const olderMessageBudget = Math.min(1, layoutRows.compactHistoryRows)
 	const olderMessages = dynamicMessages.slice(0, -1)
-	const keptOlderMessages = olderMessages.slice(-olderRowBudget)
+	const keptOlderMessages = olderMessageBudget > 0 ? olderMessages.slice(-olderMessageBudget) : []
 	const omittedCount = olderMessages.length - keptOlderMessages.length
 
 	const items: TimelineDynamicItem[] = []
@@ -143,23 +141,16 @@ function createDynamicTimelineItems(
 	}
 
 	items.push(...keptOlderMessages.map((message) => ({ ...createMessageItem(message), isCompact: true })))
-	items.push({ ...createMessageItem(latestMessage), maxContentLines: activeItemLineBudget })
+	items.push({
+		...createMessageItem(latestMessage),
+		maxContentLines: activeItemLineBudget,
+	})
 	return items
 }
 
-function canRenderLiveMessageStatically(message: DiracMessage, activeVoiceStreamId?: string): boolean {
-	if (message.id === activeVoiceStreamId) {
-		return false
-	}
-	if (message.content.type === DiracMessageType.MARKDOWN) {
-		return true
-	}
-
-	if (message.content.type !== DiracMessageType.CARD) {
-		return false
-	}
-
-	return isFinalStatus(message.content.card.status)
+function isMutableTimelineMessage(message: DiracMessage, activeVoiceStreamId: string | undefined): boolean {
+	if (message.id === activeVoiceStreamId) return true
+	return message.content.type === DiracMessageType.CARD && !isFinalStatus(message.content.card.status)
 }
 
 function createTurnSeparatedMessageItems(

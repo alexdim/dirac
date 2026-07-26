@@ -1,3 +1,4 @@
+import { theme } from "../constants/theme"
 /**
  * Highlighted input component for CLI
  * Renders text with @ mentions and / commands highlighted, plus a movable cursor
@@ -117,7 +118,10 @@ export const HighlightedInput: React.FC<HighlightedInputProps> = ({ text, cursor
 				{segments.map((segment, idx) => {
 					if (segment.type === "mention" || segment.type === "command") {
 						return (
-							<Text backgroundColor="gray" key={idx}>
+							<Text
+								backgroundColor={theme.highlightBg}
+								color={segment.type === "mention" ? theme.inputMention : theme.inputCommand}
+								key={idx}>
 								{segment.text}
 							</Text>
 						)
@@ -149,20 +153,28 @@ export const HighlightedInput: React.FC<HighlightedInputProps> = ({ text, cursor
 			if (isHighlighted) {
 				return (
 					<Text key={segmentIdx}>
-						{beforeCursor && <Text backgroundColor="gray">{beforeCursor}</Text>}
+						{beforeCursor && (
+							<Text
+								backgroundColor={theme.highlightBg}
+								color={segment.type === "mention" ? theme.inputMention : theme.inputCommand}>
+								{beforeCursor}
+							</Text>
+						)}
 						{cursorChar === "\n" || cursorChar === "\r" ? (
 							<React.Fragment>
-								<Text backgroundColor="gray" inverse>
-									{" "}
-								</Text>
+								<Text backgroundColor={theme.cursorBg} color={theme.cursorText}>{" "}</Text>
 								{"\n"}
 							</React.Fragment>
 						) : (
-							<Text backgroundColor="gray" inverse>
-								{cursorChar}
+							<Text backgroundColor={theme.cursorBg} color={theme.cursorText}>{cursorChar}</Text>
+						)}
+						{afterCursor && (
+							<Text
+								backgroundColor={theme.highlightBg}
+								color={segment.type === "mention" ? theme.inputMention : theme.inputCommand}>
+								{afterCursor}
 							</Text>
 						)}
-						{afterCursor && <Text backgroundColor="gray">{afterCursor}</Text>}
 					</Text>
 				)
 			}
@@ -171,11 +183,11 @@ export const HighlightedInput: React.FC<HighlightedInputProps> = ({ text, cursor
 					{beforeCursor}
 					{cursorChar === "\n" || cursorChar === "\r" ? (
 						<React.Fragment>
-							<Text inverse> </Text>
+							<Text backgroundColor={theme.cursorBg} color={theme.cursorText}> </Text>
 							{"\n"}
 						</React.Fragment>
 					) : (
-						<Text inverse>{cursorChar}</Text>
+						<Text backgroundColor={theme.cursorBg} color={theme.cursorText}>{cursorChar}</Text>
 					)}
 					{afterCursor}
 				</Text>
@@ -185,7 +197,10 @@ export const HighlightedInput: React.FC<HighlightedInputProps> = ({ text, cursor
 		// Cursor not in this segment - render normally
 		if (isHighlighted) {
 			return (
-				<Text backgroundColor="gray" key={segmentIdx}>
+				<Text
+					backgroundColor={theme.highlightBg}
+					color={segment.type === "mention" ? theme.inputMention : theme.inputCommand}
+					key={segmentIdx}>
 					{segment.text}
 				</Text>
 			)
@@ -199,7 +214,7 @@ export const HighlightedInput: React.FC<HighlightedInputProps> = ({ text, cursor
 	return (
 		<Text>
 			{segments.map((segment, idx) => renderSegmentWithCursor(segment, idx))}
-			{cursorAtEnd && <Text inverse> </Text>}
+			{cursorAtEnd && <Text backgroundColor={theme.cursorBg} color={theme.cursorText}> </Text>}
 		</Text>
 	)
 }

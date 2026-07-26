@@ -38,10 +38,6 @@ vi.mock("./ChatView", () => ({
 	ChatView: () => React.createElement(Text, null, "ChatView"),
 }))
 
-vi.mock("./TaskJsonView", () => ({
-	TaskJsonView: () => React.createElement(Text, null, "TaskJsonView"),
-}))
-
 vi.mock("./HistoryView", () => ({
 	HistoryView: () => React.createElement(Text, null, "HistoryView"),
 }))

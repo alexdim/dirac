@@ -1,11 +1,12 @@
 import { PanelTab } from "../Panel"
+import { SettingsTab } from "./types"
 
 export const TABS: PanelTab[] = [
-	{ key: "api", label: "API" },
-	{ key: "auto-approve", label: "Auto-approve" },
-	{ key: "features", label: "Features" },
-	{ key: "tools", label: "Tools" },
-	{ key: "other", label: "Other" },
+	{ key: SettingsTab.API, label: "API" },
+	{ key: SettingsTab.AUTO_APPROVE, label: "Auto-approve" },
+	{ key: SettingsTab.FEATURES, label: "Features" },
+	{ key: SettingsTab.TOOLS, label: "Tools" },
+	{ key: SettingsTab.OTHER, label: "Other" },
 ]
 
 // Settings configuration for simple boolean toggles

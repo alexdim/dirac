@@ -1,3 +1,4 @@
+import { theme } from "../../../constants/theme"
 import React from "react"
 import { Box, Text } from "ink"
 import { COLORS } from "../../../constants/colors"
@@ -20,7 +21,7 @@ export const ProviderPickerPage: React.FC<ProviderPickerPageProps> = ({ isActive
 			<ProviderPicker isActive={isActive} onSelect={onSelect} />
 		</Box>
 		<Box marginTop={1}>
-			<Text color="gray">Type to search, arrows to navigate, Enter to select, Esc to cancel</Text>
+			<Text color={theme.muted}>Type to search, arrows to navigate, Enter to select, Esc to cancel</Text>
 		</Box>
 	</Box>
 )
@@ -48,7 +49,7 @@ export const ModelPickerPage: React.FC<ModelPickerPageProps> = ({ controller, is
 			/>
 		</Box>
 		<Box marginTop={1}>
-			<Text color="gray">Type to search, arrows to navigate, Enter to select, Esc to cancel</Text>
+			<Text color={theme.muted}>Type to search, arrows to navigate, Enter to select, Esc to cancel</Text>
 		</Box>
 	</Box>
 )
@@ -67,7 +68,7 @@ export const LanguagePickerPage: React.FC<LanguagePickerPageProps> = ({ isActive
 			<LanguagePicker isActive={isActive} onSelect={onSelect} />
 		</Box>
 		<Box marginTop={1}>
-			<Text color="gray">Type to search, arrows to navigate, Enter to select, Esc to cancel</Text>
+			<Text color={theme.muted}>Type to search, arrows to navigate, Enter to select, Esc to cancel</Text>
 		</Box>
 	</Box>
 )

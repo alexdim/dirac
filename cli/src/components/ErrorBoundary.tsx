@@ -1,3 +1,4 @@
+import { theme } from "../constants/theme"
 import { Box, Text } from "ink"
 import React from "react"
 import { ErrorService } from "@/services/error"
@@ -59,11 +60,11 @@ export class ErrorBoundary extends React.Component<Props, { hasError: boolean }>
 				<Box flexDirection="column" height="100%" key="header" width="100%">
 					<StaticRobotFrame />
 					<Text> </Text>
-					<Text bold color="white">
+					<Text bold color={theme.text}>
 						Something went wrong. We're sorry.
 					</Text>
-					<Text color="white">Please check the logs for more details.</Text>
-					<Text color="yellow">Log: {DIRAC_CLI_DIR.log}/crash.log</Text>
+					<Text color={theme.text}>Please check the logs for more details.</Text>
+					<Text color={theme.warning}>Log: {DIRAC_CLI_DIR.log}/crash.log</Text>
 					<Text> </Text>
 				</Box>
 			)

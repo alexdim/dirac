@@ -11,6 +11,7 @@ interface ThinkingIndicatorProps {
 	startTime?: number // Unix timestamp when thinking started
 	onCancel?: () => void // Called when user presses esc to interrupt
 	lastAction?: string // Last completed action to show as breadcrumb
+	isActive?: boolean
 }
 
 // Spinner frames (dots style from ink-spinner)
@@ -52,15 +53,24 @@ const ShimmerText: React.FC<{ text: string; shimmerPos: number }> = ({ text, shi
 	)
 }
 
-export const ThinkingIndicator: React.FC<ThinkingIndicatorProps> = ({ mode = "act", startTime, onCancel, lastAction }) => {
+export const ThinkingIndicator: React.FC<ThinkingIndicatorProps> = ({
+	mode = "act",
+	startTime,
+	onCancel,
+	lastAction,
+	isActive = true,
+}) => {
 	const message = mode === "plan" ? "Planning" : "Acting"
 
 	// Handle esc key to cancel
-	useInput((_input, key) => {
-		if (key.escape && onCancel) {
-			onCancel()
-		}
-	})
+	useInput(
+		(_input, key) => {
+			if (key.escape && onCancel) {
+				onCancel()
+			}
+		},
+		{ isActive },
+	)
 
 	// Spinner frame index
 	const [spinnerFrame, setSpinnerFrame] = useState(0)

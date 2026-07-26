@@ -1,3 +1,4 @@
+import { theme } from "../../../constants/theme"
 import React from "react"
 import { Box, Text } from "ink"
 import Spinner from "ink-spinner"
@@ -15,34 +16,34 @@ export const CodexAuthPage: React.FC<CodexAuthPageProps> = ({ codexAuthUrl, copi
 			<Text color={COLORS.primaryBlue}>
 				<Spinner type="dots" />
 			</Text>
-			<Text color="white"> Waiting for ChatGPT sign-in...</Text>
+			<Text color={theme.text}> Waiting for ChatGPT sign-in...</Text>
 		</Box>
 		<Box marginTop={1}>
-			<Text color="gray">Sign in with your ChatGPT account in the browser.</Text>
+			<Text color={theme.muted}>Sign in with your ChatGPT account in the browser.</Text>
 		</Box>
 		{codexAuthUrl && (
 			<Box flexDirection="column" marginTop={1}>
-				<Text bold color="cyan">
+				<Text bold color={theme.info}>
 					{terminalLink("👉 Sign in to ChatGPT", codexAuthUrl)}
 				</Text>
 				<Box marginTop={1}>
 					{copied ? (
-						<Text color="green">✔ Copied to clipboard!</Text>
+						<Text color={theme.success}>✔ Copied to clipboard!</Text>
 					) : (
-						<Text color="gray">(press 'c' to copy URL)</Text>
+						<Text color={theme.muted}>(press 'c' to copy URL)</Text>
 					)}
 				</Box>
 				<Box marginTop={1}>
-					<Text color="yellow">Note: If you are on a remote machine, you may need to set up SSH port forwarding:</Text>
+					<Text color={theme.warning}>Note: If you are on a remote machine, you may need to set up SSH port forwarding:</Text>
 				</Box>
-				<Text color="gray">ssh -L 1455:localhost:1455 your-remote-host</Text>
+				<Text color={theme.muted}>ssh -L 1455:localhost:1455 your-remote-host</Text>
 			</Box>
 		)}
 		<Box marginTop={1}>
-			<Text color="gray">Requires ChatGPT Plus, Pro, or Team subscription.</Text>
+			<Text color={theme.muted}>Requires ChatGPT Plus, Pro, or Team subscription.</Text>
 		</Box>
 		<Box marginTop={1}>
-			<Text color="gray">Esc to cancel</Text>
+			<Text color={theme.muted}>Esc to cancel</Text>
 		</Box>
 	</Box>
 )
@@ -60,25 +61,25 @@ export const GithubAuthPage: React.FC<GithubAuthPageProps> = ({ githubAuthData }
 			<Text color={COLORS.primaryBlue}>
 				<Spinner type="dots" />
 			</Text>
-			<Text color="white"> Waiting for GitHub authorization...</Text>
+			<Text color={theme.text}> Waiting for GitHub authorization...</Text>
 		</Box>
 		<Box marginTop={1}>
-			<Text color="white">1. Open: </Text>
-			<Text color="cyan" bold underline>
+			<Text color={theme.text}>1. Open: </Text>
+			<Text color={theme.info} bold underline>
 				{githubAuthData.verification_uri}
 			</Text>
 		</Box>
 		<Box marginTop={1}>
-			<Text color="white">2. Enter code: </Text>
-			<Text color="yellow" bold>
+			<Text color={theme.text}>2. Enter code: </Text>
+			<Text color={theme.warning} bold>
 				{githubAuthData.user_code}
 			</Text>
 		</Box>
 		<Box marginTop={1}>
-			<Text color="gray">The browser should have opened automatically.</Text>
+			<Text color={theme.muted}>The browser should have opened automatically.</Text>
 		</Box>
 		<Box marginTop={1}>
-			<Text color="gray">Esc to cancel</Text>
+			<Text color={theme.muted}>Esc to cancel</Text>
 		</Box>
 	</Box>
 )
@@ -89,14 +90,14 @@ interface AuthErrorPageProps {
 
 export const AuthErrorPage: React.FC<AuthErrorPageProps> = ({ error }) => (
 	<Box flexDirection="column">
-		<Text bold color="red">
+		<Text bold color={theme.error}>
 			ChatGPT sign-in failed
 		</Text>
 		<Box marginTop={1}>
-			<Text color="yellow">{error}</Text>
+			<Text color={theme.warning}>{error}</Text>
 		</Box>
 		<Box marginTop={1}>
-			<Text color="gray">Press any key to continue</Text>
+			<Text color={theme.muted}>Press any key to continue</Text>
 		</Box>
 	</Box>
 )

@@ -1,6 +1,6 @@
 /**
  * Shared Dirac ASCII logo and gradient colors.
- * Used by WelcomeView and AsciiMotionCli.
+ * Used by AsciiMotionCli.
  */
 
 /** 16-line ASCII art Dirac logo. */
@@ -24,12 +24,12 @@ export const DIRAC_LOGO = [
 ] as const
 
 /**
- * Per-line gradient from blue (#B1B9F9) at top to gold (#F59E0B) at bottom.
+ * Per-line gradient from a muted indigo to a warm bronze.
  * Index 0 = top line, index 15 = bottom line.
  */
 export const LOGO_GRADIENT: readonly string[] = (() => {
-	const top = [0xb1, 0xb9, 0xf9] as const // #B1B9F9
-	const bot = [0xf5, 0x9e, 0x0b] as const // #F59E0B
+	const top = [0x6f, 0x7d, 0xb8] as const // #6F7DB8
+	const bot = [0xb4, 0x7a, 0x2e] as const // #B47A2E
 	const n = DIRAC_LOGO.length
 	return Array.from({ length: n }, (_, i) => {
 		const t = i / (n - 1)

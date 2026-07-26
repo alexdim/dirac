@@ -1,11 +1,12 @@
+import { theme } from "../constants/theme"
 import React from "react"
 import { Box, Text } from "ink"
-import { COLORS } from "../constants/colors"
-import { hslToHex } from "../utils/color"
 import { createContextBar } from "../utils/display"
 import type { GitDiffStats } from "../utils/git"
 import type { TaskStatus } from "@shared/ExtensionMessage"
 import { TaskStatusIndicator } from "./modular-ui/TaskStatusIndicator"
+import path from "node:path"
+import { useTerminalSize } from "../hooks/useTerminalSize"
 
 interface ChatFooterProps {
 	mode: "act" | "plan"
@@ -19,6 +20,7 @@ interface ChatFooterProps {
 	gitBranch: string | null
 	gitDiffStats: GitDiffStats | null
 	autoApproveAll: boolean
+	yoloMode: boolean
 	taskStatus?: TaskStatus
 	show?: boolean
 }
@@ -35,60 +37,68 @@ export const ChatFooter: React.FC<ChatFooterProps> = ({
 	gitBranch,
 	gitDiffStats,
 	autoApproveAll,
+	yoloMode,
 	taskStatus,
 	show = true,
 }) => {
+	const { columns } = useTerminalSize()
 	if (!show) return null
+	const compact = columns < 64
+	const boundedCacheHitRate = Math.max(0, Math.min(1, cacheHitRate))
+	const workspaceName = workspacePath.includes("\\") ? path.win32.basename(workspacePath) : path.basename(workspacePath)
 
 	return (
 		<Box flexDirection="column" width="100%">
 			{/* Row 1: Instructions (left, can wrap) | Plan/Act toggle (right, no wrap) */}
 			<Box justifyContent="space-between" paddingLeft={1} paddingRight={1} width="100%">
-				<Box flexShrink={1} flexWrap="wrap">
-					<Text color="gray">/ commands · @ files · v details · Shift+↓ newline · Tab mode</Text>
-				</Box>
-				<Box flexShrink={0} gap={1}>
+				{compact ? (
+					<Text color={theme.muted} wrap="truncate-end">
+						<Text bold color={mode === "plan" ? theme.plan : theme.primary}>{mode === "plan" ? "Plan" : "Act"}</Text>
+						{" · / commands · @ files · Tab mode"}
+					</Text>
+				) : (
+					<Box flexShrink={1} flexWrap="wrap">
+						<Text color={theme.muted}>/ commands · @ files · v details · Shift+↓ newline · Tab mode</Text>
+					</Box>
+				)}
+				{!compact && <Box flexShrink={0} gap={1}>
 					<Box>
-						<Text bold={mode === "plan"} color={mode === "plan" ? "yellow" : undefined}>
+						<Text bold={mode === "plan"} color={mode === "plan" ? theme.plan : undefined}>
 							{mode === "plan" ? "●" : "○"} Plan
 						</Text>
 					</Box>
 					<Box>
-						<Text bold={mode === "act"} color={mode === "act" ? COLORS.primaryBlue : undefined}>
+						<Text bold={mode === "act"} color={mode === "act" ? theme.primary : theme.muted}>
 							{mode === "act" ? "●" : "○"} Act
 						</Text>
 					</Box>
-					<Text color="gray">(Tab)</Text>
-				</Box>
+					<Text color={theme.muted}>(Tab)</Text>
+				</Box>}
 			</Box>
 
 			{/* Row 2: Model/context/tokens/cost/status */}
 			<Box paddingLeft={1} paddingRight={1}>
-				<Text>
+				<Text wrap="truncate-end">
 					{provider}: {modelId} {(() => {
 						const ratio = contextWindowSize > 0 ? lastApiReqTotalTokens / contextWindowSize : 0
-						const barColor = ratio > 0.8 ? "red" : ratio > 0.5 ? "yellow" : "green"
+						const barColor = ratio > theme.contextDanger ? theme.error : ratio > theme.contextWarning ? theme.warning : theme.success
 						const bar = createContextBar(lastApiReqTotalTokens, contextWindowSize)
 						return (
 							<Text>
 								<Text color={barColor}>{bar.filled}</Text>
-								<Text color="gray">{bar.empty}</Text>
+								<Text color={theme.muted}>{bar.empty}</Text>
 							</Text>
 						)
-					})()} <Text color="gray">
+					})()} <Text color={theme.muted}>
 						({lastApiReqTotalTokens.toLocaleString()}) · {(() => {
-							const costColor = totalCost > 5 ? "red" : totalCost > 1 ? "yellow" : "green"
+							const costColor = totalCost > theme.costDanger ? theme.error : totalCost > theme.costWarning ? theme.warning : theme.success
 							return <Text color={costColor}>${totalCost.toFixed(3)}</Text>
 						})()}
 					</Text>{" "}
-					{cacheHitRate > 0 && (
+					{boundedCacheHitRate > 0 && (
 						<React.Fragment>
-							<Text
-								color={(() => {
-									const hue = cacheHitRate * 150 // 0 (red) → 150 (green)
-									return hslToHex(hue, 75, 45)
-								})()}>
-								{(cacheHitRate * 100).toFixed(0)}% cache
+							<Text color={boundedCacheHitRate >= 0.7 ? theme.success : boundedCacheHitRate >= 0.35 ? theme.info : theme.muted}>
+								{(boundedCacheHitRate * 100).toFixed(0)}% cache
 							</Text>{" "}
 						</React.Fragment>
 					)}
@@ -98,29 +108,33 @@ export const ChatFooter: React.FC<ChatFooterProps> = ({
 
 			{/* Row 3: Repo/branch/diff stats */}
 			<Box paddingLeft={1} paddingRight={1}>
-				<Text>
-					{workspacePath.split("/").pop() || workspacePath}
-					{gitBranch && ` (${gitBranch})`}
+				<Text color={theme.muted} wrap="truncate-end">
+					<Text color={theme.text}>{workspaceName || workspacePath}</Text>
+					{gitBranch && <Text color={theme.subtle}> ({gitBranch})</Text>}
 					{gitDiffStats && gitDiffStats.files > 0 && (
-						<Text color="gray">
-							{" "}
-							· {gitDiffStats.files} file{gitDiffStats.files !== 1 ? "s" : ""}{" "}
-							<Text color="green">+{gitDiffStats.additions}</Text>{" "}
-							<Text color="red">-{gitDiffStats.deletions}</Text>
+						<Text>
+							{" "}· {gitDiffStats.files} file{gitDiffStats.files !== 1 ? "s" : ""}{" "}
+							<Text color={theme.success}>+{gitDiffStats.additions}</Text>{" "}
+							<Text color={theme.error}>-{gitDiffStats.deletions}</Text>
 						</Text>
 					)}
 				</Text>
 			</Box>
 
-			{/* Row 4: Auto-approve toggle */}
+			{/* Row 4: Auto-approve toggle and YOLO mode indicator */}
 			<Box paddingLeft={1} paddingRight={1} gap={2}>
 				{autoApproveAll ? (
-					<Text>
-						<Text color="green">⏵⏵ Auto-approve all enabled</Text>
-						<Text color="gray"> (Shift+Tab)</Text>
+					<Text wrap="truncate-end">
+						<Text color={theme.success}>⏵⏵ Auto-approve all enabled</Text>
+						<Text color={theme.muted}> (Shift+Tab)</Text>
 					</Text>
 				) : (
-					<Text color="gray">Auto-approve all disabled (Shift+Tab)</Text>
+					<Text color={theme.muted} wrap="truncate-end">Auto-approve all disabled (Shift+Tab)</Text>
+				)}
+				{yoloMode ? (
+					<Text bold color={theme.warning}>⚠ YOLO mode enabled</Text>
+				) : (
+					<Text color={theme.muted}>YOLO mode disabled</Text>
 				)}
 			</Box>
 		</Box>

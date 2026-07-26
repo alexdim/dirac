@@ -1,4 +1,4 @@
-import { DiracMessage } from "@shared/ExtensionMessage"
+import { DiracMessage, type TaskStatus } from "@shared/ExtensionMessage"
 import { useChatTimeline } from "./useChatTimeline"
 import { calculateChatLayoutRows } from "../utils/chat-layout"
 
@@ -6,7 +6,7 @@ export function useChatMessages(
 	messages: DiracMessage[],
 	activeVoiceStreamId?: string,
 	isApiRequestActive?: boolean,
-	taskStatus?: string,
+	taskStatus?: TaskStatus,
 ) {
 	const timeline = useChatTimeline({
 		messages,
@@ -17,7 +17,6 @@ export function useChatMessages(
 		layoutRows: calculateChatLayoutRows({
 			terminalRows: 24,
 			hasConversationContent: true,
-			hasActivity: isApiRequestActive === true,
 			hasComposer: true,
 			hasFooter: true,
 			hasPanel: false,

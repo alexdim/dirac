@@ -1,3 +1,4 @@
+import { theme } from "../constants/theme"
 import { Box, Text, useInput } from "ink"
 import Spinner from "ink-spinner"
 import React, { useCallback, useEffect, useRef, useState } from "react"
@@ -14,7 +15,10 @@ interface OpenAiCodexDeviceAuthViewProps {
 export const OpenAiCodexDeviceAuthView: React.FC<OpenAiCodexDeviceAuthViewProps> = ({ onComplete, onCancel }) => {
 	const { isRawModeSupported } = useStdinContext()
 	const abortControllerRef = useRef<AbortController | null>(null)
+	const completionTimeoutRef = useRef<NodeJS.Timeout | null>(null)
 	const isActiveRef = useRef(true)
+	const onCompleteRef = useRef(onComplete)
+	onCompleteRef.current = onComplete
 	const [step, setStep] = useState<"initiating" | "waiting" | "success" | "error">("initiating")
 	const [authData, setAuthData] = useState<{
 		verification_uri: string
@@ -24,6 +28,7 @@ export const OpenAiCodexDeviceAuthView: React.FC<OpenAiCodexDeviceAuthViewProps>
 		interval?: number
 	} | null>(null)
 	const [errorMessage, setErrorMessage] = useState("")
+	const [browserWarning, setBrowserWarning] = useState("")
 
 	const startAuth = useCallback(async () => {
 		const abortController = new AbortController()
@@ -36,7 +41,12 @@ export const OpenAiCodexDeviceAuthView: React.FC<OpenAiCodexDeviceAuthViewProps>
 			setAuthData(data)
 			setStep("waiting")
 
-			await openExternal(data.verification_uri)
+			try {
+				await openExternal(data.verification_uri)
+			} catch (error) {
+				if (!isActiveRef.current) return
+				setBrowserWarning(`Could not open the browser automatically: ${error instanceof Error ? error.message : String(error)}`)
+			}
 
 			await openAiCodexOAuthManager.pollForDeviceToken(
 				data.device_code,
@@ -46,16 +56,20 @@ export const OpenAiCodexDeviceAuthView: React.FC<OpenAiCodexDeviceAuthViewProps>
 			)
 			if (!isActiveRef.current) return
 			setStep("success")
-			setTimeout(() => {
+			completionTimeoutRef.current = setTimeout(() => {
 				if (!isActiveRef.current) return
-				void onComplete()
+				void Promise.resolve(onCompleteRef.current()).catch((error) => {
+					if (!isActiveRef.current) return
+					setErrorMessage(error instanceof Error ? error.message : String(error))
+					setStep("error")
+				})
 			}, 1500)
 		} catch (error) {
 			if (!isActiveRef.current) return
 			setErrorMessage(error instanceof Error ? error.message : String(error))
 			setStep("error")
 		}
-	}, [onComplete])
+	}, [])
 
 	useEffect(() => {
 		isActiveRef.current = true
@@ -64,6 +78,7 @@ export const OpenAiCodexDeviceAuthView: React.FC<OpenAiCodexDeviceAuthViewProps>
 		return () => {
 			isActiveRef.current = false
 			abortControllerRef.current?.abort()
+			if (completionTimeoutRef.current) clearTimeout(completionTimeoutRef.current)
 		}
 	}, [startAuth])
 
@@ -72,6 +87,7 @@ export const OpenAiCodexDeviceAuthView: React.FC<OpenAiCodexDeviceAuthViewProps>
 			if (key.escape) {
 				isActiveRef.current = false
 				abortControllerRef.current?.abort()
+				if (completionTimeoutRef.current) clearTimeout(completionTimeoutRef.current)
 				onCancel()
 			}
 		},
@@ -85,7 +101,7 @@ export const OpenAiCodexDeviceAuthView: React.FC<OpenAiCodexDeviceAuthViewProps>
 					<Text color={COLORS.primaryBlue}>
 						<Spinner type="dots" />
 					</Text>
-					<Text color="white"> Initiating ChatGPT device authentication...</Text>
+					<Text color={theme.text}> Initiating ChatGPT device authentication...</Text>
 				</Box>
 			)}
 
@@ -95,39 +111,40 @@ export const OpenAiCodexDeviceAuthView: React.FC<OpenAiCodexDeviceAuthViewProps>
 						<Text color={COLORS.primaryBlue}>
 							<Spinner type="dots" />
 						</Text>
-						<Text color="white"> Waiting for ChatGPT authorization...</Text>
+						<Text color={theme.text}> Waiting for ChatGPT authorization...</Text>
 					</Box>
 					<Text> </Text>
-					<Text color="white">1. Open: </Text>
-					<Text color="cyan" bold underline wrap="wrap">
+					<Text color={theme.text}>1. Open: </Text>
+					<Text color={theme.info} bold underline wrap="wrap">
 						{authData.verification_uri_complete || authData.verification_uri}
 					</Text>
 					<Text> </Text>
-					<Text color="white">2. Enter code: </Text>
-					<Text color="yellow" bold>
+					<Text color={theme.text}>2. Enter code: </Text>
+					<Text color={theme.warning} bold>
 						{authData.user_code}
 					</Text>
 					<Text> </Text>
-					<Text color="gray">The browser should have opened automatically if available.</Text>
-					<Text color="gray">Press Esc to cancel.</Text>
+					<Text color={theme.muted}>The browser should have opened automatically if available.</Text>
+					{browserWarning && <Text color={theme.warning}>{browserWarning}</Text>}
+					<Text color={theme.muted}>Press Esc to cancel.</Text>
 				</Box>
 			)}
 
 			{step === "success" && (
 				<Box>
-					<Text color="green">✔</Text>
-					<Text color="white"> Successfully authenticated with ChatGPT!</Text>
+					<Text color={theme.success}>✔</Text>
+					<Text color={theme.text}> Successfully authenticated with ChatGPT!</Text>
 				</Box>
 			)}
 
 			{step === "error" && (
 				<Box flexDirection="column">
-					<Text color="red" bold>
+					<Text color={theme.error} bold>
 						Authentication Error
 					</Text>
-					<Text color="white">{errorMessage}</Text>
+					<Text color={theme.text}>{errorMessage}</Text>
 					<Text> </Text>
-					<Text color="gray">Press Esc to go back.</Text>
+					<Text color={theme.muted}>Press Esc to go back.</Text>
 				</Box>
 			)}
 		</Box>

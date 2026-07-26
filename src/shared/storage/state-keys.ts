@@ -239,6 +239,7 @@ const USER_SETTINGS_FIELDS = {
 	backgroundEditEnabled: { default: false as boolean },
 	optOutOfRemoteConfig: { default: false as boolean },
 	doubleCheckCompletionEnabled: { default: false as boolean },
+	cliTerminalColorMode: { default: undefined as "dark" | "light" | undefined },
 
 	// OpenTelemetry configuration
 	openTelemetryEnabled: { default: true as boolean },

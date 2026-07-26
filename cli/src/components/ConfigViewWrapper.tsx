@@ -2,8 +2,7 @@
  * Stateful wrapper for ConfigView that handles toggle operations
  */
 
-import { exec } from "node:child_process"
-import os from "node:os"
+import fs from "node:fs/promises"
 import path from "node:path"
 
 import { RuleScope } from "@shared/proto/dirac/file"
@@ -12,6 +11,7 @@ import React, { useCallback, useEffect, useState } from "react"
 
 import type { Controller } from "@/core/controller"
 import { HostProvider } from "@/hosts/host-provider"
+import { Logger } from "@/shared/services/Logger"
 import { StdinProvider } from "../context/StdinContext"
 import { ConfigView } from "./ConfigView"
 
@@ -74,41 +74,56 @@ export const ConfigViewWrapper: React.FC<ConfigViewWrapperProps> = ({
 	// Skills state
 	const [globalSkills, setGlobalSkills] = useState<SkillInfo[]>([])
 	const [localSkills, setLocalSkills] = useState<SkillInfo[]>([])
+	const [interactionError, setInteractionError] = useState<string | null>(null)
 
 	// Load initial data
 	useEffect(() => {
+		let cancelled = false
 		const loadData = async () => {
-			const { refreshRules } = await import("@/core/controller/file/refreshRules")
-			const { refreshHooks } = await import("@/core/controller/file/refreshHooks")
-			const { refreshSkills } = await import("@/core/controller/file/refreshSkills")
+			try {
+				const { refreshRules } = await import("@/core/controller/file/refreshRules")
+				const { refreshHooks } = await import("@/core/controller/file/refreshHooks")
+				const { refreshSkills } = await import("@/core/controller/file/refreshSkills")
 
-			const rulesData = await refreshRules(controller, {})
-			setGlobalDiracRulesToggles(rulesData.globalDiracRulesToggles?.toggles || {})
-			setLocalDiracRulesToggles(rulesData.localDiracRulesToggles?.toggles || {})
-			setLocalCursorRulesToggles(rulesData.localCursorRulesToggles?.toggles || {})
-			setLocalWindsurfRulesToggles(rulesData.localWindsurfRulesToggles?.toggles || {})
-			setLocalAgentsRulesToggles(rulesData.localAgentsRulesToggles?.toggles || {})
-			setGlobalWorkflowToggles(rulesData.globalWorkflowToggles?.toggles || {})
-			setLocalWorkflowToggles(rulesData.localWorkflowToggles?.toggles || {})
+				const rulesData = await refreshRules(controller, {})
+				if (cancelled) return
+				setGlobalDiracRulesToggles(rulesData.globalDiracRulesToggles?.toggles || {})
+				setLocalDiracRulesToggles(rulesData.localDiracRulesToggles?.toggles || {})
+				setLocalCursorRulesToggles(rulesData.localCursorRulesToggles?.toggles || {})
+				setLocalWindsurfRulesToggles(rulesData.localWindsurfRulesToggles?.toggles || {})
+				setLocalAgentsRulesToggles(rulesData.localAgentsRulesToggles?.toggles || {})
+				setGlobalWorkflowToggles(rulesData.globalWorkflowToggles?.toggles || {})
+				setLocalWorkflowToggles(rulesData.localWorkflowToggles?.toggles || {})
 
-			if (hooksEnabled) {
-				const hooksData = await refreshHooks(controller, {})
-				setGlobalHooks(hooksData.globalHooks || [])
-				setWorkspaceHooksState(hooksData.workspaceHooks || [])
-			}
+				if (hooksEnabled) {
+					const hooksData = await refreshHooks(controller, {})
+					if (cancelled) return
+					setGlobalHooks(hooksData.globalHooks || [])
+					setWorkspaceHooksState(hooksData.workspaceHooks || [])
+				}
 
-			if (skillsEnabled) {
-				const skillsData = await refreshSkills(controller)
-				setGlobalSkills(skillsData.globalSkills || [])
-				setLocalSkills(skillsData.localSkills || [])
+				if (skillsEnabled) {
+					const skillsData = await refreshSkills(controller)
+					if (cancelled) return
+					setGlobalSkills(skillsData.globalSkills || [])
+					setLocalSkills(skillsData.localSkills || [])
+				}
+				setInteractionError(null)
+			} catch (error) {
+				Logger.error("Failed to load configuration data:", error)
+				if (!cancelled) setInteractionError(error instanceof Error ? error.message : String(error))
 			}
 		}
 		loadData()
+		return () => {
+			cancelled = true
+		}
 	}, [controller, hooksEnabled, skillsEnabled])
 
 	// Toggle handlers
 	const handleToggleRule = useCallback(
 		async (isGlobal: boolean, rulePath: string, enabled: boolean, ruleType: string) => {
+			setInteractionError(null)
 			const { toggleDiracRule } = await import("@/core/controller/file/toggleDiracRule")
 
 			// Determine scope based on isGlobal and rule type
@@ -119,18 +134,15 @@ export const ConfigViewWrapper: React.FC<ConfigViewWrapperProps> = ({
 				// Update local state optimistically
 				setLocalCursorRulesToggles((prev) => ({ ...prev, [rulePath]: enabled }))
 				// Cursor rules use toggleCursorRule but we'll just update the state manager directly
-				const toggles = controller.stateManager.getWorkspaceStateKey("localCursorRulesToggles") || {}
-				toggles[rulePath] = enabled
+				const toggles = { ...(controller.stateManager.getWorkspaceStateKey("localCursorRulesToggles") || {}), [rulePath]: enabled }
 				controller.stateManager.setWorkspaceState("localCursorRulesToggles", toggles)
 			} else if (ruleType === "windsurf") {
 				setLocalWindsurfRulesToggles((prev) => ({ ...prev, [rulePath]: enabled }))
-				const toggles = controller.stateManager.getWorkspaceStateKey("localWindsurfRulesToggles") || {}
-				toggles[rulePath] = enabled
+				const toggles = { ...(controller.stateManager.getWorkspaceStateKey("localWindsurfRulesToggles") || {}), [rulePath]: enabled }
 				controller.stateManager.setWorkspaceState("localWindsurfRulesToggles", toggles)
 			} else if (ruleType === "agents") {
 				setLocalAgentsRulesToggles((prev) => ({ ...prev, [rulePath]: enabled }))
-				const toggles = controller.stateManager.getWorkspaceStateKey("localAgentsRulesToggles") || {}
-				toggles[rulePath] = enabled
+				const toggles = { ...(controller.stateManager.getWorkspaceStateKey("localAgentsRulesToggles") || {}), [rulePath]: enabled }
 				controller.stateManager.setWorkspaceState("localAgentsRulesToggles", toggles)
 			} else {
 				// Dirac rules
@@ -142,6 +154,7 @@ export const ConfigViewWrapper: React.FC<ConfigViewWrapperProps> = ({
 					setLocalDiracRulesToggles(result.localDiracRulesToggles.toggles)
 				}
 			}
+			await controller.postStateToWebview()
 		},
 		[controller],
 	)
@@ -151,14 +164,9 @@ export const ConfigViewWrapper: React.FC<ConfigViewWrapperProps> = ({
 			const { toggleWorkflow } = await import("@/core/controller/file/toggleWorkflow")
 			const scope = isGlobal ? RuleScope.GLOBAL : RuleScope.LOCAL
 
-			// Optimistic update
-			if (isGlobal) {
-				setGlobalWorkflowToggles((prev) => ({ ...prev, [workflowPath]: enabled }))
-			} else {
-				setLocalWorkflowToggles((prev) => ({ ...prev, [workflowPath]: enabled }))
-			}
-
-			await toggleWorkflow(controller, { metadata: undefined, workflowPath, enabled, scope })
+			const result = await toggleWorkflow(controller, { metadata: undefined, workflowPath, enabled, scope })
+			if (isGlobal) setGlobalWorkflowToggles(result.toggles)
+			else setLocalWorkflowToggles(result.toggles)
 		},
 		[controller],
 	)
@@ -166,19 +174,6 @@ export const ConfigViewWrapper: React.FC<ConfigViewWrapperProps> = ({
 	const handleToggleHook = useCallback(
 		async (isGlobal: boolean, hookName: string, enabled: boolean, workspaceName?: string) => {
 			const { toggleHook } = await import("@/core/controller/file/toggleHook")
-
-			// Optimistic update
-			if (isGlobal) {
-				setGlobalHooks((prev) => prev.map((h) => (h.name === hookName ? { ...h, enabled } : h)))
-			} else {
-				setWorkspaceHooksState((prev) =>
-					prev.map((ws) =>
-						ws.workspaceName === workspaceName
-							? { ...ws, hooks: ws.hooks.map((h) => (h.name === hookName ? { ...h, enabled } : h)) }
-							: ws,
-					),
-				)
-			}
 
 			const result = await toggleHook(controller, { metadata: undefined, hookName, isGlobal, enabled, workspaceName })
 			if (result.hooksToggles) {
@@ -193,14 +188,9 @@ export const ConfigViewWrapper: React.FC<ConfigViewWrapperProps> = ({
 		async (isGlobal: boolean, skillPath: string, enabled: boolean) => {
 			const { toggleSkill } = await import("@/core/controller/file/toggleSkill")
 
-			// Optimistic update
-			if (isGlobal) {
-				setGlobalSkills((prev) => prev.map((s) => (s.path === skillPath ? { ...s, enabled } : s)))
-			} else {
-				setLocalSkills((prev) => prev.map((s) => (s.path === skillPath ? { ...s, enabled } : s)))
-			}
-
 			await toggleSkill(controller, { metadata: undefined, skillPath, isGlobal, enabled })
+			if (isGlobal) setGlobalSkills((prev) => prev.map((s) => (s.path === skillPath ? { ...s, enabled } : s)))
+			else setLocalSkills((prev) => prev.map((s) => (s.path === skillPath ? { ...s, enabled } : s)))
 		},
 		[controller],
 	)
@@ -225,22 +215,12 @@ export const ConfigViewWrapper: React.FC<ConfigViewWrapperProps> = ({
 				folderPath = path.join(primaryWorkspace, ".diracrules", subFolder)
 			}
 
-			// Open folder using platform-specific command
-			const platform = os.platform()
-			let command: string
-			if (platform === "darwin") {
-				command = `open "${folderPath}"`
-			} else if (platform === "win32") {
-				command = `explorer "${folderPath}"`
-			} else {
-				command = `xdg-open "${folderPath}"`
-			}
-
-			exec(command, (error) => {
-				if (error) {
-					// Folder might not exist, try to create and open
-					exec(`mkdir -p "${folderPath}" && ${command}`)
-				}
+			await fs.mkdir(folderPath, { recursive: true })
+			const open = (await import("open")).default
+			const child = await open(folderPath)
+			child.once("error", (error) => {
+				Logger.error("Failed to open configuration folder:", error)
+				setInteractionError(error.message)
 			})
 		},
 		[dataDir],
@@ -273,6 +253,7 @@ export const ConfigViewWrapper: React.FC<ConfigViewWrapperProps> = ({
 		<StdinProvider isRawModeSupported={isRawModeSupported}>
 			<ConfigView
 				dataDir={dataDir}
+				errorMessage={interactionError}
 				globalDiracRulesToggles={globalDiracRulesToggles}
 				globalHooks={globalHooks}
 				globalSkills={globalSkills}

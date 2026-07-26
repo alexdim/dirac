@@ -16,7 +16,16 @@ export enum PackageManager {
 
 interface InstallationInfo {
 	packageManager: PackageManager
-	updateCommand?: string
+	updateInvocation?: UpdateInvocation
+}
+
+interface UpdateInvocation {
+	command: string
+	args: string[]
+}
+
+function formatUpdateInvocation(invocation: UpdateInvocation): string {
+	return [invocation.command, ...invocation.args].join(" ")
 }
 
 /**
@@ -52,7 +61,7 @@ function getInstallationInfo(currentVersion: string): InstallationInfo {
 		if (scriptPath.includes("/.pnpm/global") || scriptPath.includes("/pnpm/global")) {
 			return {
 				packageManager: PackageManager.PNPM,
-				updateCommand: `pnpm add -g dirac-cli@${tag}`,
+				updateInvocation: { command: "pnpm", args: ["add", "-g", `dirac-cli@${tag}`] },
 			}
 		}
 
@@ -60,7 +69,7 @@ function getInstallationInfo(currentVersion: string): InstallationInfo {
 		if (scriptPath.includes("/.yarn/") || scriptPath.includes("/yarn/global")) {
 			return {
 				packageManager: PackageManager.YARN,
-				updateCommand: `yarn global add dirac-cli@${tag}`,
+				updateInvocation: { command: "yarn", args: ["global", "add", `dirac-cli@${tag}`] },
 			}
 		}
 
@@ -68,7 +77,7 @@ function getInstallationInfo(currentVersion: string): InstallationInfo {
 		if (scriptPath.includes("/.bun/bin")) {
 			return {
 				packageManager: PackageManager.BUN,
-				updateCommand: `bun add -g dirac-cli@${tag}`,
+				updateInvocation: { command: "bun", args: ["add", "-g", `dirac-cli@${tag}`] },
 			}
 		}
 
@@ -76,7 +85,7 @@ function getInstallationInfo(currentVersion: string): InstallationInfo {
 		if (scriptPath.includes("/node_modules/dirac-cli/")) {
 			return {
 				packageManager: PackageManager.NPM,
-				updateCommand: `npm install -g dirac-cli@${tag}`,
+				updateInvocation: { command: "npm", args: ["install", "-g", `dirac-cli@${tag}`] },
 			}
 		}
 	} catch {
@@ -130,20 +139,20 @@ export function autoUpdateOnStartup(currentVersion: string): void {
 				return
 			}
 
-			const { updateCommand } = getInstallationInfo(currentVersion)
-			if (!updateCommand) {
+			const { updateInvocation } = getInstallationInfo(currentVersion)
+			if (!updateInvocation) {
 				return
 			}
 
 			// Async version check - non-blocking, fire and forget
-			checkAndUpdate(currentVersion, updateCommand)
+			await checkAndUpdate(currentVersion, updateInvocation)
 		} catch {
 			// Best effort
 		}
 	})
 }
 
-async function checkAndUpdate(currentVersion: string, updateCommand: string): Promise<void> {
+async function checkAndUpdate(currentVersion: string, updateInvocation: UpdateInvocation): Promise<void> {
 	try {
 		const latestVersion = await getLatestVersion(currentVersion)
 		if (!latestVersion) return
@@ -152,8 +161,7 @@ async function checkAndUpdate(currentVersion: string, updateCommand: string): Pr
 		if (compareVersions(currentVersion, latestVersion) >= 0) return
 
 		// Spawn detached process to run the update command
-		const child = spawn(updateCommand, {
-			shell: true,
+		const child = spawn(updateInvocation.command, updateInvocation.args, {
 			detached: true,
 			stdio: "ignore",
 			env: process.env,
@@ -170,7 +178,7 @@ async function checkAndUpdate(currentVersion: string, updateCommand: string): Pr
 export async function checkForUpdates(currentVersion: string, options?: { verbose?: boolean }) {
 	printInfo("Checking for updates...")
 
-	const { updateCommand, packageManager } = getInstallationInfo(currentVersion)
+	const { updateInvocation, packageManager } = getInstallationInfo(currentVersion)
 
 	try {
 		const latestVersion = await getLatestVersion(currentVersion)
@@ -199,31 +207,30 @@ export async function checkForUpdates(currentVersion: string, options?: { verbos
 
 		printInfo(`New version available: ${latestVersion} (current: ${currentVersion})`)
 
-		if (!updateCommand) {
+		if (!updateInvocation) {
 			printInfo("Unable to determine update command for your installation.")
 			printInfo("Please update manually using your package manager.")
 			exit(0)
 		}
 
 		// Ask user to confirm update
-		const userConfirmed = new Promise<boolean>((resolve) => {
-			process.stdout.write("Do you want to update now? (y/N): ")
-			process.stdin.setEncoding("utf-8")
-			process.stdin.once("data", (dataBuff) => {
-				const input = dataBuff.toString().trim().toLowerCase()
-				resolve(input === "y" || input === "yes")
-			})
-		})
-
-		if (!(await userConfirmed)) {
+		const { createInterface } = await import("node:readline/promises")
+		const prompt = createInterface({ input: process.stdin, output: process.stdout })
+		let answer: string
+		try {
+			answer = await prompt.question("Do you want to update now? (y/N): ")
+		} finally {
+			prompt.close()
+		}
+		const normalizedAnswer = answer.trim().toLowerCase()
+		if (normalizedAnswer !== "y" && normalizedAnswer !== "yes") {
 			exit(0)
 		}
 
 		printInfo(`Installing update via ${packageManager}...`)
 
-		const updateProcess = spawn(updateCommand, {
+		const updateProcess = spawn(updateInvocation.command, updateInvocation.args, {
 			stdio: "inherit",
-			shell: true,
 			env: process.env,
 			windowsHide: true,
 		})
@@ -233,14 +240,14 @@ export async function checkForUpdates(currentVersion: string, options?: { verbos
 				printInfo(`Successfully updated to version ${latestVersion}`)
 				exit(0)
 			} else {
-				printWarning(`Update failed. Please try running: ${updateCommand}`)
+				printWarning(`Update failed. Please try running: ${formatUpdateInvocation(updateInvocation)}`)
 				exit(1)
 			}
 		})
 
 		updateProcess.on("error", (err) => {
 			printWarning(`Failed to run update: ${err.message}`)
-			printInfo(`Please try running manually: ${updateCommand}`)
+			printInfo(`Please try running manually: ${formatUpdateInvocation(updateInvocation)}`)
 			exit(1)
 		})
 	} catch (error) {
