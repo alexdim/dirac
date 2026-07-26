@@ -16,10 +16,10 @@ Key components:
 * execRipgrep: Executes the ripgrep command and returns the output.
 * regexSearchFiles: The main function that performs regex searches on files.
    - Parameters:
-     * cwd: The current working directory (for relative path calculation)
-     * directoryPath: The directory to search in
-     * regex: The regular expression to search for (Rust regex syntax)
-     * filePattern: Optional glob pattern to filter files (default: '*')
+	 * cwd: The current working directory (for relative path calculation)
+	 * directoryPath: The directory to search in
+	 * regex: The regular expression to search for (Rust regex syntax)
+	 * filePattern: Optional glob pattern to filter files (default: '*')
    - Returns: A formatted string containing search results with context
 
 The search results include:
@@ -288,7 +288,7 @@ const MAX_RIPGREP_MB = 0.1
 const MAX_BYTE_SIZE = MAX_RIPGREP_MB * 1024 * 1024 // 0.25MB in bytes
 const MAX_LINE_LENGTH = 300
 
-async function formatResults(
+export async function formatResults(
 	results: FileSearchResult[],
 	matchCount: number,
 	cwd: string,
@@ -311,16 +311,14 @@ async function formatResults(
 		const relPath = path.relative(cwd, absoluteFilePath)
 		let anchors: string[] = []
 
-		try {
-			if (AnchorStateManager.isTracking(absoluteFilePath, anchorTaskId)) {
-				anchors = AnchorStateManager.getAnchors(absoluteFilePath, anchorTaskId)!
-			} else {
+		if (includeAnchors) {
+			try {
 				const content = await fs.readFile(absoluteFilePath, "utf8")
 				const lines = content.split(/\r?\n/)
 				anchors = AnchorStateManager.reconcile(absoluteFilePath, lines, anchorTaskId)
+			} catch (error) {
+				Logger.error(`Error reading file for search anchors: ${absoluteFilePath}`, error)
 			}
-		} catch (error) {
-			Logger.error(`Error reading file for search anchors: ${absoluteFilePath}`, error)
 		}
 
 		const filePathHeader = `${relPath.toPosix()}\n│----\n`

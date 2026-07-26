@@ -97,7 +97,7 @@ export class EditFileTool implements IDiracTool<EditFileArgs> {
 	private resultsFormatter = new EditFormatter(this.executor)
 	private fileFormatter = new EditFileFormatter()
 	private validator = new EditFileValidator()
-	private batchPreparer = new EditFileBatchPreparer(this.executor, this.fileFormatter, this.resultsFormatter)
+	private batchPreparer = new EditFileBatchPreparer(this.executor, this.fileFormatter)
 	private approvalFlow = new EditFileApprovalFlow()
 	private applier = new EditFileApplier(this.resultsFormatter)
 
@@ -110,27 +110,47 @@ export class EditFileTool implements IDiracTool<EditFileArgs> {
 	}
 
 	async processCall(args: EditFileArgs, env: IToolEnvironment): Promise<any> {
-		// 1. Validate and normalize parameters
 		const files = this.validator.validateFiles(args, env)
 		if (typeof files === "string") return files
 
-		// 2. Resolve and prepare batches (diracignore, anchors, in-memory apply)
-		const { preparedBatches, results, totalRequestedEdits, cards } = await this.batchPreparer.prepare(files, env)
-		if (preparedBatches.length === 0) return ToolResponseCombiner.combine(results)
+		const { preparedBatches, results, totalRequestedEdits, totalResolvedEdits, totalFailedEdits, cards } =
+			await this.batchPreparer.prepare(files, env)
 
-		// 3. Handle approval flow
+		if (preparedBatches.length === 0) {
+			env.telemetry.captureCustomMetadata({
+				filesCount: files.length,
+				requestedEdits: totalRequestedEdits,
+				appliedEdits: 0,
+				failedEdits: totalFailedEdits,
+				outcome: totalFailedEdits > 0 ? "failure" : "success",
+			})
+			const combined = ToolResponseCombiner.combine(results)
+			return totalFailedEdits > 0 && typeof combined === "string" ? formatResponse.toolError(combined) : combined
+		}
+
 		const { approved, userEdits, feedback } = await this.approvalFlow.handle(env, preparedBatches, cards)
 		if (!approved) return feedback || formatResponse.toolDenied()
 
-		// 4. Apply and save to disk
 		const appliedResults = await this.applier.applyAndSave(env, preparedBatches, cards, userEdits)
-
-		// 5. Diagnostics and final results
 		const finalResults = await this.applier.finalizeResults(env, preparedBatches, appliedResults)
 		results.push(...finalResults)
 
-		// 6. Telemetry
-		env.telemetry.captureCustomMetadata({ filesCount: files.length, editsCount: totalRequestedEdits })
+		const outcome = totalFailedEdits > 0 ? "partial" : "success"
+		if (outcome === "partial") {
+			results.unshift(
+				formatResponse.toolResult(
+					`Partial success: ${totalResolvedEdits} of ${totalRequestedEdits} edits were applied; ${totalFailedEdits} failed. Do not retry the ${totalResolvedEdits} applied edits. Retry only the indexed failed edits below.`,
+				),
+			)
+		}
+
+		env.telemetry.captureCustomMetadata({
+			filesCount: files.length,
+			requestedEdits: totalRequestedEdits,
+			appliedEdits: totalResolvedEdits,
+			failedEdits: totalFailedEdits,
+			outcome,
+		})
 		await env.editor.hideReview()
 
 		return ToolResponseCombiner.combine(results)

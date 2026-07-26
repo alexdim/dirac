@@ -17,11 +17,13 @@ export interface ResolvedEdit {
 	lineIdx: number
 	endIdx: number
 	edit: Edit
+	editIndex: number
 }
 
 export interface FailedEdit {
 	edit: Edit
 	error: string
+	editIndex: number
 }
 
 export interface AppliedEdit {
@@ -45,6 +47,7 @@ export interface PreparedEdits {
 	lineHashes: string[]
 	finalLines: string[]
 	displayPath: string
+	fileIndex: number
 }
 
 export interface PreparedFileBatch {

@@ -1,8 +1,8 @@
 import { formatResponse } from "@core/formatResponse"
 import { formatLineWithHash, getDelimiter } from "@utils/line-hashing"
 import type { ToolResponse } from "../../../types/ToolResponse"
-import { EditExecutor } from "./EditExecutor"
 import { AppliedEdit, PreparedEdits } from "../types"
+import { EditExecutor } from "./EditExecutor"
 
 export class EditFormatter {
 	constructor(private executor: EditExecutor) {}
@@ -110,23 +110,14 @@ export class EditFormatter {
 
 		for (const applied of appliedEdits) {
 			const { originalStartIdx, originalEndIdx, startIdx, endIdx } = applied
-
-			// Calculate added/removed lines for this edit
 			const originalHashesSet = new Set(lineHashes.slice(originalStartIdx, originalEndIdx + 1))
 			const finalHashesSet = new Set(newLineHashes.slice(startIdx, endIdx + 1))
 
-			// Removed: lines in original range not in final range
 			for (let i = originalStartIdx; i <= originalEndIdx; i++) {
-				if (!finalHashesSet.has(lineHashes[i])) {
-					totalRemoved++
-				}
+				if (!finalHashesSet.has(lineHashes[i])) totalRemoved++
 			}
-
-			// Added: lines in final range not in original range
 			for (let i = startIdx; i <= endIdx; i++) {
-				if (!originalHashesSet.has(newLineHashes[i])) {
-					totalAdded++
-				}
+				if (!originalHashesSet.has(newLineHashes[i])) totalAdded++
 			}
 
 			const diffBlock =
@@ -136,14 +127,14 @@ export class EditFormatter {
 			appliedDiffs.push(diffBlock)
 		}
 
-		const totalDiffLines = appliedDiffs.reduce((acc, d) => acc + d.split("\n").length, 0)
+		const totalDiffLines = appliedDiffs.reduce((acc, diff) => acc + diff.split("\n").length, 0)
 		const useFullFile = totalDiffLines > finalLines.length * 0.7 && finalLines.length > 0
-
 		const results: string[] = []
+
 		if (useFullFile) {
 			results.push(
 				`Because the changes were extensive, the full updated file content with anchors is provided below to ensure clarity:\n\n${finalLines
-					.map((line, i) => formatLineWithHash(line, newLineHashes[i]))
+					.map((line, index) => formatLineWithHash(line, newLineHashes[index]))
 					.join("\n")}`,
 			)
 		} else {
@@ -151,10 +142,14 @@ export class EditFormatter {
 		}
 
 		for (const failed of failedEdits) {
-			results.push(this.executor.formatFailureMessage(failed.edit, failed.error))
+			results.push(
+				this.executor.formatFailureMessage(failed.edit, failed.error, {
+					fileIndex: prepared.fileIndex,
+					editIndex: failed.editIndex,
+				}),
+			)
 		}
 
-		// Check for accidental literal \n in applied edits
 		for (const applied of appliedEdits) {
 			if (applied.edit.text.includes("\\n")) {
 				const anchorName = applied.edit.anchor.split(getDelimiter())[0]
@@ -166,23 +161,15 @@ export class EditFormatter {
 			}
 		}
 
-		if (diagnosticsResult.fixedCount > 0) {
-			results.push(`Fixed ${diagnosticsResult.fixedCount} linter error(s).`)
+		if (diagnosticsResult.fixedCount > 0) results.push(`Fixed ${diagnosticsResult.fixedCount} linter error(s).`)
+		if (diagnosticsResult.newProblemsMessage.trim()) {
+			results.push(`New problems detected after saving the file:\n${diagnosticsResult.newProblemsMessage.trim()}`)
 		}
-
-		if (diagnosticsResult.newProblemsMessage) {
-			const message = diagnosticsResult.newProblemsMessage.trim()
-			if (message.length > 0) {
-				results.push(`New problems detected after saving the file:\n${message}`)
-			}
-		}
-
 		if (userEdits) {
 			results.push(
 				`*** User Modified File CRITICAL: The user manually modified the file during review. You MUST NOT revert these changes. If you need to fix syntax errors in the same area, you MUST incorporate the user's changes into your new edits.): ${prepared.displayPath}\n\n${userEdits}`,
 			)
 		}
-
 		if (autoFormattingEdits) {
 			results.push(
 				`The user's editor also applied the following auto-formatting to your content:\n\n${autoFormattingEdits}\n\n(Note: Pay close attention to changes such as single quotes being converted to double quotes, semicolons being removed or added, long lines being broken into multiple lines, adjusting indentation style, adding/removing trailing commas, etc. This will help you ensure future edit_file operations to this file are accurate.)`,
@@ -190,9 +177,10 @@ export class EditFormatter {
 		}
 
 		const lineChanges = ` (+${totalAdded}, -${totalRemoved} lines)`
-		const summary = `Applied ${resolvedEdits.length} edit(s) successfully${lineChanges}. NOTE the UPDATED anchors below.${
-			failedEdits.length > 0 ? ` ${failedEdits.length} edit(s) failed.` : ""
-		}`
+		const summary =
+			failedEdits.length > 0
+				? `Partial success in files[${prepared.fileIndex}] (${prepared.displayPath}): ${resolvedEdits.length} edit(s) applied${lineChanges}; ${failedEdits.length} failed. Do not retry the applied edits; retry only the indexed failed edits below. NOTE the UPDATED anchors below.`
+				: `Applied ${resolvedEdits.length} edit(s) successfully${lineChanges}. NOTE the UPDATED anchors below.`
 		if (wasStringified) {
 			results.push(
 				`Note: You provided the 'files' parameter as a stringified JSON array. While this was successfully parsed and applied, you should provide it as a native JSON array in the future.`,

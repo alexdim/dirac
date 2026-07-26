@@ -1,9 +1,9 @@
-import { CardStatus } from "@/shared/ExtensionMessage"
 import { AnchorStateManager } from "@utils/AnchorStateManager"
+import { CardStatus } from "@/shared/ExtensionMessage"
 import type { IToolEnvironment } from "../../interfaces/IToolEnvironment"
 import type { ToolResponse } from "../../types/ToolResponse"
-import { EditFormatter } from "./utils/EditFormatter"
 import { PreparedFileBatch } from "./types"
+import { EditFormatter } from "./utils/EditFormatter"
 
 // Applies prepared batches to disk, formats files, and produces final diagnostic results.
 export class EditFileApplier {
@@ -17,7 +17,6 @@ export class EditFileApplier {
 	): Promise<Map<string, any>> {
 		const appliedResults = new Map<string, any>()
 
-		// Update all cards to RUNNING state
 		await Promise.all(
 			preparedBatches.map(async (batch) => {
 				const card = cards[batch.absolutePath]
@@ -25,14 +24,12 @@ export class EditFileApplier {
 			}),
 		)
 
-		// Prepare files for batch application — override with user edits if present
 		const filesToApply = preparedBatches.map((batch) => ({
 			path: batch.absolutePath,
 			content: userEdits?.[batch.displayPath] ?? batch.prepared!.finalContent,
 		}))
 		const batchResults = await env.editor.applyAndSaveBatchSilently(filesToApply)
 
-		// Best-effort formatting after saving
 		for (const batch of preparedBatches) {
 			try {
 				await env.editor.format(batch.absolutePath)
@@ -41,7 +38,6 @@ export class EditFileApplier {
 			}
 		}
 
-		// Process results and update cards
 		await Promise.all(
 			preparedBatches.map(async (batch) => {
 				const saveResult = batchResults.get(batch.absolutePath)
@@ -62,20 +58,28 @@ export class EditFileApplier {
 				})
 
 				const card = cards[batch.absolutePath]
-				if (card)
-					await card.update({
-						header: `Edited ${batch.displayPath}`,
-						status: CardStatus.SUCCESS,
-						body: batch.prepared!.diff,
-						renderType: "diff",
-						diffs: [
-							{
-								path: batch.displayPath,
-								oldText: batch.prepared!.content,
-								newText: finalContent,
-							},
-						],
-					})
+				if (!card) return
+				const prepared = batch.prepared!
+				const isPartial = prepared.failedEdits.length > 0
+				const header = isPartial
+					? `Partially edited ${batch.displayPath} — ${prepared.resolvedEdits.length} applied, ${prepared.failedEdits.length} failed`
+					: `Edited ${batch.displayPath} — ${prepared.resolvedEdits.length} edit(s) applied`
+				const failureSummary = prepared.failedEdits
+					.map((failed) => `files[${prepared.fileIndex}].edits[${failed.editIndex}] failed: ${failed.error}`)
+					.join("\n\n")
+				await card.update({
+					header,
+					status: CardStatus.SUCCESS,
+					body: [prepared.diff, failureSummary].filter(Boolean).join("\n\n"),
+					renderType: "diff",
+					diffs: [
+						{
+							path: batch.displayPath,
+							oldText: prepared.content,
+							newText: finalContent,
+						},
+					],
+				})
 			}),
 		)
 

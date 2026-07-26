@@ -10,70 +10,99 @@ import type { ToolResponse } from "../../types/ToolResponse"
 import { EditFileFormatter } from "./EditFileFormatter"
 import { FileEdit, PreparedEdits, PreparedFileBatch } from "./types"
 import { EditExecutor } from "./utils/EditExecutor"
-import { EditFormatter } from "./utils/EditFormatter"
 
 // Prepares file batches: resolves paths, checks diracignore, resolves anchors, applies edits in memory.
 export class EditFileBatchPreparer {
 	constructor(
 		private executor: EditExecutor,
 		private fileFormatter: EditFileFormatter,
-		private resultsFormatter: EditFormatter,
 	) {}
 
 	async prepare(files: FileEdit[], env: IToolEnvironment) {
 		const preparedBatches: PreparedFileBatch[] = []
-		let hasError = false
 		const cards: Record<string, any> = {}
 		const results: ToolResponse[] = []
-		let totalRequestedEdits = 0
+		const totalRequestedEdits = files.reduce((count, file) => count + file.edits.length, 0)
+		let totalResolvedEdits = 0
+		let totalFailedEdits = 0
 
-		for (const file of files) {
+		for (const [fileIndex, file] of files.entries()) {
 			const { absolutePath, displayPath } = await env.workspace.resolvePath(file.path)
 			if (!env.config.services.diracIgnoreController.validateAccess(file.path)) {
-				hasError = true
+				totalFailedEdits += file.edits.length
 				results.push(formatResponse.diracIgnoreError(file.path))
 				continue
 			}
 
-			const prepared = await this.prepareEdits(absolutePath, displayPath, file.edits, env)
+			const prepared = await this.prepareEdits(absolutePath, displayPath, file.edits, fileIndex, env)
 			if ("error" in prepared) {
-				if (cards[absolutePath])
-					await cards[absolutePath].update({ status: CardStatus.ERROR, body: `✕ Error: ${prepared.error}` })
-				hasError = true
+				totalFailedEdits += file.edits.length
 				results.push(prepared.error)
 				continue
 			}
 
-			const { finalLines, appliedEdits } = this.executor.applyEdits(prepared.lines, prepared.resolvedEdits)
-			if (!env.config.isSubagentExecution) {
-				const additions = appliedEdits.reduce((acc, e) => acc + e.linesAdded, 0)
-				const deletions = appliedEdits.reduce((acc, e) => acc + e.linesDeleted, 0)
-				const stats = additions > 0 || deletions > 0 ? ` (+${additions}, -${deletions})` : ""
-				cards[absolutePath] = await env.ui.createCard({
-					header: `Editing ${displayPath}`,
-					icon: DiracIcon.FILE_EDIT,
-					collapsed: true,
-				})
+			totalResolvedEdits += prepared.resolvedEdits.length
+			totalFailedEdits += prepared.failedEdits.length
+
+			const failureMessages = prepared.failedEdits.map((failed) =>
+				this.executor.formatFailureMessage(failed.edit, failed.error, { fileIndex, editIndex: failed.editIndex }),
+			)
+			if (prepared.resolvedEdits.length === 0) {
+				const failureMessage = failureMessages.join("\n\n")
+				results.push(failureMessage)
+				if (!env.config.isSubagentExecution) {
+					const card = await env.ui.createCard({
+						header: `Could not edit ${displayPath} — ${prepared.failedEdits.length} edit(s) failed`,
+						icon: DiracIcon.FILE_EDIT,
+						status: CardStatus.ERROR,
+						body: failureMessage,
+						collapsed: true,
+					})
+					await card.finalize(CardStatus.ERROR)
+				}
+				continue
 			}
+
+			const { finalLines, appliedEdits } = this.executor.applyEdits(prepared.lines, prepared.resolvedEdits)
 			prepared.finalLines = finalLines
 			prepared.finalContent = finalLines.join("\n")
 			prepared.appliedEdits = appliedEdits
 			prepared.diff = this.fileFormatter.generateDiff(displayPath, prepared.lines, finalLines)
-			if (cards[absolutePath]) await cards[absolutePath].update({ body: stripHashesFromDiff(prepared.diff) })
+
+			if (!env.config.isSubagentExecution) {
+				const partialSuffix =
+					prepared.failedEdits.length > 0
+						? ` — ${prepared.resolvedEdits.length} ready, ${prepared.failedEdits.length} failed`
+						: ""
+				cards[absolutePath] = await env.ui.createCard({
+					header: `Editing ${displayPath}${partialSuffix}`,
+					icon: DiracIcon.FILE_EDIT,
+					collapsed: true,
+				})
+				const cardBody = [stripHashesFromDiff(prepared.diff), ...failureMessages].filter(Boolean).join("\n\n")
+				await cards[absolutePath].update({ body: cardBody })
+			}
 
 			preparedBatches.push({ absolutePath, displayPath, blocks: [], prepared })
-			totalRequestedEdits += prepared.resolvedEdits.length
 		}
 
-		return { preparedBatches, results, totalRequestedEdits, cards, hasError }
+		return {
+			preparedBatches,
+			results,
+			totalRequestedEdits,
+			totalResolvedEdits,
+			totalFailedEdits,
+			cards,
+		}
 	}
 
 	private async prepareEdits(
 		absolutePath: string,
 		displayPath: string,
 		edits: any[],
+		fileIndex: number,
 		env: IToolEnvironment,
-	): Promise<PreparedEdits | { error: any }> {
+	): Promise<PreparedEdits | { error: string }> {
 		try {
 			await env.workspace.saveOpenDocumentIfDirty({ filePath: absolutePath })
 			const content = await env.workspace.readFile(absolutePath)
@@ -84,10 +113,6 @@ export class EditFileBatchPreparer {
 				lines,
 				lineHashes,
 			)
-			if (resolvedEdits.length === 0) {
-				const failureMessages = failedEdits.map((f) => this.executor.formatFailureMessage(f.edit, f.error))
-				return { error: formatResponse.toolError(failureMessages.join("\n\n")) }
-			}
 			return {
 				content,
 				finalContent: content,
@@ -99,9 +124,10 @@ export class EditFileBatchPreparer {
 				lineHashes,
 				finalLines: lines,
 				displayPath,
+				fileIndex,
 			}
 		} catch (error: any) {
-			return { error: formatResponse.toolError(`Error preparing edits: ${error.message}`) }
+			return { error: `Error preparing edits for ${displayPath}: ${error.message}` }
 		}
 	}
 }

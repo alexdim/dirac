@@ -4,6 +4,7 @@ import os from "node:os"
 import path from "node:path"
 import { DiracDefaultTool } from "@shared/tools"
 import { ANCHOR_DELIMITER } from "@shared/utils/line-hashing"
+import { DiracAskResponse } from "@shared/WebviewMessage"
 import { AnchorStateManager } from "@utils/AnchorStateManager"
 import * as pathUtils from "@utils/path"
 import { afterEach, beforeEach, describe, it } from "mocha"
@@ -12,16 +13,15 @@ import { HostProvider } from "@/hosts/host-provider"
 import * as getDiagnosticsProvidersModule from "@/integrations/diagnostics/getDiagnosticsProviders"
 import { setVscodeHostProviderMock } from "@/test/host-provider-test-utils"
 import { TaskState } from "../../../../TaskState"
+import { createMockContext, createMockTaskMessenger } from "../../../__tests__/helpers/mockTaskConfig"
+import { SurfaceAdapter } from "../../../adapters/SurfaceAdapter"
 import { ToolValidator } from "../../../ToolValidator"
 import type { TaskConfig } from "../../../types/TaskConfig"
 import { EditFileTool } from "../EditFileTool"
-import { SurfaceAdapter } from "../../../adapters/SurfaceAdapter"
-import { DiracAskResponse } from "@shared/WebviewMessage"
-import { createMockContext, createMockTaskMessenger } from "../../../__tests__/helpers/mockTaskConfig"
 
 class EditFileToolHandler {
 	private tool = new EditFileTool()
-	public diagnosticsTimeoutMs: number = 0
+	public diagnosticsTimeoutMs = 0
 	constructor(_validator: any, _forceSyntaxChecker: boolean) {}
 	async execute(config: TaskConfig, block: any) {
 		const env = new SurfaceAdapter(config)
@@ -241,14 +241,16 @@ describe("EditFileTool.execute – partial success", () => {
 		// Verify tool response
 		assert.ok(typeof result === "string")
 		assert.ok(
-			result.includes("Applied 2 edit(s) successfully") && result.includes("1 edit(s) failed"),
-			"Should include success summary",
+			result.includes("Partial success: 2 of 3 edits were applied; 1 failed") &&
+				result.includes("Do not retry the 2 applied edits"),
+			"Should include an explicit partial-success summary",
 		)
 		assert.ok(
-			result.includes('Edit (anchor: "123missing", end_anchor: "123missing") failed. Diagnostics:'),
-			"Should include failure diagnostics",
+			result.includes('files[0].edits[1] (anchor: "123missing", end_anchor: "123missing") failed. Diagnostics:'),
+			"Should identify the failed edit by its original index",
 		)
 		assert.ok(result.includes("anchor is missing or incorrectly formatted"), "Should include missing anchor error")
+		assert.ok(!result.includes("The tool execution failed with the following error"), "Partial success is not total failure")
 		// Verify result contains context blocks
 		assert.ok(result.includes("new line 2"))
 		assert.ok(result.includes("new line 4"))
@@ -277,8 +279,8 @@ describe("EditFileTool.execute – partial success", () => {
 		// Verify tool response (should be a tool error as it was before)
 		assert.ok(typeof result === "string")
 		assert.ok(result.includes("The tool execution failed with the following error"))
-		assert.ok(result.includes('Edit (anchor: "123badone", end_anchor: "123badone") failed. Diagnostics:'))
-		assert.ok(result.includes('Edit (anchor: "123badtwo", end_anchor: "123badtwo") failed. Diagnostics:'))
+		assert.ok(result.includes('files[0].edits[0] (anchor: "123badone", end_anchor: "123badone") failed. Diagnostics:'))
+		assert.ok(result.includes('files[0].edits[1] (anchor: "123badtwo", end_anchor: "123badtwo") failed. Diagnostics:'))
 		assert.ok(result.includes("anchor is missing or incorrectly formatted"))
 		assert.ok(result.includes("anchor is missing or incorrectly formatted"))
 	})
