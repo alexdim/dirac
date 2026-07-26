@@ -343,7 +343,7 @@ describe("EditFileTool.execute – partial success", () => {
 		const emittedFingerprint = AnchorStateManager.getDocumentFingerprint(filePath, config.ulid)
 
 		AnchorStateManager.reset(config.ulid)
-		randomStub.returns(0.999999)
+		randomStub.returns(0.999)
 		const block = makeMultiEditBlock(fileName, [
 			{ edit_type: "replace", anchor: oldAnchor, end_anchor: oldAnchor, text: "should not apply" },
 		])
