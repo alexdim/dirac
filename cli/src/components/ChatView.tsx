@@ -862,7 +862,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
 					if (item.type === "header") {
 						return (
 							<Box key={item.key} paddingX={0} width="100%">
-								<ChatHeader />
+								<ChatHeader quote={quote} />
 							</Box>
 						)
 					}
