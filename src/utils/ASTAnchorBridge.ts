@@ -55,13 +55,8 @@ export class ASTAnchorBridge {
 				formattedOutput += `│${formatLineForModel(def.text, anchors[startLine], revealAnchors)}\n`
 				lastLineAdded = startLine
 
-				if (options?.showCallGraph) {
-					if (def.lineCount !== undefined) {
-						formattedOutput += `│${def.indentation}    # Lines: ${def.lineCount}\n`
-					}
-					if (def.calls && def.calls.length > 0) {
-						formattedOutput += `│${def.indentation}    # Calls: [${def.calls.sort().join(", ")}]\n`
-					}
+				if (options?.showCallGraph && def.calls && def.calls.length > 0) {
+					formattedOutput += `│${def.indentation}    # Calls: [${def.calls.sort().join(", ")}]\n`
 				}
 			}
 		}

@@ -74,7 +74,12 @@ export class GetFileSkeletonTool implements IDiracTool<GetFileSkeletonArgs, stri
 					const skeleton = await env.ast.getSkeleton(absolutePath, { showCallGraph: true, includeAnchors })
 					skeletons.push({ path: displayPath, content: skeleton || `No definitions found in ${relPath}` })
 					if (cards) {
-						const defCount = (skeleton || "").split("\n").filter((l: string) => l.trim().length > 0).length
+						const defCount = (skeleton || "")
+							.split("\n")
+							.filter((line: string) => {
+								const content = line.replace(/^│/, "").trim()
+								return content.length > 0 && content !== "|----" && !content.startsWith("#")
+							}).length
 						await cards.get(absolutePath)?.update({
 							header: `Extracted skeleton from ${displayPath}`,
 							status: CardStatus.SUCCESS,

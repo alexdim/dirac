@@ -1,27 +1,19 @@
 --- sample.swift ---
 |----
 │class SwiftClass {
-│    # Lines: 16
 │    var name: String
 |----
 │    init(name: String) {
-│        # Lines: 3
 |----
 │    func getName() -> String {
-│        # Lines: 3
 |----
 │    func calculate(a: Int, b: Int) -> Int {
-│        # Lines: 3
 |----
 │func topLevelFunc(x: Int) -> Int {
-│    # Lines: 5
 │    let obj = SwiftClass(name: "example")
 |----
 │struct MyStruct {
-│    # Lines: 5
 │    func structMethod() {
-│        # Lines: 3
 |----
 │    func extensionMethod() {
-│        # Lines: 3
 |----
