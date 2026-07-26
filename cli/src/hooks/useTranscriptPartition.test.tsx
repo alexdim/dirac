@@ -8,19 +8,28 @@ import { useTranscriptPartition } from "./useTranscriptPartition"
 interface Message {
 	id: string
 	mutable?: boolean
+	rows?: number
 }
 
 function TranscriptPartitionHarness({
 	messages,
 	conversationKey,
+	rowBudget,
 }: {
 	messages: Message[]
 	conversationKey?: string
+	rowBudget?: number
 }) {
 	const result = useTranscriptPartition(
 		messages,
 		(message) => message.mutable === true,
 		conversationKey,
+		rowBudget === undefined
+			? undefined
+			: {
+					rowBudget,
+					estimateRows: (message) => message.rows ?? 1,
+				},
 	)
 	return (
 		<Text>
@@ -30,15 +39,16 @@ function TranscriptPartitionHarness({
 }
 
 describe("useTranscriptPartition", () => {
-	it("commits every finalized message to terminal scrollback", () => {
+	it("retains finalized messages that fit the rolling row budget", () => {
 		const { lastFrame } = render(
 			<TranscriptPartitionHarness
 				conversationKey="task"
 				messages={[{ id: "first" }, { id: "recent" }]}
+				rowBudget={2}
 			/>,
 		)
 
-		expect(lastFrame()).toBe("first,recent|")
+		expect(lastFrame()).toBe("|first,recent")
 	})
 
 	it("keeps the mutable suffix out of the static transcript", () => {
@@ -52,18 +62,22 @@ describe("useTranscriptPartition", () => {
 		expect(lastFrame()).toBe("user|running,queued")
 	})
 
-	it("commits a mutable message immediately when it finalizes", () => {
+	it("keeps a finalized mutable message resident until capacity displaces it", () => {
 		const first = { id: "first" }
 		const streaming = { id: "streaming", mutable: true }
 		const view = render(
-			<TranscriptPartitionHarness conversationKey="task" messages={[first, streaming]} />,
+			<TranscriptPartitionHarness conversationKey="task" messages={[first, streaming]} rowBudget={2} />,
 		)
-		expect(view.lastFrame()).toBe("first|streaming")
+		expect(view.lastFrame()).toBe("|first,streaming")
 
 		view.rerender(
-			<TranscriptPartitionHarness conversationKey="task" messages={[first, { id: "streaming" }]} />,
+			<TranscriptPartitionHarness
+				conversationKey="task"
+				messages={[first, { id: "streaming" }, { id: "new", rows: 2 }]}
+				rowBudget={2}
+			/>,
 		)
-		expect(view.lastFrame()).toBe("first,streaming|")
+		expect(view.lastFrame()).toBe("first,streaming|new")
 	})
 
 	it("resets the static watermark when another task replaces the transcript", () => {
@@ -81,4 +95,17 @@ describe("useTranscriptPartition", () => {
 
 		expect(view.lastFrame()).toBe("new-user|new-stream")
 	})
+
+	it("keeps a partially visible finalized message dynamic", () => {
+		const { lastFrame } = render(
+			<TranscriptPartitionHarness
+				conversationKey="task"
+				messages={[{ id: "older", rows: 4 }, { id: "latest", rows: 2 }]}
+				rowBudget={3}
+			/>,
+		)
+
+		expect(lastFrame()).toBe("|older,latest")
+	})
+
 })

@@ -2,15 +2,16 @@ import type { Card } from "@shared/ExtensionMessage"
 import { Box, Text } from "ink"
 import React from "react"
 import { theme } from "../../constants/theme"
-import { Markdown } from "./Markdown"
-import { cardBodyForDisplay } from "../../utils/card-body"
+import { CardBody } from "./CardBody"
 
 interface TaskCompletionCardProps {
 	card: Card
+	maxBodyLines?: number
+	scrollOffset?: number
 }
 
-export const TaskCompletionCard: React.FC<TaskCompletionCardProps> = ({ card }) => {
-	const body = cardBodyForDisplay(card.body, card.renderType)
+export const TaskCompletionCard: React.FC<TaskCompletionCardProps> = ({ card, maxBodyLines, scrollOffset }) => {
+	const hasBody = Boolean(card.body)
 	return (
 		<Box
 			borderColor={theme.toolComplete}
@@ -19,9 +20,14 @@ export const TaskCompletionCard: React.FC<TaskCompletionCardProps> = ({ card }) 
 			paddingX={1}
 			width="100%">
 			<Text bold color={theme.toolComplete}>✔ Task Completed</Text>
-			{body && (
+			{hasBody && (
 				<Box marginTop={1} paddingLeft={1}>
-					<Markdown color={theme.strongText}>{body}</Markdown>
+					<CardBody
+						body={card.body}
+						maxLines={maxBodyLines}
+						renderType={card.renderType}
+						scrollOffset={scrollOffset}
+					/>
 				</Box>
 			)}
 		</Box>
