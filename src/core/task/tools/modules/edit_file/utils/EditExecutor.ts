@@ -1,5 +1,5 @@
 import { ToolUse } from "@core/assistant-message"
-import { splitAnchor, stripHashes, getDelimiter } from "@utils/line-hashing"
+import { getDelimiter, splitAnchor, stripHashes } from "@utils/line-hashing"
 import { AppliedEdit, Edit, FailedEdit, ResolvedEdit } from "../types"
 
 export class EditExecutor {
@@ -14,7 +14,7 @@ export class EditExecutor {
 
 		for (const block of blocks) {
 			const edits = (block.params.edits as Edit[]) || []
-			for (const edit of edits) {
+			for (const [editIndex, edit] of edits.entries()) {
 				const diagnostics: string[] = []
 				const editType = edit.edit_type
 
@@ -43,9 +43,9 @@ export class EditExecutor {
 				}
 
 				if (diagnostics.length > 0) {
-					failedEdits.push({ edit, error: diagnostics.join(" ") })
+					failedEdits.push({ edit, error: diagnostics.join(" "), editIndex })
 				} else {
-					resolvedEdits.push({ lineIdx, endIdx, edit })
+					resolvedEdits.push({ lineIdx, endIdx, edit, editIndex })
 				}
 			}
 		}
@@ -168,10 +168,11 @@ export class EditExecutor {
 		return { finalLines: newLines, addedCount, removedCount, appliedEdits }
 	}
 
-	formatFailureMessage(edit: Edit, error?: string): string {
+	formatFailureMessage(edit: Edit, error?: string, location?: { fileIndex: number; editIndex: number }): string {
 		const diagnostic = error
 			? ` Diagnostics: ${error}`
 			: " This almost certainly is because the anchors used were incorrect or not in ascending order or the text supplied was incorrect. please check again edit again"
-		return `Edit (anchor: "${edit.anchor}", end_anchor: "${edit.end_anchor}") failed.${diagnostic}`
+		const locationPrefix = location ? `files[${location.fileIndex}].edits[${location.editIndex}] ` : "Edit "
+		return `${locationPrefix}(anchor: "${edit.anchor}", end_anchor: "${edit.end_anchor}") failed.${diagnostic}`
 	}
 }

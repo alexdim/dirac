@@ -3,16 +3,17 @@ import fs from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
 import { DiracDefaultTool } from "@shared/tools"
+import { DiracAskResponse } from "@shared/WebviewMessage"
+import { AnchorStateManager } from "@utils/AnchorStateManager"
 import * as pathUtils from "@utils/path"
 import { afterEach, beforeEach, describe, it } from "mocha"
 import sinon from "sinon"
 import { TaskState } from "../../../../TaskState"
+import { createMockContext, createMockTaskMessenger } from "../../../__tests__/helpers/mockTaskConfig"
+import { SurfaceAdapter } from "../../../adapters/SurfaceAdapter"
 import { ToolValidator } from "../../../ToolValidator"
 import type { TaskConfig } from "../../../types/TaskConfig"
 import { ReadFileTool } from "../ReadFileTool"
-import { SurfaceAdapter } from "../../../adapters/SurfaceAdapter"
-import { DiracAskResponse } from "@shared/WebviewMessage"
-import { createMockContext, createMockTaskMessenger } from "../../../__tests__/helpers/mockTaskConfig"
 
 /**
  * End-to-end tests for ReadFileToolHandler.execute().
@@ -31,7 +32,7 @@ let tmpDir: string
 
 class ReadFileToolHandler {
 	private tool = new ReadFileTool()
-	constructor(_validator: any) { }
+	constructor(_validator: any) {}
 	async execute(config: TaskConfig, block: any) {
 		const env = new SurfaceAdapter(config)
 		return this.tool.processCall(block.params, env)
@@ -144,7 +145,7 @@ describe("ReadFileToolHandler.execute – file not found", () => {
 
 	afterEach(async () => {
 		sandbox.restore()
-		await fs.rm(tmpDir, { recursive: true, force: true }).catch(() => { })
+		await fs.rm(tmpDir, { recursive: true, force: true }).catch(() => {})
 	})
 
 	it("returns a tool error (not a thrown exception) for a non-existent file", async () => {
@@ -211,7 +212,7 @@ describe("ReadFileToolHandler.execute – include_anchors visibility and cache",
 
 	afterEach(async () => {
 		sandbox.restore()
-		await fs.rm(tmpDir, { recursive: true, force: true }).catch(() => { })
+		await fs.rm(tmpDir, { recursive: true, force: true }).catch(() => {})
 	})
 
 	function makeReadBlock(relPath: string, includeAnchors?: boolean) {
@@ -238,6 +239,24 @@ describe("ReadFileToolHandler.execute – include_anchors visibility and cache",
 
 		const repeatedAnchoredResult = (await handler.execute(config, makeReadBlock(realFile, true))) as string
 		assert.ok(repeatedAnchoredResult.includes("no changes have been made to the file since your last read"))
+	})
+
+	it("re-emits anchored content when the persisted file hash outlives anchor state", async () => {
+		const { config, validator } = createConfig()
+		const handler = new ReadFileToolHandler(validator)
+		const realFile = "lost-anchor-state.txt"
+		const absolutePath = path.join(tmpDir, realFile)
+		await fs.writeFile(absolutePath, "first line\nsecond line")
+
+		const firstRead = (await handler.execute(config, makeReadBlock(realFile, true))) as string
+		assert.ok(/^[A-Z][a-zA-Z]*§first line/m.test(firstRead))
+
+		AnchorStateManager.reset(config.ulid)
+		const refreshedRead = (await handler.execute(config, makeReadBlock(realFile, true))) as string
+
+		assert.ok(!refreshedRead.includes("no changes have been made"))
+		assert.ok(/^[A-Z][a-zA-Z]*§first line/m.test(refreshedRead))
+		assert.ok(AnchorStateManager.isTracking(absolutePath, config.ulid))
 	})
 
 	it("does not let a partial read suppress a later full read", async () => {
@@ -502,6 +521,4 @@ describe("ReadFileToolHandler.execute – include_anchors visibility and cache",
 		assert.ok(result.includes(`--- ${smallFile} ---`))
 		assert.ok(result.includes("small succeeds"))
 	})
-
-
 })

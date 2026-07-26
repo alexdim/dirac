@@ -1,12 +1,12 @@
+import { formatResponse } from "@core/formatResponse"
+import { AnchorStateManager } from "@utils/AnchorStateManager"
+import { contentHash, formatLinesForModel } from "@utils/line-hashing"
+import { CardStatus } from "@/shared/ExtensionMessage"
+import { DiracIcon } from "@/shared/icons"
+import { DiracDefaultTool, DiracToolSpec } from "@/shared/tools"
 import { IDiracTool } from "../../interfaces/IDiracTool"
 import { IToolEnvironment } from "../../interfaces/IToolEnvironment"
-import { DiracIcon } from "@/shared/icons"
-import { DiracToolSpec, DiracDefaultTool } from "@/shared/tools"
-import { formatResponse } from "@core/formatResponse"
 import { SurfaceType } from "../../interfaces/SurfaceType"
-import { contentHash, formatLinesForModel } from "@utils/line-hashing"
-import { AnchorStateManager } from "@utils/AnchorStateManager"
-import { CardStatus } from "@/shared/ExtensionMessage"
 
 export interface ReadFileArgs {
 	paths: string[]
@@ -143,10 +143,10 @@ export class ReadFileTool implements IDiracTool<ReadFileArgs> {
 			const rangeLabel = lineRange ? `lines ${lineRange.start}-${lineRange.end ?? "end"}` : undefined
 			card = !env.config.isSubagentExecution
 				? await env.ui.createCard({
-					header: rangeLabel ? `Reading ${rangeLabel} from ${displayPath}` : `Reading from ${displayPath}`,
-					icon: DiracIcon.FILE_READ,
-					collapsed: true,
-				})
+						header: rangeLabel ? `Reading ${rangeLabel} from ${displayPath}` : `Reading from ${displayPath}`,
+						icon: DiracIcon.FILE_READ,
+						collapsed: true,
+					})
 				: undefined
 
 			const fileContent = await env.workspace.readRichFile(absolutePath)
@@ -168,7 +168,8 @@ export class ReadFileTool implements IDiracTool<ReadFileArgs> {
 
 			const currentHash = contentHash(fileContent.text)
 			const cacheKey = `${absolutePath}#${includeAnchors ? "anchored" : "plain"}`
-			if (selection.coversWholeFile && fileHashes[cacheKey] === currentHash) {
+			const hasUsableAnchorState = !includeAnchors || AnchorStateManager.isTracking(absolutePath, env.config.ulid)
+			if (selection.coversWholeFile && fileHashes[cacheKey] === currentHash && hasUsableAnchorState) {
 				const result = `${header}no changes have been made to the file since your last read (Hash: ${currentHash})`
 				if (card) {
 					await card.update({
@@ -186,7 +187,11 @@ export class ReadFileTool implements IDiracTool<ReadFileArgs> {
 			if (includeAnchors) {
 				const allLines = fileContent.text.split(/\r?\n/)
 				const anchors = AnchorStateManager.reconcile(absolutePath, allLines, env.config.ulid)
-				formattedContent = formatLinesForModel(selection.lines, anchors.slice(selection.startIndex, selection.endIndex), true)
+				formattedContent = formatLinesForModel(
+					selection.lines,
+					anchors.slice(selection.startIndex, selection.endIndex),
+					true,
+				)
 			}
 
 			const lineCountSuffix = lineRange ? `\n[Total lines: ${selection.totalLineCount}]` : ""
@@ -298,8 +303,6 @@ export class ReadFileTool implements IDiracTool<ReadFileArgs> {
 			resolutionMethod: usedWorkspaceHint ? "hint" : "primary_fallback",
 		})
 	}
-
-
 
 	private incrementMistakeCount(env: IToolEnvironment): void {
 		env.orchestration.setTaskState("consecutiveMistakeCount", env.orchestration.getTaskState("consecutiveMistakeCount") + 1)
