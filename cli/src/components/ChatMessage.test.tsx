@@ -94,6 +94,32 @@ describe("ChatMessage reasoning rendering", () => {
 			expect(frame).toContain(`reasoning line ${line}`)
 		}
 	})
+	it("renders summarized reasoning steps as Markdown without visible delimiters", () => {
+		const summarizedReasoning: DiracMessage = {
+			id: "summarized-reasoning",
+			ts: Date.now(),
+			content: {
+				type: DiracMessageType.MARKDOWN,
+				role: "assistant",
+				isReasoning: true,
+				content: "**Planning layout restoration**\n\n**Refining spacing**",
+			},
+		}
+
+		const frame =
+			render(
+				React.createElement(ChatMessage, {
+					message: summarizedReasoning,
+					mode: "act",
+					reasoningDisplay: "full",
+				}),
+			).lastFrame() || ""
+		const plainFrame = frame.replace(/\u001B\[[0-9;]*m/g, "")
+
+		expect(plainFrame).toContain("Planning layout restoration")
+		expect(plainFrame).toContain("Refining spacing")
+		expect(plainFrame).not.toContain("**")
+	})
 })
 describe("ChatMessage card rendering", () => {
 	it("renders subagent approval prompts as a tree", () => {

@@ -1,4 +1,5 @@
 import React, { memo } from "react"
+import MarkdownBlock from "@/shared/ui/MarkdownBlock"
 
 interface ReasoningTimelineProps {
 	content: string
@@ -13,9 +14,9 @@ export const ReasoningTimeline: React.FC<ReasoningTimelineProps> = memo(({ conte
 	return (
 		<div className="flex flex-col gap-1.5">
 			{steps.map((step, index) => (
-				<p key={index} className="whitespace-pre-wrap text-sm leading-relaxed text-description/90">
-					{step.trim()}
-				</p>
+				<div key={index} className="text-sm leading-relaxed text-description/90 [&_p]:m-0">
+					<MarkdownBlock compact markdown={step.trim()} />
+				</div>
 			))}
 		</div>
 	)
