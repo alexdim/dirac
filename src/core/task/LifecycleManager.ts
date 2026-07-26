@@ -337,7 +337,7 @@ export class LifecycleManager {
 		let responseImages: string[] | undefined
 		let responseFiles: string[] | undefined
 		if (response === DiracAskResponse.MESSAGE || text || (images?.length ?? 0) > 0 || (files?.length ?? 0) > 0) {
-			await this.dependencies.taskMessenger.upsertText(text || "", false, images, files)
+			await this.dependencies.taskMessenger.upsertText(text || "", false, images, files, "user")
 			responseText = text
 			responseImages = images
 			responseFiles = files

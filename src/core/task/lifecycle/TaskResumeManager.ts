@@ -33,7 +33,7 @@ export class TaskResumeManager {
 		const newUserContent: DiracContent[] = []
 		await this.runTaskResumeHook(newUserContent, lastDiracMessage)
 		if (this.deps.taskState.abort) return
-		this.appendUserResponse(newUserContent, response, text, images, files)
+		await this.appendUserResponse(newUserContent, response, text, images, files)
 		const { modifiedApiConversationHistory, modifiedOldUserContent } = this.prepareHistoryForResume()
 		newUserContent.push(...modifiedOldUserContent)
 		this.appendResumeContext(newUserContent, lastDiracMessage, text, images, files)
@@ -175,15 +175,15 @@ export class TaskResumeManager {
 			})
 	}
 
-	private appendUserResponse(
+	private async appendUserResponse(
 		newUserContent: DiracContent[],
 		response: DiracAskResponse | undefined,
 		text: string | undefined,
 		images: string[] | undefined,
 		files: string[] | undefined,
-	) {
+	): Promise<void> {
 		if (response === DiracAskResponse.MESSAGE || text || (images?.length ?? 0) > 0 || (files?.length ?? 0) > 0) {
-			this.deps.taskMessenger.upsertText(text || "", false, images, files)
+			await this.deps.taskMessenger.upsertText(text || "", false, images, files, "user")
 		}
 	}
 

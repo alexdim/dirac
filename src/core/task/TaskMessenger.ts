@@ -50,7 +50,7 @@ export class TaskMessenger implements ITaskMessenger {
 		const message: DiracMessage = {
 			id,
 			ts,
-			content: { type: DiracMessageType.MARKDOWN, content: "", isReasoning },
+			content: { type: DiracMessageType.MARKDOWN, content: "", isReasoning, role: "assistant" },
 		}
 		this.dependencies.taskState.activeVoiceStreamId = id
 		await this.dependencies.messageStateHandler.addToDiracMessages(message)
@@ -399,7 +399,7 @@ export class TaskMessenger implements ITaskMessenger {
 		isReasoning?: boolean,
 		images?: string[],
 		files?: string[],
-		role?: "user" | "assistant",
+		role: "user" | "assistant" = "assistant",
 	): Promise<void> {
 		if (this.activeVoiceStream) {
 			await this.activeVoiceStream.close()

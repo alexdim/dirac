@@ -33,7 +33,7 @@ export class SayTool implements IDiracTool {
 		}
 
 		// Ensure the message is displayed to the user
-		await env.ui.upsertText(message)
+		await env.ui.upsertText(message, false, "assistant")
 
 		return "Message received. Please proceed with the next step of the task."
 	}

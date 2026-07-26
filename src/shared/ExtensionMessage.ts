@@ -223,7 +223,13 @@ export interface ITaskMessenger {
 	createCard(params: CardParams): Promise<ICardHandle>
 	upsertApiStatus(status: DiracApiReqInfo): Promise<void>
 	createCheckpoint(): Promise<ICardHandle>
-	upsertText(text: string, isReasoning?: boolean, images?: string[], files?: string[]): Promise<void>
+	upsertText(
+		text: string,
+		isReasoning?: boolean,
+		images?: string[],
+		files?: string[],
+		role?: "user" | "assistant",
+	): Promise<void>
 }
 
 /** Handle for tool-mediated work units */

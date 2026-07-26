@@ -78,6 +78,7 @@ import { expandPastedTexts, getAskPromptType, isYoloSuppressed, parseAskOptions 
 import { calculateChatLayoutRows, calculatePermissionModalLayout } from "../utils/chat-layout"
 import { estimateVisualLineCount } from "../utils/text-clipping"
 import { cardBodyForDisplay } from "../utils/card-body"
+import { createCardBodySuppressionPolicy } from "../utils/quiet-mode"
 import { clearTaskDeadline, getTaskDeadline, hasTaskTimedOut, markTaskTimedOut } from "../utils/task-timeout"
 
 interface ChatViewProps {
@@ -119,6 +120,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
 		handleButtonAction: () => { },
 		toggleMode: () => { },
 		toggleAutoApproveAll: () => { },
+		toggleQuietMode: () => { },
 	})
 
 	const [respondedToAsk, setRespondedToAsk] = useState<string | null>(null)
@@ -133,6 +135,12 @@ export const ChatView: React.FC<ChatViewProps> = ({
 	const [yolo, setYolo] = useState<boolean>(() => StateManager.get().getGlobalSettingsKey("yoloModeToggled") ?? false)
 	const [autoApproveAll, setAutoApproveAll] = useState<boolean>(
 		() => StateManager.get().getGlobalSettingsKey("autoApproveAllToggled") ?? false,
+	)
+	const [quietMode, setQuietMode] = useState(false)
+	const quietModeRef = useRef(false)
+	const shouldSuppressCardBody = useMemo(
+		() => createCardBodySuppressionPolicy(() => quietModeRef.current),
+		[],
 	)
 
 	const [timelineScrollOffset, setTimelineScrollOffset] = useState(0)
@@ -164,6 +172,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
 		layoutRows,
 		terminalColumns,
 		scrollOffset: timelineScrollOffset,
+		shouldSuppressCardBody,
 	})
 
 	useEffect(() => {
@@ -194,6 +203,14 @@ export const ChatView: React.FC<ChatViewProps> = ({
 		StateManager.get().setGlobalState("autoApproveAllToggled", newValue)
 		await ctrl?.postStateToWebview()
 	}, [autoApproveAll, ctrl])
+
+	const toggleQuietMode = useCallback(() => {
+		setQuietMode((current) => {
+			const next = !current
+			quietModeRef.current = next
+			return next
+		})
+	}, [])
 
 	const footerStatus = useChatFooterStatus({
 		ctrl,
@@ -628,6 +645,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
 		handleButtonAction,
 		toggleMode,
 		toggleAutoApproveAll,
+		toggleQuietMode,
 	}
 
 	const shouldShowActionButtons = uiActionState && !permissionCard && !activePanel && !isExiting
@@ -641,10 +659,6 @@ export const ChatView: React.FC<ChatViewProps> = ({
 			</Text>
 		</Box>
 	)
-
-	const shouldSuppressCardBody = (card: { requireApproval?: boolean; requireFeedback?: boolean } | null): boolean => {
-		return card ? Boolean(card.requireApproval || card.requireFeedback) : false
-	}
 
 	const renderDynamicItem = (item: (typeof dynamicItems)[number]) => {
 		if (item.type === "notice") {
@@ -661,7 +675,6 @@ export const ChatView: React.FC<ChatViewProps> = ({
 		}
 
 		const msg = item.message
-		const card = msg.content.type === DiracMessageType.CARD ? msg.content.card : null
 		return (
 			<React.Fragment key={item.key}>
 				<ChatMessage
@@ -675,7 +688,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
 					tailOnly={item.tailOnly}
 					maxContentLines={item.maxContentLines}
 					scrollOffset={item.scrollOffset}
-					suppressCardBody={shouldSuppressCardBody(card)}
+					suppressCardBody={shouldSuppressCardBody(msg)}
 				/>
 			</React.Fragment>
 		)
@@ -825,6 +838,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
 				<ChatFooter
 					autoApproveAll={autoApproveAll}
 					yoloMode={yolo}
+					quietMode={quietMode}
 					contextWindowSize={footerStatus.contextWindowSize}
 					gitBranch={footerStatus.gitBranch}
 					gitDiffStats={footerStatus.gitDiffStats}
@@ -856,7 +870,6 @@ export const ChatView: React.FC<ChatViewProps> = ({
 						return renderTurnBoundary(item.key)
 					}
 
-					const card = item.message.content.type === DiracMessageType.CARD ? item.message.content.card : null
 					return (
 						<Box key={item.key} paddingX={1} width="100%">
 							<ChatMessage
@@ -864,7 +877,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
 								mode={mode}
 								activeVoiceStreamId={taskState.activeVoiceStreamId}
 								showReasoning={true}
-								suppressCardBody={shouldSuppressCardBody(card)}
+								suppressCardBody={shouldSuppressCardBody(item.message)}
 							/>
 						</Box>
 					)
