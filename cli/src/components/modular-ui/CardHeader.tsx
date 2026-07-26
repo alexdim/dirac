@@ -36,7 +36,7 @@ export const CardHeader: React.FC<CardHeaderProps> = ({ header, status, icon, co
 	const headerPresentation = getHeaderPresentation(status)
 	const statusLabel = status.toLowerCase().replaceAll("_", " ")
 	const headerColor = headerPresentation.color
-	const headerBold = headerPresentation.bold ?? false
+	const headerBold = "bold" in headerPresentation ? headerPresentation.bold : false
 
 	if (compact) {
 		return (

@@ -14,13 +14,15 @@ interface ChatHeaderProps {
 export const ChatHeader: React.FC<ChatHeaderProps> = ({ isWelcomeState, quote, onInteraction }) => {
 	const content = (
 		<React.Fragment>
-			{isWelcomeState ? <AsciiMotionCli compact onInteraction={onInteraction} /> : <StaticRobotFrame compact />}
+			{isWelcomeState ? <AsciiMotionCli onInteraction={onInteraction} /> : <StaticRobotFrame />}
 			<Text color={theme.primary} italic>
 				{centerText(`“${quote}”`)}
 			</Text>
-			<Text color={theme.muted} dimColor>
-				{centerText(`Questions about Dirac? Query the code (v${CLI_VERSION}) directly using /askDirac`)}
-			</Text>
+			<Box marginBottom={1} marginTop={1}>
+				<Text color={theme.muted} dimColor>
+					{centerText(`Questions about Dirac? Query the code (v${CLI_VERSION}) directly using /askDirac`)}
+				</Text>
+			</Box>
 		</React.Fragment>
 	)
 
