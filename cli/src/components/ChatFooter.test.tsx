@@ -1,4 +1,5 @@
 import { render } from "ink-testing-library"
+// biome-ignore lint/correctness/noUnusedImports: Vitest transforms this test with the classic JSX runtime.
 import React from "react"
 import { describe, expect, it, vi } from "vitest"
 import { ChatFooter } from "./ChatFooter"
