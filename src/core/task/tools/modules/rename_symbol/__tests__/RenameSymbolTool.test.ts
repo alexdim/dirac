@@ -23,7 +23,7 @@ let tmpDir: string
 
 class RenameSymbolToolHandler {
 	private tool = new RenameSymbolTool()
-	constructor(_validator: any, _forceSyntaxChecker: boolean) {}
+	constructor(_validator: any, _forceSyntaxChecker: boolean) { }
 	async execute(config: TaskConfig, block: any) {
 		const env = new SurfaceAdapter(config)
 		return this.tool.processCall(block.params, env)
@@ -104,7 +104,7 @@ function createConfig() {
 		cwd: tmpDir,
 		mode: "act",
 		strictPlanModeEnabled: false,
-		yoloModeToggled: true,
+		yoloModeToggled: false,
 		doubleCheckCompletionEnabled: false,
 		vscodeTerminalExecutionMode: "backgroundExec",
 		enableParallelToolCalling: true,
@@ -202,7 +202,7 @@ describe("RenameSymbolToolHandler", () => {
 	afterEach(async () => {
 		sandbox.restore()
 		HostProvider.reset()
-		await fs.rm(tmpDir, { recursive: true, force: true }).catch(() => {})
+		await fs.rm(tmpDir, { recursive: true, force: true }).catch(() => { })
 	})
 
 	it("renames a symbol in a single file", async () => {

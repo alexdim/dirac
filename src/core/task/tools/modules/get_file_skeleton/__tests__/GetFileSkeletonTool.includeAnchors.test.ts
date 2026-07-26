@@ -4,11 +4,18 @@ import sinon from "sinon"
 import { GetFileSkeletonTool } from "../index"
 import { createMockContext } from "../../../__tests__/helpers/mockTaskConfig"
 
-function createEnv(includeAnchors?: boolean) {
+function createEnv(isSubagentExecution = true) {
 	const context = createMockContext()
+	const card = {
+		update: sinon.stub().resolves(),
+		finalize: sinon.stub().resolves(),
+	}
 	return {
-		config: { isSubagentExecution: true },
+		config: { isSubagentExecution },
 		context,
+		ui: {
+			createCard: sinon.stub().resolves(card),
+		},
 		workspace: {
 			resolvePath: sinon.stub().resolves({ absolutePath: "/tmp/example.ts", displayPath: "example.ts" }),
 		},
@@ -26,6 +33,7 @@ function createEnv(includeAnchors?: boolean) {
 			getTaskState: sinon.stub().returns(0),
 			setTaskState: sinon.stub(),
 		},
+		card,
 	} as any
 }
 
@@ -51,6 +59,21 @@ describe("GetFileSkeletonTool include_anchors visibility", () => {
 		assert.ok(result.includes("Anchor§function target() {"))
 		assert.ok(result.includes("Body§    return 1"))
 	})
+
+	it("reports only definition lines in the card count", async () => {
+		const tool = new GetFileSkeletonTool()
+		const env = createEnv(false)
+		env.ast.getSkeleton.resolves(
+			"|----\n│interface Example {\n|----\n│function target() {\n│    # Calls: [helper]\n|----\n",
+		)
+
+		await tool.processCall({ paths: ["example.ts"] }, env)
+
+		sinon.assert.calledWithMatch(env.card.update, {
+			body: "✓ 2 definitions extracted from example.ts",
+		})
+	})
+
 
 	it("passes includeAnchors flag to ast.getSkeleton", async () => {
 		const tool = new GetFileSkeletonTool()

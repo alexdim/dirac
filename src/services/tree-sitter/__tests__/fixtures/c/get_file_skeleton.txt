@@ -1,13 +1,10 @@
 --- sample.c ---
 |----
 │void say_hello(const char* name) {
-│    # Lines: 3
 |----
 │int top_level_func(int x) {
-│    # Lines: 6
 │    # Calls: [say_hello]
 |----
 │int main() {
-│    # Lines: 4
 │    # Calls: [top_level_func]
 |----
