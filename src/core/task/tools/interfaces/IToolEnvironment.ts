@@ -392,6 +392,12 @@ export interface ILoggingTrait {
 	trace(message: string, ...args: any[]): void
 }
 
+export interface IAnchorTrait {
+	reconcile(absolutePath: string, lines: string[]): string[]
+	getDocumentFingerprint(absolutePath: string): string | null
+}
+
+
 /**
  * The Tool Environment provides access to all capabilities (traits)
  * available to a modular tool during its execution.
@@ -405,6 +411,7 @@ export interface IToolEnvironment {
 	readonly ast: IASTTrait
 	readonly diagnostics: IDiagnosticsTrait
 
+	readonly anchors: IAnchorTrait
 	readonly editor: IEditorTrait
 	readonly symbol: ISymbolTrait
 

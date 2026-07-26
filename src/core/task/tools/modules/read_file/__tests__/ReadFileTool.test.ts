@@ -32,7 +32,7 @@ let tmpDir: string
 
 class ReadFileToolHandler {
 	private tool = new ReadFileTool()
-	constructor(_validator: any) {}
+	constructor(_validator: any) { }
 	async execute(config: TaskConfig, block: any) {
 		const env = new SurfaceAdapter(config)
 		return this.tool.processCall(block.params, env)
@@ -145,7 +145,7 @@ describe("ReadFileToolHandler.execute – file not found", () => {
 
 	afterEach(async () => {
 		sandbox.restore()
-		await fs.rm(tmpDir, { recursive: true, force: true }).catch(() => {})
+		await fs.rm(tmpDir, { recursive: true, force: true }).catch(() => { })
 	})
 
 	it("returns a tool error (not a thrown exception) for a non-existent file", async () => {
@@ -208,11 +208,13 @@ describe("ReadFileToolHandler.execute – include_anchors visibility and cache",
 		sandbox = sinon.createSandbox()
 		tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "dirac-read-cache-test-"))
 		sandbox.stub(pathUtils, "isLocatedInWorkspace").resolves(true)
+		AnchorStateManager.reset("ulid-1")
 	})
 
 	afterEach(async () => {
+		AnchorStateManager.reset("ulid-1")
 		sandbox.restore()
-		await fs.rm(tmpDir, { recursive: true, force: true }).catch(() => {})
+		await fs.rm(tmpDir, { recursive: true, force: true }).catch(() => { })
 	})
 
 	function makeReadBlock(relPath: string, includeAnchors?: boolean) {
@@ -257,6 +259,48 @@ describe("ReadFileToolHandler.execute – include_anchors visibility and cache",
 		assert.ok(!refreshedRead.includes("no changes have been made"))
 		assert.ok(/^[A-Z][a-zA-Z]*§first line/m.test(refreshedRead))
 		assert.ok(AnchorStateManager.isTracking(absolutePath, config.ulid))
+	})
+
+	it("suppresses a restored anchored reread only when the exact mapping was restored", async () => {
+		const { config, validator } = createConfig()
+		const handler = new ReadFileToolHandler(validator)
+		const realFile = "restored-anchor-state.txt"
+		const absolutePath = path.join(tmpDir, realFile)
+		await fs.writeFile(absolutePath, "first line\nsecond line")
+
+		await handler.execute(config, makeReadBlock(realFile, true))
+		const persisted = AnchorStateManager.exportState(config.ulid)
+		const fingerprint = AnchorStateManager.getDocumentFingerprint(absolutePath, config.ulid)
+
+		AnchorStateManager.reset(config.ulid)
+		AnchorStateManager.hydrate(config.ulid, persisted)
+		const repeatedRead = (await handler.execute(config, makeReadBlock(realFile, true))) as string
+
+		assert.ok(repeatedRead.includes("no changes have been made to the file since your last read"))
+		assert.equal(AnchorStateManager.getDocumentFingerprint(absolutePath, config.ulid), fingerprint)
+	})
+
+	it("never suppresses a fresh mapping seeded after the emitted mapping was lost", async () => {
+		const { config, validator } = createConfig()
+		const handler = new ReadFileToolHandler(validator)
+		const realFile = "failed-edit-seeded-state.txt"
+		const absolutePath = path.join(tmpDir, realFile)
+		const lines = ["first line", "second line"]
+		await fs.writeFile(absolutePath, lines.join("\n"))
+		const randomStub = sandbox.stub(Math, "random").returns(0)
+
+		await handler.execute(config, makeReadBlock(realFile, true))
+		const emittedFingerprint = AnchorStateManager.getDocumentFingerprint(absolutePath, config.ulid)
+
+		AnchorStateManager.reset(config.ulid)
+		randomStub.returns(0.999999)
+		AnchorStateManager.reconcile(absolutePath, lines, config.ulid)
+		const neverEmittedFingerprint = AnchorStateManager.getDocumentFingerprint(absolutePath, config.ulid)
+		assert.notEqual(neverEmittedFingerprint, emittedFingerprint)
+
+		const reread = (await handler.execute(config, makeReadBlock(realFile, true))) as string
+		assert.ok(!reread.includes("no changes have been made"))
+		assert.ok(/^[A-Z][a-zA-Z]*§first line/m.test(reread))
 	})
 
 	it("does not let a partial read suppress a later full read", async () => {

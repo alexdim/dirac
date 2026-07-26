@@ -1,7 +1,6 @@
 import type { ToolUse } from "@core/assistant-message"
 import { formatResponse } from "@core/formatResponse"
 import { DiracDefaultTool } from "@shared/tools"
-import { AnchorStateManager } from "@utils/AnchorStateManager"
 import { stripHashesFromDiff } from "@utils/line-hashing"
 import { CardStatus } from "@/shared/ExtensionMessage"
 import { DiracIcon } from "@/shared/icons"
@@ -16,7 +15,7 @@ export class EditFileBatchPreparer {
 	constructor(
 		private executor: EditExecutor,
 		private fileFormatter: EditFileFormatter,
-	) {}
+	) { }
 
 	async prepare(files: FileEdit[], env: IToolEnvironment) {
 		const preparedBatches: PreparedFileBatch[] = []
@@ -107,7 +106,7 @@ export class EditFileBatchPreparer {
 			await env.workspace.saveOpenDocumentIfDirty({ filePath: absolutePath })
 			const content = await env.workspace.readFile(absolutePath)
 			const lines = content.split(/\r?\n/)
-			const lineHashes = AnchorStateManager.reconcile(absolutePath, lines, env.config.ulid)
+			const lineHashes = env.anchors.reconcile(absolutePath, lines)
 			const { resolvedEdits, failedEdits } = this.executor.resolveEdits(
 				[{ type: "tool_use", name: DiracDefaultTool.EDIT_FILE, params: { edits } } as ToolUse],
 				lines,

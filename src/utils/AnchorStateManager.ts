@@ -1,12 +1,26 @@
 import * as fs from "node:fs"
 import * as path from "node:path"
+import { createHash } from "node:crypto"
 import * as diff from "diff"
 
 interface TrackedDocument {
 	hashes: Uint32Array
 	anchors: string[]
 	usedWords: Set<string>
-	availablePool?: string[]
+	availablePool: string[]
+}
+
+export interface PersistedAnchorDocument {
+	absolutePath: string
+	hashes: number[]
+	anchors: string[]
+	usedWords: string[]
+	availablePool: string[]
+}
+
+export interface PersistedAnchorState {
+	version: 1
+	documents: PersistedAnchorDocument[]
 }
 
 export class AnchorStateManager {
@@ -39,40 +53,36 @@ export class AnchorStateManager {
 	}
 
 	private static refill(usedWords: Set<string>, pool: string[]) {
-		const dict = AnchorStateManager.getDictionary()
-		const dictLen = dict.length
+		const dictionary = AnchorStateManager.getDictionary()
 		const newWords: string[] = []
-
-		// Try to find 10,000 unique two-word combinations
-		let attempts = 0
-		while (newWords.length < 10000 && attempts < 50000) {
-			const w1 = dict[Math.floor(Math.random() * dictLen)]
-			const w2 = dict[Math.floor(Math.random() * dictLen)]
-			const word = `${w1}${w2}`
-			if (!usedWords.has(word)) {
-				newWords.push(word)
-			}
-			attempts++
+		const newWordSet = new Set<string>()
+		const addWord = (word: string): boolean => {
+			if (usedWords.has(word) || newWordSet.has(word)) return false
+			newWords.push(word)
+			newWordSet.add(word)
+			return newWords.length === 10000
 		}
 
-		// Extreme fallback: three-word combinations if we are struggling
-		if (newWords.length < 100) {
-			for (let i = 0; i < 100; i++) {
-				const w1 = dict[Math.floor(Math.random() * dictLen)]
-				const w2 = dict[Math.floor(Math.random() * dictLen)]
-				const w3 = dict[Math.floor(Math.random() * dictLen)]
-				const word = `${w1}${w2}${w3}`
-				if (!usedWords.has(word)) {
-					newWords.push(word)
+		for (const first of dictionary) {
+			for (const second of dictionary) {
+				if (addWord(`${first}${second}`)) {
+					pool.push(...newWords)
+					return
 				}
 			}
 		}
 
-		// Shuffle the new batch and add to pool
-		for (let i = newWords.length - 1; i > 0; i--) {
-			const j = Math.floor(Math.random() * (i + 1))
-			;[newWords[i], newWords[j]] = [newWords[j], newWords[i]]
+		for (const first of dictionary) {
+			for (const second of dictionary) {
+				for (const third of dictionary) {
+					if (addWord(`${first}${second}${third}`)) {
+						pool.push(...newWords)
+						return
+					}
+				}
+			}
 		}
+
 		pool.push(...newWords)
 	}
 
@@ -149,7 +159,7 @@ export class AnchorStateManager {
 			// Initial shuffle of dictionary
 			for (let i = pool.length - 1; i > 0; i--) {
 				const j = Math.floor(Math.random() * (i + 1))
-				;[pool[i], pool[j]] = [pool[j], pool[i]]
+					;[pool[i], pool[j]] = [pool[j], pool[i]]
 			}
 
 			const anchors = currentLines.map(() => {
@@ -170,19 +180,14 @@ export class AnchorStateManager {
 
 		const newAnchors: string[] = []
 		const newUsedWords = new Set<string>(tracked.usedWords)
-		const pool = tracked.availablePool || []
-		// If pool was lost (e.g. from an older version of state), initialize it
+		const pool = tracked.availablePool
+		// Older persisted documents may not have retained their remaining pool.
+		// Restore unused dictionary words in a stable order so future reconciliation
+		// remains deterministic after hydration.
 		if (pool.length === 0 && newUsedWords.size < AnchorStateManager.getDictionary().length) {
-			const dict = AnchorStateManager.getDictionary()
-			for (const word of dict) {
-				if (!newUsedWords.has(word)) {
-					pool.push(word)
-				}
-			}
-			// Shuffle initial single-word pool
-			for (let i = pool.length - 1; i > 0; i--) {
-				const j = Math.floor(Math.random() * (i + 1))
-				;[pool[i], pool[j]] = [pool[j], pool[i]]
+			const dictionary = AnchorStateManager.getDictionary()
+			for (const word of dictionary) {
+				if (!newUsedWords.has(word)) pool.push(word)
 			}
 		}
 
@@ -231,30 +236,65 @@ export class AnchorStateManager {
 		}
 	}
 
-	/**
-	 * Returns true if the file is currently being tracked.
-	 */
+	private static fingerprint(document: TrackedDocument): string {
+		const revision = document.anchors.map((anchor, index) => [document.hashes[index], anchor])
+		return createHash("sha256").update(JSON.stringify(revision)).digest("hex")
+	}
+
+	/** Returns an exact revision for the current line-hash-to-anchor mapping. */
+	public static getDocumentFingerprint(absolutePath: string, taskId?: string): string | null {
+		const document = AnchorStateManager.getTaskState(taskId).get(absolutePath)
+		return document ? AnchorStateManager.fingerprint(document) : null
+	}
+
+	/** Serializes the complete conversation-scoped state needed for exact restoration. */
+	public static exportState(taskId = "default"): PersistedAnchorState {
+		const documents = Array.from(AnchorStateManager.getTaskState(taskId), ([absolutePath, document]) => ({
+			absolutePath,
+			hashes: Array.from(document.hashes),
+			anchors: [...document.anchors],
+			usedWords: Array.from(document.usedWords),
+			availablePool: [...document.availablePool],
+		}))
+		return { version: 1, documents }
+	}
+
+	/** Replaces in-memory state with the exact persisted conversation snapshot. */
+	public static hydrate(taskId: string, persisted: PersistedAnchorState | undefined): void {
+		AnchorStateManager.storage.delete(taskId)
+		if (!persisted) return
+		if (persisted.version !== 1) {
+			throw new Error(`Unsupported persisted anchor state version: ${String((persisted as any).version)}`)
+		}
+
+		const state = new Map<string, TrackedDocument>()
+		for (const document of persisted.documents) {
+			state.set(document.absolutePath, {
+				hashes: Uint32Array.from(document.hashes),
+				anchors: [...document.anchors],
+				usedWords: new Set(document.usedWords),
+				availablePool: [...document.availablePool],
+			})
+		}
+		AnchorStateManager.storage.set(taskId, state)
+	}
+
+	/** Returns true if the file is currently being tracked. */
 	public static isTracking(absolutePath: string, taskId?: string): boolean {
 		return AnchorStateManager.getTaskState(taskId).has(absolutePath)
 	}
 
-	/**
-	 * Gets current anchors for a file if it's being tracked, otherwise returns null.
-	 */
+	/** Gets current anchors for a file if it's being tracked, otherwise returns null. */
 	public static getAnchors(absolutePath: string, taskId?: string): string[] | null {
 		return AnchorStateManager.getTaskState(taskId).get(absolutePath)?.anchors || null
 	}
 
-	/**
-	 * Clear state for a file (useful if needed for cleanup)
-	 */
+	/** Clear state for a file (useful if needed for cleanup). */
 	public static clearState(absolutePath: string, taskId?: string) {
 		AnchorStateManager.getTaskState(taskId).delete(absolutePath)
 	}
 
-	/**
-	 * Resets all anchors for a specific task or all tasks.
-	 */
+	/** Resets all anchors for a specific task or all tasks. */
 	public static reset(taskId?: string) {
 		if (taskId) {
 			AnchorStateManager.storage.delete(taskId)

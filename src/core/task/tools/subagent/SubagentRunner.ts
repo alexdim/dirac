@@ -14,7 +14,6 @@ import { DiracError, DiracErrorType } from "@/services/error"
 import { calculateApiCostAnthropic } from "@/utils/cost"
 import { TaskState } from "../../TaskState"
 import { excerpt } from "../../utils/excerpt"
-import { DiracContext } from "../context/DiracContext"
 import { ToolExecutorCoordinator } from "../ToolExecutorCoordinator"
 import type { TaskConfig } from "../types/TaskConfig"
 import { SubagentAbortHandler } from "./SubagentAbortHandler"
@@ -722,16 +721,12 @@ export class SubagentRunner {
 		return assistantTexts.join("\n")
 	}
 
-	private createSubagentTaskConfig(state: TaskState, coordinator: ToolExecutorCoordinator): TaskConfig {
+		private createSubagentTaskConfig(state: TaskState, coordinator: ToolExecutorCoordinator): TaskConfig {
 		const baseCallbacks = this.baseConfig.callbacks
-		// Give the subagent its own isolated task-scoped context so that
-		// reads tracked by the subagent (e.g. fileHashes, functionHashes)
-		// do not pollute the parent agent's context map.
-		const subagentContext = new DiracContext(`${this.baseConfig.taskId}-subagent`, this.baseConfig.services.stateManager)
 
 		return {
 			...this.baseConfig,
-			context: subagentContext,
+			context: this.baseConfig.context,
 			api: this.apiHandler,
 			coordinator,
 			taskState: state,

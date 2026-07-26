@@ -13,6 +13,11 @@ export interface GetFunctionArgs {
 	include_anchors?: boolean
 }
 
+interface FunctionReadCacheRecord {
+	contentHash: string
+	anchorFingerprint?: string
+}
+
 export const get_function_spec: DiracToolSpec = {
 	id: DiracDefaultTool.GET_FUNCTION,
 	name: "get_function",
@@ -79,7 +84,7 @@ export class GetFunctionTool implements IDiracTool<GetFunctionArgs> {
 
 		const results: string[] = []
 		const foundNamesTotal = new Set<string>()
-		const functionHashes = env.context.task.get<Record<string, string>>("functionHashes") || {}
+		const functionHashes = env.context.task.get<Record<string, string | FunctionReadCacheRecord>>("functionHashes") || {}
 
 		for (const relPath of paths) {
 			const result = await this.extractFunctionsFromFile(relPath, functionNames, functionHashes, env, includeAnchors)
@@ -117,7 +122,7 @@ export class GetFunctionTool implements IDiracTool<GetFunctionArgs> {
 	private async extractFunctionsFromFile(
 		relPath: string,
 		functionNames: string[],
-		functionHashes: Record<string, string>,
+		functionHashes: Record<string, string | FunctionReadCacheRecord>,
 		env: IToolEnvironment,
 		includeAnchors: boolean,
 	): Promise<{ content: string; foundNames: string[] }> {
@@ -128,18 +133,20 @@ export class GetFunctionTool implements IDiracTool<GetFunctionArgs> {
 			const { absolutePath, displayPath } = await env.workspace.resolvePath(relPath)
 			card = !isSubagent
 				? await env.ui.createCard({
-						header: `Extracting ${functionNames[0]}${functionNames.length > 1 ? ` (+${functionNames.length - 1} more)` : ""} from ${displayPath}`,
-						icon: DiracIcon.FUNCTION_EXTRACT,
-						collapsed: true,
-					})
+					header: `Extracting ${functionNames[0]}${functionNames.length > 1 ? ` (+${functionNames.length - 1} more)` : ""} from ${displayPath}`,
+					icon: DiracIcon.FUNCTION_EXTRACT,
+					collapsed: true,
+				})
 				: undefined
 			const result = await env.ast.getFunctions(absolutePath, displayPath, functionNames, includeAnchors)
 
 			if (result) {
 				const processedFuncs = this.computeFunctionHashes(
 					relPath,
+					absolutePath,
 					result.formattedContent,
 					functionHashes,
+					env,
 					includeAnchors,
 				)
 				const bodyLines = result.foundNames.map((name) => `✓ ${name}`)
@@ -170,8 +177,10 @@ export class GetFunctionTool implements IDiracTool<GetFunctionArgs> {
 
 	private computeFunctionHashes(
 		relPath: string,
+		absolutePath: string,
 		formattedContent: string,
-		functionHashes: Record<string, string>,
+		functionHashes: Record<string, string | FunctionReadCacheRecord>,
+		env: IToolEnvironment,
 		includeAnchors: boolean,
 	): string[] {
 		const individualFuncs = formattedContent.split("\n\n---\n\n")
@@ -185,16 +194,30 @@ export class GetFunctionTool implements IDiracTool<GetFunctionArgs> {
 				const currentHashMatch = funcContent.match(/\[Function Hash: ([a-f0-9]+)\]/)
 				const currentHash = currentHashMatch ? currentHashMatch[1] : undefined
 				const cacheKey = `${relPath}::${functionName}#${includeAnchors ? "anchored" : "plain"}`
-				const lastKnownHash = functionHashes[cacheKey]
+				const cachedRead = functionHashes[cacheKey]
+				const anchorFingerprint = includeAnchors
+					? env.anchors.getDocumentFingerprint(absolutePath) ?? undefined
+					: undefined
+				const contentMatches =
+					typeof cachedRead === "string"
+						? cachedRead === currentHash
+						: cachedRead?.contentHash === currentHash
+				const anchorMappingMatches =
+					!includeAnchors ||
+					(anchorFingerprint !== undefined &&
+						typeof cachedRead !== "string" &&
+						cachedRead?.anchorFingerprint === anchorFingerprint)
 
-				if (currentHash && lastKnownHash === currentHash) {
+				if (currentHash && contentMatches && anchorMappingMatches) {
 					processedFuncs.push(
 						`${firstLine}\nno changes have been made to the function since your last read (Hash: ${currentHash})`,
 					)
 				} else {
 					processedFuncs.push(funcContent)
 					if (currentHash) {
-						functionHashes[cacheKey] = currentHash
+						functionHashes[cacheKey] = includeAnchors
+							? { contentHash: currentHash, anchorFingerprint }
+							: { contentHash: currentHash }
 					}
 				}
 			} else {

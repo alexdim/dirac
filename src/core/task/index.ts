@@ -61,7 +61,6 @@ import { Session } from "@shared/services/Session"
 import { type Mode } from "@shared/storage/types"
 import { isMutatingTool } from "@shared/tools"
 import { DiracAskResponse } from "@shared/WebviewMessage"
-import { AnchorStateManager } from "@utils/AnchorStateManager"
 import { isLocalModel, isParallelToolCallingEnabled } from "@utils/model-utils"
 import fs from "fs/promises"
 import Mutex from "p-mutex"
@@ -347,8 +346,9 @@ export class Task {
 		const hostDiffViewProvider = HostProvider.get().createDiffViewProvider()
 		this.diffViewProvider = hostDiffViewProvider || new FileEditProvider()
 
-		this.diracContext = new DiracContext(this.taskId, this.stateManager)
-		AnchorStateManager.reset(this.ulid)
+		// Tool context owns restoration of conversation-scoped anchor state. Reconstructing
+		// a Task for the same ULID must not destroy anchors already emitted to the model.
+		this.diracContext = new DiracContext(this.taskId, this.stateManager, this.ulid)
 
 		// Initialize context trackers
 		this.fileContextTracker = new FileContextTracker(controller, this.taskId)
@@ -796,8 +796,9 @@ export class Task {
 	// Communicate with webview
 
 	public async resetTransientState(): Promise<void> {
+		// Compaction clears visibility caches, but anchors remain part of the same
+		// conversation protocol and must survive the transient-context reset.
 		await this.diracContext.resetTaskContext()
-		AnchorStateManager.reset(this.ulid)
 		this.taskState.consecutiveMistakeCount = 0
 		this.taskState.didAttemptCompletion = false
 		this.taskState.activeVoiceStreamId = undefined

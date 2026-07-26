@@ -1,5 +1,4 @@
 import { formatResponse } from "@core/formatResponse"
-import { AnchorStateManager } from "@utils/AnchorStateManager"
 import { formatLineForModel } from "@utils/line-hashing"
 import * as path from "path"
 import { CardStatus } from "@/shared/ExtensionMessage"
@@ -253,8 +252,8 @@ export class FindSymbolReferencesTool implements IDiracTool<FindSymbolReferences
 				hitCount === 0
 					? `No ${matchLabel} found.`
 					: `✓ Found ${hitCount} ${matchLabel} across ${searchCard.hitsByFile.size} ${searchCard.hitsByFile.size === 1 ? "file" : "files"}\n\n${(
-							await this.formatResults(searchCard.hitsByFile, env, includeAnchors, false, fileContentCache)
-						).trim()}`
+						await this.formatResults(searchCard.hitsByFile, env, includeAnchors, false, fileContentCache)
+					).trim()}`
 
 			await searchCard.card.update({
 				header: `${hitCount === 0 ? "No" : "Found"} ${matchLabel} for ${searchCard.symbol} in ${searchCard.searchPath.displayPath}`,
@@ -304,7 +303,7 @@ export class FindSymbolReferencesTool implements IDiracTool<FindSymbolReferences
 					fileContentCache.set(absFilePath, fileContent)
 				}
 				const lines = fileContent.split(/\r?\n/)
-				const anchors = AnchorStateManager.reconcile(absFilePath, lines, env.config.ulid)
+				const anchors = includeAnchors ? env.anchors.reconcile(absFilePath, lines) : []
 
 				const sortedHits = [...fileHits].sort((a, b) => a.startLine - b.startLine)
 				const mergedHits: { startLine: number; symbols: Set<string> }[] = []

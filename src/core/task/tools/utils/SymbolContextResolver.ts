@@ -1,4 +1,4 @@
-import { formatLineWithHash } from "@utils/line-hashing"
+import { formatLineForModel } from "@utils/line-hashing"
 import { Parser, Node as SyntaxNode, Query, QueryCapture, Tree } from "web-tree-sitter"
 import { Logger } from "@/shared/services/Logger"
 
@@ -8,6 +8,7 @@ export interface SymbolContextResolverOptions {
 	parser: Parser
 	ext: string
 	anchors: string[]
+	includeAnchors?: boolean
 	maxContextLines?: number
 	rootNode?: SyntaxNode
 }
@@ -25,6 +26,7 @@ export class SymbolContextResolver {
 			parser,
 			ext,
 			anchors,
+			includeAnchors = false,
 			maxContextLines = SymbolContextResolver.MAX_CONTEXT_LINES,
 			rootNode: providedRootNode,
 		} = options
@@ -58,7 +60,14 @@ export class SymbolContextResolver {
 			const classContext = SymbolContextResolver.getClassContext(node, captures, usedIdentifiers, queryStrings)
 
 			// 4. Assemble and cap
-			return SymbolContextResolver.assembleContext(relevantImports, classContext, fileContent, anchors, maxContextLines)
+			return SymbolContextResolver.assembleContext(
+				relevantImports,
+				classContext,
+				fileContent,
+				anchors,
+				includeAnchors,
+				maxContextLines,
+			)
 		} catch (error) {
 			Logger.error(`Error resolving symbol context for .${ext}:`, error)
 			return ""
@@ -244,6 +253,7 @@ export class SymbolContextResolver {
 		classContext: { classNode: SyntaxNode; propertyNodes: SyntaxNode[] } | null,
 		fileContent: string,
 		anchors: string[],
+		includeAnchors: boolean,
 		maxLines: number,
 	): string {
 		const lines: { text: string; anchorIdx: number }[] = []
@@ -294,7 +304,7 @@ export class SymbolContextResolver {
 				result += "...\n"
 			}
 
-			result += formatLineWithHash(line.text, anchors[line.anchorIdx]) + "\n"
+			result += formatLineForModel(line.text, anchors[line.anchorIdx], includeAnchors) + "\n"
 			lastLineIdx = line.anchorIdx
 			linesCount++
 		}
