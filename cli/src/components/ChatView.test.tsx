@@ -171,7 +171,7 @@ vi.mock("@/core/controller/slash/getAvailableSlashCommands", () => ({
 }))
 
 vi.mock("@/core/controller/task/showTaskWithId", () => ({
-	showTaskWithId: vi.fn(async () => {}),
+	showTaskWithId: vi.fn(async () => { }),
 }))
 
 vi.mock("@shared/getApiMetrics", () => ({
@@ -215,7 +215,7 @@ describe("ChatView Exit and Cleanup", () => {
 	describe("Initial render state", () => {
 		it("should render with input field, footer, and mode toggle visible", () => {
 			const { lastFrame } = render(<ChatView onExit={mockOnExit} />)
-			const frame = lastFrame()
+			const frame = lastFrame() || ""
 
 			// Input field visible
 			expect(frame).toContain("Input:")
