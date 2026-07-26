@@ -15,10 +15,11 @@ export type AsciiMotionCliProps = {
 	autoPlay?: boolean
 	loop?: boolean
 	onReady?: (api: PlaybackAPI) => void
+	compact?: boolean
 }
-export const StaticRobotFrame: React.FC<{ hasDarkBackground?: boolean }> = () => {
+export const StaticRobotFrame: React.FC<{ hasDarkBackground?: boolean; compact?: boolean }> = ({ compact = false }) => {
 	return (
-		<Box flexDirection="column" marginBottom={1} marginTop={1}>
+		<Box flexDirection="column" marginBottom={compact ? 0 : 1} marginTop={compact ? 0 : 1}>
 			{DIRAC_LOGO.map((line, idx) => (
 				<Text color={LOGO_GRADIENT[idx]} key={idx}>
 					{centerText(line)}
@@ -32,7 +33,7 @@ export const StaticRobotFrame: React.FC<{ hasDarkBackground?: boolean }> = () =>
  * AsciiMotionCli - Now a static version of the Dirac logo.
  * Maintained for compatibility with existing views, but with all animation logic removed.
  */
-export const AsciiMotionCli: React.FC<AsciiMotionCliProps> = ({ onReady, onInteraction }) => {
+export const AsciiMotionCli: React.FC<AsciiMotionCliProps> = ({ onReady, onInteraction, compact = false }) => {
 	useEffect(() => {
 		if (onReady) {
 			onReady({
@@ -50,5 +51,5 @@ export const AsciiMotionCli: React.FC<AsciiMotionCliProps> = ({ onReady, onInter
 		}
 	})
 
-	return <StaticRobotFrame />
+	return <StaticRobotFrame compact={compact} />
 }

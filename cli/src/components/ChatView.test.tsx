@@ -9,6 +9,7 @@ import { Text } from "ink"
 import { render } from "ink-testing-library"
 import React from "react"
 import { version as CLI_VERSION } from "../../package.json"
+import { QUOTES } from "@/shared/quotes"
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { ChatView } from "./ChatView"
@@ -224,6 +225,11 @@ describe("ChatView Exit and Cleanup", () => {
 			// Mode toggle
 			expect(frame).toContain("Plan")
 			expect(frame).toContain("Act")
+			const logoIndex = frame.indexOf("AsciiMotion")
+			const quoteIndex = frame.indexOf(`“${QUOTES[0]}”`)
+			const questionIndex = frame.indexOf(`Questions about Dirac? Query the code (v${CLI_VERSION})`)
+			expect(quoteIndex).toBeGreaterThan(logoIndex)
+			expect(questionIndex).toBeGreaterThan(quoteIndex)
 		})
 
 	})
