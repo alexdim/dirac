@@ -1,6 +1,5 @@
 import { BannerAction, BannerCardData } from "@shared/dirac/banner"
 import React, { useCallback } from "react"
-import { useMount } from "react-use"
 import DiscordIcon from "@/assets/DiscordIcon"
 import GitHubIcon from "@/assets/GitHubIcon"
 import LinkedInIcon from "@/assets/LinkedInIcon"
@@ -20,19 +19,16 @@ interface WhatsNewModalProps {
 }
 
 export const WhatsNewModal: React.FC<WhatsNewModalProps> = ({ open, onClose, version, welcomeBanners, onBannerAction }) => {
-	const { openRouterModels, refreshOpenRouterModels, navigateToSettingsModelPicker } = useSettingsStore()
+	const { openRouterModels, navigateToSettingsModelPicker } = useSettingsStore()
 	const { handleFieldsChange } = useApiConfigurationHandlers()
-
-	// Get latest model list in case user hits shortcut button to set model
-	useMount(refreshOpenRouterModels)
 
 	const navigateToModelPicker = useCallback(
 		(modelId?: string) => {
-			// Switch to Dirac provider first so the model picker tab works
+			// Switch to OpenRouter so the model picker tab works
 			// Optionally also set the model if provided
 			const updates: Record<string, any> = {
-				planModeApiProvider: "dirac",
-				actModeApiProvider: "dirac",
+				planModeApiProvider: "openrouter",
+				actModeApiProvider: "openrouter",
 			}
 			if (modelId) {
 				updates.planModeOpenRouterModelId = modelId

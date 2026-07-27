@@ -102,6 +102,3 @@ export { type LiteLLMModelId, liteLlmDefaultModelId, liteLlmModelInfoSaneDefault
 
 // Requesty
 export { requestyDefaultModelId, requestyDefaultModelInfo } from "./requesty"
-
-// OpenRouter
-export { openRouterDefaultModelId, openRouterDefaultModelInfo } from "./openrouter"

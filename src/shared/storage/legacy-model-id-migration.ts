@@ -8,8 +8,6 @@ const LEGACY_MODEL_ID_SETTINGS = [
 	"actModeAwsBedrockCustomModelBaseId",
 	"planModeOpenRouterModelId",
 	"actModeOpenRouterModelId",
-	"planModeDiracModelId",
-	"actModeDiracModelId",
 	"planModeVercelAiGatewayModelId",
 	"actModeVercelAiGatewayModelId",
 ] as const satisfies readonly SettingsKey[]

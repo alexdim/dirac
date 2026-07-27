@@ -11,11 +11,7 @@ import { usesOpenRouterModels } from "../../../utils/openrouter-models"
 import { openExternal } from "@/utils/env"
 import { Logger } from "@/shared/services/Logger"
 import type { Controller } from "@/core/controller"
-import {
-	SettingsItemType,
-	SettingsNavigationDirection,
-	type ListItem,
-} from "../types"
+import { SettingsItemType, SettingsNavigationDirection, type ListItem } from "../types"
 import { getNextSelectableSettingsIndex } from "../navigation"
 import type { AutoApprovalSettings } from "@shared/AutoApprovalSettings"
 import type { TelemetrySetting } from "@shared/TelemetrySetting"
@@ -259,7 +255,13 @@ export function useSettingsActions({
 
 	const handleAction = useCallback(async () => {
 		const item = items[selectedIndex]
-		if (!item || item.type === SettingsItemType.READONLY || item.type === SettingsItemType.SEPARATOR || item.type === SettingsItemType.HEADER || item.type === SettingsItemType.SPACER)
+		if (
+			!item ||
+			item.type === SettingsItemType.READONLY ||
+			item.type === SettingsItemType.SEPARATOR ||
+			item.type === SettingsItemType.HEADER ||
+			item.type === SettingsItemType.SPACER
+		)
 			return
 
 		if (item.type === SettingsItemType.ACTION) {
@@ -540,6 +542,13 @@ export function useSettingsActions({
 		],
 	)
 
+	const beginOpenRouterModelSelection = useCallback(() => {
+		setPendingProvider("openrouter")
+		setIsPickingProvider(false)
+		setPickingModelKey("actModelId")
+		setIsPickingModel(true)
+	}, [setIsPickingModel, setIsPickingProvider, setPendingProvider, setPickingModelKey])
+
 	const handleProviderSelect = useCallback(
 		async (providerId: string) => {
 			const keyField = ProviderToApiKeyMap[providerId as ApiProvider]
@@ -547,7 +556,15 @@ export function useSettingsActions({
 			const fieldName = keyField ? (Array.isArray(keyField) ? keyField[0] : keyField) : null
 			const existingKey = fieldName ? (apiConfig as Record<string, string>)[fieldName] || "" : ""
 
-			if (initialMode === "provider-picker" && (existingKey || !keyField) && providerId !== "bedrock") {
+			const requiresOpenRouterModelSelection =
+				providerId === "openrouter" && !apiConfig.actModeOpenRouterModelId && !apiConfig.planModeOpenRouterModelId
+
+			if (
+				initialMode === "provider-picker" &&
+				(existingKey || !keyField) &&
+				providerId !== "bedrock" &&
+				!requiresOpenRouterModelSelection
+			) {
 				let canSwitchDirectly = true
 				if (providerId === "openai-codex") {
 					canSwitchDirectly = await openAiCodexOAuthManager.isAuthenticated()
@@ -596,17 +613,14 @@ export function useSettingsActions({
 				return
 			}
 
-			if (providerId === "dirac") {
-				setIsPickingProvider(false)
-				await applyProviderConfig({ providerId: "dirac", controller })
-				setProvider("dirac")
-				refreshModelIds()
-				return
-			}
-
 			if (providerId === "openai-codex") {
 				setIsPickingProvider(false)
 				await startCodexAuth()
+				return
+			}
+
+			if (requiresOpenRouterModelSelection && existingKey) {
+				beginOpenRouterModelSelection()
 				return
 			}
 
@@ -636,6 +650,7 @@ export function useSettingsActions({
 			startGithubAuth,
 			setApiKeyValue,
 			setIsEnteringApiKey,
+			beginOpenRouterModelSelection,
 		],
 	)
 
@@ -648,10 +663,21 @@ export function useSettingsActions({
 					setIsBedrockCustomFlow(true)
 					return
 				}
-				if (usesOpenRouterModels(provider)) {
+				if (usesOpenRouterModels(pendingProvider || provider)) {
 					// For OpenRouter, selecting "Custom" just sets the model ID to __custom__
 					// which triggers the third line to appear in the settings list.
 				}
+			}
+
+			if (pendingProvider === "openrouter") {
+				await applyProviderConfig({ providerId: pendingProvider, modelId, controller })
+				setProvider(pendingProvider)
+				setPendingProvider(null)
+				refreshModelIds()
+				setIsPickingModel(false)
+				setPickingModelKey(null)
+				if (initialMode) onClose()
+				return
 			}
 
 			const apiConfig = stateManager.getApiConfiguration()
@@ -668,7 +694,7 @@ export function useSettingsActions({
 			const planKey = planProvider ? getProviderModelIdKey(planProvider, "plan") : null
 
 			let modelInfo: ModelInfo | undefined
-			if (providerForSelection === "dirac" || providerForSelection === "openrouter") {
+			if (providerForSelection === "openrouter") {
 				const openRouterModels = await controller?.readOpenRouterModels()
 				modelInfo = openRouterModels?.[modelId]
 			}
@@ -699,6 +725,7 @@ export function useSettingsActions({
 		},
 		[
 			pickingModelKey,
+			pendingProvider,
 			separateModels,
 			stateManager,
 			controller,
@@ -709,6 +736,8 @@ export function useSettingsActions({
 			setIsPickingModel,
 			setIsBedrockCustomFlow,
 			setPickingModelKey,
+			setPendingProvider,
+			setProvider,
 			rebuildTaskApi,
 		],
 	)
@@ -716,6 +745,19 @@ export function useSettingsActions({
 	const handleApiKeySubmit = useCallback(
 		async (submittedValue: string) => {
 			if (!pendingProvider || !submittedValue.trim()) return
+
+			const apiConfig = stateManager.getApiConfiguration()
+			const requiresOpenRouterModelSelection =
+				pendingProvider === "openrouter" && !apiConfig.actModeOpenRouterModelId && !apiConfig.planModeOpenRouterModelId
+			if (requiresOpenRouterModelSelection) {
+				stateManager.setApiConfiguration({ openRouterApiKey: submittedValue.trim() })
+				await stateManager.flushPendingState()
+				setIsEnteringApiKey(false)
+				setApiKeyValue("")
+				beginOpenRouterModelSelection()
+				return
+			}
+
 			await applyProviderConfig({ providerId: pendingProvider, apiKey: submittedValue.trim(), controller })
 			setProvider(pendingProvider)
 			refreshModelIds()
@@ -726,10 +768,12 @@ export function useSettingsActions({
 		},
 		[
 			pendingProvider,
+			stateManager,
 			controller,
 			refreshModelIds,
 			initialMode,
 			onClose,
+			beginOpenRouterModelSelection,
 			setProvider,
 			setIsEnteringApiKey,
 			setPendingProvider,

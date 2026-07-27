@@ -50,8 +50,6 @@ import {
 	openAiModelInfoSaneDefaults,
 	openAiNativeDefaultModelId,
 	openAiNativeModels,
-	openRouterDefaultModelId,
-	openRouterDefaultModelInfo,
 	qwenCodeDefaultModelId,
 	qwenCodeModels,
 	requestyDefaultModelId,
@@ -77,13 +75,12 @@ export function supportsReasoningEffortForModelId(modelId?: string, modelInfo?: 
 
 /**
  * Returns the static model list for a provider.
- * For providers with dynamic models (openrouter, dirac, etc.), returns undefined.
+ * For providers with dynamic models (openrouter, etc.), returns undefined.
  * Some providers depend on configuration (qwen, zai) for region-specific models.
  */
 export function getModelsForProvider(
 	apiProvider: ApiProvider | undefined,
 	openRouterModels: Record<string, ModelInfo>,
-	diracModels: Record<string, ModelInfo> | null,
 	vercelAiGatewayModels: Record<string, ModelInfo>,
 	liteLlmModels: Record<string, ModelInfo>,
 	requestyModels: Record<string, ModelInfo>,
@@ -96,8 +93,6 @@ export function getModelsForProvider(
 	switch (apiProvider) {
 		case "openrouter":
 			return openRouterModels
-		case "dirac":
-			return diracModels || {}
 		case "vercel-ai-gateway":
 			return vercelAiGatewayModels
 		case "litellm":
@@ -164,6 +159,8 @@ export function getModelsForProvider(
 /**
  * Interface for normalized API configuration
  */
+const dynamicModelInfoDefaults: ModelInfo = { supportsPromptCache: false }
+
 export interface NormalizedApiConfig {
 	selectedProvider: ApiProvider
 	selectedModelId: string
@@ -254,8 +251,8 @@ export function normalizeApiConfiguration(
 					: apiConfiguration?.actModeOpenRouterModelInfo
 			return {
 				selectedProvider: provider,
-				selectedModelId: openRouterModelId || openRouterDefaultModelId,
-				selectedModelInfo: openRouterModelInfo || openRouterDefaultModelInfo,
+				selectedModelId: openRouterModelId || "",
+				selectedModelInfo: openRouterModelInfo || dynamicModelInfoDefaults,
 			}
 		case "requesty":
 			const requestyModelId =
@@ -266,26 +263,6 @@ export function normalizeApiConfiguration(
 				selectedProvider: provider,
 				selectedModelId: requestyModelId || requestyDefaultModelId,
 				selectedModelInfo: requestyModelInfo || requestyDefaultModelInfo,
-			}
-		case "dirac":
-			const fallbackOpenRouterModelId =
-				currentMode === "plan" ? apiConfiguration?.planModeOpenRouterModelId : apiConfiguration?.actModeOpenRouterModelId
-			const fallbackOpenRouterModelInfo =
-				currentMode === "plan"
-					? apiConfiguration?.planModeOpenRouterModelInfo
-					: apiConfiguration?.actModeOpenRouterModelInfo
-			const diracModelId =
-				(currentMode === "plan" ? apiConfiguration?.planModeDiracModelId : apiConfiguration?.actModeDiracModelId) ||
-				fallbackOpenRouterModelId ||
-				openRouterDefaultModelId
-			const diracModelInfo =
-				(currentMode === "plan" ? apiConfiguration?.planModeDiracModelInfo : apiConfiguration?.actModeDiracModelInfo) ||
-				fallbackOpenRouterModelInfo ||
-				openRouterDefaultModelInfo
-			return {
-				selectedProvider: provider,
-				selectedModelId: diracModelId,
-				selectedModelInfo: diracModelInfo,
 			}
 		case "openai":
 			const openAiModelId =
@@ -425,7 +402,7 @@ export function normalizeApiConfiguration(
 			return {
 				selectedProvider: provider,
 				selectedModelId: vercelModelId || "",
-				selectedModelInfo: vercelModelInfo || openRouterDefaultModelInfo,
+				selectedModelInfo: vercelModelInfo || dynamicModelInfoDefaults,
 			}
 		case "zai":
 			const zaiModels = apiConfiguration?.zaiApiLine === "china" ? mainlandZAiModels : internationalZAiModels
@@ -502,8 +479,6 @@ export function getModeSpecificFields(apiConfiguration: ApiConfiguration | undef
 			mode === "plan" ? apiConfiguration?.planModeOpenRouterModelId : apiConfiguration?.actModeOpenRouterModelId,
 		openRouterModelInfo:
 			mode === "plan" ? apiConfiguration?.planModeOpenRouterModelInfo : apiConfiguration?.actModeOpenRouterModelInfo,
-		diracModelId: mode === "plan" ? apiConfiguration?.planModeDiracModelId : apiConfiguration?.actModeDiracModelId,
-		diracModelInfo: mode === "plan" ? apiConfiguration?.planModeDiracModelInfo : apiConfiguration?.actModeDiracModelInfo,
 		openAiModelId: mode === "plan" ? apiConfiguration?.planModeOpenAiModelId : apiConfiguration?.actModeOpenAiModelId,
 		openAiModelInfo: mode === "plan" ? apiConfiguration?.planModeOpenAiModelInfo : apiConfiguration?.actModeOpenAiModelInfo,
 		openAiProfileName:
@@ -591,12 +566,6 @@ export async function syncModeConfigurations(
 			updates.actModeOpenRouterModelInfo = sourceFields.openRouterModelInfo
 			break
 
-		case "dirac":
-			updates.planModeDiracModelId = sourceFields.diracModelId
-			updates.actModeDiracModelId = sourceFields.diracModelId
-			updates.planModeDiracModelInfo = sourceFields.diracModelInfo
-			updates.actModeDiracModelInfo = sourceFields.diracModelInfo
-			break
 
 		case "requesty":
 			updates.planModeRequestyModelId = sourceFields.requestyModelId

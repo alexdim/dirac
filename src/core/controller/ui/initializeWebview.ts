@@ -9,7 +9,6 @@ import { refreshBasetenModels } from "../models/refreshBasetenModels"
 import { refreshGithubCopilotModels } from "../models/refreshGithubCopilotModels"
 import { refreshGroqModels } from "../models/refreshGroqModels"
 import { refreshLiteLlmModels } from "../models/refreshLiteLlmModels"
-import { refreshOpenRouterModels } from "../models/refreshOpenRouterModels"
 import { sendOpenRouterModelsEvent } from "../models/subscribeToOpenRouterModels"
 
 // Field names for synchronizing a provider's model info into global state
@@ -18,12 +17,6 @@ type ProviderModelFields = {
 	planInfo: keyof GlobalStateAndSettings
 	actId: string
 	actInfo: keyof GlobalStateAndSettings
-}
-const openRouterFields: ProviderModelFields = {
-	planId: "planModeOpenRouterModelId",
-	planInfo: "planModeOpenRouterModelInfo",
-	actId: "actModeOpenRouterModelId",
-	actInfo: "actModeOpenRouterModelInfo",
 }
 const groqFields: ProviderModelFields = {
 	planId: "planModeGroqModelId",
@@ -48,8 +41,7 @@ const githubCopilotFields: ProviderModelFields = {
 export async function initializeWebview(controller: Controller, _request: EmptyRequest): Promise<Empty> {
 	try {
 		await postCachedOpenRouterModels(controller)
-		// Fire-and-forget: refresh each provider's models and sync model info into state
-		refreshOpenRouterModels(controller).then((m) => syncProviderModelInfo(controller, m, openRouterFields))
+		// Fire-and-forget: refresh other providers' models and sync model info into state
 		refreshGroqModels(controller).then((m) => syncProviderModelInfo(controller, m, groqFields))
 		refreshBasetenModels(controller).then((m) => syncProviderModelInfo(controller, m, basetenFields))
 		refreshGithubCopilotModels().then((m) => syncProviderModelInfo(controller, m, githubCopilotFields))
@@ -65,7 +57,14 @@ export async function initializeWebview(controller: Controller, _request: EmptyR
 // Post last cached OpenRouter models for immediate UI availability
 async function postCachedOpenRouterModels(controller: Controller): Promise<void> {
 	const cached = await controller.readOpenRouterModels()
-	if (cached) sendOpenRouterModelsEvent(OpenRouterCompatibleModelInfo.create({ models: cached }))
+	if (!cached) return
+	await sendOpenRouterModelsEvent(OpenRouterCompatibleModelInfo.create({ models: cached }))
+	await syncProviderModelInfo(controller, cached, {
+		planId: "planModeOpenRouterModelId",
+		planInfo: "planModeOpenRouterModelInfo",
+		actId: "actModeOpenRouterModelId",
+		actInfo: "actModeOpenRouterModelInfo",
+	})
 }
 
 // Refresh LiteLLM models only when both base URL and API key are configured

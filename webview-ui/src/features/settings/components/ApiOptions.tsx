@@ -16,7 +16,6 @@ import { GithubCopilotProvider } from "./providers/GithubCopilotProvider"
 import { BedrockProvider } from "./providers/BedrockProvider"
 import { CerebrasProvider } from "./providers/CerebrasProvider"
 import { ClaudeCodeProvider } from "./providers/ClaudeCodeProvider"
-import { DiracProvider } from "./providers/DiracProvider"
 import { DeepSeekProvider } from "./providers/DeepSeekProvider"
 import { DifyProvider } from "./providers/DifyProvider"
 import { DoubaoProvider } from "./providers/DoubaoProvider"
@@ -318,9 +317,6 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 				</ProviderDropdownWrapper>
 			</DropdownContainer>
 
-			{apiConfiguration && selectedProvider === "dirac" && (
-				<DiracProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
-			)}
 
 			{apiConfiguration && selectedProvider === "anthropic" && (
 				<AnthropicProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />

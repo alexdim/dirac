@@ -182,14 +182,17 @@ const ModularWelcomeSection: React.FC<ModularWelcomeSectionProps> = ({
 					break
 
 				case BannerActionType.SetModel: {
-					const modelId = action.arg || "anthropic/claude-sonnet-4.5"
+					if (!action.arg) {
+						break
+					}
+					const modelId = action.arg
 					handleFieldsChange({
 						planModeOpenRouterModelId: modelId,
 						actModeOpenRouterModelId: modelId,
 						planModeOpenRouterModelInfo: openRouterModels[modelId],
 						actModeOpenRouterModelInfo: openRouterModels[modelId],
-						planModeApiProvider: "dirac",
-						actModeApiProvider: "dirac",
+						planModeApiProvider: "openrouter",
+						actModeApiProvider: "openrouter",
 					})
 					navigateToSettingsModelPicker({ targetSection: "api-config" })
 					break

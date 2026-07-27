@@ -125,7 +125,7 @@ export class AIhubmixHandler implements ApiHandler {
 
 	@withRetry()
 	async *createMessage(systemPrompt: string, messages: any[]): ApiStream {
-		const modelId = this.options.modelId || ""
+		const modelId = this.requireModelId()
 		const route = this.routeModel(modelId)
 
 		switch (route) {
@@ -148,7 +148,7 @@ export class AIhubmixHandler implements ApiHandler {
 
 	private async *createAnthropicMessage(systemPrompt: string, messages: any[]): ApiStream {
 		const client = this.ensureAnthropicClient()
-		const modelId = this.options.modelId || "claude-3-5-sonnet-20241022"
+		const modelId = this.requireModelId()
 
 		// Sanitize messages to remove Dirac-specific fields like call_id that are not allowed by Anthropic API
 		const sanitizedMessages = sanitizeAnthropicMessages(messages, false)
@@ -203,7 +203,7 @@ export class AIhubmixHandler implements ApiHandler {
 
 	private async *createOpenaiResponseMessage(systemPrompt: string, messages: any[]): ApiStream {
 		const client = this.ensureOpenaiClient()
-		const modelId = this.options.modelId || "gpt-4o-mini"
+		const modelId = this.requireModelId()
 
 		const input = (messages || []).map((m: any) => {
 			const role = m.role || "user"
@@ -248,7 +248,7 @@ export class AIhubmixHandler implements ApiHandler {
 
 	private async *createOpenaiMessage(systemPrompt: string, messages: any[]): ApiStream {
 		const client = this.ensureOpenaiClient()
-		const modelId = this.options.modelId || "gpt-4o-mini"
+		const modelId = this.requireModelId()
 
 		const openaiMessages = [
 			{ role: "system", content: systemPrompt },
@@ -287,7 +287,7 @@ export class AIhubmixHandler implements ApiHandler {
 
 	private async *createGeminiMessage(systemPrompt: string, messages: any[]): ApiStream {
 		const client = this.ensureGeminiClient()
-		const modelId = this.options.modelId || "gemini-2.0-flash-exp"
+		const modelId = this.requireModelId()
 
 		const contents = convertAnthropicMessagesToGemini(messages as DiracStorageMessage[])
 
@@ -316,16 +316,14 @@ export class AIhubmixHandler implements ApiHandler {
 		}
 	}
 
-	getModel(): { id: string; info: ModelInfo } {
-		return {
-			id: this.options.modelId || "gpt-4o-mini",
-			info: this.options.modelInfo || {
-				maxTokens: 8192,
-				contextWindow: 128000,
-				supportsImages: true,
-				supportsPromptCache: false,
-				description: "AIhubmix unified model provider",
-			},
+	private requireModelId(): string {
+		if (!this.options.modelId) {
+			throw new Error("AIHubMix model ID is required")
 		}
+		return this.options.modelId
+	}
+
+	getModel(): { id: string; info: ModelInfo } {
+		return { id: this.requireModelId(), info: this.options.modelInfo || { supportsPromptCache: false } }
 	}
 }

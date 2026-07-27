@@ -11,6 +11,7 @@ export interface PriceTier {
  */
 export interface ModelCapabilities {
 	name?: string
+	canonicalSlug?: string
 	maxTokens?: number
 	contextWindow?: number
 	supportsImages?: boolean

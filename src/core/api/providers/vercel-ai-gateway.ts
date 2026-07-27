@@ -1,4 +1,4 @@
-import { ModelInfo, openRouterDefaultModelId, openRouterDefaultModelInfo } from "@shared/api"
+import { ModelInfo } from "@shared/api"
 import { shouldSkipReasoningForModel } from "@utils/model-utils"
 import OpenAI from "openai"
 import type { ChatCompletionTool as OpenAITool } from "openai/resources/chat/completions"
@@ -18,6 +18,8 @@ interface VercelAIGatewayHandlerOptions extends CommonApiHandlerOptions {
 	reasoningEffort?: string
 	thinkingBudgetTokens?: number
 }
+
+const dynamicModelInfoDefaults: ModelInfo = { supportsPromptCache: false }
 
 export class VercelAIGatewayHandler implements ApiHandler {
 	private options: VercelAIGatewayHandlerOptions
@@ -139,16 +141,9 @@ export class VercelAIGatewayHandler implements ApiHandler {
 	}
 
 	getModel(): { id: string; info: ModelInfo } {
-		const modelId = this.options.openRouterModelId
-		const modelInfo = this.options.openRouterModelInfo
-		if (modelId && modelInfo) {
-			return { id: modelId, info: modelInfo }
+		if (!this.options.openRouterModelId) {
+			throw new Error("Vercel AI Gateway model ID is required")
 		}
-		// If we have a model ID but no model info, preserve the selected model ID
-		// and fall back only the metadata to defaults.
-		if (modelId) {
-			return { id: modelId, info: openRouterDefaultModelInfo }
-		}
-		return { id: openRouterDefaultModelId, info: openRouterDefaultModelInfo }
+		return { id: this.options.openRouterModelId, info: this.options.openRouterModelInfo || dynamicModelInfoDefaults }
 	}
 }

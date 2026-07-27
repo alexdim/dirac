@@ -486,6 +486,23 @@ export function validateApiConfiguration(configuration: ApiConfiguration, mode?:
 				"Configure both values before selecting Dify.",
 			)
 		}
+		const dynamicProviderModelId =
+			provider === "openrouter"
+				? modeConfig.openRouterModelId
+				: provider === "together"
+					? modeConfig.togetherModelId
+					: provider === "vercel-ai-gateway"
+						? modeConfig.vercelAiGatewayModelId
+						: provider === "aihubmix"
+							? modeConfig.aihubmixModelId
+							: undefined
+		if (["openrouter", "together", "vercel-ai-gateway", "aihubmix"].includes(provider) && !dynamicProviderModelId) {
+			throw new ApiConfigurationError(
+				ApiConfigurationErrorCode.ModelUnavailable,
+				`${provider} requires an explicit model ID`,
+				"Select a model before retrying.",
+			)
+		}
 	}
 }
 

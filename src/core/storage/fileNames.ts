@@ -4,7 +4,6 @@ export const GlobalFileNames = {
 	contextHistory: "context_history.json",
 	uiMessages: "ui_messages.json",
 	diracRecommendedModels: "dirac_recommended_models.json",
-	diracModels: "dirac_models.json",
 	openRouterModels: "openrouter_models.json",
 	vercelAiGatewayModels: "vercel_ai_gateway_models.json",
 	groqModels: "groq_models.json",

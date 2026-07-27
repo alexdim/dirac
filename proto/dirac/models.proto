@@ -17,8 +17,8 @@ service ModelsService {
   rpc getVsCodeLmModels(EmptyRequest) returns (VsCodeLmModelsArray);
   // Refreshes and returns OpenRouter models
   rpc refreshOpenRouterModelsRpc(EmptyRequest) returns (OpenRouterCompatibleModelInfo);
-  // Refreshes and returns Dirac provider models
-  rpc refreshDiracModelsRpc(EmptyRequest) returns (OpenRouterCompatibleModelInfo);
+  // Fetches optional OpenRouter model popularity rankings
+  rpc fetchOpenRouterModelRankings(EmptyRequest) returns (StringArray);
   // Refreshes and returns Hugging Face models
   rpc refreshHuggingFaceModels(EmptyRequest) returns (OpenRouterCompatibleModelInfo);
   // Refreshes and returns OpenAI models
@@ -110,6 +110,7 @@ message OpenRouterModelInfo {
   optional bool supports_adaptive_thinking = 18;
   optional bool supports_strict_tools = 19;
   optional bool supports_reasoning_effort = 20;
+  optional string canonical_slug = 21;
 }
 
 // Shared response message for model information
@@ -158,7 +159,7 @@ message OpenAiModelsRequest {
 // API secrets (credentials, API keys)
 message ModelsApiSecrets {
   optional string api_key = 1;
-  optional string dirac_api_key = 2;
+  reserved 2; // was dirac_api_key
   optional string lite_llm_api_key = 3;
   optional string open_router_api_key = 4;
   optional string aws_access_key = 5;
@@ -269,8 +270,7 @@ message ModelsApiOptions {
   optional OpenRouterModelInfo plan_mode_vercel_ai_gateway_model_info = 130;
   optional string plan_mode_aihubmix_model_id = 133;
   optional OpenAiCompatibleModelInfo plan_mode_aihubmix_model_info = 134;
-  optional string plan_mode_dirac_model_id = 135;
-  optional OpenRouterModelInfo plan_mode_dirac_model_info = 136;
+  reserved 135, 136; // were plan_mode_dirac_model_id and plan_mode_dirac_model_info
 
   // Act mode configurations
   optional ApiProvider act_mode_api_provider = 200;
@@ -304,8 +304,7 @@ message ModelsApiOptions {
   optional OpenRouterModelInfo act_mode_vercel_ai_gateway_model_info = 230;
   optional string act_mode_aihubmix_model_id = 233;
   optional OpenAiCompatibleModelInfo act_mode_aihubmix_model_info = 234;
-  optional string act_mode_dirac_model_id = 235;
-  optional OpenRouterModelInfo act_mode_dirac_model_info = 236;
+  reserved 235, 236; // were act_mode_dirac_model_id and act_mode_dirac_model_info
 }
 
 // Request for updating API configuration (legacy - uses combined configuration)
@@ -417,7 +416,7 @@ enum ApiProvider {
   DOUBAO = 13;
   MISTRAL = 14;
   VSCODE_LM = 15;
-  DIRAC = 16;
+  reserved 16; // was DIRAC
   LITELLM = 17;
   NEBIUS = 18;
   FIREWORKS = 19;
@@ -510,7 +509,7 @@ message LiteLLMModelInfo {
 message ModelsApiConfiguration {
   // Global configuration fields (not mode-specific)
   optional string api_key = 1;
-  optional string dirac_api_key = 2;
+  reserved 2; // was dirac_api_key
   optional string ulid = 3;
   optional string lite_llm_base_url = 4;
   optional string lite_llm_api_key = 5;
@@ -623,8 +622,7 @@ message ModelsApiConfiguration {
   optional OpenAiCompatibleModelInfo plan_mode_aihubmix_model_info = 137;
   optional string plan_mode_nous_research_model_id = 138;
   optional string gemini_plan_mode_thinking_level = 139;
-  optional string plan_mode_dirac_model_id = 140;
-  optional OpenRouterModelInfo plan_mode_dirac_model_info = 141;
+  reserved 140, 141; // were plan_mode_dirac_model_id and plan_mode_dirac_model_info
   optional string plan_mode_open_ai_profile_name = 142;
 
   // Act mode configurations
@@ -663,7 +661,6 @@ message ModelsApiConfiguration {
   optional OpenAiCompatibleModelInfo act_mode_aihubmix_model_info = 237;
   optional string act_mode_nous_research_model_id = 238;
   optional string gemini_act_mode_thinking_level = 239;
-  optional string act_mode_dirac_model_id = 240;
-  optional OpenRouterModelInfo act_mode_dirac_model_info = 241;
+  reserved 240, 241; // were act_mode_dirac_model_id and act_mode_dirac_model_info
   optional string act_mode_open_ai_profile_name = 242;
 }

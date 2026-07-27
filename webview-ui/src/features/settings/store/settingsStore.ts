@@ -10,8 +10,6 @@ import {
 	basetenModels,
 	groqDefaultModelId,
 	groqModels,
-	openRouterDefaultModelId,
-	openRouterDefaultModelInfo,
 	requestyDefaultModelId,
 	requestyDefaultModelInfo,
 	liteLlmModelInfoSaneDefaults,
@@ -47,10 +45,10 @@ interface SettingsState {
 	setShowWelcome: (show: boolean) => void
 	availableTerminalProfiles: any[]
 	refreshTerminalProfiles: () => void
-	diracModels: any
-	refreshDiracModels: () => void
 	openRouterModels: any
 	refreshOpenRouterModels: () => void
+	openRouterModelRankings: string[]
+	refreshOpenRouterModelRankings: () => void
 	openRouterEndpointStates: Record<string, OpenRouterEndpointState>
 	fetchOpenRouterEndpoints: (modelId: string, forceRefresh?: boolean) => Promise<void>
 	refreshBasetenModels: () => void
@@ -261,23 +259,8 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
 			console.error("Failed to refresh terminal profiles:", error)
 		}
 	},
-	diracModels: {},
-	refreshDiracModels: async () => {
-		try {
-			const response = await ModelsServiceClient.refreshDiracModelsRpc(EmptyRequest.create())
-			set({
-				diracModels: {
-					[openRouterDefaultModelId]: openRouterDefaultModelInfo,
-					...fromProtobufModels(response.models),
-				},
-			})
-		} catch (error) {
-			console.error("Failed to refresh Dirac models:", error)
-		}
-	},
-	openRouterModels: {
-		[openRouterDefaultModelId]: openRouterDefaultModelInfo,
-	},
+	openRouterModels: {},
+	openRouterModelRankings: [],
 	openRouterEndpointStates: {},
 	fetchOpenRouterEndpoints: async (modelId, forceRefresh = false) => {
 		const current = get().openRouterEndpointStates[modelId]
@@ -326,13 +309,18 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
 		try {
 			const response = await ModelsServiceClient.refreshOpenRouterModelsRpc(EmptyRequest.create())
 			set({
-				openRouterModels: {
-					[openRouterDefaultModelId]: openRouterDefaultModelInfo,
-					...fromProtobufModels(response.models),
-				},
+				openRouterModels: fromProtobufModels(response.models),
 			})
 		} catch (error) {
 			console.error("Failed to refresh OpenRouter models:", error)
+		}
+	},
+	refreshOpenRouterModelRankings: async () => {
+		try {
+			const response = await ModelsServiceClient.fetchOpenRouterModelRankings(EmptyRequest.create())
+			set({ openRouterModelRankings: response.values })
+		} catch {
+			set({ openRouterModelRankings: [] })
 		}
 	},
 	refreshOpenAiModels: async (baseUrl: string, apiKey: string) => {
@@ -362,10 +350,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
 		try {
 			const response = await ModelsServiceClient.refreshVercelAiGatewayModelsRpc(EmptyRequest.create())
 			set({
-				vercelAiGatewayModels: {
-					[openRouterDefaultModelId]: openRouterDefaultModelInfo,
-					...fromProtobufModels(response.models),
-				},
+				vercelAiGatewayModels: fromProtobufModels(response.models),
 			})
 		} catch (error) {
 			console.error("Failed to refresh Vercel AI Gateway models:", error)

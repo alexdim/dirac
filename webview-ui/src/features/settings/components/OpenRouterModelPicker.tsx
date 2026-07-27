@@ -1,4 +1,3 @@
-import { openRouterDefaultModelId } from "@shared/api"
 import type { Mode } from "@shared/ExtensionMessage"
 import { StringRequest } from "@shared/proto/dirac/common"
 import { VSCodeLink, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
@@ -14,11 +13,7 @@ import { ModelInfoView } from "./common/ModelInfoView"
 import { OpenRouterProviderSelector, OpenRouterRoutingControls } from "./OpenRouterRoutingControls"
 import ReasoningEffortSelector from "./ReasoningEffortSelector"
 import ThinkingBudgetSlider from "./ThinkingBudgetSlider"
-import {
-	filterOpenRouterModelIds,
-	getModeSpecificFields,
-	normalizeApiConfiguration,
-} from "./utils/providerUtils"
+import { filterOpenRouterModelIds, getModeSpecificFields, normalizeApiConfiguration } from "./utils/providerUtils"
 import { useApiConfigurationHandlers } from "./utils/useApiConfigurationHandlers"
 
 // Star icon for favorites
@@ -47,11 +42,42 @@ export interface OpenRouterModelPickerProps {
 	currentMode: Mode
 }
 
+function resolveRankedModelIds(rankedCanonicalSlugs: string[], models: Record<string, { canonicalSlug?: string }>): string[] {
+	const resolvedModelIds: string[] = []
+	const resolvedModelIdSet = new Set<string>()
+	for (const rankedCanonicalSlug of rankedCanonicalSlugs) {
+		const modelId = resolveRankedModelId(rankedCanonicalSlug, models)
+		if (!modelId || resolvedModelIdSet.has(modelId)) continue
+		resolvedModelIds.push(modelId)
+		resolvedModelIdSet.add(modelId)
+	}
+	return resolvedModelIds
+}
+
+function resolveRankedModelId(
+	rankedCanonicalSlug: string,
+	models: Record<string, { canonicalSlug?: string }>,
+): string | undefined {
+	if (models[rankedCanonicalSlug]) return rankedCanonicalSlug
+	const isFreeRanking = rankedCanonicalSlug.endsWith(":free")
+	const canonicalSlug = isFreeRanking ? rankedCanonicalSlug.slice(0, -":free".length) : rankedCanonicalSlug
+	return Object.entries(models).find(
+		([modelId, modelInfo]) => modelInfo.canonicalSlug === canonicalSlug && modelId.endsWith(":free") === isFreeRanking,
+	)?.[0]
+}
+
 const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({ isPopup, currentMode }) => {
 	const { handleModeFieldsChange } = useApiConfigurationHandlers()
-	const { apiConfiguration, favoritedModelIds, openRouterModels, refreshOpenRouterModels } = useSettingsStore()
+	const {
+		apiConfiguration,
+		favoritedModelIds,
+		openRouterModels,
+		openRouterModelRankings,
+		refreshOpenRouterModels,
+		refreshOpenRouterModelRankings,
+	} = useSettingsStore()
 	const modeFields = getModeSpecificFields(apiConfiguration, currentMode)
-	const [searchTerm, setSearchTerm] = useState(modeFields.openRouterModelId || openRouterDefaultModelId)
+	const [searchTerm, setSearchTerm] = useState(modeFields.openRouterModelId || "")
 	const [isDropdownVisible, setIsDropdownVisible] = useState(false)
 	const [selectedIndex, setSelectedIndex] = useState(-1)
 	const [customModelAdvancedExpanded, setCustomModelAdvancedExpanded] = useState(false)
@@ -84,11 +110,12 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({ isPopup, 
 
 	useMount(() => {
 		refreshOpenRouterModels()
+		refreshOpenRouterModelRankings()
 	})
 
 	// Sync external changes when the modelId changes
 	useEffect(() => {
-		const currentModelId = modeFields.openRouterModelId || openRouterDefaultModelId
+		const currentModelId = modeFields.openRouterModelId || ""
 		setSearchTerm(currentModelId)
 	}, [modeFields.openRouterModelId])
 
@@ -106,9 +133,15 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({ isPopup, 
 	}, [])
 
 	const modelIds = useMemo(() => {
-		const unfilteredModelIds = Object.keys(openRouterModels).sort((a, b) => a.localeCompare(b))
-		return filterOpenRouterModelIds(unfilteredModelIds, "openrouter")
-	}, [openRouterModels])
+		const filteredModelIds = filterOpenRouterModelIds(Object.keys(openRouterModels), "openrouter")
+		const filteredModelIdSet = new Set(filteredModelIds)
+		const alphabetizedModelIds = filteredModelIds.sort((a, b) => a.localeCompare(b))
+		const rankedModelIds = resolveRankedModelIds(openRouterModelRankings, openRouterModels).filter((id) =>
+			filteredModelIdSet.has(id),
+		)
+		const rankedModelIdSet = new Set(rankedModelIds)
+		return [...rankedModelIds, ...alphabetizedModelIds.filter((id) => !rankedModelIdSet.has(id))]
+	}, [openRouterModelRankings, openRouterModels])
 
 	const searchableItems = useMemo(() => {
 		return modelIds.map((id) => ({
@@ -291,7 +324,6 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({ isPopup, 
 						</DropdownList>
 					)}
 				</DropdownWrapper>
-
 			</div>
 			<OpenRouterProviderSelector modelId={selectedModelId} />
 

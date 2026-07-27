@@ -44,6 +44,7 @@ function toProtobufThinkingConfig(appConfig: ModelInfo["thinkingConfig"] | undef
  */
 export function fromProtobufModelInfo(protoInfo: OpenRouterModelInfo): ModelInfo {
 	return {
+		canonicalSlug: protoInfo.canonicalSlug,
 		maxTokens: protoInfo.maxTokens,
 		contextWindow: protoInfo.contextWindow,
 		supportsImages: protoInfo.supportsImages,
@@ -67,6 +68,7 @@ export function fromProtobufModelInfo(protoInfo: OpenRouterModelInfo): ModelInfo
  */
 export function toProtobufModelInfo(modelInfo: ModelInfo): OpenRouterModelInfo {
 	return OpenRouterModelInfo.create({
+		canonicalSlug: modelInfo.canonicalSlug,
 		maxTokens: modelInfo.maxTokens,
 		contextWindow: modelInfo.contextWindow,
 		supportsImages: modelInfo.supportsImages,

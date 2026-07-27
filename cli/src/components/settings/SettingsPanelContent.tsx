@@ -208,13 +208,11 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 		await controller?.postStateToWebview()
 	}, [controller, stateManager])
 
-	const {
-		openAiCodexIsAuthenticated,
-		openAiCodexEmail,
-		githubIsAuthenticated,
-		githubEmail,
-		authStatusError,
-	} = useAuthStatus(provider, isWaitingForCodexAuth, isWaitingForGithubAuth)
+	const { openAiCodexIsAuthenticated, openAiCodexEmail, githubIsAuthenticated, githubEmail, authStatusError } = useAuthStatus(
+		provider,
+		isWaitingForCodexAuth,
+		isWaitingForGithubAuth,
+	)
 
 	const items = useSettingsItems({
 		currentTab,
@@ -374,6 +372,8 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 				if (key.escape) {
 					setIsPickingModel(false)
 					setPickingModelKey(null)
+
+					setPendingProvider(null)
 					if (initialMode) onClose()
 				}
 				return
@@ -489,9 +489,7 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 			return (
 				<ProviderPickerPage
 					isActive={isPickingProvider && !isApplyingSetting}
-					onSelect={(providerId) =>
-						runSettingsAction("provider update", () => handleProviderSelect(providerId))
-					}
+					onSelect={(providerId) => runSettingsAction("provider update", () => handleProviderSelect(providerId))}
 				/>
 			)
 		}
@@ -539,7 +537,7 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 					controller={controller}
 					isActive={isPickingModel && !isApplyingSetting}
 					onSelect={(modelId) => runSettingsAction("model update", () => handleModelSelect(modelId))}
-					provider={provider}
+					provider={pendingProvider || provider}
 					label={label}
 				/>
 			)
@@ -561,9 +559,7 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 						setIsPickingModel(true)
 					}}
 					onComplete={(arn, modelId) =>
-						runSettingsAction("custom Bedrock model update", () =>
-							handleBedrockCustomFlowComplete(arn, modelId),
-						)
+						runSettingsAction("custom Bedrock model update", () => handleBedrockCustomFlowComplete(arn, modelId))
 					}
 				/>
 			)

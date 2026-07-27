@@ -1,6 +1,6 @@
 import { setTimeout as setTimeoutPromise } from "node:timers/promises"
 import { StateManager } from "@core/storage/StateManager"
-import { ModelInfo, openRouterDefaultModelId, openRouterDefaultModelInfo, stripOpenRouterPreset } from "@shared/api"
+import { ModelInfo, stripOpenRouterPreset } from "@shared/api"
 import { normalizeLegacySynthetic1mModelId } from "@shared/storage/legacy-model-id-migration"
 import axios from "axios"
 import OpenAI from "openai"
@@ -27,6 +27,8 @@ interface OpenRouterHandlerOptions extends CommonApiHandlerOptions {
 	thinkingBudgetTokens?: number
 	enableParallelToolCalling?: boolean
 }
+
+const dynamicModelInfoDefaults: ModelInfo = { supportsPromptCache: false }
 
 export class OpenRouterHandler implements ApiHandler {
 	private options: OpenRouterHandlerOptions
@@ -245,12 +247,12 @@ export class OpenRouterHandler implements ApiHandler {
 	}
 
 	getModel(): { id: string; info: ModelInfo } {
-		const modelId = normalizeLegacySynthetic1mModelId(this.options.openRouterModelId || openRouterDefaultModelId)
+		if (!this.options.openRouterModelId) {
+			throw new Error("OpenRouter model ID is required")
+		}
+		const modelId = normalizeLegacySynthetic1mModelId(this.options.openRouterModelId)
 		const baseModelId = stripOpenRouterPreset(modelId)
 		const cachedModelInfo = StateManager.get().getModelInfo("openRouter", baseModelId || modelId)
-		return {
-			id: modelId,
-			info: cachedModelInfo || openRouterDefaultModelInfo,
-		}
+		return { id: modelId, info: this.options.openRouterModelInfo || cachedModelInfo || dynamicModelInfoDefaults }
 	}
 }

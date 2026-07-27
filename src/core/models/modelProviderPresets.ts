@@ -153,7 +153,6 @@ function modeUpdates(mode: Mode, preset: ModelProviderPreset, profile?: OpenAiCo
 
 	const providerFields: Partial<Record<ApiProvider, string>> = {
 		openrouter: "OpenRouter",
-		dirac: "Dirac",
 		openai: "OpenAi",
 		lmstudio: "LmStudio",
 		litellm: "LiteLlm",
