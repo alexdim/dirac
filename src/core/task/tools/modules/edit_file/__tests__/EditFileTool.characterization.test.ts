@@ -377,6 +377,39 @@ describe("EditFileTool – characterization edge cases", () => {
 			assert.equal(finalContent, "line 1\nnew a\nnew b\nnew c\nline 3")
 			assert.ok(result.includes("Applied 1 edit(s) successfully"))
 		})
+
+		it("returns current disk anchors after formatting changes surrounding context", async () => {
+			const { config, validator, diffViewProvider } = createConfig()
+			const handler = new EditFileToolHandler(validator, false)
+			const fileName = "test.txt"
+			const filePath = path.join(tmpDir, fileName)
+			const content = "line 1\nline 2\nline 3"
+			await fs.writeFile(filePath, content)
+			const initialAnchors = makeAnchors(filePath, content, config.ulid)
+			const formattedContent = "formatted line 1\nnew line 2\nline 3"
+			diffViewProvider.format.callsFake(async (formattedPath: string) => {
+				await fs.writeFile(formattedPath, formattedContent)
+				return formattedContent
+			})
+
+			const block = makeBlock([
+				{
+					path: fileName,
+					edits: [
+						{ edit_type: "replace", anchor: initialAnchors[1], end_anchor: initialAnchors[1], text: "new line 2" },
+					],
+				},
+			])
+			const result = await handler.execute(config, block.params)
+			const finalContent = await fs.readFile(filePath, "utf8")
+			const finalAnchors = makeAnchors(filePath, finalContent, config.ulid)
+
+			assert.equal(finalContent, formattedContent)
+			assert.ok(result.includes(finalAnchors[0]), "formatted context should use its final disk anchor")
+			assert.ok(result.includes(finalAnchors[1]), "edited line should use its final disk anchor")
+			assert.ok(!result.includes(initialAnchors[0]), "pre-format context anchor should not be returned as current")
+			assert.ok(!result.includes("auto-formatting"), "formatter changes should not add model-facing noise")
+		})
 	})
 
 	describe("multi-file batch", () => {
