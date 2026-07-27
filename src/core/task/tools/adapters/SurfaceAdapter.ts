@@ -88,7 +88,11 @@ export class SurfaceAdapter implements IToolEnvironment {
 	public async createCard(params: CardParams): Promise<ICardHandle> {
 		return await createCardFromMessenger(
 			this.config,
-			{ ...params, locations: params.locations ?? this.locationsForTool() },
+			{
+				...params,
+				toolName: params.toolName ?? (this.toolName || undefined),
+				locations: params.locations ?? this.locationsForTool(),
+			},
 			this.createdCards,
 		)
 	}

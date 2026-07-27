@@ -241,6 +241,7 @@ describe("Dirac ACP review commands", () => {
 		expect(mocks.MockController.instances[0].initTask).not.toHaveBeenCalled()
 		expect(updates.toolCalls).toHaveLength(1)
 		expect(updates.toolCalls[0].title).toBe("Review changes")
+		expect(updates.toolCalls[0].name).toBe("review_changes")
 		expect(updates.toolCalls[0].kind).toBe("edit")
 		expect(updates.toolCalls[0].content?.[0]).toMatchObject({
 			type: "diff",

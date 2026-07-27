@@ -86,6 +86,12 @@ function toolKindForCard(header: string): acp.ToolKind {
 	return TOOL_KIND_MAP[header] ?? getBrowserActionKind(header) ?? "other"
 }
 
+function toolNameForCard(card: { header: string; toolName?: string; rawInput?: Record<string, unknown> }): string {
+	if (card.toolName) return card.toolName
+	if (typeof card.rawInput?.tool === "string") return card.rawInput.tool
+	return card.header
+}
+
 /**
  * Options for translating a message.
  */
@@ -232,6 +238,7 @@ function translateWebSearchMarkerMessage(query: string, sessionState: AcpSession
 		updates.push({
 			sessionUpdate: "tool_call",
 			toolCallId,
+			name: "web_search",
 			title: `Web Search: ${query}`,
 			kind: "search",
 			status: "pending",
@@ -240,12 +247,13 @@ function translateWebSearchMarkerMessage(query: string, sessionState: AcpSession
 	}
 
 	if (!isExistingToolCall) {
-		updates.push({ sessionUpdate: "tool_call_update", toolCallId, status: "in_progress" })
+		updates.push({ sessionUpdate: "tool_call_update", toolCallId, name: "web_search", status: "in_progress" })
 	}
 
 	updates.push({
 		sessionUpdate: "tool_call_update",
 		toolCallId,
+		name: "web_search",
 		status: "completed",
 		rawInput: { query },
 		rawOutput: { query },
@@ -301,6 +309,7 @@ function translateCardMessage(
 	}))
 	const isExisting = sessionState.pendingToolCalls.has(toolCallId)
 	const kind = toolKindForCard(card.header)
+	const name = toolNameForCard(card)
 	const content = card.diffs?.map((diff) => ({ type: "diff" as const, ...diff }))
 	const rawInput = card.rawInput ?? (card.body ? { body: card.body } : undefined)
 	const rawOutput = card.rawOutput ?? (card.body ? { body: card.body } : undefined)
@@ -311,6 +320,7 @@ function translateCardMessage(
 		updates.push({
 			sessionUpdate: "tool_call_update",
 			toolCallId,
+			name,
 			title: card.header,
 			status: actualStatus,
 			locations,
@@ -324,6 +334,7 @@ function translateCardMessage(
 	} else {
 		const toolCall: acp.ToolCall = {
 			toolCallId,
+			name,
 			title: card.header,
 			kind,
 			status,
@@ -334,7 +345,7 @@ function translateCardMessage(
 		}
 		updates.push({ sessionUpdate: "tool_call", ...toolCall })
 		if (actualStatus === "in_progress") {
-			updates.push({ sessionUpdate: "tool_call_update", toolCallId, status: "in_progress", locations })
+			updates.push({ sessionUpdate: "tool_call_update", toolCallId, name, status: "in_progress", locations })
 		}
 		if (!isFinalStatus(card.status)) {
 			sessionState.pendingToolCalls.set(toolCallId, toolCall)
@@ -345,6 +356,7 @@ function translateCardMessage(
 	if (card.status === CardStatus.WAITING_FOR_INPUT && card.requireApproval) {
 		const existingToolCall = sessionState.pendingToolCalls.get(toolCallId) || {
 			toolCallId,
+			name,
 			title: card.header,
 			kind,
 			status: "pending" as acp.ToolCallStatus,

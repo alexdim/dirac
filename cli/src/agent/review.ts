@@ -196,6 +196,7 @@ export async function handleAcpReviewCommand(
 	await options.emitSessionUpdate(options.sessionId, {
 		sessionUpdate: "tool_call",
 		toolCallId,
+		name: "review_changes",
 		title: "Review changes",
 		kind: "edit",
 		status: "completed",
