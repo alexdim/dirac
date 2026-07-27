@@ -137,7 +137,7 @@ export function OpenRouterProviderSelector({ modelId }: { modelId: string }) {
 				<FieldLabel htmlFor="openrouter-provider-search">Allowed upstream providers</FieldLabel>
 				{pinnedProviders.length > 0 && <SelectionCount>{pinnedProviders.length} allowed</SelectionCount>}
 			</ProviderHeader>
-			<HelpText>You can pin providers for this model! Leave empty to let OpenRouter choose without an upstream filter.</HelpText>
+			<HelpText>You can pin providers for this model! Leaving empty will fallback to your 'Sort upstreams' setting under Advanced.</HelpText>
 
 			{pinnedProviders.length > 0 && (
 				<SelectedProviders>
@@ -193,7 +193,17 @@ export function OpenRouterProviderSelector({ modelId }: { modelId: string }) {
 								ref={(element) => (itemRefs.current[index] = element)}
 								role="option">
 								<EndpointName>{endpoint.providerName}</EndpointName>
-								<EndpointMeta>{formatEndpointDetails(endpoint)}</EndpointMeta>
+								<EndpointMeta>
+									{endpoint.quantization && <EndpointQuantization>{endpoint.quantization}</EndpointQuantization>}
+									{endpoint.quantization && (endpoint.uptimeLast30m !== undefined || endpoint.status !== undefined) && <EndpointSep> · </EndpointSep>}
+									{endpoint.uptimeLast30m !== undefined && <EndpointUptime>{endpoint.uptimeLast30m.toFixed(1)}% uptime</EndpointUptime>}
+									{endpoint.uptimeLast30m !== undefined && endpoint.status !== undefined && <EndpointSep> · </EndpointSep>}
+									{endpoint.status !== undefined && (
+										<EndpointStatus $operational={endpoint.status === 0}>
+											{endpoint.status === 0 ? "operational" : `status ${endpoint.status}`}
+										</EndpointStatus>
+									)}
+								</EndpointMeta>
 							</EndpointOption>
 						))}
 					</EndpointList>
@@ -423,11 +433,30 @@ const EndpointName = styled.span`
 `
 
 const EndpointMeta = styled.span`
-	display: block;
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
 	margin-top: 2px;
-	color: var(--vscode-descriptionForeground);
 	font-family: var(--vscode-editor-font-family);
 	font-size: 10px;
+`
+
+const EndpointSep = styled.span`
+	color: var(--vscode-descriptionForeground);
+	opacity: 0.4;
+`
+
+const EndpointQuantization = styled.span`
+	color: var(--vscode-terminal-ansiBlue);
+`
+
+const EndpointUptime = styled.span`
+	color: var(--vscode-charts-yellow);
+`
+
+const EndpointStatus = styled.span<{ $operational: boolean }>`
+	color: ${({ $operational }) => ($operational ? "var(--vscode-testing-iconPassed)" : "#c96b6b")};
+	font-weight: ${({ $operational }) => ($operational ? "inherit" : "500")};
 `
 
 const UnavailableBadge = styled.span`
