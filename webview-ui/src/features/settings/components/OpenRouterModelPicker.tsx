@@ -1,6 +1,7 @@
+import type { ModelInfo } from "@shared/api"
 import type { Mode } from "@shared/ExtensionMessage"
 import { StringRequest } from "@shared/proto/dirac/common"
-import { VSCodeLink, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
+import { VSCodeButton, VSCodeLink, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
 import Fuse from "fuse.js"
 import type React from "react"
 import { type KeyboardEvent, useEffect, useMemo, useRef, useState } from "react"
@@ -13,7 +14,7 @@ import { ModelInfoView } from "./common/ModelInfoView"
 import { OpenRouterProviderSelector, OpenRouterRoutingControls } from "./OpenRouterRoutingControls"
 import ReasoningEffortSelector from "./ReasoningEffortSelector"
 import ThinkingBudgetSlider from "./ThinkingBudgetSlider"
-import { filterOpenRouterModelIds, getModeSpecificFields, normalizeApiConfiguration } from "./utils/providerUtils"
+import { filterOpenRouterModelIds, getModeSpecificFields } from "./utils/providerUtils"
 import { useApiConfigurationHandlers } from "./utils/useApiConfigurationHandlers"
 
 // Star icon for favorites
@@ -40,6 +41,9 @@ const StarIcon = ({ isFavorite, onClick }: { isFavorite: boolean; onClick: (e: R
 export interface OpenRouterModelPickerProps {
 	isPopup?: boolean
 	currentMode: Mode
+	isPendingProviderSelection?: boolean
+	onModelSelected?: (modelId: string, modelInfo: ModelInfo | undefined) => Promise<boolean>
+	onCancelProviderSelection?: () => void
 }
 
 function resolveRankedModelIds(rankedCanonicalSlugs: string[], models: Record<string, { canonicalSlug?: string }>): string[] {
@@ -66,7 +70,13 @@ function resolveRankedModelId(
 	)?.[0]
 }
 
-const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({ isPopup, currentMode }) => {
+const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({
+	isPopup,
+	currentMode,
+	isPendingProviderSelection = false,
+	onModelSelected,
+	onCancelProviderSelection,
+}) => {
 	const { handleModeFieldsChange } = useApiConfigurationHandlers()
 	const {
 		apiConfiguration,
@@ -85,28 +95,29 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({ isPopup, 
 	const itemRefs = useRef<(HTMLDivElement | null)[]>([])
 	const dropdownListRef = useRef<HTMLDivElement>(null)
 
-	const handleModelChange = (newModelId: string) => {
-		// could be setting invalid model id/undefined info but validation will catch it
-
+	const handleModelChange = async (newModelId: string) => {
+		if (!newModelId) return
 		setSearchTerm(newModelId)
-
-		handleModeFieldsChange(
+		const modelInfo = openRouterModels[newModelId]
+		if (onModelSelected) {
+			await onModelSelected(newModelId, modelInfo)
+			return
+		}
+		await handleModeFieldsChange(
 			{
 				openRouterModelId: { plan: "planModeOpenRouterModelId", act: "actModeOpenRouterModelId" },
 				openRouterModelInfo: { plan: "planModeOpenRouterModelInfo", act: "actModeOpenRouterModelInfo" },
 			},
 			{
 				openRouterModelId: newModelId,
-				openRouterModelInfo: openRouterModels[newModelId],
+				openRouterModelInfo: modelInfo,
 			},
 			currentMode,
 		)
 	}
 
-	const { selectedModelId, selectedModelInfo } = useMemo(() => {
-		const selected = normalizeApiConfiguration(apiConfiguration, currentMode)
-		return selected
-	}, [apiConfiguration, currentMode])
+	const selectedModelId = modeFields.openRouterModelId || ""
+	const selectedModelInfo = modeFields.openRouterModelInfo || { supportsPromptCache: false }
 
 	useMount(() => {
 		refreshOpenRouterModels()
@@ -115,9 +126,9 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({ isPopup, 
 
 	// Sync external changes when the modelId changes
 	useEffect(() => {
-		const currentModelId = modeFields.openRouterModelId || ""
-		setSearchTerm(currentModelId)
-	}, [modeFields.openRouterModelId])
+		if (isPendingProviderSelection) return
+		setSearchTerm(modeFields.openRouterModelId || "")
+	}, [isPendingProviderSelection, modeFields.openRouterModelId])
 
 	useEffect(() => {
 		const handleClickOutside = (event: MouseEvent) => {
@@ -194,16 +205,17 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({ isPopup, 
 			case "Enter":
 				event.preventDefault()
 				if (selectedIndex >= 0 && selectedIndex < modelSearchResults.length) {
-					handleModelChange(modelSearchResults[selectedIndex].id)
+					void handleModelChange(modelSearchResults[selectedIndex].id)
 					setIsDropdownVisible(false)
 				} else {
-					// User typed a custom model ID
-					handleModelChange(searchTerm)
+					void handleModelChange(searchTerm)
 					setIsDropdownVisible(false)
 				}
 				break
 			case "Escape":
-				setIsDropdownVisible(false)
+				event.preventDefault()
+				if (isPendingProviderSelection) onCancelProviderSelection?.()
+				else setIsDropdownVisible(false)
 				setSelectedIndex(-1)
 				break
 		}
@@ -247,16 +259,23 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({ isPopup, 
 				`}
 			</style>
 			<div style={{ display: "flex", flexDirection: "column" }}>
-				<label htmlFor="model-search">
-					<span style={{ fontWeight: 500 }}>Model</span>
-				</label>
+				<div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+					<label htmlFor="model-search">
+						<span style={{ fontWeight: 500 }}>Model</span>
+					</label>
+					{isPendingProviderSelection && (
+						<VSCodeButton appearance="secondary" onClick={onCancelProviderSelection} type="button">
+							Cancel
+						</VSCodeButton>
+					)}
+				</div>
 
 				<DropdownWrapper ref={dropdownRef}>
 					<VSCodeTextField
 						id="model-search"
 						onBlur={() => {
-							if (searchTerm !== selectedModelId) {
-								handleModelChange(searchTerm)
+							if (!isPendingProviderSelection && searchTerm && searchTerm !== selectedModelId) {
+								void handleModelChange(searchTerm)
 							}
 						}}
 						onFocus={() => setIsDropdownVisible(true)}
@@ -300,7 +319,7 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({ isPopup, 
 										isSelected={index === selectedIndex}
 										key={item.id}
 										onClick={() => {
-											handleModelChange(item.id)
+											void handleModelChange(item.id)
 											setIsDropdownVisible(false)
 										}}
 										onMouseEnter={() => setSelectedIndex(index)}
@@ -325,7 +344,7 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({ isPopup, 
 					)}
 				</DropdownWrapper>
 			</div>
-			<OpenRouterProviderSelector modelId={selectedModelId} />
+			{selectedModelId && <OpenRouterProviderSelector modelId={selectedModelId} />}
 
 			{hasInfo ? (
 				<>
@@ -333,7 +352,7 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({ isPopup, 
 					{showReasoningEffort && <ReasoningEffortSelector currentMode={currentMode} />}
 
 					<ModelInfoView
-						advancedContent={<OpenRouterRoutingControls />}
+						advancedContent={selectedModelId ? <OpenRouterRoutingControls /> : undefined}
 						isPopup={isPopup}
 						modelInfo={selectedModelInfo}
 						selectedModelId={selectedModelId}
@@ -352,14 +371,14 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({ isPopup, 
 					</VSCodeLink>
 					If you're unsure which model to choose, Dirac works best with{" "}
 					<VSCodeLink
-						onClick={() => handleModelChange("anthropic/claude-sonnet-4.6")}
+						onClick={() => void handleModelChange("anthropic/claude-sonnet-4.6")}
 						style={{ display: "inline", fontSize: "inherit" }}>
 						anthropic/claude-sonnet-4.6.
 					</VSCodeLink>
 					You can also try searching "free" for no-cost options currently available.
 				</p>
 			)}
-			{!hasInfo && (
+			{!hasInfo && !isPendingProviderSelection && (
 				<>
 					<AdvancedToggle
 						aria-expanded={customModelAdvancedExpanded}

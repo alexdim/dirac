@@ -1,9 +1,40 @@
 import { ApiConfiguration } from "@shared/api"
-import { fireEvent, render, screen } from "@testing-library/react"
+import { fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { describe, expect, it, vi } from "vitest"
 import { useSettingsStore } from "@/features/settings/store/settingsStore"
-import ApiOptions from "../ApiOptions"
 
+const { handleFieldsChange, handleModeFieldChange } = vi.hoisted(() => ({
+	handleFieldsChange: vi.fn(),
+	handleModeFieldChange: vi.fn(),
+}))
+
+vi.mock("../utils/useApiConfigurationHandlers", () => ({
+	useApiConfigurationHandlers: () => ({ handleFieldsChange, handleModeFieldChange }),
+}))
+
+vi.mock("../providers/OpenRouterProvider", () => ({
+	OpenRouterProvider: ({
+		isPendingProviderSelection,
+		onCancelProviderSelection,
+		onModelSelected,
+	}: {
+		isPendingProviderSelection?: boolean
+		onCancelProviderSelection?: () => void
+		onModelSelected?: (modelId: string, modelInfo: { supportsPromptCache: boolean }) => Promise<boolean>
+	}) =>
+		isPendingProviderSelection ? (
+			<div>
+				<button onClick={onCancelProviderSelection} type="button">
+					Cancel OpenRouter selection
+				</button>
+				<button onClick={() => void onModelSelected?.("anthropic/test", { supportsPromptCache: false })} type="button">
+					Choose OpenRouter model
+				</button>
+			</div>
+		) : null,
+}))
+
+import ApiOptions from "../ApiOptions"
 vi.mock("../ModelDescriptionMarkdown", () => ({
 	ModelDescriptionMarkdown: () => null,
 }))
@@ -23,6 +54,8 @@ describe("ApiOptions Component", () => {
 	beforeEach(() => {
 		//@ts-expect-error - vscode is not defined in the global namespace in test environment
 		global.vscode = { postMessage: mockPostMessage }
+		handleFieldsChange.mockResolvedValue(true)
+		handleModeFieldChange.mockResolvedValue(true)
 		mockExtensionState({
 			planModeApiProvider: "requesty",
 			actModeApiProvider: "requesty",
@@ -39,6 +72,48 @@ describe("ApiOptions Component", () => {
 		render(<ApiOptions currentMode="plan" showModelOptions={true} />)
 		const modelIdInput = screen.getByPlaceholderText("Search and select a model...")
 		expect(modelIdInput).toBeInTheDocument()
+	})
+})
+
+
+describe("OpenRouter provider selection", () => {
+	beforeEach(() => {
+		vi.clearAllMocks()
+		handleFieldsChange.mockResolvedValue(true)
+		handleModeFieldChange.mockResolvedValue(true)
+		mockExtensionState({
+			planModeApiProvider: "requesty",
+			actModeApiProvider: "requesty",
+		})
+	})
+
+	it("discards a first-time OpenRouter selection without persisting an invalid provider", () => {
+		render(<ApiOptions currentMode="plan" showModelOptions={true} />)
+		fireEvent.focus(screen.getByTestId("provider-selector-input"))
+		fireEvent.click(screen.getByTestId("provider-option-openrouter"))
+		fireEvent.click(screen.getByRole("button", { name: "Cancel OpenRouter selection" }))
+
+		expect(handleModeFieldChange).not.toHaveBeenCalled()
+		expect(handleFieldsChange).not.toHaveBeenCalled()
+		expect(useSettingsStore.getState().apiConfiguration.planModeApiProvider).toBe("requesty")
+	})
+
+	it("persists the provider and model together after selecting an OpenRouter model", async () => {
+		render(<ApiOptions currentMode="plan" showModelOptions={true} />)
+		fireEvent.focus(screen.getByTestId("provider-selector-input"))
+		fireEvent.click(screen.getByTestId("provider-option-openrouter"))
+		fireEvent.click(screen.getByRole("button", { name: "Choose OpenRouter model" }))
+
+		await waitFor(() => {
+			expect(handleFieldsChange).toHaveBeenCalledWith({
+				planModeApiProvider: "openrouter",
+				actModeApiProvider: "openrouter",
+				planModeOpenRouterModelId: "anthropic/test",
+				actModeOpenRouterModelId: "anthropic/test",
+				planModeOpenRouterModelInfo: { supportsPromptCache: false },
+				actModeOpenRouterModelInfo: { supportsPromptCache: false },
+			})
+		})
 	})
 })
 

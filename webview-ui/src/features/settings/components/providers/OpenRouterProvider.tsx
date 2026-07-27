@@ -1,3 +1,4 @@
+import type { ModelInfo } from "@shared/api"
 import { Mode } from "@shared/ExtensionMessage"
 import { VSCodeLink } from "@vscode/webview-ui-toolkit/react"
 import { useSettingsStore } from "@/features/settings/store/settingsStore"
@@ -50,12 +51,22 @@ interface OpenRouterProviderProps {
 	showModelOptions: boolean
 	isPopup?: boolean
 	currentMode: Mode
+	isPendingProviderSelection?: boolean
+	onModelSelected?: (modelId: string, modelInfo: ModelInfo | undefined) => Promise<boolean>
+	onCancelProviderSelection?: () => void
 }
 
 /**
  * The OpenRouter provider configuration component
  */
-export const OpenRouterProvider = ({ showModelOptions, isPopup, currentMode }: OpenRouterProviderProps) => {
+export const OpenRouterProvider = ({
+	showModelOptions,
+	isPopup,
+	currentMode,
+	isPendingProviderSelection,
+	onModelSelected,
+	onCancelProviderSelection,
+}: OpenRouterProviderProps) => {
 	const { apiConfiguration } = useSettingsStore()
 	const { handleFieldChange } = useApiConfigurationHandlers()
 
@@ -87,7 +98,13 @@ export const OpenRouterProvider = ({ showModelOptions, isPopup, currentMode }: O
 
 			{showModelOptions && (
 				<>
-					<OpenRouterModelPicker currentMode={currentMode} isPopup={isPopup} />
+					<OpenRouterModelPicker
+						currentMode={currentMode}
+						isPendingProviderSelection={isPendingProviderSelection}
+						isPopup={isPopup}
+						onCancelProviderSelection={onCancelProviderSelection}
+						onModelSelected={onModelSelected}
+					/>
 				</>
 			)}
 		</div>

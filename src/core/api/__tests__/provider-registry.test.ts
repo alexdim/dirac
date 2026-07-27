@@ -8,7 +8,7 @@ import {
 	openAiModelInfoSaneDefaults,
 	requestyDefaultModelInfo,
 } from "@shared/api"
-import { buildApiHandler, createRegistryHandler } from "../index"
+import { buildApiHandler, createRegistryHandler, validateApiConfiguration } from "../index"
 import { TEST_MODEL_IDS } from "@test/fixtures/model-ids"
 
 describe("Provider Registry", () => {
@@ -447,6 +447,15 @@ describe("Provider Registry", () => {
 		handler.getModel().should.deepEqual({ id: "task-owned-model", info: requestyDefaultModelInfo })
 	})
 
+	it("rejects a persisted OpenRouter provider without an explicit model", () => {
+		should(() =>
+			validateApiConfiguration({
+				planModeApiProvider: "openrouter",
+				actModeApiProvider: "openrouter",
+				openRouterApiKey: "test-key",
+			}),
+		).throw("openrouter requires an explicit model ID")
+	})
 	it("registry returns same number of providers as switch cases in buildApiHandler", () => {
 		// The registry must cover all 37 supported providers.
 		allKnownProviders.length.should.equal(37)
