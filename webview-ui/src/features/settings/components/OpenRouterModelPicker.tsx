@@ -5,7 +5,6 @@ import { VSCodeButton, VSCodeLink, VSCodeTextField } from "@vscode/webview-ui-to
 import Fuse from "fuse.js"
 import type React from "react"
 import { type KeyboardEvent, useEffect, useMemo, useRef, useState } from "react"
-import { useMount } from "react-use"
 import styled from "styled-components"
 import { useSettingsStore } from "@/features/settings/store/settingsStore"
 import { StateServiceClient } from "@/shared/api/grpc-client"
@@ -94,6 +93,7 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({
 	const dropdownRef = useRef<HTMLDivElement>(null)
 	const itemRefs = useRef<(HTMLDivElement | null)[]>([])
 	const dropdownListRef = useRef<HTMLDivElement>(null)
+	const hasRefreshedDropdownData = useRef(false)
 
 	const handleModelChange = async (newModelId: string) => {
 		if (!newModelId) return
@@ -119,10 +119,12 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({
 	const selectedModelId = modeFields.openRouterModelId || ""
 	const selectedModelInfo = modeFields.openRouterModelInfo || { supportsPromptCache: false }
 
-	useMount(() => {
-		refreshOpenRouterModels()
-		refreshOpenRouterModelRankings()
-	})
+	useEffect(() => {
+		if (!isDropdownVisible || hasRefreshedDropdownData.current) return
+		hasRefreshedDropdownData.current = true
+		void refreshOpenRouterModels()
+		void refreshOpenRouterModelRankings()
+	}, [isDropdownVisible, refreshOpenRouterModels, refreshOpenRouterModelRankings])
 
 	// Sync external changes when the modelId changes
 	useEffect(() => {
