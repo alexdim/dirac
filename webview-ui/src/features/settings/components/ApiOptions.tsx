@@ -1,3 +1,4 @@
+import type { ApiConfiguration, ModelInfo } from "@shared/api"
 import { Mode } from "@shared/ExtensionMessage"
 import PROVIDERS from "@shared/providers/providers.json"
 import { VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
@@ -5,7 +6,7 @@ import Fuse from "fuse.js"
 import { KeyboardEvent, useEffect, useMemo, useRef, useState } from "react"
 import styled from "styled-components"
 import { PLATFORM_CONFIG, PlatformType } from "@/config/platform.config"
-import { normalizeApiConfiguration } from "@/features/settings/components/utils/providerUtils"
+import { getModeSpecificFields, normalizeApiConfiguration } from "@/features/settings/components/utils/providerUtils"
 import { useSettingsStore } from "@/features/settings/store/settingsStore"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/shared/ui/tooltip"
 import { OPENROUTER_MODEL_PICKER_Z_INDEX } from "./OpenRouterModelPicker"
@@ -84,9 +85,10 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 	const apiConfiguration = useSettingsStore((state) => state.apiConfiguration)
 	const remoteConfigSettings = useSettingsStore((state) => state.remoteConfigSettings)
 	const apiConfigurationError = useSettingsStore((state) => state.apiConfigurationError)
+	const planActSeparateModelsSetting = useSettingsStore((state) => state.planActSeparateModelsSetting)
 	const { selectedProvider } = normalizeApiConfiguration(apiConfiguration, currentMode)
-
-	const { handleModeFieldChange } = useApiConfigurationHandlers()
+	const modeFields = getModeSpecificFields(apiConfiguration, currentMode)
+	const { handleFieldsChange, handleModeFieldChange } = useApiConfigurationHandlers()
 
 	// Poll vscode-lm models
 
@@ -94,9 +96,13 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 	const [searchTerm, setSearchTerm] = useState("")
 	const [isDropdownVisible, setIsDropdownVisible] = useState(false)
 	const [selectedIndex, setSelectedIndex] = useState(-1)
+	const [pendingProvider, setPendingProvider] = useState<string>()
 	const dropdownRef = useRef<HTMLDivElement>(null)
 	const itemRefs = useRef<(HTMLDivElement | null)[]>([])
 	const dropdownListRef = useRef<HTMLDivElement>(null)
+	const activeProvider = pendingProvider || selectedProvider
+	const selectedModeProvider = modeFields.apiProvider || selectedProvider
+	const isSwitchingToOpenRouter = pendingProvider === "openrouter" && selectedModeProvider !== "openrouter"
 
 	const providerOptions = useMemo(() => {
 		let providers = PROVIDERS.list
@@ -119,8 +125,8 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 	}, [remoteConfigSettings])
 
 	const currentProviderLabel = useMemo(() => {
-		return providerOptions.find((option) => option.value === selectedProvider)?.label || selectedProvider
-	}, [providerOptions, selectedProvider])
+		return providerOptions.find((option) => option.value === activeProvider)?.label || activeProvider
+	}, [providerOptions, activeProvider])
 
 	// Sync search term with current provider when not searching
 	useEffect(() => {
@@ -153,9 +159,41 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 	}, [searchableItems, searchTerm, fuse, currentProviderLabel])
 
 	const handleProviderChange = (newProvider: string) => {
-		handleModeFieldChange({ plan: "planModeApiProvider", act: "actModeApiProvider" }, newProvider as any, currentMode)
 		setIsDropdownVisible(false)
 		setSelectedIndex(-1)
+		if (newProvider === "openrouter" && !modeFields.openRouterModelId && selectedModeProvider !== "openrouter") {
+			setSearchTerm("OpenRouter")
+			setPendingProvider(newProvider)
+			return
+		}
+		setPendingProvider(undefined)
+		void handleModeFieldChange({ plan: "planModeApiProvider", act: "actModeApiProvider" }, newProvider as any, currentMode)
+	}
+
+	const handlePendingOpenRouterModelSelected = async (modelId: string, modelInfo: ModelInfo | undefined): Promise<boolean> => {
+		const updates: Partial<ApiConfiguration> = planActSeparateModelsSetting
+			? currentMode === "plan"
+				? {
+					planModeApiProvider: "openrouter",
+					planModeOpenRouterModelId: modelId,
+					planModeOpenRouterModelInfo: modelInfo,
+				}
+				: {
+					actModeApiProvider: "openrouter",
+					actModeOpenRouterModelId: modelId,
+					actModeOpenRouterModelInfo: modelInfo,
+				}
+			: {
+				planModeApiProvider: "openrouter",
+				actModeApiProvider: "openrouter",
+				planModeOpenRouterModelId: modelId,
+				actModeOpenRouterModelId: modelId,
+				planModeOpenRouterModelInfo: modelInfo,
+				actModeOpenRouterModelInfo: modelInfo,
+			}
+		const saved = await handleFieldsChange(updates)
+		if (saved) setPendingProvider(undefined)
+		return saved
 	}
 
 	const handleKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
@@ -350,8 +388,15 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 				<MistralProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
 			)}
 
-			{apiConfiguration && selectedProvider === "openrouter" && (
-				<OpenRouterProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
+			{apiConfiguration && activeProvider === "openrouter" && (
+				<OpenRouterProvider
+					currentMode={currentMode}
+					isPendingProviderSelection={isSwitchingToOpenRouter}
+					isPopup={isPopup}
+					onCancelProviderSelection={() => setPendingProvider(undefined)}
+					onModelSelected={isSwitchingToOpenRouter ? handlePendingOpenRouterModelSelected : undefined}
+					showModelOptions={showModelOptions}
+				/>
 			)}
 
 			{apiConfiguration && selectedProvider === "deepseek" && (
