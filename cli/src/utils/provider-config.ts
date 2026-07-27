@@ -59,6 +59,9 @@ export async function applyProviderConfig(options: ApplyProviderConfigOptions): 
 		modelId ||
 		(isCompatible(existingPlanModel) ? existingPlanModel : isCompatible(existingActModel) ? existingActModel : defaultModel)
 
+	if (providerId === "openrouter" && !finalActModelId && !finalPlanModelId) {
+		throw new Error("Select an OpenRouter model before configuring the provider")
+	}
 	if (finalActModelId) {
 		if (actModelKey) config[actModelKey] = finalActModelId
 	}
@@ -69,7 +72,7 @@ export async function applyProviderConfig(options: ApplyProviderConfigOptions): 
 	if (finalActModelId || finalPlanModelId) {
 		// Fetch model info from the provider API (not just disk cache) so headless
 		// CLI auth gets correct maxTokens, thinkingConfig, etc.
-		if ((providerId === "dirac" || providerId === "openrouter") && controller) {
+		if (providerId === "openrouter" && controller) {
 			const openRouterModels = await refreshOpenRouterModels(controller)
 			if (finalActModelId) {
 				const modelInfo = openRouterModels?.[finalActModelId]
@@ -134,9 +137,7 @@ export async function applyProviderConfig(options: ApplyProviderConfigOptions): 
 	}
 
 	const candidateConfiguration = { ...stateManager.getApiConfiguration(), ...config }
-	const candidateHandler = controller
-		? buildCandidateApiHandler(controller, candidateConfiguration)
-		: undefined
+	const candidateHandler = controller ? buildCandidateApiHandler(controller, candidateConfiguration) : undefined
 
 	// Save via StateManager
 	stateManager.setApiConfiguration(config)
@@ -223,9 +224,7 @@ export async function applyBedrockConfig(options: ApplyBedrockConfigOptions): Pr
 	if (bedrockConfig.awsSessionToken) config.awsSessionToken = bedrockConfig.awsSessionToken
 
 	const candidateConfiguration = { ...stateManager.getApiConfiguration(), ...config }
-	const candidateHandler = controller
-		? buildCandidateApiHandler(controller, candidateConfiguration)
-		: undefined
+	const candidateHandler = controller ? buildCandidateApiHandler(controller, candidateConfiguration) : undefined
 
 	// Save via StateManager
 	stateManager.setApiConfiguration(config as Record<string, string>)

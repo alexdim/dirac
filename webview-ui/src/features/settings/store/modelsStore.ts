@@ -4,8 +4,6 @@ import {
 	basetenModels,
 	groqDefaultModelId,
 	groqModels,
-	openRouterDefaultModelId,
-	openRouterDefaultModelInfo,
 	requestyDefaultModelId,
 	requestyDefaultModelInfo,
 } from "@shared/api"
@@ -14,7 +12,6 @@ import { create } from "zustand"
 
 interface ModelsState {
 	onboardingModels?: OnboardingModelGroup
-	diracModels: Record<string, ModelInfo> | null
 	openRouterModels: Record<string, ModelInfo>
 	vercelAiGatewayModels: Record<string, ModelInfo>
 	liteLlmModels: Record<string, ModelInfo>
@@ -26,7 +23,6 @@ interface ModelsState {
 
 	// Actions
 	setOnboardingModels: (models?: OnboardingModelGroup) => void
-	setDiracModels: (models: Record<string, ModelInfo> | null) => void
 	setOpenRouterModels: (models: Record<string, ModelInfo>) => void
 	setVercelAiGatewayModels: (models: Record<string, ModelInfo>) => void
 	setLiteLlmModels: (models: Record<string, ModelInfo>) => void
@@ -39,10 +35,7 @@ interface ModelsState {
 
 export const useModelsStore = create<ModelsState>((set) => ({
 	onboardingModels: undefined,
-	diracModels: null,
-	openRouterModels: {
-		[openRouterDefaultModelId]: openRouterDefaultModelInfo,
-	},
+	openRouterModels: {},
 	vercelAiGatewayModels: {},
 	liteLlmModels: {},
 	openAiModels: [],
@@ -59,7 +52,6 @@ export const useModelsStore = create<ModelsState>((set) => ({
 	huggingFaceModels: {},
 
 	setOnboardingModels: (models) => set({ onboardingModels: models }),
-	setDiracModels: (models) => set({ diracModels: models }),
 	setOpenRouterModels: (models) => set({ openRouterModels: models }),
 	setVercelAiGatewayModels: (models) => set({ vercelAiGatewayModels: models }),
 	setLiteLlmModels: (models) => set({ liteLlmModels: models }),

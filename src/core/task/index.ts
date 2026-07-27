@@ -1352,20 +1352,8 @@ export class Task {
 		const isAuthError = diracError.isErrorType(DiracErrorType.Auth)
 		const isPaymentError = diracError.isErrorType(DiracErrorType.Payment)
 
-		const isDiracProviderInsufficientCredits = (() => {
-			if (providerId !== "dirac") {
-				return false
-			}
-			try {
-				const parsedError = DiracError.transform(error, model.id, providerId)
-				return parsedError.isErrorType(DiracErrorType.Balance)
-			} catch {
-				return false
-			}
-		})()
-
 		let response: DiracAskResponse
-		if (!isDiracProviderInsufficientCredits && !isAuthError && !isPaymentError && this.taskState.apiErrorRetryAttempts < 3) {
+		if (!isAuthError && !isPaymentError && this.taskState.apiErrorRetryAttempts < 3) {
 			this.taskState.apiErrorRetryAttempts++
 			const delay = 2000 * 2 ** (this.taskState.apiErrorRetryAttempts - 1)
 
@@ -1427,7 +1415,7 @@ export class Task {
 			await autoRetryCard.update({ body: `API Error (attempt ${this.taskState.apiErrorRetryAttempts}/3). Retrying...` })
 			await autoRetryCard.finalize(CardStatus.ERROR)
 		} else {
-			if (!isDiracProviderInsufficientCredits && !isAuthError && !isPaymentError) {
+			if (!isAuthError && !isPaymentError) {
 				await this.taskMessenger.createCard({
 					status: CardStatus.ERROR,
 					header: "API Error (Retries Exhausted)",

@@ -7,7 +7,6 @@ import * as refreshBasetenModels from "../../models/refreshBasetenModels"
 import * as refreshGithubCopilotModels from "../../models/refreshGithubCopilotModels"
 import * as refreshGroqModels from "../../models/refreshGroqModels"
 import * as refreshLiteLlmModels from "../../models/refreshLiteLlmModels"
-import * as refreshOpenRouterModels from "../../models/refreshOpenRouterModels"
 import * as subscribeToOpenRouterModels from "../../models/subscribeToOpenRouterModels"
 import { initializeWebview } from "../initializeWebview"
 
@@ -61,7 +60,6 @@ describe("initializeWebview", () => {
 
 	beforeEach(() => {
 		sandbox = sinon.createSandbox()
-		sandbox.stub(refreshOpenRouterModels, "refreshOpenRouterModels").resolves({})
 		sandbox.stub(refreshGroqModels, "refreshGroqModels").resolves({})
 		sandbox.stub(refreshBasetenModels, "refreshBasetenModels").resolves({})
 		sandbox.stub(refreshGithubCopilotModels, "refreshGithubCopilotModels").resolves({})
@@ -113,8 +111,8 @@ describe("initializeWebview", () => {
 
 	it("updates OpenRouter model info in shared mode when models match", async () => {
 		const models = { "or-1": { name: "OR1", supportsPromptCache: false } }
-		;(refreshOpenRouterModels.refreshOpenRouterModels as sinon.SinonStub).resolves(models)
 		const controller = createMockController({
+			cachedModels: models,
 			apiConfiguration: { planModeOpenRouterModelId: "or-1", actModeOpenRouterModelId: "or-1" },
 		})
 		await initializeWebview(controller as any, {} as any)
@@ -125,8 +123,8 @@ describe("initializeWebview", () => {
 
 	it("updates OpenRouter model info in separate mode for the current mode only", async () => {
 		const models = { "or-1": { name: "OR1", supportsPromptCache: false } }
-		;(refreshOpenRouterModels.refreshOpenRouterModels as sinon.SinonStub).resolves(models)
 		const controller = createMockController({
+			cachedModels: models,
 			apiConfiguration: { actModeOpenRouterModelId: "or-1" },
 			planActSeparate: true,
 			currentMode: "act",
@@ -138,8 +136,8 @@ describe("initializeWebview", () => {
 
 	it("does not update OpenRouter model info when no model id matches", async () => {
 		const models = { "or-1": { name: "OR1", supportsPromptCache: false } }
-		;(refreshOpenRouterModels.refreshOpenRouterModels as sinon.SinonStub).resolves(models)
 		const controller = createMockController({
+			cachedModels: models,
 			apiConfiguration: { planModeOpenRouterModelId: "or-2", actModeOpenRouterModelId: "or-2" },
 		})
 		await initializeWebview(controller as any, {} as any)
@@ -149,7 +147,8 @@ describe("initializeWebview", () => {
 
 	it("updates Groq model info in shared mode when models match", async () => {
 		const models = { "groq-1": { name: "G1", supportsPromptCache: false } }
-		;(refreshGroqModels.refreshGroqModels as sinon.SinonStub).resolves(models)
+		const refreshModels = refreshGroqModels.refreshGroqModels as sinon.SinonStub
+		refreshModels.resolves(models)
 		const controller = createMockController({
 			apiConfiguration: { planModeGroqModelId: "groq-1", actModeGroqModelId: "groq-1" },
 		})
@@ -160,7 +159,8 @@ describe("initializeWebview", () => {
 
 	it("updates Baseten model info in shared mode when models match", async () => {
 		const models = { "bas-1": { name: "B1", supportsPromptCache: false } }
-		;(refreshBasetenModels.refreshBasetenModels as sinon.SinonStub).resolves(models)
+		const refreshModels = refreshBasetenModels.refreshBasetenModels as sinon.SinonStub
+		refreshModels.resolves(models)
 		const controller = createMockController({
 			apiConfiguration: { planModeBasetenModelId: "bas-1", actModeBasetenModelId: "bas-1" },
 		})
@@ -172,7 +172,8 @@ describe("initializeWebview", () => {
 
 	it("updates GithubCopilot model info in shared mode when models match", async () => {
 		const models = { "gh-1": { name: "GH1", supportsPromptCache: false } }
-		;(refreshGithubCopilotModels.refreshGithubCopilotModels as sinon.SinonStub).resolves(models)
+		const refreshModels = refreshGithubCopilotModels.refreshGithubCopilotModels as sinon.SinonStub
+		refreshModels.resolves(models)
 		const controller = createMockController({
 			apiConfiguration: { planModeGithubCopilotModelId: "gh-1", actModeGithubCopilotModelId: "gh-1" },
 		})

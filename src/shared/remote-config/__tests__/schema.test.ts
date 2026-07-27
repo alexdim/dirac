@@ -2,7 +2,6 @@ import { expect } from "chai"
 import { describe, it } from "mocha"
 import {
 	AwsBedrockSettingsSchema,
-	DiracSettingsSchema,
 	EnterpriseTelemetrySchema,
 	OpenAiCompatibleSchema,
 	PromptUploadingSchema,
@@ -312,36 +311,6 @@ describe("Remote Config Schema", () => {
 		})
 	})
 
-	describe("DiracSettingsSchema", () => {
-		it("should accept valid Dirac provider settings", () => {
-			const validSettings = {
-				models: [{ id: TEST_MODEL_IDS.ANTHROPIC_FULL }, { id: TEST_MODEL_IDS.ANTHROPIC_HAIKU }],
-			}
-			const result = DiracSettingsSchema.parse(validSettings)
-			expect(result).to.deep.equal(validSettings)
-		})
-
-		it("should accept empty settings object", () => {
-			const result = DiracSettingsSchema.parse({})
-			expect(result.models).to.be.undefined
-		})
-
-		it("should accept models with only id field", () => {
-			const settings = {
-				models: [{ id: TEST_MODEL_IDS.ANTHROPIC_FULL }],
-			}
-			expect(() => DiracSettingsSchema.parse(settings)).to.not.throw()
-		})
-
-		it("should reject models with missing id field", () => {
-			expect(() =>
-				DiracSettingsSchema.parse({
-					models: [{}],
-				}),
-			).to.throw()
-		})
-	})
-
 	describe("AwsBedrockSettingsSchema", () => {
 		it("should accept valid AWS Bedrock settings", () => {
 			const validSettings = {
@@ -609,9 +578,6 @@ describe("Remote Config Schema", () => {
 						awsBedrockUsePromptCache: true,
 						awsBedrockEndpoint: "https://custom-bedrock.endpoint",
 					},
-					Dirac: {
-						models: [{ id: TEST_MODEL_IDS.ANTHROPIC_FULL }, { id: TEST_MODEL_IDS.ANTHROPIC_HAIKU }],
-					},
 					Vertex: {
 						models: [
 							{ id: "claude-3-5-sonnet-v2@20241022", thinkingBudgetTokens: 1600 },
@@ -662,10 +628,6 @@ describe("Remote Config Schema", () => {
 			expect(result.providerSettings?.AwsBedrock?.awsBedrockUsePromptCache).to.equal(true)
 			expect(result.providerSettings?.AwsBedrock?.awsBedrockEndpoint).to.equal("https://custom-bedrock.endpoint")
 
-			// Verify Dirac settings
-			expect(result.providerSettings?.Dirac?.models).to.have.lengthOf(2)
-			expect(result.providerSettings?.Dirac?.models?.[0].id).to.equal(TEST_MODEL_IDS.ANTHROPIC_FULL)
-			expect(result.providerSettings?.Dirac?.models?.[1].id).to.equal(TEST_MODEL_IDS.ANTHROPIC_HAIKU)
 
 			// Verify Vertex settings
 			expect(result.providerSettings?.Vertex?.models).to.have.lengthOf(2)

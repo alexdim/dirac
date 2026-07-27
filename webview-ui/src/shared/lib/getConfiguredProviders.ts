@@ -17,11 +17,8 @@ export function getConfiguredProviders(
 	const configured: ApiProvider[] = []
 
 	if (!apiConfiguration) {
-		return ["dirac"] // Dirac is always available
+		return configured
 	}
-
-	// Dirac - always available (uses account-based auth)
-	configured.push("dirac")
 
 	// Anthropic - requires API key
 	if (apiConfiguration.apiKey) {

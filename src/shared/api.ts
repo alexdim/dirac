@@ -37,7 +37,6 @@ export type ApiProvider =
 	| "mistral"
 	| "github-copilot"
 	| "vscode-lm"
-	| "dirac"
 	| "litellm"
 	| "moonshot"
 	| "nebius"
@@ -78,7 +77,6 @@ export const ALL_PROVIDERS: ApiProvider[] = [
 	"mistral",
 	"github-copilot",
 	"vscode-lm",
-	"dirac",
 	"litellm",
 	"moonshot",
 	"nebius",

@@ -2,7 +2,6 @@
  * Utility to fetch and cache OpenRouter models for the CLI
  */
 
-import { openRouterDefaultModelId } from "@/shared/api"
 import { fetch } from "@/shared/net"
 import { Logger } from "@/shared/services/Logger"
 
@@ -57,15 +56,8 @@ export async function fetchOpenRouterModels(): Promise<string[]> {
 }
 
 /**
- * Get the default OpenRouter model ID
- */
-export function getOpenRouterDefaultModelId(): string {
-	return openRouterDefaultModelId
-}
-
-/**
- * Check if provider uses OpenRouter models (openrouter or dirac)
+ * Check if provider uses the OpenRouter model catalog.
  */
 export function usesOpenRouterModels(provider: string): boolean {
-	return provider === "openrouter" || provider === "dirac"
+	return provider === "openrouter"
 }

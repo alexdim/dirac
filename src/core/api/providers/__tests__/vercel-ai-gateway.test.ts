@@ -1,8 +1,9 @@
 
 import "should"
-import { openRouterDefaultModelId, openRouterDefaultModelInfo } from "@shared/api"
 import sinon from "sinon"
 import { VercelAIGatewayHandler } from "../vercel-ai-gateway"
+
+const modelInfo = { supportsPromptCache: false }
 
 describe("VercelAIGatewayHandler", () => {
 	afterEach(() => {
@@ -18,7 +19,7 @@ describe("VercelAIGatewayHandler", () => {
 	describe("getModel", () => {
 		it("should return configured model and info when both are provided", () => {
 			const customModelInfo = {
-				...openRouterDefaultModelInfo,
+				...modelInfo,
 				maxTokens: 123456,
 			}
 
@@ -39,15 +40,12 @@ describe("VercelAIGatewayHandler", () => {
 
 			const result = handler.getModel()
 			result.id.should.equal("google/gemini-3.1-pro-preview")
-			result.info.should.deepEqual(openRouterDefaultModelInfo)
+			result.info.should.deepEqual(modelInfo)
 		})
 
-		it("should fall back to default model when model ID is missing", () => {
+		it("should reject a missing model ID", () => {
 			const handler = new VercelAIGatewayHandler({})
-			const result = handler.getModel()
-
-			result.id.should.equal(openRouterDefaultModelId)
-			result.info.should.deepEqual(openRouterDefaultModelInfo)
+			;(() => handler.getModel()).should.throw("Vercel AI Gateway model ID is required")
 		})
 	})
 
@@ -55,6 +53,8 @@ describe("VercelAIGatewayHandler", () => {
 		it("should handle usage-only chunks when delta is missing", async () => {
 			const handler = new VercelAIGatewayHandler({
 				vercelAiGatewayApiKey: "test-api-key",
+				openRouterModelId: "openai/gpt-4o-mini",
+				openRouterModelInfo: modelInfo,
 			})
 			const fakeClient = {
 				chat: {

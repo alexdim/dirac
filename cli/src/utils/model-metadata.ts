@@ -61,7 +61,7 @@ import {
 	xaiModels,
 } from "@/shared/api"
 import { getProviderDefaultModelId } from "@/shared/storage/provider-keys"
-import { getOpenRouterDefaultModelId, usesOpenRouterModels } from "./openrouter-models"
+import { usesOpenRouterModels } from "./openrouter-models"
 
 export const providerModels: Record<string, { models: Record<string, unknown>; defaultId: string }> = {
 	anthropic: { models: anthropicModels, defaultId: anthropicDefaultModelId },
@@ -101,9 +101,7 @@ export function hasModelPicker(provider: string): boolean {
 }
 
 export function getDefaultModelId(provider: string): string {
-	if (usesOpenRouterModels(provider)) {
-		return getOpenRouterDefaultModelId()
-	}
+	if (usesOpenRouterModels(provider)) return ""
 	if (provider === "github-copilot") return "gpt-4o"
 	if (provider === "dify") return "dify-workflow"
 	return providerModels[provider]?.defaultId || getProviderDefaultModelId(provider as ApiProvider) || ""

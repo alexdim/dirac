@@ -1,7 +1,6 @@
 import { getSavedApiConversationHistory, getSavedDiracMessages } from "@core/storage/disk"
 import { DiracWebviewProvider } from "@core/webview"
 import { AutoApprovalSettings, DEFAULT_AUTO_APPROVAL_SETTINGS } from "@shared/AutoApprovalSettings"
-import { ApiProvider } from "@shared/api"
 import { HistoryItem } from "@shared/HistoryItem"
 import { jsonHeaders } from "@shared/net"
 import { execa } from "execa"
@@ -211,19 +210,20 @@ export async function createTestServer(controller: Controller): Promise<http.Ser
 						// Update API configuration with API key
 						const updatedConfig = {
 							...apiConfiguration,
-							apiProvider: "dirac" as ApiProvider,
+							apiProvider: "openrouter" as const,
+							openRouterApiKey: apiKey,
 						}
 
 						// Store the API key securely
 
 						visibleWebview.controller.stateManager.setApiConfiguration(updatedConfig)
 
-						// Update cache service to use dirac provider
+						// Configure both modes to use OpenRouter
 						const currentConfig = visibleWebview.controller.stateManager.getApiConfiguration()
 						visibleWebview.controller.stateManager.setApiConfiguration({
 							...currentConfig,
-							planModeApiProvider: "dirac",
-							actModeApiProvider: "dirac",
+							planModeApiProvider: "openrouter",
+							actModeApiProvider: "openrouter",
 						})
 
 						// Post state to webview to reflect changes

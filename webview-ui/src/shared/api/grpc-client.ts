@@ -147,8 +147,8 @@ export class ModelsServiceClient extends ProtoBusClient {
 	static async refreshOpenRouterModelsRpc(request: proto.dirac.EmptyRequest): Promise<proto.dirac.OpenRouterCompatibleModelInfo> {
 		return this.makeUnaryRequest("refreshOpenRouterModelsRpc", request, proto.dirac.EmptyRequest.toJSON, proto.dirac.OpenRouterCompatibleModelInfo.fromJSON)
 	}
-	static async refreshDiracModelsRpc(request: proto.dirac.EmptyRequest): Promise<proto.dirac.OpenRouterCompatibleModelInfo> {
-		return this.makeUnaryRequest("refreshDiracModelsRpc", request, proto.dirac.EmptyRequest.toJSON, proto.dirac.OpenRouterCompatibleModelInfo.fromJSON)
+	static async fetchOpenRouterModelRankings(request: proto.dirac.EmptyRequest): Promise<proto.dirac.StringArray> {
+		return this.makeUnaryRequest("fetchOpenRouterModelRankings", request, proto.dirac.EmptyRequest.toJSON, proto.dirac.StringArray.fromJSON)
 	}
 	static async refreshHuggingFaceModels(request: proto.dirac.EmptyRequest): Promise<proto.dirac.OpenRouterCompatibleModelInfo> {
 		return this.makeUnaryRequest("refreshHuggingFaceModels", request, proto.dirac.EmptyRequest.toJSON, proto.dirac.OpenRouterCompatibleModelInfo.fromJSON)

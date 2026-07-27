@@ -52,7 +52,7 @@ function openModelsPanel({ mode, setActivePanel, resetInputLine }: LocalSlashCom
 		mode === "act"
 			? apiConfig.actModeApiProvider || apiConfig.planModeApiProvider
 			: apiConfig.planModeApiProvider || apiConfig.actModeApiProvider
-	const initialMode = !provider ? undefined : provider === "dirac" ? "featured-models" : "model-picker"
+	const initialMode = provider ? "model-picker" : undefined
 	const initialModelKey = mode === "act" ? "actModelId" : "planModelId"
 	setActivePanel({ type: "settings", initialMode, initialModelKey })
 	resetInputLine()

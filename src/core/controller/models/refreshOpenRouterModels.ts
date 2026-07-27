@@ -28,6 +28,7 @@ type OpenRouterSupportedParam =
 
 interface OpenRouterRawModelInfo {
 	id: string
+	canonical_slug: string
 	name: string
 	description: string | null
 	context_length: number | null
@@ -79,6 +80,7 @@ function parseOpenRouterResponse(rawModels: OpenRouterRawModelInfo[]): Record<st
 		const cacheWritesPrice = parseOpenRouterPrice(rawModel.pricing?.input_cache_write)
 
 		models[rawModel.id] = {
+			canonicalSlug: rawModel.canonical_slug,
 			name: rawModel.name,
 			maxTokens: rawModel.top_provider?.max_completion_tokens ?? undefined,
 			contextWindow: rawModel.context_length ?? undefined,

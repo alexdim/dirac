@@ -1,7 +1,8 @@
 import "should"
-import { openRouterDefaultModelInfo } from "@shared/api"
 import sinon from "sinon"
 import { OpenRouterHandler } from "../openrouter"
+
+const modelInfo = { supportsPromptCache: false }
 
 describe("OpenRouterHandler", () => {
 	afterEach(() => {
@@ -40,7 +41,7 @@ describe("OpenRouterHandler", () => {
 		sinon.stub(handler as any, "ensureClient").returns(fakeClient as any)
 		sinon.stub(handler, "getModel").returns({
 			id: "openai/gpt-4o-mini",
-			info: { ...openRouterDefaultModelInfo, inputPrice: 0, outputPrice: 0, cacheWritesPrice: 0, cacheReadsPrice: 0 },
+			info: { ...modelInfo, inputPrice: 0, outputPrice: 0, cacheWritesPrice: 0, cacheReadsPrice: 0 },
 		})
 
 		const chunks: any[] = []
@@ -102,7 +103,7 @@ describe("OpenRouterHandler", () => {
 			sinon.stub(handler as any, "ensureClient").returns(fakeClient as any)
 			sinon.stub(handler, "getModel").returns({
 				id: testCase.modelId,
-				info: openRouterDefaultModelInfo,
+				info: modelInfo,
 			})
 
 			for await (const _chunk of handler.createMessage("system", [{ role: "user", content: "hi" }], tools)) {
@@ -129,7 +130,7 @@ describe("OpenRouterHandler", () => {
 		} as any)
 		sinon.stub(handler, "getModel").returns({
 			id: "author/model-b",
-			info: openRouterDefaultModelInfo,
+			info: modelInfo,
 		})
 
 		for await (const _chunk of handler.createMessage("system", [{ role: "user", content: "hi" }])) {
