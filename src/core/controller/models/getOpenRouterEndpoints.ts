@@ -23,6 +23,9 @@ export async function getOpenRouterEndpoints(
 				uptimeLast30m: endpoint.uptimeLast30m,
 				latencyLast30m: endpoint.latencyLast30m,
 				throughputLast30m: endpoint.throughputLast30m,
+				inputPricing: endpoint.inputPricing,
+				outputPricing: endpoint.outputPricing,
+				cachePricing: endpoint.cachePricing,
 			}),
 		),
 		status: {
