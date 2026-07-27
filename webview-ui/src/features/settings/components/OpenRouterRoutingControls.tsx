@@ -1,11 +1,6 @@
 import type { OpenRouterEndpoint } from "@shared/proto/dirac/models"
-import {
-	VSCodeButton,
-	VSCodeCheckbox,
-	VSCodeDropdown,
-	VSCodeOption,
-	VSCodeTextField,
-} from "@vscode/webview-ui-toolkit/react"
+import { VSCodeButton, VSCodeCheckbox, VSCodeDropdown, VSCodeOption, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
+import { SquareCheckBig, SquareX } from "lucide-react"
 import { type KeyboardEvent, useEffect, useMemo, useRef, useState } from "react"
 import styled from "styled-components"
 import { useSettingsStore } from "@/features/settings/store/settingsStore"
@@ -53,7 +48,10 @@ export function OpenRouterProviderSelector({ modelId }: { modelId: string }) {
 		[endpointState.endpoints],
 	)
 	const availableEndpoints = useMemo(
-		() => endpointState.endpoints.filter((endpoint) => !pinnedProviders.includes(endpoint.tag)),
+		() =>
+			endpointState.endpoints
+				.filter((endpoint) => !pinnedProviders.includes(endpoint.tag))
+				.sort(compareEndpointsByCachePricing),
 		[endpointState.endpoints, pinnedProviders],
 	)
 	const matchingEndpoints = useMemo(() => {
@@ -137,7 +135,9 @@ export function OpenRouterProviderSelector({ modelId }: { modelId: string }) {
 				<FieldLabel htmlFor="openrouter-provider-search">Allowed upstream providers</FieldLabel>
 				{pinnedProviders.length > 0 && <SelectionCount>{pinnedProviders.length} allowed</SelectionCount>}
 			</ProviderHeader>
-			<HelpText>You can pin providers for this model! Leaving empty will fallback to your 'Sort upstreams' setting under Advanced.</HelpText>
+			<HelpText>
+				You can pin providers for this model! Leaving empty will fallback to your 'Sort upstreams' setting under Advanced.
+			</HelpText>
 
 			{pinnedProviders.length > 0 && (
 				<SelectedProviders>
@@ -193,16 +193,33 @@ export function OpenRouterProviderSelector({ modelId }: { modelId: string }) {
 								ref={(element) => (itemRefs.current[index] = element)}
 								role="option">
 								<EndpointName>{endpoint.providerName}</EndpointName>
+								<EndpointSep> · </EndpointSep>
 								<EndpointMeta>
-									{endpoint.quantization && <EndpointQuantization>{endpoint.quantization}</EndpointQuantization>}
-									{endpoint.quantization && (endpoint.uptimeLast30m !== undefined || endpoint.status !== undefined) && <EndpointSep> · </EndpointSep>}
-									{endpoint.uptimeLast30m !== undefined && <EndpointUptime>{endpoint.uptimeLast30m.toFixed(1)}% uptime</EndpointUptime>}
-									{endpoint.uptimeLast30m !== undefined && endpoint.status !== undefined && <EndpointSep> · </EndpointSep>}
-									{endpoint.status !== undefined && (
-										<EndpointStatus $operational={endpoint.status === 0}>
-											{endpoint.status === 0 ? "operational" : `status ${endpoint.status}`}
-										</EndpointStatus>
+									{endpoint.quantization && (
+										<EndpointQuantization>{endpoint.quantization}</EndpointQuantization>
 									)}
+									{endpoint.quantization && endpoint.uptimeLast30m !== undefined && (
+										<EndpointSep> · </EndpointSep>
+									)}
+									{endpoint.uptimeLast30m !== undefined && (
+										<EndpointUptime>{endpoint.uptimeLast30m.toFixed(1)}% uptime</EndpointUptime>
+									)}
+									{endpoint.uptimeLast30m !== undefined && <EndpointSep> · </EndpointSep>}
+									<EndpointPricing title="Input/output/cache price per million tokens">
+										{formatEndpointPricing(endpoint)} 
+									</EndpointPricing>
+									<EndpointSep> · </EndpointSep>
+									<EndpointStatus
+										$operational={endpoint.status === 0}
+										aria-label={formatEndpointStatus(endpoint.status)}
+										role="img"
+										title={formatEndpointStatus(endpoint.status)}>
+										{endpoint.status === 0 ? (
+											<SquareCheckBig aria-hidden="true" />
+										) : (
+											<SquareX aria-hidden="true" />
+										)}
+									</EndpointStatus>
 								</EndpointMeta>
 							</EndpointOption>
 						))}
@@ -263,9 +280,7 @@ export function OpenRouterRoutingControls() {
 			<FallbackRow>
 				<VSCodeCheckbox
 					checked={apiConfiguration?.openRouterPreventFallbacks || false}
-					onChange={(event: any) =>
-						handleFieldChange("openRouterPreventFallbacks", event.target.checked || undefined)
-					}>
+					onChange={(event: any) => handleFieldChange("openRouterPreventFallbacks", event.target.checked || undefined)}>
 					Prevent fallbacks
 				</VSCodeCheckbox>
 				<HelpText>Only try explicitly allowed or prioritized upstreams. This can reduce request recovery.</HelpText>
@@ -277,15 +292,38 @@ export function OpenRouterRoutingControls() {
 function formatEndpointDetails(endpoint: OpenRouterEndpoint): string {
 	const details = [endpoint.tag]
 	if (endpoint.quantization) details.push(endpoint.quantization)
-	if (endpoint.status !== undefined) details.push(endpoint.status === 0 ? "operational" : `status ${endpoint.status}`)
+	details.push(formatEndpointStatus(endpoint.status))
 	if (endpoint.uptimeLast30m !== undefined) details.push(`${endpoint.uptimeLast30m.toFixed(1)}% uptime`)
 	if (endpoint.latencyLast30m !== undefined) details.push(`${endpoint.latencyLast30m.toFixed(2)}s latency`)
 	if (endpoint.throughputLast30m !== undefined) details.push(`${endpoint.throughputLast30m.toFixed(1)} tok/s`)
+	details.push(formatEndpointPricing(endpoint))
 	return details.join(" · ")
 }
 
 function getEndpointSearchText(endpoint: OpenRouterEndpoint): string {
 	return `${endpoint.providerName} ${formatEndpointDetails(endpoint)}`.toLowerCase()
+}
+
+function compareEndpointsByCachePricing(a: OpenRouterEndpoint, b: OpenRouterEndpoint): number {
+	const cachePricingOrder = Number(a.cachePricing) - Number(b.cachePricing)
+	if (cachePricingOrder !== 0) return cachePricingOrder
+	const providerOrder = a.providerName.localeCompare(b.providerName)
+	return providerOrder || a.tag.localeCompare(b.tag)
+}
+
+function formatEndpointPricing(endpoint: OpenRouterEndpoint): string {
+	return [endpoint.inputPricing, endpoint.outputPricing, endpoint.cachePricing]
+		.map((pricingValue) => `$${formatPricingPerMillion(pricingValue)}`)
+		.join("/")
+}
+
+function formatPricingPerMillion(pricingPerToken: string): string {
+	return (Number(pricingPerToken) * 1_000_000).toLocaleString("en-US", { maximumSignificantDigits: 4 })
+}
+
+function formatEndpointStatus(status: number | undefined): string {
+	if (status === 0) return "Operational"
+	return status === undefined ? "Status unavailable" : `Status ${status}`
 }
 
 const ProviderSection = styled.section`
@@ -411,10 +449,15 @@ const EndpointList = styled.div`
 `
 
 const EndpointOption = styled.div<{ $isSelected: boolean }>`
+	display: flex;
+	align-items: center;
+	gap: 5px;
+	overflow: hidden;
 	padding: 7px 8px;
 	border-bottom: 1px solid var(--vscode-widget-border);
 	background-color: ${({ $isSelected }) => ($isSelected ? "var(--vscode-list-activeSelectionBackground)" : "inherit")};
 	cursor: pointer;
+	white-space: nowrap;
 
 	&:last-child {
 		border-bottom: 0;
@@ -426,17 +469,19 @@ const EndpointOption = styled.div<{ $isSelected: boolean }>`
 `
 
 const EndpointName = styled.span`
-	display: block;
+	min-width: 0;
+	overflow: hidden;
 	color: var(--vscode-foreground);
 	font-size: 12px;
 	font-weight: 500;
+	text-overflow: ellipsis;
 `
 
 const EndpointMeta = styled.span`
-	display: flex;
-	flex-wrap: wrap;
+	display: inline-flex;
 	align-items: center;
-	margin-top: 2px;
+	gap: 0;
+	flex-shrink: 0;
 	font-family: var(--vscode-editor-font-family);
 	font-size: 10px;
 `
@@ -454,9 +499,20 @@ const EndpointUptime = styled.span`
 	color: var(--vscode-charts-yellow);
 `
 
+const EndpointPricing = styled.span`
+	color: var(--vscode-foreground);
+`
+
 const EndpointStatus = styled.span<{ $operational: boolean }>`
-	color: ${({ $operational }) => ($operational ? "var(--vscode-testing-iconPassed)" : "#c96b6b")};
-	font-weight: ${({ $operational }) => ($operational ? "inherit" : "500")};
+	display: inline-flex;
+	align-items: center;
+	color: ${({ $operational }) => ($operational ? "var(--vscode-testing-iconPassed)" : "var(--vscode-testing-iconFailed)")};
+
+	svg {
+		width: 13px;
+		height: 13px;
+		stroke-width: 2;
+	}
 `
 
 const UnavailableBadge = styled.span`
@@ -485,8 +541,7 @@ const Notice = styled.div<{ $warning: boolean }>`
 	margin: 7px 0;
 	padding: 7px 8px;
 	border: 1px solid
-		${({ $warning }) =>
-		$warning ? "var(--vscode-editorWarning-foreground)" : "var(--vscode-editorError-foreground)"};
+		${({ $warning }) => ($warning ? "var(--vscode-editorWarning-foreground)" : "var(--vscode-editorError-foreground)")};
 	border-radius: 4px;
 	color: var(--vscode-foreground);
 	font-size: 11px;

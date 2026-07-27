@@ -1,9 +1,9 @@
-import { theme } from "../../../constants/theme"
-import { getOpenRouterEndpoints, type OpenRouterEndpoint } from "@/core/api/openrouter/openrouter-endpoints"
 import { Box, Text, useInput } from "ink"
 import Spinner from "ink-spinner"
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { getOpenRouterEndpoints, type OpenRouterEndpoint } from "@/core/api/openrouter/openrouter-endpoints"
 import { COLORS } from "../../../constants/colors"
+import { theme } from "../../../constants/theme"
 import { useStdinContext } from "../../../context/StdinContext"
 import { useScrollableList } from "../../../hooks/useScrollableList"
 import { fuzzyFilter } from "../../../utils/fuzzy-search"
@@ -74,7 +74,13 @@ export const OpenRouterRoutingPage: React.FC<OpenRouterRoutingPageProps> = ({
 		const endpointsByTag = new Map(endpointState.endpoints.map((endpoint) => [endpoint.tag, endpoint]))
 		for (const tag of selectedProviders) {
 			if (!endpointsByTag.has(tag)) {
-				endpointsByTag.set(tag, { tag, providerName: "Unavailable upstream" })
+				endpointsByTag.set(tag, {
+					tag,
+					providerName: "Unavailable upstream",
+					inputPricing: "",
+					outputPricing: "",
+					cachePricing: "",
+				})
 			}
 		}
 		return [...endpointsByTag.values()]
@@ -154,7 +160,9 @@ export const OpenRouterRoutingPage: React.FC<OpenRouterRoutingPageProps> = ({
 			<Box>
 				<Text color={theme.muted}>Search: </Text>
 				<Text>{search}</Text>
-				<Text backgroundColor={theme.cursorBg} color={theme.cursorText}> </Text>
+				<Text backgroundColor={theme.cursorBg} color={theme.cursorText}>
+					{" "}
+				</Text>
 			</Box>
 			<Text> </Text>
 
@@ -188,7 +196,7 @@ export const OpenRouterRoutingPage: React.FC<OpenRouterRoutingPageProps> = ({
 							{selectedProviders.has(endpoint.tag) ? "[x]" : "[ ]"} {endpoint.providerName}
 							{isUnavailable ? " (unavailable)" : ""}
 						</Text>
-						<Text color={theme.muted}>    {formatEndpointMetadata(endpoint)}</Text>
+						<Text color={theme.muted}> {formatEndpointMetadata(endpoint)}</Text>
 					</Box>
 				)
 			})}

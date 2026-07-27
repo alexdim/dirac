@@ -11,6 +11,9 @@ export interface OpenRouterEndpoint {
 	uptimeLast30m?: number
 	latencyLast30m?: number
 	throughputLast30m?: number
+	inputPricing: string
+	outputPricing: string
+	cachePricing: string
 }
 
 export type OpenRouterEndpointsResult =
@@ -41,6 +44,11 @@ interface OpenRouterRawEndpoint {
 	uptime_last_30m?: number | null
 	latency_last_30m?: number | null
 	throughput_last_30m?: number | null
+	pricing?: {
+		prompt?: string
+		completion?: string
+		input_cache_read?: string | null
+	}
 }
 
 type CachedOpenRouterEndpointsResult = Exclude<OpenRouterEndpointsResult, { status: "unavailable" }>
@@ -120,6 +128,7 @@ function parseOpenRouterEndpoints(rawEndpoints: unknown[]): OpenRouterEndpoint[]
 		if (typeof rawEndpoint.tag !== "string" || typeof rawEndpoint.provider_name !== "string") {
 			throw new Error("OpenRouter returned endpoint metadata without a tag or provider name")
 		}
+		const pricing = parseEndpointPricing(rawEndpoint)
 		endpointsByTag.set(rawEndpoint.tag, {
 			tag: rawEndpoint.tag,
 			providerName: rawEndpoint.provider_name,
@@ -128,12 +137,38 @@ function parseOpenRouterEndpoints(rawEndpoints: unknown[]): OpenRouterEndpoint[]
 			uptimeLast30m: rawEndpoint.uptime_last_30m ?? undefined,
 			latencyLast30m: rawEndpoint.latency_last_30m ?? undefined,
 			throughputLast30m: rawEndpoint.throughput_last_30m ?? undefined,
+			inputPricing: pricing.inputPricing,
+			outputPricing: pricing.outputPricing,
+			cachePricing: pricing.cachePricing,
 		})
 	}
-	return [...endpointsByTag.values()].sort((a, b) => {
-		const providerOrder = a.providerName.localeCompare(b.providerName)
-		return providerOrder || a.tag.localeCompare(b.tag)
-	})
+	return [...endpointsByTag.values()]
+}
+
+function parseEndpointPricing(rawEndpoint: Partial<OpenRouterRawEndpoint>): {
+	inputPricing: string
+	outputPricing: string
+	cachePricing: string
+} {
+	const pricing = rawEndpoint.pricing
+	if (!pricing || typeof pricing.prompt !== "string" || typeof pricing.completion !== "string") {
+		throw new Error("OpenRouter returned endpoint metadata without input or output pricing")
+	}
+	const inputPricing = parseEndpointPricingValue(pricing.prompt)
+	const outputPricing = parseEndpointPricingValue(pricing.completion)
+	const cachePricing =
+		pricing.input_cache_read === null || pricing.input_cache_read === undefined
+			? inputPricing
+			: parseEndpointPricingValue(pricing.input_cache_read)
+	return { inputPricing, outputPricing, cachePricing }
+}
+
+function parseEndpointPricingValue(price: string): string {
+	const numericPricing = Number(price)
+	if (!Number.isFinite(numericPricing) || numericPricing < 0) {
+		throw new Error("OpenRouter returned invalid endpoint pricing")
+	}
+	return price
 }
 
 function formatEndpointFetchError(error: unknown): string {

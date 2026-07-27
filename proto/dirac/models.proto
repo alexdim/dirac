@@ -130,6 +130,9 @@ message OpenRouterEndpoint {
   optional double uptime_last_30m = 5;
   optional double latency_last_30m = 6;
   optional double throughput_last_30m = 7;
+  string input_pricing = 8;
+  string output_pricing = 9;
+  string cache_pricing = 10;
 }
 
 enum OpenRouterEndpointsStatus {
