@@ -97,6 +97,7 @@ describe("SurfaceAdapter", () => {
 			const handle = await adapter.ui.createCard({ header: "Test" })
 			handle.id.should.equal("card-1")
 			sinon.assert.calledOnce(config.taskMessenger.createCard)
+			sinon.assert.calledWithMatch(config.taskMessenger.createCard, { toolName: "test-tool" })
 		})
 
 		it("auto-approves approval cards without waiting for protocol interaction", async () => {

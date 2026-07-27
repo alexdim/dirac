@@ -90,6 +90,16 @@ describe("messageTranslator (Modular Architecture)", () => {
 			const result = translateMessage(message, sessionState)
 			expect(result.updates).toHaveLength(0)
 		})
+
+		it("emits the standard web_search tool name for web search markers", () => {
+			const result = translateMessage(createMarkdownMessage("[Web Search: ACP tool names]"), sessionState)
+
+			expect(result.updates).toMatchObject([
+				{ sessionUpdate: "tool_call", name: "web_search" },
+				{ sessionUpdate: "tool_call_update", name: "web_search", status: "in_progress" },
+				{ sessionUpdate: "tool_call_update", name: "web_search", status: "completed" },
+			])
+		})
 	})
 
 	describe("translateMessage - Card", () => {
@@ -108,6 +118,7 @@ describe("messageTranslator (Modular Architecture)", () => {
 			const toolCall = result.updates[0] as acp.ToolCall
 			expect(toolCall.toolCallId).toBe("tool-1")
 			expect(toolCall.title).toBe("read_file")
+			expect(toolCall.name).toBe("read_file")
 			expect(toolCall.status).toBe("pending")
 			expect(result.updates[1]).toMatchObject({ sessionUpdate: "tool_call_update", toolCallId: "tool-1", status: "in_progress" })
 			expect(sessionState.pendingToolCalls.has("tool-1")).toBe(true)
@@ -203,6 +214,7 @@ describe("messageTranslator (Modular Architecture)", () => {
 			const update = result.updates[0] as acp.ToolCallUpdate
 			expect(update.toolCallId).toBe("tool-1")
 			expect(update.status).toBe("completed")
+			expect(update.name).toBe("read_file")
 		})
 
 		it("offers once and always choices for approval requests", () => {
@@ -240,6 +252,7 @@ describe("messageTranslator (Modular Architecture)", () => {
 				{ kind: "allow_once", optionId: "new_task", name: "Approve New Task" },
 				{ kind: "reject_once", optionId: "reject_once", name: "Keep current task" },
 			])
+			expect(result.permissionRequest?.toolCall.name).toBe("new_task")
 		})
 
 
@@ -258,6 +271,7 @@ describe("messageTranslator (Modular Architecture)", () => {
 
 			expect(result.permissionRequest?.toolCall).toMatchObject({
 				toolCallId: "edit-approval-1",
+				name: "edit_file",
 				rawInput: { command: "python apply_edit.py", language: "bash" },
 				content: [{ type: "diff", path: "src/file.ts", oldText: "const before = true\n", newText: "const after = true\n" }],
 			})

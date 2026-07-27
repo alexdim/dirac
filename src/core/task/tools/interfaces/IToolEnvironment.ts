@@ -67,6 +67,8 @@ export interface ICardHandle {
 
 export interface CardParams {
 	header: string
+	/** Programmatic name of the tool that created this card. */
+	toolName?: string
 	icon?: string
 	status?: CardStatus
 	renderType?: RenderType

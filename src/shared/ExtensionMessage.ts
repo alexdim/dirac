@@ -386,6 +386,8 @@ export type CardRawOutput = Record<string, unknown>
 export interface Card {
 	id: string
 	header: string
+	/** Programmatic name of the tool that created this card. */
+	toolName?: string
 	icon?: DiracIcon | string
 	status: CardStatus
 	renderType: RenderType
@@ -440,6 +442,7 @@ export function isFinalStatus(status: CardStatus): boolean {
 
 export interface CardParams {
 	header: string
+	toolName?: string
 	icon?: DiracIcon | string
 	status?: CardStatus
 	renderType?: RenderType

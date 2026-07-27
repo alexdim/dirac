@@ -12,6 +12,7 @@ import { DiracAskResponse } from "@shared/WebviewMessage"
 
 export class CardHandle implements ICardHandle {
 	public header: string
+	public toolName?: string
 	public icon?: string
 	public status: CardStatus = CardStatus.PENDING
 	public renderType: RenderType = "text"
@@ -42,6 +43,7 @@ export class CardHandle implements ICardHandle {
 	) {
 		this.id = protocolHandle.id
 		this.header = params.header
+		this.toolName = params.toolName
 		this.icon = params.icon
 		this.status = params.status || CardStatus.RUNNING
 		this.renderType = params.renderType || "text"
@@ -66,6 +68,7 @@ export class CardHandle implements ICardHandle {
 		return {
 			id: this.id,
 			header: this.header,
+			toolName: this.toolName,
 			icon: this.icon,
 			status: this.status,
 			renderType: this.renderType,
@@ -91,6 +94,7 @@ export class CardHandle implements ICardHandle {
 
 	public async update(patch: Partial<Omit<Card, "id">>): Promise<void> {
 		if (patch.header !== undefined) this.header = patch.header
+		if (patch.toolName !== undefined) this.toolName = patch.toolName
 		if (patch.icon !== undefined) this.icon = patch.icon
 		if (patch.status !== undefined) this.status = patch.status
 		if (patch.renderType !== undefined) this.renderType = patch.renderType
