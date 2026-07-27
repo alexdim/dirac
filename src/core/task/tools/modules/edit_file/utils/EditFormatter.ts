@@ -18,10 +18,11 @@ export class EditFormatter {
 		const res: string[] = []
 		const contextCount = 3
 
-		// 1. Context Before (from original state)
-		const beforeStart = Math.max(0, originalStartIdx - contextCount)
-		for (let i = beforeStart; i < originalStartIdx; i++) {
-			res.push(` ${formatLineWithHash(originalLines[i], originalHashes[i])}`)
+		// 1. Context Before (from final on-disk state)
+		const finalStartIdx = Math.min(startIdx, finalLines.length)
+		const beforeStart = Math.max(0, finalStartIdx - contextCount)
+		for (let i = beforeStart; i < finalStartIdx; i++) {
+			res.push(` ${formatLineWithHash(finalLines[i], finalHashes[i])}`)
 		}
 
 		// 2. Deletion Summary (only count lines that are truly gone)
@@ -66,9 +67,10 @@ export class EditFormatter {
 		const { originalStartIdx, originalEndIdx, startIdx, endIdx } = applied
 		const res: string[] = []
 
-		const beforeStart = Math.max(0, originalStartIdx - contextBeforeCount)
-		for (let i = beforeStart; i < originalStartIdx; i++) {
-			res.push(` ${formatLineWithHash(originalLines[i], originalHashes[i])}`)
+		const finalStartIdx = Math.min(startIdx, finalLines.length)
+		const beforeStart = Math.max(0, finalStartIdx - contextBeforeCount)
+		for (let i = beforeStart; i < finalStartIdx; i++) {
+			res.push(` ${formatLineWithHash(finalLines[i], finalHashes[i])}`)
 		}
 
 		const finalHashesSet = new Set(finalHashes.slice(startIdx, endIdx + 1))
