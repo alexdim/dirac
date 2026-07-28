@@ -85,6 +85,20 @@ enum CardStatus {
   CARD_WAITING_FOR_INPUT = 8;
 }
 
+enum CardKind {
+  CARD_KIND_UNSPECIFIED = 0;
+  CARD_KIND_GENERIC = 1;
+  CARD_KIND_TASK_COMPLETION = 2;
+  CARD_KIND_RESUME_TASK = 3;
+  CARD_KIND_RESUME_COMPLETED_TASK = 4;
+}
+
+enum SteeringTranscriptStatus {
+  STEERING_TRANSCRIPT_STATUS_UNSPECIFIED = 0;
+  STEERING_TRANSCRIPT_STATUS_QUEUED = 1;
+  STEERING_TRANSCRIPT_STATUS_SENT = 2;
+}
+
 message ActionButton {
   string label = 1;
   string value = 2;
@@ -111,6 +125,7 @@ message Card {
   optional int64 start_time_ms = 16;
   optional int64 end_time_ms = 17;
   optional string outcome = 18;
+  CardKind kind = 19;
 }
 
 // Enum for DiracSayTool tool types
@@ -239,6 +254,8 @@ message MarkdownContent {
   repeated string images = 3;
   repeated string files = 4;
   optional string role = 5;
+  optional string steering_status = 6 [deprecated = true];
+  SteeringTranscriptStatus steering_transcript_status = 7;
 }
 
 // Main DiracMessage type

@@ -1,6 +1,7 @@
 import { HostProvider } from "@/hosts/host-provider"
 import CheckpointTracker from "@/integrations/checkpoints/CheckpointTracker"
 import { findLast } from "@/shared/array"
+import { isTaskCompletionCard } from "@/shared/cardIdentity"
 import { ShowMessageType } from "@/shared/proto/index.host"
 import { Logger } from "@/shared/services/Logger"
 import { DiracMessageType } from "@/shared/ExtensionMessage"
@@ -98,7 +99,7 @@ async function getChangesSinceLastTaskCompletion(
 	// Get last task completed
 	const lastTaskCompletedMessageCheckpointHash = findLast(
 		messageStateHandler.getDiracMessages().slice(0, messageIndex),
-		(m) => m.content.type === DiracMessageType.CARD && m.content.card.header === "Task Completed",
+		(m) => m.content.type === DiracMessageType.CARD && isTaskCompletionCard(m.content.card),
 	)?.lastCheckpointHash // ask is only used to relinquish control, its the last say we care about
 
 	// This value *should* always exist

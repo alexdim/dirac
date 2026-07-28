@@ -6,7 +6,8 @@
  * - ⎿ for tool results (indented)
  */
 
-import { DiracMessage, DiracMessageType, type Card } from "@shared/ExtensionMessage"
+import { DiracMessage, DiracMessageType, SteeringTranscriptStatus } from "@shared/ExtensionMessage"
+import { isTaskCompletionCard } from "@shared/cardIdentity"
 import { Box, Text } from "ink"
 import Spinner from "ink-spinner"
 import React from "react"
@@ -134,9 +135,6 @@ const ReasoningMessage: React.FC<{
 	)
 }
 
-function isTaskCompletionCard(card: Card): boolean {
-	return card.header === "Task Completed"
-}
 
 
 export const ChatMessage: React.FC<ChatMessageProps> = ({
@@ -202,6 +200,15 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
 						<DotRow color={roleColor} prefix={markdownRole === "user" ? "❯" : undefined}>
 							<Markdown color={contentColor}>{markdownContent}</Markdown>
 						</DotRow>
+						{message.content.steering && (
+							<DotRow color={theme.muted} prefix=" ">
+								<Text color={theme.muted} dimColor>
+									{message.content.steering.status === SteeringTranscriptStatus.QUEUED
+										? "Queued for next turn"
+										: "Sent with next turn"}
+								</Text>
+							</DotRow>
+						)}
 						<Text>{"\n"}</Text>
 					</React.Fragment>
 				)

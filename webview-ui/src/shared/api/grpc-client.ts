@@ -327,6 +327,9 @@ export class TaskServiceClient extends ProtoBusClient {
 	static async askResponse(request: proto.dirac.AskResponseRequest): Promise<proto.dirac.Empty> {
 		return this.makeUnaryRequest("askResponse", request, proto.dirac.AskResponseRequest.toJSON, proto.dirac.Empty.fromJSON)
 	}
+	static async steerTask(request: proto.dirac.SteerTaskRequest): Promise<proto.dirac.Empty> {
+		return this.makeUnaryRequest("steerTask", request, proto.dirac.SteerTaskRequest.toJSON, proto.dirac.Empty.fromJSON)
+	}
 	static async taskFeedback(request: proto.dirac.StringRequest): Promise<proto.dirac.Empty> {
 		return this.makeUnaryRequest("taskFeedback", request, proto.dirac.StringRequest.toJSON, proto.dirac.Empty.fromJSON)
 	}

@@ -38,6 +38,7 @@ export function buildOrchestrationTrait(config: TaskConfig): IOrchestrationTrait
 		},
 		switchToActMode: () => config.callbacks.switchToActMode(),
 		saveCheckpoint: (isTaskComplete, messageTs) => config.callbacks.saveCheckpoint(isTaskComplete, messageTs),
+		commitAttemptCompletion: () => config.callbacks.commitAttemptCompletion(),
 		getHistory: () => config.messageState.getDiracMessages(),
 		setTruncationRange: (range) => {
 			config.taskState.conversationHistoryDeletedRange = range

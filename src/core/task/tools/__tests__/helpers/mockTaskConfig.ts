@@ -22,8 +22,8 @@ import type { TaskCallbacks, TaskConfig, TaskServices } from "../../types/TaskCo
 export function createMockContext(): IDiracContext {
 	const taskData: Record<string, any> = {}
 	return {
-		load: async () => {},
-		save: async () => {},
+		load: async () => { },
+		save: async () => { },
 		task: {
 			get: <T>(key: string): T | undefined => taskData[key] as T,
 			set: <T>(key: string, value: T): void => {
@@ -32,13 +32,13 @@ export function createMockContext(): IDiracContext {
 		},
 		workspace: {
 			get: <T>(_key: string): T | undefined => undefined as any,
-			set: <T>(_key: string, _value: T): void => {},
+			set: <T>(_key: string, _value: T): void => { },
 		},
 		global: {
 			get: <T>(_key: string): T | undefined => undefined as any,
-			set: <T>(_key: string, _value: T): void => {},
+			set: <T>(_key: string, _value: T): void => { },
 		},
-		resetTaskContext: async () => {},
+		resetTaskContext: async () => { },
 	}
 }
 
@@ -70,6 +70,7 @@ export function createMockTaskMessenger() {
 export function createMockCallbacks(): TaskCallbacks {
 	return {
 		saveCheckpoint: sinon.stub().resolves(),
+		commitAttemptCompletion: sinon.stub().resolves(true),
 		executeCommandTool: sinon.stub().resolves([false, "ok"]),
 		cancelRunningCommandTool: sinon.stub().resolves(false),
 		doesLatestTaskCompletionHaveNewChanges: sinon.stub().resolves(false),

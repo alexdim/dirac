@@ -7,6 +7,7 @@ import { HostProvider } from "@hosts/host-provider"
 import { ensureCheckpointInitialized } from "@integrations/checkpoints/initializer"
 import { processFilesIntoText } from "@integrations/misc/extract-text"
 import { findLastIndex } from "@shared/array"
+import { isResumePromptCard, isSuccessfulTaskCompletionCard } from "@shared/cardIdentity"
 import { DiracContent, DiracImageContentBlock, DiracUserContent } from "@shared/messages/content"
 import { ShowMessageType } from "@shared/proto/index.host"
 import { Logger } from "@shared/services/Logger"
@@ -206,11 +207,7 @@ export class LifecycleManager {
 
 		const lastRelevantMessageIndex = findLastIndex(
 			savedDiracMessages,
-			(m) =>
-				!(
-					m.content.type === "card" &&
-					(m.content.card.header === "Resume Task" || m.content.card.header === "Resume Completed Task")
-				),
+			(m) => !(m.content.type === DiracMessageType.CARD && isResumePromptCard(m.content.card)),
 		)
 		if (lastRelevantMessageIndex !== -1) {
 			savedDiracMessages.splice(lastRelevantMessageIndex + 1)
@@ -232,6 +229,7 @@ export class LifecycleManager {
 
 		const savedApiConversationHistory = await getSavedApiConversationHistory(this.dependencies.taskId)
 		this.dependencies.messageStateHandler.setApiConversationHistory(savedApiConversationHistory as any)
+		this.dependencies.restoreQueuedSteeringFromTranscript()
 
 		await ensureTaskDirectoryExists(this.dependencies.taskId)
 
@@ -246,20 +244,14 @@ export class LifecycleManager {
 			.slice()
 			.reverse()
 			.find(
-				(m) =>
-					!(
-						m.content.type === "card" &&
-						(m.content.card.header === "Resume Task" || m.content.card.header === "Resume Completed Task")
-					),
+				(m) => !(m.content.type === DiracMessageType.CARD && isResumePromptCard(m.content.card)),
 			)
 
 		this.dependencies.taskState.isInitialized = true
 		this.dependencies.taskState.abort = false
 
 		const completedTask =
-			lastDiracMessage?.content.type === "card" &&
-			lastDiracMessage.content.card.header === "Task Completed" &&
-			lastDiracMessage.content.card.status === CardStatus.SUCCESS
+			lastDiracMessage?.content.type === DiracMessageType.CARD && isSuccessfulTaskCompletionCard(lastDiracMessage.content.card)
 		// Reset askResponse state before waiting. Completed tasks remain available for
 		// follow-up messages just like cancelled tasks; only their displayed status differs.
 		this.dependencies.taskState.askResponse = undefined

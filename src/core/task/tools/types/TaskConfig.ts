@@ -93,6 +93,7 @@ export interface TaskServices {
  */
 export interface TaskCallbacks {
 	saveCheckpoint: (isAttemptCompletionMessage?: boolean, completionMessageId?: string) => Promise<void>
+	commitAttemptCompletion: () => Promise<boolean>
 
 	executeCommandTool: (
 		command: string,

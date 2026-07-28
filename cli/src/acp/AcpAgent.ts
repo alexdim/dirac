@@ -191,6 +191,19 @@ export class AcpAgent implements acp.Agent {
 		emitter.on("pinned_messages_update", pinnedMessagesListener)
 		cleanup.push(() => emitter.off("pinned_messages_update", pinnedMessagesListener))
 
+
+		const steeringStatusListener = (payload: Record<string, unknown>) => {
+			this.connection
+				.extNotification("dev.dirac/steering_status", {
+					sessionId,
+					...payload,
+				})
+				.catch((error) => {
+					Logger.error("[AcpAgent] Error forwarding steering-status update:", error)
+				})
+		}
+		emitter.on("steering_status", steeringStatusListener)
+		cleanup.push(() => emitter.off("steering_status", steeringStatusListener))
 		const errorListener = (error: Error) => Logger.error("[AcpAgent] Session error:", error)
 		emitter.on("error", errorListener)
 		cleanup.push(() => emitter.off("error", errorListener))

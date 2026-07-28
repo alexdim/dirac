@@ -71,6 +71,7 @@ export class ToolExecutor {
 		private workspaceManager: WorkspaceRootManager | undefined,
 		private isMultiRootEnabled: boolean,
 		private saveCheckpoint: (isAttemptCompletionMessage?: boolean, completionMessageId?: string) => Promise<void>,
+		private commitAttemptCompletion: () => Promise<boolean>,
 		private executeCommandTool: (
 			command: string,
 			timeoutSeconds: number | undefined,
@@ -170,6 +171,7 @@ export class ToolExecutor {
 				saveCheckpoint: async (isAttemptCompletionMessage?: boolean, completionMessageId?: string) => {
 					await this.saveCheckpoint(isAttemptCompletionMessage, completionMessageId)
 				},
+				commitAttemptCompletion: () => this.commitAttemptCompletion(),
 				postStateToWebview: this.postStateToWebview.bind(this),
 				cancelTask: this.cancelTask,
 				executeCommandTool: this.executeCommandTool,
@@ -305,7 +307,7 @@ export class ToolExecutor {
 			toolWasExecuted = true
 			const count = ++this.taskState.totalToolCallCount
 			toolResult = ToolResultPusher.appendLoopWarning(toolResult, count)
-			if (!this.taskState.didAttemptCompletion) await this.resultPusher.pushToolResult(toolResult, block)
+			await this.resultPusher.pushToolResult(toolResult, block)
 			if (this.taskState.abort) return
 			if (hooksEnabled && block.name !== "attempt_completion") {
 				if (

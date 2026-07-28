@@ -3,7 +3,7 @@ import { IToolEnvironment } from "../../interfaces/IToolEnvironment"
 import { DiracToolSpec, DiracDefaultTool } from "@/shared/tools"
 import { DiracIcon } from "@/shared/icons"
 import { formatResponse } from "@core/formatResponse"
-import { DiracMessageType, CardStatus } from "@shared/ExtensionMessage"
+import { CardKind, CardStatus, DiracMessageType } from "@shared/ExtensionMessage"
 import { showSystemNotification } from "@integrations/notifications"
 import { telemetryService } from "@/services/telemetry"
 import { getTaskCompletionTelemetry } from "../../utils"
@@ -31,7 +31,7 @@ export class AttemptCompletionTool implements IDiracTool {
 		return ["all" as const]
 	}
 
-	async processCall(args: any, env: IToolEnvironment): Promise<any> {
+		async processCall(args: any, env: IToolEnvironment): Promise<any> {
 		const { result } = args
 
 		if (!result) {
@@ -44,7 +44,6 @@ export class AttemptCompletionTool implements IDiracTool {
 
 		env.orchestration.setTaskState("consecutiveMistakeCount", 0)
 
-		// Double-check completion
 		const doubleCheckResponse = await this.handleDoubleCheckCompletion(env, result)
 		if (doubleCheckResponse) {
 			return doubleCheckResponse
@@ -52,26 +51,47 @@ export class AttemptCompletionTool implements IDiracTool {
 
 		env.orchestration.setTaskState("doubleCheckCompletionPending", false)
 
-		// Show notification if enabled
-		if (!env.config.isSubagentExecution && env.config.autoApprovalSettings.enableNotifications) {
-			showSystemNotification({
-				subtitle: "Task Completed",
-				message: result.replace(/\n/g, " "),
-			})
+		if (!(await env.orchestration.commitAttemptCompletion())) {
+			return result
 		}
 
-		await this.handleCompletionResult(env, result)
-
-		// Run TaskComplete hook
-		await env.orchestration.runHook("TaskComplete", {
-			taskComplete: {
-				taskMetadata: {
-					taskId: env.config.taskId,
-					ulid: env.config.ulid,
-					result,
+		try {
+			await this.handleCompletionResult(env, result)
+			await env.orchestration.runHook("TaskComplete", {
+				taskComplete: {
+					taskMetadata: {
+						taskId: env.config.taskId,
+						ulid: env.config.ulid,
+						result,
+					},
 				},
-			},
-		})
+			})
+		} catch (error) {
+			env.logging.warn("Completion was committed, but a completion artifact failed", error)
+		}
+
+		try {
+			if (!env.config.isSubagentExecution && env.config.autoApprovalSettings.enableNotifications) {
+				showSystemNotification({
+					subtitle: "Task Completed",
+					message: result.replace(/\n/g, " "),
+				})
+			}
+			if (!env.config.isSubagentExecution) {
+				telemetryService.captureTaskCompleted(env.config.ulid, getTaskCompletionTelemetry(env.config))
+				await env.orchestration.runHook("Notification", {
+					notification: {
+						event: "task_completed",
+						source: "attempt_completion",
+						message: result,
+						waitingForUserInput: true,
+					},
+				})
+			}
+		} catch (error) {
+			env.logging.warn("Completion succeeded, but a completion notification failed", error)
+		}
+
 		return result
 	}
 
@@ -152,12 +172,12 @@ Otherwise, respond with "VERIFICATION: FAILED" followed by all the details on wh
 
 		const card = !env.config.isSubagentExecution
 			? await env.ui.createCard({
-					header: "Verifying Solution",
-					icon: DiracIcon.COMPLETE,
-					status: CardStatus.RUNNING,
-					collapsed: true,
-					maxHeight: 10000, // setting it very high to avoid scroll in a scroll
-				})
+				header: "Verifying Solution",
+				icon: DiracIcon.COMPLETE,
+				status: CardStatus.RUNNING,
+				collapsed: true,
+				maxHeight: 10000, // setting it very high to avoid scroll in a scroll
+			})
 			: undefined
 
 		const runResult = await env.orchestration.runSubagent(subagentPrompt, {
@@ -187,8 +207,9 @@ Otherwise, respond with "VERIFICATION: FAILED" followed by all the details on wh
 		}
 	}
 
-	private async handleCompletionResult(env: IToolEnvironment, result: string): Promise<void> {
+		private async handleCompletionResult(env: IToolEnvironment, result: string): Promise<void> {
 		const card = await env.ui.createCard({
+			kind: CardKind.TASK_COMPLETION,
 			icon: DiracIcon.COMPLETE,
 			header: "Task Completed",
 			body: result,
@@ -197,18 +218,6 @@ Otherwise, respond with "VERIFICATION: FAILED" followed by all the details on wh
 			maxHeight: 1200,
 		})
 		await card.finalize(CardStatus.SUCCESS, true)
-
 		await env.orchestration.saveCheckpoint(true, card.id)
-		if (!env.config.isSubagentExecution) {
-			telemetryService.captureTaskCompleted(env.config.ulid, getTaskCompletionTelemetry(env.config))
-			await env.orchestration.runHook("Notification", {
-				notification: {
-					event: "task_completed",
-					source: "attempt_completion",
-					message: result,
-					waitingForUserInput: true,
-				},
-			})
-		}
 	}
 }

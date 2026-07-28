@@ -7,7 +7,13 @@
  * Tags that wrap user-generated content in the conversation.
  * Used to identify content that comes from the user vs system-generated content.
  */
-export const USER_CONTENT_TAGS = ["<task>", "<feedback>", "<answer>", "<user_message>"] as const
+export const USER_CONTENT_TAGS = [
+	"<task>",
+	"<feedback>",
+	"<answer>",
+	"<user_message>",
+	"<steering_message>",
+] as const
 
 /**
  * Markers for system-generated content that should be excluded when parsing user input.

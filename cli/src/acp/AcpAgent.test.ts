@@ -361,6 +361,22 @@ describe("AcpAgent", () => {
 		})
 	})
 
+	it("forwards steering status through the vendor extension", async () => {
+		const emitter = new EventEmitter()
+		mocks.diracAgentInstance.emitterForSession.mockReturnValue(emitter)
+		const agent = new AcpAgent(connection, {})
+
+		await agent.newSession({ cwd: "/tmp/workspace", mcpServers: [] })
+		emitter.emit("steering_status", { steeringMessageId: "transcript-1", status: "sent" })
+		await Promise.resolve()
+
+		expect(connection.extNotification).toHaveBeenCalledWith("dev.dirac/steering_status", {
+			sessionId: "session-1",
+			steeringMessageId: "transcript-1",
+			status: "sent",
+		})
+	})
+
 	it("forwards standard ACP usage updates", async () => {
 		const emitter = new EventEmitter()
 		mocks.diracAgentInstance.emitterForSession.mockReturnValue(emitter)

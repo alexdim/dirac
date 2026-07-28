@@ -17,6 +17,7 @@ export type TaskInitializationOptions = {
 	pinnedContext?: string
 	onContextCompacted?: () => void
 	switchToActMode?: () => Promise<boolean>
+	enqueueSteeringMessages?: (task: Task) => Promise<void>
 }
 
 export interface ITaskControllerDependencies {
@@ -199,7 +200,7 @@ export class TaskController {
 			controller,
 			updateTaskHistory: (historyItem) => this.deps.updateTaskHistory(historyItem),
 			postStateToWebview: () => this.deps.postStateToWebview(),
-			reinitExistingTaskFromId: (taskId) => this.reinitExistingTaskFromId(taskId),
+			reinitExistingTaskFromId: (taskId) => this.reinitExistingTaskFromId(taskId, this.currentInitializationOptions),
 			cancelTask: () => this.cancelTask(),
 			shellIntegrationTimeout,
 			terminalReuseEnabled: terminalReuseEnabled ?? true,
@@ -219,6 +220,7 @@ export class TaskController {
 			pinnedContext: initializationOptions?.pinnedContext,
 			onContextCompacted: initializationOptions?.onContextCompacted,
 			switchToActMode: initializationOptions?.switchToActMode,
+			enqueuePreRequestSteeringMessages: async () => initializationOptions?.enqueueSteeringMessages?.(this._task!),
 		})
 
 		if (historyItem) {
@@ -241,7 +243,7 @@ export class TaskController {
 				undefined,
 				history.historyItem,
 				undefined,
-				undefined,
+				this.currentConversationUlid,
 				undefined,
 				initializationOptions,
 			)
@@ -295,7 +297,16 @@ export class TaskController {
 			}
 
 			if (historyItem) {
-				await this.initTask(undefined, undefined, undefined, historyItem)
+				await this.initTask(
+					undefined,
+					undefined,
+					undefined,
+					historyItem,
+					undefined,
+					this.currentConversationUlid,
+					undefined,
+					this.currentInitializationOptions,
+				)
 			} else {
 				await this.clearTask()
 			}

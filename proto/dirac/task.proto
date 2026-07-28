@@ -32,6 +32,8 @@ service TaskService {
   rpc getTaskHistory(GetTaskHistoryRequest) returns (TaskHistoryArray);
   // Sends a response to a previous ask operation
   rpc askResponse(AskResponseRequest) returns (Empty);
+  // Queues task-level guidance for the next uncommitted model turn
+  rpc steerTask(SteerTaskRequest) returns (Empty);
   // Records task feedback (thumbs up/down)
   rpc taskFeedback(StringRequest) returns (Empty);
   // Shows task completion changes diff in a view
@@ -113,6 +115,12 @@ message AskResponseRequest {
   map<string, string> user_edits = 6;
   string card_id = 7;
   string value = 8;
+}
+
+// Request for task-level mid-turn guidance
+message SteerTaskRequest {
+  Metadata metadata = 1;
+  string text = 2;
 }
 
 // Request for executing a quick win task

@@ -3,6 +3,7 @@ import { ApiHandler } from "@core/api"
 import { executeHook } from "@core/hooks/hook-executor"
 import { getHookModelContext } from "@core/hooks/hook-model-context"
 import { getHooksEnabledSafe } from "@core/hooks/hooks-utils"
+import { isTaskCompletionCard } from "@shared/cardIdentity"
 import { DiracContent } from "@shared/messages/content"
 import { DiracMessageType, TaskStatus } from "@shared/ExtensionMessage"
 import { Logger } from "@shared/services/Logger"
@@ -10,7 +11,7 @@ import { HookExecution } from "./types/HookExecution"
 import { HookManagerDependencies, UserPromptHookResult } from "./types/hook-manager"
 
 export class HookManager {
-	constructor(private dependencies: HookManagerDependencies) {}
+	constructor(private dependencies: HookManagerDependencies) { }
 
 	public setApi(api: ApiHandler) {
 		this.dependencies.api = api
@@ -102,7 +103,7 @@ export class HookManager {
 		const lastMessage = diracMessages.at(-1)
 		const isAtButtonOnlyState =
 			this.dependencies.taskState.status === TaskStatus.CANCELLED ||
-			(lastMessage?.content.type === "card" && lastMessage.content.card.header === "Task Completed")
+			(lastMessage?.content.type === DiracMessageType.CARD && isTaskCompletionCard(lastMessage.content.card))
 
 		if (isAtButtonOnlyState) {
 			// At button-only state - DON'T run hook because we're just waiting for user input
