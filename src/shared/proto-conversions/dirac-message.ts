@@ -1,11 +1,19 @@
 import {
 	Card as AppCard,
+	CardKind as AppCardKind,
 	CardStatus as AppCardStatus,
 	DiracMessage as AppDiracMessage,
 	DiracMessageType as AppDiracMessageType,
+	SteeringTranscriptStatus as AppSteeringTranscriptStatus,
 } from "@shared/ExtensionMessage"
 
-import { Card, CardStatus as ProtoCardStatus, DiracMessage as ProtoDiracMessage } from "@shared/proto/dirac/ui"
+import {
+	Card,
+	CardKind as ProtoCardKind,
+	CardStatus as ProtoCardStatus,
+	DiracMessage as ProtoDiracMessage,
+	SteeringTranscriptStatus as ProtoSteeringTranscriptStatus,
+} from "@shared/proto/dirac/ui"
 
 function convertCardStatusToProtoEnum(status: AppCardStatus): ProtoCardStatus {
 	const mapping: Record<AppCardStatus, ProtoCardStatus> = {
@@ -41,9 +49,66 @@ function convertProtoEnumToCardStatus(status: ProtoCardStatus): AppCardStatus {
 	return mapping[status] ?? AppCardStatus.PENDING
 }
 
+function convertCardKindToProtoEnum(kind: AppCardKind | undefined): ProtoCardKind {
+	const mapping: Record<AppCardKind, ProtoCardKind> = {
+		[AppCardKind.GENERIC]: ProtoCardKind.CARD_KIND_GENERIC,
+		[AppCardKind.TASK_COMPLETION]: ProtoCardKind.CARD_KIND_TASK_COMPLETION,
+		[AppCardKind.RESUME_TASK]: ProtoCardKind.CARD_KIND_RESUME_TASK,
+		[AppCardKind.RESUME_COMPLETED_TASK]: ProtoCardKind.CARD_KIND_RESUME_COMPLETED_TASK,
+	}
+	return kind ? mapping[kind] : ProtoCardKind.CARD_KIND_UNSPECIFIED
+}
+
+function convertProtoEnumToCardKind(kind: ProtoCardKind): AppCardKind | undefined {
+	switch (kind) {
+		case ProtoCardKind.CARD_KIND_GENERIC:
+			return AppCardKind.GENERIC
+		case ProtoCardKind.CARD_KIND_TASK_COMPLETION:
+			return AppCardKind.TASK_COMPLETION
+		case ProtoCardKind.CARD_KIND_RESUME_TASK:
+			return AppCardKind.RESUME_TASK
+		case ProtoCardKind.CARD_KIND_RESUME_COMPLETED_TASK:
+			return AppCardKind.RESUME_COMPLETED_TASK
+		case ProtoCardKind.CARD_KIND_UNSPECIFIED:
+		case ProtoCardKind.UNRECOGNIZED:
+			return undefined
+	}
+}
+
+function convertSteeringStatusToProtoEnum(status: AppSteeringTranscriptStatus | undefined): ProtoSteeringTranscriptStatus {
+	if (status === AppSteeringTranscriptStatus.QUEUED) {
+		return ProtoSteeringTranscriptStatus.STEERING_TRANSCRIPT_STATUS_QUEUED
+	}
+	if (status === AppSteeringTranscriptStatus.SENT) {
+		return ProtoSteeringTranscriptStatus.STEERING_TRANSCRIPT_STATUS_SENT
+	}
+	return ProtoSteeringTranscriptStatus.STEERING_TRANSCRIPT_STATUS_UNSPECIFIED
+}
+
+function parseLegacySteeringStatus(status: string | undefined): AppSteeringTranscriptStatus | undefined {
+	if (status === AppSteeringTranscriptStatus.QUEUED) return AppSteeringTranscriptStatus.QUEUED
+	if (status === AppSteeringTranscriptStatus.SENT) return AppSteeringTranscriptStatus.SENT
+	return undefined
+}
+
+function convertProtoEnumToSteeringStatus(
+	status: ProtoSteeringTranscriptStatus,
+	legacyStatus: string | undefined,
+): AppSteeringTranscriptStatus | undefined {
+	if (status === ProtoSteeringTranscriptStatus.STEERING_TRANSCRIPT_STATUS_QUEUED) {
+		return AppSteeringTranscriptStatus.QUEUED
+	}
+	if (status === ProtoSteeringTranscriptStatus.STEERING_TRANSCRIPT_STATUS_SENT) {
+		return AppSteeringTranscriptStatus.SENT
+	}
+	return parseLegacySteeringStatus(legacyStatus)
+}
+
+
 function convertCardToProto(card: AppCard): Card {
 	return {
 		id: card.id,
+		kind: convertCardKindToProtoEnum(card.kind),
 		header: card.header,
 		status: convertCardStatusToProtoEnum(card.status),
 		body: card.body ?? undefined,
@@ -72,6 +137,7 @@ function convertCardToProto(card: AppCard): Card {
 function convertProtoToCard(protoCard: Card): AppCard {
 	return {
 		id: protoCard.id,
+		kind: convertProtoEnumToCardKind(protoCard.kind),
 		header: protoCard.header,
 		status: convertProtoEnumToCardStatus(protoCard.status),
 		body: protoCard.body ?? undefined,
@@ -111,9 +177,9 @@ export function convertDiracMessageToProto(message: AppDiracMessage): ProtoDirac
 		conversationHistoryIndex: message.conversationHistoryIndex ?? 0,
 		conversationHistoryDeletedRange: message.conversationHistoryDeletedRange
 			? {
-					startIndex: message.conversationHistoryDeletedRange[0],
-					endIndex: message.conversationHistoryDeletedRange[1],
-				}
+				startIndex: message.conversationHistoryDeletedRange[0],
+				endIndex: message.conversationHistoryDeletedRange[1],
+			}
 			: undefined,
 		modelInfo: message.modelInfo ?? undefined,
 		multiCommandState: undefined, // multiCommandState is deprecated or handled elsewhere
@@ -143,6 +209,8 @@ export function convertDiracMessageToProto(message: AppDiracMessage): ProtoDirac
 				images: message.content.images ?? [],
 				files: message.content.files ?? [],
 				role: message.content.role,
+				steeringStatus: message.content.steering?.status,
+				steeringTranscriptStatus: convertSteeringStatusToProtoEnum(message.content.steering?.status),
 			}
 			break
 		case AppDiracMessageType.CARD:
@@ -178,6 +246,13 @@ export function convertProtoToDiracMessage(protoMessage: ProtoDiracMessage): App
 			images: protoMessage.markdown.images,
 			files: protoMessage.markdown.files,
 			role: protoMessage.markdown.role as "user" | "assistant" | undefined,
+			steering: (() => {
+				const status = convertProtoEnumToSteeringStatus(
+					protoMessage.markdown.steeringTranscriptStatus,
+					protoMessage.markdown.steeringStatus,
+				)
+				return status ? { status } : undefined
+			})(),
 		}
 	} else if (protoMessage.card) {
 		content = {

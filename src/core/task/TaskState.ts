@@ -2,6 +2,7 @@ import { Anthropic } from "@anthropic-ai/sdk"
 import { AssistantMessageContent } from "@core/assistant-message"
 import { DiracAskResponse } from "@shared/WebviewMessage"
 import type { HookExecution } from "./types/HookExecution"
+import type { SteeringMessage } from "./steering"
 import { SkillMetadata } from "@/shared/skills"
 import { TaskStatus } from "@shared/ExtensionMessage"
 
@@ -73,6 +74,8 @@ export class TaskState {
 	consecutiveMistakeCount = 0
 	doubleCheckCompletionPending = false
 	didAttemptCompletion = false
+	/** Completion side effects are committed; steering is sealed until the task loop publishes completion. */
+	completionCommitted = false
 	checkpointManagerErrorMessage?: string
 
 	// Retry tracking — separate counters for independent failure modes
@@ -116,6 +119,10 @@ export class TaskState {
 	totalCacheWriteTokens = 0
 	totalCacheReadTokens = 0
 	totalCost = 0
+
+	// Persistent task-owned mid-turn guidance. Never reset with stream-local state.
+	steeringMessages: SteeringMessage[] = []
+
 
 	// Pending user message from text-based tool skip
 	// Set when user sends a text message while a tool is awaiting card approval.

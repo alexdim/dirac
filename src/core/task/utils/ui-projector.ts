@@ -20,10 +20,8 @@ export function projectUIActionState(
 		globalButtons: [],
 		cardButtons: [],
 		sendingDisabled:
-			state?.status !== TaskStatus.IDLE &&
-			state?.status !== TaskStatus.COMPLETED &&
-			state?.status !== TaskStatus.AWAITING_USER_INPUT &&
-			state?.status !== TaskStatus.CANCELLED,
+			state?.status === TaskStatus.CANCELLING ||
+			(state !== undefined && (state.waitingCardIds.length > 0 || state.isAwaitingPlanResponse)),
 	}
 
 	// Active card interactions must take precedence over busy task states.
@@ -46,7 +44,7 @@ export function projectUIActionState(
 		}
 	}
 	// 1. Terminal Success State
-	if (state?.status === TaskStatus.COMPLETED || state?.didAttemptCompletion) {
+	if (state?.status === TaskStatus.COMPLETED) {
 		uiState.globalButtons.push({
 			label: "Start New Task",
 			action: UIActionButtonType.NEW_TASK,

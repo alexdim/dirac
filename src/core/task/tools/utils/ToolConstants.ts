@@ -54,6 +54,7 @@ export const TASK_SERVICES_KEYS = [
  */
 export const TASK_CALLBACKS_KEYS = [
 	"saveCheckpoint",
+	"commitAttemptCompletion",
 	"executeCommandTool",
 	"doesLatestTaskCompletionHaveNewChanges",
 	"shouldAutoApproveToolWithPath",

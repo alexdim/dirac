@@ -17,6 +17,7 @@ import type * as acp from "@agentclientprotocol/sdk"
 import { PROTOCOL_VERSION, RequestError } from "@agentclientprotocol/sdk"
 import type { DiracMessageChange } from "@core/task/message-state"
 import type { ApiProvider } from "@shared/api"
+import { isResumePromptCard } from "@shared/cardIdentity"
 import type { DiracMessage } from "@shared/ExtensionMessage"
 import { CardStatus, DiracMessageType, TaskStatus } from "@shared/ExtensionMessage"
 import { CLI_ONLY_COMMANDS, VSCODE_ONLY_COMMANDS } from "@shared/slashCommands"
@@ -190,8 +191,8 @@ export class DiracAgent implements acp.Agent {
 		this.activePromptOverrides.delete(sessionId)
 		this.configuringSessions.delete(sessionId)
 		this.bridges.delete(sessionId)
+		this.releasePromptSteeringOwnership(sessionId)
 
-		this.pendingWhispers.delete(sessionId)
 	}
 
 	/** Delete a session's active resources, owned worktree, and persisted task history. */
@@ -347,8 +348,22 @@ export class DiracAgent implements acp.Agent {
 	/** Per-session bridges isolate message, tool-call, and streaming state. */
 	private readonly bridges: Map<string, TaskMessageBridge> = new Map()
 
-	/** Guidance queued by clients until the active turn reaches a tool boundary. */
-	private readonly pendingWhispers: Map<string, string[]> = new Map()
+	/** Whispers received while a processing prompt has not yet bound its target task. */
+	private readonly pendingWhispers = new Map<string, string[]>()
+
+	/** The task selected for the active prompt. Undefined means task selection is still in progress. */
+	private readonly promptTasks = new Map<string, NonNullable<Controller["task"]>>()
+
+
+	private unbindPromptTask(sessionId: string): void {
+		this.promptTasks.delete(sessionId)
+	}
+
+	private releasePromptSteeringOwnership(sessionId: string): void {
+		this.pendingWhispers.delete(sessionId)
+		this.unbindPromptTask(sessionId)
+	}
+
 
 	private createTaskMessageBridge(): TaskMessageBridge {
 		return new TaskMessageBridge({
@@ -359,9 +374,8 @@ export class DiracAgent implements acp.Agent {
 			persistPermissionRule: (sessionId, toolCall, action) => this.persistPermissionRule(sessionId, toolCall, action),
 			getClientCapabilities: () => this.clientCapabilities,
 			requestElicitation: (request) => this.requestElicitation(request),
-
-			getWhispers: (sessionId) => this.getWhispers(sessionId),
-			clearWhispers: (sessionId) => this.clearWhispers(sessionId),
+			emitSteeringStatus: (sessionId, steeringMessageId, status) =>
+				this.emitSteeringStatus(sessionId, steeringMessageId, status),
 		})
 	}
 
@@ -374,7 +388,7 @@ export class DiracAgent implements acp.Agent {
 		return bridge
 	}
 
-	/** Queue client guidance for incorporation after the current tool completes. */
+	/** Queue client guidance in the task selected by the active prompt. */
 	async queueWhisper(params: Record<string, unknown>): Promise<void> {
 		const sessionId = params.sessionId
 		const text = params.text
@@ -387,10 +401,36 @@ export class DiracAgent implements acp.Agent {
 			return
 		}
 
+		const task = this.promptTasks.get(sessionId)
+		if (!task) {
+			this.bufferWhisper(sessionId, text)
+			return
+		}
+
+		if (!task.canAcceptSteeringMessage()) {
+			if (task.taskState.abort || task.taskState.pendingTaskReplacement) {
+				this.unbindPromptTask(sessionId)
+			}
+			this.bufferWhisper(sessionId, text)
+			return
+		}
+
+		try {
+			const steeringMessageId = await task.enqueueSteeringMessage(text)
+			this.emitSteeringStatus(sessionId, steeringMessageId, "queued")
+		} catch (error) {
+			if (task.canAcceptSteeringMessage()) throw error
+			this.unbindPromptTask(sessionId)
+			this.bufferWhisper(sessionId, text)
+		}
+	}
+
+	private bufferWhisper(sessionId: string, text: string): void {
 		const whispers = this.pendingWhispers.get(sessionId) ?? []
 		whispers.push(text.trim())
 		this.pendingWhispers.set(sessionId, whispers)
 	}
+
 
 	/** Persist a client control-plane event so a later session/load can replay it. */
 	recordClientAnnotation(params: Record<string, unknown>): void {
@@ -404,13 +444,6 @@ export class DiracAgent implements acp.Agent {
 		recordClientAnnotation(sessionId, annotation as Record<string, unknown>)
 	}
 
-	private getWhispers(sessionId: string): string[] {
-		return this.pendingWhispers.get(sessionId) ?? []
-	}
-
-	private clearWhispers(sessionId: string): void {
-		this.pendingWhispers.delete(sessionId)
-	}
 
 	/** Pin a persisted message snapshot so it remains in every compacted request context. */
 	async pinMessage(sessionId: string, messageId: string): Promise<void> {
@@ -468,7 +501,28 @@ export class DiracAgent implements acp.Agent {
 			pinnedContext: this.pinnedContextForSession(sessionId),
 			onContextCompacted: () => void this.emitPinnedMessagesUpdate(sessionId, "compacted"),
 			switchToActMode: () => this.switchSessionToActMode(sessionId),
+			enqueueSteeringMessages: (task: NonNullable<Controller["task"]>) => this.bindPromptTask(sessionId, task),
 		}
+	}
+
+	private async bindPromptTask(sessionId: string, task: NonNullable<Controller["task"]>): Promise<void> {
+		this.promptTasks.set(sessionId, task)
+		if (!task.canAcceptSteeringMessage()) return
+
+		const whispers = this.pendingWhispers.get(sessionId)
+		if (!whispers) return
+
+		while (whispers.length > 0) {
+			const steeringMessageId = await task.enqueueSteeringMessage(whispers[0])
+			this.emitSteeringStatus(sessionId, steeringMessageId, "queued")
+			whispers.shift()
+		}
+		this.pendingWhispers.delete(sessionId)
+	}
+
+
+	private emitSteeringStatus(sessionId: string, steeringMessageId: string, status: "queued" | "sent"): void {
+		this.emitterForSession(sessionId).emit("steering_status", { steeringMessageId, status })
 	}
 
 	private applyPinnedContext(
@@ -1032,6 +1086,7 @@ export class DiracAgent implements acp.Agent {
 					"dev.dirac/permissions.delete": true,
 
 					"dev.dirac/whisper": true,
+					"dev.dirac/steering_status": true,
 					"dev.dirac/client_annotation": true,
 
 					"dev.dirac/checkpoints.list": true,
@@ -1443,6 +1498,7 @@ export class DiracAgent implements acp.Agent {
 			throw new Error("Controller not initialized for session. This is a bug in the ACP agent setup.")
 		}
 		this.activePromptOverrides.set(params.sessionId, activeOverrides)
+		this.unbindPromptTask(params.sessionId)
 
 		Logger.debug("[DiracAgent] prompt called:", {
 			sessionId: params.sessionId,
@@ -1528,6 +1584,7 @@ export class DiracAgent implements acp.Agent {
 			subscribedTask = undefined
 			const replacementTask = controller.task
 			if (!replacementTask) return
+			await this.bindPromptTask(params.sessionId, replacementTask)
 			const replayEndIndex = replacementTask.messageStateHandler.getDiracMessages().length
 			subscribeToCurrentTask()
 			await bridge.replayTaskMessages(
@@ -1580,6 +1637,7 @@ export class DiracAgent implements acp.Agent {
 				// requirement, so wake that flow directly rather than replacing the task.
 				Logger.debug("[DiracAgent] Resuming task reinitialized after cancellation:", controller.task.taskId)
 				subscribeToCurrentTask()
+				await this.bindPromptTask(params.sessionId, controller.task)
 				await controller.task.submitCardResponse(
 					"",
 					DiracAskResponse.MESSAGE,
@@ -1629,9 +1687,7 @@ export class DiracAgent implements acp.Agent {
 									.getDiracMessages()
 									.some(
 										(message) =>
-											message.content.type === DiracMessageType.CARD &&
-											(message.content.card.header === "Resume Task" ||
-												message.content.card.header === "Resume Completed Task"),
+											message.content.type === DiracMessageType.CARD && isResumePromptCard(message.content.card),
 									)
 							const checkResumeState = () => {
 								if (task.taskState.status === TaskStatus.COMPLETED) return finish("completed")
@@ -1641,8 +1697,7 @@ export class DiracAgent implements acp.Agent {
 								if (
 									change.type === "add" &&
 									change.message?.content.type === DiracMessageType.CARD &&
-									(change.message.content.card.header === "Resume Task" ||
-										change.message.content.card.header === "Resume Completed Task")
+									isResumePromptCard(change.message.content.card)
 								) {
 									finish("resumed")
 								}
@@ -1829,8 +1884,9 @@ export class DiracAgent implements acp.Agent {
 				}
 			}
 			this.pendingPromptResolvers.delete(params.sessionId)
+			this.unbindPromptTask(params.sessionId)
 
-			// Guidance that did not reach a terminal tool boundary remains queued for the next turn.
+			// Task-owned steering remains in the transcript. Pre-task guidance remains session-owned until a task binds.
 			sessionState.status = AcpSessionStatus.Idle
 		}
 	}

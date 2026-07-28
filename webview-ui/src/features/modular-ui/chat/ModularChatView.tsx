@@ -20,6 +20,7 @@ import { ActionButtonsDecorator } from "./decorators/view/ActionButtonsDecorator
 import { AutoApproveDecorator } from "./decorators/view/AutoApproveDecorator"
 import { useChatState } from "./hooks/useChatState"
 import { useMessageHandlers } from "./hooks/useMessageHandlers"
+import { InteractionState, useInteractionState } from "./context/InteractionStateContext"
 import { useScrollBehavior } from "./hooks/useScrollBehavior"
 // Sections
 import { InputSection } from "./sections/InputSection"
@@ -70,6 +71,7 @@ export const ModularChatView: React.FC<ChatViewProps> = ({ isHidden, showAnnounc
 
 	const messageHandlers = useMessageHandlers(chatState)
 
+	const { state: interactionState } = useInteractionState()
 	const { selectedModelInfo, selectedModelId, selectedProvider } = useMemo(() => {
 		return normalizeApiConfiguration(apiConfiguration, mode as Mode)
 	}, [apiConfiguration, mode])
@@ -102,7 +104,9 @@ export const ModularChatView: React.FC<ChatViewProps> = ({ isHidden, showAnnounc
 		}
 	}, [selectedModelInfo.supportsImages, selectedImages.length, selectedFiles.length, setSelectedImages, setSelectedFiles])
 
-	const shouldDisableFilesAndImages = selectedImages.length + selectedFiles.length >= MAX_IMAGES_AND_FILES_PER_MESSAGE
+	const shouldDisableFilesAndImages =
+		interactionState === InteractionState.RUNNING ||
+		selectedImages.length + selectedFiles.length >= MAX_IMAGES_AND_FILES_PER_MESSAGE
 
 	useEffect(() => {
 		const cleanup = hydrate()
@@ -134,8 +138,10 @@ export const ModularChatView: React.FC<ChatViewProps> = ({ isHidden, showAnnounc
 	const scrollBehavior = useScrollBehavior(messages, visibleMessages, renderedMessages, expandedRows, setExpandedRows)
 
 	const placeholderText = useMemo(() => {
-		return task ? "Type a message..." : "Type your task here..."
-	}, [task])
+		if (!task) return "Type your task here..."
+		if (interactionState === InteractionState.RUNNING) return "Send guidance for the next turn without interrupting…"
+		return "Type a message..."
+	}, [task, interactionState])
 
 	const context = useMemo<ChatViewContext>(
 		() => ({

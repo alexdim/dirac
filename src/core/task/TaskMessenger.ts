@@ -6,6 +6,7 @@ import { getHookModelContext } from "@core/hooks/hook-model-context"
 import { getHooksEnabledSafe } from "@core/hooks/hooks-utils"
 import {
 	Card,
+	CardKind,
 	CardStatus,
 	DiracApiReqInfo,
 	DiracMessage,
@@ -139,6 +140,7 @@ export class TaskMessenger implements ITaskMessenger {
 		const creationTime = Date.now()
 		const card: Card = {
 			id,
+			kind: params.kind ?? CardKind.GENERIC,
 			header: params.header,
 			icon: params.icon,
 			status:

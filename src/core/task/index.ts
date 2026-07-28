@@ -50,7 +50,15 @@ import { ApiConfiguration } from "@shared/api"
 import { findLastIndex } from "@shared/array"
 import { DiracClient } from "@shared/dirac"
 import { getExtensionSourceDir } from "@shared/dirac/constants"
-import { CardStatus, DiracApiReqCancelReason, DiracMessageContent, DiracMessageType, TaskStatus } from "@shared/ExtensionMessage"
+import {
+	CardStatus,
+	DiracApiReqCancelReason,
+	DiracMessage,
+	DiracMessageContent,
+	DiracMessageType,
+	SteeringTranscriptStatus,
+	TaskStatus,
+} from "@shared/ExtensionMessage"
 import { HistoryItem } from "@shared/HistoryItem"
 import { DEFAULT_LANGUAGE_SETTINGS, getLanguageKey, LanguageDisplay } from "@shared/Languages"
 import { DiracContent, DiracTextContentBlock, DiracToolResponseContent, DiracUserContent } from "@shared/messages/content"
@@ -87,6 +95,12 @@ import { StreamingMetricsManager } from "./StreamingMetricsManager"
 import { StreamResponseHandler } from "./StreamResponseHandler"
 import { TaskMessenger } from "./TaskMessenger"
 import { TaskState } from "./TaskState"
+import {
+	restoreQueuedSteeringMessages,
+	SteeringDeliveryState,
+	type SteeringClaim,
+	type SteeringMessage,
+} from "./steering"
 import { ToolExecutor } from "./ToolExecutor"
 import { DiracContext } from "./tools/context/DiracContext"
 import type { ToolSnapshotDirtyReason } from "./tools/runtime/ToolSnapshot"
@@ -119,6 +133,7 @@ type TaskParams = {
 	pinnedContext?: string
 	onContextCompacted?: () => void
 	switchToActMode?: () => Promise<boolean>
+	enqueuePreRequestSteeringMessages?: () => Promise<void>
 }
 
 export class Task {
@@ -141,6 +156,145 @@ export class Task {
 	 */
 	private async withStateLock<T>(fn: () => T | Promise<T>): Promise<T> {
 		return await this.stateMutex.withLock(fn)
+	}
+
+	public canAcceptSteeringMessage(): boolean {
+		if (this.taskState.completionCommitted) return false
+		if (this.taskState.abort || this.taskState.pendingTaskReplacement) return false
+		if (this.taskState.waitingCardIds.length > 0 || this.taskState.isAwaitingPlanResponse) return false
+		return ![
+			TaskStatus.IDLE,
+			TaskStatus.COMPLETED,
+			TaskStatus.CANCELLED,
+			TaskStatus.CANCELLING,
+		].includes(this.taskState.status)
+	}
+
+	public async enqueueSteeringMessage(text: string): Promise<string> {
+		const normalizedText = text.trim()
+		if (!normalizedText) throw new Error("Steering guidance cannot be empty")
+
+		const steeringMessage = await this.withStateLock(async (): Promise<SteeringMessage> => {
+			if (!this.canAcceptSteeringMessage()) {
+				throw new Error(`Task cannot accept steering while ${this.taskState.status}`)
+			}
+
+			const createdAt = Date.now()
+			const transcriptMessageId = this.taskMessenger.generateId()
+			const message: SteeringMessage = {
+				id: ulid(),
+				text: normalizedText,
+				createdAt,
+				transcriptMessageId,
+				deliveryState: SteeringDeliveryState.QUEUED,
+			}
+			const transcriptMessage: DiracMessage = {
+				id: transcriptMessageId,
+				ts: createdAt,
+				content: {
+					type: DiracMessageType.MARKDOWN,
+					content: normalizedText,
+					role: "user",
+					steering: { status: SteeringTranscriptStatus.QUEUED },
+				},
+			}
+			await this.messageStateHandler.addToDiracMessages(transcriptMessage)
+			this.taskState.steeringMessages.push(message)
+			return message
+		})
+
+		await this.postStateToWebview()
+		return steeringMessage.transcriptMessageId
+	}
+
+
+	private async claimSteeringMessages(): Promise<SteeringClaim | undefined> {
+		return this.withStateLock(() => {
+			const messages = this.taskState.steeringMessages.filter(
+				(message) => message.deliveryState === SteeringDeliveryState.QUEUED,
+			)
+			if (messages.length === 0) return undefined
+
+			const claimId = ulid()
+			for (const message of messages) {
+				message.deliveryState = SteeringDeliveryState.CLAIMED
+				message.claimId = claimId
+			}
+			return { id: claimId, messages: messages.map((message) => ({ ...message })) }
+		})
+	}
+
+	private async commitSteeringClaim(claimId: string): Promise<void> {
+		const claimedMessages = await this.withStateLock(() =>
+			this.taskState.steeringMessages
+				.filter((message) => message.deliveryState === SteeringDeliveryState.CLAIMED && message.claimId === claimId)
+				.map((message) => ({ ...message })),
+		)
+		const transcriptMessages = claimedMessages.map((message) => {
+			const index = this.messageStateHandler.findMessageIndexById(message.transcriptMessageId)
+			if (index === -1) throw new Error(`Steering transcript message not found: ${message.transcriptMessageId}`)
+			const transcriptMessage = this.messageStateHandler.getDiracMessages()[index]
+			if (transcriptMessage.content.type !== DiracMessageType.MARKDOWN) {
+				throw new Error(`Steering transcript message is not markdown: ${message.transcriptMessageId}`)
+			}
+			return { index, content: transcriptMessage.content }
+		})
+
+		try {
+			for (const transcript of transcriptMessages) {
+				await this.messageStateHandler.updateDiracMessage(transcript.index, {
+					content: {
+						...transcript.content,
+						steering: { status: SteeringTranscriptStatus.SENT },
+					},
+				})
+			}
+		} catch (error) {
+			for (const transcript of transcriptMessages) {
+				await this.messageStateHandler.updateDiracMessage(transcript.index, {
+					content: {
+						...transcript.content,
+						steering: { status: SteeringTranscriptStatus.QUEUED },
+					},
+				})
+			}
+			await this.rollbackSteeringClaim(claimId)
+			throw error
+		}
+
+		await this.withStateLock(() => {
+			for (const message of this.taskState.steeringMessages) {
+				if (message.deliveryState !== SteeringDeliveryState.CLAIMED || message.claimId !== claimId) continue
+				message.deliveryState = SteeringDeliveryState.SENT
+				message.claimId = undefined
+			}
+		})
+		await this.postStateToWebview()
+	}
+
+	private async rollbackSteeringClaim(claimId: string): Promise<void> {
+		await this.withStateLock(() => {
+			for (const message of this.taskState.steeringMessages) {
+				if (message.deliveryState !== SteeringDeliveryState.CLAIMED || message.claimId !== claimId) continue
+				message.deliveryState = SteeringDeliveryState.QUEUED
+				message.claimId = undefined
+			}
+		})
+	}
+
+	private async commitAttemptCompletion(): Promise<boolean> {
+		return this.withStateLock(() => {
+			const hasQueuedSteering = this.taskState.steeringMessages.some(
+				(message) => message.deliveryState === SteeringDeliveryState.QUEUED,
+			)
+			if (hasQueuedSteering) {
+				this.taskState.didAttemptCompletion = false
+				return false
+			}
+			this.taskState.completionCommitted = true
+			this.taskState.didAttemptCompletion = true
+			return true
+		})
 	}
 
 	public async setActiveHookExecution(hookExecution: NonNullable<typeof this.taskState.activeHookExecution>): Promise<void> {
@@ -199,6 +353,7 @@ export class Task {
 	private assistantStreamManager: AssistantStreamManager
 	private contextCompactionObserver?: () => void
 	private switchToActMode: () => Promise<boolean>
+	private enqueuePreRequestSteeringMessages: () => Promise<void>
 
 	private responseProcessor: ResponseProcessor
 
@@ -263,6 +418,7 @@ export class Task {
 		this.taskLockAcquired = taskLockAcquired
 		this.terminalExecutionMode = vscodeTerminalExecutionMode || "vscodeTerminal"
 		this.switchToActMode = params.switchToActMode ?? (() => this.controller.toggleActModeForYoloMode())
+		this.enqueuePreRequestSteeringMessages = params.enqueuePreRequestSteeringMessages ?? (async () => undefined)
 
 		if (stateManager.getGlobalSettingsKey("mode") === "act") {
 			this.taskState.didSwitchToActMode = true
@@ -502,6 +658,7 @@ export class Task {
 			this.workspaceManager,
 			isMultiRootEnabled(this.stateManager),
 			this.saveCheckpointCallback.bind(this),
+			this.commitAttemptCompletion.bind(this),
 			this.executeCommandTool.bind(this),
 			this.cancelBackgroundCommand.bind(this),
 			() => this.checkpointManager?.doesLatestTaskCompletionHaveNewChanges() ?? Promise.resolve(false),
@@ -567,6 +724,7 @@ export class Task {
 			cwd: this.cwd,
 			hookManager: this.hookManager,
 			initiateTaskLoop: this.initiateTaskLoop.bind(this),
+			restoreQueuedSteeringFromTranscript: this.restoreQueuedSteeringFromTranscript.bind(this),
 			recordEnvironment: this.environmentContextTracker.recordEnvironment.bind(this.environmentContextTracker),
 			time: () => this.environmentContextTracker.recordEnvironment(),
 		})
@@ -597,6 +755,9 @@ export class Task {
 			cancelTask: this.cancelTask,
 			runUserPromptSubmitHook: this.runUserPromptSubmitHook.bind(this),
 			onContextCompacted: () => this.contextCompactionObserver?.(),
+			claimSteeringMessages: this.claimSteeringMessages.bind(this),
+			commitSteeringClaim: this.commitSteeringClaim.bind(this),
+			rollbackSteeringClaim: this.rollbackSteeringClaim.bind(this),
 		})
 
 		this.responseProcessor = new ResponseProcessor({
@@ -810,10 +971,6 @@ export class Task {
 
 		const messageTs = Date.now()
 		this.taskState.lastMessageTs = messageTs
-		this.taskState.askResponse = undefined
-		this.taskState.askResponseText = undefined
-		this.taskState.askResponseImages = undefined
-		this.taskState.askResponseFiles = undefined
 
 		await pWaitFor(
 			() => {
@@ -923,6 +1080,11 @@ export class Task {
 		await this.toolExecutor.refreshToolsForTask()
 		return this.lifecycleManager.startTask(task, images, files)
 	}
+
+	public restoreQueuedSteeringFromTranscript(): void {
+		this.taskState.steeringMessages = restoreQueuedSteeringMessages(this.messageStateHandler.getDiracMessages())
+	}
+
 
 	public async resumeTaskFromHistory() {
 		await this.toolExecutor.refreshToolsForTask()
@@ -1520,6 +1682,10 @@ export class Task {
 		model: { id: string }
 	}): Promise<boolean> {
 		if (params.assistantHasContent) {
+			this.taskState.askResponse = undefined
+			this.taskState.askResponseText = undefined
+			this.taskState.askResponseImages = undefined
+			this.taskState.askResponseFiles = undefined
 			this.taskState.status = TaskStatus.AWAITING_USER_INPUT
 
 			await pWaitFor(() => this.taskState.userMessageContentReady)
@@ -1532,6 +1698,7 @@ export class Task {
 
 			const didToolUse = this.taskState.assistantMessageContent.some((block) => block.type === "tool_use")
 			if (this.taskState.didAttemptCompletion) {
+				this.taskState.completionCommitted = false
 				this.taskState.status = TaskStatus.COMPLETED
 				await this.postStateToWebview()
 				return true
@@ -1681,6 +1848,7 @@ export class Task {
 		if (this.taskState.abort) {
 			throw new Error("Task instance aborted")
 		}
+		await this.enqueuePreRequestSteeringMessages()
 
 		const { model, providerId, customPrompt, mode } = this.getCurrentProviderInfo()
 		if (providerId && model.id) {

@@ -38,6 +38,7 @@ export const MessageRenderer = memo(
 							onToggleExpand={() => onToggleExpand(message.id)}
 							partial={message.id === activeVoiceStreamId}
 							role={message.content.role}
+							steeringStatus={message.content.steering?.status}
 						/>
 					)
 				case "card":

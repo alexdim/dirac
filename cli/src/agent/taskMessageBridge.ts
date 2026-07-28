@@ -1,10 +1,7 @@
 import type * as acp from "@agentclientprotocol/sdk";
 import type { DiracMessageChange } from "@core/task/message-state";
-import {
-	CardStatus,
-	DiracMessage,
-	DiracMessageType,
-} from "@shared/ExtensionMessage";
+import { isSuccessfulTaskCompletionCard } from "@shared/cardIdentity";
+import { CardStatus, DiracMessage, DiracMessageType } from "@shared/ExtensionMessage";
 import { DiracAskResponse } from "@shared/WebviewMessage";
 import { Controller } from "@/core/controller";
 import { Logger } from "@/shared/services/Logger.js";
@@ -16,7 +13,6 @@ import { handlePermissionResponse } from "./permissionHandler.js";
 import type { DiracAcpSession } from "./public-types.js";
 import type { AcpSessionState } from "./types.js";
 import { isFollowupQuestionCard } from "./questionCard.js";
-
 type PromptResolver = (response: acp.PromptResponse) => void;
 type PromptRejecter = (error: Error) => void;
 
@@ -59,9 +55,8 @@ type TaskMessageBridgeOptions = {
 	requestElicitation: (
 		request: acp.CreateElicitationRequest,
 	) => Promise<acp.CreateElicitationResponse>;
+	emitSteeringStatus?: (sessionId: string, steeringMessageId: string, status: "sent") => void;
 
-	getWhispers: (sessionId: string) => string[];
-	clearWhispers: (sessionId: string) => void;
 	persistPermissionRule: (
 		sessionId: string,
 		toolCall: acp.ToolCall | acp.ToolCallUpdate,
@@ -76,9 +71,8 @@ export class TaskMessageBridge {
 	private readonly emitSessionUpdate: TaskMessageBridgeOptions["emitSessionUpdate"];
 	private readonly getClientCapabilities: TaskMessageBridgeOptions["getClientCapabilities"];
 	private readonly requestElicitation: TaskMessageBridgeOptions["requestElicitation"];
+	private readonly emitSteeringStatus?: TaskMessageBridgeOptions["emitSteeringStatus"];
 
-	private readonly getWhispers: TaskMessageBridgeOptions["getWhispers"];
-	private readonly clearWhispers: TaskMessageBridgeOptions["clearWhispers"];
 	private readonly persistPermissionRule: TaskMessageBridgeOptions["persistPermissionRule"];
 
 	/** Track last sent content for partial messages to compute deltas */
@@ -107,12 +101,12 @@ export class TaskMessageBridge {
 
 	/** Track waiting cards already delivered to ACP interaction IO during the active prompt turn. */
 	private readonly processedInteractionCardKeys: Set<string> = new Set();
-	/** Terminal card updates may be delivered repeatedly; incorporate guidance once per card. */
-	private readonly whisperBoundaryCardKeys: Set<string> = new Set();
 	/** Serialize asynchronous message translation and interaction handling. */
 	private messageWork = Promise.resolve();
 	/** Invalidates interaction responses that belong to a cancelled prompt turn. */
 	private interactionGeneration = 0;
+	/** Steering transcripts whose delivered status has already been reported to ACP. */
+	private readonly reportedSentSteeringMessages = new Set<string>();
 
 	/** Latest cumulative snapshot for every model request observed in this ACP session. */
 	private readonly usageSnapshots = new Map<string, UsageSnapshot>();
@@ -126,9 +120,7 @@ export class TaskMessageBridge {
 		this.emitSessionUpdate = options.emitSessionUpdate;
 		this.getClientCapabilities = options.getClientCapabilities;
 		this.requestElicitation = options.requestElicitation;
-
-		this.getWhispers = options.getWhispers;
-		this.clearWhispers = options.clearWhispers;
+		this.emitSteeringStatus = options.emitSteeringStatus;
 		this.persistPermissionRule = options.persistPermissionRule;
 	}
 
@@ -155,7 +147,6 @@ export class TaskMessageBridge {
 		this.tsUnstableStreamLastContent.clear();
 		this.messageToToolCallId.clear();
 		this.processedInteractionCardKeys.clear();
-		this.whisperBoundaryCardKeys.clear();
 	}
 
 
@@ -493,50 +484,6 @@ export class TaskMessageBridge {
 			.finally(() => rejectPrompt(internalError));
 	}
 
-	private async incorporateWhispersAtToolBoundary(
-		sessionId: string,
-	): Promise<void> {
-		const session = this.getSession(sessionId);
-		const task = session && this.getController(session)?.task;
-		if (!task) return;
-
-		const whispers = this.getWhispers(sessionId);
-		if (whispers.length === 0) return;
-
-		const guidance = whispers.map((whisper) => `- ${whisper}`).join("\n");
-		task.taskState.pendingUserMessage =
-			`${task.taskState.pendingUserMessage ?? ""}\n\n[Client guidance received during this turn:\n${guidance}\n]`.trim();
-		this.clearWhispers(sessionId);
-		await this.emitSessionUpdate(sessionId, {
-			sessionUpdate: "agent_message_chunk",
-			content: {
-				type: "text",
-				text: "\nIncorporated your mid-turn guidance.\n",
-			},
-		});
-	}
-
-	private async incorporateWhispersAtTerminalToolBoundary(
-		sessionId: string,
-		message: DiracMessage,
-	): Promise<void> {
-		if (message.content.type !== DiracMessageType.CARD) return;
-		if (
-			![
-				CardStatus.SUCCESS,
-				CardStatus.ERROR,
-				CardStatus.SKIPPED,
-				CardStatus.CANCELLED,
-				CardStatus.ABANDONED,
-			].includes(message.content.card.status)
-		)
-			return;
-
-		const cardKey = `${sessionId}:${message.content.card.id}`;
-		if (this.whisperBoundaryCardKeys.has(cardKey)) return;
-		this.whisperBoundaryCardKeys.add(cardKey);
-		await this.incorporateWhispersAtToolBoundary(sessionId);
-	}
 
 	private async handleDiracMessagesChanged(
 		sessionId: string,
@@ -554,10 +501,6 @@ export class TaskMessageBridge {
 		const handledInlineInteraction = await this.processMessageWithDelta(
 			sessionId,
 			sessionState,
-			change.message,
-		);
-		await this.incorporateWhispersAtTerminalToolBoundary(
-			sessionId,
 			change.message,
 		);
 		this.checkMessageForPromptResolution(
@@ -963,10 +906,7 @@ export class TaskMessageBridge {
 
 		// attempt_completion is a deliberate ACP boundary even though the core task
 		// remains alive to accept optional follow-up feedback.
-		if (
-			card.status === CardStatus.SUCCESS &&
-			card.header === "Task Completed"
-		) {
+		if (isSuccessfulTaskCompletionCard(card)) {
 			promptResolved.value = true;
 			resolvePrompt(this.promptResponse("end_turn"));
 		}
@@ -1048,15 +988,26 @@ export class TaskMessageBridge {
 
 		await this.emitPlanFromMessage(sessionId, message);
 
+		if (message.content.type === DiracMessageType.MARKDOWN && message.content.role === "user") {
+			if (
+				message.content.steering?.status === "sent" &&
+				!this.reportedSentSteeringMessages.has(message.id)
+			) {
+				this.reportedSentSteeringMessages.add(message.id);
+				this.emitSteeringStatus?.(sessionId, message.id, "sent");
+			}
+			return false;
+		}
+
 		// In the new message model, only MARKDOWN messages stream text content.
 		// Card bodies are set at creation time (no incremental streaming).
 		// Narrow message.content to MARKDOWN up front so that downstream
 		// property accesses (.content, .isCompletion, .isReasoning) type-check
 		// without intermediate boolean variables that defeat TS narrowing.
-		const isTextStreamingMessage =
-			message.content.type === DiracMessageType.MARKDOWN;
+		const isTextStreamingMessage = message.content.type === DiracMessageType.MARKDOWN;
 
 		if (
+			isTextStreamingMessage &&
 			message.content.type === DiracMessageType.MARKDOWN &&
 			message.content.content &&
 			!parseWebSearchMarkerText(message.content.content)

@@ -22,6 +22,7 @@ export const TAG_PATTERNS = [
 	{ tag: "feedback", regex: /<feedback>([\s\S]*?)<\/feedback>/i },
 	{ tag: "answer", regex: /<answer>([\s\S]*?)<\/answer>/i },
 	{ tag: "user_message", regex: /<user_message>([\s\S]*?)<\/user_message>/i },
+	{ tag: "steering_message", regex: /<steering_message>([\s\S]*?)<\/steering_message>/i },
 ]
 
 // Regex to find slash commands anywhere in text (not just at the beginning).

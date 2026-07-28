@@ -149,6 +149,11 @@ export enum TaskStatus {
 	CANCELLED = "cancelled",
 }
 
+export enum SteeringTranscriptStatus {
+	QUEUED = "queued",
+	SENT = "sent",
+}
+
 export enum DiracMessageType {
 	MARKDOWN = "markdown",
 	CARD = "card",
@@ -159,16 +164,17 @@ export enum DiracMessageType {
 export type DiracMessageContent =
 	/** Stateless conversational content (speech, reasoning, info) */
 	| {
-			type: DiracMessageType.MARKDOWN
-			content: string
-			isReasoning?: boolean
-			images?: string[]
-			files?: string[]
-			isCompletion?: boolean
-			completionType?: "act" | "plan"
-			showFeedback?: boolean
-			role?: "user" | "assistant"
-	  }
+		type: DiracMessageType.MARKDOWN
+		content: string
+		isReasoning?: boolean
+		images?: string[]
+		files?: string[]
+		isCompletion?: boolean
+		completionType?: "act" | "plan"
+		showFeedback?: boolean
+		role?: "user" | "assistant"
+		steering?: { status: SteeringTranscriptStatus }
+	}
 	/** Stateful tool-mediated unit of work */
 	| { type: DiracMessageType.CARD; card: Card }
 	/** System telemetry and vitals (tokens, cost, latency) */
@@ -383,8 +389,17 @@ export type CardRawInput = Record<string, unknown>
 /** Machine-readable result produced by the tool represented by this card. */
 export type CardRawOutput = Record<string, unknown>
 
+export enum CardKind {
+	GENERIC = "generic",
+	TASK_COMPLETION = "task_completion",
+	RESUME_TASK = "resume_task",
+	RESUME_COMPLETED_TASK = "resume_completed_task",
+}
+
+
 export interface Card {
 	id: string
+	kind?: CardKind
 	header: string
 	/** Programmatic name of the tool that created this card. */
 	toolName?: string
@@ -442,6 +457,7 @@ export function isFinalStatus(status: CardStatus): boolean {
 
 export interface CardParams {
 	header: string
+	kind?: CardKind
 	toolName?: string
 	icon?: DiracIcon | string
 	status?: CardStatus

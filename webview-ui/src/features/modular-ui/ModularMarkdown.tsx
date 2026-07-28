@@ -1,3 +1,4 @@
+import { SteeringTranscriptStatus } from "@shared/ExtensionMessage"
 import { MarkdownRow } from "./components/MarkdownRow"
 import { ThinkingRow } from "./components/ThinkingRow"
 import { WithCopyButton } from "@/shared/ui/CopyButton"
@@ -7,7 +8,7 @@ import QuoteButton from "./components/QuoteButton"
 import { useQuoteLogic } from "./hooks/useQuoteLogic"
 import { memo } from "react"
 
-const NOOP = () => {}
+const NOOP = () => { }
 
 interface ModularMarkdownProps {
 	content: string
@@ -20,6 +21,7 @@ interface ModularMarkdownProps {
 	onAskForUpdate?: () => void
 	onSetQuote?: (text: string) => void
 	role?: "user" | "assistant"
+	steeringStatus?: SteeringTranscriptStatus
 }
 
 export const ModularMarkdown = memo(
@@ -34,6 +36,7 @@ export const ModularMarkdown = memo(
 		onAskForUpdate,
 		onSetQuote,
 		role,
+		steeringStatus,
 	}: ModularMarkdownProps) => {
 		const { quoteButtonState, handleQuoteClick, handleMouseUp, contentRef } = useQuoteLogic(onSetQuote || NOOP)
 
@@ -62,16 +65,25 @@ export const ModularMarkdown = memo(
 					className={cn("flex items-center", role === "user" && "justify-end")}
 					onMouseUp={handleMouseUp}
 					ref={contentRef}>
-					<div
-						className={cn(
-							"relative min-w-0 flex-1 rounded-lg border px-3 py-2 text-base leading-relaxed",
-							role === "user"
-								? "border-(--vscode-focusBorder)/25 bg-(--vscode-focusBorder)/10"
-								: "border-foreground/10 bg-foreground/[0.025]",
-						)}>
-						<MarkdownRow markdown={content} showCursor={false} />
-						{quoteButtonState.visible && (
-							<QuoteButton left={quoteButtonState.left} onClick={handleQuoteClick} top={quoteButtonState.top} />
+					<div className="flex min-w-0 flex-1 flex-col">
+						<div
+							className={cn(
+								"relative min-w-0 flex-1 rounded-lg border px-3 py-2 text-base leading-relaxed",
+								role === "user"
+									? "border-(--vscode-focusBorder)/25 bg-(--vscode-focusBorder)/10"
+									: "border-foreground/10 bg-foreground/[0.025]",
+							)}>
+							<MarkdownRow markdown={content} showCursor={false} />
+							{quoteButtonState.visible && (
+								<QuoteButton left={quoteButtonState.left} onClick={handleQuoteClick} top={quoteButtonState.top} />
+							)}
+						</div>
+						{steeringStatus && (
+							<div className="mt-1 text-right text-xs text-(--vscode-descriptionForeground)">
+								{steeringStatus === SteeringTranscriptStatus.QUEUED
+									? "Queued for next turn"
+									: "Sent with next turn"}
+							</div>
 						)}
 					</div>
 				</div>

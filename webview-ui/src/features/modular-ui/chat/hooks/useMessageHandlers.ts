@@ -1,11 +1,13 @@
+import { CardKind, DiracMessageType, UIActionButtonType } from "@shared/ExtensionMessage"
+import { getCardKind } from "@shared/cardIdentity"
 import { DiracAskResponse } from "@shared/WebviewMessage"
 
 import { EmptyRequest, StringRequest } from "@shared/proto/dirac/common"
-import { AskResponseRequest, NewTaskRequest } from "@shared/proto/dirac/task"
+import { AskResponseRequest, NewTaskRequest, SteerTaskRequest } from "@shared/proto/dirac/task"
 import { useCallback, useRef } from "react"
 import { useSettingsStore } from "@/features/settings/store/settingsStore"
 import { SlashServiceClient, TaskServiceClient } from "@/shared/api/grpc-client"
-import { useInteractionState } from "../context/InteractionStateContext"
+import { InteractionState, useInteractionState } from "../context/InteractionStateContext"
 import type { ButtonActionType } from "../utils/buttonConfig"
 import type { ChatState, MessageHandlers } from "../types/chatTypes"
 export function useMessageHandlers(chatState: ChatState): MessageHandlers {
@@ -43,48 +45,62 @@ export function useMessageHandlers(chatState: ChatState): MessageHandlers {
 
 			try {
 				setExpandTaskHeader(false)
-				if (interactionState === "IDLE") {
-					await TaskServiceClient.newTask(
-						NewTaskRequest.create({
-							text: finalMessage,
-							images,
-							files,
-						}),
-					)
-				} else if (interactionState === "AWAITING_RESPONSE") {
-					const isResume =
-						uiActionState?.cardButtons.some(
-							(b) =>
-								b.label.toLowerCase().includes("resume") ||
-								b.label.toLowerCase().includes("start new task") ||
-								b.label.toLowerCase().includes("condense"),
-						) || false
-					await TaskServiceClient.askResponse(
-						AskResponseRequest.create({
-							cardId: uiActionState?.activeCardId || "",
-							responseType: isResume ? DiracAskResponse.APPROVE : DiracAskResponse.MESSAGE,
-							text: finalMessage,
-							images,
-							files,
-						}),
-					)
-				} else {
-					// RUNNING or COMPLETED (interruption/feedback)
-					await TaskServiceClient.askResponse(
-						AskResponseRequest.create({
-							cardId: uiActionState?.activeCardId || "",
-							responseType: DiracAskResponse.MESSAGE,
-							text: finalMessage,
-							images,
-							files,
-						}),
-					)
+				switch (interactionState) {
+					case InteractionState.IDLE:
+						await TaskServiceClient.newTask(
+							NewTaskRequest.create({ text: finalMessage, images, files }),
+						)
+						break
+					case InteractionState.AWAITING_RESPONSE: {
+						const activeCard = messages.find(
+							(message) => message.id === uiActionState?.activeCardId && message.content.type === DiracMessageType.CARD,
+						)
+						const activeCardKind =
+							activeCard?.content.type === DiracMessageType.CARD
+								? getCardKind(activeCard.content.card)
+								: CardKind.GENERIC
+						const isResume =
+							activeCardKind === CardKind.RESUME_TASK ||
+							activeCardKind === CardKind.RESUME_COMPLETED_TASK ||
+							uiActionState?.cardButtons.some(
+								(button) =>
+									button.action === UIActionButtonType.NEW_TASK ||
+									(button.action === UIActionButtonType.UTILITY && button.value === "condense"),
+							) === true
+						await TaskServiceClient.askResponse(
+							AskResponseRequest.create({
+								cardId: uiActionState?.activeCardId || "",
+								responseType: isResume ? DiracAskResponse.APPROVE : DiracAskResponse.MESSAGE,
+								text: finalMessage,
+								images,
+								files,
+							}),
+						)
+						break
+					}
+					case InteractionState.RUNNING:
+						if (images.length > 0 || files.length > 0) {
+							throw new Error("Mid-turn guidance currently supports text only")
+						}
+						await TaskServiceClient.steerTask(SteerTaskRequest.create({ text: finalMessage }))
+						break
+					case InteractionState.COMPLETED:
+						await TaskServiceClient.askResponse(
+							AskResponseRequest.create({
+								cardId: uiActionState?.activeCardId || "",
+								responseType: DiracAskResponse.MESSAGE,
+								text: finalMessage,
+								images,
+								files,
+							}),
+						)
+						break
 				}
 
 				// Clear local input state immediately on success
 				setInputValue("")
 				setActiveQuote(null)
-				setSendingDisabled(true)
+				setSendingDisabled(interactionState !== InteractionState.RUNNING)
 				setSelectedImages([])
 				setSelectedFiles([])
 			} catch (error) {
@@ -101,6 +117,7 @@ export function useMessageHandlers(chatState: ChatState): MessageHandlers {
 			setSelectedFiles,
 			setExpandTaskHeader,
 			uiActionState,
+			messages,
 		],
 	)
 

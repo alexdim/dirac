@@ -67,6 +67,7 @@ export interface ICardHandle {
 
 export interface CardParams {
 	header: string
+	kind?: import("../../../../shared/ExtensionMessage").CardKind
 	/** Programmatic name of the tool that created this card. */
 	toolName?: string
 	icon?: string
@@ -313,6 +314,8 @@ export interface IOrchestrationTrait {
 	 * Saves a checkpoint of the current task state.
 	 */
 	saveCheckpoint(isTaskComplete?: boolean, messageId?: string): Promise<void>
+	/** Returns false when queued steering supersedes the current completion attempt. */
+	commitAttemptCompletion(): Promise<boolean>
 
 	/**
 	 * Returns the conversation history.

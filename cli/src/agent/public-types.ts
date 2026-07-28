@@ -70,6 +70,9 @@ export type DiracSessionEvents = {
 	/** Capability-gated vendor update for pinned-message and context-compaction state. */
 	pinned_messages_update: (payload: Record<string, unknown>) => void
 
+	/** Capability-gated vendor update for steering queue delivery state. */
+	steering_status: (payload: Record<string, unknown>) => void
+
 	/** Capability-gated vendor replay of a client-recorded control-plane event. */
 	client_annotation: (payload: Record<string, unknown>) => void
 

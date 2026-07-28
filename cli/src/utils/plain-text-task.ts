@@ -19,6 +19,7 @@ import {
 	TaskStatus,
 	UIActionButtonType,
 } from "@shared/ExtensionMessage"
+import { isTaskCompletionCard } from "@shared/cardIdentity"
 import { randomUUID } from "node:crypto"
 import { Logger } from "@/shared/services/Logger"
 import { DiracAskResponse } from "@shared/WebviewMessage"
@@ -66,7 +67,7 @@ export async function runPlainTextTask(options: PlainTextTaskOptions): Promise<b
 	// Subscription callbacks can reject completion while task initialization is
 	// still in progress. Attach a handler immediately so Node never reports that
 	// legitimate early failure as an unhandled rejection before we await it.
-	void completionPromise.catch(() => {})
+	void completionPromise.catch(() => { })
 	let completionSettled = false
 	const resolveCompletion = () => {
 		if (completionSettled) return
@@ -306,7 +307,7 @@ export async function runPlainTextTask(options: PlainTextTaskOptions): Promise<b
 		// Prefer the body of the "Task Completed" card
 		const completionCard = [...messages]
 			.reverse()
-			.find((m) => m.content.type === DiracMessageType.CARD && m.content.card.header === "Task Completed")
+			.find((m) => m.content.type === DiracMessageType.CARD && isTaskCompletionCard(m.content.card))
 
 		if (completionCard && completionCard.content.type === DiracMessageType.CARD) {
 			const card = completionCard.content.card
@@ -422,7 +423,7 @@ function handleMessageForPipeMode(
 			`${stderrStyle.metadata(`${timestamp}${statusPrefix}`)}${statusIndicator}${styledHeader}${stderrStyle.metadata(`${statusStr}${extra}`)}\n`,
 		)
 
-		if (verbose && card.body && card.header !== "Task Completed") {
+		if (verbose && card.body && !isTaskCompletionCard(card)) {
 			process.stderr.write(`${stderrStyle.toolBody(cardBodyForDisplay(card.body, card.renderType))}\n`)
 		}
 		return

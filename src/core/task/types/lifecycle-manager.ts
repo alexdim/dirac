@@ -39,6 +39,7 @@ export interface LifecycleManagerDependencies {
 	cwd: string
 	hookManager: HookManager
 	initiateTaskLoop: (userContent: DiracContent[]) => Promise<void>
+	restoreQueuedSteeringFromTranscript: () => void
 	recordEnvironment: () => Promise<void>
 	time: () => Promise<void>
 }
