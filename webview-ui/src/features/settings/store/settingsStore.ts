@@ -93,6 +93,7 @@ interface SettingsState {
 	autoApproveAllToggled: boolean
 	customPrompt?: string
 	useAutoCondense: boolean
+	autoCondenseContextLimits: Record<string, number>
 	subagentsEnabled: boolean
 	diracWebToolsEnabled: { user: boolean; featureFlag: boolean }
 	worktreesEnabled: { user: boolean; featureFlag: boolean }
@@ -201,6 +202,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
 	autoApproveAllToggled: false,
 	customPrompt: undefined,
 	useAutoCondense: false,
+	autoCondenseContextLimits: {},
 	subagentsEnabled: false,
 	diracWebToolsEnabled: { user: true, featureFlag: false },
 	worktreesEnabled: { user: true, featureFlag: false },

@@ -8,11 +8,12 @@ import { findLastIndex } from "@shared/array"
 import { CardStatus, DiracMessageType, Mode } from "@shared/ExtensionMessage"
 import { DiracContent, DiracStorageMessage } from "@shared/messages/content"
 import { Logger } from "@shared/services/Logger"
+import { getAutoCondenseContextLimit } from "@shared/context-management"
 import { ApiConversationManagerDependencies } from "./types/api-conversation-manager"
 import { formatSteeringMessages } from "./steering"
 
 export class ApiConversationManager {
-	constructor(private dependencies: ApiConversationManagerDependencies) { }
+	constructor(private dependencies: ApiConversationManagerDependencies) {}
 
 	setApi(api: ApiConversationManagerDependencies["api"]): void {
 		this.dependencies.api = api
@@ -91,11 +92,16 @@ export class ApiConversationManager {
 			return false
 		}
 
+		const providerId = this.dependencies.getCurrentProviderInfo().providerId
+		const configuredLimit = getAutoCondenseContextLimit(
+			this.dependencies.stateManager.getGlobalSettingsKey("autoCondenseContextLimits"),
+			providerId,
+		)
 		const shouldCompact = this.dependencies.contextManager.shouldCompactContextWindow(
 			this.dependencies.messageStateHandler.getDiracMessages(),
 			this.dependencies.api,
 			previousApiReqIndex,
-			0.75,
+			configuredLimit,
 		)
 		if (!shouldCompact || !this.dependencies.taskState.conversationHistoryDeletedRange) {
 			return shouldCompact

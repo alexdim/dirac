@@ -214,6 +214,13 @@ describe("CLI Commands", () => {
 			expect(taskCmd.opts().autoCondense).toBe(true)
 		})
 
+		it("should parse --auto-condense-at flag", () => {
+			const taskCmd = program.commands.find((c) => c.name() === "task")!
+			const args = ["test prompt", "--auto-condense-at", "272000"]
+			taskCmd.parse(args, { from: "user" })
+			expect(taskCmd.opts().autoCondenseAt).toBe(272000)
+		})
+
 		it("should parse short flags", () => {
 			const taskCmd = program.commands.find((c) => c.name() === "task")!
 			const args = ["test prompt", "-a", "-v", "-m", "gpt-4"]

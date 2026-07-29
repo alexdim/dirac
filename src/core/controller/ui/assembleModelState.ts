@@ -16,6 +16,7 @@ export function assembleModelState(stateManager: StateManager) {
 		yoloModeToggled: stateManager.getGlobalSettingsKey("yoloModeToggled"),
 		autoApproveAllToggled: stateManager.getGlobalSettingsKey("autoApproveAllToggled"),
 		useAutoCondense: stateManager.getGlobalSettingsKey("useAutoCondense"),
+		autoCondenseContextLimits: stateManager.getGlobalSettingsKey("autoCondenseContextLimits"),
 		subagentsEnabled: stateManager.getGlobalSettingsKey("subagentsEnabled"),
 		telemetrySetting: stateManager.getGlobalSettingsKey("telemetrySetting"),
 		planActSeparateModelsSetting: stateManager.getGlobalSettingsKey("planActSeparateModelsSetting"),

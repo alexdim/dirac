@@ -66,7 +66,10 @@ function inferProtoType(typeText, fieldName) {
 		return "int32"
 	}
 
-	// Handle Record<string, string> as map<string, string>
+	// Handle primitive records as protobuf maps
+	if (/Record\s*<\s*string\s*,\s*number\s*>/.test(cleanType)) {
+		return "map<string, int32>"
+	}
 	if (/Record\s*<\s*string\s*,\s*string\s*>/.test(cleanType)) {
 		return "map<string, string>"
 	}

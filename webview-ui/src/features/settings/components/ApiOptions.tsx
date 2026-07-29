@@ -48,6 +48,7 @@ import { WandbProvider } from "./providers/WandbProvider"
 import { XaiProvider } from "./providers/XaiProvider"
 import { ZAiProvider } from "./providers/ZAiProvider"
 import { useApiConfigurationHandlers } from "./utils/useApiConfigurationHandlers"
+import { AutoCondenseContextLimitSetting } from "./AutoCondenseContextLimitSetting"
 
 interface ApiOptionsProps {
 	showModelOptions: boolean
@@ -506,6 +507,10 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 			{apiConfiguration && selectedProvider === "aihubmix" && (
 				<AIhubmixProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
 			)}
+			{apiConfiguration && selectedProvider && (
+				<AutoCondenseContextLimitSetting key={selectedProvider} providerId={selectedProvider} />
+			)}
+
 			{apiConfigurationError && (
 				<p aria-live="polite" className="m-0 text-xs text-error">
 					Could not save API configuration: {apiConfigurationError}

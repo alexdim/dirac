@@ -1,3 +1,4 @@
+import { isValidAutoCondenseContextLimit } from "@shared/context-management"
 import { ToolRegistry } from "@core/task/tools/registry/ToolRegistry"
 import { UpdateSettingsRequest } from "@shared/proto/dirac/state"
 import { telemetryService } from "../../../services/telemetry"
@@ -19,6 +20,14 @@ export function applySimpleSettings(controller: Controller, request: UpdateSetti
 	if (request.maxConsecutiveMistakes !== undefined)
 		sm.setGlobalState("maxConsecutiveMistakes", Number(request.maxConsecutiveMistakes))
 	if (request.strictPlanModeEnabled !== undefined) sm.setGlobalState("strictPlanModeEnabled", request.strictPlanModeEnabled)
+	if (request.autoCondenseContextLimits !== undefined) {
+		const limits = Object.fromEntries(
+			Object.entries(request.autoCondenseContextLimits.limits).filter(([, value]) =>
+				isValidAutoCondenseContextLimit(value),
+			),
+		)
+		sm.setGlobalState("autoCondenseContextLimits", limits)
+	}
 	if (request.worktreesEnabled !== undefined) sm.setGlobalState("worktreesEnabled", request.worktreesEnabled)
 	if (request.doubleCheckCompletionEnabled !== undefined)
 		sm.setGlobalState("doubleCheckCompletionEnabled", request.doubleCheckCompletionEnabled)

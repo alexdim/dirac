@@ -1,3 +1,4 @@
+import { isValidAutoCondenseContextLimit } from "@shared/context-management"
 import { useCallback, useRef } from "react"
 import { StateManager } from "@/core/storage/StateManager"
 import { getProviderModelIdKey, ProviderToApiKeyMap } from "@shared/storage"
@@ -57,6 +58,7 @@ interface UseSettingsActionsProps {
 	setTelemetry: (telemetry: TelemetrySetting) => void
 	openAiHeaders: Record<string, string>
 	setOpenAiHeaders: (headers: Record<string, string>) => void
+	setAutoCondenseContextLimit: (limit: number) => void
 	setIsPickingProvider: (value: boolean) => void
 	setIsPickingModel: (value: boolean) => void
 	pickingModelKey: "actModelId" | "planModelId" | null
@@ -119,6 +121,7 @@ export function useSettingsActions({
 	setTelemetry,
 	openAiHeaders,
 	setOpenAiHeaders,
+	setAutoCondenseContextLimit,
 	setIsPickingProvider,
 	setIsPickingModel,
 	pickingModelKey,
@@ -517,6 +520,18 @@ export function useSettingsActions({
 					}
 					break
 				}
+				case "autoCondenseContextLimit": {
+					const limit = Number(editValue)
+					if (!isValidAutoCondenseContextLimit(limit)) {
+						throw new Error("Auto-condense context limit must be between 1 and 2,000,000,000 tokens")
+					}
+					setAutoCondenseContextLimit(limit)
+					stateManager.setGlobalState("autoCondenseContextLimits", {
+						...stateManager.getGlobalSettingsKey("autoCondenseContextLimits"),
+						[provider]: limit,
+					})
+					break
+				}
 				case "language":
 					setPreferredLanguage(editValue)
 					stateManager.setGlobalState("preferredLanguage", editValue)
@@ -534,6 +549,7 @@ export function useSettingsActions({
 			separateModels,
 			stateManager,
 			setPreferredLanguage,
+			setAutoCondenseContextLimit,
 			setIsEditing,
 			rebuildTaskApi,
 			provider,

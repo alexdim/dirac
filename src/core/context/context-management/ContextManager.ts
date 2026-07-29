@@ -58,7 +58,7 @@ export class ContextManager {
 		diracMessages: DiracMessage[],
 		api: ApiHandler,
 		previousApiReqIndex: number,
-		thresholdPercentage?: number,
+		contextTokenLimit?: number,
 	): boolean {
 		if (previousApiReqIndex >= 0) {
 			const previousRequest = diracMessages[previousApiReqIndex]
@@ -70,10 +70,7 @@ export class ContextManager {
 					const totalTokens = (tokensIn || 0) + (tokensOut || 0) + (cacheWrites || 0) + (cacheReads || 0)
 
 					const { contextWindow, maxAllowedSize } = getContextWindowInfo(api)
-					const roundedThreshold = thresholdPercentage
-						? Math.floor(contextWindow * thresholdPercentage)
-						: maxAllowedSize
-					const thresholdTokens = Math.min(roundedThreshold, maxAllowedSize)
+					const thresholdTokens = Math.min(contextTokenLimit ?? maxAllowedSize, maxAllowedSize)
 					return totalTokens >= thresholdTokens
 				} catch {
 					return false
