@@ -226,6 +226,15 @@ const USER_SETTINGS_FIELDS = {
 	autoApproveAllToggled: { default: false as boolean },
 	verboseBatchToggled: { default: false as boolean },
 	useAutoCondense: { default: true as boolean },
+	autoCondenseContextLimits: {
+		default: {} as Record<string, number>,
+		transform: (limits: Record<string, number>) =>
+			Object.fromEntries(
+				Object.entries(limits || {}).filter(
+					([, value]) => Number.isSafeInteger(value) && value > 0 && value <= 2_000_000_000,
+				),
+			),
+	},
 	subagentsEnabled: { default: false as boolean },
 	diracWebToolsEnabled: { default: true as boolean },
 	worktreesEnabled: { default: false as boolean },

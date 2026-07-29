@@ -31,6 +31,7 @@ interface UseSettingsItemsProps {
 	preferredLanguage: string
 	telemetry: TelemetrySetting
 	openAiHeaders: Record<string, string>
+	autoCondenseContextLimit: number
 	openAiCodexIsAuthenticated: boolean
 	openAiCodexEmail?: string
 	githubIsAuthenticated: boolean
@@ -63,6 +64,7 @@ export function useSettingsItems({
 	preferredLanguage,
 	telemetry,
 	openAiHeaders,
+	autoCondenseContextLimit,
 	openAiCodexIsAuthenticated,
 	openAiCodexEmail,
 	githubIsAuthenticated,
@@ -120,6 +122,13 @@ export function useSettingsItems({
 							},
 						]
 						: []),
+					{
+						key: "autoCondenseContextLimit",
+						label: "Auto-condense conversation at",
+						type: SettingsItemType.EDITABLE,
+						value: String(autoCondenseContextLimit),
+						description: "Provider-specific token limit; smaller model context windows may condense sooner",
+					},
 					...(provider === "openai-codex" && openAiCodexIsAuthenticated
 						? [
 							{
@@ -492,6 +501,7 @@ export function useSettingsItems({
 		preferredLanguage,
 		telemetry,
 		openAiHeaders,
+		autoCondenseContextLimit,
 		openAiCodexIsAuthenticated,
 		openAiCodexEmail,
 		githubIsAuthenticated,

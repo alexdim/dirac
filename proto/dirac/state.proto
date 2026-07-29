@@ -279,6 +279,7 @@ message Settings {
   map<string, StringArray> open_router_pinned_providers = 201;
   optional bool open_router_prevent_fallbacks = 202;
   optional string cli_terminal_color_mode = 203;
+  map<string, int32> auto_condense_context_limits = 204;
 }
 
 message State {
@@ -413,6 +414,11 @@ message UpdateSettingsRequest {
   optional string write_prompt_metadata_directory = 43;
   optional bool auto_approve_all_toggled = 44;
   optional string tool_toggles = 45;
+  optional AutoCondenseContextLimitsUpdate auto_condense_context_limits = 46;
+}
+
+message AutoCondenseContextLimitsUpdate {
+  map<string, int32> limits = 1;
 }
 
 message UpdateTerminalConnectionTimeoutRequest {

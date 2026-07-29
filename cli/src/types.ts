@@ -22,6 +22,7 @@ export interface TaskOptions {
 	autoApproveAll?: boolean
 	doubleCheckCompletion?: boolean
 	autoCondense?: boolean
+	autoCondenseAt?: string | number
 	timeout?: string | number
 	json?: boolean
 	stdinWasPiped?: boolean

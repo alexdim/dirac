@@ -31,6 +31,7 @@ import type { ObjectEditorState } from "../ConfigViewComponents"
 import { ToolRegistry } from "@/core/task/tools/registry/ToolRegistry"
 import type { ToolMetadata } from "@shared/ExtensionMessage"
 import { Logger } from "@/shared/services/Logger"
+import { getAutoCondenseContextLimit } from "@shared/context-management"
 export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 	onClose,
 	controller,
@@ -148,6 +149,14 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 	const [openAiHeaders, setOpenAiHeaders] = useState<Record<string, string>>(
 		() => stateManager.getGlobalSettingsKey("openAiHeaders") ?? {},
 	)
+	const [autoCondenseContextLimit, setAutoCondenseContextLimit] = useState(() =>
+		getAutoCondenseContextLimit(stateManager.getGlobalSettingsKey("autoCondenseContextLimits"), provider),
+	)
+	React.useEffect(() => {
+		setAutoCondenseContextLimit(
+			getAutoCondenseContextLimit(stateManager.getGlobalSettingsKey("autoCondenseContextLimits"), provider),
+		)
+	}, [provider, stateManager])
 	const [openRouterPinnedProviders, setOpenRouterPinnedProviders] = useState<Record<string, string[]>>(
 		() => stateManager.getGlobalSettingsKey("openRouterPinnedProviders") ?? {},
 	)
@@ -230,6 +239,7 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 		preferredLanguage,
 		telemetry,
 		openAiHeaders,
+		autoCondenseContextLimit,
 		openAiCodexIsAuthenticated,
 		openAiCodexEmail,
 		githubIsAuthenticated,
@@ -293,6 +303,7 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 		setTelemetry,
 		openAiHeaders,
 		setOpenAiHeaders,
+		setAutoCondenseContextLimit,
 		setIsPickingProvider,
 		setIsPickingModel,
 		pickingModelKey,

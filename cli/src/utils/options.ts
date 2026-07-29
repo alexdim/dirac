@@ -1,3 +1,4 @@
+import { isValidAutoCondenseContextLimit } from "@shared/context-management"
 import type { ApiProvider } from "@shared/api"
 import type { OpenaiReasoningEffort } from "@/shared/storage/types"
 import type { TaskOptions } from "../types"
@@ -190,6 +191,18 @@ export async function applyTaskOptions(options: TaskOptions): Promise<void> {
 		stateManager.setSessionOverride("useAutoCondense", true)
 	}
 
+	if (options.autoCondenseAt !== undefined) {
+		const limit = await normalizeMaxConsecutiveMistakes(options.autoCondenseAt)
+		if (!isValidAutoCondenseContextLimit(limit)) {
+			throw new Error("Auto-condense context limit must be between 1 and 2,000,000,000 tokens")
+		}
+		const providerKey = currentMode === "act" ? "actModeApiProvider" : "planModeApiProvider"
+		const providerId = stateManager.getGlobalSettingsKey(providerKey)
+		stateManager.setSessionOverride("autoCondenseContextLimits", {
+			...stateManager.getGlobalSettingsKey("autoCondenseContextLimits"),
+			[providerId]: limit!,
+		})
+	}
 
 	if (options.noEmoji || process.env.DIRAC_NO_EMOJI) {
 		const { setIconMode } = await import("./icon-mapping")

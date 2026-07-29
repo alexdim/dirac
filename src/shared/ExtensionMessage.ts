@@ -96,6 +96,7 @@ export interface ExtensionState {
 	yoloModeToggled?: boolean
 	autoApproveAllToggled?: boolean
 	useAutoCondense?: boolean
+	autoCondenseContextLimits?: Record<string, number>
 	subagentsEnabled?: boolean
 	diracWebToolsEnabled?: DiracFeatureSetting
 	worktreesEnabled?: DiracFeatureSetting
