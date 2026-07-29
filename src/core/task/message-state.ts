@@ -7,7 +7,7 @@ import { combineCardSequences } from "@/shared/combineCardSequences"
 import { DiracMessage } from "@/shared/ExtensionMessage"
 import { getApiMetrics } from "@/shared/getApiMetrics"
 import { HistoryItem } from "@/shared/HistoryItem"
-import { DiracStorageMessage } from "@/shared/messages/content"
+import { DiracStorageMessage, DiracUserContent } from "@/shared/messages/content"
 import { Logger } from "@/shared/services/Logger"
 import { getCwd, getDesktopDir } from "@/utils/path"
 import { ensureTaskDirectoryExists, saveApiConversationHistory, saveDiracMessages } from "../storage/disk"
@@ -265,6 +265,24 @@ export class MessageStateHandler extends EventEmitter<MessageStateHandlerEvents>
 			this.apiHistoryDirty = true
 		})
 		this.scheduleFlush()
+	}
+
+	async appendToLastApiConversationUserMessage(contentBlock: DiracUserContent): Promise<DiracStorageMessage> {
+		const message = await this.withStateLock(() => {
+			const lastMessage = this.apiConversationHistory.at(-1)
+			if (!lastMessage || lastMessage.role !== "user") {
+				throw new Error("Cannot append content without a final user API conversation message")
+			}
+			if (typeof lastMessage.content === "string") {
+				lastMessage.content = [{ type: "text", text: lastMessage.content }, contentBlock]
+			} else {
+				lastMessage.content.push(contentBlock)
+			}
+			this.apiHistoryDirty = true
+			return lastMessage
+		})
+		this.scheduleFlush()
+		return message
 	}
 
 	async overwriteApiConversationHistory(newHistory: DiracStorageMessage[]): Promise<void> {

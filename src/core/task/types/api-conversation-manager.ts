@@ -9,7 +9,6 @@ import { StreamResponseHandler } from "../StreamResponseHandler"
 import { TaskMessenger } from "../TaskMessenger"
 import { TaskState } from "../TaskState"
 import { ToolExecutor } from "../ToolExecutor"
-import type { SteeringClaim } from "../steering"
 import { HookExecution } from "./HookExecution"
 
 export interface ApiConversationManagerDependencies {
@@ -51,9 +50,6 @@ export interface ApiConversationManagerDependencies {
 	onContextCompacted?: () => void
 	setActiveHookExecution: (hookExecution: HookExecution | undefined) => Promise<void>
 	clearActiveHookExecution: () => Promise<void>
-	claimSteeringMessages: () => Promise<SteeringClaim | undefined>
-	commitSteeringClaim: (claimId: string) => Promise<void>
-	rollbackSteeringClaim: (claimId: string) => Promise<void>
 
 	taskInitializationStartTime: number
 }
