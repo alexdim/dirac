@@ -124,8 +124,8 @@ export class TaskState {
 	steeringMessages: SteeringMessage[] = []
 
 
-	// Pending user message from text-based tool skip
-	// Set when user sends a text message while a tool is awaiting card approval.
+	// Pending user content from a chat-message tool skip.
+	// Set when the user sends text or attachments while a tool is awaiting card input.
 	// Consumed by initiateTaskLoop to forward the message to the LLM.
 	pendingUserMessage?: string
 	pendingUserImages?: string[]

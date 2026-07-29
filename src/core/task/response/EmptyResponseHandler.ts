@@ -107,7 +107,7 @@ export class EmptyResponseHandler {
 			response = askResult.response
 		} catch (error) {
 			if (error instanceof ToolSkippedByUserMessage) {
-				await cardHandle.finalize(CardStatus.CANCELLED)
+				await cardHandle.finalize(CardStatus.SKIPPED)
 				this.deps.taskState.pendingUserMessage = error.userMessage
 				this.deps.taskState.pendingUserImages = error.userImages
 				this.deps.taskState.pendingUserFiles = error.userFiles

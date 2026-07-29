@@ -19,8 +19,7 @@ export function projectUIActionState(
 	const uiState: UIActionState = {
 		globalButtons: [],
 		cardButtons: [],
-		sendingDisabled:
-			state?.status === TaskStatus.CANCELLING || (state !== undefined && state.waitingCardIds.length > 0),
+		sendingDisabled: state?.status === TaskStatus.CANCELLING,
 	}
 
 	// Active card interactions must take precedence over busy task states.

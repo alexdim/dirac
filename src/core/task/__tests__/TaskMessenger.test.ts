@@ -1,7 +1,10 @@
 import { strict as assert } from "node:assert"
-import { CardStatus, DiracMessageType } from "@shared/ExtensionMessage"
+import { CardStatus, DiracMessageType, TaskStatus } from "@shared/ExtensionMessage"
 import { describe, it } from "mocha"
+import pWaitFor from "p-wait-for"
 import sinon from "sinon"
+import { DiracAskResponse } from "@shared/WebviewMessage"
+import { ToolSkippedByUserMessage } from "../tools/types/ToolSkippedByUserMessage"
 import { TaskMessenger } from "../TaskMessenger"
 
 function createMessenger() {
@@ -19,11 +22,11 @@ function createMessenger() {
 		taskState,
 		messageStateHandler,
 		postStateToWebview: sinon.stub().resolves(),
-		stateManager: {} as any,
+		stateManager: { getGlobalSettingsKey: sinon.stub().returns(false) } as any,
 		taskId: "task-1",
 		getCurrentProviderInfo: sinon.stub(),
 	} as any)
-	return { messenger, messages }
+	return { messenger, messages, taskState }
 }
 
 describe("TaskMessenger text authorship", () => {
@@ -66,5 +69,39 @@ describe("TaskMessenger text authorship", () => {
 
 		assert.equal(messages[0].content.card.status, CardStatus.CANCELLED)
 		assert.equal(messages[0].content.card.collapsed, true)
+	})
+
+	it("accepts a chat message while awaiting card input and clears the wait", async () => {
+		const { messenger, messages, taskState } = createMessenger()
+		const card = await messenger.createCard({
+			header: "Proposed Plan",
+			requireFeedback: true,
+			collapsed: false,
+		})
+
+		const interaction = card.waitForInteraction()
+		await pWaitFor(() => taskState.status === TaskStatus.AWAITING_USER_INPUT)
+		taskState.askResponse = DiracAskResponse.MESSAGE
+		taskState.askResponseText = "Revise step two"
+
+		await assert.rejects(interaction, ToolSkippedByUserMessage)
+
+		assert.deepEqual(taskState.waitingCardIds, [])
+		assert.equal(messages.at(-1).content.type, DiracMessageType.MARKDOWN)
+		assert.equal(messages.at(-1).content.role, "user")
+		assert.equal(messages.at(-1).content.content, "Revise step two")
+	})
+
+	it("treats an attachment-only chat response as skipping pending input", async () => {
+		const { messenger, taskState } = createMessenger()
+		const card = await messenger.createCard({ header: "Permission", requireApproval: true })
+
+		const interaction = card.waitForInteraction()
+		await pWaitFor(() => taskState.status === TaskStatus.AWAITING_USER_INPUT)
+		taskState.askResponse = DiracAskResponse.MESSAGE
+		taskState.askResponseFiles = ["notes.txt"]
+
+		await assert.rejects(interaction, ToolSkippedByUserMessage)
+		assert.deepEqual(taskState.waitingCardIds, [])
 	})
 })
