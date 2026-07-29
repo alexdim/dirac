@@ -268,7 +268,7 @@ export class TaskMessenger implements ITaskMessenger {
 						await pWaitFor(
 							() => {
 								const response = this.dependencies.taskState.askResponse
-								return (
+								return !!(
 									response !== undefined ||
 									this.dependencies.taskState.lastMessageTs !== messageTs ||
 									this.dependencies.taskState.abort
