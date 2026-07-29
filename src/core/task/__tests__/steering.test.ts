@@ -148,5 +148,14 @@ describe("Task steering inbox", () => {
 		assert.deepEqual(followUp, [{ type: "text", text: "Immediate follow-up" }])
 	})
 
+	it("does not let a stale plan-response flag reject steering without a waiting card", async () => {
+		const { task } = createSteerableTask()
+		task.taskState.isAwaitingPlanResponse = true
+
+		assert.equal(task.canAcceptSteeringMessage(), true)
+		await task.enqueueSteeringMessage("Continue with the active task")
+		assert.equal(task.taskState.steeringMessages.length, 1)
+	})
+
 
 })

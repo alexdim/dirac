@@ -53,4 +53,20 @@ describe("projectUIActionState", () => {
 		projectUIActionState(awaitingCard, [], 3).sendingDisabled.should.equal(true)
 	})
 
+	it("does not let a stale plan-response flag hide busy controls", () => {
+		const state = new TaskState()
+		state.status = TaskStatus.BUILDING_TOOL_CALL
+		state.isAwaitingPlanResponse = true
+
+		const uiState = projectUIActionState(state, [], 3)
+
+		uiState.sendingDisabled.should.equal(false)
+		uiState.globalButtons.should.deepEqual([
+			{
+				label: "Cancel",
+				action: UIActionButtonType.CANCEL,
+				style: "secondary",
+			},
+		])
+	})
 })
