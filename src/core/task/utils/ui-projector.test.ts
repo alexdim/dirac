@@ -1,5 +1,5 @@
 import "should"
-import { TaskStatus, UIActionButtonType } from "@shared/ExtensionMessage"
+import { CardStatus, DiracMessageType, TaskStatus, UIActionButtonType } from "@shared/ExtensionMessage"
 import { TaskState } from "../TaskState"
 import { projectUIActionState } from "./ui-projector"
 
@@ -42,7 +42,7 @@ describe("projectUIActionState", () => {
 		projectUIActionState(state, [], 3).sendingDisabled.should.equal(false)
 	})
 
-	it("disables sending during cancellation and active card interaction", () => {
+	it("only disables sending during cancellation", () => {
 		const cancelling = new TaskState()
 		cancelling.status = TaskStatus.CANCELLING
 		projectUIActionState(cancelling, [], 3).sendingDisabled.should.equal(true)
@@ -50,7 +50,28 @@ describe("projectUIActionState", () => {
 		const awaitingCard = new TaskState()
 		awaitingCard.status = TaskStatus.AWAITING_USER_INPUT
 		awaitingCard.waitingCardIds = ["card-1"]
-		projectUIActionState(awaitingCard, [], 3).sendingDisabled.should.equal(true)
+		const messages = [
+			{
+				id: "card-1",
+				ts: 1,
+				content: {
+					type: DiracMessageType.CARD,
+					card: {
+						id: "card-1",
+						header: "Proposed Plan",
+						status: CardStatus.WAITING_FOR_INPUT,
+						renderType: "markdown" as const,
+						requireFeedback: true,
+						body: "1. Implement the fix",
+					},
+				},
+			},
+		]
+
+		const uiState = projectUIActionState(awaitingCard, messages, 3)
+
+		uiState.sendingDisabled.should.equal(false)
+		uiState.activeCardId.should.equal("card-1")
 	})
 
 	it("does not let a stale plan-response flag hide busy controls", () => {

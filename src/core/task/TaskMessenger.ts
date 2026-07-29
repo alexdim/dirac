@@ -305,18 +305,19 @@ export class TaskMessenger implements ITaskMessenger {
 						this.dependencies.taskState.askResponseAction = undefined
 						this.dependencies.taskState.askResponseValue = undefined
 
-						// If the user sent a text message instead of responding to the card,
+						// If the user sent a chat message instead of responding to the card,
 						// this signals the tool should be skipped. Throw a typed error so the
 						// coordinator can handle it cleanly.
-						if (result.response === DiracAskResponse.MESSAGE && result.text) {
-							// Echo the user's text message in the chat UI
-							await this.upsertText(result.text, false, result.images, result.files, "user")
+						const responseText = result.text as string | undefined
+						const responseImages = result.images as string[] | undefined
+						const responseFiles = result.files as string[] | undefined
+						const hasUserMessageContent =
+							!!responseText || (responseImages?.length ?? 0) > 0 || (responseFiles?.length ?? 0) > 0
+						if (result.response === DiracAskResponse.MESSAGE && hasUserMessageContent) {
+							// Echo the user's message in the chat UI
+							await this.upsertText(responseText ?? "", false, responseImages, responseFiles, "user")
 							const { ToolSkippedByUserMessage } = await import("./tools/types/ToolSkippedByUserMessage")
-							throw new ToolSkippedByUserMessage(
-								result.text,
-								result.images as string[] | undefined,
-								result.files as string[] | undefined,
-							)
+							throw new ToolSkippedByUserMessage(responseText ?? "", responseImages, responseFiles)
 						}
 
 						return result

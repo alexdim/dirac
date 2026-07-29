@@ -448,6 +448,7 @@ describe("ResponseProcessor", () => {
 			taskState.pendingUserMessage!.should.equal("user msg")
 			expect(taskState.pendingUserImages).to.deep.equal(["img"])
 			expect(taskState.pendingUserFiles).to.deep.equal(["file"])
+			sinon.assert.calledWith(cardHandle.finalize, CardStatus.SKIPPED)
 		})
 
 		it("re-throws non-ToolSkippedByUserMessage errors from waitForInteraction", async () => {

@@ -898,7 +898,7 @@ export class Task {
 			files = result.files
 		} catch (error) {
 			if (error instanceof ToolSkippedByUserMessage) {
-				await cardHandle.finalize(CardStatus.CANCELLED)
+				await cardHandle.finalize(CardStatus.SKIPPED)
 				this.taskState.pendingUserMessage = error.userMessage
 				this.taskState.pendingUserImages = error.userImages
 				this.taskState.pendingUserFiles = error.userFiles
@@ -1614,7 +1614,7 @@ export class Task {
 				response = askResult.response
 			} catch (error) {
 				if (error instanceof ToolSkippedByUserMessage) {
-					await cardHandle.finalize(CardStatus.CANCELLED)
+					await cardHandle.finalize(CardStatus.SKIPPED)
 					this.taskState.pendingUserMessage = error.userMessage
 					this.taskState.pendingUserImages = error.userImages
 					this.taskState.pendingUserFiles = error.userFiles
@@ -1719,11 +1719,17 @@ export class Task {
 			this.taskState.apiErrorRetryAttempts = 0
 			this.taskState.emptyResponseRetryAttempts = 0
 
-			if (this.taskState.pendingUserMessage) {
-				this.taskState.userMessageContent.push({
-					type: "text",
-					text: this.taskState.pendingUserMessage,
-				})
+			if (
+				this.taskState.pendingUserMessage !== undefined ||
+				(this.taskState.pendingUserImages?.length ?? 0) > 0 ||
+				(this.taskState.pendingUserFiles?.length ?? 0) > 0
+			) {
+				if (this.taskState.pendingUserMessage) {
+					this.taskState.userMessageContent.push({
+						type: "text",
+						text: this.taskState.pendingUserMessage,
+					})
+				}
 				if (this.taskState.pendingUserImages?.length) {
 					this.taskState.userMessageContent.push(...formatResponse.imageBlocks(this.taskState.pendingUserImages))
 				}
