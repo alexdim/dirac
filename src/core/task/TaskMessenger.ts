@@ -10,25 +10,25 @@ import {
 	CardStatus,
 	DiracApiReqInfo,
 	DiracMessage,
-	ICardHandle,
-	ITextStreamHandle,
 	DiracMessageType,
+	ICardHandle,
 	ITaskMessenger,
+	ITextStreamHandle,
 	isFinalStatus,
 	TaskStatus,
 } from "@shared/ExtensionMessage"
 
 import { Logger } from "@shared/services/Logger"
-import pWaitFor from "p-wait-for"
-import { TaskMessengerDependencies } from "./types/task-messenger"
 import { DiracAskResponse } from "@shared/WebviewMessage"
+import pWaitFor from "p-wait-for"
 import { CardParams } from "./tools/interfaces/IToolEnvironment"
+import { TaskMessengerDependencies } from "./types/task-messenger"
 
 export class TaskMessenger implements ITaskMessenger {
 	private activeVoiceStream?: ITextStreamHandle
 	private lastMessageId = 0
 
-	constructor(private dependencies: TaskMessengerDependencies) { }
+	constructor(private dependencies: TaskMessengerDependencies) {}
 
 	public setApi(api: ApiHandler) {
 		this.dependencies.api = api
@@ -212,6 +212,9 @@ export class TaskMessenger implements ITaskMessenger {
 				if (msg.content.type === DiracMessageType.CARD) {
 					msg.content.card.status = status
 					msg.content.card.endTime = Date.now()
+					if (msg.content.card.requireApproval && isFinalStatus(status)) {
+						msg.content.card.collapsed = true
+					}
 					if (doNotAutoCollapse) {
 						msg.content.card.do_not_auto_collapse = true
 					}

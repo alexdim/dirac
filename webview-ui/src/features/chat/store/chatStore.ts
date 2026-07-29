@@ -1,4 +1,11 @@
-import type { DiracMessage, ExtensionState, TaskStatus } from "@shared/ExtensionMessage"
+import {
+	type Card,
+	type DiracMessage,
+	DiracMessageType,
+	type ExtensionState,
+	isFinalStatus,
+	type TaskStatus,
+} from "@shared/ExtensionMessage"
 
 import { EmptyRequest } from "@shared/proto/dirac/common"
 import { create } from "zustand"
@@ -22,6 +29,43 @@ interface ChatState {
 	hydrate: () => () => void
 }
 
+function cardsById(messages: DiracMessage[]): Map<string, Card> {
+	const cards = new Map<string, Card>()
+	for (const message of messages) {
+		if (message.content.type === DiracMessageType.CARD) {
+			cards.set(message.content.card.id, message.content.card)
+		}
+	}
+	return cards
+}
+
+function synchronizeResolvedCardCollapse(state: ChatState, messages: DiracMessage[]): Partial<ChatState> {
+	const previousCards = cardsById(state.diracMessages)
+	const collapsedCardIds = messages.flatMap((message) => {
+		if (message.content.type !== DiracMessageType.CARD) return []
+
+		const card = message.content.card
+		const previousCard = previousCards.get(card.id)
+		const permissionWasResolved =
+			card.requireApproval === true &&
+			card.collapsed === true &&
+			isFinalStatus(card.status) &&
+			(previousCard === undefined || !isFinalStatus(previousCard.status))
+
+		return permissionWasResolved ? [card.id] : []
+	})
+
+	if (collapsedCardIds.length === 0) return { diracMessages: messages }
+
+	const cardCollapsedStates = { ...state.cardCollapsedStates }
+	const cardUserToggledStates = { ...state.cardUserToggledStates }
+	for (const cardId of collapsedCardIds) {
+		cardCollapsedStates[cardId] = true
+		cardUserToggledStates[cardId] = false
+	}
+	return { diracMessages: messages, cardCollapsedStates, cardUserToggledStates }
+}
+
 export const useChatStore = create<ChatState>((set) => ({
 	diracMessages: [],
 	uiActionState: undefined,
@@ -31,7 +75,7 @@ export const useChatStore = create<ChatState>((set) => ({
 	cardCollapsedStates: {},
 	cardUserToggledStates: {},
 
-	setDiracMessages: (messages) => set({ diracMessages: messages }),
+	setDiracMessages: (messages) => set((state) => synchronizeResolvedCardCollapse(state, messages)),
 	setCardCollapsedState: (cardId, collapsed, userToggled = false) =>
 		set((state) => ({
 			cardCollapsedStates: { ...state.cardCollapsedStates, [cardId]: collapsed },
@@ -46,15 +90,13 @@ export const useChatStore = create<ChatState>((set) => ({
 				const parsedState = JSON.parse(state.stateJson) as ExtensionState
 
 				if (parsedState.diracMessages) {
-					set((state) => {
-						return {
-							diracMessages: parsedState.diracMessages,
-							uiActionState: parsedState.uiActionState,
-							activeVoiceStreamId: parsedState.activeVoiceStreamId,
-							isApiRequestActive: parsedState.isApiRequestActive,
-							taskStatus: parsedState.taskStatus,
-						}
-					})
+					set((state) => ({
+						...synchronizeResolvedCardCollapse(state, parsedState.diracMessages),
+						uiActionState: parsedState.uiActionState,
+						activeVoiceStreamId: parsedState.activeVoiceStreamId,
+						isApiRequestActive: parsedState.isApiRequestActive,
+						taskStatus: parsedState.taskStatus,
+					}))
 				}
 			},
 			onError: (error) => {
