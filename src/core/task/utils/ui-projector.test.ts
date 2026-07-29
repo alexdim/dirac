@@ -1,5 +1,5 @@
 import "should"
-import { CardStatus, DiracMessageType, TaskStatus, UIActionButtonType } from "@shared/ExtensionMessage"
+import { CardStatus, DiracMessage, DiracMessageType, TaskStatus, UIActionButtonType } from "@shared/ExtensionMessage"
 import { TaskState } from "../TaskState"
 import { projectUIActionState } from "./ui-projector"
 
@@ -50,7 +50,7 @@ describe("projectUIActionState", () => {
 		const awaitingCard = new TaskState()
 		awaitingCard.status = TaskStatus.AWAITING_USER_INPUT
 		awaitingCard.waitingCardIds = ["card-1"]
-		const messages = [
+		const messages: DiracMessage[] = [
 			{
 				id: "card-1",
 				ts: 1,
@@ -71,7 +71,7 @@ describe("projectUIActionState", () => {
 		const uiState = projectUIActionState(awaitingCard, messages, 3)
 
 		uiState.sendingDisabled.should.equal(false)
-		uiState.activeCardId.should.equal("card-1")
+		uiState.activeCardId!.should.equal("card-1")
 	})
 
 	it("does not let a stale plan-response flag hide busy controls", () => {
