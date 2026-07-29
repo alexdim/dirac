@@ -11,6 +11,7 @@ import { StateManager } from "@/core/storage/StateManager"
 import { ProviderToBaseUrlKeyMap } from "@shared/storage"
 import { ApiProvider } from "@shared/api"
 import { openAiCodexOAuthManager } from "@/integrations/openai-codex/oauth"
+import { openAiCodexUsageService } from "@/integrations/openai-codex/OpenAiCodexUsageService"
 import { openAiCodexDefaultModelId } from "@/shared/api"
 import { getRandomQuote } from "@/shared/quotes"
 import { openExternal } from "@/utils/env"
@@ -157,8 +158,8 @@ export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onEr
 	const [step, setStep] = useState<AuthStep>("menu")
 	const [selectedProvider, setSelectedProvider] = useState<string>(
 		StateManager.get().getApiConfiguration().actModeApiProvider ||
-			StateManager.get().getApiConfiguration().planModeApiProvider ||
-			"",
+		StateManager.get().getApiConfiguration().planModeApiProvider ||
+		"",
 	)
 	const [apiKey, setApiKey] = useState("")
 	const [modelId, setModelId] = useState("")
@@ -200,8 +201,8 @@ export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onEr
 		const search = providerSearch.toLowerCase()
 		const filtered = providerSearch
 			? providers.filter(
-					(p: string) => p.toLowerCase().includes(search) || getProviderLabel(p).toLowerCase().includes(search),
-				)
+				(p: string) => p.toLowerCase().includes(search) || getProviderLabel(p).toLowerCase().includes(search),
+			)
 			: providers
 		return filtered.map((p: string) => ({
 			label: getProviderLabel(p),
@@ -252,6 +253,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onEr
 
 			// Wait for the callback
 			await openAiCodexOAuthManager.waitForCallback()
+			openAiCodexUsageService.clear()
 
 			// Success - save configuration
 			await applyProviderConfig({ providerId: "openai-codex", controller })

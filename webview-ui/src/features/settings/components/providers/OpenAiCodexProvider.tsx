@@ -1,15 +1,18 @@
 import { openAiCodexModels } from "@shared/api"
-import { EmptyRequest } from "@shared/proto/dirac/common"
 import { Mode } from "@shared/ExtensionMessage"
+import { EmptyRequest } from "@shared/proto/dirac/common"
+import { useEffect, useRef, useState } from "react"
+import { useAppStore } from "@/app/store/appStore"
 import { normalizeApiConfiguration, supportsReasoningEffortForModelId } from "@/features/settings/components/utils/providerUtils"
 import { useSettingsStore } from "@/features/settings/store/settingsStore"
+import { ModelsServiceClient } from "@/shared/api/grpc-client"
 import { ModelInfoView } from "../common/ModelInfoView"
 import { ModelSelector } from "../common/ModelSelector"
 import ReasoningEffortSelector from "../ReasoningEffortSelector"
 import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
-import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
-import { ModelsServiceClient } from "@/shared/api/grpc-client"
-import { useState } from "react"
+import { OpenAiCodexAccountCard } from "./openai-codex/OpenAiCodexAccountCard"
+import { OpenAiCodexUsagePanel } from "./openai-codex/OpenAiCodexUsagePanel"
+import { getOpenAiCodexQuotaFetchedAt, OPENAI_CODEX_USAGE_LAZY_REFRESH_MS } from "./openai-codex/formatOpenAiCodexUsage"
 
 interface OpenAiCodexProviderProps {
 	showModelOptions: boolean
@@ -17,83 +20,104 @@ interface OpenAiCodexProviderProps {
 	currentMode: Mode
 }
 
-/**
- * OpenAI Codex (ChatGPT Plus/Pro) provider configuration component.
- * Uses OAuth authentication instead of API keys.
- */
+/** ChatGPT-login Codex provider settings. Subscription quota remains separate from task token usage. */
 export const OpenAiCodexProvider = ({ showModelOptions, isPopup, currentMode }: OpenAiCodexProviderProps) => {
-	const { apiConfiguration, openAiCodexIsAuthenticated, openAiCodexEmail } = useSettingsStore()
+	const {
+		apiConfiguration,
+		openAiCodexIsAuthenticated,
+		openAiCodexEmail,
+		openAiCodexUsage,
+		openAiCodexUsageRefreshing,
+		openAiCodexUsageRefreshError,
+		refreshOpenAiCodexUsage,
+	} = useSettingsStore()
+	const navigateToSettings = useAppStore((state) => state.navigateToSettings)
 	const [isAuthenticating, setIsAuthenticating] = useState(false)
+	const [authError, setAuthError] = useState<string>()
+	const lazyRefreshRequested = useRef(false)
+
+	useEffect(() => {
+		if (!openAiCodexIsAuthenticated) {
+			lazyRefreshRequested.current = false
+			return
+		}
+		if (lazyRefreshRequested.current) return
+
+		const now = Date.now()
+		const quotaFetchedAt = getOpenAiCodexQuotaFetchedAt(openAiCodexUsage)
+		const activityFetchedAt = openAiCodexUsage?.activityFetchedAt
+		const quotaIsFresh = quotaFetchedAt !== undefined && now - quotaFetchedAt <= OPENAI_CODEX_USAGE_LAZY_REFRESH_MS
+		const activityIsFresh =
+			activityFetchedAt !== undefined && now - activityFetchedAt <= OPENAI_CODEX_USAGE_LAZY_REFRESH_MS
+		if (quotaIsFresh && activityIsFresh) return
+
+		lazyRefreshRequested.current = true
+		void refreshOpenAiCodexUsage(false)
+	}, [openAiCodexIsAuthenticated, openAiCodexUsage, refreshOpenAiCodexUsage])
 
 	const handleSignIn = async () => {
+		setAuthError(undefined)
 		setIsAuthenticating(true)
 		try {
 			await ModelsServiceClient.authenticateOpenAiCodex(EmptyRequest.create({}))
 		} catch (error) {
-			console.error("Authentication failed:", error)
+			setAuthError(error instanceof Error ? error.message : "Browser sign-in did not complete")
 		} finally {
 			setIsAuthenticating(false)
 		}
 	}
 
 	const handleSignOut = async () => {
+		setAuthError(undefined)
 		try {
 			await ModelsServiceClient.signOutOpenAiCodex(EmptyRequest.create({}))
 		} catch (error) {
-			console.error("Sign out failed:", error)
+			setAuthError(error instanceof Error ? error.message : "Could not sign out from ChatGPT")
 		}
 	}
-	const { handleModeFieldChange } = useApiConfigurationHandlers()
 
+	const { handleModeFieldChange } = useApiConfigurationHandlers()
 	const { selectedModelId, selectedModelInfo } = normalizeApiConfiguration(apiConfiguration, currentMode)
 	const showReasoningEffort = supportsReasoningEffortForModelId(selectedModelId, selectedModelInfo)
 
 	return (
-		<div>
-			<div style={{ marginBottom: "15px" }}>
-				<p
-					style={{
-						fontSize: "12px",
-						color: "var(--vscode-descriptionForeground)",
-						marginBottom: "10px",
-					}}>
-					OpenAI Codex (ChatGPT Plus/Pro) provider configuration.
-				</p>
-			</div>
+		<div className="space-y-3">
+			<OpenAiCodexAccountCard
+				authError={authError}
+				email={openAiCodexEmail}
+				isAuthenticated={openAiCodexIsAuthenticated}
+				isAuthenticating={isAuthenticating}
+				onSignIn={() => void handleSignIn()}
+				onSignOut={() => void handleSignOut()}
+				planType={openAiCodexUsage?.planType}
+			/>
 
-			<div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-				{openAiCodexIsAuthenticated ? (
-					<div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-						<span style={{ fontSize: "12px" }}>
-							Authenticated as <strong>{openAiCodexEmail || "ChatGPT User"}</strong>
-						</span>
-						<VSCodeButton appearance="secondary" onClick={handleSignOut} style={{ height: "24px" }}>
-							Sign Out
-						</VSCodeButton>
-					</div>
-				) : (
-					<VSCodeButton disabled={isAuthenticating} onClick={handleSignIn}>
-						{isAuthenticating ? "Authenticating..." : "Sign in with ChatGPT"}
-					</VSCodeButton>
-				)}
-			</div>
+			{openAiCodexIsAuthenticated && (
+				<OpenAiCodexUsagePanel
+					isPopup={isPopup}
+					isRefreshing={openAiCodexUsageRefreshing}
+					onRefresh={refreshOpenAiCodexUsage}
+					onViewDetails={isPopup ? () => navigateToSettings("api-config") : undefined}
+					refreshError={openAiCodexUsageRefreshError}
+					snapshot={openAiCodexUsage}
+				/>
+			)}
 
 			{showModelOptions && (
 				<>
 					<ModelSelector
 						label="Model"
 						models={openAiCodexModels}
-						onChange={(e: any) =>
+						onChange={(event: any) =>
 							handleModeFieldChange(
 								{ plan: "planModeApiModelId", act: "actModeApiModelId" },
-								e.target.value,
+								event.target.value,
 								currentMode,
 							)
 						}
 						selectedModelId={selectedModelId}
 					/>
 					{showReasoningEffort && <ReasoningEffortSelector currentMode={currentMode} />}
-
 					<ModelInfoView isPopup={isPopup} modelInfo={selectedModelInfo} selectedModelId={selectedModelId} />
 				</>
 			)}

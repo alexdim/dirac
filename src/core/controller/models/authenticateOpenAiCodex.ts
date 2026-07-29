@@ -1,5 +1,6 @@
 import { Empty, EmptyRequest } from "@shared/proto/dirac/common"
 import { openAiCodexOAuthManager } from "@/integrations/openai-codex/oauth"
+import { openAiCodexUsageService } from "@/integrations/openai-codex/OpenAiCodexUsageService"
 import { openExternal } from "@/utils/env"
 import { Logger } from "@/shared/services/Logger"
 import type { Controller } from "../index"
@@ -25,6 +26,14 @@ export async function authenticateOpenAiCodex(controller: Controller, _request: 
 		await openAiCodexOAuthManager.waitForCallback()
 
 		Logger.log("[openai-codex-oauth] Authentication successful!")
+
+		openAiCodexUsageService.clear()
+
+		try {
+			await openAiCodexUsageService.refresh({ force: true })
+		} catch (usageError) {
+			Logger.error("[openai-codex-usage] Initial usage refresh failed:", usageError)
+		}
 
 		// 4. Post updated state to webview so it knows we're authenticated
 		await controller.postStateToWebview()

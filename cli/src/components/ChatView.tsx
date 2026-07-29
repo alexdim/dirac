@@ -64,6 +64,7 @@ import { HelpPanelContent } from "./HelpPanelContent"
 import { HistoryPanelContent } from "./HistoryPanelContent"
 import { SettingsPanelContent } from "./SettingsPanelContent"
 import { SkillsPanelContent } from "./SkillsPanelContent"
+import { OpenAiCodexUsagePanel } from "./OpenAiCodexUsagePanel"
 import { PermissionModal } from "./PermissionModal"
 import { SlashCommandMenu } from "./SlashCommandMenu"
 import { ThinkingIndicator } from "./ThinkingIndicator"
@@ -793,6 +794,15 @@ export const ChatView: React.FC<ChatViewProps> = ({
 						setTextInput(`@${skillPath} `)
 						setCursorPos(skillPath.length + 2)
 					}}
+				/>
+			)}
+
+			{activePanel?.type === "usage" && (
+				<OpenAiCodexUsagePanel
+					controller={ctrl}
+					isAuthenticated={taskState.openAiCodexIsAuthenticated === true}
+					onClose={() => setActivePanel(null)}
+					snapshot={taskState.openAiCodexUsage}
 				/>
 			)}
 

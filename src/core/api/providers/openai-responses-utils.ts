@@ -148,17 +148,26 @@ export async function* parseSseResponse(body: ReadableStream<Uint8Array>): Async
 		reader.releaseLock()
 	}
 }
+export interface ProcessResponsesEventsOptions {
+	onRateLimits?: (event: unknown) => void
+}
+
+
 export async function* processResponsesEvents(
 	stream: AsyncIterable<OpenAI.Responses.ResponseStreamEvent>,
 	modelInfo: ModelInfo,
+	options: ProcessResponsesEventsOptions = {},
 ): AsyncGenerator<any> {
 	const functionCallByItemId = new Map<string, { call_id?: string; name?: string; id?: string }>()
 
 	for await (const chunk of stream) {
+		if ((chunk as { type?: string }).type === "codex.rate_limits") {
+			options.onRateLimits?.(chunk)
+			continue
+		}
 		yield* processResponseEvent(chunk, functionCallByItemId, modelInfo)
 	}
 }
-
 // Dispatches a single Responses API stream event to the appropriate handler.
 async function* processResponseEvent(
 	chunk: any,

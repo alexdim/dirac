@@ -1,4 +1,5 @@
 import { StateManager } from "@core/storage/StateManager"
+import { openAiCodexUsageService } from "@/integrations/openai-codex/OpenAiCodexUsageService"
 import { githubCopilotAuthManager } from "@/integrations/github-copilot/auth"
 
 /** Gathers OAuth/auth status for OpenAI Codex and GitHub Copilot integrations. */
@@ -7,6 +8,7 @@ export async function assembleAuthState(stateManager: StateManager) {
 		return {
 			openAiCodexIsAuthenticated: undefined,
 			openAiCodexEmail: undefined,
+			openAiCodexUsage: undefined,
 			githubCopilotIsAuthenticated: undefined,
 			githubCopilotEmail: undefined,
 			githubCopilotModels: undefined,
@@ -18,6 +20,7 @@ export async function assembleAuthState(stateManager: StateManager) {
 	return {
 		openAiCodexIsAuthenticated: await openAiCodexOAuthManager.isAuthenticated(),
 		openAiCodexEmail: (await openAiCodexOAuthManager.getEmail()) ?? undefined,
+		openAiCodexUsage: openAiCodexUsageService.getSnapshot(),
 		githubCopilotIsAuthenticated: await githubCopilotAuthManager.isAuthenticated(),
 		githubCopilotEmail: (await githubCopilotAuthManager.getEmail()) ?? undefined,
 		githubCopilotModels,

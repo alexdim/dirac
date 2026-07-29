@@ -183,6 +183,9 @@ export class ModelsServiceClient extends ProtoBusClient {
 	static async signOutOpenAiCodex(request: proto.dirac.EmptyRequest): Promise<proto.dirac.Empty> {
 		return this.makeUnaryRequest("signOutOpenAiCodex", request, proto.dirac.EmptyRequest.toJSON, proto.dirac.Empty.fromJSON)
 	}
+	static async refreshOpenAiCodexUsage(request: proto.dirac.EmptyRequest): Promise<proto.dirac.OpenAiCodexUsage> {
+		return this.makeUnaryRequest("refreshOpenAiCodexUsage", request, proto.dirac.EmptyRequest.toJSON, proto.dirac.OpenAiCodexUsage.fromJSON)
+	}
 	static async refreshGroqModelsRpc(request: proto.dirac.EmptyRequest): Promise<proto.dirac.OpenRouterCompatibleModelInfo> {
 		return this.makeUnaryRequest("refreshGroqModelsRpc", request, proto.dirac.EmptyRequest.toJSON, proto.dirac.OpenRouterCompatibleModelInfo.fromJSON)
 	}

@@ -2,6 +2,7 @@ import { DEFAULT_AUTO_APPROVAL_SETTINGS } from "@shared/AutoApprovalSettings"
 import { DEFAULT_BROWSER_SETTINGS } from "@shared/BrowserSettings"
 import { Environment } from "@shared/config-types"
 import type { DiracMessage, ExtensionState } from "@shared/ExtensionMessage"
+import type { OpenAiCodexUsageSnapshot } from "@shared/openai-codex-usage"
 import { SkillMetadata } from "@shared/skills"
 import type { ToolMetadata } from "@shared/ExtensionMessage"
 import { DEFAULT_PLATFORM } from "@shared/ExtensionMessage"
@@ -19,6 +20,7 @@ import {
 } from "@shared/api"
 import type { ModelProviderPreset } from "@shared/api"
 import { fromProtobufModels } from "@shared/proto-conversions/models/typeConversion"
+import { fromProtobufOpenAiCodexUsage } from "@shared/proto-conversions/openai-codex-usage"
 import {
 	OpenAiModelsRequest,
 	type OpenRouterEndpoint,
@@ -70,6 +72,10 @@ interface SettingsState {
 	githubCopilotEmail?: string
 	openAiCodexIsAuthenticated: boolean
 	openAiCodexEmail?: string
+	openAiCodexUsage?: OpenAiCodexUsageSnapshot
+	openAiCodexUsageRefreshing: boolean
+	openAiCodexUsageRefreshError?: string
+	refreshOpenAiCodexUsage: (force?: boolean) => Promise<void>
 	autoApprovalSettings: ExtensionState["autoApprovalSettings"]
 	browserSettings: ExtensionState["browserSettings"]
 	preferredLanguage: string
@@ -177,6 +183,8 @@ interface SettingsState {
 	setHuggingFaceModels: (models: any) => void
 	setRequestyModels: (models: any) => void
 }
+
+let openAiCodexUsageRefreshGeneration = 0
 
 export const useSettingsStore = create<SettingsState>((set, get) => ({
 	autoApprovalSettings: DEFAULT_AUTO_APPROVAL_SETTINGS,
@@ -390,6 +398,41 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
 	githubCopilotEmail: undefined,
 	openAiCodexIsAuthenticated: false,
 	openAiCodexEmail: undefined,
+	openAiCodexUsage: undefined,
+	openAiCodexUsageRefreshing: false,
+	openAiCodexUsageRefreshError: undefined,
+	refreshOpenAiCodexUsage: async (force = false) => {
+		const current = get()
+		if (current.openAiCodexUsageRefreshing) return
+
+		const now = Date.now()
+		const quotaFetchedAt = current.openAiCodexUsage?.quotaFetchedAt ?? 0
+		const activityFetchedAt = current.openAiCodexUsage?.activityFetchedAt ?? 0
+		const quotaIsFresh = quotaFetchedAt > 0 && now - quotaFetchedAt < 60_000
+		const activityIsFresh = activityFetchedAt > 0 && now - activityFetchedAt < 60_000
+		if (!force && quotaIsFresh && activityIsFresh) return
+
+		const refreshGeneration = openAiCodexUsageRefreshGeneration
+		set({ openAiCodexUsageRefreshing: true, openAiCodexUsageRefreshError: undefined })
+		try {
+			const response = await ModelsServiceClient.refreshOpenAiCodexUsage(EmptyRequest.create({}))
+			if (refreshGeneration !== openAiCodexUsageRefreshGeneration) return
+			set({
+				openAiCodexUsage: fromProtobufOpenAiCodexUsage(response),
+				openAiCodexUsageRefreshError: undefined,
+			})
+		} catch (error) {
+			if (refreshGeneration !== openAiCodexUsageRefreshGeneration) return
+			set({
+				openAiCodexUsageRefreshError:
+					error instanceof Error ? error.message : "ChatGPT usage is temporarily unavailable",
+			})
+		} finally {
+			if (refreshGeneration === openAiCodexUsageRefreshGeneration) {
+				set({ openAiCodexUsageRefreshing: false })
+			}
+		}
+	},
 
 	triggerNativeToolCall: false,
 	diracMessages: [],
@@ -478,9 +521,26 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
 	setSettings: (settings) =>
 		set((state) => {
 			const pendingApiConfigurationUpdates = settings.pendingApiConfigurationUpdates ?? state.pendingApiConfigurationUpdates
+			const didSignOutFromOpenAiCodex = settings.openAiCodexIsAuthenticated === false
+			const openAiCodexAccountChanged =
+				settings.openAiCodexEmail !== undefined &&
+				state.openAiCodexEmail !== undefined &&
+				settings.openAiCodexEmail !== state.openAiCodexEmail
+			const hasIncomingOpenAiCodexUsage = settings.openAiCodexUsage !== undefined
+			const shouldClearOpenAiCodexUsage =
+				didSignOutFromOpenAiCodex || (openAiCodexAccountChanged && !hasIncomingOpenAiCodexUsage)
+			if (didSignOutFromOpenAiCodex || openAiCodexAccountChanged) openAiCodexUsageRefreshGeneration += 1
 			return {
 				...state,
 				...settings,
+				...(shouldClearOpenAiCodexUsage
+					? {
+						...(didSignOutFromOpenAiCodex ? { openAiCodexEmail: undefined } : {}),
+						openAiCodexUsage: undefined,
+						openAiCodexUsageRefreshError: undefined,
+						openAiCodexUsageRefreshing: false,
+					}
+					: {}),
 				pendingApiConfigurationUpdates,
 				apiConfiguration:
 					settings.apiConfiguration !== undefined

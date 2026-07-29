@@ -3,6 +3,7 @@ import { Box, Text, useInput } from "ink"
 import Spinner from "ink-spinner"
 import React, { useCallback, useEffect, useRef, useState } from "react"
 import { openAiCodexOAuthManager } from "@/integrations/openai-codex/oauth"
+import { openAiCodexUsageService } from "@/integrations/openai-codex/OpenAiCodexUsageService"
 import { openExternal } from "@/utils/env"
 import { COLORS } from "../constants/colors"
 import { useStdinContext } from "../context/StdinContext"
@@ -54,6 +55,7 @@ export const OpenAiCodexDeviceAuthView: React.FC<OpenAiCodexDeviceAuthViewProps>
 				data.interval ?? 5,
 				abortController.signal,
 			)
+			openAiCodexUsageService.clear()
 			if (!isActiveRef.current) return
 			setStep("success")
 			completionTimeoutRef.current = setTimeout(() => {

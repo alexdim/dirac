@@ -39,6 +39,7 @@ import { ExternalDiracWebviewProvider } from "@/hosts/external/ExternalWebviewPr
 import { HostProvider } from "@/hosts/host-provider.js"
 import { FileEditProvider } from "@/integrations/editor/FileEditProvider"
 import { openAiCodexOAuthManager } from "@/integrations/openai-codex/oauth"
+import { openAiCodexUsageService } from "@/integrations/openai-codex/OpenAiCodexUsageService"
 import { StandaloneTerminalManager } from "@/integrations/terminal/index.js"
 import { Logger } from "@/shared/services/Logger.js"
 import type { Settings } from "@/shared/storage/state-keys"
@@ -2091,12 +2092,14 @@ export class DiracAgent implements acp.Agent {
 		const authorizationUrl = openAiCodexOAuthManager.startAuthorizationFlow()
 		await openUrlInBrowser(authorizationUrl)
 		await openAiCodexOAuthManager.waitForCallback()
+		openAiCodexUsageService.clear()
 		return {}
 	}
 
 	async logout(): Promise<void> {
 		openAiCodexOAuthManager.cancelAuthorizationFlow()
 		await openAiCodexOAuthManager.clearCredentials()
+		openAiCodexUsageService.clear()
 	}
 
 	private async emitCurrentModeUpdate(sessionId: string): Promise<void> {
