@@ -20,6 +20,18 @@ function createSteerableTask() {
 		getDiracMessages: sinon.stub().callsFake(() => messages),
 		updateDiracMessage: sinon.stub().callsFake(async (index: number, update: any) => Object.assign(messages[index], update)),
 	}
+
+	task.messageStateHandler.appendToLastApiConversationUserMessage = sinon.stub().callsFake(async (contentBlock: any) => {
+		const lastMessage = task.apiConversationHistory.at(-1)
+		if (!lastMessage || lastMessage.role !== "user") throw new Error("missing user message")
+		if (typeof lastMessage.content === "string") {
+			lastMessage.content = [{ type: "text", text: lastMessage.content }, contentBlock]
+		} else {
+			lastMessage.content.push(contentBlock)
+		}
+		return lastMessage
+	})
+	task.apiConversationHistory = []
 	task.postStateToWebview = sinon.stub().resolves()
 	return { task, messages }
 }
@@ -47,20 +59,23 @@ describe("Task steering inbox", () => {
 		await task.enqueueSteeringMessage("Second & message")
 
 		const claim = await task.claimSteeringMessages()
-		assert.deepEqual(claim.messages.map((message: any) => message.text), ["First <message>", "Second & message"])
+		assert.deepEqual(
+			claim.messages.map((message: any) => message.text),
+			["First <message>", "Second & message"],
+		)
 		const formatted = formatSteeringMessages(claim.messages)
 		assert.ok(formatted.includes("<steering_message>First &lt;message&gt;</steering_message>"))
 		assert.ok(formatted.includes("<steering_message>Second &amp; message</steering_message>"))
 
 		await task.commitSteeringClaim(claim.id)
-		assert.deepEqual(task.taskState.steeringMessages.map((message: any) => message.deliveryState), [
-			SteeringDeliveryState.SENT,
-			SteeringDeliveryState.SENT,
-		])
-		assert.deepEqual(messages.map((message) => message.content.steering), [
-			{ status: SteeringTranscriptStatus.SENT },
-			{ status: SteeringTranscriptStatus.SENT },
-		])
+		assert.deepEqual(
+			task.taskState.steeringMessages.map((message: any) => message.deliveryState),
+			[SteeringDeliveryState.SENT, SteeringDeliveryState.SENT],
+		)
+		assert.deepEqual(
+			messages.map((message) => message.content.steering),
+			[{ status: SteeringTranscriptStatus.SENT }, { status: SteeringTranscriptStatus.SENT }],
+		)
 	})
 
 	it("rolls a failed request claim back while leaving later guidance queued", async () => {
@@ -72,10 +87,10 @@ describe("Task steering inbox", () => {
 
 		await task.rollbackSteeringClaim(claim.id)
 
-		assert.deepEqual(task.taskState.steeringMessages.map((message: any) => message.deliveryState), [
-			SteeringDeliveryState.QUEUED,
-			SteeringDeliveryState.QUEUED,
-		])
+		assert.deepEqual(
+			task.taskState.steeringMessages.map((message: any) => message.deliveryState),
+			[SteeringDeliveryState.QUEUED, SteeringDeliveryState.QUEUED],
+		)
 	})
 
 	it("restores only queued steering from transcript metadata", () => {
@@ -115,7 +130,6 @@ describe("Task steering inbox", () => {
 			},
 		])
 	})
-
 
 	it("queued steering supersedes an uncommitted attempt completion", async () => {
 		const { task } = createSteerableTask()
@@ -157,5 +171,26 @@ describe("Task steering inbox", () => {
 		assert.equal(task.taskState.steeringMessages.length, 1)
 	})
 
+	it("attaches queued steering to the next outbound tool-result request", async () => {
+		const { task, messages } = createSteerableTask()
+		const toolResult = { type: "tool_result", tool_use_id: "tool-1", content: "tool output" }
+		const persistedUserMessage = { role: "user", content: [toolResult] }
+		const outboundUserMessage = { role: "user", content: [toolResult] }
+		task.apiConversationHistory.push(persistedUserMessage)
 
+		await task.enqueueSteeringMessage("Use the enum helper")
+		await task.appendQueuedSteeringToNextApiRequest([outboundUserMessage])
+
+		assert.equal(persistedUserMessage.content[0], toolResult)
+		assert.equal(outboundUserMessage.content[0], toolResult)
+		assert.ok(
+			(persistedUserMessage.content.at(-1) as any).text.includes(
+				"<steering_message>Use the enum helper</steering_message>",
+			),
+		)
+		assert.ok(
+			(outboundUserMessage.content.at(-1) as any).text.includes("<steering_message>Use the enum helper</steering_message>"),
+		)
+		assert.deepEqual(messages[0].content.steering, { status: SteeringTranscriptStatus.SENT })
+	})
 })

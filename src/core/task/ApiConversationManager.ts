@@ -10,7 +10,6 @@ import { DiracContent, DiracStorageMessage } from "@shared/messages/content"
 import { Logger } from "@shared/services/Logger"
 import { getAutoCondenseContextLimit } from "@shared/context-management"
 import { ApiConversationManagerDependencies } from "./types/api-conversation-manager"
-import { formatSteeringMessages } from "./steering"
 
 export class ApiConversationManager {
 	constructor(private dependencies: ApiConversationManagerDependencies) {}
@@ -222,11 +221,6 @@ export class ApiConversationManager {
 			this.dependencies.onContextCompacted?.()
 		}
 
-		const steeringClaim = params.shouldCompact ? undefined : await this.dependencies.claimSteeringMessages()
-		if (steeringClaim) {
-			userContent.push({ type: "text", text: formatSteeringMessages(steeringClaim.messages) })
-		}
-
 		// getting verbose details is an expensive operation, it uses globby to top-down build file structure of project which for large projects can take a few seconds
 		// for the best UX we show a placeholder api_req_started message with a loading spinner as this happens
 		const apiReqId = `api-req-${Date.now()}`
@@ -242,10 +236,8 @@ export class ApiConversationManager {
 				ts: Date.now(),
 			})
 		} catch (error) {
-			if (steeringClaim) await this.dependencies.rollbackSteeringClaim(steeringClaim.id)
 			throw error
 		}
-		if (steeringClaim) await this.dependencies.commitSteeringClaim(steeringClaim.id)
 		telemetryService.captureConversationTurnEvent(
 			this.dependencies.ulid,
 			params.providerId,

@@ -61,7 +61,13 @@ import {
 } from "@shared/ExtensionMessage"
 import { HistoryItem } from "@shared/HistoryItem"
 import { DEFAULT_LANGUAGE_SETTINGS, getLanguageKey, LanguageDisplay } from "@shared/Languages"
-import { DiracContent, DiracTextContentBlock, DiracToolResponseContent, DiracUserContent } from "@shared/messages/content"
+import {
+	DiracContent,
+	DiracStorageMessage,
+	DiracTextContentBlock,
+	DiracToolResponseContent,
+	DiracUserContent,
+} from "@shared/messages/content"
 import { DiracMessageModelInfo } from "@shared/messages/metrics"
 import { ShowMessageType } from "@shared/proto/index.host"
 import { Logger } from "@shared/services/Logger"
@@ -96,6 +102,7 @@ import { StreamResponseHandler } from "./StreamResponseHandler"
 import { TaskMessenger } from "./TaskMessenger"
 import { TaskState } from "./TaskState"
 import {
+	formatSteeringMessages,
 	restoreQueuedSteeringMessages,
 	SteeringDeliveryState,
 	type SteeringClaim,
@@ -162,12 +169,9 @@ export class Task {
 		if (this.taskState.completionCommitted) return false
 		if (this.taskState.abort || this.taskState.pendingTaskReplacement) return false
 		if (this.taskState.waitingCardIds.length > 0) return false
-		return ![
-			TaskStatus.IDLE,
-			TaskStatus.COMPLETED,
-			TaskStatus.CANCELLED,
-			TaskStatus.CANCELLING,
-		].includes(this.taskState.status)
+		return ![TaskStatus.IDLE, TaskStatus.COMPLETED, TaskStatus.CANCELLED, TaskStatus.CANCELLING].includes(
+			this.taskState.status,
+		)
 	}
 
 	public async enqueueSteeringMessage(text: string): Promise<string> {
@@ -206,7 +210,6 @@ export class Task {
 		await this.postStateToWebview()
 		return steeringMessage.transcriptMessageId
 	}
-
 
 	private async claimSteeringMessages(): Promise<SteeringClaim | undefined> {
 		return this.withStateLock(() => {
@@ -280,6 +283,36 @@ export class Task {
 				message.claimId = undefined
 			}
 		})
+	}
+
+	private async appendQueuedSteeringToNextApiRequest(outboundHistory: DiracStorageMessage[]): Promise<void> {
+		const steeringClaim = await this.claimSteeringMessages()
+		if (!steeringClaim) return
+
+		const steeringBlock: DiracTextContentBlock = {
+			type: "text",
+			text: formatSteeringMessages(steeringClaim.messages),
+		}
+		const outboundUserMessage = outboundHistory.at(-1)
+		if (!outboundUserMessage || outboundUserMessage.role !== "user") {
+			await this.rollbackSteeringClaim(steeringClaim.id)
+			throw new Error("Cannot steer a model request without a final user message")
+		}
+
+		try {
+			const persistedUserMessage = await this.messageStateHandler.appendToLastApiConversationUserMessage(steeringBlock)
+			if (outboundUserMessage !== persistedUserMessage) {
+				if (typeof outboundUserMessage.content === "string") {
+					outboundUserMessage.content = [{ type: "text", text: outboundUserMessage.content }, steeringBlock]
+				} else {
+					outboundUserMessage.content.push(steeringBlock)
+				}
+			}
+			await this.commitSteeringClaim(steeringClaim.id)
+		} catch (error) {
+			await this.rollbackSteeringClaim(steeringClaim.id)
+			throw error
+		}
 	}
 
 	private async commitAttemptCompletion(): Promise<boolean> {
@@ -755,9 +788,6 @@ export class Task {
 			cancelTask: this.cancelTask,
 			runUserPromptSubmitHook: this.runUserPromptSubmitHook.bind(this),
 			onContextCompacted: () => this.contextCompactionObserver?.(),
-			claimSteeringMessages: this.claimSteeringMessages.bind(this),
-			commitSteeringClaim: this.commitSteeringClaim.bind(this),
-			rollbackSteeringClaim: this.rollbackSteeringClaim.bind(this),
 		})
 
 		this.responseProcessor = new ResponseProcessor({
@@ -1085,7 +1115,6 @@ export class Task {
 		this.taskState.steeringMessages = restoreQueuedSteeringMessages(this.messageStateHandler.getDiracMessages())
 	}
 
-
 	public async resumeTaskFromHistory() {
 		await this.toolExecutor.refreshToolsForTask()
 		return this.lifecycleManager.resumeTaskFromHistory()
@@ -1222,7 +1251,7 @@ export class Task {
 			}
 			// Ensure the artifact dir is git-ignored so debug dumps don't get committed.
 			const gitignorePath = path.join(writeDir, ".gitignore")
-			await fs.writeFile(gitignorePath, "*\n!.gitignore\n", "utf8").catch(() => { })
+			await fs.writeFile(gitignorePath, "*\n!.gitignore\n", "utf8").catch(() => {})
 
 			const debugPath = path.join(writeDir, `task-${this.taskId}-debug.md`)
 
@@ -1448,7 +1477,7 @@ export class Task {
 		if (!useAutoCondense) {
 			const lastMessage =
 				contextManagementMetadata.truncatedConversationHistory[
-				contextManagementMetadata.truncatedConversationHistory.length - 1
+					contextManagementMetadata.truncatedConversationHistory.length - 1
 				]
 			if (lastMessage && lastMessage.role === "user") {
 				const notice = formatResponse.contextTruncationNotice()
@@ -1783,6 +1812,8 @@ export class Task {
 			this.taskState.activeVoiceStreamId = undefined
 		}
 
+		await this.appendQueuedSteeringToNextApiRequest(contextManagementMetadata.truncatedConversationHistory)
+
 		const stream = this.api.createMessage(
 			systemPrompt,
 			contextManagementMetadata.truncatedConversationHistory as any,
@@ -1860,7 +1891,7 @@ export class Task {
 		if (providerId && model.id) {
 			try {
 				await this.modelContextTracker.recordModelUsage(providerId, model.id, mode)
-			} catch { }
+			} catch {}
 		}
 
 		const modelInfo: DiracMessageModelInfo = {
@@ -1983,9 +2014,10 @@ export class Task {
 							type: "text",
 							text:
 								assistantMessage +
-								`\n\n[${cancelReason === "streaming_failed"
-									? "Response interrupted by API Error"
-									: "Response interrupted by user"
+								`\n\n[${
+									cancelReason === "streaming_failed"
+										? "Response interrupted by API Error"
+										: "Response interrupted by user"
 								}]`,
 						},
 					],
