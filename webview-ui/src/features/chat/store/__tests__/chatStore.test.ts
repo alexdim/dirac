@@ -1,6 +1,26 @@
-import type { DiracMessage } from "@shared/ExtensionMessage"
+import { CardKind, CardStatus, type DiracMessage, DiracMessageType } from "@shared/ExtensionMessage"
 import { act, renderHook } from "@testing-library/react"
 import { useChatStore } from "../chatStore"
+
+function permissionCardMessage(status: CardStatus, collapsed: boolean): DiracMessage {
+	return {
+		id: "message-1",
+		ts: 1,
+		content: {
+			type: DiracMessageType.CARD,
+			card: {
+				id: "card-1",
+				kind: CardKind.GENERIC,
+				header: "Execute: git add .",
+				status,
+				body: "git add .",
+				renderType: "text",
+				requireApproval: true,
+				collapsed,
+			},
+		},
+	}
+}
 
 describe("useChatStore", () => {
 	beforeEach(() => {
@@ -48,5 +68,27 @@ describe("useChatStore", () => {
 
 		expect(result.current.cardCollapsedStates).toEqual({})
 		expect(result.current.cardUserToggledStates).toEqual({})
+	})
+
+	it("forces a resolved permission card closed even when the user opened it while pending", () => {
+		const { setDiracMessages, setCardCollapsedState } = useChatStore.getState()
+		setDiracMessages([permissionCardMessage(CardStatus.WAITING_FOR_INPUT, false)])
+		setCardCollapsedState("card-1", false, true)
+
+		useChatStore.getState().setDiracMessages([permissionCardMessage(CardStatus.SUCCESS, true)])
+
+		expect(useChatStore.getState().cardCollapsedStates["card-1"]).toBe(true)
+		expect(useChatStore.getState().cardUserToggledStates["card-1"]).toBe(false)
+	})
+
+	it("preserves a user reopening a permission card after it was resolved", () => {
+		const resolvedCard = permissionCardMessage(CardStatus.SUCCESS, true)
+		useChatStore.getState().setDiracMessages([resolvedCard])
+		useChatStore.getState().setCardCollapsedState("card-1", false, true)
+
+		useChatStore.getState().setDiracMessages([resolvedCard])
+
+		expect(useChatStore.getState().cardCollapsedStates["card-1"]).toBe(false)
+		expect(useChatStore.getState().cardUserToggledStates["card-1"]).toBe(true)
 	})
 })

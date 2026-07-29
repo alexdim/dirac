@@ -1,7 +1,7 @@
 import { strict as assert } from "node:assert"
+import { CardStatus, DiracMessageType } from "@shared/ExtensionMessage"
 import { describe, it } from "mocha"
 import sinon from "sinon"
-import { DiracMessageType } from "@shared/ExtensionMessage"
 import { TaskMessenger } from "../TaskMessenger"
 
 function createMessenger() {
@@ -52,5 +52,19 @@ describe("TaskMessenger text authorship", () => {
 
 		assert.equal(messages[0].content.type, DiracMessageType.MARKDOWN)
 		assert.equal(messages[0].content.role, "user")
+	})
+
+	it("collapses approval cards when they reach a final status", async () => {
+		const { messenger, messages } = createMessenger()
+		const card = await messenger.createCard({
+			header: "Execute: git add .",
+			requireApproval: true,
+			collapsed: false,
+		})
+
+		await card.finalize(CardStatus.CANCELLED)
+
+		assert.equal(messages[0].content.card.status, CardStatus.CANCELLED)
+		assert.equal(messages[0].content.card.collapsed, true)
 	})
 })

@@ -1,14 +1,14 @@
+import { DiracAskResponse } from "@shared/WebviewMessage"
 import {
+	ActionButton,
+	Card,
+	CardLocation,
 	CardStatus,
+	CleanupStrategy,
 	ICardHandle as IProtocolCardHandle,
 	RenderType,
-	ActionButton,
-	CardLocation,
-	CleanupStrategy,
-	Card,
 } from "../../../../shared/ExtensionMessage"
-import { ICardHandle, CardParams } from "../interfaces/IToolEnvironment"
-import { DiracAskResponse } from "@shared/WebviewMessage"
+import { CardParams, ICardHandle } from "../interfaces/IToolEnvironment"
 
 export class CardHandle implements ICardHandle {
 	public header: string
@@ -126,6 +126,9 @@ export class CardHandle implements ICardHandle {
 	public async finalize(status: CardStatus, doNotAutoCollapse?: boolean): Promise<void> {
 		this.status = status
 		this.endTime = Date.now()
+		if (this.requireApproval) {
+			this.collapsed = true
+		}
 		if (doNotAutoCollapse) {
 			this.do_not_auto_collapse = true
 		}

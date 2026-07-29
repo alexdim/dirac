@@ -1,24 +1,21 @@
-import { DiracAskResponse } from "@shared/WebviewMessage"
-
-import { DiracDefaultTool } from "../../../../../shared/tools"
-import { IDiracTool } from "../../interfaces/IDiracTool"
-import { IToolEnvironment } from "../../interfaces/IToolEnvironment"
 import { formatResponse } from "@core/formatResponse"
-import { CardStatus } from "../../../../../shared/ExtensionMessage"
+import { DiracAskResponse } from "@shared/WebviewMessage"
 import { DiracIcon } from "@/shared/icons"
-import { SurfaceType } from "../../interfaces/SurfaceType"
-import { DiracToolSpec } from "../../../../../shared/tools"
-import { isSafeCommand } from "../../utils/CommandSafetyChecker"
-import { WorkspacePathAdapter } from "../../../../workspace/WorkspacePathAdapter"
 import { truncateHeadTail } from "../../../../../shared/content-limits"
+import { CardStatus } from "../../../../../shared/ExtensionMessage"
+import { DiracDefaultTool, DiracToolSpec } from "../../../../../shared/tools"
+import { WorkspacePathAdapter } from "../../../../workspace/WorkspacePathAdapter"
+import { IDiracTool } from "../../interfaces/IDiracTool"
+import { ICardHandle, IToolEnvironment } from "../../interfaces/IToolEnvironment"
+import { SurfaceType } from "../../interfaces/SurfaceType"
+import { ToolSkippedByUserMessage } from "../../types/ToolSkippedByUserMessage"
+import { isSafeCommand } from "../../utils/CommandSafetyChecker"
 import { resolveCommandTimeoutSeconds } from "../../utils/CommandTimeoutUtils"
 
 import { shortenCommandForDisplay } from "./path-display"
 
 const MAX_PATH_LENGTH = 255
 const MAX_COMMAND_OUTPUT_SIZE = 10 * 1024
-
-
 
 export const execute_command_spec: DiracToolSpec = {
 	id: DiracDefaultTool.BASH,
@@ -64,7 +61,7 @@ export class ExecuteCommandTool implements IDiracTool {
 		private autoApprover: any,
 		private workspaceManager: any,
 		private isMultiRootEnabled: boolean,
-	) { }
+	) {}
 
 	public spec(): DiracToolSpec {
 		return execute_command_spec
@@ -147,49 +144,78 @@ export class ExecuteCommandTool implements IDiracTool {
 		commands: { command: string; displayName: string; language?: string }[],
 		env: IToolEnvironment,
 	): Promise<{ approved: boolean; message?: string }> {
+		const label = this.permissionCardLabel(commands, env.config.cwd)
 		const card = !env.config.isSubagentExecution
 			? await env.ui.createCard({
-				header:
-					commands.length === 1
-						? `Execute: ${shortenCommandForDisplay(commands[0].displayName, env.config.cwd)}`
-						: `Execute ${commands.length} commands?`,
-				status: CardStatus.WAITING_FOR_INPUT,
-				icon: DiracIcon.COMMAND,
-				requireApproval: true,
-				renderType: "markdown",
-				maxHeight: 10000, // setting it to a high number to prevent scroll in a scroll
+					header: commands.length === 1 ? `Execute: ${label}` : `Execute ${label}?`,
+					status: CardStatus.WAITING_FOR_INPUT,
+					icon: DiracIcon.COMMAND,
+					requireApproval: true,
+					renderType: "markdown",
+					maxHeight: 10000, // setting it to a high number to prevent scroll in a scroll
 
-				rawInput: { commands: commands.map(({ command, displayName, language }) => ({ command, displayName, language })) },
-				body: commands
-					.map((c) => {
-						const lang = c.language || "bash"
-						const header = c.displayName !== c.command ? `**${c.displayName}**\n` : ""
-						return `${header}\`\`\`${lang}\n${shortenCommandForDisplay(c.command, env.config.cwd)}\n\`\`\``
-					})
-					.join("\n"),
-				collapsed: false,
-			})
+					rawInput: {
+						commands: commands.map(({ command, displayName, language }) => ({ command, displayName, language })),
+					},
+					body: commands
+						.map((c) => {
+							const lang = c.language || "bash"
+							const header = c.displayName !== c.command ? `**${c.displayName}**\n` : ""
+							return `${header}\`\`\`${lang}\n${shortenCommandForDisplay(c.command, env.config.cwd)}\n\`\`\``
+						})
+						.join("\n"),
+					collapsed: false,
+				})
 			: undefined
 
 		if (!card) {
 			return { approved: false }
 		}
-		const interaction = await card.waitForInteraction()
+
+		let interaction: Awaited<ReturnType<ICardHandle["waitForInteraction"]>>
+		try {
+			interaction = await card.waitForInteraction()
+		} catch (error) {
+			if (error instanceof ToolSkippedByUserMessage) {
+				await this.resolvePermissionCard(card, "Skipped", label, CardStatus.SKIPPED, "↩ Skipped by user")
+			} else {
+				await this.resolvePermissionCard(card, "Cancelled", label, CardStatus.CANCELLED)
+			}
+			throw error
+		}
+
 		if (interaction.action === DiracAskResponse.MESSAGE) {
 			if (interaction.text) {
 				await env.ui.upsertText(interaction.text, false, "user")
 			}
-			await card.update({ body: `↩ Skipped by user` })
-			await card.finalize(CardStatus.SKIPPED)
+			await this.resolvePermissionCard(card, "Skipped", label, CardStatus.SKIPPED, "↩ Skipped by user")
 			return { approved: false, message: interaction.text }
 		}
 		if (interaction.action !== DiracAskResponse.APPROVE) {
-			await card.update({ body: `Execution denied by user.` })
-			await card.finalize(CardStatus.CANCELLED)
+			await this.resolvePermissionCard(card, "Rejected", label, CardStatus.CANCELLED, "Execution denied by user.")
 			return { approved: false, message: interaction.text }
 		}
-		await card.finalize(CardStatus.SUCCESS)
+		await this.resolvePermissionCard(card, "Approved", label, CardStatus.SUCCESS)
 		return { approved: true }
+	}
+
+	private permissionCardLabel(commands: { command: string; displayName: string; language?: string }[], cwd?: string): string {
+		return commands.length === 1 ? shortenCommandForDisplay(commands[0].displayName, cwd) : `${commands.length} commands`
+	}
+
+	private async resolvePermissionCard(
+		card: ICardHandle,
+		outcome: "Approved" | "Rejected" | "Skipped" | "Cancelled",
+		label: string,
+		status: CardStatus,
+		body?: string,
+	): Promise<void> {
+		await card.update({
+			header: `${outcome}: ${label}`,
+			collapsed: true,
+			...(body === undefined ? {} : { body }),
+		})
+		await card.finalize(status)
 	}
 
 	private async executeCommands(
@@ -226,11 +252,11 @@ export class ExecuteCommandTool implements IDiracTool {
 
 		const activeCard = !env.config.isSubagentExecution
 			? await env.ui.createCard({
-				header: header.replace("Executing command", "Executing"),
-				icon: DiracIcon.COMMAND,
-				collapsed: true,
-				rawInput: { command: cmd.command, displayName: cmd.displayName, language: cmd.language ?? "bash" },
-			})
+					header: header.replace("Executing command", "Executing"),
+					icon: DiracIcon.COMMAND,
+					collapsed: true,
+					rawInput: { command: cmd.command, displayName: cmd.displayName, language: cmd.language ?? "bash" },
+				})
 			: null
 
 		let usedWorkspaceHint = false
@@ -238,7 +264,7 @@ export class ExecuteCommandTool implements IDiracTool {
 
 		try {
 			let commandToExecute = cmd.command
-			let executionDir = undefined
+			let executionDir
 
 			if (this.isMultiRootEnabled && this.workspaceManager) {
 				const commandMatch = cmd.command.match(/^@(\w+):(.+)$/)
@@ -264,15 +290,12 @@ export class ExecuteCommandTool implements IDiracTool {
 
 			const timeoutSeconds = resolveCommandTimeoutSeconds(commandToExecute, true)
 			const commandResult = await env.system.executeCommand(commandToExecute, { timeout: timeoutSeconds })
-			const output =
-				typeof commandResult.output === "string"
-					? commandResult.output
-					: JSON.stringify(commandResult.output)
+			const output = typeof commandResult.output === "string" ? commandResult.output : JSON.stringify(commandResult.output)
 			const truncatedOutput = truncateHeadTail(output, MAX_COMMAND_OUTPUT_SIZE)
 			const commandFailed =
 				commandResult.userRejected ||
-				commandResult.signal !== undefined && commandResult.signal !== null ||
-				typeof commandResult.exitCode === "number" && commandResult.exitCode !== 0
+				(commandResult.signal !== undefined && commandResult.signal !== null) ||
+				(typeof commandResult.exitCode === "number" && commandResult.exitCode !== 0)
 
 			if (activeCard) {
 				await activeCard.update({

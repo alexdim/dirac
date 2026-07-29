@@ -1,7 +1,10 @@
 import { strict as assert } from "node:assert"
+import { CardStatus } from "@shared/ExtensionMessage"
+import { DiracAskResponse } from "@shared/WebviewMessage"
 import { describe, it } from "mocha"
-import { ExecuteCommandTool } from "../execute_command/ExecuteCommandTool"
 import sinon from "sinon"
+import { ToolSkippedByUserMessage } from "../../types/ToolSkippedByUserMessage"
+import { ExecuteCommandTool } from "../execute_command/ExecuteCommandTool"
 
 function createMocks() {
 	const diracIgnoreController = {
@@ -40,6 +43,7 @@ function createMocks() {
 	const env = {
 		ui: {
 			createCard: callbacks.createCard,
+			upsertText: sinon.stub().resolves(),
 		},
 		interaction: {
 			askPermission: sinon.stub().resolves({ approved: true }),
@@ -117,15 +121,14 @@ describe("ExecuteCommandTool", () => {
 		assert.ok((env.system.executeCommand as sinon.SinonStub).calledOnce)
 	})
 
-
 	it("records structured command input and output on its card", async () => {
 		const { tool, env, mockCard } = createMocks()
-			; (env.system.executeCommand as sinon.SinonStub).resolves({
-				userRejected: false,
-				output: "Command executed successfully (exit code 0).\nOutput:\nok",
-				exitCode: 0,
-				completed: true,
-			})
+		;(env.system.executeCommand as sinon.SinonStub).resolves({
+			userRejected: false,
+			output: "Command executed successfully (exit code 0).\nOutput:\nok",
+			exitCode: 0,
+			completed: true,
+		})
 
 		await tool.processCall({ commands: ["echo ok"] }, env as any)
 
@@ -134,32 +137,32 @@ describe("ExecuteCommandTool", () => {
 				rawInput: { command: "echo ok", displayName: "echo ok", language: "bash" },
 			}),
 		)
-		assert.ok(mockCard.update.calledWithMatch({ rawOutput: { output: sinon.match.string, exitCode: 0, userRejected: false } }))
+		assert.ok(
+			mockCard.update.calledWithMatch({ rawOutput: { output: sinon.match.string, exitCode: 0, userRejected: false } }),
+		)
 	})
 	it("does not infer failure from command-controlled output text", async () => {
 		const { tool, env, mockCard } = createMocks()
-			; (env.system.executeCommand as sinon.SinonStub).resolves({
-				userRejected: false,
-				output: "the documentation says exit code 99",
-				exitCode: 0,
-				completed: true,
-			})
+		;(env.system.executeCommand as sinon.SinonStub).resolves({
+			userRejected: false,
+			output: "the documentation says exit code 99",
+			exitCode: 0,
+			completed: true,
+		})
 
 		await tool.processCall({ commands: ["echo status"] }, env as any)
 
 		assert.ok(mockCard.finalize.calledWith("success"))
 	})
 
-
-
 	it("publishes bounded output once without streaming into the card", async () => {
 		const { tool, env, mockCard } = createMocks()
-			; (env.system.executeCommand as sinon.SinonStub).resolves({
-				userRejected: false,
-				output: "start\n" + "x".repeat(20 * 1024) + "\nend",
-				exitCode: 0,
-				completed: true,
-			})
+		;(env.system.executeCommand as sinon.SinonStub).resolves({
+			userRejected: false,
+			output: "start\n" + "x".repeat(20 * 1024) + "\nend",
+			exitCode: 0,
+			completed: true,
+		})
 
 		await tool.processCall({ commands: ["large-command"] }, env as any)
 
@@ -170,5 +173,72 @@ describe("ExecuteCommandTool", () => {
 		assert.ok(body.includes("end"))
 		assert.ok(body.includes("Output truncated"))
 		assert.ok(Buffer.byteLength(body, "utf8") < 11 * 1024)
+	})
+
+	it("labels and collapses an approved permission card", async () => {
+		const { tool, env, autoApprover, mockCard } = createMocks()
+		autoApprover.shouldAutoApproveTool.returns(false)
+
+		await tool.processCall({ commands: ["git add ."] }, env as any)
+
+		assert.ok(mockCard.update.calledWithMatch({ header: "Approved: git add .", collapsed: true }))
+		assert.ok(mockCard.finalize.calledWith(CardStatus.SUCCESS))
+	})
+
+	it("labels and collapses a rejected permission card", async () => {
+		const { tool, env, autoApprover, mockCard } = createMocks()
+		autoApprover.shouldAutoApproveTool.returns(false)
+		mockCard.waitForInteraction.resolves({ action: DiracAskResponse.REJECT })
+
+		await tool.processCall({ commands: ["git add ."] }, env as any)
+
+		assert.ok(
+			mockCard.update.calledWithMatch({
+				header: "Rejected: git add .",
+				body: "Execution denied by user.",
+				collapsed: true,
+			}),
+		)
+		assert.ok(mockCard.finalize.calledWith(CardStatus.CANCELLED))
+		assert.equal((env.system.executeCommand as sinon.SinonStub).callCount, 0)
+	})
+
+	it("labels and collapses a permission card skipped by a user message", async () => {
+		const { tool, env, autoApprover, mockCard } = createMocks()
+		autoApprover.shouldAutoApproveTool.returns(false)
+		const skipped = new ToolSkippedByUserMessage("Do something else")
+		mockCard.waitForInteraction.rejects(skipped)
+
+		await assert.rejects(() => tool.processCall({ commands: ["git add ."] }, env as any), skipped)
+
+		assert.ok(
+			mockCard.update.calledWithMatch({
+				header: "Skipped: git add .",
+				body: "↩ Skipped by user",
+				collapsed: true,
+			}),
+		)
+		assert.ok(mockCard.finalize.calledWith(CardStatus.SKIPPED))
+	})
+
+	it("labels and collapses a cancelled permission card when interaction is interrupted", async () => {
+		const { tool, env, autoApprover, mockCard } = createMocks()
+		autoApprover.shouldAutoApproveTool.returns(false)
+		const interruption = new Error("interaction interrupted")
+		mockCard.waitForInteraction.rejects(interruption)
+
+		await assert.rejects(() => tool.processCall({ commands: ["git add ."] }, env as any), interruption)
+
+		assert.ok(mockCard.update.calledWithMatch({ header: "Cancelled: git add .", collapsed: true }))
+		assert.ok(mockCard.finalize.calledWith(CardStatus.CANCELLED))
+	})
+
+	it("uses an aggregate outcome label for multiple approved commands", async () => {
+		const { tool, env, autoApprover, mockCard } = createMocks()
+		autoApprover.shouldAutoApproveTool.returns(false)
+
+		await tool.processCall({ commands: ["git add .", "git commit -m test"] }, env as any)
+
+		assert.ok(mockCard.update.calledWithMatch({ header: "Approved: 2 commands", collapsed: true }))
 	})
 })
