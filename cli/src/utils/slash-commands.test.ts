@@ -20,4 +20,12 @@ describe("executeLocalSlashCommand", () => {
 		expect(context.toggleQuietMode).toHaveBeenCalledOnce()
 		expect(context.resetInputLine).toHaveBeenCalledOnce()
 	})
+
+	it("opens the ChatGPT usage panel for /usage", () => {
+		const context = localCommandContext()
+
+		expect(executeLocalSlashCommand("usage", context)).toBe(true)
+		expect(context.setActivePanel).toHaveBeenCalledWith({ type: "usage" })
+		expect(context.resetInputLine).toHaveBeenCalledOnce()
+	})
 })

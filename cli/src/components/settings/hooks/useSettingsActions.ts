@@ -3,6 +3,7 @@ import { useCallback, useRef } from "react"
 import { StateManager } from "@/core/storage/StateManager"
 import { getProviderModelIdKey, ProviderToApiKeyMap } from "@shared/storage"
 import { openAiCodexOAuthManager } from "@/integrations/openai-codex/oauth"
+import { openAiCodexUsageService } from "@/integrations/openai-codex/OpenAiCodexUsageService"
 import { githubCopilotAuthManager } from "@/integrations/github-copilot/auth"
 import { applyProviderConfig, applyBedrockConfig } from "../../../utils/provider-config"
 import { normalizeReasoningEffort, nextReasoningEffort } from "../utils"
@@ -198,6 +199,7 @@ export function useSettingsActions({
 			])
 			cancelCodexAuthWaitRef.current = null
 			if (!completed) return
+			openAiCodexUsageService.clear()
 			await applyProviderConfig({ providerId: "openai-codex", controller })
 			setProvider("openai-codex")
 			refreshModelIds()
@@ -270,6 +272,7 @@ export function useSettingsActions({
 		if (item.type === SettingsItemType.ACTION) {
 			if (item.key === "codexSignOut") {
 				await openAiCodexOAuthManager.clearCredentials()
+				openAiCodexUsageService.clear()
 				await rebuildTaskApi()
 				return
 			}

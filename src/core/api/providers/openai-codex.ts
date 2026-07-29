@@ -6,6 +6,7 @@ import type { ChatCompletionTool } from "openai/resources/chat/completions"
 import * as os from "os"
 import { v7 as uuidv7 } from "uuid"
 import { openAiCodexOAuthManager } from "@/integrations/openai-codex/oauth"
+import { openAiCodexUsageService } from "@/integrations/openai-codex/OpenAiCodexUsageService"
 import { buildExternalBasicHeaders } from "@/services/EnvUtils"
 import { featureFlagsService } from "@/services/feature-flags"
 import { DiracStorageMessage } from "@/shared/messages/content"
@@ -242,17 +243,24 @@ export class OpenAiCodexHandler implements ApiHandler {
 					fetch, // Use shared fetch for proxy support
 				})
 
-			const stream = await client.responses.create(requestBody as OpenAI.Responses.ResponseCreateParamsStreaming, {
+			const request = client.responses.create(requestBody as OpenAI.Responses.ResponseCreateParamsStreaming, {
 				signal: this.abortController?.signal,
 				headers: codexHeaders,
 			})
+			const { data: stream, response } = await request.withResponse()
+			openAiCodexUsageService.applyResponseHeaders(response.headers)
 
 			if (typeof stream?.[Symbol.asyncIterator] !== "function") {
 				throw new Error("OpenAI SDK did not return an AsyncIterable")
 			}
 
-			yield* processResponsesEvents(stream, model.info)
+			yield* processResponsesEvents(stream, model.info, {
+				onRateLimits: (event) => openAiCodexUsageService.applyRateLimitEvent(event),
+			})
 		} catch (_sdkErr) {
+			if (_sdkErr instanceof Error && "headers" in _sdkErr && _sdkErr.headers instanceof Headers) {
+				openAiCodexUsageService.applyResponseHeaders(_sdkErr.headers)
+			}
 			// Server-side errors (429/overloaded/5xx) won't be helped by manual fetch — re-throw
 			// so the error propagates to handleApiRequestError() which surfaces it to the user.
 			if (_sdkErr instanceof Error) {
@@ -281,7 +289,9 @@ export class OpenAiCodexHandler implements ApiHandler {
 		}
 
 		try {
-			yield* processResponsesEvents(this.responsesWsManager.createResponseEvents(primaryParams), model.info)
+			yield* processResponsesEvents(this.responsesWsManager.createResponseEvents(primaryParams), model.info, {
+				onRateLimits: (event) => openAiCodexUsageService.applyRateLimitEvent(event),
+			})
 		} catch (error) {
 			throw error
 		}
@@ -309,6 +319,7 @@ export class OpenAiCodexHandler implements ApiHandler {
 			body: JSON.stringify(requestBody),
 			signal: this.abortController?.signal,
 		})
+		openAiCodexUsageService.applyResponseHeaders(response.headers)
 
 		if (!response.ok) {
 			const errorBody = await response.text().catch(() => "(unreadable)")
@@ -323,7 +334,9 @@ export class OpenAiCodexHandler implements ApiHandler {
 			throw new Error("No response body from Codex API")
 		}
 
-		yield* processResponsesEvents(parseSseResponse(response.body), model.info)
+		yield* processResponsesEvents(parseSseResponse(response.body), model.info, {
+			onRateLimits: (event) => openAiCodexUsageService.applyRateLimitEvent(event),
+		})
 	}
 	abort(): void {
 		this.responsesWsManager?.close()

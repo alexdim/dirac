@@ -41,6 +41,8 @@ service ModelsService {
   rpc authenticateOpenAiCodex(EmptyRequest) returns (Empty);
   // Signs out from OpenAI Codex
   rpc signOutOpenAiCodex(EmptyRequest) returns (Empty);
+  // Silently refreshes and returns ChatGPT subscription usage.
+  rpc refreshOpenAiCodexUsage(EmptyRequest) returns (OpenAiCodexUsage);
   // Refreshes and returns Groq models
   rpc refreshGroqModelsRpc(EmptyRequest) returns (OpenRouterCompatibleModelInfo);
   // Refreshes and returns Baseten models
@@ -51,6 +53,68 @@ service ModelsService {
   rpc refreshVercelAiGatewayModelsRpc(EmptyRequest) returns (OpenRouterCompatibleModelInfo);
   // Lazily fetches upstream endpoints for one selected OpenRouter model.
   rpc getOpenRouterEndpoints(OpenRouterEndpointsRequest) returns (OpenRouterEndpointsResponse);
+}
+
+message OpenAiCodexUsageWindow {
+  double used_percent = 1;
+  optional double window_minutes = 2;
+  optional int64 resets_at = 3;
+}
+
+message OpenAiCodexUsageBucket {
+  string limit_id = 1;
+  optional string limit_name = 2;
+  optional OpenAiCodexUsageWindow primary = 3;
+  optional OpenAiCodexUsageWindow secondary = 4;
+}
+
+message OpenAiCodexCredits {
+  bool has_credits = 1;
+  bool unlimited = 2;
+  optional string balance = 3;
+}
+
+message OpenAiCodexIndividualSpendLimit {
+  optional string source = 1;
+  string limit = 2;
+  string used = 3;
+  optional string remaining = 4;
+  double used_percent = 5;
+  double remaining_percent = 6;
+  int64 resets_at = 7;
+}
+
+message OpenAiCodexSpendControl {
+  bool reached = 1;
+  optional OpenAiCodexIndividualSpendLimit individual_limit = 2;
+}
+
+message OpenAiCodexDailyActivity {
+  string start_date = 1;
+  double tokens = 2;
+}
+
+message OpenAiCodexActivity {
+  optional double lifetime_tokens = 1;
+  optional double peak_daily_tokens = 2;
+  optional double longest_running_turn_sec = 3;
+  optional double current_streak_days = 4;
+  optional double longest_streak_days = 5;
+  repeated OpenAiCodexDailyActivity daily_usage_buckets = 6;
+}
+
+message OpenAiCodexUsage {
+  optional string plan_type = 1;
+  repeated OpenAiCodexUsageBucket rate_limits = 2;
+  optional OpenAiCodexCredits credits = 3;
+  optional OpenAiCodexSpendControl spend_control = 4;
+  optional string rate_limit_reached_type = 5;
+  optional int32 reset_credits_available = 6;
+  optional OpenAiCodexActivity activity = 7;
+  optional int64 quota_fetched_at = 8;
+  optional int64 activity_fetched_at = 9;
+  optional string quota_error = 10;
+  optional string activity_error = 11;
 }
 
 // List of VS Code LM models

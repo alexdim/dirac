@@ -20,13 +20,14 @@ export interface VisibleWindow<T> {
 
 export type LocalSlashCommandPanel =
 	| {
-			type: "settings"
-			initialMode?: "model-picker" | "featured-models" | "provider-picker"
-			initialModelKey?: "actModelId" | "planModelId"
-	  }
+		type: "settings"
+		initialMode?: "model-picker" | "featured-models" | "provider-picker"
+		initialModelKey?: "actModelId" | "planModelId"
+	}
 	| { type: "history" }
 	| { type: "help" }
 	| { type: "skills" }
+	| { type: "usage" }
 
 export interface LocalSlashCommandContext {
 	mode: string
@@ -64,6 +65,7 @@ const LOCAL_SLASH_COMMANDS: Record<string, LocalSlashCommandHandler> = {
 	models: openModelsPanel,
 	history: openPanel({ type: "history" }),
 	skills: openPanel({ type: "skills" }),
+	usage: openPanel({ type: "usage" }),
 	clear: ({ clearViewAndResetTask }) => clearViewAndResetTask(),
 	exit: ({ handleExit }) => handleExit(),
 	q: ({ handleExit }) => handleExit(),

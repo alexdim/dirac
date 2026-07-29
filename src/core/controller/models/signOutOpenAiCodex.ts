@@ -1,5 +1,6 @@
 import { Empty, EmptyRequest } from "@shared/proto/dirac/common"
 import { openAiCodexOAuthManager } from "@/integrations/openai-codex/oauth"
+import { openAiCodexUsageService } from "@/integrations/openai-codex/OpenAiCodexUsageService"
 import { Logger } from "@/shared/services/Logger"
 import type { Controller } from "../index"
 
@@ -13,6 +14,7 @@ export async function signOutOpenAiCodex(controller: Controller, _request: Empty
 	try {
 		Logger.log("[openai-codex-oauth] Signing out...")
 		await openAiCodexOAuthManager.clearCredentials()
+		openAiCodexUsageService.clear()
 
 		// Post updated state to webview
 		await controller.postStateToWebview()

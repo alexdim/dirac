@@ -98,6 +98,12 @@ export const CLI_ONLY_COMMANDS: SlashCommand[] = [
 		cliCompatible: true,
 	},
 	{
+		name: "usage",
+		description: "View ChatGPT subscription usage",
+		section: "default",
+		cliCompatible: true,
+	},
+	{
 		name: "quiet",
 		description: "Toggle card bodies for future tool output",
 		section: "default",

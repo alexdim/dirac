@@ -25,13 +25,14 @@ import { getInputStorageKey } from "../utils/chat"
 
 export type ActivePanel =
 	| {
-			type: "settings"
-			initialMode?: "model-picker" | "featured-models" | "provider-picker"
-			initialModelKey?: "actModelId" | "planModelId"
-	  }
+		type: "settings"
+		initialMode?: "model-picker" | "featured-models" | "provider-picker"
+		initialModelKey?: "actModelId" | "planModelId"
+	}
 	| { type: "history" }
 	| { type: "help" }
 	| { type: "skills" }
+	| { type: "usage" }
 	| null
 
 interface PersistedInputState {
@@ -278,8 +279,8 @@ export function useComposer({
 			.filter((item) =>
 				Boolean(
 					(item.cwdOnTaskInitialization && arePathsEqual(item.cwdOnTaskInitialization, workspacePath)) ||
-						(item.workspaceRootPath && arePathsEqual(item.workspaceRootPath, workspacePath)) ||
-						(item.shadowGitConfigWorkTree && arePathsEqual(item.shadowGitConfigWorkTree, workspacePath)),
+					(item.workspaceRootPath && arePathsEqual(item.workspaceRootPath, workspacePath)) ||
+					(item.shadowGitConfigWorkTree && arePathsEqual(item.shadowGitConfigWorkTree, workspacePath)),
 				),
 			)
 			.reverse()

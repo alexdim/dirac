@@ -26,6 +26,8 @@ import type { TaskInitializationOptions } from "./task/TaskController"
 import { fingerprintAvailableTools } from "@shared/utils/tool-fingerprint"
 import { Initializer, type InitializerConfig } from "./index-initializer"
 
+import { openAiCodexUsageService } from "@/integrations/openai-codex/OpenAiCodexUsageService"
+
 export type ControllerOptions = {
 	workspaceCwd?: string
 }
@@ -65,6 +67,8 @@ export class Controller {
 	// Debounce state broadcast — coalesce multiple per-tick calls into a single push (from main)
 	private webviewUpdateScheduled = false
 
+	private openAiCodexUsageUnsubscribe?: () => void
+
 	// Public getter for workspace manager with lazy initialization - To get workspaces when task isn't initialized (Used by file mentions)
 	async ensureWorkspaceManager(): Promise<WorkspaceRootManager | undefined> {
 		const manager = await this.workspaceController.ensureWorkspaceManager()
@@ -92,6 +96,10 @@ export class Controller {
 		Object.assign(this, this.initializerConfig)
 		this.stateManager = this.initializerConfig.stateManager
 
+		this.openAiCodexUsageUnsubscribe = openAiCodexUsageService.subscribe(() => {
+			void this.postStateToWebview()
+		})
+
 		BannerService.initialize(this)
 
 		// Clean up legacy checkpoints
@@ -114,6 +122,8 @@ export class Controller {
 	- https://github.com/microsoft/vscode-extension-samples/blob/main/webview-sample/src/extension.ts
 	*/
 	async dispose() {
+		this.openAiCodexUsageUnsubscribe?.()
+		this.openAiCodexUsageUnsubscribe = undefined
 		await this.clearTask()
 
 		Logger.error("Controller disposed")

@@ -4,6 +4,7 @@ import { DiracAskResponse } from "./WebviewMessage"
 
 import { WorkspaceRoot } from "@shared/multi-root/types"
 import type { Environment } from "../config"
+import type { OpenAiCodexUsageSnapshot } from "./openai-codex-usage"
 import { AutoApprovalSettings } from "./AutoApprovalSettings"
 import { ApiConfiguration, ModelProviderPreset } from "./api"
 import { SkillMetadata } from "./skills"
@@ -128,6 +129,7 @@ export interface ExtensionState {
 	welcomeBanners?: BannerCardData[]
 	openAiCodexIsAuthenticated?: boolean
 	openAiCodexEmail?: string
+	openAiCodexUsage?: OpenAiCodexUsageSnapshot
 	githubCopilotIsAuthenticated?: boolean
 	githubCopilotEmail?: string
 	githubCopilotModels?: Record<string, any>
