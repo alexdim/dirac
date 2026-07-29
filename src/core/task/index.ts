@@ -161,7 +161,7 @@ export class Task {
 	public canAcceptSteeringMessage(): boolean {
 		if (this.taskState.completionCommitted) return false
 		if (this.taskState.abort || this.taskState.pendingTaskReplacement) return false
-		if (this.taskState.waitingCardIds.length > 0 || this.taskState.isAwaitingPlanResponse) return false
+		if (this.taskState.waitingCardIds.length > 0) return false
 		return ![
 			TaskStatus.IDLE,
 			TaskStatus.COMPLETED,

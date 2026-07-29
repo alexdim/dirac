@@ -173,7 +173,9 @@ export const ModularChatTextArea: React.FC<ModularChatTextAreaProps> = ({
 			if (handleKeyDown(e)) return
 
 			e.preventDefault()
-			onSend?.()
+			if (!sendingDisabled) {
+				onSend?.()
+			}
 			return
 		}
 		handleKeyDown(e)

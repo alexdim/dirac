@@ -67,9 +67,6 @@ export class PlanModeRespondTool implements IDiracTool {
 		const sharedMessage = { response, options, selected: "" } satisfies DiracPlanModeResponse
 		const yoloMode = env.config.yoloModeToggled
 
-		if (!yoloMode) {
-			env.orchestration.setTaskState("isAwaitingPlanResponse", true)
-		}
 		const cardHandle = await env.ui.createCard({
 			header: PLAN_CARD_HEADER,
 			icon: DiracIcon.PLAN,
@@ -80,6 +77,11 @@ export class PlanModeRespondTool implements IDiracTool {
 			maxHeight: 10000,
 			do_not_auto_collapse: true,
 		})
+
+		if (!yoloMode) {
+			env.orchestration.setTaskState("isAwaitingPlanResponse", true)
+			await env.config.callbacks.postStateToWebview()
+		}
 
 		if (yoloMode) {
 			const wasPlanMode = env.config.mode === "plan"
@@ -98,8 +100,10 @@ export class PlanModeRespondTool implements IDiracTool {
 			)
 		}
 
-		const { text, images, files: planResponseFiles } = await cardHandle.waitForInteraction()
-		env.orchestration.setTaskState("isAwaitingPlanResponse", false)
+		const { text, images, files: planResponseFiles } = await cardHandle.waitForInteraction().finally(async () => {
+			env.orchestration.setTaskState("isAwaitingPlanResponse", false)
+			await env.config.callbacks.postStateToWebview()
+		})
 
 		const userText = text === PLAN_MODE_TOGGLE_SENTINEL ? "" : (text ?? "")
 
@@ -124,9 +128,9 @@ export class PlanModeRespondTool implements IDiracTool {
 			env.orchestration.setTaskState("didRespondToPlanAskBySwitchingMode", false)
 			return formatResponse.toolResult(
 				`[The user has switched to ACT MODE, so you may now proceed with the task.]` +
-					(userText
-						? `\n\nThe user also provided the following message when switching to ACT MODE:\n<user_message>\n${userText}\n</user_message>`
-						: ""),
+				(userText
+					? `\n\nThe user also provided the following message when switching to ACT MODE:\n<user_message>\n${userText}\n</user_message>`
+					: ""),
 				images,
 				fileContentString,
 			)

@@ -20,8 +20,7 @@ export function projectUIActionState(
 		globalButtons: [],
 		cardButtons: [],
 		sendingDisabled:
-			state?.status === TaskStatus.CANCELLING ||
-			(state !== undefined && (state.waitingCardIds.length > 0 || state.isAwaitingPlanResponse)),
+			state?.status === TaskStatus.CANCELLING || (state !== undefined && state.waitingCardIds.length > 0),
 	}
 
 	// Active card interactions must take precedence over busy task states.
@@ -54,11 +53,10 @@ export function projectUIActionState(
 	}
 
 	// 2. Active Streaming State
-	// When awaiting plan feedback, skip the Cancel button and fall through
-	// to section 4 so the card renders without action buttons.
+	// Active card interactions were handled above, so every remaining busy state is cancellable.
 	const isBusy = isBusyTaskStatus(state?.status)
 
-	if (isBusy && !state?.isAwaitingPlanResponse) {
+	if (isBusy) {
 		uiState.globalButtons.push({
 			label: "Cancel",
 			action: UIActionButtonType.CANCEL,

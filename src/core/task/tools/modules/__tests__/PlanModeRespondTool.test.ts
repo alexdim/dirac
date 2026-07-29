@@ -3,6 +3,7 @@ import { afterEach, describe, it } from "mocha"
 import sinon from "sinon"
 import { CardStatus } from "@shared/ExtensionMessage"
 import { PlanModeRespondTool } from "../plan_mode_respond/PlanModeRespondTool"
+import { ToolSkippedByUserMessage } from "../../types/ToolSkippedByUserMessage"
 
 function createMocks(mode: "plan" | "act") {
 	const card = {
@@ -11,7 +12,7 @@ function createMocks(mode: "plan" | "act") {
 		finalize: sinon.stub().resolves(),
 		waitForInteraction: sinon.stub(),
 	}
-	const state: Record<string, unknown> = { consecutiveMistakeCount: 0 }
+	const state: Record<string, unknown> = { consecutiveMistakeCount: 0, isAwaitingPlanResponse: false }
 	const env = {
 		ui: {
 			createCard: sinon.stub().resolves(card),
@@ -28,6 +29,9 @@ function createMocks(mode: "plan" | "act") {
 		config: {
 			yoloModeToggled: true,
 			mode,
+			callbacks: {
+				postStateToWebview: sinon.stub().resolves(),
+			},
 		},
 	}
 	return { card, env }
@@ -70,5 +74,40 @@ describe("PlanModeRespondTool", () => {
 		assert.equal(env.orchestration.switchToActMode.callCount, 0)
 		assert.ok(card.finalize.calledWith(CardStatus.SUCCESS, true))
 		assert.match(result, /Go ahead and execute/)
+	})
+	it("clears the plan waiting flag when a plain text response interrupts the plan tool", async () => {
+		const { card, env } = createMocks("plan")
+		env.config.yoloModeToggled = false
+		card.waitForInteraction.rejects(new ToolSkippedByUserMessage("Revise the plan"))
+
+		await assert.rejects(new PlanModeRespondTool().processCall({ response: "1. Inspect the flow" }, env as any))
+
+		assert.equal(env.orchestration.getTaskState("isAwaitingPlanResponse"), false)
+		assert.equal(env.config.callbacks.postStateToWebview.callCount, 2)
+	})
+
+	it("clears the plan waiting flag when the interaction fails", async () => {
+		const { card, env } = createMocks("plan")
+		env.config.yoloModeToggled = false
+		const interruption = new Error("interaction interrupted")
+		card.waitForInteraction.rejects(interruption)
+
+		await assert.rejects(
+			new PlanModeRespondTool().processCall({ response: "1. Inspect the flow" }, env as any),
+			interruption,
+		)
+
+		assert.equal(env.orchestration.getTaskState("isAwaitingPlanResponse"), false)
+	})
+
+	it("does not set the plan waiting flag when card creation fails", async () => {
+		const { env } = createMocks("plan")
+		env.config.yoloModeToggled = false
+		env.ui.createCard.rejects(new Error("card failed"))
+
+		await assert.rejects(new PlanModeRespondTool().processCall({ response: "1. Inspect the flow" }, env as any))
+
+		assert.equal(env.orchestration.getTaskState("isAwaitingPlanResponse"), false)
+		assert.equal(env.config.callbacks.postStateToWebview.callCount, 0)
 	})
 })
