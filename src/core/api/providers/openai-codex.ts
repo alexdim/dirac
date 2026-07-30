@@ -78,7 +78,6 @@ interface CodexRequestBodyOptions {
 export class OpenAiCodexHandler implements ApiHandler {
 	private responsesWsManager: ResponsesWebsocketManager | undefined
 	private options: OpenAiCodexHandlerOptions
-	// Removed unused websocket state properties
 	private client?: OpenAI
 	// Session ID for the Codex API (persists for the lifetime of the handler)
 	private readonly sessionId: string
@@ -571,14 +570,10 @@ export class OpenAiCodexHandler implements ApiHandler {
 			})
 		}
 
-		try {
-			yield* processResponsesEvents(this.responsesWsManager.createResponseEvents(primaryParams), model.info, {
-				onRateLimits: (event) => openAiCodexUsageService.applyRateLimitEvent(event),
-				onResponseCompleted,
-			})
-		} catch (error) {
-			throw error
-		}
+		yield* processResponsesEvents(this.responsesWsManager.createResponseEvents(primaryParams), model.info, {
+			onRateLimits: (event) => openAiCodexUsageService.applyRateLimitEvent(event),
+			onResponseCompleted,
+		})
 	}
 
 	private closeResponsesWebsocket() {
