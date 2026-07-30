@@ -38,13 +38,12 @@ export class AuthController {
 		}
 
 		const openrouter: ApiProvider = "openrouter"
-
 		const currentApiConfiguration = this.deps.stateManager.getApiConfiguration()
 		const updatedConfig = {
 			...currentApiConfiguration,
-			planModeApiProvider: openrouter,
-			actModeApiProvider: openrouter,
 			openRouterApiKey: apiKey,
+			...(currentApiConfiguration.planModeOpenRouterModelId ? { planModeApiProvider: openrouter } : {}),
+			...(currentApiConfiguration.actModeOpenRouterModelId ? { actModeApiProvider: openrouter } : {}),
 		}
 		applyApiConfigurationTransaction(this.deps, updatedConfig)
 		await this.deps.postStateToWebview()

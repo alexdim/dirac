@@ -116,6 +116,7 @@ const API_HANDLER_SETTINGS_FIELDS = {
 	aihubmixBaseUrl: { default: undefined as string | undefined },
 	aihubmixAppCode: { default: undefined as string | undefined },
 	enableParallelToolCalling: { default: true as boolean },
+	enableOpenAiPersistedReasoning: { default: false as boolean },
 
 	// Plan mode configurations
 	planModeApiModelId: { default: undefined as string | undefined },
@@ -148,6 +149,8 @@ const API_HANDLER_SETTINGS_FIELDS = {
 	planModeAihubmixModelId: { default: undefined as string | undefined },
 	planModeAihubmixModelInfo: { default: undefined as OpenAiCompatibleModelInfo | undefined },
 	planModeGithubCopilotModelId: { default: undefined as string | undefined },
+	planModeDiracModelId: { default: undefined as string | undefined },
+	planModeDiracModelInfo: { default: undefined as ModelInfo | undefined },
 	planModeGithubCopilotModelInfo: { default: undefined as ModelInfo | undefined },
 	planModeNousResearchModelId: { default: undefined as string | undefined },
 	planModeVercelAiGatewayModelId: { default: undefined as string | undefined },
@@ -184,6 +187,8 @@ const API_HANDLER_SETTINGS_FIELDS = {
 	actModeAihubmixModelId: { default: undefined as string | undefined },
 	actModeAihubmixModelInfo: { default: undefined as OpenAiCompatibleModelInfo | undefined },
 	actModeGithubCopilotModelId: { default: undefined as string | undefined },
+	actModeDiracModelId: { default: undefined as string | undefined },
+	actModeDiracModelInfo: { default: undefined as ModelInfo | undefined },
 	actModeGithubCopilotModelInfo: { default: undefined as ModelInfo | undefined },
 	actModeNousResearchModelId: { default: undefined as string | undefined },
 	actModeVercelAiGatewayModelId: { default: undefined as string | undefined },
@@ -276,6 +281,7 @@ const GLOBAL_STATE_AND_SETTINGS_FIELDS = { ...GLOBAL_STATE_FIELDS, ...SETTINGS_F
 // Secret keys used in Api Configuration
 const SECRETS_KEYS = [
 	"apiKey",
+	"diracApiKey",
 	"dirac:diracAccountId",
 	"openRouterApiKey",
 	"awsAccessKey",

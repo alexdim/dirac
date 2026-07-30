@@ -314,14 +314,27 @@ describe("convertToOpenAIResponsesInput", () => {
 			;(result.input[0] as any).content[0].text.should.equal("new")
 		})
 
-		it("does not chain when assistant message is older than 23 hours", () => {
-			const oldTs = Date.now() - 24 * 60 * 60 * 1000
+		it("chains from a stored assistant response regardless of local message age", () => {
+			const oldTs = Date.now() - 30 * 24 * 60 * 60 * 1000
 			const result = convertToOpenAIResponsesInput(
 				[{ role: "assistant", content: "a", id: "resp_old", ts: oldTs } as any, { role: "user", content: "new" }] as any,
 				{ usePreviousResponseId: true },
 			)
+			expect(result.previousResponseId).to.equal("resp_old")
+			result.input.should.have.length(1)
+		})
+
+		it("does not chain when the caller rejects the latest assistant response", () => {
+			const result = convertToOpenAIResponsesInput(
+				[
+					{ role: "user", content: "u" },
+					{ role: "assistant", content: "a", id: "resp_123", ts: Date.now() } as any,
+					{ role: "user", content: "new" },
+				] as any,
+				{ usePreviousResponseId: true, canUsePreviousResponse: () => false },
+			)
 			should.equal(result.previousResponseId, undefined)
-			result.input.should.have.length(2)
+			result.input.should.have.length(3)
 		})
 
 		it("does not chain when assistant message has no id", () => {

@@ -118,16 +118,46 @@ describe("Controller — Auth delegate", () => {
 		} catch {}
 	})
 
-	it("completeOpenRouterAuth exchanges code for API key and updates configuration", async () => {
+	it("completeOpenRouterAuth stores the key without selecting OpenRouter when models are not configured", async () => {
 		expectLoggerErrors()
-		const currentConfig = { apiKey: "old-key" } as ApiConfiguration
+		const currentConfig = {
+			apiKey: "old-key",
+			planModeApiProvider: "anthropic",
+			actModeApiProvider: "anthropic",
+		} as ApiConfiguration
 		;(controller as any).stateManager.getApiConfiguration = sandbox.stub().returns(currentConfig)
 		sandbox.stub(axios, "post").resolves({ data: { key: "new-openrouter-key-123" } })
+
 		await controller.completeOpenRouterAuth("auth-code-xyz")
+
 		sandbox.assert.calledWith(
 			(controller as any).stateManager.setApiConfiguration,
 			sinon.match({
 				apiKey: "old-key",
+				openRouterApiKey: "new-openrouter-key-123",
+				planModeApiProvider: "anthropic",
+				actModeApiProvider: "anthropic",
+			}),
+		)
+	})
+
+	it("completeOpenRouterAuth selects OpenRouter for modes with configured models", async () => {
+		expectLoggerErrors()
+		const currentConfig = {
+			apiKey: "old-key",
+			planModeApiProvider: "anthropic",
+			actModeApiProvider: "anthropic",
+			planModeOpenRouterModelId: "anthropic/claude-sonnet-4",
+			actModeOpenRouterModelId: "openai/gpt-5",
+		} as ApiConfiguration
+		;(controller as any).stateManager.getApiConfiguration = sandbox.stub().returns(currentConfig)
+		sandbox.stub(axios, "post").resolves({ data: { key: "new-openrouter-key-123" } })
+
+		await controller.completeOpenRouterAuth("auth-code-xyz")
+
+		sandbox.assert.calledWith(
+			(controller as any).stateManager.setApiConfiguration,
+			sinon.match({
 				openRouterApiKey: "new-openrouter-key-123",
 				planModeApiProvider: "openrouter",
 				actModeApiProvider: "openrouter",

@@ -88,15 +88,17 @@ export function buildResponseCreateParams(args: {
 	previousResponseId?: string
 	store?: boolean
 	enableParallelToolCalling?: boolean
+	reasoningContext?: "all_turns"
 }): OpenAI.Responses.ResponseCreateParamsStreaming {
 	const requestedEffort = normalizeOpenaiReasoningEffort(args.reasoningEffort)
-	const reasoning: { effort: ChatCompletionReasoningEffort; summary: "auto" } | undefined =
-		requestedEffort === "none"
+	const reasoning: { effort?: ChatCompletionReasoningEffort; summary: "auto"; context?: "all_turns" } | undefined =
+		requestedEffort === "none" && !args.reasoningContext
 			? undefined
 			: {
-				effort: requestedEffort as ChatCompletionReasoningEffort,
-				summary: "auto",
-			}
+					summary: "auto",
+					...(requestedEffort !== "none" ? { effort: requestedEffort as ChatCompletionReasoningEffort } : {}),
+					...(args.reasoningContext ? { context: args.reasoningContext } : {}),
+				}
 
 	return {
 		model: args.modelId,
@@ -109,7 +111,7 @@ export function buildResponseCreateParams(args: {
 			: {}),
 		...(args.store !== undefined ? { store: args.store } : { store: !args.previousResponseId }),
 		...(args.previousResponseId ? { previous_response_id: args.previousResponseId } : {}),
-		...(reasoning ? { reasoning } : {}),
+		...(reasoning ? { reasoning: reasoning as any } : {}),
 	}
 }
 
@@ -151,7 +153,6 @@ export async function* parseSseResponse(body: ReadableStream<Uint8Array>): Async
 export interface ProcessResponsesEventsOptions {
 	onRateLimits?: (event: unknown) => void
 }
-
 
 export async function* processResponsesEvents(
 	stream: AsyncIterable<OpenAI.Responses.ResponseStreamEvent>,
@@ -294,7 +295,7 @@ export class ResponsesWebsocketManager {
 	private readyPromise: Promise<UndiciWebSocket> | undefined
 	private requestInFlight = false
 
-	constructor(private options: ResponsesWebsocketOptions) { }
+	constructor(private options: ResponsesWebsocketOptions) {}
 
 	async ensureWebsocket(): Promise<UndiciWebSocket> {
 		if (this.ws && this.ws.readyState === UndiciWebSocket.OPEN) {
@@ -518,10 +519,6 @@ export function shouldRetryWithFullContext(error: unknown, hadPreviousResponseId
 		if (details?.param === "input") {
 			return false
 		}
-		return true
-	}
-
-	if (errorCode === "websocket_closed" || errorCode === "websocket_error") {
 		return true
 	}
 

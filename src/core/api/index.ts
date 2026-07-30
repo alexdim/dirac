@@ -257,6 +257,7 @@ const PROVIDER_REGISTRY: Record<
 			apiModelId: mc.apiModelId,
 			thinkingBudgetTokens: mc.thinkingBudgetTokens,
 			enableParallelToolCalling: cfg.enableParallelToolCalling,
+			enablePersistedReasoning: cfg.enableOpenAiPersistedReasoning,
 		}),
 	"openai-codex": (cfg, mc) =>
 		new OpenAiCodexHandler({

@@ -117,6 +117,7 @@ export interface ExtensionState {
 	globalSkillsToggles?: Record<string, boolean>
 	localSkillsToggles?: Record<string, boolean>
 	enableParallelToolCalling?: boolean
+	enableOpenAiPersistedReasoning?: boolean
 	backgroundEditEnabled?: boolean
 	writePromptMetadataEnabled?: boolean
 	writePromptMetadataDirectory?: string

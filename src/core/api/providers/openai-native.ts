@@ -1,20 +1,12 @@
 import {
 	ModelInfo,
-	OpenAiCompatibleModelInfo,
-	OpenAiNativeModelId,
+	type OpenAiNativeModelId,
+	type OpenAiNativeModelInfo,
 	openAiNativeDefaultModelId,
 	openAiNativeModels,
 } from "@shared/api"
 import { normalizeOpenaiReasoningEffort } from "@shared/storage/types"
-import { formatOpenAiCompatibleUsage } from "../transform/openai-usage"
 import OpenAI from "openai"
-import {
-	buildResponseCreateParams,
-	mapResponseTools,
-	processResponsesEvents,
-	ResponsesWebsocketManager,
-	shouldRetryWithFullContext,
-} from "./openai-responses-utils"
 import type { ChatCompletionReasoningEffort, ChatCompletionTool } from "openai/resources/chat/completions"
 // Removed unused undici imports
 import { featureFlagsService } from "@/services/feature-flags"
@@ -28,8 +20,16 @@ import { ApiHandler, CommonApiHandlerOptions } from "../"
 import { withRetry } from "../retry"
 import { convertToOpenAiMessages } from "../transform/openai-format"
 import { convertToOpenAIResponsesInput } from "../transform/openai-response-format"
+import { formatOpenAiCompatibleUsage } from "../transform/openai-usage"
 import { ApiStream } from "../transform/stream"
 import { getOpenAIToolParams, ToolCallProcessor } from "../transform/tool-call-processor"
+import {
+	buildResponseCreateParams,
+	mapResponseTools,
+	processResponsesEvents,
+	ResponsesWebsocketManager,
+	shouldRetryWithFullContext,
+} from "./openai-responses-utils"
 
 interface OpenAiNativeHandlerOptions extends CommonApiHandlerOptions {
 	openAiNativeApiKey?: string
@@ -37,6 +37,7 @@ interface OpenAiNativeHandlerOptions extends CommonApiHandlerOptions {
 	thinkingBudgetTokens?: number
 	apiModelId?: string
 	openAiNativeUseResponsesWebsocket?: boolean
+	enablePersistedReasoning?: boolean
 }
 
 export class OpenAiNativeHandler implements ApiHandler {
@@ -59,6 +60,18 @@ export class OpenAiNativeHandler implements ApiHandler {
 			return apiFormat === ApiFormat.OPENAI_RESPONSES_WEBSOCKET_MODE
 		}
 		return false
+	}
+
+	private shouldUsePersistedReasoning(modelInfo: OpenAiNativeModelInfo): boolean {
+		return this.options.enablePersistedReasoning === true && modelInfo.supportsPersistedReasoning === true
+	}
+
+	private isCurrentModelResponse(message: DiracStorageMessage, modelId: OpenAiNativeModelId): boolean {
+		return (
+			message.id?.startsWith("resp_") === true &&
+			message.modelInfo?.providerId === "openai-native" &&
+			message.modelInfo.modelId === modelId
+		)
 	}
 	constructor(options: OpenAiNativeHandlerOptions) {
 		this.options = options
@@ -180,9 +193,11 @@ export class OpenAiNativeHandler implements ApiHandler {
 		tools: ChatCompletionTool[],
 	): ApiStream {
 		const model = this.getModel()
-		const usePreviousResponseId = this.useWebsocketMode(model.info.apiFormat)
+		const usePersistedReasoning = this.shouldUsePersistedReasoning(model.info)
+		const useWebsocket = this.useWebsocketMode(model.info.apiFormat) && !usePersistedReasoning
+		const usePreviousResponseId = usePersistedReasoning || useWebsocket
 
-		if (usePreviousResponseId) {
+		if (useWebsocket) {
 			this.getResponsesWsManager()
 				.ensureWebsocket()
 				.catch((error) => {
@@ -190,7 +205,13 @@ export class OpenAiNativeHandler implements ApiHandler {
 				})
 		}
 
-		const { input, previousResponseId } = convertToOpenAIResponsesInput(messages, { usePreviousResponseId })
+		const { input, previousResponseId } = convertToOpenAIResponsesInput(messages, {
+			usePreviousResponseId,
+			canUsePreviousResponse: usePersistedReasoning
+				? (message) => this.isCurrentModelResponse(message, model.id)
+				: undefined,
+		})
+		const fallbackInput = previousResponseId ? convertToOpenAIResponsesInput(messages).input : input
 		const responseTools = mapResponseTools(tools, model.info.supportsStrictTools)
 		this.abortController = new AbortController()
 
@@ -201,47 +222,62 @@ export class OpenAiNativeHandler implements ApiHandler {
 			previousResponseId,
 			tools: responseTools,
 			reasoningEffort: this.options.reasoningEffort,
+			reasoningContext: usePersistedReasoning ? "all_turns" : undefined,
+			store: usePersistedReasoning ? true : undefined,
 			enableParallelToolCalling: this.shouldEnableParallelToolCalling(),
 		})
-
 		const fallbackParams = buildResponseCreateParams({
 			modelId: model.id,
 			systemPrompt,
-			input,
+			input: fallbackInput,
 			tools: responseTools,
 			reasoningEffort: this.options.reasoningEffort,
+			reasoningContext: usePersistedReasoning ? "all_turns" : undefined,
+			store: usePersistedReasoning ? true : undefined,
 			enableParallelToolCalling: this.shouldEnableParallelToolCalling(),
 		})
 
-		if (usePreviousResponseId && previousResponseId) {
+		if (useWebsocket && previousResponseId) {
+			let didEmitWebsocketOutput = false
 			try {
 				try {
 					const wsManager = this.getResponsesWsManager()
-					yield* processResponsesEvents(wsManager.createResponseEvents(params), model.info)
+					for await (const chunk of processResponsesEvents(wsManager.createResponseEvents(params), model.info)) {
+						didEmitWebsocketOutput = true
+						yield chunk
+					}
 					return
 				} catch (error) {
-					if (shouldRetryWithFullContext(error, !!params.previous_response_id)) {
-						Logger.log(
-							"Retrying websocket response with full context after previous_response_not_found or socket reset",
-						)
+					if (!didEmitWebsocketOutput && shouldRetryWithFullContext(error, !!params.previous_response_id)) {
+						Logger.log("Retrying websocket response with full context after previous_response_not_found or 404")
 						this.responsesWsManager?.close()
 						const wsManager = this.getResponsesWsManager()
-						yield* processResponsesEvents(wsManager.createResponseEvents(fallbackParams), model.info)
+						for await (const chunk of processResponsesEvents(
+							wsManager.createResponseEvents(fallbackParams),
+							model.info,
+						)) {
+							didEmitWebsocketOutput = true
+							yield chunk
+						}
 						return
 					}
 					throw error
 				}
 			} catch (error) {
+				if (didEmitWebsocketOutput) throw error
 				Logger.error("OpenAI websocket mode failed, falling back to HTTP Responses API:", error)
 				this.responsesWsManager?.close()
 			}
 		}
 
-		// Try HTTP request
+		let didEmitHttpOutput = false
 		try {
-			yield* this.createResponseStreamHttp(params, model.info)
+			for await (const chunk of this.createResponseStreamHttp(params, model.info)) {
+				didEmitHttpOutput = true
+				yield chunk
+			}
 		} catch (error) {
-			if (shouldRetryWithFullContext(error, !!params.previous_response_id)) {
+			if (!didEmitHttpOutput && shouldRetryWithFullContext(error, !!params.previous_response_id)) {
 				Logger.log("Retrying HTTP response with full context after previous_response_not_found or 404")
 				yield* this.createResponseStreamHttp(fallbackParams, model.info)
 				return
@@ -261,12 +297,11 @@ export class OpenAiNativeHandler implements ApiHandler {
 
 	abort(): void {
 		this.responsesWsManager?.close()
-		// Removed unused closeResponsesWebsocket call
 		this.abortController?.abort()
 		this.abortController = undefined
 	}
 
-	getModel(): { id: OpenAiNativeModelId; info: OpenAiCompatibleModelInfo } {
+	getModel(): { id: OpenAiNativeModelId; info: OpenAiNativeModelInfo } {
 		const modelId = this.options.apiModelId
 		if (modelId && modelId in openAiNativeModels) {
 			const id = modelId as OpenAiNativeModelId

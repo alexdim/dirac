@@ -80,9 +80,14 @@ import {
  * @param messages - Array of DiracStorageMessage objects to be converted
  * @returns ResponseInput array containing the transformed messages with proper reasoning pairing
  */
+interface OpenAIResponsesInputOptions {
+	usePreviousResponseId?: boolean
+	canUsePreviousResponse?: (message: DiracStorageMessage) => boolean
+}
+
 export function convertToOpenAIResponsesInput(
 	_messages: DiracStorageMessage[],
-	options?: { usePreviousResponseId?: boolean },
+	options?: OpenAIResponsesInputOptions,
 ): {
 	input: ResponseInput
 	previousResponseId?: string
@@ -95,10 +100,7 @@ export function convertToOpenAIResponsesInput(
 		for (let i = _messages.length - 1; i >= 0; i--) {
 			const msg = _messages[i]
 			if (msg.role === "assistant") {
-				// Must be less than 24 hours old to be considered for chaining as the previous Id is only valid for 24 hours.
-				// Set to 23 hours to account for any potential delays in processing.
-				const isLessThan23HoursOld = msg.ts ? Date.now() - msg.ts < 23 * 60 * 60 * 1000 : false
-				if (msg.id && isLessThan23HoursOld) {
+				if (msg.id && (!options.canUsePreviousResponse || options.canUsePreviousResponse(msg))) {
 					previousResponseId = msg.id
 					messages = _messages.slice(i + 1)
 				}
