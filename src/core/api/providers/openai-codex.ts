@@ -10,6 +10,7 @@ import { normalizeOpenaiReasoningEffort } from "@shared/storage/types"
 import OpenAI from "openai"
 import type { ChatCompletionTool } from "openai/resources/chat/completions"
 import * as os from "os"
+import { createHash } from "node:crypto"
 import { v7 as uuidv7 } from "uuid"
 import { openAiCodexOAuthManager } from "@/integrations/openai-codex/oauth"
 import { openAiCodexUsageService } from "@/integrations/openai-codex/OpenAiCodexUsageService"
@@ -80,6 +81,7 @@ export class OpenAiCodexHandler implements ApiHandler {
 	// Track tool call identity for streaming
 	private pendingToolCallId: string | undefined
 	private pendingToolCallName: string | undefined
+	private websocketContinuationAnchor: { responseId: string; requestConfiguration: string } | undefined
 
 	private isCurrentModelResponse(message: DiracStorageMessage, modelId: OpenAiCodexModelId): boolean {
 		return (
@@ -88,6 +90,67 @@ export class OpenAiCodexHandler implements ApiHandler {
 			message.modelInfo.modelId === modelId
 		)
 	}
+
+	private createRequestConfiguration(
+		model: { id: OpenAiCodexModelId; info: OpenAiCodexModelInfo },
+		systemPrompt: string,
+		tools: CodexTool[],
+		usePersistedReasoning: boolean,
+	): string {
+		return createHash("sha256")
+			.update(
+				JSON.stringify({
+					model: model.id,
+					instructions: systemPrompt,
+					tools: tools.map((tool) => {
+						if (tool.type === "function") {
+							return {
+								type: tool.type,
+								name: tool.function.name,
+								description: tool.function.description,
+								parameters: tool.function.parameters,
+								strict: tool.function.strict ?? true,
+							}
+						}
+						return tool
+					}),
+					parallelToolCalls: this.shouldEnableParallelToolCalling(),
+					reasoningEffort: normalizeOpenaiReasoningEffort(this.options.reasoningEffort),
+					usePersistedReasoning,
+				}),
+			)
+			.digest("hex")
+	}
+
+	private canContinueWebsocketResponse(
+		messages: DiracStorageMessage[],
+		model: { id: OpenAiCodexModelId; info: OpenAiCodexModelInfo },
+		requestConfiguration: string,
+	): boolean {
+		const anchor = this.websocketContinuationAnchor
+		const latestAssistantMessage = [...messages].reverse().find((message) => message.role === "assistant")
+		return (
+			anchor !== undefined &&
+			anchor.requestConfiguration === requestConfiguration &&
+			latestAssistantMessage?.id === anchor.responseId &&
+			this.isCurrentModelResponse(latestAssistantMessage, model.id)
+		)
+	}
+
+	private recordWebsocketContinuationAnchor(responseId: string | undefined, requestConfiguration: string): void {
+		if (!responseId?.startsWith("resp_")) {
+			this.clearWebsocketContinuationAnchor("websocket_response_completed_without_id")
+			return
+		}
+		this.websocketContinuationAnchor = { responseId, requestConfiguration }
+		Logger.log("[OpenAI Codex persisted reasoning] websocket response completed anchor_recorded=true")
+	}
+
+	private clearWebsocketContinuationAnchor(reason: string): void {
+		this.websocketContinuationAnchor = undefined
+		Logger.log(`[OpenAI Codex persisted reasoning] websocket anchor cleared reason=${reason}`)
+	}
+
 
 	constructor(options: OpenAiCodexHandlerOptions) {
 		this.options = options
@@ -109,14 +172,17 @@ export class OpenAiCodexHandler implements ApiHandler {
 		this.pendingToolCallId = undefined
 		this.pendingToolCallName = undefined
 
+		const requestConfiguration = this.createRequestConfiguration(model, systemPrompt, finalTools, usePersistedReasoning)
+		const canContinue =
+			usePersistedReasoning && this.canContinueWebsocketResponse(messages, model, requestConfiguration)
 		const { input, previousResponseId } = convertToOpenAIResponsesInput(messages, {
-			usePreviousResponseId: usePersistedReasoning,
-			canUsePreviousResponse: usePersistedReasoning
-				? (message) => this.isCurrentModelResponse(message, model.id)
+			usePreviousResponseId: canContinue,
+			canUsePreviousResponse: canContinue
+				? (message) => message.id === this.websocketContinuationAnchor?.responseId
 				: undefined,
 		})
 		const fallbackInput = previousResponseId ? convertToOpenAIResponsesInput(messages).input : input
-		const requestBody = this.buildRequestBody(model, input, systemPrompt, finalTools, {
+		let requestBody = this.buildRequestBody(model, input, systemPrompt, finalTools, {
 			previousResponseId,
 			usePersistedReasoning,
 		})
@@ -126,6 +192,10 @@ export class OpenAiCodexHandler implements ApiHandler {
 		const httpFallbackRequestBody = this.buildRequestBody(model, fallbackInput, systemPrompt, finalTools, {
 			usePersistedReasoning,
 		})
+		const functionCallOutputs = input.filter((item: any) => item.type === "function_call_output").length
+		Logger.log(
+			`[OpenAI Codex persisted reasoning] request=${previousResponseId ? "continuation" : "full_context"} anchor_available=${this.websocketContinuationAnchor !== undefined} anchor_eligible=${canContinue} request_config=${requestConfiguration.slice(0, 12)} input_items=${input.length} function_call_outputs=${functionCallOutputs}`,
+		)
 
 		// Get access token from OAuth manager
 		let accessToken = await openAiCodexOAuthManager.getAccessToken()
@@ -135,21 +205,26 @@ export class OpenAiCodexHandler implements ApiHandler {
 
 		// Make the request with retry on auth failure
 		for (let attempt = 0; attempt < 2; attempt++) {
+			let didEmitRequestOutput = false
 			try {
-				yield* this.executeRequest(
+				for await (const chunk of this.executeRequest(
 					requestBody,
 					websocketFallbackRequestBody,
 					httpFallbackRequestBody,
 					model,
 					accessToken,
 					useWebsocketMode,
-				)
+					requestConfiguration,
+				)) {
+					didEmitRequestOutput = true
+					yield chunk
+				}
 				return
 			} catch (error) {
 				const message = error instanceof Error ? error.message : String(error)
 				const isAuthFailure = /unauthorized|invalid token|not authenticated|authentication|401/i.test(message)
 
-				if (attempt === 0 && isAuthFailure) {
+				if (attempt === 0 && isAuthFailure && !didEmitRequestOutput) {
 					// Force refresh the token for retry
 					const refreshed = await openAiCodexOAuthManager.forceRefreshAccessToken()
 					if (!refreshed) {
@@ -157,6 +232,9 @@ export class OpenAiCodexHandler implements ApiHandler {
 							"Not authenticated with OpenAI Codex. Please sign in using the OpenAI Codex OAuth flow in settings.",
 						)
 					}
+					this.clearWebsocketContinuationAnchor("authentication_refreshed")
+					this.closeResponsesWebsocket()
+					requestBody = websocketFallbackRequestBody
 					accessToken = refreshed
 					continue
 				}
@@ -198,12 +276,12 @@ export class OpenAiCodexHandler implements ApiHandler {
 			...(includeReasoningConfig ? { include: ["reasoning.encrypted_content"] } : {}),
 			...(includeReasoningConfig
 				? {
-						reasoning: {
-							...(includeReasoning ? { effort: reasoningEffort } : {}),
-							summary: "auto",
-							...(options.usePersistedReasoning ? { context: "all_turns" } : {}),
-						},
-					}
+					reasoning: {
+						...(includeReasoning ? { effort: reasoningEffort } : {}),
+						summary: "auto",
+						...(options.usePersistedReasoning ? { context: "all_turns" } : {}),
+					},
+				}
 				: {}),
 		}
 
@@ -245,6 +323,7 @@ export class OpenAiCodexHandler implements ApiHandler {
 		model: { id: OpenAiCodexModelId; info: OpenAiCodexModelInfo },
 		accessToken: string,
 		useWebsocketMode: boolean,
+		requestConfiguration: string,
 	): ApiStream {
 		// Create AbortController for cancellation
 		this.abortController = new AbortController()
@@ -268,14 +347,26 @@ export class OpenAiCodexHandler implements ApiHandler {
 			}
 
 			let didEmitWebsocketOutput = false
+			let completedWebsocketResponseId: string | undefined
 			try {
-				for await (const chunk of this.createResponseStreamWebsocket(requestBody, accessToken, codexHeaders, model)) {
+				for await (const chunk of this.createResponseStreamWebsocket(
+					requestBody,
+					accessToken,
+					codexHeaders,
+					model,
+					(response) => {
+						completedWebsocketResponseId = response.id
+					},
+				)) {
+					if (chunk.type === "usage" && typeof chunk.id === "string") completedWebsocketResponseId = chunk.id
 					didEmitWebsocketOutput = true
 					yield chunk
 				}
+				this.recordWebsocketContinuationAnchor(completedWebsocketResponseId, requestConfiguration)
 				return
 			} catch (error) {
 				if (!didEmitWebsocketOutput && shouldRetryWithFullContext(error, !!requestBody.previous_response_id)) {
+					this.clearWebsocketContinuationAnchor("previous_response_not_found")
 					Logger.log("Retrying Codex websocket response with full context after previous_response_not_found or 404")
 					try {
 						for await (const chunk of this.createResponseStreamWebsocket(
@@ -283,23 +374,32 @@ export class OpenAiCodexHandler implements ApiHandler {
 							accessToken,
 							codexHeaders,
 							model,
+							(response) => {
+								completedWebsocketResponseId = response.id
+							},
 						)) {
+							if (chunk.type === "usage" && typeof chunk.id === "string") completedWebsocketResponseId = chunk.id
 							didEmitWebsocketOutput = true
 							yield chunk
 						}
+						this.recordWebsocketContinuationAnchor(completedWebsocketResponseId, requestConfiguration)
 						return
 					} catch (retryError) {
+						this.clearWebsocketContinuationAnchor("websocket_full_context_retry_failed")
+						this.closeResponsesWebsocket()
 						if (didEmitWebsocketOutput) throw retryError
 						Logger.error(
 							"OpenAI Codex websocket full-context retry failed, falling back to HTTP Responses API:",
 							retryError,
 						)
-						this.closeResponsesWebsocket()
 					}
 				} else if (didEmitWebsocketOutput) {
+					this.clearWebsocketContinuationAnchor("websocket_failed_after_output")
+					this.closeResponsesWebsocket()
 					throw error
 				} else {
 					Logger.error("OpenAI Codex websocket mode failed, falling back to HTTP Responses API:", error)
+					this.clearWebsocketContinuationAnchor("websocket_failed")
 					this.closeResponsesWebsocket()
 				}
 			}
@@ -370,6 +470,7 @@ export class OpenAiCodexHandler implements ApiHandler {
 		accessToken: string,
 		codexHeaders: Record<string, string>,
 		model: { id: string; info: ModelInfo },
+		onResponseCompleted?: (response: { id?: string }) => void,
 	): ApiStream {
 		if (!this.responsesWsManager) {
 			this.responsesWsManager = new ResponsesWebsocketManager({
@@ -382,6 +483,7 @@ export class OpenAiCodexHandler implements ApiHandler {
 		try {
 			yield* processResponsesEvents(this.responsesWsManager.createResponseEvents(primaryParams), model.info, {
 				onRateLimits: (event) => openAiCodexUsageService.applyRateLimitEvent(event),
+				onResponseCompleted,
 			})
 		} catch (error) {
 			throw error
@@ -431,8 +533,8 @@ export class OpenAiCodexHandler implements ApiHandler {
 		})
 	}
 	abort(): void {
-		this.responsesWsManager?.close()
-		// Removed unused closeResponsesWebsocket call
+		this.closeResponsesWebsocket()
+		this.clearWebsocketContinuationAnchor("aborted")
 		this.abortController?.abort()
 	}
 

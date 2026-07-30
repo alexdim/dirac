@@ -96,12 +96,14 @@ export function convertToOpenAIResponsesInput(
 	// When chaining, only send new items after that assistant turn.
 	let previousResponseId: string | undefined
 	let messages = _messages
+	const toolUseIdToCallId = new Map<string, string>()
 	if (options?.usePreviousResponseId) {
 		for (let i = _messages.length - 1; i >= 0; i--) {
 			const msg = _messages[i]
 			if (msg.role === "assistant") {
 				if (msg.id && (!options.canUsePreviousResponse || options.canUsePreviousResponse(msg))) {
 					previousResponseId = msg.id
+					seedToolCallIdsFromAssistantTurn(msg, toolUseIdToCallId)
 					messages = _messages.slice(i + 1)
 				}
 				// Always break after the first assistant message we find, whether it has a usable ID or not.
@@ -111,7 +113,6 @@ export function convertToOpenAIResponsesInput(
 	}
 
 	const allItems: any[] = []
-	const toolUseIdToCallId = new Map<string, string>()
 
 	for (const m of messages) {
 		if (typeof m.content === "string") {
@@ -126,6 +127,19 @@ export function convertToOpenAIResponsesInput(
 	}
 
 	return { input: allItems, previousResponseId }
+}
+
+function seedToolCallIdsFromAssistantTurn(
+	message: DiracStorageMessage,
+	toolUseIdToCallId: Map<string, string>,
+): void {
+	if (typeof message.content === "string") return
+
+	for (const part of message.content as DiracContent[]) {
+		if (part.type !== "tool_use") continue
+		const toolUse = part as DiracAssistantToolUseBlock
+		if (toolUse.call_id) toolUseIdToCallId.set(toolUse.id, toolUse.call_id)
+	}
 }
 
 // Extracts the call_id (Responses API) or id (Anthropic) used to group assistant turn parts.

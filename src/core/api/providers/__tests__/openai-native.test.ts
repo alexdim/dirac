@@ -69,6 +69,33 @@ describe("OpenAiNativeHandler persisted reasoning", () => {
 		params.input.should.have.length(1)
 	})
 
+
+	it("preserves Responses call IDs for persisted-reasoning tool results", async () => {
+		const createStub = sinon.stub().resolves(createAsyncIterable())
+		const handler = createHandler(createStub)
+
+		await drain(
+			handler.createMessage(
+				"system",
+				[
+					{ role: "user", content: "read the file" },
+					{
+						role: "assistant",
+						id: "resp_123",
+						modelInfo: { providerId: "openai-native", modelId: "gpt-5.6-terra", mode: "act" },
+						content: [{ type: "tool_use", id: "fc_local", call_id: "call_server", name: "read_file", input: {} }],
+					},
+					{ role: "user", content: [{ type: "tool_result", tool_use_id: "fc_local", content: "contents" }] },
+				] as any,
+				tools,
+			),
+		)
+
+		createStub.firstCall.args[0].input.should.deepEqual([
+			{ type: "function_call_output", call_id: "call_server", output: "contents" },
+		])
+	})
+
 	it("does not enable persisted reasoning for unsupported models", async () => {
 		const createStub = sinon.stub().resolves(createAsyncIterable())
 		const handler = createHandler(createStub, { modelId: "gpt-5.5" })
