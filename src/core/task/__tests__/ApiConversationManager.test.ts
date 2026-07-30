@@ -3,6 +3,7 @@ import { describe, it } from "mocha"
 import sinon from "sinon"
 import { ApiConversationManager } from "../ApiConversationManager"
 import { TaskState } from "../TaskState"
+import { expectLoggerErrors } from "../../../test/loggerGuard"
 
 describe("ApiConversationManager steering delivery", () => {
 	it("does not consume steering before the provider dispatch boundary", async () => {
@@ -73,7 +74,7 @@ describe("ApiConversationManager steering delivery", () => {
 					getDiracMessages: sinon.stub().returns([]),
 					saveDiracMessagesAndUpdateHistory: sinon.stub().resolves(),
 				},
-				stateManager: { getGlobalSettingsKey: sinon.stub() },
+				stateManager: { getGlobalSettingsKey: sinon.stub().callsFake((key: string) => (key === "hooksEnabled" ? false : undefined)) },
 				getCurrentProviderInfo: () => ({ providerId: "openai-codex" }),
 			}
 			return { dependencies, history, compactConversation, getProviderState: () => providerState }
@@ -100,6 +101,7 @@ describe("ApiConversationManager steering delivery", () => {
 		})
 
 		it("falls back to plaintext truncation and breaks stale continuation", async () => {
+			expectLoggerErrors()
 			const { dependencies, compactConversation, getProviderState } = createCompactionDependencies()
 			compactConversation.rejects(new Error("compact unavailable"))
 			dependencies.taskState.pendingApiConversationCompaction = {
