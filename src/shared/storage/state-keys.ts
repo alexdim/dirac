@@ -116,7 +116,6 @@ const API_HANDLER_SETTINGS_FIELDS = {
 	aihubmixBaseUrl: { default: undefined as string | undefined },
 	aihubmixAppCode: { default: undefined as string | undefined },
 	enableParallelToolCalling: { default: true as boolean },
-	enableOpenAiPersistedReasoning: { default: false as boolean },
 
 	// Plan mode configurations
 	planModeApiModelId: { default: undefined as string | undefined },

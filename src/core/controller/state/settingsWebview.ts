@@ -40,8 +40,6 @@ export function applySimpleSettings(controller: Controller, request: UpdateSetti
 	if (request.multiRootEnabled !== undefined) sm.setGlobalState("multiRootEnabled", !!request.multiRootEnabled)
 	if (request.enableParallelToolCalling !== undefined)
 		sm.setGlobalState("enableParallelToolCalling", !!request.enableParallelToolCalling)
-	if (request.enableOpenAiPersistedReasoning !== undefined)
-		sm.setGlobalState("enableOpenAiPersistedReasoning", !!request.enableOpenAiPersistedReasoning)
 }
 
 /** Normalize vscode terminal execution mode to 'backgroundExec' or 'vscodeTerminal' */

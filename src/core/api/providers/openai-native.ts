@@ -37,7 +37,6 @@ interface OpenAiNativeHandlerOptions extends CommonApiHandlerOptions {
 	thinkingBudgetTokens?: number
 	apiModelId?: string
 	openAiNativeUseResponsesWebsocket?: boolean
-	enablePersistedReasoning?: boolean
 }
 
 export class OpenAiNativeHandler implements ApiHandler {
@@ -62,9 +61,6 @@ export class OpenAiNativeHandler implements ApiHandler {
 		return false
 	}
 
-	private shouldUsePersistedReasoning(modelInfo: OpenAiNativeModelInfo): boolean {
-		return this.options.enablePersistedReasoning === true && modelInfo.supportsPersistedReasoning === true
-	}
 
 	private isCurrentModelResponse(message: DiracStorageMessage, modelId: OpenAiNativeModelId): boolean {
 		return (
@@ -193,7 +189,7 @@ export class OpenAiNativeHandler implements ApiHandler {
 		tools: ChatCompletionTool[],
 	): ApiStream {
 		const model = this.getModel()
-		const usePersistedReasoning = this.shouldUsePersistedReasoning(model.info)
+		const usePersistedReasoning = model.info.supportsPersistedReasoning === true
 		const useWebsocket = this.useWebsocketMode(model.info.apiFormat) && !usePersistedReasoning
 		const usePreviousResponseId = usePersistedReasoning || useWebsocket
 

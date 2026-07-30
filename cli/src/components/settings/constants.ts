@@ -48,13 +48,6 @@ export const FEATURE_SETTINGS = {
 		label: "Parallel tool calling",
 		description: "Allow multiple tools in a single response",
 	},
-	persistOpenAiReasoning: {
-		stateKey: "enableOpenAiPersistedReasoning",
-		default: false,
-		label: "Preserve OpenAI reasoning",
-		description:
-			"Reuse OpenAI-stored reasoning across Responses API calls for supported native models. Data retention follows your OpenAI organization policy.",
-	},
 	doubleCheckCompletion: {
 		stateKey: "doubleCheckCompletionEnabled",
 		default: false,

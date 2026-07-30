@@ -46,14 +46,6 @@ const agentFeatures: FeatureToggle[] = [
 		settingKey: "enableParallelToolCalling",
 	},
 	{
-		id: "openai-persisted-reasoning",
-		label: "Preserve OpenAI Reasoning",
-		description:
-			"Reuse OpenAI-stored reasoning across Responses API calls for supported native models. Data retention follows your OpenAI organization policy.",
-		stateKey: "enableOpenAiPersistedReasoning",
-		settingKey: "enableOpenAiPersistedReasoning",
-	},
-	{
 		id: "strict-plan-mode",
 		label: "Strict Plan Mode",
 		description: "Prevents file edits while in Plan mode",
@@ -199,7 +191,6 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 		worktreesEnabled,
 		remoteConfigSettings,
 		enableParallelToolCalling,
-		enableOpenAiPersistedReasoning,
 		backgroundEditEnabled,
 		doubleCheckCompletionEnabled,
 	} = useSettingsStore()
@@ -216,7 +207,6 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 		diracWebToolsEnabled: diracWebToolsEnabled?.user,
 		worktreesEnabled: worktreesEnabled?.user,
 		enableParallelToolCalling,
-		enableOpenAiPersistedReasoning,
 		backgroundEditEnabled,
 		doubleCheckCompletionEnabled,
 		yoloModeToggled: isYoloRemoteLocked ? remoteConfigSettings?.yoloModeToggled : yoloModeToggled,
