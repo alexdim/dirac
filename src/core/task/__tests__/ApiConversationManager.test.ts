@@ -160,7 +160,7 @@ describe("ApiConversationManager steering delivery", () => {
 		})
 
 		it("schedules provider compaction after emergency plaintext truncation", async () => {
-			const { dependencies } = createCompactionDependencies()
+			const { dependencies, getProviderState } = createCompactionDependencies()
 			dependencies.taskState.conversationHistoryDeletedRange = [0, 0]
 			dependencies.contextManager.getNextTruncationRange.returns([0, 1])
 
