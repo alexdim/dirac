@@ -1251,7 +1251,7 @@ export class Task {
 			}
 			// Ensure the artifact dir is git-ignored so debug dumps don't get committed.
 			const gitignorePath = path.join(writeDir, ".gitignore")
-			await fs.writeFile(gitignorePath, "*\n!.gitignore\n", "utf8").catch(() => {})
+			await fs.writeFile(gitignorePath, "*\n!.gitignore\n", "utf8").catch(() => { })
 
 			const debugPath = path.join(writeDir, `task-${this.taskId}-debug.md`)
 
@@ -1468,7 +1468,16 @@ export class Task {
 		})
 
 		if (contextManagementMetadata.updatedConversationHistoryDeletedRange) {
-			this.taskState.conversationHistoryDeletedRange = contextManagementMetadata.conversationHistoryDeletedRange
+			const previousConversationHistoryDeletedRange = this.taskState.conversationHistoryDeletedRange
+			const conversationHistoryDeletedRange = contextManagementMetadata.conversationHistoryDeletedRange
+			if (!conversationHistoryDeletedRange) {
+				throw new Error("Context management reported a truncation update without a deleted range.")
+			}
+			this.taskState.conversationHistoryDeletedRange = conversationHistoryDeletedRange
+			await this.apiConversationManager.scheduleProviderConversationCompaction(
+				previousConversationHistoryDeletedRange,
+				conversationHistoryDeletedRange,
+			)
 			await this.messageStateHandler.saveDiracMessagesAndUpdateHistory()
 		}
 
@@ -1477,7 +1486,7 @@ export class Task {
 		if (!useAutoCondense) {
 			const lastMessage =
 				contextManagementMetadata.truncatedConversationHistory[
-					contextManagementMetadata.truncatedConversationHistory.length - 1
+				contextManagementMetadata.truncatedConversationHistory.length - 1
 				]
 			if (lastMessage && lastMessage.role === "user") {
 				const notice = formatResponse.contextTruncationNotice()
@@ -1814,10 +1823,21 @@ export class Task {
 
 		await this.appendQueuedSteeringToNextApiRequest(contextManagementMetadata.truncatedConversationHistory)
 
+		const providerDispatch = await this.apiConversationManager.prepareProviderConversationDispatch({
+			systemPrompt,
+			tools: toolSnapshot.nativeTools,
+			truncatedMessages: contextManagementMetadata.truncatedConversationHistory as DiracStorageMessage[],
+			providerId,
+			modelId: model.id,
+		})
+
+		if (this.taskState.abort) throw new Error("Task instance aborted")
+
 		const stream = this.api.createMessage(
 			systemPrompt,
-			contextManagementMetadata.truncatedConversationHistory as any,
+			providerDispatch.messages,
 			toolSnapshot.nativeTools,
+			providerDispatch.options,
 		)
 		const iterator = stream[Symbol.asyncIterator]()
 
@@ -1891,7 +1911,7 @@ export class Task {
 		if (providerId && model.id) {
 			try {
 				await this.modelContextTracker.recordModelUsage(providerId, model.id, mode)
-			} catch {}
+			} catch { }
 		}
 
 		const modelInfo: DiracMessageModelInfo = {
@@ -2014,10 +2034,9 @@ export class Task {
 							type: "text",
 							text:
 								assistantMessage +
-								`\n\n[${
-									cancelReason === "streaming_failed"
-										? "Response interrupted by API Error"
-										: "Response interrupted by user"
+								`\n\n[${cancelReason === "streaming_failed"
+									? "Response interrupted by API Error"
+									: "Response interrupted by user"
 								}]`,
 						},
 					],

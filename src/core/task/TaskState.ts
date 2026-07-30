@@ -1,4 +1,5 @@
 import { Anthropic } from "@anthropic-ai/sdk"
+import type { PendingApiConversationCompaction } from "@core/api/conversation"
 import { AssistantMessageContent } from "@core/assistant-message"
 import { DiracAskResponse } from "@shared/WebviewMessage"
 import type { HookExecution } from "./types/HookExecution"
@@ -97,6 +98,7 @@ export class TaskState {
 
 	// Conversation compaction
 	skipNextAutoCondenseCheck = false
+	pendingApiConversationCompaction?: PendingApiConversationCompaction
 	pendingCondenseSource?: "automatic"
 	pendingCondenseFeedback?: string
 	totalToolCallCount = 0

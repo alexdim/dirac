@@ -1,4 +1,5 @@
 import CheckpointTracker from "@integrations/checkpoints/CheckpointTracker"
+import type { ApiConversationProviderState } from "@core/api/conversation"
 import { EventEmitter } from "events"
 import getFolderSize from "get-folder-size"
 import Mutex from "p-mutex"
@@ -10,7 +11,12 @@ import { HistoryItem } from "@/shared/HistoryItem"
 import { DiracStorageMessage, DiracUserContent } from "@/shared/messages/content"
 import { Logger } from "@/shared/services/Logger"
 import { getCwd, getDesktopDir } from "@/utils/path"
-import { ensureTaskDirectoryExists, saveApiConversationHistory, saveDiracMessages } from "../storage/disk"
+import {
+	ensureTaskDirectoryExists,
+	saveApiConversationHistory,
+	saveApiConversationProviderState,
+	saveDiracMessages,
+} from "../storage/disk"
 import { TaskState } from "./TaskState"
 
 // Event types for diracMessages changes
@@ -48,6 +54,7 @@ interface MessageStateHandlerParams {
 export class MessageStateHandler extends EventEmitter<MessageStateHandlerEvents> {
 	private workspaceRootPath?: string
 	private apiConversationHistory: DiracStorageMessage[] = []
+	private apiConversationProviderState: ApiConversationProviderState = {}
 	private diracMessages: DiracMessage[] = []
 	private taskIsFavorited: boolean
 	private checkpointTracker: CheckpointTracker | undefined
@@ -154,6 +161,22 @@ export class MessageStateHandler extends EventEmitter<MessageStateHandlerEvents>
 		this.apiConversationHistory = newHistory
 	}
 
+	getApiConversationProviderState(): ApiConversationProviderState {
+		return this.apiConversationProviderState
+	}
+
+	setApiConversationProviderState(state: ApiConversationProviderState): void {
+		this.apiConversationProviderState = state
+	}
+
+	async overwriteApiConversationProviderState(state: ApiConversationProviderState): Promise<void> {
+		await this.flushPendingWrites()
+		await this.withStateLock(async () => {
+			this.apiConversationProviderState = state
+			await saveApiConversationProviderState(this.taskId, state)
+		})
+	}
+
 	getDiracMessages(): DiracMessage[] {
 		return this.diracMessages
 	}
@@ -201,15 +224,15 @@ export class MessageStateHandler extends EventEmitter<MessageStateHandlerEvents>
 			const taskMessage = messages[0]
 			const lastRelevantMessage =
 				messages[
-					findLastIndex(
-						messages,
-						(message) =>
-							!(
-								message.content.type === "card" &&
-								(message.content.card.header.includes("Resume") ||
-									message.content.card.header.includes("Task Resumed"))
-							),
-					)
+				findLastIndex(
+					messages,
+					(message) =>
+						!(
+							message.content.type === "card" &&
+							(message.content.card.header.includes("Resume") ||
+								message.content.card.header.includes("Task Resumed"))
+						),
+				)
 				] || messages[messages.length - 1]
 
 			const lastModelInfo = [...this.apiConversationHistory].reverse().find((msg) => msg.modelInfo !== undefined)

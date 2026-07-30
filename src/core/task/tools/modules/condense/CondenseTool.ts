@@ -172,9 +172,20 @@ export class CondenseTool implements IDiracTool {
 	}
 
 	private async applyCompaction(range: [number, number], env: IToolEnvironment): Promise<void> {
+		const previousConversationHistoryDeletedRange = env.orchestration.getTaskState("conversationHistoryDeletedRange")
+		const pendingCompaction = {
+			previousConversationHistoryDeletedRange,
+			conversationHistoryDeletedRange: range,
+		}
 		env.orchestration.setTruncationRange(range)
 		env.orchestration.setTaskState("skipNextAutoCondenseCheck", true)
 		await env.orchestration.resetTransientState()
+		env.orchestration.setTaskState("pendingApiConversationCompaction", pendingCompaction)
+		const providerState = env.config.messageState.getApiConversationProviderState()
+		await env.config.messageState.overwriteApiConversationProviderState({
+			...providerState,
+			pendingCompaction,
+		})
 		await env.config.messageState.saveDiracMessagesAndUpdateHistory()
 	}
 

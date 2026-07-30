@@ -95,6 +95,11 @@ describe("LifecycleManager", () => {
 			sinon.assert.calledWith(deps.messageStateHandler.setApiConversationHistory, [])
 		})
 
+		it("clears provider conversation state for a new task", async () => {
+			await manager.startTask("test task")
+			sinon.assert.calledWith(deps.messageStateHandler.setApiConversationProviderState, {})
+		})
+
 		it("upserts user text and initiates task loop", async () => {
 			await manager.startTask("do something")
 			sinon.assert.calledWith(deps.taskMessenger.upsertText, "do something", false, undefined, undefined, "user")
@@ -140,10 +145,11 @@ describe("LifecycleManager", () => {
 	})
 
 	describe("resumeTaskFromHistory", () => {
-		function setupDiskMocks(messages: any[] = [], history: any[] = []) {
+		function setupDiskMocks(messages: any[] = [], history: any[] = [], providerState: any = {}) {
 			const diskModule = require("@core/storage/disk")
 			sinon.stub(diskModule, "getSavedDiracMessages").resolves(messages)
 			sinon.stub(diskModule, "getSavedApiConversationHistory").resolves(history)
+			sinon.stub(diskModule, "getSavedApiConversationProviderState").resolves(providerState)
 			sinon.stub(diskModule, "ensureTaskDirectoryExists").resolves("/test/task")
 			sinon.stub(diskModule, "getTaskMetadata").resolves({
 				files_in_context: [],
@@ -169,6 +175,50 @@ describe("LifecycleManager", () => {
 			await manager.resumeTaskFromHistory()
 			sinon.assert.calledOnce(deps.messageStateHandler.overwriteDiracMessages)
 			sinon.assert.calledOnce(deps.messageStateHandler.setApiConversationHistory)
+		})
+
+		it("restores provider-native conversation state", async () => {
+			const providerState = {
+				checkpoint: {
+					providerId: "openai-codex",
+					modelId: "model",
+					compactedThroughHistoryIndex: 0,
+					input: [{ type: "compaction", encrypted_content: "opaque" }],
+				},
+			}
+			setupDiskMocks([], [{ role: "assistant", content: "done" }], providerState)
+			unblockWaitFor()
+
+			await manager.resumeTaskFromHistory()
+
+			sinon.assert.calledWith(deps.messageStateHandler.setApiConversationProviderState, providerState)
+		})
+
+		it("clears a checkpoint whose boundary is removed during resume", async () => {
+			const providerState = {
+				checkpoint: {
+					providerId: "openai-codex",
+					modelId: "model",
+					compactedThroughHistoryIndex: 1,
+					input: [{ type: "compaction", encrypted_content: "opaque" }],
+				},
+			}
+			setupDiskMocks(
+				[],
+				[
+					{ role: "assistant", content: "answer" },
+					{ role: "user", content: "unfinished" },
+				],
+				providerState,
+			)
+			unblockWaitFor()
+
+			await manager.resumeTaskFromHistory()
+
+			sinon.assert.calledWith(
+				deps.messageStateHandler.overwriteApiConversationProviderState,
+				sinon.match({ checkpoint: undefined }),
+			)
 		})
 
 		it("sets taskState to initialized and not aborted", async () => {
@@ -328,6 +378,8 @@ describe("LifecycleManager", () => {
 
 function createMockDeps(): any {
 	let diracMessages: any[] = []
+	let apiConversationHistory: any[] = []
+	let apiConversationProviderState: any = {}
 	return {
 		taskState: {
 			isInitialized: false,
@@ -340,13 +392,24 @@ function createMockDeps(): any {
 			setDiracMessages: sinon.stub().callsFake((messages: any[]) => {
 				diracMessages = messages
 			}),
-			setApiConversationHistory: sinon.stub(),
+			setApiConversationHistory: sinon.stub().callsFake((history: any[]) => {
+				apiConversationHistory = history
+			}),
+			setApiConversationProviderState: sinon.stub().callsFake((state: any) => {
+				apiConversationProviderState = state
+			}),
+			getApiConversationProviderState: sinon.stub().callsFake(() => apiConversationProviderState),
 			getDiracMessages: sinon.stub().callsFake(() => diracMessages),
-			getApiConversationHistory: sinon.stub().returns([]),
+			getApiConversationHistory: sinon.stub().callsFake(() => apiConversationHistory),
 			overwriteDiracMessages: sinon.stub().callsFake(async (messages: any[]) => {
 				diracMessages = messages
 			}),
-			overwriteApiConversationHistory: sinon.stub(),
+			overwriteApiConversationHistory: sinon.stub().callsFake(async (history: any[]) => {
+				apiConversationHistory = history
+			}),
+			overwriteApiConversationProviderState: sinon.stub().callsFake(async (state: any) => {
+				apiConversationProviderState = state
+			}),
 			updateDiracMessage: sinon.stub(),
 			saveDiracMessagesAndUpdateHistory: sinon.stub(),
 		},

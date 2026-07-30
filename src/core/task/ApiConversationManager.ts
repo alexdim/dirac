@@ -1,21 +1,38 @@
 import { getHookModelContext } from "@core/hooks/hook-model-context"
 import { getHooksEnabledSafe } from "@core/hooks/hooks-utils"
 import { executePreCompactHookWithCleanup, HookCancellationError } from "@core/hooks/precompact-executor"
+import type {
+	ApiConversationCheckpoint, ApiConversationRequestOptions
+} from "@core/api/conversation"
 import { autoCondensePrompt } from "@core/prompts/contextManagement"
 import { formatContentBlockToMarkdown } from "@integrations/misc/export-markdown"
 import { telemetryService } from "@services/telemetry"
 import { findLastIndex } from "@shared/array"
 import { CardStatus, DiracMessageType, Mode } from "@shared/ExtensionMessage"
 import { DiracContent, DiracStorageMessage } from "@shared/messages/content"
+import type { DiracTool } from "@shared/tools"
 import { Logger } from "@shared/services/Logger"
 import { getAutoCondenseContextLimit } from "@shared/context-management"
 import { ApiConversationManagerDependencies } from "./types/api-conversation-manager"
 
 export class ApiConversationManager {
-	constructor(private dependencies: ApiConversationManagerDependencies) {}
+	constructor(private dependencies: ApiConversationManagerDependencies) { }
 
 	setApi(api: ApiConversationManagerDependencies["api"]): void {
 		this.dependencies.api = api
+	}
+
+	public async scheduleProviderConversationCompaction(
+		previousConversationHistoryDeletedRange: [number, number] | undefined,
+		conversationHistoryDeletedRange: [number, number],
+	): Promise<void> {
+		const pendingCompaction = { previousConversationHistoryDeletedRange, conversationHistoryDeletedRange }
+		this.dependencies.taskState.pendingApiConversationCompaction = pendingCompaction
+		const providerState = this.dependencies.messageStateHandler.getApiConversationProviderState()
+		await this.dependencies.messageStateHandler.overwriteApiConversationProviderState({
+			...providerState,
+			pendingCompaction,
+		})
 	}
 
 	public calculatePreCompactDeletedRange(apiConversationHistory: DiracStorageMessage[]): [number, number] {
@@ -70,13 +87,17 @@ export class ApiConversationManager {
 		}
 
 		// Proceed with standard truncation
+		const previousConversationHistoryDeletedRange = this.dependencies.taskState.conversationHistoryDeletedRange
 		const newDeletedRange = this.dependencies.contextManager.getNextTruncationRange(
 			apiConversationHistory,
-			this.dependencies.taskState.conversationHistoryDeletedRange,
+			previousConversationHistoryDeletedRange,
 			"quarter", // Force aggressive truncation
 		)
 
 		this.dependencies.taskState.conversationHistoryDeletedRange = newDeletedRange
+		if (newDeletedRange) {
+			await this.scheduleProviderConversationCompaction(previousConversationHistoryDeletedRange, newDeletedRange)
+		}
 
 		await this.dependencies.messageStateHandler.saveDiracMessagesAndUpdateHistory()
 		this.dependencies.onContextCompacted?.()
@@ -113,6 +134,173 @@ export class ApiConversationManager {
 		// conversation has zero or two active messages at this point.
 		return activeMessageCount > 2
 	}
+	private isCompatibleCheckpoint(
+		checkpoint: ApiConversationCheckpoint | undefined,
+		providerId: string,
+		modelId: string,
+		historyLength: number,
+	): checkpoint is ApiConversationCheckpoint {
+		return (
+			checkpoint?.providerId === providerId &&
+			checkpoint.modelId === modelId &&
+			checkpoint.compactedThroughHistoryIndex >= 0 &&
+			checkpoint.compactedThroughHistoryIndex < historyLength
+		)
+	}
+
+	private hasCompatibleAssistantAfterBoundary(
+		history: DiracStorageMessage[],
+		boundary: number,
+		providerId: string,
+		modelId: string,
+	): boolean {
+		return history.slice(boundary + 1).some(
+			(message) =>
+				message.role === "assistant" &&
+				message.modelInfo?.providerId === providerId &&
+				message.modelInfo.modelId === modelId &&
+				message.id !== undefined,
+		)
+	}
+
+	public async prepareProviderConversationDispatch(params: {
+		systemPrompt: string
+		tools: DiracTool[]
+		truncatedMessages: DiracStorageMessage[]
+		providerId: string
+		modelId: string
+	}): Promise<{ messages: DiracStorageMessage[]; options: ApiConversationRequestOptions }> {
+		if (this.dependencies.taskState.abort) throw new Error("Task instance aborted")
+
+		const fullHistory = this.dependencies.messageStateHandler.getApiConversationHistory()
+		let providerState = this.dependencies.messageStateHandler.getApiConversationProviderState()
+		let checkpoint = this.isCompatibleCheckpoint(
+			providerState.checkpoint,
+			params.providerId,
+			params.modelId,
+			fullHistory.length,
+		)
+			? providerState.checkpoint
+			: undefined
+
+		let dispatchMessages = params.truncatedMessages
+
+		const pendingCompaction =
+			this.dependencies.taskState.pendingApiConversationCompaction ?? providerState.pendingCompaction
+		if (pendingCompaction) this.dependencies.taskState.pendingApiConversationCompaction = pendingCompaction
+		if (pendingCompaction) {
+			const currentDeletedRange = this.dependencies.taskState.conversationHistoryDeletedRange
+			const targetDeletedRange = pendingCompaction.conversationHistoryDeletedRange
+			if (
+				!currentDeletedRange ||
+				currentDeletedRange[0] !== targetDeletedRange[0] ||
+				currentDeletedRange[1] !== targetDeletedRange[1]
+			) {
+				this.dependencies.taskState.conversationHistoryDeletedRange = targetDeletedRange
+				dispatchMessages = this.dependencies.contextManager.getTruncatedMessages(
+					fullHistory,
+					targetDeletedRange,
+				) as DiracStorageMessage[]
+				await this.dependencies.messageStateHandler.saveDiracMessagesAndUpdateHistory()
+			}
+			const boundary = fullHistory.length - 1
+			if (this.dependencies.api.compactConversation) {
+				const messages = checkpoint
+					? fullHistory.slice(checkpoint.compactedThroughHistoryIndex + 1)
+					: (this.dependencies.contextManager.getTruncatedMessages(
+						fullHistory,
+						pendingCompaction.previousConversationHistoryDeletedRange,
+					) as DiracStorageMessage[])
+				try {
+					const result = await this.dependencies.api.compactConversation({
+						systemPrompt: params.systemPrompt,
+						messages,
+						tools: params.tools,
+						checkpoint,
+					})
+					if (this.dependencies.taskState.abort) throw new Error("Task instance aborted")
+					checkpoint = {
+						providerId: params.providerId,
+						modelId: params.modelId,
+						compactedThroughHistoryIndex: boundary,
+						input: result.input,
+					}
+					providerState = {
+						checkpoint,
+						continuationReset: {
+							providerId: params.providerId,
+							modelId: params.modelId,
+							compactedThroughHistoryIndex: boundary,
+						},
+					}
+					await this.dependencies.messageStateHandler.overwriteApiConversationProviderState(providerState)
+					this.dependencies.taskState.pendingApiConversationCompaction = undefined
+				} catch (error) {
+					if (this.dependencies.taskState.abort) throw error
+					Logger.error(
+						"Provider-native conversation compaction failed; using the plaintext condensed history without opaque state preservation:",
+						error,
+					)
+					checkpoint = undefined
+					providerState = {
+						continuationReset: {
+							providerId: params.providerId,
+							modelId: params.modelId,
+							compactedThroughHistoryIndex: boundary,
+						},
+					}
+					await this.dependencies.messageStateHandler.overwriteApiConversationProviderState(providerState)
+					this.dependencies.taskState.pendingApiConversationCompaction = undefined
+				}
+			} else {
+				Logger.warn(
+					"Provider-native conversation compaction is unavailable; using the plaintext condensed history without opaque state preservation.",
+				)
+				checkpoint = undefined
+				providerState = {
+					continuationReset: {
+						providerId: params.providerId,
+						modelId: params.modelId,
+						compactedThroughHistoryIndex: boundary,
+					},
+				}
+				await this.dependencies.messageStateHandler.overwriteApiConversationProviderState(providerState)
+				this.dependencies.taskState.pendingApiConversationCompaction = undefined
+			}
+		}
+
+		const continuationReset = providerState.continuationReset
+		const resetIsCompatible =
+			continuationReset?.providerId === params.providerId && continuationReset.modelId === params.modelId
+		let breakProviderContinuation = resetIsCompatible
+		if (
+			resetIsCompatible &&
+			this.hasCompatibleAssistantAfterBoundary(
+				fullHistory,
+				continuationReset.compactedThroughHistoryIndex,
+				params.providerId,
+				params.modelId,
+			)
+		) {
+			providerState = { ...providerState, continuationReset: undefined }
+			await this.dependencies.messageStateHandler.overwriteApiConversationProviderState(providerState)
+			breakProviderContinuation = false
+		}
+
+		if (providerState.checkpoint && !checkpoint) {
+			providerState = { ...providerState, checkpoint: undefined }
+			await this.dependencies.messageStateHandler.overwriteApiConversationProviderState(providerState)
+		}
+
+		if (this.dependencies.taskState.abort) throw new Error("Task instance aborted")
+
+		return {
+			messages: checkpoint ? fullHistory.slice(checkpoint.compactedThroughHistoryIndex + 1) : dispatchMessages,
+			options: { checkpoint, breakProviderContinuation },
+		}
+	}
+
+
 
 	public async prepareApiRequest(params: {
 		userContent: DiracContent[]

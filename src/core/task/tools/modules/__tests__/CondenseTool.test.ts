@@ -16,6 +16,7 @@ function createMocks(source: "automatic" | "user" = "automatic") {
 		pendingCondenseSource: source === "automatic" ? "automatic" : undefined,
 		lastAutoCondenseTriggerIndex: 4,
 	}
+	let providerState: any = {}
 	const env = {
 		ui: { createCard: sinon.stub().resolves(card) },
 		orchestration: {
@@ -37,6 +38,10 @@ function createMocks(source: "automatic" | "user" = "automatic") {
 			taskState: state,
 			messageState: {
 				getDiracMessages: sinon.stub().returns([]),
+				getApiConversationProviderState: sinon.stub().callsFake(() => providerState),
+				overwriteApiConversationProviderState: sinon.stub().callsFake(async (state: any) => {
+					providerState = state
+				}),
 				saveDiracMessagesAndUpdateHistory: sinon.stub().resolves(),
 			},
 			services: {
@@ -49,20 +54,28 @@ function createMocks(source: "automatic" | "user" = "automatic") {
 			},
 		},
 	}
-	return { card, env, state }
+	return { card, env, state, getProviderState: () => providerState }
 }
 
 describe("CondenseTool", () => {
 	afterEach(() => sinon.restore())
 
 	it("automatically condenses without waiting for user approval", async () => {
-		const { card, env, state } = createMocks("automatic")
+		const { card, env, state, getProviderState } = createMocks("automatic")
 
 		const result = await new CondenseTool().processCall({ context: "summary" }, env as any)
 
 		assert.equal(card.waitForInteraction.callCount, 0)
 		assert.deepEqual(env.orchestration.setTruncationRange.firstCall.args[0], [1, 6])
 		assert.equal(state.skipNextAutoCondenseCheck, true)
+		assert.deepEqual(state.pendingApiConversationCompaction, {
+			conversationHistoryDeletedRange: [1, 6],
+			previousConversationHistoryDeletedRange: undefined,
+		})
+		assert.deepEqual(getProviderState().pendingCompaction, {
+			conversationHistoryDeletedRange: [1, 6],
+			previousConversationHistoryDeletedRange: undefined,
+		})
 		assert.match(result, /Please continue the conversation/)
 	})
 
@@ -77,23 +90,25 @@ describe("CondenseTool", () => {
 	})
 
 	it("does not compact when the user rejects the summary", async () => {
-		const { card, env } = createMocks("user")
+		const { card, env, state } = createMocks("user")
 		card.waitForInteraction.resolves({ action: DiracAskResponse.REJECT, text: "include the latest changes" })
 
 		const result = await new CondenseTool().processCall({ context: "summary" }, env as any)
 
 		assert.equal(env.orchestration.runHook.callCount, 0)
 		assert.equal(env.orchestration.setTruncationRange.callCount, 0)
+		assert.equal(state.pendingApiConversationCompaction, undefined)
 		assert.match(result, /include the latest changes/)
 	})
 
 	it("does not mutate truncation state when the hook cancels", async () => {
-		const { env } = createMocks("automatic")
+		const { env, state } = createMocks("automatic")
 		env.orchestration.runHook.resolves({ cancel: true })
 
 		const result = await new CondenseTool().processCall({ context: "summary" }, env as any)
 
 		assert.equal(env.orchestration.setTruncationRange.callCount, 0)
+		assert.equal(state.pendingApiConversationCompaction, undefined)
 		assert.match(result, /cancelled by PreCompact hook/)
 	})
 

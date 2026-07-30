@@ -2,7 +2,12 @@ import { formatResponse } from "@core/formatResponse"
 import { executeHook } from "@core/hooks/hook-executor"
 import { getHookModelContext } from "@core/hooks/hook-model-context"
 import { getHooksEnabledSafe } from "@core/hooks/hooks-utils"
-import { ensureTaskDirectoryExists, getSavedApiConversationHistory, getSavedDiracMessages } from "@core/storage/disk"
+import {
+	ensureTaskDirectoryExists,
+	getSavedApiConversationHistory,
+	getSavedApiConversationProviderState,
+	getSavedDiracMessages,
+} from "@core/storage/disk"
 import { processFilesIntoText } from "@integrations/misc/extract-text"
 import { findLastIndex } from "@shared/array"
 import { DiracStorageMessage } from "@shared/messages"
@@ -35,6 +40,16 @@ export class TaskResumeManager {
 		if (this.deps.taskState.abort) return
 		await this.appendUserResponse(newUserContent, response, text, images, files)
 		const { modifiedApiConversationHistory, modifiedOldUserContent } = this.prepareHistoryForResume()
+		const providerState = this.deps.messageStateHandler.getApiConversationProviderState()
+		if (
+			providerState.checkpoint &&
+			providerState.checkpoint.compactedThroughHistoryIndex >= modifiedApiConversationHistory.length
+		) {
+			await this.deps.messageStateHandler.overwriteApiConversationProviderState({
+				...providerState,
+				checkpoint: undefined,
+			})
+		}
 		newUserContent.push(...modifiedOldUserContent)
 		this.appendResumeContext(newUserContent, lastDiracMessage, text, images, files)
 		await this.runUserPromptHook(newUserContent)
@@ -86,6 +101,9 @@ export class TaskResumeManager {
 		this.deps.messageStateHandler.setDiracMessages(await getSavedDiracMessages(this.deps.taskId))
 		this.deps.messageStateHandler.setApiConversationHistory(
 			(await getSavedApiConversationHistory(this.deps.taskId)) as DiracStorageMessage[],
+		)
+		this.deps.messageStateHandler.setApiConversationProviderState(
+			await getSavedApiConversationProviderState(this.deps.taskId),
 		)
 	}
 

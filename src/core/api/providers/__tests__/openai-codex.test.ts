@@ -324,4 +324,93 @@ describe("OpenAiCodexHandler persisted reasoning", () => {
 		expect(requests[0].reasoning?.context).to.equal(undefined)
 		requests[0].input.should.have.length(3)
 	})
+
+	it("compacts the active Responses input into opaque replacement items", async () => {
+		const handler = createHandler()
+		const replacement = [
+			{ role: "user", content: [{ type: "input_text", text: "retained" }] },
+			{ id: "cmp_1", type: "compaction", encrypted_content: "opaque-state" },
+		]
+		const compact = sinon.stub().returns({
+			withResponse: sinon.stub().resolves({ data: { output: replacement }, response: { headers: new Headers() } }),
+		})
+		sinon.stub(handler as any, "createCodexClient").returns({ responses: { compact } })
+
+		const result = await handler.compactConversation({
+			systemPrompt: "system",
+			messages: [{ role: "user", content: "question" }] as any,
+			tools,
+		})
+
+		result.input.should.deepEqual(replacement)
+		const body = compact.firstCall.args[0]
+		expect(body.previous_response_id).to.equal(undefined)
+		expect(body.stream).to.equal(undefined)
+		body.reasoning.context.should.equal("all_turns")
+	})
+
+	it("starts a compacted branch without the stale anchor and then resumes from the new response", async () => {
+		const handler = createHandler()
+		const requests: any[] = []
+		const websocketStub = sinon.stub(handler as any, "createResponseStreamWebsocket")
+		websocketStub.onFirstCall().callsFake(async function* (request: any) {
+			requests.push(request)
+			yield { type: "usage", id: "resp_old" }
+		})
+		websocketStub.onSecondCall().callsFake(async function* (request: any) {
+			requests.push(request)
+			yield { type: "usage", id: "resp_new" }
+		})
+		websocketStub.onThirdCall().callsFake(async function* (request: any) {
+			requests.push(request)
+		})
+		const checkpoint = {
+			providerId: "openai-codex",
+			modelId: "gpt-5.6-terra",
+			compactedThroughHistoryIndex: 2,
+			input: [
+				{ role: "user", content: [{ type: "input_text", text: "retained" }] },
+				{ id: "cmp_1", type: "compaction", encrypted_content: "opaque-state" },
+			],
+		}
+
+		await drain(handler.createMessage("system", [{ role: "user", content: "old" }] as any, tools))
+		await drain(handler.createMessage("system", [], tools, { checkpoint, breakProviderContinuation: true }))
+		await drain(
+			handler.createMessage(
+				"system",
+				[currentCodexResponse("gpt-5.6-terra", "new answer", "resp_new"), { role: "user", content: "next" }] as any,
+				tools,
+				{ checkpoint },
+			),
+		)
+
+		expect(requests[1].previous_response_id).to.equal(undefined)
+		requests[1].input.should.deepEqual(checkpoint.input)
+		requests[2].previous_response_id.should.equal("resp_new")
+		requests[2].input.should.have.length(1)
+	})
+
+	it("breaks stale continuation when remote compaction falls back to local truncation", async () => {
+		const handler = createHandler()
+		const requests: any[] = []
+		sinon.stub(handler as any, "createResponseStreamWebsocket").callsFake(async function* (request: any) {
+			requests.push(request)
+			yield { type: "usage", id: requests.length === 1 ? "resp_old" : "resp_new" }
+		})
+
+		await drain(handler.createMessage("system", [{ role: "user", content: "old" }] as any, tools))
+		await drain(
+			handler.createMessage(
+				"system",
+				[currentCodexResponse("gpt-5.6-terra", "summary", "resp_old"), { role: "user", content: "continue" }] as any,
+				tools,
+				{ breakProviderContinuation: true },
+			),
+		)
+
+		expect(requests[1].previous_response_id).to.equal(undefined)
+		requests[1].input.should.have.length(2)
+	})
+
 })

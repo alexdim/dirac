@@ -1,4 +1,5 @@
 import { Anthropic } from "@anthropic-ai/sdk"
+import type { ApiConversationProviderState } from "@core/api/conversation"
 import { DiracMessage } from "@shared/ExtensionMessage"
 import { fileExistsAtPath } from "@utils/fs"
 import fs from "fs/promises"
@@ -17,6 +18,22 @@ export async function getSavedApiConversationHistory(taskId: string): Promise<An
 		return JSON.parse(await fs.readFile(filePath, "utf8"))
 	}
 	return []
+}
+
+// Reads provider-native conversation state separately from the generic API transcript.
+export async function getSavedApiConversationProviderState(taskId: string): Promise<ApiConversationProviderState> {
+	const filePath = path.join(await ensureTaskDirectoryExists(taskId), GlobalFileNames.apiConversationProviderState)
+	if (!(await fileExistsAtPath(filePath))) return {}
+	return JSON.parse(await fs.readFile(filePath, "utf8"))
+}
+
+// Persists opaque provider-native checkpoints without encoding them as generic messages.
+export async function saveApiConversationProviderState(taskId: string, state: ApiConversationProviderState): Promise<void> {
+	const fileName = GlobalFileNames.apiConversationProviderState
+	const data = JSON.stringify(state)
+	syncWorker().enqueue(taskId, fileName, data)
+	const filePath = path.join(await ensureTaskDirectoryExists(taskId), fileName)
+	await atomicWriteFile(filePath, data)
 }
 
 // Persists API conversation history for a task, queuing remote sync without blocking.
