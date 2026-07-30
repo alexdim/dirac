@@ -2,7 +2,13 @@ import { executeHook } from "@core/hooks/hook-executor"
 import { getHookModelContext } from "@core/hooks/hook-model-context"
 import { getHooksEnabledSafe } from "@core/hooks/hooks-utils"
 import { formatResponse } from "@core/formatResponse"
-import { ensureTaskDirectoryExists, getSavedApiConversationHistory, getSavedDiracMessages, getTaskMetadata } from "@core/storage/disk"
+import {
+	ensureTaskDirectoryExists,
+	getSavedApiConversationHistory,
+	getSavedApiConversationProviderState,
+	getSavedDiracMessages,
+	getTaskMetadata,
+} from "@core/storage/disk"
 import { HostProvider } from "@hosts/host-provider"
 import { ensureCheckpointInitialized } from "@integrations/checkpoints/initializer"
 import { processFilesIntoText } from "@integrations/misc/extract-text"
@@ -91,6 +97,7 @@ export class LifecycleManager {
 		}
 		this.dependencies.messageStateHandler.setDiracMessages([])
 		this.dependencies.messageStateHandler.setApiConversationHistory([])
+		this.dependencies.messageStateHandler.setApiConversationProviderState({})
 
 		await this.dependencies.postStateToWebview()
 
@@ -229,6 +236,9 @@ export class LifecycleManager {
 
 		const savedApiConversationHistory = await getSavedApiConversationHistory(this.dependencies.taskId)
 		this.dependencies.messageStateHandler.setApiConversationHistory(savedApiConversationHistory as any)
+		this.dependencies.messageStateHandler.setApiConversationProviderState(
+			await getSavedApiConversationProviderState(this.dependencies.taskId),
+		)
 		this.dependencies.restoreQueuedSteeringFromTranscript()
 
 		await ensureTaskDirectoryExists(this.dependencies.taskId)
@@ -355,6 +365,17 @@ export class LifecycleManager {
 		} else {
 			modifiedApiConversationHistory = []
 			modifiedOldUserContent = []
+		}
+
+		const providerState = this.dependencies.messageStateHandler.getApiConversationProviderState()
+		if (
+			providerState.checkpoint &&
+			providerState.checkpoint.compactedThroughHistoryIndex >= modifiedApiConversationHistory.length
+		) {
+			await this.dependencies.messageStateHandler.overwriteApiConversationProviderState({
+				...providerState,
+				checkpoint: undefined,
+			})
 		}
 
 		newUserContent.push(...modifiedOldUserContent)

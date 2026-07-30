@@ -1,6 +1,11 @@
 import { ApiConfiguration, getModelInfo, ModelInfo, openAiModelInfoSaneDefaults, QwenApiRegions } from "@shared/api"
 import { Mode } from "@shared/storage/types"
 import { DiracStorageMessage } from "@/shared/messages/content"
+import type {
+	ApiConversationCompactionRequest,
+	ApiConversationCompactionResult,
+	ApiConversationRequestOptions,
+} from "./conversation"
 import { Logger } from "@/shared/services/Logger"
 import { DiracTool } from "@/shared/tools"
 import { AIhubmixHandler } from "./providers/aihubmix"
@@ -45,12 +50,27 @@ import { ApiStream, ApiStreamUsageChunk } from "./transform/stream"
 
 import { ApiConfigurationError, ApiConfigurationErrorCode } from "./ApiConfigurationError"
 export { ApiConfigurationError, ApiConfigurationErrorCode } from "./ApiConfigurationError"
+export type {
+	ApiConversationCheckpoint,
+	ApiConversationCompactionRequest,
+	ApiConversationCompactionResult,
+	ApiConversationContinuationReset,
+	ApiConversationProviderState,
+	ApiConversationRequestOptions,
+	PendingApiConversationCompaction,
+} from "./conversation"
 export type CommonApiHandlerOptions = {
 	onRetryAttempt?: ApiConfiguration["onRetryAttempt"]
 	enableParallelToolCalling?: boolean
 }
 export interface ApiHandler {
-	createMessage(systemPrompt: string, messages: DiracStorageMessage[], tools?: DiracTool[], useResponseApi?: boolean): ApiStream
+	createMessage(
+		systemPrompt: string,
+		messages: DiracStorageMessage[],
+		tools?: DiracTool[],
+		options?: ApiConversationRequestOptions,
+	): ApiStream
+	compactConversation?(request: ApiConversationCompactionRequest): Promise<ApiConversationCompactionResult>
 	getModel(): ApiHandlerModel
 	getApiStreamUsage?(): Promise<ApiStreamUsageChunk | undefined>
 	abort?(): void

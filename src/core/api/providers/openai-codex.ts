@@ -21,7 +21,13 @@ import { fetch } from "@/shared/net"
 import { ApiFormat } from "@/shared/proto/dirac/models"
 import { FeatureFlag } from "@/shared/services/feature-flags/feature-flags"
 import { Logger } from "@/shared/services/Logger"
-import { ApiHandler, CommonApiHandlerOptions } from "../"
+import {
+	ApiHandler,
+	CommonApiHandlerOptions,
+	type ApiConversationCompactionRequest,
+	type ApiConversationCompactionResult,
+	type ApiConversationRequestOptions,
+} from "../"
 import { convertToOpenAIResponsesInput } from "../transform/openai-response-format"
 import { ApiStream } from "../transform/stream"
 import {
@@ -161,29 +167,118 @@ export class OpenAiCodexHandler implements ApiHandler {
 		return isParallelToolCallingEnabled(this.options.enableParallelToolCalling ?? false)
 	}
 
-	async *createMessage(systemPrompt: string, messages: DiracStorageMessage[], tools?: ChatCompletionTool[]): ApiStream {
-		// Add web_search tool for OpenAI
+	private createCodexClient(accessToken: string, headers: Record<string, string>): OpenAI {
+		return new OpenAI({ apiKey: accessToken, baseURL: CODEX_API_BASE_URL, defaultHeaders: headers, fetch })
+	}
+
+
+	async compactConversation(request: ApiConversationCompactionRequest): Promise<ApiConversationCompactionResult> {
+		const model = this.getModel()
+		const finalTools: CodexTool[] = [...((request.tools ?? []) as ChatCompletionTool[]), { type: "web_search" }]
+		const input = [
+			...(request.checkpoint?.input ?? []),
+			...convertToOpenAIResponsesInput(request.messages).input,
+		]
+		const fullBody = this.buildRequestBody(model, input, request.systemPrompt, finalTools, {
+			usePersistedReasoning: model.info.supportsPersistedReasoning === true,
+		})
+		const { stream, store, tool_choice, include, previous_response_id, ...compactBody } = fullBody
+		void stream
+		void store
+		void tool_choice
+		void include
+		void previous_response_id
+
+		let accessToken = await openAiCodexOAuthManager.getAccessToken()
+		if (!accessToken) {
+			throw new Error("Not authenticated with OpenAI Codex. Please sign in using the OpenAI Codex OAuth flow in settings.")
+		}
+
+		this.abortController = new AbortController()
+		try {
+			for (let attempt = 0; attempt < 2; attempt++) {
+				const accountId = await openAiCodexOAuthManager.getAccountId()
+				const codexHeaders: Record<string, string> = {
+					originator: "dirac",
+					session_id: this.sessionId,
+					"User-Agent": `dirac/${process.env.npm_package_version || "1.0.0"} (${os.platform()} ${os.release()}; ${os.arch()}) node/${process.version.slice(1)}`,
+					...(accountId ? { "ChatGPT-Account-Id": accountId } : {}),
+					...buildExternalBasicHeaders(),
+				}
+				const client = this.createCodexClient(accessToken, codexHeaders)
+				try {
+					const apiRequest = client.responses.compact(compactBody as any, {
+						signal: this.abortController.signal,
+						headers: codexHeaders,
+					})
+					const { data, response } = await apiRequest.withResponse()
+					openAiCodexUsageService.applyResponseHeaders(response.headers)
+					const output = (data as any).output
+					if (!Array.isArray(output)) throw new Error("Codex compact response did not contain replacement input items")
+					const opaqueItem = output.find((item: any) => item?.type === "compaction")
+					if (!opaqueItem || typeof opaqueItem.encrypted_content !== "string") {
+						throw new Error("Codex compact response did not contain opaque compaction state")
+					}
+					this.clearWebsocketContinuationAnchor("conversation_compacted")
+					this.closeResponsesWebsocket()
+					return { input: output }
+				} catch (error) {
+					const message = error instanceof Error ? error.message : String(error)
+					const isAuthFailure = /unauthorized|invalid token|not authenticated|authentication|401/i.test(message)
+					if (attempt === 0 && isAuthFailure) {
+						const refreshed = await openAiCodexOAuthManager.forceRefreshAccessToken()
+						if (!refreshed) throw error
+						accessToken = refreshed
+						continue
+					}
+					throw error
+				}
+			}
+			throw new Error("Codex conversation compaction exhausted authentication retries")
+		} finally {
+			this.abortController = undefined
+		}
+	}
+
+
+	async *createMessage(
+		systemPrompt: string,
+		messages: DiracStorageMessage[],
+		tools?: ChatCompletionTool[],
+		options?: ApiConversationRequestOptions,
+	): ApiStream {
 		const finalTools: CodexTool[] = [...(tools || []), { type: "web_search" }]
 		const model = this.getModel()
 		const usePersistedReasoning = model.info.supportsPersistedReasoning === true
 		const useWebsocketMode = this.useWebsocketMode(model.info.apiFormat) || usePersistedReasoning
 
-		// Reset state for this request
 		this.pendingToolCallId = undefined
 		this.pendingToolCallName = undefined
 
+		if (options?.breakProviderContinuation) {
+			this.clearWebsocketContinuationAnchor("conversation_compacted")
+			this.closeResponsesWebsocket()
+		}
+
 		const requestConfiguration = this.createRequestConfiguration(model, systemPrompt, finalTools, usePersistedReasoning)
 		const canContinue =
-			usePersistedReasoning && this.canContinueWebsocketResponse(messages, model, requestConfiguration)
-		const { input, previousResponseId } = convertToOpenAIResponsesInput(messages, {
+			!options?.breakProviderContinuation &&
+			usePersistedReasoning &&
+			this.canContinueWebsocketResponse(messages, model, requestConfiguration)
+		const converted = convertToOpenAIResponsesInput(messages, {
 			usePreviousResponseId: canContinue,
 			canUsePreviousResponse: canContinue
 				? (message) => message.id === this.websocketContinuationAnchor?.responseId
 				: undefined,
 		})
-		const fallbackInput = previousResponseId ? convertToOpenAIResponsesInput(messages).input : input
+		const fullInput = [
+			...(options?.checkpoint?.input ?? []),
+			...convertToOpenAIResponsesInput(messages).input,
+		]
+		const input = converted.previousResponseId ? converted.input : fullInput
+		const fallbackInput = fullInput
 		let requestBody = this.buildRequestBody(model, input, systemPrompt, finalTools, {
-			previousResponseId,
+			previousResponseId: converted.previousResponseId,
 			usePersistedReasoning,
 		})
 		const websocketFallbackRequestBody = this.buildRequestBody(model, fallbackInput, systemPrompt, finalTools, {
@@ -194,16 +289,14 @@ export class OpenAiCodexHandler implements ApiHandler {
 		})
 		const functionCallOutputs = input.filter((item: any) => item.type === "function_call_output").length
 		Logger.log(
-			`[OpenAI Codex persisted reasoning] request=${previousResponseId ? "continuation" : "full_context"} anchor_available=${this.websocketContinuationAnchor !== undefined} anchor_eligible=${canContinue} request_config=${requestConfiguration.slice(0, 12)} input_items=${input.length} function_call_outputs=${functionCallOutputs}`,
+			`[OpenAI Codex persisted reasoning] request=${converted.previousResponseId ? "continuation" : "full_context"} anchor_available=${this.websocketContinuationAnchor !== undefined} anchor_eligible=${canContinue} request_config=${requestConfiguration.slice(0, 12)} input_items=${input.length} function_call_outputs=${functionCallOutputs}`,
 		)
 
-		// Get access token from OAuth manager
 		let accessToken = await openAiCodexOAuthManager.getAccessToken()
 		if (!accessToken) {
 			throw new Error("Not authenticated with OpenAI Codex. Please sign in using the OpenAI Codex OAuth flow in settings.")
 		}
 
-		// Make the request with retry on auth failure
 		for (let attempt = 0; attempt < 2; attempt++) {
 			let didEmitRequestOutput = false
 			try {
@@ -223,9 +316,7 @@ export class OpenAiCodexHandler implements ApiHandler {
 			} catch (error) {
 				const message = error instanceof Error ? error.message : String(error)
 				const isAuthFailure = /unauthorized|invalid token|not authenticated|authentication|401/i.test(message)
-
 				if (attempt === 0 && isAuthFailure && !didEmitRequestOutput) {
-					// Force refresh the token for retry
 					const refreshed = await openAiCodexOAuthManager.forceRefreshAccessToken()
 					if (!refreshed) {
 						throw new Error(

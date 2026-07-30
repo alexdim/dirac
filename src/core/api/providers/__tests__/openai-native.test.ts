@@ -25,12 +25,17 @@ const currentModelResponse = (modelId = "gpt-5.6-terra") =>
 		modelInfo: { providerId: "openai-native", modelId, mode: "act" },
 	}) as any
 
-function createHandler(createStub: sinon.SinonStub, options: { modelId?: string } = {}): OpenAiNativeHandler {
+function createHandler(
+	createStub: sinon.SinonStub,
+	options: { modelId?: string; compactStub?: sinon.SinonStub } = {},
+): OpenAiNativeHandler {
 	const handler = new OpenAiNativeHandler({
 		openAiNativeApiKey: "test-api-key",
 		apiModelId: options.modelId ?? "gpt-5.6-terra",
 	})
-	sinon.stub(handler as any, "ensureClient").returns({ responses: { create: createStub } })
+	sinon.stub(handler as any, "ensureClient").returns({
+		responses: { create: createStub, compact: options.compactStub ?? sinon.stub() },
+	})
 	sinon.stub(handler as any, "useWebsocketMode").returns(false)
 	return handler
 }
@@ -213,4 +218,71 @@ describe("OpenAiNativeHandler persisted reasoning", () => {
 		chunks.should.deepEqual([{ id: "msg_1", type: "text", text: "partial" }])
 		expect(caught).to.equal(missingResponse)
 	})
+
+	it("compacts Responses input into opaque replacement items", async () => {
+		const createStub = sinon.stub().resolves(createAsyncIterable())
+		const replacement = [
+			{ role: "user", content: [{ type: "input_text", text: "retained" }] },
+			{ id: "cmp_1", type: "compaction", encrypted_content: "opaque-state" },
+		]
+		const compactStub = sinon.stub().resolves({ output: replacement })
+		const handler = createHandler(createStub, { compactStub })
+
+		const result = await handler.compactConversation({
+			systemPrompt: "system",
+			messages: [{ role: "user", content: "question" }] as any,
+			tools,
+		})
+
+		result.input.should.deepEqual(replacement)
+		const body = compactStub.firstCall.args[0]
+		expect(body.previous_response_id).to.equal(undefined)
+		expect(body.stream).to.equal(undefined)
+		body.reasoning.context.should.equal("all_turns")
+	})
+
+	it("uses a compact checkpoint before establishing a new persisted-reasoning branch", async () => {
+		const createStub = sinon.stub().resolves(createAsyncIterable())
+		const handler = createHandler(createStub)
+		const checkpoint = {
+			providerId: "openai-native",
+			modelId: "gpt-5.6-terra",
+			compactedThroughHistoryIndex: 2,
+			input: [
+				{ role: "user", content: [{ type: "input_text", text: "retained" }] },
+				{ id: "cmp_1", type: "compaction", encrypted_content: "opaque-state" },
+			],
+		}
+
+		await drain(handler.createMessage("system", [], tools, { checkpoint, breakProviderContinuation: true }))
+		const newResponse = currentModelResponse() as any
+		newResponse.id = "resp_new"
+		await drain(handler.createMessage("system", [newResponse, { role: "user", content: "next" }] as any, tools, { checkpoint }))
+
+		const first = createStub.firstCall.args[0]
+		expect(first.previous_response_id).to.equal(undefined)
+		first.input.should.deepEqual(checkpoint.input)
+		const second = createStub.secondCall.args[0]
+		second.previous_response_id.should.equal("resp_new")
+		second.input.should.have.length(1)
+	})
+
+	it("does not reuse a stale response ID after local compaction fallback", async () => {
+		const createStub = sinon.stub().resolves(createAsyncIterable())
+		const handler = createHandler(createStub)
+
+		await drain(
+			handler.createMessage(
+				"system",
+				[currentModelResponse(), { role: "user", content: "continue from summary" }] as any,
+				tools,
+				{ breakProviderContinuation: true },
+			),
+		)
+
+		const params = createStub.firstCall.args[0]
+		expect(params.previous_response_id).to.equal(undefined)
+		params.input.should.have.length(2)
+	})
+
 })
