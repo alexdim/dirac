@@ -2,6 +2,17 @@ import type { ModelInfo } from "./types"
 import { MODEL_CAPABILITIES } from "./capabilities"
 import { ApiFormat } from "../../proto/dirac/models"
 
+/**
+ * ChatGPT/Codex OAuth-only Responses API capabilities.
+ *
+ * Models must explicitly opt in after their Codex Responses WebSocket protocol
+ * has been verified. Unknown models remain disabled so the OAuth backend never
+ * receives unsupported persistence or chaining fields.
+ */
+export interface OpenAiCodexModelInfo extends ModelInfo {
+	supportsPersistedReasoning?: boolean
+}
+
 export type OpenAiCodexModelId = keyof typeof openAiCodexModels
 
 export const openAiCodexDefaultModelId: OpenAiCodexModelId = "gpt-5.6-terra"
@@ -53,6 +64,7 @@ export const openAiCodexModels = {
 		...MODEL_CAPABILITIES["gpt-5.6-sol"],
 		supportsPromptCache: true,
 		apiFormat: ApiFormat.OPENAI_RESPONSES,
+		supportsPersistedReasoning: true,
 		inputPrice: 0,
 		outputPrice: 0,
 		description: "GPT-5.6 Sol Codex via ChatGPT subscription",
@@ -61,6 +73,7 @@ export const openAiCodexModels = {
 		...MODEL_CAPABILITIES["gpt-5.6-terra"],
 		supportsPromptCache: true,
 		apiFormat: ApiFormat.OPENAI_RESPONSES,
+		supportsPersistedReasoning: true,
 		inputPrice: 0,
 		outputPrice: 0,
 		description: "GPT-5.6 Terra Codex via ChatGPT subscription",
@@ -69,9 +82,9 @@ export const openAiCodexModels = {
 		...MODEL_CAPABILITIES["gpt-5.6-luna"],
 		supportsPromptCache: true,
 		apiFormat: ApiFormat.OPENAI_RESPONSES,
+		supportsPersistedReasoning: true,
 		inputPrice: 0,
 		outputPrice: 0,
 		description: "GPT-5.6 Luna Codex via ChatGPT subscription",
 	},
-
-} as const satisfies Record<string, ModelInfo>
+} as const satisfies Record<string, OpenAiCodexModelInfo>

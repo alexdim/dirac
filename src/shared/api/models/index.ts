@@ -42,7 +42,12 @@ export {
 	openAiNativeDefaultModelId,
 	openAiNativeModels,
 } from "./openai-native"
-export { type OpenAiCodexModelId, openAiCodexDefaultModelId, openAiCodexModels } from "./openai-codex"
+export {
+	type OpenAiCodexModelId,
+	type OpenAiCodexModelInfo,
+	openAiCodexDefaultModelId,
+	openAiCodexModels,
+} from "./openai-codex"
 export { openAiModelInfoSaneDefaults, azureOpenAiDefaultApiVersion } from "./openai-defaults"
 
 // DeepSeek
