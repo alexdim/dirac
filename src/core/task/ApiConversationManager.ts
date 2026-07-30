@@ -412,20 +412,16 @@ export class ApiConversationManager {
 		// getting verbose details is an expensive operation, it uses globby to top-down build file structure of project which for large projects can take a few seconds
 		// for the best UX we show a placeholder api_req_started message with a loading spinner as this happens
 		const apiReqId = `api-req-${Date.now()}`
-		try {
-			await this.dependencies.taskMessenger.upsertApiStatus({
-				id: apiReqId,
-				request: userContent.map((block) => formatContentBlockToMarkdown(block)).join("\n\n") + "\n\nLoading...",
-			})
+		await this.dependencies.taskMessenger.upsertApiStatus({
+			id: apiReqId,
+			request: userContent.map((block) => formatContentBlockToMarkdown(block)).join("\n\n") + "\n\nLoading...",
+		})
 
-			await this.dependencies.messageStateHandler.addToApiConversationHistory({
-				role: "user",
-				content: userContent,
-				ts: Date.now(),
-			})
-		} catch (error) {
-			throw error
-		}
+		await this.dependencies.messageStateHandler.addToApiConversationHistory({
+			role: "user",
+			content: userContent,
+			ts: Date.now(),
+		})
 		telemetryService.captureConversationTurnEvent(
 			this.dependencies.ulid,
 			params.providerId,

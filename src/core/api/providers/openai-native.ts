@@ -8,7 +8,6 @@ import {
 import { normalizeOpenaiReasoningEffort } from "@shared/storage/types"
 import OpenAI from "openai"
 import type { ChatCompletionReasoningEffort, ChatCompletionTool } from "openai/resources/chat/completions"
-// Removed unused undici imports
 import { featureFlagsService } from "@/services/feature-flags"
 import { DiracStorageMessage } from "@/shared/messages/content"
 import { createOpenAIClient } from "@/shared/net"
