@@ -16,6 +16,7 @@ const GLOBAL_MODEL_RUNTIME_KEYS = [
 	"fireworksModelMaxCompletionTokens",
 	"fireworksModelMaxTokens",
 	"enableParallelToolCalling",
+	"enableOpenAiPersistedReasoning",
 ] as const satisfies readonly SettingsKey[]
 
 const SESSION_MODE_RUNTIME_KEYS = [

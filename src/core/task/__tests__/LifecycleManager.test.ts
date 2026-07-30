@@ -251,7 +251,7 @@ describe("LifecycleManager", () => {
 			await manager.abortTask()
 
 			deps.taskState.isApiRequestActive.should.equal(false)
-			;(deps.taskState.activeVoiceStreamId === undefined).should.equal(true)
+				; (deps.taskState.activeVoiceStreamId === undefined).should.equal(true)
 			deps.taskState.isWaitingForFirstChunk.should.equal(false)
 			deps.taskState.didFinishAbortingStream.should.equal(true)
 			deps.taskState.status.should.equal(TaskStatus.CANCELLED)
@@ -384,6 +384,7 @@ function createMockDeps(): any {
 			shouldRunTaskCancelHook: sinon.stub().resolves(false),
 		} as any,
 		initiateTaskLoop: sinon.stub().resolves(),
+		restoreQueuedSteeringFromTranscript: sinon.stub(),
 		recordEnvironment: sinon.stub().resolves(),
 		time: sinon.stub().resolves(),
 	}

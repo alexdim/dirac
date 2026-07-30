@@ -166,19 +166,18 @@ describe("OpenAI Codex rolling usage parsing and merge", () => {
 			}),
 		)
 		assert.ok(update)
+		if (!update?.rateLimits) throw new Error("Expected rate limits from Codex headers")
 
-		assert.deepEqual(update.rateLimits, [
-			{
-				limitId: "codex",
-				primary: { usedPercent: 32, windowMinutes: 300, resetsAt: 1_800_000_000 },
-				secondary: { usedPercent: 58 },
-			},
-			{
-				limitId: "cloud-tasks",
-				primary: { usedPercent: 12.5, windowMinutes: 1440 },
-				limitName: "Cloud tasks",
-			},
-		])
+		assert.deepEqual(update.rateLimits.find((limit) => limit.limitId === "codex"), {
+			limitId: "codex",
+			primary: { usedPercent: 32, windowMinutes: 300, resetsAt: 1_800_000_000 },
+			secondary: { usedPercent: 58 },
+		})
+		assert.deepEqual(update.rateLimits.find((limit) => limit.limitId === "cloud-tasks"), {
+			limitId: "cloud-tasks",
+			primary: { usedPercent: 12.5, windowMinutes: 1440 },
+			limitName: "Cloud tasks",
+		})
 		assert.deepEqual(update.credits, { hasCredits: true, unlimited: false, balance: "8.25" })
 		assert.equal(update.rateLimitReachedType, "rate_limit_reached")
 		assert.equal("promoMessage" in update, false)

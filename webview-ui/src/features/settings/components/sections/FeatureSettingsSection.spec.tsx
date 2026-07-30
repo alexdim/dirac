@@ -17,6 +17,7 @@ vi.mock("@/features/settings/store/settingsStore", () => ({
 		focusChainSettings: { enabled: false, remindDiracInterval: 6 },
 		remoteConfigSettings: {},
 		enableParallelToolCalling: false,
+		enableOpenAiPersistedReasoning: false,
 		backgroundEditEnabled: false,
 		doubleCheckCompletionEnabled: false,
 	})),
@@ -47,5 +48,13 @@ describe("FeatureSettingsSection", () => {
 		fireEvent.click(screen.getByRole("switch", { name: "Hooks" }))
 
 		expect(mockUpdateSetting).toHaveBeenCalledWith("hooksEnabled", true)
+	})
+
+	it("updates the persisted OpenAI reasoning setting when toggled", () => {
+		render(<FeatureSettingsSection renderSectionHeader={() => null} />)
+
+		fireEvent.click(screen.getByRole("switch", { name: "Preserve OpenAI Reasoning" }))
+
+		expect(mockUpdateSetting).toHaveBeenCalledWith("enableOpenAiPersistedReasoning", true)
 	})
 })

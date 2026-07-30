@@ -30,12 +30,9 @@ describe("shouldRetryWithFullContext", () => {
 		shouldRetryWithFullContext({ status: 404, message: "missing", details: { param: "input" } }, true).should.equal(false)
 	})
 
-	it("returns true for websocket_closed error code", () => {
-		shouldRetryWithFullContext({ code: "websocket_closed", message: "x" }, true).should.equal(true)
-	})
-
-	it("returns true for websocket_error error code", () => {
-		shouldRetryWithFullContext({ code: "websocket_error", message: "x" }, true).should.equal(true)
+	it("does not retry websocket transport failures as full-context requests", () => {
+		shouldRetryWithFullContext({ code: "websocket_closed", message: "x" }, true).should.equal(false)
+		shouldRetryWithFullContext({ code: "websocket_error", message: "x" }, true).should.equal(false)
 	})
 
 	it("returns false for unrelated errors", () => {
@@ -59,6 +56,16 @@ describe("buildResponseCreateParams", () => {
 	it("includes parallel_tool_calls when disabled", () => {
 		const params = buildResponseCreateParams({ ...baseArgs, enableParallelToolCalling: false }) as any
 		params.parallel_tool_calls.should.equal(false)
+	})
+
+	it("includes all-turn reasoning context only when explicitly requested", () => {
+		const params = buildResponseCreateParams({ ...baseArgs, reasoningContext: "all_turns" }) as any
+		params.reasoning.context.should.equal("all_turns")
+	})
+
+	it("stores a continued response when explicitly requested", () => {
+		const params = buildResponseCreateParams({ ...baseArgs, previousResponseId: "resp_123", store: true }) as any
+		params.store.should.equal(true)
 	})
 })
 describe("processResponsesEvents", () => {

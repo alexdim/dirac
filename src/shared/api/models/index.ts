@@ -36,7 +36,12 @@ export { type VertexModelId, vertexDefaultModelId, vertexModels, vertexGlobalMod
 export { type GeminiModelId, geminiDefaultModelId, geminiModels } from "./gemini"
 
 // OpenAI Native
-export { type OpenAiNativeModelId, openAiNativeDefaultModelId, openAiNativeModels } from "./openai-native"
+export {
+	type OpenAiNativeModelId,
+	type OpenAiNativeModelInfo,
+	openAiNativeDefaultModelId,
+	openAiNativeModels,
+} from "./openai-native"
 export { type OpenAiCodexModelId, openAiCodexDefaultModelId, openAiCodexModels } from "./openai-codex"
 export { openAiModelInfoSaneDefaults, azureOpenAiDefaultApiVersion } from "./openai-defaults"
 

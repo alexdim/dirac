@@ -58,6 +58,7 @@ export function assembleModelState(stateManager: StateManager) {
 		},
 		hooksEnabled: getHooksEnabledSafe(stateManager.getGlobalSettingsKey("hooksEnabled")),
 		enableParallelToolCalling: stateManager.getGlobalSettingsKey("enableParallelToolCalling"),
+		enableOpenAiPersistedReasoning: stateManager.getGlobalSettingsKey("enableOpenAiPersistedReasoning"),
 		backgroundEditEnabled: stateManager.getGlobalSettingsKey("backgroundEditEnabled"),
 		optOutOfRemoteConfig: stateManager.getGlobalSettingsKey("optOutOfRemoteConfig"),
 		writePromptMetadataEnabled: stateManager.getGlobalSettingsKey("writePromptMetadataEnabled"),

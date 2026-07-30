@@ -123,12 +123,12 @@ describe("ExecuteCommandTool", () => {
 
 	it("records structured command input and output on its card", async () => {
 		const { tool, env, mockCard } = createMocks()
-		;(env.system.executeCommand as sinon.SinonStub).resolves({
-			userRejected: false,
-			output: "Command executed successfully (exit code 0).\nOutput:\nok",
-			exitCode: 0,
-			completed: true,
-		})
+			; (env.system.executeCommand as sinon.SinonStub).resolves({
+				userRejected: false,
+				output: "Command executed successfully (exit code 0).\nOutput:\nok",
+				exitCode: 0,
+				completed: true,
+			})
 
 		await tool.processCall({ commands: ["echo ok"] }, env as any)
 
@@ -143,12 +143,12 @@ describe("ExecuteCommandTool", () => {
 	})
 	it("does not infer failure from command-controlled output text", async () => {
 		const { tool, env, mockCard } = createMocks()
-		;(env.system.executeCommand as sinon.SinonStub).resolves({
-			userRejected: false,
-			output: "the documentation says exit code 99",
-			exitCode: 0,
-			completed: true,
-		})
+			; (env.system.executeCommand as sinon.SinonStub).resolves({
+				userRejected: false,
+				output: "the documentation says exit code 99",
+				exitCode: 0,
+				completed: true,
+			})
 
 		await tool.processCall({ commands: ["echo status"] }, env as any)
 
@@ -157,14 +157,14 @@ describe("ExecuteCommandTool", () => {
 
 	it("publishes bounded output once without streaming into the card", async () => {
 		const { tool, env, mockCard } = createMocks()
-		;(env.system.executeCommand as sinon.SinonStub).resolves({
-			userRejected: false,
-			output: "start\n" + "x".repeat(20 * 1024) + "\nend",
-			exitCode: 0,
-			completed: true,
-		})
+			; (env.system.executeCommand as sinon.SinonStub).resolves({
+				userRejected: false,
+				output: "start\n" + "x".repeat(20 * 1024) + "\nend",
+				exitCode: 0,
+				completed: true,
+			})
 
-		await tool.processCall({ commands: ["large-command"] }, env as any)
+		await tool.processCall({ commands: ["echo large-output"] }, env as any)
 
 		assert.equal(mockCard.appendBody.callCount, 0)
 		assert.equal(mockCard.update.callCount, 1)
