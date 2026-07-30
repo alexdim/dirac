@@ -95,10 +95,10 @@ export function buildResponseCreateParams(args: {
 		requestedEffort === "none" && !args.reasoningContext
 			? undefined
 			: {
-					summary: "auto",
-					...(requestedEffort !== "none" ? { effort: requestedEffort as ChatCompletionReasoningEffort } : {}),
-					...(args.reasoningContext ? { context: args.reasoningContext } : {}),
-				}
+				summary: "auto",
+				...(requestedEffort !== "none" ? { effort: requestedEffort as ChatCompletionReasoningEffort } : {}),
+				...(args.reasoningContext ? { context: args.reasoningContext } : {}),
+			}
 
 	return {
 		model: args.modelId,
@@ -152,6 +152,7 @@ export async function* parseSseResponse(body: ReadableStream<Uint8Array>): Async
 }
 export interface ProcessResponsesEventsOptions {
 	onRateLimits?: (event: unknown) => void
+	onResponseCompleted?: (response: { id?: string }) => void
 }
 
 export async function* processResponsesEvents(
@@ -166,7 +167,7 @@ export async function* processResponsesEvents(
 			options.onRateLimits?.(chunk)
 			continue
 		}
-		yield* processResponseEvent(chunk, functionCallByItemId, modelInfo)
+		yield* processResponseEvent(chunk, functionCallByItemId, modelInfo, options)
 	}
 }
 // Dispatches a single Responses API stream event to the appropriate handler.
@@ -174,6 +175,7 @@ async function* processResponseEvent(
 	chunk: any,
 	functionCallByItemId: Map<string, { call_id?: string; name?: string; id?: string }>,
 	modelInfo: ModelInfo,
+	options: ProcessResponsesEventsOptions,
 ): AsyncGenerator<any> {
 	switch (chunk.type) {
 		case "response.output_item.added":
@@ -206,10 +208,16 @@ async function* processResponseEvent(
 			yield* handleFunctionCallArgumentsDone(chunk, functionCallByItemId)
 			break
 		case "response.failed": {
-			const failMsg = chunk.response?.error?.message || chunk.response?.status || "Response failed"
-			throw new Error(`Codex API response failed: ${failMsg}`)
+			const error: Error & { code?: string; status?: number; details?: { param?: string } } = new Error(
+				`Codex API response failed: ${chunk.response?.error?.message || chunk.response?.status || "Response failed"}`,
+			)
+			error.code = chunk.response?.error?.code
+			if (typeof chunk.response?.status_code === "number") error.status = chunk.response.status_code
+			if (typeof chunk.response?.error?.param === "string") error.details = { param: chunk.response.error.param }
+			throw error
 		}
 		case "response.completed":
+			options.onResponseCompleted?.(chunk.response)
 			if (chunk.response?.usage) yield* yieldUsage(modelInfo, chunk.response.usage, chunk.response.id)
 			break
 		case "error": {
@@ -295,7 +303,7 @@ export class ResponsesWebsocketManager {
 	private readyPromise: Promise<UndiciWebSocket> | undefined
 	private requestInFlight = false
 
-	constructor(private options: ResponsesWebsocketOptions) {}
+	constructor(private options: ResponsesWebsocketOptions) { }
 
 	async ensureWebsocket(): Promise<UndiciWebSocket> {
 		if (this.ws && this.ws.readyState === UndiciWebSocket.OPEN) {
@@ -408,8 +416,13 @@ export class ResponsesWebsocketManager {
 				const parsed = JSON.parse(raw)
 
 				if (parsed?.type === "error" && parsed?.error) {
-					const error: Error & { code?: string } = new Error(parsed.error.message || "Responses websocket error")
+					const error: Error & { code?: string; status?: number; details?: { param?: string } } = new Error(
+						parsed.error.message || "Responses websocket error",
+					)
 					error.code = parsed.error.code
+					if (typeof parsed.error.status === "number") error.status = parsed.error.status
+					if (typeof parsed.error.param === "string") error.details = { param: parsed.error.param }
+					if (typeof parsed.error.details?.param === "string") error.details = { param: parsed.error.details.param }
 					failure = error
 					completed = true
 					wake()

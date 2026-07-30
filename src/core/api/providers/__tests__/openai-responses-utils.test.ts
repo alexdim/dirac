@@ -1,4 +1,5 @@
 import "should"
+import { expect } from "chai"
 import { buildResponseCreateParams, processResponsesEvents, shouldRetryWithFullContext } from "../openai-responses-utils"
 
 // Characterization tests for shouldRetryWithFullContext.
@@ -111,5 +112,23 @@ describe("processResponsesEvents", () => {
 			.map((chunk) => chunk.reasoning)
 			.join("")
 		reasoning.should.equal("**Planning layout restoration**\n\n**Refining spacing**")
+	})
+
+
+	it("reports completed response IDs to the caller", async () => {
+		async function* stream() {
+			yield { type: "response.completed", response: { id: "resp_123" } }
+		}
+
+		let completedResponseId: string | undefined
+		for await (const _chunk of processResponsesEvents(stream() as any, {} as any, {
+			onResponseCompleted: (response) => {
+				completedResponseId = response.id
+			},
+		})) {
+			// The response has no usage and therefore produces no output chunks.
+		}
+
+		expect(completedResponseId).to.equal("resp_123")
 	})
 })

@@ -233,6 +233,14 @@ export class OpenAiNativeHandler implements ApiHandler {
 			enableParallelToolCalling: this.shouldEnableParallelToolCalling(),
 		})
 
+
+		if (usePersistedReasoning) {
+			const functionCallOutputs = input.filter((item: any) => item.type === "function_call_output").length
+			Logger.log(
+				`[OpenAI Native persisted reasoning] request=${previousResponseId ? "continuation" : "full_context"} input_items=${input.length} function_call_outputs=${functionCallOutputs}`,
+			)
+		}
+
 		if (useWebsocket && previousResponseId) {
 			let didEmitWebsocketOutput = false
 			try {
