@@ -74,7 +74,6 @@ function makeFakeStateManager(overrides?: {
 		toolToggles: {},
 		hooksEnabled: true,
 		enableParallelToolCalling: false,
-		enableOpenAiPersistedReasoning: false,
 		backgroundEditEnabled: false,
 		optOutOfRemoteConfig: false,
 		diracWebToolsEnabled: false,

@@ -138,7 +138,6 @@ interface SettingsState {
 	hooksEnabled: boolean
 	triggerNativeToolCall: boolean
 	enableParallelToolCalling: boolean
-	enableOpenAiPersistedReasoning: boolean
 	writePromptMetadataEnabled: boolean
 	writePromptMetadataDirectory?: string
 
@@ -248,7 +247,6 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
 	multiRootSetting: { user: false, featureFlag: false },
 	hooksEnabled: false,
 	enableParallelToolCalling: false,
-	enableOpenAiPersistedReasoning: false,
 	writePromptMetadataEnabled: false,
 	writePromptMetadataDirectory: undefined,
 

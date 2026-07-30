@@ -25,14 +25,10 @@ const currentModelResponse = (modelId = "gpt-5.6-terra") =>
 		modelInfo: { providerId: "openai-native", modelId, mode: "act" },
 	}) as any
 
-function createHandler(
-	createStub: sinon.SinonStub,
-	options: { modelId?: string; enablePersistedReasoning?: boolean } = {},
-): OpenAiNativeHandler {
+function createHandler(createStub: sinon.SinonStub, options: { modelId?: string } = {}): OpenAiNativeHandler {
 	const handler = new OpenAiNativeHandler({
 		openAiNativeApiKey: "test-api-key",
 		apiModelId: options.modelId ?? "gpt-5.6-terra",
-		enablePersistedReasoning: options.enablePersistedReasoning ?? true,
 	})
 	sinon.stub(handler as any, "ensureClient").returns({ responses: { create: createStub } })
 	sinon.stub(handler as any, "useWebsocketMode").returns(false)
@@ -95,23 +91,6 @@ describe("OpenAiNativeHandler persisted reasoning", () => {
 		params.input.should.have.length(3)
 	})
 
-	it("does not enable persisted reasoning when the setting is disabled", async () => {
-		const createStub = sinon.stub().resolves(createAsyncIterable())
-		const handler = createHandler(createStub, { enablePersistedReasoning: false })
-
-		await drain(
-			handler.createMessage(
-				"system",
-				[{ role: "user", content: "old question" }, currentModelResponse(), { role: "user", content: "new" }] as any,
-				tools,
-			),
-		)
-
-		const params = createStub.firstCall.args[0]
-		expect(params.previous_response_id).to.equal(undefined)
-		expect(params.reasoning?.context).to.equal(undefined)
-		params.input.should.have.length(3)
-	})
 
 	it("does not chain from a response created by another model", async () => {
 		const createStub = sinon.stub().resolves(createAsyncIterable())

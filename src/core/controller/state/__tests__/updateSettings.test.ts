@@ -241,12 +241,6 @@ describe("updateSettings", () => {
 			expect(controller.stateManager.setGlobalState.calledWith("multiRootEnabled", false)).to.be.true
 		})
 
-		it("should coerce persisted OpenAI reasoning to boolean", async () => {
-			const controller = createMockController()
-			await updateSettings(controller, UpdateSettingsRequest.create({ enableOpenAiPersistedReasoning: 1 as any }))
-			expect(controller.stateManager.setGlobalState.calledWith("enableOpenAiPersistedReasoning", true)).to.be.true
-		})
-
 		it("should set customPrompt to 'compact' when value is 'compact'", async () => {
 			const controller = createMockController()
 			await updateSettings(controller, UpdateSettingsRequest.create({ customPrompt: "compact" }))
