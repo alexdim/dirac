@@ -1,4 +1,5 @@
 import { Card, CardStatus, isFinalStatus } from "@shared/ExtensionMessage"
+import { readSubagentCardData } from "@shared/subagents"
 import { StringRequest } from "@shared/proto/dirac/common"
 import { extractFirstPath } from "@shared/string"
 import { cn } from "@/lib/utils"
@@ -9,7 +10,7 @@ import { DynamicIcon } from "lucide-react/dynamic"
 import { CARD_DECORATORS } from "../decorators"
 import { CardStatusIcon } from "./CardStatusIcon"
 import { getStatusTextColorClass } from "../utils/cardUtils"
-import React, { useMemo } from "react"
+import React, { useEffect, useMemo, useState } from "react"
 
 interface ModularCardHeaderProps {
 	card: Card
@@ -28,9 +29,20 @@ export const ModularCardHeader: React.FC<ModularCardHeaderProps> = ({
 }) => {
 	const { header, icon, status } = card
 	const isTerminal = isFinalStatus(status)
+	const isSubagentCard = readSubagentCardData(card) !== undefined
+	const [currentTime, setCurrentTime] = useState(() => Date.now())
 	const filePath = extractFirstPath(header)
 	const decorators = useMemo(() => CARD_DECORATORS.filter((decorator) => decorator.shouldApply(card)), [card])
 	const iconSizeClass = "size-3.5"
+	const elapsedTime = getSubagentCardElapsedTime(card, currentTime)
+
+	useEffect(() => {
+		if (!isSubagentCard || isTerminal || card.startTime === undefined) return
+
+		setCurrentTime(Date.now())
+		const timer = setInterval(() => setCurrentTime(Date.now()), 1_000)
+		return () => clearInterval(timer)
+	}, [card.startTime, isSubagentCard, isTerminal])
 
 	return (
 		<div
@@ -57,6 +69,12 @@ export const ModularCardHeader: React.FC<ModularCardHeaderProps> = ({
 				<span className={cn("min-w-0 flex-1 font-medium", isCollapsed ? "truncate" : "break-all whitespace-normal")}>
 					{header}
 				</span>
+
+				{elapsedTime && (
+					<span aria-label={`Subagent runtime ${elapsedTime}`} className="shrink-0 font-mono text-xs font-normal text-muted-foreground">
+						{elapsedTime}
+					</span>
+				)}
 
 				{status === CardStatus.WAITING_FOR_INPUT && (
 					<Badge variant="warning" className="shrink-0 px-1.5 py-0 text-xs leading-4">
@@ -85,4 +103,13 @@ export const ModularCardHeader: React.FC<ModularCardHeaderProps> = ({
 			))}
 		</div>
 	)
+}
+export function getSubagentCardElapsedTime(card: Card, now = Date.now()): string | undefined {
+	if (!readSubagentCardData(card) || card.startTime === undefined) return undefined
+
+	const stopTime = isFinalStatus(card.status) ? (card.endTime ?? now) : now
+	const elapsedSeconds = Math.max(0, Math.floor((stopTime - card.startTime) / 1_000))
+	const minutes = Math.floor(elapsedSeconds / 60)
+	const seconds = elapsedSeconds % 60
+	return `${minutes.toString().padStart(2, "0")}:${seconds.toString().padStart(2, "0")}`
 }
