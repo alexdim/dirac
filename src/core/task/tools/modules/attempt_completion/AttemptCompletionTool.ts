@@ -1,5 +1,5 @@
 import { IDiracTool } from "../../interfaces/IDiracTool"
-import { IToolEnvironment } from "../../interfaces/IToolEnvironment"
+import { ICardHandle, IToolEnvironment } from "../../interfaces/IToolEnvironment"
 import { DiracToolSpec, DiracDefaultTool } from "@/shared/tools"
 import { DiracIcon } from "@/shared/icons"
 import { formatResponse } from "@core/formatResponse"
@@ -7,6 +7,7 @@ import { CardKind, CardStatus, DiracMessageType, SubagentExecutionStatus } from 
 import { showSystemNotification } from "@integrations/notifications"
 import { telemetryService } from "@/services/telemetry"
 import { getTaskCompletionTelemetry } from "../../utils"
+import { waitForPresentationOperation } from "../../subagent/PresentationDeadline"
 import {
 	allocateSubagentIdentity,
 	createSubagentCardInput,
@@ -17,6 +18,7 @@ import {
 	subagentCardStatus,
 	type SubagentTrajectoryEvent,
 } from "@shared/subagents"
+
 
 export const attempt_completion_spec: DiracToolSpec = {
 	id: DiracDefaultTool.ATTEMPT,
@@ -149,6 +151,7 @@ If everything checks out, call attempt_completion again with your final result.`
 		const history = env.orchestration.getHistory()
 		const identity = allocateSubagentIdentity(history)
 		const trajectory: SubagentTrajectoryEvent[] = []
+		const taskTitle = "Verifying task completion"
 		const firstTaskMsgObjSub = history.find(
 			(message) => message.content.type === DiracMessageType.MARKDOWN && message.content.content.includes("<task>"),
 		)
@@ -182,15 +185,16 @@ ${result}
 If the solution passes all checks, respond with "VERIFICATION: SUCCESS".
 Otherwise, respond with "VERIFICATION: FAILED" followed by all the details on what failed.`
 
-		const card = !env.config.isSubagentExecution
-			? await env.ui.createCard({
-				header: identity.name,
+		let card: ICardHandle | undefined
+		if (!env.config.isSubagentExecution) {
+			const cardPromise = env.ui.createCard({
+				header: taskTitle,
 				icon: DiracIcon.COMPLETE,
 				status: CardStatus.RUNNING,
 				collapsed: true,
 				renderType: "markdown",
 				autoScroll: true,
-				rawInput: createSubagentCardInput(identity, subagentPrompt),
+				rawInput: createSubagentCardInput(identity, subagentPrompt, taskTitle),
 				rawOutput: createSubagentCardOutput(SubagentExecutionStatus.RUNNING, trajectory),
 				body: formatSubagentTrajectory({
 					...identity,
@@ -199,31 +203,82 @@ Otherwise, respond with "VERIFICATION: FAILED" followed by all the details on wh
 					trajectory,
 				}),
 			})
-			: undefined
+			const cardCreation = await waitForPresentationOperation(cardPromise)
+			if (cardCreation.timedOut) {
+				env.logging.warn("Verification subagent card creation timed out.")
+				void cardPromise
+					.then((lateCard) => lateCard.finalize(CardStatus.ABANDONED))
+					.catch((error) => env.logging.warn("Late verification subagent card cleanup failed.", error))
+			} else {
+				card = cardCreation.value
+			}
+		}
+
+		let discardQueuedPresentationUpdates = false
+		let presentationUpdates = Promise.resolve()
+		let presentationError: Error | undefined
+		const enqueuePresentationUpdate = (present: () => Promise<void>) => {
+			presentationUpdates = presentationUpdates
+				.then(async () => {
+					if (discardQueuedPresentationUpdates) return
+					await present()
+				})
+				.catch((error) => {
+					presentationError ??= error as Error
+				})
+		}
+		const runCardOperation = async (operation: Promise<void>, timeoutMessage: string) => {
+			let operationError: Error | undefined
+			const observedOperation = operation.catch((error) => {
+				operationError = error as Error
+			})
+			const outcome = await waitForPresentationOperation(observedOperation)
+			if (outcome.timedOut) presentationError ??= new Error(timeoutMessage)
+			else if (operationError) presentationError ??= operationError
+		}
 
 		const runResult = await env.orchestration.runSubagent(subagentPrompt, {
 			subagentName: "verifier",
 			agentIdentity: identity,
-			onUpdate: async (update) => {
+			onUpdate: (update) => {
 				if (update.trajectoryEvent === undefined && update.status === undefined) return
 				const status = recordSubagentProgress(trajectory, update)
 				if (!card || isTerminalSubagentStatus(status)) return
-				await card.update({
+				const patch = {
 					status: subagentCardStatus(status),
 					body: formatSubagentTrajectory({ ...identity, prompt: subagentPrompt, status, trajectory }),
 					rawOutput: createSubagentCardOutput(status, trajectory),
-				})
+				}
+				enqueuePresentationUpdate(() => card!.update(patch))
 			},
 		})
 
 		recordSubagentProgress(trajectory, runResult)
 		if (card) {
-			await card.update({
+			const finalPatch = {
 				status: subagentCardStatus(runResult.status),
 				body: formatSubagentTrajectory({ ...identity, prompt: subagentPrompt, status: runResult.status, trajectory }),
 				rawOutput: createSubagentCardOutput(runResult.status, trajectory),
-			})
-			await card.finalize(subagentCardStatus(runResult.status))
+			}
+			const applyTerminalCardState = async () => {
+				await runCardOperation(card!.update(finalPatch), "Verification subagent final card update timed out.")
+				await runCardOperation(
+					card!.finalize(subagentCardStatus(runResult.status)),
+					"Verification subagent card finalization timed out.",
+				)
+			}
+			const intermediateUpdates = await waitForPresentationOperation(presentationUpdates)
+			if (intermediateUpdates.timedOut) {
+				discardQueuedPresentationUpdates = true
+				presentationError ??= new Error("Verification subagent presentation did not drain before the timeout.")
+				void presentationUpdates
+					.then(applyTerminalCardState)
+					.catch((error) => env.logging.warn("Late verification subagent terminal replay failed.", error))
+			}
+			await applyTerminalCardState()
+		}
+		if (presentationError) {
+			env.logging.warn("Verification subagent completed with a presentation error.", presentationError)
 		}
 
 		if (runResult.status !== SubagentExecutionStatus.COMPLETED) {

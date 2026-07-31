@@ -279,6 +279,7 @@ export type SubagentExecutionStatus = (typeof SubagentExecutionStatus)[keyof typ
 export interface SubagentStatusItem {
 	index: number
 	name: string
+	taskTitle: string
 	prompt: string
 	status: SubagentExecutionStatus
 	toolCalls: number

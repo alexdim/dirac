@@ -1,6 +1,7 @@
 import { AgentConfigLoader } from "@core/task/tools/subagent/AgentConfigLoader"
 import { DEFAULT_SUBAGENT_TIMEOUT_SECONDS } from "@core/task/tools/subagent/SubagentExecutionPolicy"
 import { DiracDefaultTool, type DiracTool } from "@/shared/tools"
+import { SUBAGENT_TASK_TITLE_MAX_CHARS, SUBAGENT_TASK_TITLE_MAX_WORDS } from "@shared/subagents"
 import {
 	type DiracToolSpec,
 	shouldUseStrictToolSchemas,
@@ -25,6 +26,11 @@ export class DiracToolSet {
 			description: `Use the "${config.name}" subagent: ${config.description}`,
 			contextRequirements: (ctx) => ctx.subagentsEnabled === true,
 			parameters: [
+				{
+					name: "task_title",
+					required: true,
+					instruction: `Task header for user observability. No more than ${SUBAGENT_TASK_TITLE_MAX_WORDS} words or ${SUBAGENT_TASK_TITLE_MAX_CHARS} characters.`,
+				},
 				{
 					name: "prompt",
 					required: true,

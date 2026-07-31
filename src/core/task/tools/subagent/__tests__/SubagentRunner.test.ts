@@ -250,6 +250,91 @@ describe("SubagentRunner", () => {
 		assert.ok(updates.some((update) => update.trajectoryEvent?.type === SubagentTrajectoryEventType.TOOL_RESULT))
 	})
 
+	it("delivers all accepted progress updates before normal completion", async () => {
+		const createMessage = sinon.stub()
+		createMessage.onFirstCall().callsFake(async function* () {
+			yield {
+				type: "tool_calls",
+				tool_call: { function: { id: "call-1", name: DiracDefaultTool.LIST_FILES, arguments: "{}" } },
+			}
+		})
+		createMessage.onSecondCall().callsFake(async function* () {
+			yield {
+				type: "tool_calls",
+				tool_call: {
+					function: { id: "call-2", name: DiracDefaultTool.ATTEMPT, arguments: JSON.stringify({ result: "done" }) },
+				},
+			}
+		})
+		const promptRegistry = PromptRegistry.getInstance()
+		sinon.stub(promptRegistry, "get").callsFake(async () => {
+			promptRegistry.nativeTools = [{ name: "list_files" } as any, { name: "attempt_completion" } as any]
+			return "system prompt"
+		})
+		sinon.stub(skills, "getOrDiscoverSkills").resolves([])
+		stubApiHandler(createMessage)
+		initializeHostProvider()
+
+		const delivered: string[] = []
+		const runner = new SubagentRunner(createTaskConfigWithListFilesSnapshot())
+		const result = await runner.run("List files", async (update) => {
+			await new Promise((resolve) => setTimeout(resolve, 5))
+			if (update.trajectoryEvent) delivered.push(update.trajectoryEvent.type)
+			if (update.status === SubagentExecutionStatus.COMPLETED) delivered.push("completed")
+		})
+
+		assert.equal(result.status, SubagentExecutionStatus.COMPLETED)
+		assert.deepEqual(delivered, [
+			SubagentTrajectoryEventType.TOOL,
+			SubagentTrajectoryEventType.TOOL_RESULT,
+			SubagentTrajectoryEventType.TOOL,
+			"completed",
+		])
+	})
+
+
+	it("returns after the drain timeout when a progress observer never settles", async () => {
+		const createMessage = sinon.stub()
+		createMessage.onFirstCall().callsFake(async function* () {
+			yield {
+				type: "tool_calls",
+				tool_call: { function: { id: "call-1", name: DiracDefaultTool.LIST_FILES, arguments: "{}" } },
+			}
+		})
+		createMessage.onSecondCall().callsFake(async function* () {
+			yield {
+				type: "tool_calls",
+				tool_call: {
+					function: { id: "call-2", name: DiracDefaultTool.ATTEMPT, arguments: JSON.stringify({ result: "done" }) },
+				},
+			}
+		})
+		const promptRegistry = PromptRegistry.getInstance()
+		sinon.stub(promptRegistry, "get").callsFake(async () => {
+			promptRegistry.nativeTools = [{ name: "list_files" } as any, { name: "attempt_completion" } as any]
+			return "system prompt"
+		})
+		sinon.stub(skills, "getOrDiscoverSkills").resolves([])
+		stubApiHandler(createMessage)
+		initializeHostProvider()
+
+		const clock = sinon.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "setInterval", "clearInterval", "Date"] })
+		try {
+			const runner = new SubagentRunner(createTaskConfigWithListFilesSnapshot())
+			const resultPromise = runner.run("List files", (update) => {
+				if (update.trajectoryEvent) return new Promise<void>(() => { })
+			})
+			await clock.tickAsync(0)
+			await clock.tickAsync(1_000)
+			const result = await resultPromise
+
+			assert.equal(result.status, SubagentExecutionStatus.COMPLETED)
+			assert.equal(result.result, "done")
+		} finally {
+			clock.restore()
+		}
+	})
+
 	it("passes prior request token totals into the next-turn compaction check", async () => {
 		const createMessage = sinon.stub()
 		createMessage.onFirstCall().callsFake(async function* () {

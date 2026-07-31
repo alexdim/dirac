@@ -16,7 +16,7 @@ describe("resolveCardBodyPresentation", () => {
 			status: CardStatus.RUNNING,
 			renderType: "markdown",
 			body: "backend-formatted body",
-			rawInput: createSubagentCardInput(identity, "Inspect the implementation"),
+			rawInput: createSubagentCardInput(identity, "Inspect the implementation", "Inspecting implementation"),
 			rawOutput: createSubagentCardOutput(SubagentExecutionStatus.RUNNING, [
 				{ type: SubagentTrajectoryEventType.TOOL, text: "read_file(paths=[\"src/file.ts\"])" },
 				{ type: SubagentTrajectoryEventType.TOOL_RESULT, text: "secret tool output" },
