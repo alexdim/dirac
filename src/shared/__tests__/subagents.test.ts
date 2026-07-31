@@ -47,12 +47,13 @@ describe("subagent observability", () => {
 			header: "Feynman",
 			status: CardStatus.SUCCESS,
 			renderType: "markdown" as const,
-			rawInput: createSubagentCardInput(identity, "Inspect the implementation"),
+			rawInput: createSubagentCardInput(identity, "Inspect the implementation", "Inspecting implementation"),
 			rawOutput: createSubagentCardOutput(SubagentExecutionStatus.COMPLETED, trajectory),
 		}
 
 		const data = readSubagentCardData(card)
 		assert.ok(data)
+		assert.equal(data.taskTitle, "Inspecting implementation")
 		assert.equal(data.status, SubagentExecutionStatus.COMPLETED)
 		assert.deepEqual(data.trajectory, trajectory)
 		const formatted = formatSubagentTrajectory(data, 40)
@@ -62,6 +63,19 @@ describe("subagent observability", () => {
 		const webviewFormatted = formatSubagentTrajectory(data, { includeToolResults: false })
 		assert.match(webviewFormatted, /read_file/)
 		assert.doesNotMatch(webviewFormatted, /file contents/)
+	})
+	it("reads legacy subagent cards without a task title", () => {
+		const data = readSubagentCardData({
+			id: "legacy-agent",
+			header: "Curie",
+			status: CardStatus.RUNNING,
+			renderType: "markdown",
+			rawInput: { isSubagent: true, agentId: 2, agentName: "Curie", prompt: "Research" },
+			rawOutput: createSubagentCardOutput(SubagentExecutionStatus.RUNNING, []),
+		})
+
+		assert.ok(data)
+		assert.equal(data.taskTitle, undefined)
 	})
 
 	it("caps stored trajectory events and truncates oversized event text", () => {
@@ -108,7 +122,7 @@ describe("subagent observability", () => {
 						header: "Curie",
 						status: CardStatus.RUNNING,
 						renderType: "markdown" as const,
-						rawInput: createSubagentCardInput(identity, "Research"),
+						rawInput: createSubagentCardInput(identity, "Research", "Researching prior agents"),
 						rawOutput: createSubagentCardOutput(SubagentExecutionStatus.RUNNING, []),
 					},
 				},

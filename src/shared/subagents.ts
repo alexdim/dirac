@@ -57,6 +57,7 @@ export interface SubagentTrajectoryEvent {
 }
 
 export interface SubagentCardData extends SubagentIdentity {
+	taskTitle?: string
 	prompt: string
 	status: SubagentExecutionStatus
 	trajectory: SubagentTrajectoryEvent[]
@@ -95,9 +96,22 @@ function allocateUniqueSubagentName(usedNames: Set<string>): string {
 	throw new Error("Subagent name pool exhausted")
 }
 
-export function createSubagentCardInput(identity: SubagentIdentity, prompt: string): Record<string, unknown> {
-	return { isSubagent: true, agentId: identity.id, agentName: identity.name, prompt }
+export function createSubagentCardInput(
+	identity: SubagentIdentity,
+	prompt: string,
+	taskTitle?: string,
+): Record<string, unknown> {
+	return {
+		isSubagent: true,
+		agentId: identity.id,
+		agentName: identity.name,
+		...(taskTitle === undefined ? {} : { taskTitle }),
+		prompt,
+	}
 }
+
+export const SUBAGENT_TASK_TITLE_MAX_WORDS = 5
+export const SUBAGENT_TASK_TITLE_MAX_CHARS = 80
 
 export function createSubagentCardOutput(
 	status: SubagentExecutionStatus,
@@ -169,13 +183,14 @@ export function readSubagentCardData(card: Card | undefined): SubagentCardData |
 	const input = card.rawInput
 	const id = input.agentId
 	const name = input.agentName
+	const taskTitle = typeof input.taskTitle === "string" ? input.taskTitle : undefined
 	const prompt = input.prompt
 	if (typeof id !== "number" || typeof name !== "string" || typeof prompt !== "string") return undefined
 
 	const output = card.rawOutput
 	const status = readStatus(output?.status, card.status)
 	const trajectory = Array.isArray(output?.trajectory) ? output.trajectory.filter(isTrajectoryEvent) : []
-	return { id, name, prompt, status, trajectory }
+	return { id, name, taskTitle, prompt, status, trajectory }
 }
 
 export interface SubagentTrajectoryFormatOptions {

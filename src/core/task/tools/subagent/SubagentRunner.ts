@@ -346,7 +346,7 @@ export class SubagentRunner {
 		}
 	}
 
-		async run(
+	async run(
 		prompt: string,
 		onProgress: (update: SubagentProgressUpdate) => void | Promise<void>,
 		timeout?: number,
@@ -361,11 +361,13 @@ export class SubagentRunner {
 		this.activeStats = createEmptySubagentRunStats()
 
 		let acceptsExecutionProgress = true
+		let discardQueuedExecutionProgress = false
 		let progressUpdates = Promise.resolve()
-		const enqueueExecutionProgress = (update: SubagentProgressUpdate) => {
+		const enqueueExecutionProgress = (update: SubagentProgressUpdate): void => {
+			if (!acceptsExecutionProgress) return
 			progressUpdates = progressUpdates
 				.then(async () => {
-					if (!acceptsExecutionProgress) return
+					if (discardQueuedExecutionProgress) return
 					await onProgress(update)
 				})
 				.catch((error) => Logger.error(`${logPrefix} progress observer failed`, error))
@@ -409,16 +411,19 @@ export class SubagentRunner {
 			])
 			acceptsExecutionProgress = false
 
-			const result =
-				outcome.kind === "execution"
-					? outcome.result
-					: this.abortHandler.buildAbortResult(this.activeConversation, this.activeStats)
-			if (outcome.kind === "termination") {
-				progressUpdates = progressUpdates
-					.then(() => onProgress(this.toTerminalProgressUpdate(result)))
-					.catch((error) => Logger.error(`${logPrefix} terminal progress observer failed`, error))
+			if (outcome.kind === "execution") {
+				const progressDrained = await this.drainProgressUpdates(progressUpdates, logPrefix)
+				if (!progressDrained) discardQueuedExecutionProgress = true
+				return outcome.result
 			}
+
+			discardQueuedExecutionProgress = true
+			const result = this.abortHandler.buildAbortResult(this.activeConversation, this.activeStats)
 			await this.drainProgressUpdates(progressUpdates, logPrefix)
+			const terminalProgress = Promise.resolve()
+				.then(() => onProgress(this.toTerminalProgressUpdate(result)))
+				.catch((error) => Logger.error(`${logPrefix} terminal progress observer failed`, error))
+			await this.drainProgressUpdates(terminalProgress, logPrefix)
 			return result
 		} finally {
 			clearTimeout(timeoutHandle)
@@ -447,7 +452,6 @@ export class SubagentRunner {
 		const stats = this.activeStats
 
 		const logPrefix = `[SubagentRunner:${this.subagentName || "unnamed"}]`
-		let progressUpdates = Promise.resolve()
 		const instrumentedOnProgress = (update: SubagentProgressUpdate) => {
 			if (update.latestToolCall) {
 				Logger.debug(`${logPrefix} Tool: ${update.latestToolCall}`)
@@ -459,9 +463,7 @@ export class SubagentRunner {
 			) {
 				Logger.info(`${logPrefix} ${update.status}: ${(update.result || update.error || "").substring(0, 200)}`)
 			}
-			progressUpdates = progressUpdates
-				.then(() => onProgress(update))
-				.catch((error) => Logger.error(`${logPrefix} progress observer failed`, error))
+			return onProgress(update)
 		}
 
 		instrumentedOnProgress({ status: SubagentExecutionStatus.RUNNING, stats })
@@ -751,18 +753,6 @@ export class SubagentRunner {
 			return { status: SubagentExecutionStatus.FAILED, error: errorText, stats }
 		} finally {
 			this.activeApiAbort = undefined
-
-			let progressDrainTimeout: NodeJS.Timeout | undefined
-			const progressUpdatesDrained = await Promise.race([
-				progressUpdates.then(() => true),
-				new Promise<boolean>((resolve) => {
-					progressDrainTimeout = setTimeout(() => resolve(false), PROGRESS_UPDATE_DRAIN_TIMEOUT_MS)
-				}),
-			])
-			if (progressDrainTimeout) clearTimeout(progressDrainTimeout)
-			if (!progressUpdatesDrained) {
-				Logger.warn(`${logPrefix} progress observer did not drain within ${PROGRESS_UPDATE_DRAIN_TIMEOUT_MS}ms`)
-			}
 		}
 	}
 
@@ -785,7 +775,7 @@ export class SubagentRunner {
 		}
 	}
 
-	private async drainProgressUpdates(progressUpdates: Promise<void>, logPrefix: string): Promise<void> {
+	private async drainProgressUpdates(progressUpdates: Promise<void>, logPrefix: string): Promise<boolean> {
 		let progressDrainTimeout: NodeJS.Timeout | undefined
 		const progressUpdatesDrained = await Promise.race([
 			progressUpdates.then(() => true),
@@ -797,6 +787,7 @@ export class SubagentRunner {
 		if (!progressUpdatesDrained) {
 			Logger.warn(`${logPrefix} progress observer did not drain within ${PROGRESS_UPDATE_DRAIN_TIMEOUT_MS}ms`)
 		}
+		return progressUpdatesDrained
 	}
 
 	private getBestEffortResult(conversation: DiracStorageMessage[]): string {

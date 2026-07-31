@@ -20,6 +20,7 @@ interface AgentPanelContentProps {
 interface AgentListItem {
 	id: number
 	name: string
+	taskTitle?: string
 	status: SubagentExecutionStatus | TaskStatus.IDLE
 	prompt: string
 	transcript: string
@@ -75,7 +76,7 @@ export const AgentPanelContent: React.FC<AgentPanelContentProps> = ({ messages, 
 
 	if (openAgent) {
 		return (
-			<Panel isSubpage label={openAgent.name}>
+			<Panel isSubpage label={formatAgentLabel(openAgent, Math.max(1, columns - 21))}>
 				<Text color={theme.muted}>{openAgent.status} · ↑/↓ scroll · Esc back</Text>
 				<Text>{clipTextToWindow(openAgent.transcript, contentRows, contentColumns, scrollOffset).visibleText}</Text>
 			</Panel>
@@ -88,13 +89,16 @@ export const AgentPanelContent: React.FC<AgentPanelContentProps> = ({ messages, 
 				{hasMoreAbove && <Text color={theme.muted}> ▲ earlier agents</Text>}
 				{visibleAgents.map((agent, index) => {
 					const globalIndex = startIndex + index
+					const statusLabel = String(agent.status)
+					const labelColumns = Math.max(1, contentColumns - statusLabel.length - 3)
 					return (
 						<Box flexDirection="column" key={agent.id}>
 							<Text
 								bold={selectedIndex === globalIndex}
-								color={selectedIndex === globalIndex ? theme.primary : theme.text}>
+								color={selectedIndex === globalIndex ? theme.primary : theme.text}
+								wrap="truncate">
 								{selectedIndex === globalIndex ? "❯ " : "  "}
-								{agent.name} · {agent.status}
+								{formatAgentLabel(agent, labelColumns)} · {statusLabel}
 							</Text>
 							<Text color={theme.muted} wrap="truncate">
 								{" "}
@@ -134,11 +138,22 @@ export function buildAgentList(messages: DiracMessage[], taskStatus?: TaskStatus
 		...subagents.map((agent) => ({
 			id: agent.id,
 			name: agent.name,
+			taskTitle: agent.taskTitle,
 			status: agent.status,
 			prompt: agent.prompt,
 			transcript: formatSubagentTrajectory(agent),
 		})),
 	]
+}
+
+export function formatAgentLabel(
+	agent: Pick<AgentListItem, "name" | "taskTitle">,
+	maxLength?: number,
+): string {
+	const label = agent.taskTitle ? `${agent.name}: ${agent.taskTitle}` : agent.name
+	if (maxLength === undefined || label.length <= maxLength) return label
+	if (maxLength === 1) return "…"
+	return `${label.slice(0, maxLength - 1)}…`
 }
 
 export function getAgentListRowLimit(rows: number): number {

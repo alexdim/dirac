@@ -1,7 +1,7 @@
 import { CardStatus, DiracMessage, DiracMessageType, SubagentExecutionStatus, TaskStatus } from "@shared/ExtensionMessage"
 import { createSubagentCardInput, createSubagentCardOutput } from "@shared/subagents"
 import { describe, expect, it } from "vitest"
-import { buildAgentList, getAgentListRowLimit } from "./AgentPanelContent"
+import { buildAgentList, formatAgentLabel, getAgentListRowLimit } from "./AgentPanelContent"
 
 describe("buildAgentList", () => {
 	it("keeps Dirac first and exposes named subagent status, prompt, and trajectory", () => {
@@ -32,7 +32,7 @@ describe("buildAgentList", () => {
 						header: "Shannon",
 						status: CardStatus.RUNNING,
 						renderType: "markdown" as const,
-						rawInput: createSubagentCardInput({ id: 2, name: "Shannon" }, "Trace the event flow"),
+						rawInput: createSubagentCardInput({ id: 2, name: "Shannon" }, "Trace the event flow", "Tracing event flow"),
 						rawOutput: createSubagentCardOutput(SubagentExecutionStatus.RUNNING, []),
 					},
 				},
@@ -48,11 +48,24 @@ describe("buildAgentList", () => {
 		expect(agents[1]).toMatchObject({
 			id: 2,
 			status: SubagentExecutionStatus.RUNNING,
+			taskTitle: "Tracing event flow",
 			prompt: "Trace the event flow",
 		})
 		expect(agents[1].transcript).toContain("Trajectory")
+		expect(formatAgentLabel(agents[1])).toBe("Shannon: Tracing event flow")
+		expect(formatAgentLabel(agents[1], 12)).toBe("Shannon: Tr…")
 	})
 })
+
+describe("formatAgentLabel", () => {
+	it("clips oversized task labels to one terminal row", () => {
+		const label = formatAgentLabel({ name: "Pauli", taskTitle: "x".repeat(100) }, 20)
+
+		expect(label).toHaveLength(20)
+		expect(label.endsWith("…")).toBe(true)
+	})
+})
+
 
 describe("getAgentListRowLimit", () => {
 	it("reserves panel chrome and always leaves room for one agent", () => {
