@@ -12,6 +12,7 @@ export function buildOrchestrationTrait(config: TaskConfig): IOrchestrationTrait
 			const runner = new SubagentRunner(config, options?.subagentName, {
 				allowedTools: options?.allowedTools,
 				systemSuffix: options?.systemSuffix,
+				agentIdentity: options?.agentIdentity,
 			})
 			return await runner.run(
 				prompt,

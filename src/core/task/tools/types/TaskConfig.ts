@@ -25,6 +25,7 @@ import type { ToolExecutorCoordinator } from "../ToolExecutorCoordinator"
 import type { ToolRequestSnapshot } from "../runtime/ToolSnapshot"
 import { TASK_CALLBACKS_KEYS, TASK_CONFIG_KEYS, TASK_SERVICES_KEYS } from "../utils/ToolConstants"
 import { TaskMessenger } from "../../TaskMessenger"
+import type { SubagentIdentity } from "@shared/subagents"
 
 /**
  * Strongly-typed configuration object passed to tool handlers
@@ -41,6 +42,8 @@ export interface TaskConfig {
 	vscodeTerminalExecutionMode: "vscodeTerminal" | "backgroundExec"
 	enableParallelToolCalling: boolean
 	isSubagentExecution: boolean
+	/** Display identity for an observable subagent execution. */
+	agentIdentity?: SubagentIdentity
 	backgroundEditEnabled: boolean
 
 	// Multi-workspace support

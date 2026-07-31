@@ -176,6 +176,8 @@ export type DiracMessageContent =
 		completionType?: "act" | "plan"
 		showFeedback?: boolean
 		role?: "user" | "assistant"
+		agentId?: number
+		agentName?: string
 		steering?: { status: SteeringTranscriptStatus }
 	}
 	/** Stateful tool-mediated unit of work */
@@ -238,6 +240,7 @@ export interface ITaskMessenger {
 		images?: string[],
 		files?: string[],
 		role?: "user" | "assistant",
+		agentIdentity?: { id: number; name: string },
 	): Promise<void>
 }
 
@@ -264,10 +267,18 @@ export type HookOutputStreamMeta = {
 export const browserActions = ["launch", "click", "type", "scroll_down", "scroll_up", "close"] as const
 export type BrowserAction = (typeof browserActions)[number]
 
-export type SubagentExecutionStatus = "pending" | "running" | "completed" | "failed"
+export const SubagentExecutionStatus = {
+	PENDING: "pending",
+	RUNNING: "running",
+	COMPLETED: "completed",
+	FAILED: "failed",
+	CANCELLED: "cancelled",
+} as const
+export type SubagentExecutionStatus = (typeof SubagentExecutionStatus)[keyof typeof SubagentExecutionStatus]
 
 export interface SubagentStatusItem {
 	index: number
+	name: string
 	prompt: string
 	status: SubagentExecutionStatus
 	toolCalls: number
@@ -399,7 +410,6 @@ export enum CardKind {
 	RESUME_COMPLETED_TASK = "resume_completed_task",
 }
 
-
 export interface Card {
 	id: string
 	kind?: CardKind
@@ -475,6 +485,7 @@ export interface CardParams {
 	requireFeedback?: boolean
 	feedbackPlaceholder?: string
 	actions?: ActionButton[]
+	autoScroll?: boolean
 	collapsed?: boolean
 	maxHeight?: number
 	cleanupStrategy?: CleanupStrategy

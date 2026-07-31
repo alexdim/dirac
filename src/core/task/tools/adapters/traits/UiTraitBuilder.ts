@@ -9,7 +9,8 @@ export function buildUiTrait(config: TaskConfig, createCardFn: (params: CardPara
 	return {
 		createCard: createCardFn,
 		upsertText: async (text: string, isReasoning?: boolean, role?: "user" | "assistant") => {
-			await config.taskMessenger.upsertText(text, isReasoning, undefined, undefined, role)
+			const visibleText = config.agentIdentity && role !== "user" ? `**${config.agentIdentity.name}:** ${text}` : text
+			await config.taskMessenger.upsertText(visibleText, isReasoning, undefined, undefined, role, config.agentIdentity)
 		},
 		streamText: async (type: "markdown" | "reasoning") => {
 			return await config.taskMessenger.streamText(type)

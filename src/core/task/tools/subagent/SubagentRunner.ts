@@ -20,13 +20,19 @@ import { SubagentAbortHandler } from "./SubagentAbortHandler"
 import { SubagentBuilder, type SubagentBuilderOptions } from "./SubagentBuilder"
 import { SubagentContextBuilder } from "./SubagentContextBuilder"
 import { SubagentToolExecutor } from "./SubagentToolExecutor"
+import type { SubagentTrajectoryEvent } from "@shared/subagents"
+import { SubagentExecutionStatus } from "@shared/ExtensionMessage"
 
 const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 const MAX_EMPTY_ASSISTANT_RETRIES = 3
 const MAX_INITIAL_STREAM_ATTEMPTS = 3
 const INITIAL_STREAM_RETRY_BASE_DELAY_MS = 2_000
+const PROGRESS_UPDATE_DRAIN_TIMEOUT_MS = 1_000
 
-export type SubagentRunStatus = "completed" | "failed"
+export type SubagentRunStatus =
+	| typeof SubagentExecutionStatus.COMPLETED
+	| typeof SubagentExecutionStatus.FAILED
+	| typeof SubagentExecutionStatus.CANCELLED
 
 export interface SubagentRunResult {
 	status: SubagentRunStatus
@@ -38,10 +44,11 @@ export interface SubagentRunResult {
 export interface SubagentProgressUpdate {
 	stats?: SubagentRunStats
 	latestToolCall?: string
-	status?: "running" | "completed" | "failed"
+	status?: SubagentExecutionStatus
 	result?: string
 	error?: string
 	textChunk?: string
+	trajectoryEvent?: SubagentTrajectoryEvent
 }
 
 export interface SubagentRunStats {
@@ -243,7 +250,7 @@ export class SubagentRunner {
 	constructor(
 		private baseConfig: TaskConfig,
 		subagentName = "subagent",
-		options: SubagentBuilderOptions = {},
+		private readonly options: SubagentBuilderOptions = {},
 	) {
 		this.agent = new SubagentBuilder(baseConfig, subagentName, options)
 		this.subagentName = subagentName
@@ -317,7 +324,7 @@ export class SubagentRunner {
 
 	async run(
 		prompt: string,
-		onProgress: (update: SubagentProgressUpdate) => void,
+		onProgress: (update: SubagentProgressUpdate) => void | Promise<void>,
 		timeout?: number,
 		maxTurns?: number,
 		includeHistory?: boolean,
@@ -348,17 +355,24 @@ export class SubagentRunner {
 		}
 
 		const logPrefix = `[SubagentRunner:${this.subagentName || "unnamed"}]`
+		let progressUpdates = Promise.resolve()
 		const instrumentedOnProgress = (update: SubagentProgressUpdate) => {
 			if (update.latestToolCall) {
 				Logger.debug(`${logPrefix} Tool: ${update.latestToolCall}`)
 			}
-			if (update.status === "completed" || update.status === "failed") {
+			if (
+				update.status === SubagentExecutionStatus.COMPLETED ||
+				update.status === SubagentExecutionStatus.FAILED ||
+				update.status === SubagentExecutionStatus.CANCELLED
+			) {
 				Logger.info(`${logPrefix} ${update.status}: ${(update.result || update.error || "").substring(0, 200)}`)
 			}
-			onProgress(update)
+			progressUpdates = progressUpdates
+				.then(() => onProgress(update))
+				.catch((error) => Logger.error(`${logPrefix} progress observer failed`, error))
 		}
 
-		instrumentedOnProgress({ status: "running", stats })
+		instrumentedOnProgress({ status: SubagentExecutionStatus.RUNNING, stats })
 
 		try {
 			const api = this.apiHandler
@@ -374,7 +388,7 @@ export class SubagentRunner {
 
 			if (this.shouldAbort()) {
 				await this.abort()
-				return this.abortHandler.buildAbortResult(conversation, stats, onProgress)
+				return this.abortHandler.buildAbortResult(conversation, stats, instrumentedOnProgress)
 			}
 
 			if (includeHistory) {
@@ -457,7 +471,7 @@ export class SubagentRunner {
 					}
 
 					await this.abort()
-					return this.abortHandler.buildAbortResult(conversation, stats, onProgress)
+					return this.abortHandler.buildAbortResult(conversation, stats, instrumentedOnProgress)
 				}
 
 				if (
@@ -548,7 +562,7 @@ export class SubagentRunner {
 
 					if (this.shouldAbort()) {
 						await this.abort()
-						return this.abortHandler.buildAbortResult(conversation, stats, onProgress)
+						return this.abortHandler.buildAbortResult(conversation, stats, instrumentedOnProgress)
 					}
 				}
 
@@ -625,8 +639,8 @@ export class SubagentRunner {
 					emptyAssistantResponseRetries += 1
 					if (emptyAssistantResponseRetries > MAX_EMPTY_ASSISTANT_RETRIES) {
 						const error = `Subagent did not call attempt_completion. Last response: "${excerpt(assistantText, 200)}"`
-						instrumentedOnProgress({ status: "failed", error, stats: { ...stats } })
-						return { status: "failed", error, stats }
+						instrumentedOnProgress({ status: SubagentExecutionStatus.FAILED, error, stats: { ...stats } })
+						return { status: SubagentExecutionStatus.FAILED, error, stats }
 					}
 
 					// Mirror the main loop's no-tools-used nudge so empty/blank model turns
@@ -662,11 +676,11 @@ export class SubagentRunner {
 					state,
 					requestSnapshot,
 					stats,
-					onProgress,
+					instrumentedOnProgress,
 				)
 				if (toolExecResult.completed)
 					return {
-						status: "completed" as const,
+						status: SubagentExecutionStatus.COMPLETED,
 						result: toolExecResult.completed.result,
 						stats: toolExecResult.completed.stats,
 					}
@@ -686,18 +700,30 @@ export class SubagentRunner {
 			}
 		} catch (error) {
 			if (this.shouldAbort()) {
-				return this.abortHandler.buildAbortResult(conversation, stats, onProgress)
+				return this.abortHandler.buildAbortResult(conversation, stats, instrumentedOnProgress)
 			}
 
 			const errorText = (error as Error).message || "Subagent execution failed."
 			Logger.error("[SubagentRunner] run failed", error)
-			instrumentedOnProgress({ status: "failed", error: errorText, stats: { ...stats } })
-			return { status: "failed", error: errorText, stats }
+			instrumentedOnProgress({ status: SubagentExecutionStatus.FAILED, error: errorText, stats: { ...stats } })
+			return { status: SubagentExecutionStatus.FAILED, error: errorText, stats }
 		} finally {
 			if (typeof timeoutHandle !== "undefined") {
 				clearTimeout(timeoutHandle)
 			}
 			this.activeApiAbort = undefined
+
+			let progressDrainTimeout: NodeJS.Timeout | undefined
+			const progressUpdatesDrained = await Promise.race([
+				progressUpdates.then(() => true),
+				new Promise<boolean>((resolve) => {
+					progressDrainTimeout = setTimeout(() => resolve(false), PROGRESS_UPDATE_DRAIN_TIMEOUT_MS)
+				}),
+			])
+			if (progressDrainTimeout) clearTimeout(progressDrainTimeout)
+			if (!progressUpdatesDrained) {
+				Logger.warn(`${logPrefix} progress observer did not drain within ${PROGRESS_UPDATE_DRAIN_TIMEOUT_MS}ms`)
+			}
 		}
 	}
 
@@ -721,7 +747,7 @@ export class SubagentRunner {
 		return assistantTexts.join("\n")
 	}
 
-		private createSubagentTaskConfig(state: TaskState, coordinator: ToolExecutorCoordinator): TaskConfig {
+	private createSubagentTaskConfig(state: TaskState, coordinator: ToolExecutorCoordinator): TaskConfig {
 		const baseCallbacks = this.baseConfig.callbacks
 
 		return {
@@ -731,6 +757,7 @@ export class SubagentRunner {
 			coordinator,
 			taskState: state,
 			isSubagentExecution: true,
+			agentIdentity: this.options.agentIdentity,
 			vscodeTerminalExecutionMode: "backgroundExec",
 			callbacks: {
 				...baseCallbacks,

@@ -162,7 +162,25 @@ describe("SurfaceAdapter", () => {
 		it("upsertText delegates to taskMessenger.upsertText", async () => {
 			config.taskMessenger.upsertText = sinon.stub().resolves()
 			await adapter.ui.upsertText("hello", true, "assistant")
-			sinon.assert.calledWith(config.taskMessenger.upsertText, "hello", true, undefined, undefined, "assistant")
+			sinon.assert.calledWith(config.taskMessenger.upsertText, "hello", true, undefined, undefined, "assistant", undefined)
+		})
+
+		it("prefixes subagent text with its display name", async () => {
+			config.agentIdentity = { id: 2, name: "Feynman" }
+			config.taskMessenger.upsertText = sinon.stub().resolves()
+			adapter = new SurfaceAdapter(config, "say")
+
+			await adapter.ui.upsertText("Working on it.", false, "assistant")
+
+			sinon.assert.calledWith(
+				config.taskMessenger.upsertText,
+				"**Feynman:** Working on it.",
+				false,
+				undefined,
+				undefined,
+				"assistant",
+				{ id: 2, name: "Feynman" },
+			)
 		})
 
 		it("streamText delegates to taskMessenger.streamText", async () => {
@@ -210,7 +228,6 @@ describe("SurfaceAdapter", () => {
 			const result = await adapter.interaction.askPermission("May I?")
 			result.approved.should.equal(false)
 		})
-
 
 		it("attaches an effect preview diff and raw input to permission cards", async () => {
 			const fakeHandle = {
@@ -279,11 +296,9 @@ describe("SurfaceAdapter", () => {
 
 	describe("system trait", () => {
 		it("executeCommand delegates to callbacks.executeCommandTool with suppress flags", async () => {
-			config.callbacks.executeCommandTool = sinon.stub().resolves([
-				true,
-				"output",
-				{ completed: true, exitCode: 2, signal: null, logFilePath: "/tmp/output.log" },
-			])
+			config.callbacks.executeCommandTool = sinon
+				.stub()
+				.resolves([true, "output", { completed: true, exitCode: 2, signal: null, logFilePath: "/tmp/output.log" }])
 			const result = await adapter.system.executeCommand("ls", { timeout: 5000 })
 			expect(result).to.deep.equal({
 				userRejected: true,

@@ -65,6 +65,7 @@ import { HistoryPanelContent } from "./HistoryPanelContent"
 import { SettingsPanelContent } from "./SettingsPanelContent"
 import { SkillsPanelContent } from "./SkillsPanelContent"
 import { OpenAiCodexUsagePanel } from "./OpenAiCodexUsagePanel"
+import { AgentPanelContent } from "./AgentPanelContent"
 import { PermissionModal } from "./PermissionModal"
 import { SlashCommandMenu } from "./SlashCommandMenu"
 import { ThinkingIndicator } from "./ThinkingIndicator"
@@ -81,6 +82,7 @@ import { estimateVisualLineCount } from "../utils/text-clipping"
 import { cardBodyForDisplay } from "../utils/card-body"
 import { createCardBodySuppressionPolicy } from "../utils/quiet-mode"
 import { clearTaskDeadline, getTaskDeadline, hasTaskTimedOut, markTaskTimedOut } from "../utils/task-timeout"
+import { CliPanelType } from "../types"
 
 interface ChatViewProps {
 	controller?: any
@@ -149,9 +151,9 @@ export const ChatView: React.FC<ChatViewProps> = ({
 	const layoutRows = calculateChatLayoutRows({
 		terminalRows,
 		hasConversationContent: true,
-		hasComposer: true,
-		hasFooter: true,
-		hasPanel: false,
+		hasComposer: activePanel === null,
+		hasFooter: activePanel === null,
+		hasPanel: activePanel !== null,
 	})
 
 	const {
@@ -269,7 +271,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
 	}, [activeTaskId, ctrl, isTaskActive, reportInteractionError, timeoutSeconds])
 
 	const isEmptyConversation = displayMessages.length === 0
-	const isWelcomeState = isEmptyConversation && !userScrolled
+	const isWelcomeState = isEmptyConversation && !userScrolled && activePanel === null
 
 	const activeCardId = taskState.uiActionState?.activeCardId
 	const pendingAsk = useMemo(() => {
@@ -766,7 +768,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
 				</Box>
 			)}
 
-			{activePanel?.type === "settings" && (
+			{activePanel?.type === CliPanelType.SETTINGS && (
 				<SettingsPanelContent
 					controller={ctrl}
 					initialMode={activePanel.initialMode}
@@ -775,7 +777,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
 				/>
 			)}
 
-			{activePanel?.type === "history" && ctrl && (
+			{activePanel?.type === CliPanelType.HISTORY && ctrl && (
 				<HistoryPanelContent
 					controller={ctrl}
 					onClose={() => setActivePanel(null)}
@@ -783,9 +785,9 @@ export const ChatView: React.FC<ChatViewProps> = ({
 				/>
 			)}
 
-			{activePanel?.type === "help" && <HelpPanelContent onClose={() => setActivePanel(null)} />}
+			{activePanel?.type === CliPanelType.HELP && <HelpPanelContent onClose={() => setActivePanel(null)} />}
 
-			{activePanel?.type === "skills" && ctrl && (
+			{activePanel?.type === CliPanelType.SKILLS && ctrl && (
 				<SkillsPanelContent
 					controller={ctrl}
 					onClose={() => setActivePanel(null)}
@@ -797,12 +799,21 @@ export const ChatView: React.FC<ChatViewProps> = ({
 				/>
 			)}
 
-			{activePanel?.type === "usage" && (
+			{activePanel?.type === CliPanelType.USAGE && (
 				<OpenAiCodexUsagePanel
 					controller={ctrl}
 					isAuthenticated={taskState.openAiCodexIsAuthenticated === true}
 					onClose={() => setActivePanel(null)}
 					snapshot={taskState.openAiCodexUsage}
+				/>
+			)}
+
+			{activePanel?.type === CliPanelType.AGENTS && (
+				<AgentPanelContent
+					messages={taskState.diracMessages ?? []}
+					availableRows={Math.max(1, terminalRows - layoutRows.liveViewportRows)}
+					onClose={() => setActivePanel(null)}
+					taskStatus={taskState.taskStatus}
 				/>
 			)}
 

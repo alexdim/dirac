@@ -90,6 +90,7 @@ export const HelpPanelContent: React.FC<HelpPanelContentProps> = ({ onClose }) =
 						["/settings", "Configure your API provider and preferences"],
 						["/models", "Switch AI models"],
 						["/history", "Browse previous tasks"],
+						["/agent", "Inspect Dirac and subagent activity"],
 						["/quiet", "Toggle card bodies for future tool output"],
 						["/clear", "Start a fresh task"],
 						["/q", "Quit Dirac"],

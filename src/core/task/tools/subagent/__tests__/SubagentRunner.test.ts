@@ -15,6 +15,8 @@ import { list_files_spec, ListFilesTool } from "../../modules/list_files"
 import { SubagentRunner } from "../SubagentRunner"
 import { SubagentBuilder } from "../SubagentBuilder"
 import { DiracAskResponse } from "@shared/WebviewMessage"
+import { SubagentExecutionStatus } from "@shared/ExtensionMessage"
+import { SubagentTrajectoryEventType } from "@shared/subagents"
 
 function initializeHostProvider() {
 	HostProvider.reset()
@@ -229,11 +231,22 @@ describe("SubagentRunner", () => {
 		initializeHostProvider()
 
 		const runner = new SubagentRunner(createTaskConfigWithListFilesSnapshot())
-		const result = await runner.run("List files", () => { })
+		const updates: any[] = []
+		const result = await runner.run("List files", (update) => {
+			updates.push(update)
+		})
 
-		assert.equal(result.status, "completed")
+		assert.equal(result.status, SubagentExecutionStatus.COMPLETED)
 		assert.equal(result.result, "done")
 		assert.equal(createMessage.callCount, 2)
+		assert.ok(
+			updates.some(
+				(update) =>
+					update.trajectoryEvent?.type === SubagentTrajectoryEventType.TOOL &&
+					update.trajectoryEvent.text.startsWith(DiracDefaultTool.LIST_FILES),
+			),
+		)
+		assert.ok(updates.some((update) => update.trajectoryEvent?.type === SubagentTrajectoryEventType.TOOL_RESULT))
 	})
 
 	it("passes prior request token totals into the next-turn compaction check", async () => {

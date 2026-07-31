@@ -3,10 +3,20 @@ import { IToolEnvironment } from "../../interfaces/IToolEnvironment"
 import { DiracToolSpec, DiracDefaultTool } from "@/shared/tools"
 import { DiracIcon } from "@/shared/icons"
 import { formatResponse } from "@core/formatResponse"
-import { CardKind, CardStatus, DiracMessageType } from "@shared/ExtensionMessage"
+import { CardKind, CardStatus, DiracMessageType, SubagentExecutionStatus } from "@shared/ExtensionMessage"
 import { showSystemNotification } from "@integrations/notifications"
 import { telemetryService } from "@/services/telemetry"
 import { getTaskCompletionTelemetry } from "../../utils"
+import {
+	allocateSubagentIdentity,
+	createSubagentCardInput,
+	createSubagentCardOutput,
+	formatSubagentTrajectory,
+	isTerminalSubagentStatus,
+	recordSubagentProgress,
+	subagentCardStatus,
+	type SubagentTrajectoryEvent,
+} from "@shared/subagents"
 
 export const attempt_completion_spec: DiracToolSpec = {
 	id: DiracDefaultTool.ATTEMPT,
@@ -31,7 +41,7 @@ export class AttemptCompletionTool implements IDiracTool {
 		return ["all" as const]
 	}
 
-		async processCall(args: any, env: IToolEnvironment): Promise<any> {
+	async processCall(args: any, env: IToolEnvironment): Promise<any> {
 		const { result } = args
 
 		if (!result) {
@@ -137,8 +147,10 @@ If everything checks out, call attempt_completion again with your final result.`
 
 	private async runVerificationSubagent(env: IToolEnvironment, result: string): Promise<any | undefined> {
 		const history = env.orchestration.getHistory()
+		const identity = allocateSubagentIdentity(history)
+		const trajectory: SubagentTrajectoryEvent[] = []
 		const firstTaskMsgObjSub = history.find(
-			(m) => m.content.type === DiracMessageType.MARKDOWN && m.content.content.includes("<task>"),
+			(message) => message.content.type === DiracMessageType.MARKDOWN && message.content.content.includes("<task>"),
 		)
 		const firstTaskMessage =
 			firstTaskMsgObjSub?.content.type === DiracMessageType.MARKDOWN ? firstTaskMsgObjSub.content.content.trim() : undefined
@@ -172,42 +184,56 @@ Otherwise, respond with "VERIFICATION: FAILED" followed by all the details on wh
 
 		const card = !env.config.isSubagentExecution
 			? await env.ui.createCard({
-				header: "Verifying Solution",
+				header: identity.name,
 				icon: DiracIcon.COMPLETE,
 				status: CardStatus.RUNNING,
 				collapsed: true,
-				maxHeight: 10000, // setting it very high to avoid scroll in a scroll
+				renderType: "markdown",
+				autoScroll: true,
+				rawInput: createSubagentCardInput(identity, subagentPrompt),
+				rawOutput: createSubagentCardOutput(SubagentExecutionStatus.RUNNING, trajectory),
+				body: formatSubagentTrajectory({
+					...identity,
+					prompt: subagentPrompt,
+					status: SubagentExecutionStatus.RUNNING,
+					trajectory,
+				}),
 			})
 			: undefined
 
 		const runResult = await env.orchestration.runSubagent(subagentPrompt, {
+			subagentName: "verifier",
+			agentIdentity: identity,
 			onUpdate: async (update) => {
-				if (card) {
-					await card.update({
-						status:
-							update.status === "completed"
-								? CardStatus.SUCCESS
-								: update.status === "failed"
-									? CardStatus.ERROR
-									: CardStatus.RUNNING,
-						body: update.result || update.error || "",
-					})
-				}
+				if (update.trajectoryEvent === undefined && update.status === undefined) return
+				const status = recordSubagentProgress(trajectory, update)
+				if (!card || isTerminalSubagentStatus(status)) return
+				await card.update({
+					status: subagentCardStatus(status),
+					body: formatSubagentTrajectory({ ...identity, prompt: subagentPrompt, status, trajectory }),
+					rawOutput: createSubagentCardOutput(status, trajectory),
+				})
 			},
 		})
 
-		if (runResult.status === "completed") {
-			if (runResult.result?.includes("VERIFICATION: SUCCESS")) {
-				return undefined
-			} else {
-				return `Verification Subagent Report:\n${runResult.result}\n\nThe solution could not be verified successfully. Please address the issues listed above and try again.`
-			}
-		} else {
+		recordSubagentProgress(trajectory, runResult)
+		if (card) {
+			await card.update({
+				status: subagentCardStatus(runResult.status),
+				body: formatSubagentTrajectory({ ...identity, prompt: subagentPrompt, status: runResult.status, trajectory }),
+				rawOutput: createSubagentCardOutput(runResult.status, trajectory),
+			})
+			await card.finalize(subagentCardStatus(runResult.status))
+		}
+
+		if (runResult.status !== SubagentExecutionStatus.COMPLETED) {
 			return `Verification Subagent Failed:\n${runResult.error}\n\nPlease verify the task manually or try again.`
 		}
+		if (runResult.result?.includes("VERIFICATION: SUCCESS")) return undefined
+		return `Verification Subagent Report:\n${runResult.result}\n\nThe solution could not be verified successfully. Please address the issues listed above and try again.`
 	}
 
-		private async handleCompletionResult(env: IToolEnvironment, result: string): Promise<void> {
+	private async handleCompletionResult(env: IToolEnvironment, result: string): Promise<void> {
 		const card = await env.ui.createCard({
 			kind: CardKind.TASK_COMPLETION,
 			icon: DiracIcon.COMPLETE,

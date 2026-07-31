@@ -1,5 +1,11 @@
 import { describe, expect, it, vi } from "vitest"
-import { executeLocalSlashCommand, type LocalSlashCommandContext } from "./slash-commands"
+import {
+    executeLocalSlashCommand,
+    executeStandaloneLocalSlashCommand,
+    mergeCliSlashCommands,
+    type LocalSlashCommandContext,
+} from "./slash-commands"
+import { CliPanelType } from "../types"
 
 function localCommandContext(): LocalSlashCommandContext {
 	return {
@@ -25,7 +31,41 @@ describe("executeLocalSlashCommand", () => {
 		const context = localCommandContext()
 
 		expect(executeLocalSlashCommand("usage", context)).toBe(true)
-		expect(context.setActivePanel).toHaveBeenCalledWith({ type: "usage" })
+		expect(context.setActivePanel).toHaveBeenCalledWith({ type: CliPanelType.USAGE })
 		expect(context.resetInputLine).toHaveBeenCalledOnce()
+	})
+
+	it("opens the agent selector for /agent", () => {
+		const context = localCommandContext()
+
+		expect(executeLocalSlashCommand("agent", context)).toBe(true)
+		expect(context.setActivePanel).toHaveBeenCalledWith({ type: CliPanelType.AGENTS })
+		expect(context.resetInputLine).toHaveBeenCalledOnce()
+	})
+
+	it("executes a standalone local command with trailing whitespace", () => {
+		const context = localCommandContext()
+
+		expect(executeStandaloneLocalSlashCommand("  /agent  ", context)).toBe(true)
+		expect(context.setActivePanel).toHaveBeenCalledWith({ type: CliPanelType.AGENTS })
+	})
+
+	it("does not execute a local command embedded in prompt text", () => {
+		const context = localCommandContext()
+
+		expect(executeStandaloneLocalSlashCommand("Please inspect /agent", context)).toBe(false)
+		expect(context.setActivePanel).not.toHaveBeenCalled()
+	})
+
+	it("reserves local command names when backend workflows are merged", () => {
+		const local = [{ name: "agent", description: "Local", section: "default", cliCompatible: true }]
+		const backend = [
+			{ name: "agent", description: "Workflow", section: "custom", cliCompatible: true },
+			{ name: "review", description: "Workflow", section: "custom", cliCompatible: true },
+		]
+
+		const commands = mergeCliSlashCommands(local, backend)
+
+		expect(commands.map((command) => command.name)).toEqual(["agent", "review"])
 	})
 })

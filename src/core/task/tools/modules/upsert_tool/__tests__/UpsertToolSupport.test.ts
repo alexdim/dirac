@@ -6,15 +6,19 @@ import { afterEach, describe, it } from "mocha"
 import type { IToolEnvironment } from "../../../interfaces/IToolEnvironment"
 import { buildToolWithRepairs } from "../subagent-builder"
 import { buildScaffoldedToolSource, writeTestHarness } from "../scaffold-generator"
-import {
-    commitToolPromotion,
-    createToolStagingDirectory,
-    promoteStagedTool,
-    rollbackToolPromotion,
-} from "../tool-lifecycle"
+import { commitToolPromotion, createToolStagingDirectory, promoteStagedTool, rollbackToolPromotion } from "../tool-lifecycle"
 import { TOOL_IMPLEMENTATION_SENTINEL } from "../constants"
+import { SubagentExecutionStatus } from "@shared/ExtensionMessage"
 
 const temporaryDirectories: string[] = []
+
+function createIdentityAllocator() {
+	let nextId = 2
+	return () => {
+		const id = nextId++
+		return { id, name: `Builder ${id}` }
+	}
+}
 
 afterEach(async () => {
 	await Promise.all(temporaryDirectories.splice(0).map((directory) => fs.rm(directory, { recursive: true, force: true })))
@@ -41,11 +45,22 @@ describe("upsert_tool support", () => {
 	it("feeds parent validation failures into a bounded repair attempt", async () => {
 		const prompts: string[] = []
 		let validationCalls = 0
+		const cardParams: any[] = []
 		const env = {
 			orchestration: {
+				getHistory: () => [],
 				runSubagent: async (prompt: string) => {
 					prompts.push(prompt)
-					return { status: "completed", result: "", stats: {} }
+					return { status: SubagentExecutionStatus.COMPLETED, result: "", stats: {} }
+				},
+			},
+			ui: {
+				createCard: async (params: any) => {
+					cardParams.push(params)
+					return {
+						update: async () => { },
+						finalize: async () => { },
+					}
 				},
 			},
 		} as unknown as IToolEnvironment
@@ -60,13 +75,64 @@ describe("upsert_tool support", () => {
 				requirements: "Return an example result.",
 				toolDir: "/tmp/example-tool-build",
 			},
-			async () => ++validationCalls === 1 ? "smoke test failed" : undefined,
-			async () => {},
+			async () => (++validationCalls === 1 ? "smoke test failed" : undefined),
+			async () => { },
+			createIdentityAllocator(),
 		)
 
 		assert.strictEqual(result, undefined)
 		assert.strictEqual(prompts.length, 2)
 		assert.match(prompts[1], /smoke test failed/)
+		assert.ok(cardParams.every((params) => params.collapsed === true))
+		assert.ok(cardParams.every((params) => !/^Agent\s+\d+/.test(params.header)))
+		assert.deepEqual(cardParams.map((params) => params.rawInput.agentId), [2, 3])
+	})
+
+	it("stops repair attempts when the builder subagent is cancelled", async () => {
+		let validationCalls = 0
+		let subagentCalls = 0
+		const env = {
+			orchestration: {
+				getHistory: () => [],
+				runSubagent: async () => {
+					subagentCalls += 1
+					return {
+						status: SubagentExecutionStatus.CANCELLED,
+						error: "cancelled by user",
+						stats: {},
+					}
+				},
+			},
+			ui: {
+				createCard: async () => ({
+					update: async () => { },
+					finalize: async () => { },
+				}),
+			},
+		} as unknown as IToolEnvironment
+
+		await assert.rejects(
+			buildToolWithRepairs(
+				env,
+				{
+					name: "example_tool",
+					scope: "workspace",
+					description: "Example tool",
+					parameters: [],
+					requirements: "Return an example result.",
+					toolDir: "/tmp/example-tool-build",
+				},
+				async () => {
+					validationCalls += 1
+					return undefined
+				},
+				async () => { },
+				createIdentityAllocator(),
+			),
+			/cancelled by user/,
+		)
+		assert.equal(subagentCalls, 1)
+		assert.equal(validationCalls, 0)
 	})
 
 	it("restores the previous live directory when promotion is rolled back", async () => {

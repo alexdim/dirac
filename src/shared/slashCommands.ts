@@ -74,6 +74,12 @@ export const CLI_ONLY_COMMANDS: SlashCommand[] = [
 		cliCompatible: true,
 	},
 	{
+		name: "agent",
+		description: "Inspect Dirac and spawned subagent activity",
+		section: "default",
+		cliCompatible: true,
+	},
+	{
 		name: "clear",
 		description: "Clear the current task and start fresh",
 		section: "default",
