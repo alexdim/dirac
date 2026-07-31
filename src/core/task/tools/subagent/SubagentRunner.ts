@@ -21,7 +21,7 @@ import { SubagentBuilder, type SubagentBuilderOptions } from "./SubagentBuilder"
 import { SubagentContextBuilder } from "./SubagentContextBuilder"
 import { resolveSubagentTimeoutSeconds } from "./SubagentExecutionPolicy"
 import { SubagentToolExecutor } from "./SubagentToolExecutor"
-import type { SubagentTrajectoryEvent } from "@shared/subagents"
+import { SubagentTrajectoryEventType, type SubagentTrajectoryEvent } from "@shared/subagents"
 import { SubagentExecutionStatus } from "@shared/ExtensionMessage"
 
 const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
@@ -30,6 +30,9 @@ const MAX_INITIAL_STREAM_ATTEMPTS = 3
 const INITIAL_STREAM_RETRY_BASE_DELAY_MS = 2_000
 const PROGRESS_UPDATE_DRAIN_TIMEOUT_MS = 1_000
 const PARENT_ABORT_POLL_INTERVAL_MS = 50
+const WRAP_UP_TIMEOUT_SECONDS = 90
+const WRAP_UP_PROMPT =
+	"The research deadline has elapsed. Stop investigating and summarize the concrete findings you already established. Call attempt_completion now. Do not perform further research."
 
 export type SubagentRunStatus =
 	| typeof SubagentExecutionStatus.COMPLETED
@@ -51,6 +54,7 @@ export interface SubagentProgressUpdate {
 	error?: string
 	textChunk?: string
 	trajectoryEvent?: SubagentTrajectoryEvent
+	isWrappingUp?: boolean
 }
 
 export interface SubagentRunStats {
@@ -264,6 +268,8 @@ export class SubagentRunner {
 	private activeConversation: DiracStorageMessage[] = []
 	private activeStats = createEmptySubagentRunStats()
 	private readonly subagentName: string
+	private wrapUpRequested = false
+	private isWrappingUp = false
 
 	constructor(
 		private baseConfig: TaskConfig,
@@ -300,7 +306,31 @@ export class SubagentRunner {
 		if (this.activeTaskState) {
 			this.activeTaskState.abort = true
 		}
+		await this.stopActiveWork()
+	}
 
+	private async requestWrapUp(onProgress: (update: SubagentProgressUpdate) => void): Promise<void> {
+		if (this.wrapUpRequested || this.isWrappingUp || this.shouldAbort()) return
+		this.wrapUpRequested = true
+		onProgress({
+			isWrappingUp: true,
+			trajectoryEvent: { type: SubagentTrajectoryEventType.MESSAGE, text: "Time limit reached. Wrapping up findings." },
+			stats: { ...this.activeStats },
+		})
+		await this.stopActiveWork()
+	}
+
+	private beginWrapUp(conversation: DiracStorageMessage[]): boolean {
+		if (!this.wrapUpRequested || this.isWrappingUp) return false
+		this.isWrappingUp = true
+		conversation.push({
+			role: "user",
+			content: [{ type: "text", text: WRAP_UP_PROMPT } as DiracTextContentBlock],
+		})
+		return true
+	}
+
+	private async stopActiveWork(): Promise<void> {
 		try {
 			this.activeApiAbort?.()
 		} catch (error) {
@@ -356,6 +386,8 @@ export class SubagentRunner {
 		const logPrefix = `[SubagentRunner:${this.subagentName || "unnamed"}]`
 		this.abortRequested = false
 		this.abortReason = undefined
+		this.wrapUpRequested = false
+		this.isWrappingUp = false
 		this.activeTaskState = undefined
 		this.activeConversation = []
 		this.activeStats = createEmptySubagentRunStats()
@@ -384,11 +416,20 @@ export class SubagentRunner {
 			void this.abort(reason)
 			resolveTermination()
 		}
+		let wrapUpTimeoutHandle: NodeJS.Timeout | undefined
+		const requestWrapUp = () => {
+			if (terminationRequested || this.wrapUpRequested || this.isWrappingUp) return
+			void this.requestWrapUp(enqueueExecutionProgress)
+			wrapUpTimeoutHandle = setTimeout(
+				() =>
+					requestTermination(
+						`Subagent timed out after ${timeoutSeconds} seconds and could not finish wrapping up within ${WRAP_UP_TIMEOUT_SECONDS} seconds.`,
+					),
+				WRAP_UP_TIMEOUT_SECONDS * 1000,
+			)
+		}
 
-		const timeoutHandle = setTimeout(
-			() => requestTermination(`Subagent timed out after ${timeoutSeconds} seconds.`),
-			timeoutSeconds * 1000,
-		)
+		const timeoutHandle = setTimeout(requestWrapUp, timeoutSeconds * 1000)
 		const parentAbortPoll = setInterval(() => {
 			if (this.baseConfig.taskState.abort) {
 				requestTermination("Subagent run cancelled because the parent task was cancelled.")
@@ -427,6 +468,7 @@ export class SubagentRunner {
 			return result
 		} finally {
 			clearTimeout(timeoutHandle)
+			if (wrapUpTimeoutHandle) clearTimeout(wrapUpTimeoutHandle)
 			clearInterval(parentAbortPoll)
 		}
 	}
@@ -510,12 +552,16 @@ export class SubagentRunner {
 				],
 			})
 			while (true) {
+				if (this.beginWrapUp(conversation)) {
+					usageState.lastRequest = undefined
+				}
 				if (this.shouldAbort()) {
 					await this.abort()
 					return this.reportAbortResult(conversation, stats, instrumentedOnProgress)
 				}
 
 				if (
+					!this.isWrappingUp &&
 					usageState.lastRequest &&
 					this.shouldCompactBeforeNextRequest(usageState.lastRequest.totalTokens, api, context.providerInfo.model.id)
 				) {
@@ -552,59 +598,66 @@ export class SubagentRunner {
 					contextState,
 				)
 
-				for await (const chunk of stream) {
-					switch (chunk.type) {
-						case "usage":
-							requestId = requestId ?? chunk.id
-							stats.inputTokens += chunk.inputTokens || 0
-							stats.outputTokens += chunk.outputTokens || 0
-							stats.cacheWriteTokens += chunk.cacheWriteTokens || 0
-							stats.cacheReadTokens += chunk.cacheReadTokens || 0
-							requestUsage.inputTokens += chunk.inputTokens || 0
-							requestUsage.outputTokens += chunk.outputTokens || 0
-							requestUsage.cacheWriteTokens += chunk.cacheWriteTokens || 0
-							requestUsage.cacheReadTokens += chunk.cacheReadTokens || 0
-							requestUsage.totalTokens =
-								requestUsage.inputTokens +
-								requestUsage.outputTokens +
-								requestUsage.cacheWriteTokens +
-								requestUsage.cacheReadTokens
-							requestUsage.totalCost = chunk.totalCost ?? requestUsage.totalCost
-							stats.contextTokens = requestUsage.totalTokens
-							stats.contextUsagePercentage =
-								stats.contextWindow > 0 ? (stats.contextTokens / stats.contextWindow) * 100 : 0
-							instrumentedOnProgress({ stats: { ...stats } })
-							break
-						case "text":
-							requestId = requestId ?? chunk.id
-							assistantText += chunk.text || ""
-							assistantTextSignature = chunk.signature || assistantTextSignature
-							if (chunk.text) {
-								instrumentedOnProgress({ textChunk: chunk.text })
-							}
-							break
-						case "tool_calls":
-							requestId = requestId ?? chunk.id
-							toolUseHandler.processToolUseDelta(
-								{
-									id: chunk.tool_call.function?.id,
-									type: "tool_use",
-									name: chunk.tool_call.function?.name,
-									input: normalizeToolCallArguments(chunk.tool_call.function?.arguments),
-									signature: chunk.signature,
-								},
-								chunk.tool_call.call_id,
-							)
-							break
-						case "reasoning":
-							requestId = requestId ?? chunk.id
-							break
-					}
+				try {
+					for await (const chunk of stream) {
+						switch (chunk.type) {
+							case "usage":
+								requestId = requestId ?? chunk.id
+								stats.inputTokens += chunk.inputTokens || 0
+								stats.outputTokens += chunk.outputTokens || 0
+								stats.cacheWriteTokens += chunk.cacheWriteTokens || 0
+								stats.cacheReadTokens += chunk.cacheReadTokens || 0
+								requestUsage.inputTokens += chunk.inputTokens || 0
+								requestUsage.outputTokens += chunk.outputTokens || 0
+								requestUsage.cacheWriteTokens += chunk.cacheWriteTokens || 0
+								requestUsage.cacheReadTokens += chunk.cacheReadTokens || 0
+								requestUsage.totalTokens =
+									requestUsage.inputTokens +
+									requestUsage.outputTokens +
+									requestUsage.cacheWriteTokens +
+									requestUsage.cacheReadTokens
+								requestUsage.totalCost = chunk.totalCost ?? requestUsage.totalCost
+								stats.contextTokens = requestUsage.totalTokens
+								stats.contextUsagePercentage =
+									stats.contextWindow > 0 ? (stats.contextTokens / stats.contextWindow) * 100 : 0
+								instrumentedOnProgress({ stats: { ...stats } })
+								break
+							case "text":
+								requestId = requestId ?? chunk.id
+								assistantText += chunk.text || ""
+								assistantTextSignature = chunk.signature || assistantTextSignature
+								if (chunk.text) {
+									instrumentedOnProgress({ textChunk: chunk.text })
+								}
+								break
+							case "tool_calls":
+								requestId = requestId ?? chunk.id
+								toolUseHandler.processToolUseDelta(
+									{
+										id: chunk.tool_call.function?.id,
+										type: "tool_use",
+										name: chunk.tool_call.function?.name,
+										input: normalizeToolCallArguments(chunk.tool_call.function?.arguments),
+										signature: chunk.signature,
+									},
+									chunk.tool_call.call_id,
+								)
+								break
+							case "reasoning":
+								requestId = requestId ?? chunk.id
+								break
+						}
 
-					if (this.shouldAbort()) {
-						await this.abort()
-						return this.reportAbortResult(conversation, stats, instrumentedOnProgress)
+						if (this.shouldAbort()) {
+							await this.abort()
+							return this.reportAbortResult(conversation, stats, instrumentedOnProgress)
+						}
 					}
+				} catch (error) {
+					if (this.wrapUpRequested && !this.shouldAbort()) {
+						continue
+					}
+					throw error
 				}
 
 				const calculatedRequestCost =
@@ -677,6 +730,12 @@ export class SubagentRunner {
 				}
 
 				if (finalizedToolCalls.length === 0) {
+					if (this.wrapUpRequested || this.isWrappingUp) {
+						await delay(0)
+						continue
+					}
+
+
 					emptyAssistantResponseRetries += 1
 					if (emptyAssistantResponseRetries > MAX_EMPTY_ASSISTANT_RETRIES) {
 						const error = `Subagent did not call attempt_completion. Last response: "${excerpt(assistantText, 200)}"`
@@ -718,6 +777,7 @@ export class SubagentRunner {
 					requestSnapshot,
 					stats,
 					instrumentedOnProgress,
+					this.wrapUpRequested || this.isWrappingUp,
 				)
 				if (this.shouldAbort()) {
 					await this.abort()
@@ -730,6 +790,12 @@ export class SubagentRunner {
 						stats: toolExecResult.completed.stats,
 					}
 
+				conversation.push({ role: "user", content: toolExecResult.toolResultBlocks })
+				if (this.wrapUpRequested || this.isWrappingUp) {
+					await delay(0)
+					continue
+				}
+
 				this.baseConfig.taskState.activeSkillIds = [
 					...new Set([...this.baseConfig.taskState.activeSkillIds, ...state.activeSkillIds]),
 				]
@@ -737,8 +803,6 @@ export class SubagentRunner {
 				requestSnapshot = refreshedContext.requestSnapshot
 				useNativeToolCalls = refreshedContext.useNativeToolCalls
 				systemPrompt = this.contextBuilder.appendExecutionDeadline(refreshedContext.systemPrompt, timeout)
-
-				conversation.push({ role: "user", content: toolExecResult.toolResultBlocks })
 
 				await delay(0)
 			}

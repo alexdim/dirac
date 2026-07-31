@@ -6,7 +6,7 @@ import { WorkspaceRoot } from "@shared/multi-root/types"
 import type { Environment } from "../config"
 import type { OpenAiCodexUsageSnapshot } from "./openai-codex-usage"
 import { AutoApprovalSettings } from "./AutoApprovalSettings"
-import { ApiConfiguration, ModelProviderPreset } from "./api"
+import { ApiConfiguration, ModelProviderPreset, ModelProviderSelection } from "./api"
 import { SkillMetadata } from "./skills"
 import { BrowserSettings } from "./BrowserSettings"
 import { DiracFeatureSetting } from "./DiracFeatureSetting"
@@ -54,6 +54,8 @@ export interface ExtensionState {
 	onboardingModels?: OnboardingModelGroup | undefined
 	apiConfiguration?: ApiConfiguration
 	modelProviderPresets: ModelProviderPreset[]
+	utilityModelEnabled: boolean
+	utilityModelSelection?: ModelProviderSelection
 	autoApprovalSettings: AutoApprovalSettings
 	browserSettings: BrowserSettings
 	remoteBrowserHost?: string
@@ -294,6 +296,7 @@ export interface SubagentStatusItem {
 	latestToolCall?: string
 	result?: string
 	error?: string
+	isWrappingUp?: boolean
 }
 
 export type BrowserActionResult = {

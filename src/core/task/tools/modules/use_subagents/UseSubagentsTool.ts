@@ -136,10 +136,14 @@ export class UseSubagentsTool implements IDiracTool {
 		const emitStatus = (status: SubagentExecutionStatus) => {
 			if (!card) return
 			const payload = this.calculateStatusPayload(status, entries)
+			const wrappingUpCount = entries.filter((entry) => entry.isWrappingUp && !isTerminalSubagentStatus(entry.status)).length
 			const patch = {
 				status: subagentCardStatus(status),
 				body: this.formatSubagentStatusMarkdown(payload),
 				renderType: "markdown" as const,
+				...(wrappingUpCount > 0
+					? { header: `Wrapping up ${wrappingUpCount} subagent${wrappingUpCount === 1 ? "" : "s"}` }
+					: {}),
 			}
 			enqueueAggregatePresentation(() => card!.update(patch))
 		}
@@ -421,6 +425,7 @@ export class UseSubagentsTool implements IDiracTool {
 						if (update.result !== undefined) current.result = update.result
 						if (update.error !== undefined) current.error = update.error
 						if (update.latestToolCall !== undefined) current.latestToolCall = update.latestToolCall
+						if (update.isWrappingUp) current.isWrappingUp = true
 						if (update.stats) {
 							current.toolCalls = update.stats.toolCalls
 							current.inputTokens = update.stats.inputTokens
@@ -433,12 +438,13 @@ export class UseSubagentsTool implements IDiracTool {
 							current.contextUsagePercentage = update.stats.contextUsagePercentage
 						}
 
-						if (update.stats !== undefined || update.status !== undefined) {
+						if (update.stats !== undefined || update.status !== undefined || update.isWrappingUp) {
 							emitRunningStatus(isTerminalSubagentStatus(status))
 						}
-						if (!subagentCard || !trajectoryChanged || isTerminalSubagentStatus(status)) return
+						if (!subagentCard || (!trajectoryChanged && !update.isWrappingUp) || isTerminalSubagentStatus(status)) return
 
 						const cardUpdate = {
+							header: current.isWrappingUp ? `${current.name}: wrapping up` : `${current.name}: ${current.taskTitle}`,
 							status: subagentCardStatus(status),
 							body: stripHashes(
 								formatSubagentTrajectory({
@@ -460,6 +466,7 @@ export class UseSubagentsTool implements IDiracTool {
 				recordSubagentProgress(trajectory, runResult)
 				if (subagentCard) {
 					const finalCardUpdate = {
+						header: `${entry.name}: ${entry.taskTitle}`,
 						status: subagentCardStatus(runResult.status),
 						body: stripHashes(
 							formatSubagentTrajectory({
@@ -501,6 +508,7 @@ export class UseSubagentsTool implements IDiracTool {
 				appendSubagentTrajectoryEvent(trajectory, { type: SubagentTrajectoryEventType.ERROR, text: message })
 				if (subagentCard) {
 					const failedCardUpdate = {
+						header: `${entry.name}: ${entry.taskTitle}`,
 						status: CardStatus.ERROR,
 						body: formatSubagentTrajectory({
 							id: entry.index,
@@ -601,6 +609,7 @@ export class UseSubagentsTool implements IDiracTool {
 		md += `| Agent | Status | Prompt | Tokens (In/Out) | Cost |\n`
 		md += `|-------|--------|--------|-----------------|------|\n`
 		payload.items.forEach((item: SubagentStatusItem) => {
+			const displayStatus = item.isWrappingUp && !isTerminalSubagentStatus(item.status) ? "wrapping up" : item.status
 			const statusIcon =
 				item.status === SubagentExecutionStatus.COMPLETED
 					? "✅"
@@ -611,7 +620,7 @@ export class UseSubagentsTool implements IDiracTool {
 							: "⏳"
 			const tokens = `${item.inputTokens.toLocaleString()} / ${item.outputTokens.toLocaleString()}`
 			const cost = `$${item.totalCost.toFixed(4)}`
-			md += `| ${item.name}: ${item.taskTitle} | ${statusIcon} ${item.status} | ${item.prompt} | ${tokens} | ${cost} |\n`
+			md += `| ${item.name}: ${item.taskTitle} | ${statusIcon} ${displayStatus} | ${item.prompt} | ${tokens} | ${cost} |\n`
 		})
 		md += `\n**Total Cost:** $${payload.items.reduce((acc: number, i: SubagentStatusItem) => acc + i.totalCost, 0).toFixed(4)}`
 		return md

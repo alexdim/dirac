@@ -790,7 +790,7 @@ describe("SubagentRunner", () => {
 		assert.equal(createMessage.callCount, 2)
 	})
 
-	it("returns at the hard timeout when the API stream ignores abort", async () => {
+	it("returns after the wrap-up deadline when the API stream ignores abort", async () => {
 		const createMessage = sinon.stub().callsFake(async function* () {
 			await new Promise<void>(() => { })
 		})
@@ -807,13 +807,96 @@ describe("SubagentRunner", () => {
 			const runPromise = runner.run("Never settles", (update) => {
 				updates.push(update)
 			}, 1)
+			await clock.tickAsync(91_000)
+			const result = await runPromise
+
+			assert.equal(result.status, SubagentExecutionStatus.COMPLETED)
+			assert.match(result.result || "", /timed out after 1 seconds and could not finish wrapping up within 90 seconds/i)
+			sinon.assert.called(abort)
+			assert.ok(updates.some((update) => update.isWrappingUp))
+			assert.ok(updates.some((update) => update.status === SubagentExecutionStatus.COMPLETED))
+		} finally {
+			clock.restore()
+		}
+	})
+
+	it("preserves the request cache while wrapping up and blocks further research", async () => {
+		let stopInitialStream!: () => void
+		const abort = sinon.stub().callsFake(() => stopInitialStream())
+		const createMessage = sinon.stub()
+		let initialSystemPrompt: string | undefined
+		let initialNativeTools: unknown
+
+		createMessage.onFirstCall().callsFake(async function* (systemPrompt: string, _conversation: unknown[], nativeTools: unknown) {
+			initialSystemPrompt = systemPrompt
+			initialNativeTools = nativeTools
+			await new Promise<void>((resolve) => {
+				stopInitialStream = resolve
+			})
+		})
+		createMessage.onSecondCall().callsFake(async function* (systemPrompt: string, conversation: unknown[], nativeTools: unknown) {
+			assert.equal(systemPrompt, initialSystemPrompt)
+			assert.strictEqual(nativeTools, initialNativeTools)
+			assert.equal(conversation.length, 2)
+			const finalInstruction = conversation.at(-1) as { role: string; content: Array<{ text?: string }> }
+			assert.equal(finalInstruction.role, "user")
+			assert.match(finalInstruction.content[0]?.text || "", /research deadline has elapsed/i)
+			yield {
+				type: "tool_calls",
+				tool_call: {
+					function: {
+						id: "toolu_subagent_wrap_up_research",
+						name: DiracDefaultTool.LIST_FILES,
+						arguments: JSON.stringify({ path: ".", recursive: false }),
+					},
+				},
+			}
+		})
+		createMessage.onThirdCall().callsFake(async function* (systemPrompt: string, conversation: unknown[], nativeTools: unknown) {
+			assert.equal(systemPrompt, initialSystemPrompt)
+			assert.strictEqual(nativeTools, initialNativeTools)
+			const deniedResearchResult = conversation.at(-1) as {
+				role: string
+				content: Array<{ type?: string; content?: string }>
+			}
+			assert.equal(deniedResearchResult.role, "user")
+			assert.match(deniedResearchResult.content[0]?.content || "", /research is no longer available/i)
+			yield {
+				type: "tool_calls",
+				tool_call: {
+					function: {
+						id: "toolu_subagent_wrap_up_complete",
+						name: DiracDefaultTool.ATTEMPT,
+						arguments: JSON.stringify({ result: "partial report" }),
+					},
+				},
+			}
+		})
+
+		const promptRegistry = PromptRegistry.getInstance()
+		const getPrompt = sinon.stub(promptRegistry, "get").callsFake(async () => {
+			promptRegistry.nativeTools = [{ name: "list_files" } as any]
+			return "system prompt"
+		})
+		sinon.stub(skills, "getOrDiscoverSkills").resolves([])
+		stubApiHandler(createMessage, abort)
+		initializeHostProvider()
+
+		const clock = sinon.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "setInterval", "clearInterval", "Date"] })
+		try {
+			const updates: any[] = []
+			const runner = new SubagentRunner(createTaskConfigWithListFilesSnapshot())
+			const runPromise = runner.run("Investigate", (update) => {
+				updates.push(update)
+			}, 1)
 			await clock.tickAsync(1_000)
 			const result = await runPromise
 
 			assert.equal(result.status, SubagentExecutionStatus.COMPLETED)
-			assert.match(result.result || "", /timed out after 1 seconds/i)
-			sinon.assert.called(abort)
-			assert.ok(updates.some((update) => update.status === SubagentExecutionStatus.COMPLETED))
+			assert.equal(result.result, "partial report")
+			assert.equal(createMessage.callCount, 3)
+			assert.equal(getPrompt.callCount, 1)
+			assert.ok(updates.some((update) => update.isWrappingUp))
 		} finally {
 			clock.restore()
 		}
