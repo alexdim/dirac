@@ -7,6 +7,8 @@ import { DiracDefaultTool } from "@shared/tools"
 import type { TaskState } from "../../TaskState"
 import type { TaskConfig } from "../types/TaskConfig"
 import type { SubagentToolCall } from "./SubagentRunner"
+import { SubagentExecutionStatus } from "@shared/ExtensionMessage"
+import { createSubagentTrajectoryEvent, SubagentTrajectoryEventType } from "@shared/subagents"
 import { formatToolCallPreview, pushSubagentToolResultBlock, serializeToolResult, toToolUseParams } from "./SubagentRunner"
 
 // Executes finalized tool calls for a subagent turn — handles attempt_completion, denied tools, and dispatch.
@@ -29,6 +31,15 @@ export class SubagentToolExecutor {
 		for (const call of finalizedToolCalls) {
 			const toolName = call.name
 			const toolCallParams = toToolUseParams(call.input)
+			const toolCallPreview = formatToolCallPreview(toolName, toolCallParams)
+			onProgress({
+				latestToolCall: toolCallPreview,
+				trajectoryEvent: createSubagentTrajectoryEvent(SubagentTrajectoryEventType.TOOL, toolCallPreview),
+			})
+			const message = (toolCallParams as Record<string, unknown>).message
+			if (toolName === DiracDefaultTool.SAY && typeof message === "string") {
+				onProgress({ trajectoryEvent: createSubagentTrajectoryEvent(SubagentTrajectoryEventType.MESSAGE, message) })
+			}
 
 			// attempt_completion — returns final result
 			if (toolName === DiracDefaultTool.ATTEMPT) {
@@ -45,7 +56,7 @@ export class SubagentToolExecutor {
 				}
 				stats.toolCalls += 1
 				onProgress({ stats: { ...stats } })
-				onProgress({ status: "completed", result: completionResult, stats: { ...stats } })
+				onProgress({ status: SubagentExecutionStatus.COMPLETED, result: completionResult, stats: { ...stats } })
 				return { completed: { result: completionResult, stats: { ...stats } }, toolResultBlocks }
 			}
 
@@ -70,8 +81,6 @@ export class SubagentToolExecutor {
 				signature: call.signature,
 			}
 			if (call.call_id) state.toolUseIdMap.set(call.call_id, call.toolUseId)
-			onProgress({ latestToolCall: formatToolCallPreview(toolName, toolCallParams) })
-
 			const subagentConfig = this.createSubagentTaskConfig(state, requestSnapshot.coordinator)
 			let toolResult: unknown
 			if (!subagentConfig.coordinator.has(toolName)) {
@@ -86,7 +95,11 @@ export class SubagentToolExecutor {
 
 			stats.toolCalls += 1
 			onProgress({ stats: { ...stats } })
-			pushSubagentToolResultBlock(toolResultBlocks, call, `[${toolName}]`, serializeToolResult(toolResult))
+			const serializedToolResult = serializeToolResult(toolResult)
+			onProgress({
+				trajectoryEvent: createSubagentTrajectoryEvent(SubagentTrajectoryEventType.TOOL_RESULT, serializedToolResult),
+			})
+			pushSubagentToolResultBlock(toolResultBlocks, call, `[${toolName}]`, serializedToolResult)
 		}
 		return { toolResultBlocks }
 	}

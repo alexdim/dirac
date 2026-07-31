@@ -1,7 +1,12 @@
 import { useInput } from "ink"
 import { isMouseEscapeSequence, isTerminalResponseSequence } from "../utils/input"
 import { extractMentionQuery, insertMention } from "../utils/file-search"
-import { executeLocalSlashCommand, extractSlashQuery, insertSlashCommand } from "../utils/slash-commands"
+import {
+	executeLocalSlashCommand,
+	executeStandaloneLocalSlashCommand,
+	extractSlashQuery,
+	insertSlashCommand,
+} from "../utils/slash-commands"
 import { findWordEnd, findWordStart } from "./useTextInput"
 import { moveCursorDown, moveCursorUp } from "../utils/cursor"
 import { parseImagesFromInput } from "../utils/parser"
@@ -135,6 +140,17 @@ export function useChatInputHandler({
 		const currentCursorPos = cursorPosRef.current
 		const currentMentionInfo = extractMentionQuery(currentTextInput, currentCursorPos)
 		const currentSlashInfo = extractSlashQuery(currentTextInput, currentCursorPos)
+		const localSlashCommandContext = {
+			mode,
+			setActivePanel,
+			resetInputLine: () => {
+				setTextInput("")
+				setCursorPos(0)
+			},
+			clearViewAndResetTask,
+			handleExit,
+			toggleQuietMode,
+		}
 
 		if (handleAskShortcuts(input, key, currentTextInput)) return
 		if (handleKeyboardSequence(input)) return
@@ -165,17 +181,7 @@ export function useChatInputHandler({
 			if (key.tab || key.return) {
 				const cmd = filteredCommands[selectedSlashIndex]
 				if (cmd) {
-					const wasLocalCommand = executeLocalSlashCommand(cmd.name, {
-						mode,
-						setActivePanel,
-						resetInputLine: () => {
-							setTextInput("")
-							setCursorPos(0)
-						},
-						clearViewAndResetTask,
-						handleExit,
-						toggleQuietMode,
-					})
+					const wasLocalCommand = executeLocalSlashCommand(cmd.name, localSlashCommandContext)
 
 					if (wasLocalCommand) {
 						setSelectedSlashIndex(0)
@@ -405,10 +411,15 @@ export function useChatInputHandler({
 			!key.meta &&
 			input !== "\n" &&
 			!currentMentionInfo.inMentionMode &&
-			!currentSlashInfo.inSlashMode &&
 			!isSpinnerActive &&
 			!isProcessing
 		) {
+			if (executeStandaloneLocalSlashCommand(currentTextInput, localSlashCommandContext)) {
+				setSelectedSlashIndex(0)
+				setSlashMenuDismissed(true)
+				return
+			}
+			if (currentSlashInfo.inSlashMode) return
 			const { prompt: currentPrompt, imagePaths: currentImagePaths } = parseImagesFromInput(
 				currentTextInput,
 				workspacePath,

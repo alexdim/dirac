@@ -1,6 +1,15 @@
 import type { Controller } from "@/core/controller"
 import type { OpenaiReasoningEffort } from "@/shared/storage/types"
 
+export enum CliPanelType {
+	SETTINGS = "settings",
+	HISTORY = "history",
+	HELP = "help",
+	SKILLS = "skills",
+	USAGE = "usage",
+	AGENTS = "agents",
+}
+
 /**
  * Common options shared between runTask and resumeTask
  */

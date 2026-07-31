@@ -156,6 +156,7 @@ export class TaskMessenger implements ITaskMessenger {
 			requireFeedback: params.requireFeedback,
 			feedbackPlaceholder: params.feedbackPlaceholder,
 			actions: params.actions,
+			autoScroll: params.autoScroll,
 			collapsed: params.collapsed,
 			maxHeight: params.maxHeight,
 			cleanupStrategy: params.cleanupStrategy,
@@ -406,6 +407,7 @@ export class TaskMessenger implements ITaskMessenger {
 		images?: string[],
 		files?: string[],
 		role: "user" | "assistant" = "assistant",
+		agentIdentity?: { id: number; name: string },
 	): Promise<void> {
 		if (this.activeVoiceStream) {
 			await this.activeVoiceStream.close()
@@ -432,7 +434,16 @@ export class TaskMessenger implements ITaskMessenger {
 		const message: DiracMessage = {
 			id,
 			ts: Date.now(),
-			content: { type: DiracMessageType.MARKDOWN, content: text, isReasoning, images, files, role },
+			content: {
+				type: DiracMessageType.MARKDOWN,
+				content: text,
+				isReasoning,
+				images,
+				files,
+				role,
+				agentId: agentIdentity?.id,
+				agentName: agentIdentity?.name,
+			},
 		}
 
 		if (isReasoning) {

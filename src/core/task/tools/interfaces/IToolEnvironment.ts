@@ -14,6 +14,7 @@ import { FileInfo } from "../../../../services/glob/list-files"
 import { DiracAskResponse } from "../../../../shared/WebviewMessage"
 import { IDiracContext } from "./IDiracContext"
 import { TaskConfig } from "../types/TaskConfig"
+import type { SubagentIdentity } from "@shared/subagents"
 
 export interface ICardHandle {
 	readonly collapsed: boolean
@@ -83,6 +84,7 @@ export interface CardParams {
 	requireFeedback?: boolean
 	feedbackPlaceholder?: string
 	actions?: ActionButton[]
+	autoScroll?: boolean
 	collapsed?: boolean
 	maxHeight?: number
 	cleanupStrategy?: CleanupStrategy
@@ -291,12 +293,13 @@ export interface IOrchestrationTrait {
 		prompt: string,
 		options?: {
 			subagentName?: string
+			agentIdentity?: SubagentIdentity
 			timeout?: number
 			maxTurns?: number
 			includeHistory?: boolean
 			allowedTools?: string[]
 			systemSuffix?: string
-			onUpdate?: (update: SubagentProgressUpdate) => void
+			onUpdate?: (update: SubagentProgressUpdate) => void | Promise<void>
 		},
 	): Promise<SubagentRunResult>
 

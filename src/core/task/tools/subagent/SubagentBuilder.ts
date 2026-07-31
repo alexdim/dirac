@@ -3,6 +3,7 @@ import { DiracDefaultTool } from "@shared/tools"
 import { ApiProvider } from "@/shared/api"
 import { getProviderModelIdKey } from "@/shared/storage/provider-keys"
 import type { TaskConfig } from "../types/TaskConfig"
+import type { SubagentIdentity } from "@shared/subagents"
 import type { AgentBaseConfig } from "./AgentConfigLoader"
 import { AgentConfigLoader } from "./AgentConfigLoader"
 
@@ -11,6 +12,7 @@ export type AgentConfig = Partial<AgentBaseConfig>
 export interface SubagentBuilderOptions {
 	allowedTools?: string[]
 	systemSuffix?: string
+	agentIdentity?: SubagentIdentity
 }
 
 export const SUBAGENT_DEFAULT_ALLOWED_TOOLS: DiracDefaultTool[] = Object.values(DiracDefaultTool).filter(

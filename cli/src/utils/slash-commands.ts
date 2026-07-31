@@ -6,6 +6,7 @@
 import type { SlashCommandInfo } from "@shared/proto/dirac/slash"
 import { StateManager } from "@/core/storage/StateManager"
 import { fuzzyFilter } from "./fuzzy-search"
+import { CliPanelType } from "../types"
 
 export interface SlashQueryInfo {
 	inSlashMode: boolean
@@ -20,14 +21,15 @@ export interface VisibleWindow<T> {
 
 export type LocalSlashCommandPanel =
 	| {
-		type: "settings"
+		type: CliPanelType.SETTINGS
 		initialMode?: "model-picker" | "featured-models" | "provider-picker"
 		initialModelKey?: "actModelId" | "planModelId"
 	}
-	| { type: "history" }
-	| { type: "help" }
-	| { type: "skills" }
-	| { type: "usage" }
+	| { type: CliPanelType.HISTORY }
+	| { type: CliPanelType.HELP }
+	| { type: CliPanelType.SKILLS }
+	| { type: CliPanelType.USAGE }
+	| { type: CliPanelType.AGENTS }
 
 export interface LocalSlashCommandContext {
 	mode: string
@@ -55,17 +57,18 @@ function openModelsPanel({ mode, setActivePanel, resetInputLine }: LocalSlashCom
 			: apiConfig.planModeApiProvider || apiConfig.actModeApiProvider
 	const initialMode = provider ? "model-picker" : undefined
 	const initialModelKey = mode === "act" ? "actModelId" : "planModelId"
-	setActivePanel({ type: "settings", initialMode, initialModelKey })
+	setActivePanel({ type: CliPanelType.SETTINGS, initialMode, initialModelKey })
 	resetInputLine()
 }
 
 const LOCAL_SLASH_COMMANDS: Record<string, LocalSlashCommandHandler> = {
-	help: openPanel({ type: "help" }),
-	settings: openPanel({ type: "settings" }),
+	help: openPanel({ type: CliPanelType.HELP }),
+	settings: openPanel({ type: CliPanelType.SETTINGS }),
 	models: openModelsPanel,
-	history: openPanel({ type: "history" }),
-	skills: openPanel({ type: "skills" }),
-	usage: openPanel({ type: "usage" }),
+	history: openPanel({ type: CliPanelType.HISTORY }),
+	agent: openPanel({ type: CliPanelType.AGENTS }),
+	skills: openPanel({ type: CliPanelType.SKILLS }),
+	usage: openPanel({ type: CliPanelType.USAGE }),
 	clear: ({ clearViewAndResetTask }) => clearViewAndResetTask(),
 	exit: ({ handleExit }) => handleExit(),
 	q: ({ handleExit }) => handleExit(),
@@ -73,7 +76,7 @@ const LOCAL_SLASH_COMMANDS: Record<string, LocalSlashCommandHandler> = {
 		toggleQuietMode()
 		resetInputLine()
 	},
-	providers: openPanel({ type: "settings", initialMode: "provider-picker" }),
+	providers: openPanel({ type: CliPanelType.SETTINGS, initialMode: "provider-picker" }),
 }
 
 export function executeLocalSlashCommand(commandName: string, context: LocalSlashCommandContext): boolean {
@@ -81,6 +84,12 @@ export function executeLocalSlashCommand(commandName: string, context: LocalSlas
 	if (!handler) return false
 	handler(context)
 	return true
+}
+
+export function executeStandaloneLocalSlashCommand(text: string, context: LocalSlashCommandContext): boolean {
+	const match = /^\s*\/([a-zA-Z0-9_.-]+)\s*$/.exec(text)
+	if (!match) return false
+	return executeLocalSlashCommand(match[1], context)
 }
 
 /**
@@ -110,6 +119,15 @@ export function getVisibleWindow<T>(items: T[], selectedIndex: number, maxVisibl
  */
 export function sortCommandsWorkflowsFirst(commands: SlashCommandInfo[]): SlashCommandInfo[] {
 	return [...commands.filter((cmd) => cmd.section === "custom"), ...commands.filter((cmd) => cmd.section !== "custom")]
+}
+
+export function mergeCliSlashCommands(
+	localCommands: SlashCommandInfo[],
+	backendCommands: SlashCommandInfo[],
+): SlashCommandInfo[] {
+	const localNames = new Set(localCommands.map((command) => command.name))
+	const nonConflictingBackendCommands = backendCommands.filter((command) => !localNames.has(command.name))
+	return [...localCommands, ...sortCommandsWorkflowsFirst(nonConflictingBackendCommands)]
 }
 
 /**

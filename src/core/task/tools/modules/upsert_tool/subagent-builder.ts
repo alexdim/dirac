@@ -1,6 +1,16 @@
 import { DiracDefaultTool } from "@/shared/tools"
-import { CardStatus } from "@shared/ExtensionMessage"
+import { CardStatus, SubagentExecutionStatus } from "@shared/ExtensionMessage"
 import { IToolEnvironment } from "../../interfaces/IToolEnvironment"
+import {
+	createSubagentCardInput,
+	createSubagentCardOutput,
+	formatSubagentTrajectory,
+	isTerminalSubagentStatus,
+	recordSubagentProgress,
+	subagentCardStatus,
+	type SubagentIdentity,
+	type SubagentTrajectoryEvent,
+} from "@shared/subagents"
 import {
 	BUILDER_MAX_ATTEMPTS,
 	ToolScope,
@@ -34,16 +44,25 @@ export async function buildToolWithRepairs(
 	request: ToolBuildRequest,
 	validate: () => Promise<string | undefined>,
 	updateProgress: (phase: string, detail?: string, status?: CardStatus) => Promise<void>,
+	allocateIdentity: () => SubagentIdentity,
 ): Promise<string | undefined> {
 	let repairFeedback: string | undefined
 
 	for (let attempt = 1; attempt <= BUILDER_MAX_ATTEMPTS; attempt++) {
 		await updateProgress(`[${request.name}] Builder attempt`, `${attempt}/${BUILDER_MAX_ATTEMPTS}`)
-		const generationError = await runBuilderSubagentAttempt(env, request, attempt, repairFeedback, updateProgress)
+		const generationError = await runBuilderSubagentAttempt(
+			env,
+			request,
+			attempt,
+			repairFeedback,
+			updateProgress,
+			allocateIdentity(),
+		)
 		const parentValidationError = await validate()
-		const validationError = parentValidationError
-			? generationError ? `${generationError} Parent validation: ${parentValidationError}` : parentValidationError
-			: undefined
+		const validationError =
+			generationError && parentValidationError
+				? `${generationError} Parent validation: ${parentValidationError}`
+				: (generationError ?? parentValidationError)
 
 		if (!validationError) {
 			await updateProgress(`[${request.name}] Validated`, `attempt ${attempt}`)
@@ -65,43 +84,76 @@ async function runBuilderSubagentAttempt(
 	attempt: number,
 	repairFeedback: string | undefined,
 	updateProgress: (phase: string, detail?: string, status?: CardStatus) => Promise<void>,
+	identity: SubagentIdentity,
 ): Promise<string | undefined> {
 	const prompt = buildSubagentPrompt(request, attempt, repairFeedback)
+	const trajectory: SubagentTrajectoryEvent[] = []
+	const card = await env.ui.createCard({
+		header: identity.name,
+		status: CardStatus.RUNNING,
+		collapsed: true,
+		renderType: "markdown",
+		autoScroll: true,
+		rawInput: createSubagentCardInput(identity, prompt),
+		rawOutput: createSubagentCardOutput(SubagentExecutionStatus.RUNNING, trajectory),
+		body: formatSubagentTrajectory({ ...identity, prompt, status: SubagentExecutionStatus.RUNNING, trajectory }),
+	})
+	let lastBuilderOutputUpdateAt = 0
 	const result = await env.orchestration.runSubagent(prompt, {
 		subagentName: `tool_builder:${request.name}:attempt_${attempt}`,
+		agentIdentity: identity,
 		maxTurns: SUBAGENT_MAX_TURNS,
 		timeout: SUBAGENT_TIMEOUT_SECONDS,
 		allowedTools: BUILDER_ALLOWED_TOOLS,
 		systemSuffix: TOOL_BUILDER_SYSTEM_SUFFIX,
 		onUpdate: async (update) => {
-			if (update.textChunk) {
+			const trajectoryChanged = update.trajectoryEvent !== undefined || update.status !== undefined
+			if (trajectoryChanged) {
+				const status = recordSubagentProgress(trajectory, update)
+				if (!isTerminalSubagentStatus(status)) {
+					await card.update({
+						status: subagentCardStatus(status),
+						body: formatSubagentTrajectory({ ...identity, prompt, status, trajectory }),
+						rawOutput: createSubagentCardOutput(status, trajectory),
+					})
+				}
+			}
+
+			if (update.textChunk && Date.now() - lastBuilderOutputUpdateAt >= 250) {
+				lastBuilderOutputUpdateAt = Date.now()
 				const snippet = update.textChunk.length > 200 ? update.textChunk.slice(-200) : update.textChunk
 				await updateProgress("Builder output", snippet.replace(/\n/g, " ").substring(0, 150))
 			}
 			if (update.latestToolCall) {
 				await updateProgress("Builder subagent", update.latestToolCall)
 			}
-			if (update.status === "completed") {
+			if (update.status === SubagentExecutionStatus.COMPLETED) {
 				await updateProgress("Builder subagent", "completed")
 			}
-			if (update.status === "failed") {
+			if (update.status === SubagentExecutionStatus.FAILED) {
 				await updateProgress("Builder subagent", update.error || "failed")
 			}
 		},
 	})
 
-	if (result.status === "failed") {
+	recordSubagentProgress(trajectory, result)
+	await card.update({
+		status: subagentCardStatus(result.status),
+		body: formatSubagentTrajectory({ ...identity, prompt, status: result.status, trajectory }),
+		rawOutput: createSubagentCardOutput(result.status, trajectory),
+	})
+	await card.finalize(subagentCardStatus(result.status))
+
+	if (result.status === SubagentExecutionStatus.CANCELLED) {
+		throw new Error(`Tool build cancelled: ${result.error || "Subagent execution was cancelled."}`)
+	}
+	if (result.status !== SubagentExecutionStatus.COMPLETED) {
 		return `Code generation failed: ${result.error || "Subagent did not complete successfully."}`
 	}
-
 	return undefined
 }
 
-function buildSubagentPrompt(
-	request: ToolBuildRequest,
-	attempt: number,
-	repairFeedback: string | undefined,
-): string {
+function buildSubagentPrompt(request: ToolBuildRequest, attempt: number, repairFeedback: string | undefined): string {
 	const repairSection = repairFeedback
 		? `\n## Repair Feedback\n\nThe parent validator rejected the previous attempt:\n\n${repairFeedback}\n\nRead the current files and repair the implementation. Do not restore the scaffold sentinel.`
 		: ""

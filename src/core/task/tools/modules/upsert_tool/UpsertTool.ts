@@ -7,6 +7,7 @@ import { UserToolLoader } from "../../discovery/UserToolLoader"
 import { ToolRegistry } from "../../registry/ToolRegistry"
 import { Logger } from "@/shared/services/Logger"
 import { CardStatus } from "@shared/ExtensionMessage"
+import { allocateSubagentIdentity, type SubagentIdentity } from "@shared/subagents"
 import {
 	ToolScope,
 	upsert_tool_spec,
@@ -76,6 +77,12 @@ export class UpsertTool implements IDiracTool {
 		const prepared: PreparedTool[] = []
 		const outcomeLines: string[] = []
 		let hasFailure = false
+		const reservedBuilderIdentities: SubagentIdentity[] = []
+		const allocateBuilderIdentity = (): SubagentIdentity => {
+			const identity = allocateSubagentIdentity(env.orchestration.getHistory(), reservedBuilderIdentities)
+			reservedBuilderIdentities.push(identity)
+			return identity
+		}
 
 		for (const definition of tools) {
 			const preparation = await prepareTool(definition, env, updateProgress)
@@ -105,6 +112,7 @@ export class UpsertTool implements IDiracTool {
 					},
 					async () => (await validateStagedTool(env, tool.stagingDir, tool.scope)).error,
 					updateProgress,
+					allocateBuilderIdentity,
 				),
 			),
 		)

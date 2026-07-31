@@ -20,19 +20,21 @@ import {
 	searchWorkspaceFiles,
 } from "../utils/file-search"
 import { parseImagesFromInput } from "../utils/parser"
-import { extractSlashQuery, filterCommands, sortCommandsWorkflowsFirst } from "../utils/slash-commands"
+import { extractSlashQuery, filterCommands, mergeCliSlashCommands } from "../utils/slash-commands"
 import { getInputStorageKey } from "../utils/chat"
+import { CliPanelType } from "../types"
 
 export type ActivePanel =
 	| {
-		type: "settings"
+		type: CliPanelType.SETTINGS
 		initialMode?: "model-picker" | "featured-models" | "provider-picker"
 		initialModelKey?: "actModelId" | "planModelId"
 	}
-	| { type: "history" }
-	| { type: "help" }
-	| { type: "skills" }
-	| { type: "usage" }
+	| { type: CliPanelType.HISTORY }
+	| { type: CliPanelType.HELP }
+	| { type: CliPanelType.SKILLS }
+	| { type: CliPanelType.USAGE }
+	| { type: CliPanelType.AGENTS }
 	| null
 
 interface PersistedInputState {
@@ -251,7 +253,7 @@ export function useComposer({
 			(response) => {
 				if (cancelled) return
 				const backendCommands = response.commands.filter((cmd) => cmd.cliCompatible !== false)
-				setAvailableCommands([...cliOnlyCommands, ...sortCommandsWorkflowsFirst(backendCommands)])
+				setAvailableCommands(mergeCliSlashCommands(cliOnlyCommands, backendCommands))
 			},
 			(error) => {
 				Logger.error("Failed to load slash commands:", error)
