@@ -295,7 +295,6 @@ export interface IOrchestrationTrait {
 			subagentName?: string
 			agentIdentity?: SubagentIdentity
 			timeout?: number
-			maxTurns?: number
 			includeHistory?: boolean
 			allowedTools?: string[]
 			systemSuffix?: string

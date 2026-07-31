@@ -4,6 +4,10 @@ import { DiracToolSpec, DiracDefaultTool } from "@/shared/tools"
 import { stripHashes } from "../../../../../shared/utils/line-hashing"
 import { formatResponse } from "@core/formatResponse"
 import { AgentConfigLoader } from "../../subagent/AgentConfigLoader"
+import {
+	DEFAULT_SUBAGENT_TIMEOUT_SECONDS,
+	resolveSubagentTimeoutSeconds,
+} from "../../subagent/SubagentExecutionPolicy"
 import { SubagentStatusItem } from "@shared/ExtensionMessage"
 import { excerpt } from "../../../utils/excerpt"
 import { CardStatus, SubagentExecutionStatus } from "@shared/ExtensionMessage"
@@ -24,7 +28,6 @@ import {
 interface SubagentRequest {
 	prompt: string
 	timeout: number
-	maxTurns?: number
 	includeHistory: boolean
 }
 
@@ -48,11 +51,7 @@ export const use_subagents_spec: DiracToolSpec = {
 					},
 					timeout: {
 						type: "integer",
-						description: "Timeout in seconds. Default: 300.",
-					},
-					max_turns: {
-						type: "integer",
-						description: "Maximum turns.",
+						description: `Timeout in seconds. Default: ${DEFAULT_SUBAGENT_TIMEOUT_SECONDS}.`,
 					},
 					include_history: {
 						type: "boolean",
@@ -184,9 +183,9 @@ export class UseSubagentsTool implements IDiracTool {
 	}
 
 	private parseOptions(args: any): Omit<SubagentRequest, "prompt"> {
+		const timeout = args.timeout === undefined ? DEFAULT_SUBAGENT_TIMEOUT_SECONDS : Number(args.timeout)
 		return {
-			timeout: args.timeout === undefined ? 300 : parseInt(String(args.timeout), 10),
-			maxTurns: args.max_turns === undefined ? undefined : parseInt(String(args.max_turns), 10),
+			timeout: resolveSubagentTimeoutSeconds(timeout),
 			includeHistory: args.include_history === true || String(args.include_history) === "true",
 		}
 	}
@@ -296,14 +295,15 @@ export class UseSubagentsTool implements IDiracTool {
 				}
 			}
 
+			let runSettled = false
 			try {
 				const runResult = await env.orchestration.runSubagent(request.prompt, {
 					timeout: request.timeout,
-					maxTurns: request.maxTurns,
 					includeHistory: request.includeHistory,
 					subagentName,
 					agentIdentity: { id: entry.index, name: entry.name },
 					onUpdate: async (update) => {
+						if (runSettled) return
 						const current = entries[index]
 						const trajectoryChanged = update.trajectoryEvent !== undefined || update.status !== undefined
 						const status = trajectoryChanged ? recordSubagentProgress(trajectory, update) : current.status
@@ -327,6 +327,7 @@ export class UseSubagentsTool implements IDiracTool {
 						try {
 							if (update.stats || update.status) {
 								await emitRunningStatus(isTerminalSubagentStatus(status))
+								if (runSettled) return
 							}
 							if (!subagentCard || !trajectoryChanged || isTerminalSubagentStatus(status)) return
 
@@ -348,6 +349,7 @@ export class UseSubagentsTool implements IDiracTool {
 						}
 					},
 				})
+				runSettled = true
 
 				recordSubagentProgress(trajectory, runResult)
 				if (subagentCard) {
@@ -377,6 +379,7 @@ export class UseSubagentsTool implements IDiracTool {
 
 				return { runResult, presentationError }
 			} catch (error) {
+				runSettled = true
 				const message = (error as Error).message || "Subagent execution failed"
 				appendSubagentTrajectoryEvent(trajectory, { type: SubagentTrajectoryEventType.ERROR, text: message })
 				if (subagentCard) {

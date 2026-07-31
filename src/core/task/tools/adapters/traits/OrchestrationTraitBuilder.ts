@@ -18,7 +18,6 @@ export function buildOrchestrationTrait(config: TaskConfig): IOrchestrationTrait
 				prompt,
 				options?.onUpdate || (() => { }),
 				options?.timeout,
-				options?.maxTurns,
 				options?.includeHistory,
 			)
 		},

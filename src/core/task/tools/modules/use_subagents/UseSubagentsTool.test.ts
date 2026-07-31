@@ -2,7 +2,7 @@ import { strict as assert } from "node:assert"
 import { describe, it } from "mocha"
 import { CardStatus, SubagentExecutionStatus } from "@shared/ExtensionMessage"
 import type { IToolEnvironment } from "../../interfaces/IToolEnvironment"
-import { UseSubagentsTool } from "./UseSubagentsTool"
+import { use_subagents_spec, UseSubagentsTool } from "./UseSubagentsTool"
 
 const EMPTY_STATS = {
 	toolCalls: 0,
@@ -119,4 +119,25 @@ describe("UseSubagentsTool", () => {
 		assert.equal(warnings.length, 1)
 		assert.match(String(warnings[0][0]), /presentation error/)
 	})
+
+	it("uses a 600-second default timeout without a turn-limit option", async () => {
+		let receivedOptions: any
+		const { env } = createRecordedCardEnvironment(async (_prompt, options) => {
+			receivedOptions = options
+			return {
+				status: SubagentExecutionStatus.COMPLETED,
+				result: "done",
+				stats: EMPTY_STATS,
+			}
+		})
+
+		await new UseSubagentsTool().processCall({ subagents: [{ prompt: "Investigate" }] }, env)
+
+		assert.equal(receivedOptions.timeout, 600)
+		assert.equal("maxTurns" in receivedOptions, false)
+		const subagentsParameter = use_subagents_spec.parameters?.find((parameter) => parameter.name === "subagents")
+		assert.ok(subagentsParameter?.items)
+		assert.equal("max_turns" in subagentsParameter.items.properties, false)
+	})
+
 })

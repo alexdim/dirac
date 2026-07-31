@@ -1,7 +1,6 @@
 import * as path from "path"
 import { DiracToolSpec, DiracDefaultTool } from "@/shared/tools"
 
-export const SUBAGENT_MAX_TURNS = 15
 export const SUBAGENT_TIMEOUT_SECONDS = 240
 export const BUILDER_MAX_ATTEMPTS = 3
 export const TOOL_IMPLEMENTATION_SENTINEL = "__DIRAC_TOOL_IMPLEMENTATION_REQUIRED__"

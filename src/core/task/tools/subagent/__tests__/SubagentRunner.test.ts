@@ -156,9 +156,9 @@ function createTaskConfigWithListFilesSnapshot(): TaskConfig {
 	return config
 }
 
-function stubApiHandler(createMessage: sinon.SinonStub) {
+function stubApiHandler(createMessage: sinon.SinonStub, abort = sinon.stub()): sinon.SinonStub {
 	sinon.stub(coreApi, "buildApiHandler").returns({
-		abort: sinon.stub(),
+		abort,
 		getModel: () => ({
 			id: "anthropic/claude-sonnet-4.5",
 			info: {
@@ -169,6 +169,7 @@ function stubApiHandler(createMessage: sinon.SinonStub) {
 		}),
 		createMessage,
 	} as never)
+	return abort
 }
 
 describe("SubagentRunner", () => {
@@ -702,4 +703,62 @@ describe("SubagentRunner", () => {
 		assert.equal(result.result, "done")
 		assert.equal(createMessage.callCount, 2)
 	})
+
+	it("returns at the hard timeout when the API stream ignores abort", async () => {
+		const createMessage = sinon.stub().callsFake(async function* () {
+			await new Promise<void>(() => { })
+		})
+		const promptRegistry = PromptRegistry.getInstance()
+		sinon.stub(promptRegistry, "get").resolves("system prompt")
+		sinon.stub(skills, "getOrDiscoverSkills").resolves([])
+		const abort = stubApiHandler(createMessage)
+		initializeHostProvider()
+
+		const clock = sinon.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "setInterval", "clearInterval", "Date"] })
+		try {
+			const updates: any[] = []
+			const runner = new SubagentRunner(createTaskConfigWithListFilesSnapshot())
+			const runPromise = runner.run("Never settles", (update) => {
+				updates.push(update)
+			}, 1)
+			await clock.tickAsync(1_000)
+			const result = await runPromise
+
+			assert.equal(result.status, SubagentExecutionStatus.COMPLETED)
+			assert.match(result.result || "", /timed out after 1 seconds/i)
+			sinon.assert.called(abort)
+			assert.ok(updates.some((update) => update.status === SubagentExecutionStatus.COMPLETED))
+		} finally {
+			clock.restore()
+		}
+	})
+
+	it("returns cancelled when the parent task is cancelled even if the API stream never settles", async () => {
+		const createMessage = sinon.stub().callsFake(async function* () {
+			await new Promise<void>(() => { })
+		})
+		const promptRegistry = PromptRegistry.getInstance()
+		sinon.stub(promptRegistry, "get").resolves("system prompt")
+		sinon.stub(skills, "getOrDiscoverSkills").resolves([])
+		const abort = stubApiHandler(createMessage)
+		initializeHostProvider()
+
+		const clock = sinon.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "setInterval", "clearInterval", "Date"] })
+		try {
+			const config = createTaskConfigWithListFilesSnapshot()
+			const runner = new SubagentRunner(config)
+			const runPromise = runner.run("Never settles", () => { })
+			await clock.tickAsync(0)
+			config.taskState.abort = true
+			await clock.tickAsync(50)
+			const result = await runPromise
+
+			assert.equal(result.status, SubagentExecutionStatus.CANCELLED)
+			assert.match(result.error || "", /parent task was cancelled/i)
+			sinon.assert.called(abort)
+		} finally {
+			clock.restore()
+		}
+	})
+
 })

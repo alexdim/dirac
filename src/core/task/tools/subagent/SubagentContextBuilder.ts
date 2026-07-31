@@ -65,15 +65,11 @@ export class SubagentContextBuilder {
 		return { context, systemPrompt, requestSnapshot, useNativeToolCalls: requestSnapshot.nativeTools.length > 0 }
 	}
 
-	// Appends execution limits (timeout/maxTurns) to the system prompt.
-	appendExecutionLimits(systemPrompt: string, timeout?: number, maxTurns?: number): string {
-		if (!timeout && !maxTurns) return systemPrompt
-		const limits = []
-		if (timeout) limits.push(`${timeout} seconds`)
-		if (maxTurns) limits.push(`${maxTurns} turns`)
+	// Tells the model about the same hard deadline enforced by SubagentRunner.
+	appendExecutionDeadline(systemPrompt: string, timeoutSeconds: number): string {
 		return (
 			systemPrompt +
-			`\n\n# Execution Limits\nYou must complete your task and call attempt_completion within ${limits.join(" and ")}.`
+			`\n\n# Execution Deadline\nYou must complete your task and call attempt_completion within ${timeoutSeconds} seconds.`
 		)
 	}
 
