@@ -370,7 +370,7 @@ export class UseSubagentsTool implements IDiracTool {
 			if (!env.config.isSubagentExecution) {
 				try {
 					const cardPromise = env.ui.createCard({
-						header: request.taskTitle,
+						header: `${entry.name}: ${request.taskTitle}`,
 						collapsed: true,
 						status: CardStatus.RUNNING,
 						renderType: "markdown",

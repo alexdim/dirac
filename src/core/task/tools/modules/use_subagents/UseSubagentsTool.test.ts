@@ -87,7 +87,7 @@ describe("UseSubagentsTool", () => {
 		assert.match(result as string, /Cancelled: 1/)
 		assert.ok(agentCard)
 		assert.equal(agentCard.params.collapsed, true)
-		assert.equal(agentCard.params.header, "Investigating subagent behavior")
+		assert.equal(agentCard.params.header, `${agentCard.params.rawInput.agentName}: Investigating subagent behavior`)
 		assert.equal(agentCard.params.rawInput.taskTitle, "Investigating subagent behavior")
 		assert.equal(agentCard.updates.length, 2)
 		assert.deepEqual(agentCard.finalStatuses, [CardStatus.CANCELLED])
@@ -136,10 +136,11 @@ describe("UseSubagentsTool", () => {
 			{ subagents: [{ task_title: "Tracking tool progress", prompt: "Investigate" }] },
 			env,
 		)
-		const agentCard = cards.find((card) => card.params.header === "Tracking tool progress")
+		const agentCard = cards.find((card) => card.params.rawInput?.taskTitle === "Tracking tool progress")
 		const finalUpdate = agentCard?.updates.at(-1)
 
 		assert.ok(agentCard)
+		assert.equal(agentCard.params.header, `${agentCard.params.rawInput.agentName}: Tracking tool progress`)
 		assert.equal(agentCard.updates.length, 3)
 		assert.equal(finalUpdate.status, CardStatus.SUCCESS)
 		assert.equal(finalUpdate.rawOutput.status, SubagentExecutionStatus.COMPLETED)
@@ -252,7 +253,10 @@ describe("UseSubagentsTool", () => {
 		const agentCard = cards.find((card) => card.params.header !== "Run Subagents")
 
 		assert.match(result as string, /Succeeded: 1/)
-		assert.equal(agentCard?.params.header, "Investigate the current subagent behavior")
+		assert.equal(
+			agentCard?.params.header,
+			`${agentCard?.params.rawInput.agentName}: Investigate the current subagent behavior`,
+		)
 		assert.equal(agentCard?.params.rawInput.taskTitle, "Investigate the current subagent behavior")
 	})
 
