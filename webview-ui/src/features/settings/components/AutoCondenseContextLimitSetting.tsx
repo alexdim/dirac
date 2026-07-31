@@ -38,7 +38,7 @@ export const AutoCondenseContextLimitSetting = ({ providerId }: AutoCondenseCont
 					disabled={!useAutoCondense}
 					id={`auto-condense-context-limit-${providerId}`}
 					onBlur={save}
-					onChange={(event: any) => setValue(event.target.value)}
+					onInput={(event: any) => setValue(event.target.value)}
 					onKeyDown={(event: any) => {
 						if (event.key === "Enter") event.currentTarget.blur()
 					}}
