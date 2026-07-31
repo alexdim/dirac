@@ -149,6 +149,32 @@ describe("UseSubagentsTool", () => {
 	})
 
 
+	it("marks active subagent cards as wrapping up before their final result", async () => {
+		const { env, cards } = createRecordedCardEnvironment(async (_prompt, options) => {
+			await options.onUpdate({ status: SubagentExecutionStatus.RUNNING, stats: EMPTY_STATS })
+			await options.onUpdate({
+				isWrappingUp: true,
+				trajectoryEvent: { type: SubagentTrajectoryEventType.MESSAGE, text: "Time limit reached. Wrapping up findings." },
+				stats: EMPTY_STATS,
+			})
+			return { status: SubagentExecutionStatus.COMPLETED, result: "partial report", stats: EMPTY_STATS }
+		})
+
+		await new UseSubagentsTool().processCall(
+			{ subagents: [{ task_title: "Investigating subagent behavior", prompt: "Investigate" }] },
+			env,
+		)
+
+		const aggregateCard = cards.find((card) => card.params.header === "Run Subagents")
+		const agentCard = cards.find((card) => card.params.header !== "Run Subagents")
+		assert.ok(aggregateCard)
+		assert.ok(agentCard)
+		assert.ok(aggregateCard.updates.some((update) => update.header === "Wrapping up 1 subagent"))
+		assert.ok(agentCard.updates.some((update) => update.header === `${agentCard.params.rawInput.agentName}: wrapping up`))
+		assert.equal(agentCard.updates.at(-1)?.header, `${agentCard.params.rawInput.agentName}: Investigating subagent behavior`)
+	})
+
+
 	it("returns when a presentation update never settles", async () => {
 		const clock = sinon.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "Date"] })
 		try {

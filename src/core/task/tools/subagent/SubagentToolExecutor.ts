@@ -17,7 +17,7 @@ export class SubagentToolExecutor {
 	constructor(
 		private createSubagentTaskConfig: (state: TaskState, coordinator: any) => TaskConfig,
 		private isAllowedTool: (toolName: string, requestSnapshot: ToolRequestSnapshot) => boolean,
-	) {}
+	) { }
 
 	// Processes all tool calls for a turn. Returns "completed" result if attempt_completion was called, or tool result blocks.
 	async executeToolCalls(
@@ -26,6 +26,7 @@ export class SubagentToolExecutor {
 		requestSnapshot: ToolRequestSnapshot,
 		stats: any,
 		onProgress: (update: any) => void,
+		isWrappingUp = false,
 	): Promise<{ completed?: { result: string; stats: any }; toolResultBlocks: DiracContent[] }> {
 		const toolResultBlocks: DiracContent[] = []
 		for (const call of finalizedToolCalls) {
@@ -58,6 +59,17 @@ export class SubagentToolExecutor {
 				onProgress({ stats: { ...stats } })
 				onProgress({ status: SubagentExecutionStatus.COMPLETED, result: completionResult, stats: { ...stats } })
 				return { completed: { result: completionResult, stats: { ...stats } }, toolResultBlocks }
+			}
+
+			if (isWrappingUp) {
+				const result = formatResponse.toolError(
+					"Research is no longer available because the deadline expired. Call attempt_completion with your partial findings now.",
+				)
+				onProgress({
+					trajectoryEvent: createSubagentTrajectoryEvent(SubagentTrajectoryEventType.TOOL_RESULT, result),
+				})
+				pushSubagentToolResultBlock(toolResultBlocks, call, `[${toolName}]`, result)
+				continue
 			}
 
 			// Denied tool
