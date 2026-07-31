@@ -322,7 +322,8 @@ describe("SubagentRunner", () => {
 		try {
 			const runner = new SubagentRunner(createTaskConfigWithListFilesSnapshot())
 			const resultPromise = runner.run("List files", (update) => {
-				if (update.trajectoryEvent) return new Promise<void>(() => { })
+				if (!update.trajectoryEvent) return
+				return new Promise<void>(() => { })
 			})
 			await clock.tickAsync(0)
 			await clock.tickAsync(1_000)
