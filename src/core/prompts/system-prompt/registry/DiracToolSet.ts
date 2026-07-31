@@ -1,4 +1,5 @@
 import { AgentConfigLoader } from "@core/task/tools/subagent/AgentConfigLoader"
+import { DEFAULT_SUBAGENT_TIMEOUT_SECONDS } from "@core/task/tools/subagent/SubagentExecutionPolicy"
 import { DiracDefaultTool, type DiracTool } from "@/shared/tools"
 import {
 	type DiracToolSpec,
@@ -32,12 +33,7 @@ export class DiracToolSet {
 				{
 					name: "timeout",
 					required: false,
-					instruction: "Optional timeout in seconds for the subagent.",
-				},
-				{
-					name: "max_turns",
-					required: false,
-					instruction: "Optional maximum number of turns for the subagent.",
+					instruction: `Optional timeout in seconds for the subagent. Default: ${DEFAULT_SUBAGENT_TIMEOUT_SECONDS}.`,
 				},
 			],
 		}))

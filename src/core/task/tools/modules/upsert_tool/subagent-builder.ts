@@ -15,7 +15,6 @@ import {
 	BUILDER_MAX_ATTEMPTS,
 	ToolScope,
 	SMOKE_ARGS_FILE,
-	SUBAGENT_MAX_TURNS,
 	SUBAGENT_TIMEOUT_SECONDS,
 	TOOL_AUTHORING_CONTRACT,
 	TOOL_BUILDER_SYSTEM_SUFFIX,
@@ -102,7 +101,6 @@ async function runBuilderSubagentAttempt(
 	const result = await env.orchestration.runSubagent(prompt, {
 		subagentName: `tool_builder:${request.name}:attempt_${attempt}`,
 		agentIdentity: identity,
-		maxTurns: SUBAGENT_MAX_TURNS,
 		timeout: SUBAGENT_TIMEOUT_SECONDS,
 		allowedTools: BUILDER_ALLOWED_TOOLS,
 		systemSuffix: TOOL_BUILDER_SYSTEM_SUFFIX,

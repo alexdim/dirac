@@ -1,30 +1,21 @@
 import type { SubagentRunResult, SubagentRunStats } from "./SubagentRunner"
 import { SubagentExecutionStatus } from "@shared/ExtensionMessage"
 
-// Handles abort/limit-reached result construction for subagent runs.
-// Extracted to eliminate duplication of the abort→result pattern (was repeated 4x in run()).
+// Constructs the authoritative result for a subagent stopped by timeout or cancellation.
 export class SubagentAbortHandler {
 	constructor(
 		private getAbortReason: () => string | undefined,
 		private getBestEffortResult: (conversation: any[]) => string,
 	) {}
 
-	// Builds the result for an aborted run — completed if limit reached (with partial results), failed otherwise.
-	buildAbortResult(conversation: any[], stats: SubagentRunStats, onProgress: (update: any) => void): SubagentRunResult {
+	buildAbortResult(conversation: any[], stats: SubagentRunStats): SubagentRunResult {
 		const reason = this.getAbortReason() || "Subagent run cancelled."
-		const isLimitReached = /timed out|maximum turns/.test(this.getAbortReason() || "")
-		if (isLimitReached) {
+		const finalStats = { ...stats }
+		if (/timed out/.test(reason)) {
 			const partialResult = this.getBestEffortResult(conversation)
 			const result = `${reason} This is what I have currently:\n\n${partialResult}`
-			onProgress({ status: SubagentExecutionStatus.COMPLETED, result, stats: { ...stats } })
-			return { status: SubagentExecutionStatus.COMPLETED, result, stats }
+			return { status: SubagentExecutionStatus.COMPLETED, result, stats: finalStats }
 		}
-		onProgress({ status: SubagentExecutionStatus.CANCELLED, error: reason, stats: { ...stats } })
-		return { status: SubagentExecutionStatus.CANCELLED, error: reason, stats }
-	}
-
-	// Returns true if the abort reason indicates a limit was reached (timeout or max turns).
-	isLimitReached(): boolean {
-		return /timed out|maximum turns/.test(this.getAbortReason() || "")
+		return { status: SubagentExecutionStatus.CANCELLED, error: reason, stats: finalStats }
 	}
 }

@@ -48,7 +48,6 @@ export const toolParamNames = [
 	"needs_more_exploration",
 	"edits",
 	"timeout",
-	"max_turns",
 	"include_history",
 	"input",
 	"from_ref",

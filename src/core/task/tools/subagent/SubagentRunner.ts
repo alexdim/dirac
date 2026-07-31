@@ -19,6 +19,7 @@ import type { TaskConfig } from "../types/TaskConfig"
 import { SubagentAbortHandler } from "./SubagentAbortHandler"
 import { SubagentBuilder, type SubagentBuilderOptions } from "./SubagentBuilder"
 import { SubagentContextBuilder } from "./SubagentContextBuilder"
+import { resolveSubagentTimeoutSeconds } from "./SubagentExecutionPolicy"
 import { SubagentToolExecutor } from "./SubagentToolExecutor"
 import type { SubagentTrajectoryEvent } from "@shared/subagents"
 import { SubagentExecutionStatus } from "@shared/ExtensionMessage"
@@ -28,6 +29,7 @@ const MAX_EMPTY_ASSISTANT_RETRIES = 3
 const MAX_INITIAL_STREAM_ATTEMPTS = 3
 const INITIAL_STREAM_RETRY_BASE_DELAY_MS = 2_000
 const PROGRESS_UPDATE_DRAIN_TIMEOUT_MS = 1_000
+const PARENT_ABORT_POLL_INTERVAL_MS = 50
 
 export type SubagentRunStatus =
 	| typeof SubagentExecutionStatus.COMPLETED
@@ -98,6 +100,20 @@ function createEmptyRequestUsageState(): SubagentRequestUsageState {
 		cacheWriteTokens: 0,
 		cacheReadTokens: 0,
 		totalTokens: 0,
+	}
+}
+
+function createEmptySubagentRunStats(): SubagentRunStats {
+	return {
+		toolCalls: 0,
+		inputTokens: 0,
+		outputTokens: 0,
+		cacheWriteTokens: 0,
+		cacheReadTokens: 0,
+		totalCost: 0,
+		contextTokens: 0,
+		contextWindow: 0,
+		contextUsagePercentage: 0,
 	}
 }
 
@@ -244,7 +260,9 @@ export class SubagentRunner {
 	private abortReason?: string
 	private activeCommandExecutions = 0
 	private abortingCommands = false
-	private gaveTimeoutWrapUpChance = false
+	private activeTaskState?: TaskState
+	private activeConversation: DiracStorageMessage[] = []
+	private activeStats = createEmptySubagentRunStats()
 	private readonly subagentName: string
 
 	constructor(
@@ -275,6 +293,12 @@ export class SubagentRunner {
 		this.abortRequested = true
 		if (reason) {
 			this.abortReason = reason
+		}
+		if (!this.abortReason && this.baseConfig.taskState.abort) {
+			this.abortReason = "Subagent run cancelled because the parent task was cancelled."
+		}
+		if (this.activeTaskState) {
+			this.activeTaskState.abort = true
 		}
 
 		try {
@@ -322,37 +346,105 @@ export class SubagentRunner {
 		}
 	}
 
-	async run(
+		async run(
 		prompt: string,
 		onProgress: (update: SubagentProgressUpdate) => void | Promise<void>,
 		timeout?: number,
-		maxTurns?: number,
 		includeHistory?: boolean,
 	): Promise<SubagentRunResult> {
+		const timeoutSeconds = resolveSubagentTimeoutSeconds(timeout)
+		const logPrefix = `[SubagentRunner:${this.subagentName || "unnamed"}]`
 		this.abortRequested = false
 		this.abortReason = undefined
+		this.activeTaskState = undefined
+		this.activeConversation = []
+		this.activeStats = createEmptySubagentRunStats()
+
+		let acceptsExecutionProgress = true
+		let progressUpdates = Promise.resolve()
+		const enqueueExecutionProgress = (update: SubagentProgressUpdate) => {
+			progressUpdates = progressUpdates
+				.then(async () => {
+					if (!acceptsExecutionProgress) return
+					await onProgress(update)
+				})
+				.catch((error) => Logger.error(`${logPrefix} progress observer failed`, error))
+		}
+
+		let resolveTermination!: () => void
+		const terminationPromise = new Promise<void>((resolve) => {
+			resolveTermination = resolve
+		})
+		let terminationRequested = false
+		const requestTermination = (reason: string) => {
+			if (terminationRequested) return
+			terminationRequested = true
+			void this.abort(reason)
+			resolveTermination()
+		}
+
+		const timeoutHandle = setTimeout(
+			() => requestTermination(`Subagent timed out after ${timeoutSeconds} seconds.`),
+			timeoutSeconds * 1000,
+		)
+		const parentAbortPoll = setInterval(() => {
+			if (this.baseConfig.taskState.abort) {
+				requestTermination("Subagent run cancelled because the parent task was cancelled.")
+			}
+		}, PARENT_ABORT_POLL_INTERVAL_MS)
+
+		const executionPromise = this.executeRun(prompt, enqueueExecutionProgress, timeoutSeconds, includeHistory)
+		void executionPromise.catch((error) => {
+			if (terminationRequested) Logger.error(`${logPrefix} abandoned execution failed after termination`, error)
+		})
+
+		if (this.baseConfig.taskState.abort) {
+			requestTermination("Subagent run cancelled because the parent task was cancelled.")
+		}
+
+		try {
+			const outcome = await Promise.race([
+				executionPromise.then((result) => ({ kind: "execution" as const, result })),
+				terminationPromise.then(() => ({ kind: "termination" as const })),
+			])
+			acceptsExecutionProgress = false
+
+			const result =
+				outcome.kind === "execution"
+					? outcome.result
+					: this.abortHandler.buildAbortResult(this.activeConversation, this.activeStats)
+			if (outcome.kind === "termination") {
+				progressUpdates = progressUpdates
+					.then(() => onProgress(this.toTerminalProgressUpdate(result)))
+					.catch((error) => Logger.error(`${logPrefix} terminal progress observer failed`, error))
+			}
+			await this.drainProgressUpdates(progressUpdates, logPrefix)
+			return result
+		} finally {
+			clearTimeout(timeoutHandle)
+			clearInterval(parentAbortPoll)
+		}
+	}
+
+	private async executeRun(
+		prompt: string,
+		onProgress: (update: SubagentProgressUpdate) => void | Promise<void>,
+		timeout: number,
+		includeHistory?: boolean,
+	): Promise<SubagentRunResult> {
 		const state = new TaskState()
+		state.abort = this.abortRequested
 		state.activeSkillIds = [...this.baseConfig.taskState.activeSkillIds]
 		state.availableSkills = this.baseConfig.taskState.availableSkills
+		this.activeTaskState = state
 		let emptyAssistantResponseRetries = 0
-		let conversation: DiracStorageMessage[] = []
-		let timeoutHandle: NodeJS.Timeout | undefined
+		const conversation = this.activeConversation
 		const contextState: SubagentContextState = {}
 		const contextManager = new ContextManager()
 		const usageState: SubagentUsageState = {
 			currentRequest: createEmptyRequestUsageState(),
 		}
-		const stats: SubagentRunStats = {
-			toolCalls: 0,
-			inputTokens: 0,
-			outputTokens: 0,
-			cacheWriteTokens: 0,
-			cacheReadTokens: 0,
-			totalCost: 0,
-			contextTokens: 0,
-			contextWindow: 0,
-			contextUsagePercentage: 0,
-		}
+		const stats = this.activeStats
 
 		const logPrefix = `[SubagentRunner:${this.subagentName || "unnamed"}]`
 		let progressUpdates = Promise.resolve()
@@ -383,16 +475,16 @@ export class SubagentRunner {
 			let requestSnapshot = initialContext.requestSnapshot
 			let useNativeToolCalls = initialContext.useNativeToolCalls
 			stats.contextWindow = context.providerInfo.model.info.contextWindow || 0
-			let systemPrompt = this.contextBuilder.appendExecutionLimits(initialContext.systemPrompt, timeout, maxTurns)
+			let systemPrompt = this.contextBuilder.appendExecutionDeadline(initialContext.systemPrompt, timeout)
 			const workspaceMetadataEnvironmentBlock = await this.getWorkspaceMetadataEnvironmentBlock()
 
 			if (this.shouldAbort()) {
 				await this.abort()
-				return this.abortHandler.buildAbortResult(conversation, stats, instrumentedOnProgress)
+				return this.reportAbortResult(conversation, stats, instrumentedOnProgress)
 			}
 
 			if (includeHistory) {
-				conversation = [...this.baseConfig.messageState.getApiConversationHistory()]
+				conversation.push(...this.baseConfig.messageState.getApiConversationHistory())
 				contextState.conversationHistoryDeletedRange = this.baseConfig.taskState.conversationHistoryDeletedRange
 			}
 
@@ -415,63 +507,10 @@ export class SubagentRunner {
 						: []),
 				],
 			})
-			if (timeout) {
-				timeoutHandle = setTimeout(() => {
-					void this.abort(`Subagent timed out after ${timeout} seconds.`)
-				}, timeout * 1000)
-			}
-
-			let turnCount = 0
 			while (true) {
-				if (maxTurns && turnCount === maxTurns - 1) {
-					conversation.push({
-						role: "user",
-						content: [
-							{
-								type: "text",
-								text: "NOTE: This is your last turn. You must provide your final findings now using attempt_completion.",
-							} as DiracTextContentBlock,
-						],
-					})
-				}
-
-				if (maxTurns && turnCount >= maxTurns) {
-					void this.abort(`Subagent reached maximum turns (${maxTurns}).`)
-				}
-
 				if (this.shouldAbort()) {
-					if (
-						this.abortRequested &&
-						this.abortReason &&
-						/timed out/.test(this.abortReason) &&
-						!this.gaveTimeoutWrapUpChance &&
-						!this.baseConfig.taskState.abort
-					) {
-						this.gaveTimeoutWrapUpChance = true
-						if (timeoutHandle) {
-							clearTimeout(timeoutHandle)
-						}
-						timeoutHandle = setTimeout(() => {
-							void this.abort("Subagent failed to wrap up after timeout.")
-						}, 60000)
-
-						conversation.push({
-							role: "user",
-							content: [
-								{
-									type: "text",
-									text: "Timeout reached. Please provide your final findings now using attempt_completion based on what you have so far. This is your absolute last turn.",
-								} as DiracTextContentBlock,
-							],
-						})
-
-						this.abortRequested = false
-						this.abortReason = undefined
-						continue
-					}
-
 					await this.abort()
-					return this.abortHandler.buildAbortResult(conversation, stats, instrumentedOnProgress)
+					return this.reportAbortResult(conversation, stats, instrumentedOnProgress)
 				}
 
 				if (
@@ -562,7 +601,7 @@ export class SubagentRunner {
 
 					if (this.shouldAbort()) {
 						await this.abort()
-						return this.abortHandler.buildAbortResult(conversation, stats, instrumentedOnProgress)
+						return this.reportAbortResult(conversation, stats, instrumentedOnProgress)
 					}
 				}
 
@@ -678,6 +717,10 @@ export class SubagentRunner {
 					stats,
 					instrumentedOnProgress,
 				)
+				if (this.shouldAbort()) {
+					await this.abort()
+					return this.reportAbortResult(conversation, stats, instrumentedOnProgress)
+				}
 				if (toolExecResult.completed)
 					return {
 						status: SubagentExecutionStatus.COMPLETED,
@@ -691,16 +734,15 @@ export class SubagentRunner {
 				const refreshedContext = await this.contextBuilder.buildContext()
 				requestSnapshot = refreshedContext.requestSnapshot
 				useNativeToolCalls = refreshedContext.useNativeToolCalls
-				systemPrompt = this.contextBuilder.appendExecutionLimits(refreshedContext.systemPrompt, timeout, maxTurns)
+				systemPrompt = this.contextBuilder.appendExecutionDeadline(refreshedContext.systemPrompt, timeout)
 
 				conversation.push({ role: "user", content: toolExecResult.toolResultBlocks })
 
-				turnCount++
 				await delay(0)
 			}
 		} catch (error) {
 			if (this.shouldAbort()) {
-				return this.abortHandler.buildAbortResult(conversation, stats, instrumentedOnProgress)
+				return this.reportAbortResult(conversation, stats, instrumentedOnProgress)
 			}
 
 			const errorText = (error as Error).message || "Subagent execution failed."
@@ -708,9 +750,6 @@ export class SubagentRunner {
 			instrumentedOnProgress({ status: SubagentExecutionStatus.FAILED, error: errorText, stats: { ...stats } })
 			return { status: SubagentExecutionStatus.FAILED, error: errorText, stats }
 		} finally {
-			if (typeof timeoutHandle !== "undefined") {
-				clearTimeout(timeoutHandle)
-			}
 			this.activeApiAbort = undefined
 
 			let progressDrainTimeout: NodeJS.Timeout | undefined
@@ -724,6 +763,39 @@ export class SubagentRunner {
 			if (!progressUpdatesDrained) {
 				Logger.warn(`${logPrefix} progress observer did not drain within ${PROGRESS_UPDATE_DRAIN_TIMEOUT_MS}ms`)
 			}
+		}
+	}
+
+	private reportAbortResult(
+		conversation: DiracStorageMessage[],
+		stats: SubagentRunStats,
+		onProgress: (update: SubagentProgressUpdate) => void,
+	): SubagentRunResult {
+		const result = this.abortHandler.buildAbortResult(conversation, stats)
+		onProgress(this.toTerminalProgressUpdate(result))
+		return result
+	}
+
+	private toTerminalProgressUpdate(result: SubagentRunResult): SubagentProgressUpdate {
+		return {
+			status: result.status,
+			result: result.result,
+			error: result.error,
+			stats: { ...result.stats },
+		}
+	}
+
+	private async drainProgressUpdates(progressUpdates: Promise<void>, logPrefix: string): Promise<void> {
+		let progressDrainTimeout: NodeJS.Timeout | undefined
+		const progressUpdatesDrained = await Promise.race([
+			progressUpdates.then(() => true),
+			new Promise<boolean>((resolve) => {
+				progressDrainTimeout = setTimeout(() => resolve(false), PROGRESS_UPDATE_DRAIN_TIMEOUT_MS)
+			}),
+		])
+		if (progressDrainTimeout) clearTimeout(progressDrainTimeout)
+		if (!progressUpdatesDrained) {
+			Logger.warn(`${logPrefix} progress observer did not drain within ${PROGRESS_UPDATE_DRAIN_TIMEOUT_MS}ms`)
 		}
 	}
 
