@@ -56,6 +56,7 @@ describe("AskFollowupQuestionTool", () => {
 
 		assert.match(String(result), /<answer>\ncustom answer\n<\/answer>/)
 		assert.ok(card.finalize.calledWith(CardStatus.SUCCESS))
+		assert.ok(env.ui.upsertText.calledOnceWith("custom answer", false, "user"))
 	})
 
 	it("uses the selected option when no text was supplied", async () => {
@@ -70,9 +71,19 @@ describe("AskFollowupQuestionTool", () => {
 
 		assert.match(String(result), /<answer>\nOption A\n<\/answer>/)
 		assert.ok(card.finalize.calledWith(CardStatus.SUCCESS))
+		assert.ok(env.ui.upsertText.calledOnceWith("Option A", false, "user"))
+		sinon.assert.callOrder(card.finalize, env.ui.upsertText)
+		assert.ok(
+			card.update.calledWithMatch({
+				header: "Answered",
+				rawOutput: { answer: "Option A", selectedChoice: "Option A" },
+				requireFeedback: false,
+				actions: [],
+			}),
+		)
 	})
 
-	it("prefers explicit text when both text and an option are supplied", async () => {
+	it("prefers the clicked choice when the message input also contains text", async () => {
 		const { env } = createEnvironment({
 			response: DiracAskResponse.APPROVE,
 			text: "specific detail",
@@ -83,7 +94,8 @@ describe("AskFollowupQuestionTool", () => {
 			env,
 		)
 
-		assert.match(String(result), /<answer>\nspecific detail\n<\/answer>/)
+		assert.match(String(result), /<answer>\nOption A\n<\/answer>/)
+		assert.ok(env.ui.upsertText.calledOnceWith("Option A", false, "user"))
 	})
 
 	it("finalizes decline as skipped instead of success", async () => {
@@ -96,6 +108,7 @@ describe("AskFollowupQuestionTool", () => {
 		assert.match(String(result), /declined/i)
 		assert.ok(card.finalize.calledOnceWith(CardStatus.SKIPPED))
 		assert.ok(card.update.calledWithMatch({ outcome: "declined" }))
+		assert.ok(env.ui.upsertText.notCalled)
 	})
 
 })

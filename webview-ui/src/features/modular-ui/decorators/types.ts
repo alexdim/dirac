@@ -12,5 +12,5 @@ export interface CardDecorator {
 	/** Prevents the generic in-card action footer from rendering. */
 	suppressDefaultActions?: boolean
 	/** Optional extra elements to render below the card body */
-	renderFooterExtra?: (card: Card) => React.ReactNode
+	renderFooterExtra?: (card: Card, onAction?: (value: string) => void, isActive?: boolean) => React.ReactNode
 }
