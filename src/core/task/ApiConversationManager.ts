@@ -1,15 +1,16 @@
 import { getHookModelContext } from "@core/hooks/hook-model-context"
 import { getHooksEnabledSafe } from "@core/hooks/hooks-utils"
 import { executePreCompactHookWithCleanup, HookCancellationError } from "@core/hooks/precompact-executor"
-import type {
-	ApiConversationCheckpoint, ApiConversationRequestOptions
-} from "@core/api/conversation"
-import { autoCondensePrompt } from "@core/prompts/contextManagement"
+import type { ApiConversationCheckpoint, ApiConversationRequestOptions } from "@core/api/conversation"
 import { formatContentBlockToMarkdown } from "@integrations/misc/export-markdown"
 import { telemetryService } from "@services/telemetry"
 import { findLastIndex } from "@shared/array"
 import { CardStatus, DiracMessageType, Mode } from "@shared/ExtensionMessage"
-import { DiracContent, DiracStorageMessage } from "@shared/messages/content"
+import {
+	DiracContent,
+	DiracStorageMessage,
+	removeProviderBoundaryMetadataFromMessage,
+} from "@shared/messages/content"
 import type { DiracTool } from "@shared/tools"
 import { Logger } from "@shared/services/Logger"
 import { getAutoCondenseContextLimit } from "@shared/context-management"
@@ -154,13 +155,15 @@ export class ApiConversationManager {
 		providerId: string,
 		modelId: string,
 	): boolean {
-		return history.slice(boundary + 1).some(
-			(message) =>
-				message.role === "assistant" &&
-				message.modelInfo?.providerId === providerId &&
-				message.modelInfo.modelId === modelId &&
-				message.id !== undefined,
-		)
+		return history
+			.slice(boundary + 1)
+			.some(
+				(message) =>
+					message.role === "assistant" &&
+					message.modelInfo?.providerId === providerId &&
+					message.modelInfo.modelId === modelId &&
+					message.id !== undefined,
+			)
 	}
 
 	public async prepareProviderConversationDispatch(params: {
@@ -185,8 +188,7 @@ export class ApiConversationManager {
 
 		let dispatchMessages = params.truncatedMessages
 
-		const pendingCompaction =
-			this.dependencies.taskState.pendingApiConversationCompaction ?? providerState.pendingCompaction
+		const pendingCompaction = this.dependencies.taskState.pendingApiConversationCompaction ?? providerState.pendingCompaction
 		if (pendingCompaction) this.dependencies.taskState.pendingApiConversationCompaction = pendingCompaction
 		if (pendingCompaction) {
 			const currentDeletedRange = this.dependencies.taskState.conversationHistoryDeletedRange
@@ -214,7 +216,7 @@ export class ApiConversationManager {
 				try {
 					const result = await this.dependencies.api.compactConversation({
 						systemPrompt: params.systemPrompt,
-						messages,
+						messages: messages.map(removeProviderBoundaryMetadataFromMessage),
 						tools: params.tools,
 						checkpoint,
 					})
@@ -226,12 +228,14 @@ export class ApiConversationManager {
 						input: result.input,
 					}
 					providerState = {
+						...providerState,
 						checkpoint,
 						continuationReset: {
 							providerId: params.providerId,
 							modelId: params.modelId,
 							compactedThroughHistoryIndex: boundary,
 						},
+						pendingCompaction: undefined,
 					}
 					await this.dependencies.messageStateHandler.overwriteApiConversationProviderState(providerState)
 					this.dependencies.taskState.pendingApiConversationCompaction = undefined
@@ -243,11 +247,14 @@ export class ApiConversationManager {
 					)
 					checkpoint = undefined
 					providerState = {
+						...providerState,
+						checkpoint: undefined,
 						continuationReset: {
 							providerId: params.providerId,
 							modelId: params.modelId,
 							compactedThroughHistoryIndex: boundary,
 						},
+						pendingCompaction: undefined,
 					}
 					await this.dependencies.messageStateHandler.overwriteApiConversationProviderState(providerState)
 					this.dependencies.taskState.pendingApiConversationCompaction = undefined
@@ -258,11 +265,14 @@ export class ApiConversationManager {
 				)
 				checkpoint = undefined
 				providerState = {
+					...providerState,
+					checkpoint: undefined,
 					continuationReset: {
 						providerId: params.providerId,
 						modelId: params.modelId,
 						compactedThroughHistoryIndex: boundary,
 					},
+					pendingCompaction: undefined,
 				}
 				await this.dependencies.messageStateHandler.overwriteApiConversationProviderState(providerState)
 				this.dependencies.taskState.pendingApiConversationCompaction = undefined
@@ -300,11 +310,8 @@ export class ApiConversationManager {
 		}
 	}
 
-
-
 	public async prepareApiRequest(params: {
 		userContent: DiracContent[]
-		shouldCompact: boolean
 		includeFileDetails: boolean
 		useCompactPrompt: boolean
 		previousApiReqIndex: number
@@ -314,11 +321,13 @@ export class ApiConversationManager {
 		providerId: string
 		modelId: string
 		mode: string
+		afterUserContentPersisted?: () => Promise<void>
 	}): Promise<{
 		userContent: DiracContent[]
 		lastApiReqIndex: number
 		isDirectResponse?: boolean
 		directResponseText?: string
+		didConsumeUserContent: boolean
 	}> {
 		let nextUserContent = params.userContent
 
@@ -333,48 +342,46 @@ export class ApiConversationManager {
 				lastApiReqIndex: params.previousApiReqIndex,
 				isDirectResponse: true,
 				directResponseText: hookResult.errorMessage,
+				didConsumeUserContent: false,
 			}
 		}
 
-		let parsedUserContent: DiracContent[]
-		let environmentDetails: string
-		let diracrulesError: boolean
-		let isDirectResponse = false
-		let directResponseText = params.directResponseText
+		const [
+			parsedUserContent,
+			environmentDetails,
+			diracrulesError,
+			availableSkills,
+			isDirectResponse,
+			loadedDirectResponseText,
+			directAction,
+		] = await this.dependencies.loadContext(nextUserContent, params.includeFileDetails, params.useCompactPrompt)
+		const directResponseText = loadedDirectResponseText ?? params.directResponseText
+		this.dependencies.taskState.availableSkills = availableSkills
 
-		if (params.shouldCompact) {
-			// Automatic compaction needs only the existing conversation and compaction instructions.
-			parsedUserContent = params.userContent
-			environmentDetails = ""
-			diracrulesError = false
-			this.dependencies.taskState.lastAutoCondenseTriggerIndex = params.previousApiReqIndex
-			this.dependencies.taskState.pendingCondenseSource = "automatic"
-		} else {
-			// When NOT compacting, load full context with mentions parsing and slash commands
-			const [
-				parsedUserContentResult,
-				environmentDetailsResult,
-				diracrulesErrorResult,
-				availableSkillsResult,
-				isDirectResponseResult,
-				directResponseTextResult,
-			] = await this.dependencies.loadContext(nextUserContent, params.includeFileDetails, params.useCompactPrompt)
-			parsedUserContent = parsedUserContentResult
-			environmentDetails = environmentDetailsResult
-			diracrulesError = diracrulesErrorResult
-			isDirectResponse = isDirectResponseResult
-			directResponseText = directResponseTextResult
-			this.dependencies.taskState.availableSkills = availableSkillsResult
+		if (directAction?.type === "condenseConversation") {
+			const continuation = await this.dependencies.runLocalConversationCompaction("user")
+			if (!continuation) {
+				return {
+					userContent: parsedUserContent,
+					lastApiReqIndex: params.previousApiReqIndex,
+					isDirectResponse: true,
+					didConsumeUserContent: true,
+				}
+			}
+			parsedUserContent.unshift({ type: "text", text: continuation })
+			const pinnedContext = this.dependencies.getPinnedContext?.()
+			if (pinnedContext) parsedUserContent.splice(1, 0, { type: "text", text: pinnedContext })
 		}
 
 		this.dependencies.taskState.didSwitchToActMode = false // Reset after use
 
-		if (isDirectResponse && directResponseText) {
+		if (isDirectResponse) {
 			return {
-				userContent: [{ type: "text", text: directResponseText }],
+				userContent: directResponseText ? [{ type: "text", text: directResponseText }] : parsedUserContent,
 				lastApiReqIndex: -1,
 				isDirectResponse: true,
 				directResponseText,
+				didConsumeUserContent: true,
 			}
 		}
 
@@ -397,18 +404,6 @@ export class ApiConversationManager {
 			userContent.push({ type: "text", text: environmentDetails })
 		}
 
-		if (params.shouldCompact) {
-			const pinnedContext = this.dependencies.taskState.pinnedContext
-			if (pinnedContext) {
-				userContent.push({ type: "text", text: pinnedContext })
-			}
-			userContent.push({
-				type: "text",
-				text: autoCondensePrompt(),
-			})
-			this.dependencies.onContextCompacted?.()
-		}
-
 		// getting verbose details is an expensive operation, it uses globby to top-down build file structure of project which for large projects can take a few seconds
 		// for the best UX we show a placeholder api_req_started message with a loading spinner as this happens
 		const apiReqId = `api-req-${Date.now()}`
@@ -417,11 +412,6 @@ export class ApiConversationManager {
 			request: userContent.map((block) => formatContentBlockToMarkdown(block)).join("\n\n") + "\n\nLoading...",
 		})
 
-		await this.dependencies.messageStateHandler.addToApiConversationHistory({
-			role: "user",
-			content: userContent,
-			ts: Date.now(),
-		})
 		telemetryService.captureConversationTurnEvent(
 			this.dependencies.ulid,
 			params.providerId,
@@ -464,6 +454,13 @@ export class ApiConversationManager {
 
 		await this.dependencies.postStateToWebview()
 
-		return { userContent, lastApiReqIndex, directResponseText }
+		await this.dependencies.messageStateHandler.addToApiConversationHistory({
+			role: "user",
+			content: userContent,
+			ts: Date.now(),
+		})
+		await params.afterUserContentPersisted?.()
+
+		return { userContent, lastApiReqIndex, directResponseText, didConsumeUserContent: true }
 	}
 }

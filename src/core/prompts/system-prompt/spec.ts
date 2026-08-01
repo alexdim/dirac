@@ -114,7 +114,7 @@ export function toolSpecFunctionDefinition(tool: DiracToolSpec, context: SystemP
 		function: {
 			name: tool.name,
 			strict,
-			description: replacer(tool.description, context),
+			description: resolveToolDescription(tool, context),
 			parameters: {
 				type: "object",
 				properties,
@@ -217,7 +217,7 @@ export function toolSpecInputSchema(tool: DiracToolSpec, context: SystemPromptCo
 	// Build the Tool object
 	const toolInputSchema: AnthropicTool = {
 		name: tool.name,
-		description: replacer(tool.description, context),
+		description: resolveToolDescription(tool, context),
 		input_schema: {
 			type: "object",
 			properties,
@@ -344,7 +344,7 @@ export function toolSpecFunctionDeclarations(tool: DiracToolSpec, context: Syste
 
 	const googleTool: GoogleTool = {
 		name: tool.name,
-		description: replacer(tool.description, context),
+		description: resolveToolDescription(tool, context),
 		parameters: {
 			type: GoogleToolParamType.OBJECT,
 			properties,
@@ -441,6 +441,9 @@ export function toOpenAIResponsesAPITool(openAITool: OpenAITool): OpenAIResponse
 			required: ["text"],
 		},
 	} satisfies OpenAIResponseTool
+}
+function resolveToolDescription(tool: DiracToolSpec, context: SystemPromptContext): string {
+	return replacer(resolveInstruction(tool.promptDescription ?? tool.description, context), context)
 }
 
 /**

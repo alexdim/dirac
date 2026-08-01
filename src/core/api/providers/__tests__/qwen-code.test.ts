@@ -43,6 +43,26 @@ describe("QwenCodeHandler.callApiWithRetry", () => {
 		fakeClient.baseURL.should.equal("https://example.com/v1")
 	})
 
+	it("does not refresh or retry a 401 when retries are disabled", async () => {
+		const handler = new QwenCodeHandler({ disableRetries: true })
+		const refreshStub = sinon.stub(handler as any, "refreshAccessToken")
+		const unauthorized = Object.assign(new Error("expired"), { status: 401 })
+		let calls = 0
+
+		try {
+			await (handler as any).callApiWithRetry(async () => {
+				calls++
+				throw unauthorized
+			})
+			throw new Error("expected throw")
+		} catch (error) {
+			;(error as Error).should.equal(unauthorized)
+		}
+
+		calls.should.equal(1)
+		refreshStub.callCount.should.equal(0)
+	})
+
 	it("re-throws non-401 errors without retry", async () => {
 		const handler = new QwenCodeHandler({})
 		sinon.stub(handler as any, "refreshAccessToken").resolves({} as any)

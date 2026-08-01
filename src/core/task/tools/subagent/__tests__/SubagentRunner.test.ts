@@ -292,7 +292,6 @@ describe("SubagentRunner", () => {
 		])
 	})
 
-
 	it("returns after the drain timeout when a progress observer never settles", async () => {
 		const createMessage = sinon.stub()
 		createMessage.onFirstCall().callsFake(async function* () {
@@ -804,9 +803,13 @@ describe("SubagentRunner", () => {
 		try {
 			const updates: any[] = []
 			const runner = new SubagentRunner(createTaskConfigWithListFilesSnapshot())
-			const runPromise = runner.run("Never settles", (update) => {
-				updates.push(update)
-			}, 1)
+			const runPromise = runner.run(
+				"Never settles",
+				(update) => {
+					updates.push(update)
+				},
+				1,
+			)
 			await clock.tickAsync(91_000)
 			const result = await runPromise
 
@@ -822,19 +825,32 @@ describe("SubagentRunner", () => {
 
 	it("preserves the request cache while wrapping up and blocks further research", async () => {
 		let stopInitialStream!: () => void
+		let markInitialStreamStarted!: () => void
+		const initialStreamStarted = new Promise<void>((resolve) => {
+			markInitialStreamStarted = resolve
+		})
 		const abort = sinon.stub().callsFake(() => stopInitialStream())
 		const createMessage = sinon.stub()
 		let initialSystemPrompt: string | undefined
 		let initialNativeTools: unknown
 
-		createMessage.onFirstCall().callsFake(async function* (systemPrompt: string, _conversation: unknown[], nativeTools: unknown) {
+		createMessage.onFirstCall().callsFake(async function* (
+			systemPrompt: string,
+			_conversation: unknown[],
+			nativeTools: unknown,
+		) {
 			initialSystemPrompt = systemPrompt
 			initialNativeTools = nativeTools
 			await new Promise<void>((resolve) => {
 				stopInitialStream = resolve
+				markInitialStreamStarted()
 			})
 		})
-		createMessage.onSecondCall().callsFake(async function* (systemPrompt: string, conversation: unknown[], nativeTools: unknown) {
+		createMessage.onSecondCall().callsFake(async function* (
+			systemPrompt: string,
+			conversation: unknown[],
+			nativeTools: unknown,
+		) {
 			assert.equal(systemPrompt, initialSystemPrompt)
 			assert.strictEqual(nativeTools, initialNativeTools)
 			assert.equal(conversation.length, 2)
@@ -852,7 +868,11 @@ describe("SubagentRunner", () => {
 				},
 			}
 		})
-		createMessage.onThirdCall().callsFake(async function* (systemPrompt: string, conversation: unknown[], nativeTools: unknown) {
+		createMessage.onThirdCall().callsFake(async function* (
+			systemPrompt: string,
+			conversation: unknown[],
+			nativeTools: unknown,
+		) {
 			assert.equal(systemPrompt, initialSystemPrompt)
 			assert.strictEqual(nativeTools, initialNativeTools)
 			const deniedResearchResult = conversation.at(-1) as {
@@ -886,10 +906,16 @@ describe("SubagentRunner", () => {
 		try {
 			const updates: any[] = []
 			const runner = new SubagentRunner(createTaskConfigWithListFilesSnapshot())
-			const runPromise = runner.run("Investigate", (update) => {
-				updates.push(update)
-			}, 1)
+			const runPromise = runner.run(
+				"Investigate",
+				(update) => {
+					updates.push(update)
+				},
+				1,
+			)
+			await initialStreamStarted
 			await clock.tickAsync(1_000)
+			await clock.tickAsync(100)
 			const result = await runPromise
 
 			assert.equal(result.status, SubagentExecutionStatus.COMPLETED)
@@ -929,5 +955,4 @@ describe("SubagentRunner", () => {
 			clock.restore()
 		}
 	})
-
 })

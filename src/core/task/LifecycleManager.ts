@@ -14,7 +14,12 @@ import { ensureCheckpointInitialized } from "@integrations/checkpoints/initializ
 import { processFilesIntoText } from "@integrations/misc/extract-text"
 import { findLastIndex } from "@shared/array"
 import { isResumePromptCard, isSuccessfulTaskCompletionCard } from "@shared/cardIdentity"
-import { DiracContent, DiracImageContentBlock, DiracUserContent } from "@shared/messages/content"
+import {
+	DiracContent,
+	DiracImageContentBlock,
+	DiracUserContent,
+	removeUserInputMarkersFromMessage,
+} from "@shared/messages/content"
 import { ShowMessageType } from "@shared/proto/index.host"
 import { Logger } from "@shared/services/Logger"
 import { DiracAskResponse } from "@shared/WebviewMessage"
@@ -110,6 +115,7 @@ export class LifecycleManager {
 		const userContent: DiracUserContent[] = [
 			{
 				type: "text",
+				isUserInput: true,
 				text: `<task>\n${task}\n</task>`,
 			},
 			...imageBlocks,
@@ -234,7 +240,9 @@ export class LifecycleManager {
 		await this.dependencies.messageStateHandler.overwriteDiracMessages(savedDiracMessages)
 		this.dependencies.messageStateHandler.setDiracMessages(await getSavedDiracMessages(this.dependencies.taskId))
 
-		const savedApiConversationHistory = await getSavedApiConversationHistory(this.dependencies.taskId)
+		const savedApiConversationHistory = (await getSavedApiConversationHistory(this.dependencies.taskId)).map(
+			removeUserInputMarkersFromMessage,
+		)
 		this.dependencies.messageStateHandler.setApiConversationHistory(savedApiConversationHistory as any)
 		this.dependencies.messageStateHandler.setApiConversationProviderState(
 			await getSavedApiConversationProviderState(this.dependencies.taskId),
@@ -415,6 +423,7 @@ export class LifecycleManager {
 		if (userResponseMessage !== "") {
 			newUserContent.push({
 				type: "text",
+				isUserInput: true,
 				text: userResponseMessage,
 			})
 		}

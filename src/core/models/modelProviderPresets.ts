@@ -3,6 +3,7 @@ import type { Controller } from "@core/controller"
 import { applyApiConfigurationTransaction } from "@core/controller/models/apiConfigurationTransaction"
 import type { ApiConfiguration, ApiProvider, ModelInfo, ModelProviderPreset, OpenAiCompatibleProfile } from "@shared/api"
 import type { Mode } from "@shared/storage/types"
+import { modelProviderSelectionUpdates } from "@core/api/modelProviderSelection"
 
 const MAX_MODEL_PROVIDER_PRESETS = 20
 
@@ -145,53 +146,14 @@ export function recordSavedOpenAiCompatibleProfileChanges(
 }
 
 function modeUpdates(mode: Mode, preset: ModelProviderPreset, profile?: OpenAiCompatibleProfile): Partial<ApiConfiguration> {
-	const prefix = mode === "plan" ? "planMode" : "actMode"
 	const updates: Record<string, unknown> = {
-		[`${prefix}ApiProvider`]: preset.provider,
-		[`${prefix}ApiModelId`]: preset.modelId,
+		...modelProviderSelectionUpdates(mode, preset),
 	}
-
-	const providerFields: Partial<Record<ApiProvider, string>> = {
-		openrouter: "OpenRouter",
-		openai: "OpenAi",
-		lmstudio: "LmStudio",
-		litellm: "LiteLlm",
-		requesty: "Requesty",
-		together: "Together",
-		fireworks: "Fireworks",
-		groq: "Groq",
-		baseten: "Baseten",
-		huggingface: "HuggingFace",
-		"huawei-cloud-maas": "HuaweiCloudMaas",
-		aihubmix: "Aihubmix",
-		"github-copilot": "GithubCopilot",
-		"vercel-ai-gateway": "VercelAiGateway",
-		nousResearch: "NousResearch",
-	}
-	const providerField = providerFields[preset.provider]
-	if (providerField) {
-		updates[`${prefix}${providerField}ModelId`] = preset.modelId
-		if (
-			preset.modelInfo &&
-			!["lmstudio", "together", "fireworks", "github-copilot", "nousResearch"].includes(preset.provider)
-		) {
-			updates[`${prefix}${providerField}ModelInfo`] = preset.modelInfo
-		}
-	}
-
-	if (preset.provider === "vscode-lm") updates[`${prefix}VsCodeLmModelSelector`] = preset.vsCodeLmModelSelector
-	if (preset.provider === "bedrock") {
-		updates[`${prefix}AwsBedrockCustomSelected`] = preset.awsBedrockCustomSelected
-		updates[`${prefix}AwsBedrockCustomModelBaseId`] = preset.awsBedrockCustomModelBaseId
-	}
-	if (preset.provider === "openai") {
-		updates[`${prefix}OpenAiProfileName`] = preset.openAiProfileName
-		if (profile) {
-			updates.openAiBaseUrl = profile.baseUrl
-			updates.openAiApiKey = profile.apiKey
-			updates.openAiHeaders = profile.headers
-			updates.azureApiVersion = profile.azureApiVersion
-		}
+	if (preset.provider === "openai" && profile) {
+		updates.openAiBaseUrl = profile.baseUrl
+		updates.openAiApiKey = profile.apiKey
+		updates.openAiHeaders = profile.headers
+		updates.azureApiVersion = profile.azureApiVersion
 	}
 	return updates as Partial<ApiConfiguration>
 }

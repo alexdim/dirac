@@ -19,6 +19,7 @@ import { checkCliInstallation } from "./state/checkCliInstallation"
 import { sendChatButtonClickedEvent } from "./ui/subscribeToChatButtonClicked"
 import { getStateToPostToWebview as getUiState } from "./ui/UiController"
 import { sendStateUpdate } from "./state/subscribeToState"
+import { StatePublicationQueue } from "./state/StatePublicationQueue"
 import { SkillMetadata } from "@/shared/skills"
 import { TaskController } from "./task/TaskController"
 
@@ -64,8 +65,10 @@ export class Controller {
 		return this.taskController.onTaskReplaced(listener)
 	}
 
-	// Debounce state broadcast — coalesce multiple per-tick calls into a single push (from main)
-	private webviewUpdateScheduled = false
+	private readonly statePublicationQueue = new StatePublicationQueue(
+		() => this.getStateToPostToWebview(),
+		(state, sequenceNumber) => sendStateUpdate(state, sequenceNumber),
+	)
 
 	private openAiCodexUsageUnsubscribe?: () => void
 
@@ -233,12 +236,7 @@ export class Controller {
 	}
 
 	async postStateToWebview(): Promise<void> {
-		if (this.webviewUpdateScheduled) return
-		this.webviewUpdateScheduled = true
-		await Promise.resolve()
-		this.webviewUpdateScheduled = false
-		const state = await this.getStateToPostToWebview()
-		await sendStateUpdate(state)
+		await this.statePublicationQueue.requestPublication()
 	}
 
 	async getStateToPostToWebview(): Promise<ExtensionState> {

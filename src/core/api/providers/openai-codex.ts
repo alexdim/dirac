@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto"
 import {
 	ModelInfo,
 	type OpenAiCodexModelId,
@@ -10,10 +11,9 @@ import { normalizeOpenaiReasoningEffort } from "@shared/storage/types"
 import OpenAI from "openai"
 import type { ChatCompletionTool } from "openai/resources/chat/completions"
 import * as os from "os"
-import { createHash } from "node:crypto"
 import { v7 as uuidv7 } from "uuid"
-import { openAiCodexOAuthManager } from "@/integrations/openai-codex/oauth"
 import { openAiCodexUsageService } from "@/integrations/openai-codex/OpenAiCodexUsageService"
+import { openAiCodexOAuthManager } from "@/integrations/openai-codex/oauth"
 import { buildExternalBasicHeaders } from "@/services/EnvUtils"
 import { featureFlagsService } from "@/services/feature-flags"
 import { DiracStorageMessage } from "@/shared/messages/content"
@@ -21,13 +21,15 @@ import { fetch } from "@/shared/net"
 import { ApiFormat } from "@/shared/proto/dirac/models"
 import { FeatureFlag } from "@/shared/services/feature-flags/feature-flags"
 import { Logger } from "@/shared/services/Logger"
+import { isParallelToolCallingEnabled } from "@/utils/model-utils"
 import {
-	ApiHandler,
-	CommonApiHandlerOptions,
 	type ApiConversationCompactionRequest,
 	type ApiConversationCompactionResult,
 	type ApiConversationRequestOptions,
+	ApiHandler,
+	CommonApiHandlerOptions,
 } from "../"
+import { RetriableError } from "../retry"
 import { convertToOpenAIResponsesInput } from "../transform/openai-response-format"
 import { ApiStream } from "../transform/stream"
 import {
@@ -36,8 +38,6 @@ import {
 	ResponsesWebsocketManager,
 	shouldRetryWithFullContext,
 } from "./openai-responses-utils"
-import { RetriableError } from "../retry"
-import { isParallelToolCallingEnabled } from "@/utils/model-utils"
 
 /**
  * OpenAI Codex base URL for API requests
@@ -156,7 +156,6 @@ export class OpenAiCodexHandler implements ApiHandler {
 		Logger.log(`[OpenAI Codex persisted reasoning] websocket anchor cleared reason=${reason}`)
 	}
 
-
 	constructor(options: OpenAiCodexHandlerOptions) {
 		this.options = options
 		this.sessionId = uuidv7()
@@ -170,14 +169,10 @@ export class OpenAiCodexHandler implements ApiHandler {
 		return new OpenAI({ apiKey: accessToken, baseURL: CODEX_API_BASE_URL, defaultHeaders: headers, fetch })
 	}
 
-
 	async compactConversation(request: ApiConversationCompactionRequest): Promise<ApiConversationCompactionResult> {
 		const model = this.getModel()
 		const finalTools: CodexTool[] = [...((request.tools ?? []) as ChatCompletionTool[]), { type: "web_search" }]
-		const input = [
-			...(request.checkpoint?.input ?? []),
-			...convertToOpenAIResponsesInput(request.messages).input,
-		]
+		const input = [...(request.checkpoint?.input ?? []), ...convertToOpenAIResponsesInput(request.messages).input]
 		const fullBody = this.buildRequestBody(model, input, request.systemPrompt, finalTools, {
 			usePersistedReasoning: model.info.supportsPersistedReasoning === true,
 		})
@@ -194,8 +189,9 @@ export class OpenAiCodexHandler implements ApiHandler {
 		}
 
 		this.abortController = new AbortController()
+		const maxAttempts = this.options.disableRetries ? 1 : 2
 		try {
-			for (let attempt = 0; attempt < 2; attempt++) {
+			for (let attempt = 0; attempt < maxAttempts; attempt++) {
 				const accountId = await openAiCodexOAuthManager.getAccountId()
 				const codexHeaders: Record<string, string> = {
 					originator: "dirac",
@@ -224,7 +220,7 @@ export class OpenAiCodexHandler implements ApiHandler {
 				} catch (error) {
 					const message = error instanceof Error ? error.message : String(error)
 					const isAuthFailure = /unauthorized|invalid token|not authenticated|authentication|401/i.test(message)
-					if (attempt === 0 && isAuthFailure) {
+					if (!this.options.disableRetries && attempt === 0 && isAuthFailure) {
 						const refreshed = await openAiCodexOAuthManager.forceRefreshAccessToken()
 						if (!refreshed) throw error
 						accessToken = refreshed
@@ -238,7 +234,6 @@ export class OpenAiCodexHandler implements ApiHandler {
 			this.abortController = undefined
 		}
 	}
-
 
 	async *createMessage(
 		systemPrompt: string,
@@ -270,10 +265,7 @@ export class OpenAiCodexHandler implements ApiHandler {
 				? (message) => message.id === this.websocketContinuationAnchor?.responseId
 				: undefined,
 		})
-		const fullInput = [
-			...(options?.checkpoint?.input ?? []),
-			...convertToOpenAIResponsesInput(messages).input,
-		]
+		const fullInput = [...(options?.checkpoint?.input ?? []), ...convertToOpenAIResponsesInput(messages).input]
 		const input = converted.previousResponseId ? converted.input : fullInput
 		const fallbackInput = fullInput
 		let requestBody = this.buildRequestBody(model, input, systemPrompt, finalTools, {
@@ -296,7 +288,8 @@ export class OpenAiCodexHandler implements ApiHandler {
 			throw new Error("Not authenticated with OpenAI Codex. Please sign in using the OpenAI Codex OAuth flow in settings.")
 		}
 
-		for (let attempt = 0; attempt < 2; attempt++) {
+		const maxAttempts = this.options.disableRetries ? 1 : 2
+		for (let attempt = 0; attempt < maxAttempts; attempt++) {
 			let didEmitRequestOutput = false
 			try {
 				for await (const chunk of this.executeRequest(
@@ -315,7 +308,7 @@ export class OpenAiCodexHandler implements ApiHandler {
 			} catch (error) {
 				const message = error instanceof Error ? error.message : String(error)
 				const isAuthFailure = /unauthorized|invalid token|not authenticated|authentication|401/i.test(message)
-				if (attempt === 0 && isAuthFailure && !didEmitRequestOutput) {
+				if (!this.options.disableRetries && attempt === 0 && isAuthFailure && !didEmitRequestOutput) {
 					const refreshed = await openAiCodexOAuthManager.forceRefreshAccessToken()
 					if (!refreshed) {
 						throw new Error(
@@ -366,12 +359,12 @@ export class OpenAiCodexHandler implements ApiHandler {
 			...(includeReasoningConfig ? { include: ["reasoning.encrypted_content"] } : {}),
 			...(includeReasoningConfig
 				? {
-					reasoning: {
-						...(includeReasoning ? { effort: reasoningEffort } : {}),
-						summary: "auto",
-						...(options.usePersistedReasoning ? { context: "all_turns" } : {}),
-					},
-				}
+						reasoning: {
+							...(includeReasoning ? { effort: reasoningEffort } : {}),
+							summary: "auto",
+							...(options.usePersistedReasoning ? { context: "all_turns" } : {}),
+						},
+					}
 				: {}),
 		}
 
@@ -455,6 +448,12 @@ export class OpenAiCodexHandler implements ApiHandler {
 				this.recordWebsocketContinuationAnchor(completedWebsocketResponseId, requestConfiguration)
 				return
 			} catch (error) {
+				if (this.options.disableRetries) {
+					this.clearWebsocketContinuationAnchor("websocket_retry_disabled")
+					this.closeResponsesWebsocket()
+					throw error
+				}
+
 				if (!didEmitWebsocketOutput && shouldRetryWithFullContext(error, !!requestBody.previous_response_id)) {
 					this.clearWebsocketContinuationAnchor("previous_response_not_found")
 					Logger.log("Retrying Codex websocket response with full context after previous_response_not_found or 404")
@@ -537,6 +536,7 @@ export class OpenAiCodexHandler implements ApiHandler {
 			if (_sdkErr instanceof Error && "headers" in _sdkErr && _sdkErr.headers instanceof Headers) {
 				openAiCodexUsageService.applyResponseHeaders(_sdkErr.headers)
 			}
+			if (this.options.disableRetries) throw _sdkErr
 			// Server-side errors (429/overloaded/5xx) won't be helped by manual fetch — re-throw
 			// so the error propagates to handleApiRequestError() which surfaces it to the user.
 			if (_sdkErr instanceof Error) {

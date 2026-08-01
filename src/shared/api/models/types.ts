@@ -75,6 +75,36 @@ export interface ModelProviderPreset {
 	lastUsedAt: number
 }
 
+/**
+ * Copies the reusable provider/model identity from a preset without preserving
+ * preset identity or usage metadata.
+ */
+export function createModelProviderSelection(preset: ModelProviderPreset): ModelProviderSelection {
+	return {
+		provider: preset.provider,
+		modelId: preset.modelId,
+		modelInfo: preset.modelInfo,
+		openAiProfileName: preset.openAiProfileName,
+		vsCodeLmModelSelector: preset.vsCodeLmModelSelector,
+		awsBedrockCustomSelected: preset.awsBedrockCustomSelected,
+		awsBedrockCustomModelBaseId: preset.awsBedrockCustomModelBaseId,
+	}
+}
+
+/**
+ * Secret-free provider and model identity for an independently configured model.
+ * It intentionally excludes credentials and Plan/Act state.
+ */
+export interface ModelProviderSelection {
+	provider: import("../../api").ApiProvider
+	modelId: string
+	modelInfo?: ModelInfo
+	openAiProfileName?: string
+	vsCodeLmModelSelector?: import("vscode").LanguageModelChatSelector
+	awsBedrockCustomSelected?: boolean
+	awsBedrockCustomModelBaseId?: string
+}
+
 export interface OpenAiCompatibleModelInfo extends ModelInfo {
 	temperature?: number
 	isR1FormatRequired?: boolean

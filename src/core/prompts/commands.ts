@@ -1,7 +1,22 @@
 import fs from "node:fs/promises"
 import path from "node:path"
 
-export const newTaskToolResponse = () => {
+export const newTaskToolResponse = (useUtilityModel = false) => {
+	if (useUtilityModel) {
+		return `<explicit_instructions type="new_task">
+The user has explicitly asked you to create a new task with preloaded context. You are only allowed to respond by calling the new_task tool.
+
+A Utility model is configured to generate the complete implementation handoff from the current task's conversation history. Call new_task with only the concise intent for the replacement task. Do not generate or include the handoff yourself.
+
+The intent must state only the desired objective and scope in one or two short sentences, no more than 40 words.
+
+Usage:
+<new_task>
+<intent>Concise objective and scope for the replacement task.</intent>
+</new_task>
+</explicit_instructions>\n
+`
+	}
 	const xmlExample = `
 Example:
 <new_task>
@@ -55,8 +70,19 @@ Below is the the user's input when they indicated that they wanted to create a n
 `
 }
 
-export const condenseToolResponse = () =>
-	`<explicit_instructions type="condense">
+export const condenseToolResponse = (useUtilityModel = false) =>
+	useUtilityModel
+		? `<explicit_instructions type="condense">
+The user has explicitly asked you to compact this conversation. You are only allowed to respond by calling the condense tool.
+
+A Utility model is configured to generate the complete continuation summary from the conversation. Call condense without the context parameter. Do not generate or include a large summary yourself.
+
+Usage:
+<condense>
+</condense>
+</explicit_instructions>\n
+`
+		: `<explicit_instructions type="condense">
 The user has explicitly asked you to create a detailed summary of the conversation so far, which will be used to compact the current context window while retaining key information. The user may have provided instructions or additional information for you to consider when summarizing the conversation.
 Irrespective of whether additional information or instructions are given, you are only allowed to respond to this message by calling the condense tool.
 

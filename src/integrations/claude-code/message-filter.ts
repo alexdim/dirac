@@ -1,11 +1,15 @@
 import type { Anthropic } from "@anthropic-ai/sdk"
+import {
+	type DiracStorageMessage,
+	removeProviderBoundaryMetadataFromMessage,
+} from "@shared/messages/content"
 
 /**
  * Filters out image blocks from messages since Claude Code doesn't support images.
  * Replaces image blocks with text placeholders similar to how VSCode LM provider handles it.
  */
-export function filterMessagesForClaudeCode(messages: Anthropic.Messages.MessageParam[]): Anthropic.Messages.MessageParam[] {
-	return messages.map((message) => {
+export function filterMessagesForClaudeCode(messages: DiracStorageMessage[]): Anthropic.Messages.MessageParam[] {
+	return messages.map(removeProviderBoundaryMetadataFromMessage).map((message) => {
 		// Handle simple string messages
 		if (typeof message.content === "string") {
 			return message

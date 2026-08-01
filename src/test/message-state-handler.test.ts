@@ -281,4 +281,34 @@ describe("MessageStateHandler Mutex Protection", () => {
 		expect(finalHistory[0].content).to.equal("new1")
 		expect(finalHistory[1].content).to.equal("new2")
 	})
+
+	it("strips transient provenance at every API history write boundary", async () => {
+		const handler = createTestHandler()
+		handler.setApiConversationHistory([
+			{ role: "user", content: [{ type: "text", text: "set", isUserInput: true }] },
+		])
+		expect((handler.getApiConversationHistory()[0].content as any[])[0]).not.to.have.property("isUserInput")
+
+		await handler.addToApiConversationHistory({
+			role: "user",
+			content: [
+				{
+					type: "tool_result",
+					tool_use_id: "tool-1",
+					content: [{ type: "text", text: "nested", isUserInput: true }],
+				},
+			],
+		} as any)
+		const nestedBlock = (handler.getApiConversationHistory()[1].content as any[])[0].content[0]
+		expect(nestedBlock).not.to.have.property("isUserInput")
+
+		await handler.appendToLastApiConversationUserMessage({ type: "text", text: "append", isUserInput: true })
+		const appendedBlock = (handler.getApiConversationHistory()[1].content as any[]).at(-1)
+		expect(appendedBlock).not.to.have.property("isUserInput")
+
+		await handler.overwriteApiConversationHistory([
+			{ role: "user", content: [{ type: "text", text: "overwrite", isUserInput: true }] },
+		])
+		expect((handler.getApiConversationHistory()[0].content as any[])[0]).not.to.have.property("isUserInput")
+	})
 })

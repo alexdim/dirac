@@ -1,4 +1,4 @@
-import { Anthropic } from "@anthropic-ai/sdk"
+import type { DiracUserContent } from "@shared/messages/content"
 import type { PendingApiConversationCompaction } from "@core/api/conversation"
 import { AssistantMessageContent } from "@core/assistant-message"
 import { DiracAskResponse } from "@shared/WebviewMessage"
@@ -31,7 +31,7 @@ export class TaskState {
 	lastProcessedContentLength = 0
 	assistantMessageContent: AssistantMessageContent[] = []
 	useNativeToolCalls = false
-	userMessageContent: (Anthropic.TextBlockParam | Anthropic.ImageBlockParam | Anthropic.ToolResultBlockParam)[] = []
+	userMessageContent: DiracUserContent[] = []
 	userMessageContentReady = false
 	// Map of tool names to their tool_use_id for creating proper ToolResultBlockParam
 	toolUseIdMap: Map<string, string> = new Map()
@@ -87,7 +87,23 @@ export class TaskState {
 	isInitialized = false
 
 	// Task Abort / Cancellation
-	abort = false
+	#abortController = new AbortController()
+
+	get abort(): boolean {
+		return this.#abortController.signal.aborted
+	}
+
+	set abort(value: boolean) {
+		if (value) {
+			this.#abortController.abort()
+			return
+		}
+		if (this.#abortController.signal.aborted) this.#abortController = new AbortController()
+	}
+
+	get abortSignal(): AbortSignal {
+		return this.#abortController.signal
+	}
 	/** Requested by a tool after its current task has unwound. */
 	pendingTaskReplacement?: TaskReplacementRequest
 	didFinishAbortingStream = false

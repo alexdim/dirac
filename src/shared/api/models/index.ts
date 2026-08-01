@@ -6,11 +6,13 @@ export {
 	type PriceTier,
 	type OpenAiCompatibleProfile,
 	type ModelProviderPreset,
+	type ModelProviderSelection,
 	type OpenAiCompatibleModelInfo,
 	type OcaModelInfo,
 	type LiteLLMModelInfo,
 	type BasetenModelInfo,
 } from "./types"
+export { createModelProviderSelection } from "./types"
 export { MODEL_CAPABILITIES } from "./capabilities"
 export { GPT_5_5_TIERS, GPT_5_4_TIERS, GPT_5_4_PRO_TIERS } from "./shared-tiers"
 

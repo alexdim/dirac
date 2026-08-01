@@ -104,6 +104,8 @@ export interface ApiHandlerOptions extends Partial<ApiHandlerSettings> {
 	apiProvider?: ApiProvider // Runtime provider selection (not persisted in settings)
 	ulid?: string // Used to identify the task in API requests
 	geminiSearchEnabled?: boolean
+	/** Disables provider-level retries for one-shot sidecar operations. */
+	disableRetries?: boolean
 
 	onRetryAttempt?: (attempt: number, maxRetries: number, delay: number, error: any) => void // Callback function
 }

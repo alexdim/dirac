@@ -22,8 +22,8 @@ function currentCodexResponse(modelId = "gpt-5.6-terra", content: any = "previou
 	} as any
 }
 
-function createHandler(modelId = "gpt-5.6-terra"): OpenAiCodexHandler {
-	return new OpenAiCodexHandler({ apiModelId: modelId })
+function createHandler(modelId = "gpt-5.6-terra", options: { disableRetries?: boolean } = {}): OpenAiCodexHandler {
+	return new OpenAiCodexHandler({ apiModelId: modelId, ...options })
 }
 
 async function drain(stream: AsyncIterable<unknown>): Promise<unknown[]> {
@@ -67,7 +67,11 @@ describe("OpenAiCodexHandler persisted reasoning", () => {
 		await drain(
 			handler.createMessage(
 				"system",
-				[{ role: "user", content: "old question" }, currentCodexResponse(), { role: "user", content: "new question" }] as any,
+				[
+					{ role: "user", content: "old question" },
+					currentCodexResponse(),
+					{ role: "user", content: "new question" },
+				] as any,
 				tools,
 			),
 		)
@@ -91,7 +95,11 @@ describe("OpenAiCodexHandler persisted reasoning", () => {
 		await drain(
 			handler.createMessage(
 				"system two",
-				[{ role: "user", content: "old question" }, currentCodexResponse(), { role: "user", content: "new question" }] as any,
+				[
+					{ role: "user", content: "old question" },
+					currentCodexResponse(),
+					{ role: "user", content: "new question" },
+				] as any,
 				tools,
 			),
 		)
@@ -148,7 +156,11 @@ describe("OpenAiCodexHandler persisted reasoning", () => {
 		await drain(
 			handler.createMessage(
 				"system",
-				[{ role: "user", content: "old question" }, currentCodexResponse(), { role: "user", content: "new question" }] as any,
+				[
+					{ role: "user", content: "old question" },
+					currentCodexResponse(),
+					{ role: "user", content: "new question" },
+				] as any,
 				tools,
 			),
 		)
@@ -176,14 +188,10 @@ describe("OpenAiCodexHandler persisted reasoning", () => {
 			websocketRequests.push(request)
 			yield { type: "usage", id: "resp_456" }
 		})
-		const httpStub = sinon.stub(handler as any, "createResponseStreamHttp").callsFake(async function* () { })
+		const httpStub = sinon.stub(handler as any, "createResponseStreamHttp").callsFake(async function* () {})
 		const closeSpy = sinon.spy(handler as any, "closeResponsesWebsocket")
 		const refreshStub = sinon.stub(openAiCodexOAuthManager, "forceRefreshAccessToken").resolves("refreshed-access-token")
-		const messages = [
-			{ role: "user", content: "first" },
-			currentCodexResponse(),
-			{ role: "user", content: "second" },
-		] as any
+		const messages = [{ role: "user", content: "first" }, currentCodexResponse(), { role: "user", content: "second" }] as any
 
 		await drain(handler.createMessage("system", [{ role: "user", content: "first" }] as any, tools))
 		let caughtError: unknown
@@ -247,6 +255,74 @@ describe("OpenAiCodexHandler persisted reasoning", () => {
 		expect(httpRequests[0].previous_response_id).to.equal(undefined)
 	})
 
+	it("does not retry authentication failures when retries are disabled", async () => {
+		const handler = createHandler("gpt-5.6-terra", { disableRetries: true })
+		const unauthorized = new Error("401 Unauthorized")
+		const executeStub = sinon.stub(handler as any, "executeRequest").callsFake(async function* () {
+			throw unauthorized
+		})
+		const refreshStub = sinon.stub(openAiCodexOAuthManager, "forceRefreshAccessToken")
+
+		let caughtError: unknown
+		try {
+			await drain(handler.createMessage("system", [{ role: "user", content: "first" }] as any, tools))
+		} catch (error) {
+			caughtError = error
+		}
+
+		expect(caughtError).to.equal(unauthorized)
+		executeStub.callCount.should.equal(1)
+		refreshStub.callCount.should.equal(0)
+	})
+
+	it("does not retry or fall back after a websocket failure when retries are disabled", async () => {
+		const handler = createHandler("gpt-5.6-terra", { disableRetries: true })
+		const websocketFailure = new Error("websocket failed")
+		const websocketStub = sinon.stub(handler as any, "createResponseStreamWebsocket").callsFake(async function* () {
+			throw websocketFailure
+		})
+		const httpStub = sinon.stub(handler as any, "createResponseStreamHttp").callsFake(async function* () {})
+
+		let caughtError: unknown
+		try {
+			await drain(
+				(handler as any).executeRequest(
+					{},
+					{},
+					{},
+					handler.getModel(),
+					"test-access-token",
+					true,
+					"request-configuration",
+				),
+			)
+		} catch (error) {
+			caughtError = error
+		}
+
+		expect(caughtError).to.equal(websocketFailure)
+		websocketStub.callCount.should.equal(1)
+		httpStub.callCount.should.equal(0)
+	})
+
+	it("does not fall back from the HTTP SDK request when retries are disabled", async () => {
+		const handler = createHandler("gpt-5.6-terra", { disableRetries: true })
+		const sdkFailure = new Error("SDK request failed")
+		const withResponse = sinon.stub().rejects(sdkFailure)
+		;(handler as any).client = { responses: { create: sinon.stub().returns({ withResponse }) } }
+		const manualRequestStub = sinon.stub(handler as any, "makeCodexRequest").callsFake(async function* () {})
+
+		let caughtError: unknown
+		try {
+			await drain((handler as any).createResponseStreamHttp({}, handler.getModel(), "test-access-token", {}))
+		} catch (error) {
+			caughtError = error
+		}
+
+		expect(caughtError).to.equal(sdkFailure)
+		withResponse.callCount.should.equal(1)
+		manualRequestStub.callCount.should.equal(0)
+	})
 
 	it("reconnects with full context after an HTTP fallback and resumes continuation", async () => {
 		expectLoggerErrors()
@@ -315,7 +391,11 @@ describe("OpenAiCodexHandler persisted reasoning", () => {
 		await drain(
 			handler.createMessage(
 				"system",
-				[{ role: "user", content: "old question" }, currentCodexResponse("gpt-5.5"), { role: "user", content: "new question" }] as any,
+				[
+					{ role: "user", content: "old question" },
+					currentCodexResponse("gpt-5.5"),
+					{ role: "user", content: "new question" },
+				] as any,
 				tools,
 			),
 		)
@@ -347,6 +427,29 @@ describe("OpenAiCodexHandler persisted reasoning", () => {
 		expect(body.previous_response_id).to.equal(undefined)
 		expect(body.stream).to.equal(undefined)
 		body.reasoning.context.should.equal("all_turns")
+	})
+
+	it("does not retry compact authentication failures when retries are disabled", async () => {
+		const handler = createHandler("gpt-5.6-terra", { disableRetries: true })
+		const unauthorized = new Error("401 Unauthorized")
+		const compact = sinon.stub().returns({ withResponse: sinon.stub().rejects(unauthorized) })
+		sinon.stub(handler as any, "createCodexClient").returns({ responses: { compact } })
+		const refreshStub = sinon.stub(openAiCodexOAuthManager, "forceRefreshAccessToken")
+
+		let caughtError: unknown
+		try {
+			await handler.compactConversation({
+				systemPrompt: "system",
+				messages: [{ role: "user", content: "question" }] as any,
+				tools,
+			})
+		} catch (error) {
+			caughtError = error
+		}
+
+		expect(caughtError).to.equal(unauthorized)
+		compact.callCount.should.equal(1)
+		refreshStub.callCount.should.equal(0)
 	})
 
 	it("starts a compacted branch without the stale anchor and then resumes from the new response", async () => {
@@ -412,5 +515,4 @@ describe("OpenAiCodexHandler persisted reasoning", () => {
 		expect(requests[1].previous_response_id).to.equal(undefined)
 		requests[1].input.should.have.length(2)
 	})
-
 })

@@ -154,6 +154,8 @@ export interface PreCompactHookParams {
 	// Configuration
 	/** Whether hooks are enabled */
 	hooksEnabled: boolean
+	/** Whether hook cancellation should cancel the owning task. Defaults to true. */
+	cancelTaskOnCancellation?: boolean
 }
 
 /**
@@ -244,18 +246,16 @@ export async function executePreCompactHookWithCleanup(params: PreCompactHookPar
 			const cancellationSource = preCompactResult.wasCancelled ? "user" : "PreCompact hook"
 			Logger.log(`[PreCompact] Context compaction cancelled by ${cancellationSource} for task ${params.taskId}`)
 
-			// Internalized cancellation state management (replaces handleCancellation callback)
-			// Always save state before cancelling, regardless of cancellation source
-			params.taskState.didFinishAbortingStream = true
-			await params.messageStateHandler.saveDiracMessagesAndUpdateHistory()
-			await params.messageStateHandler.overwriteApiConversationHistory(
-				params.messageStateHandler.getApiConversationHistory(),
-			)
-			await params.postStateToWebview()
-
-			// Trigger full cancellation flow
-			await params.cancelTask()
-
+			if (params.cancelTaskOnCancellation !== false) {
+				// Always save state before cancelling, regardless of cancellation source
+				params.taskState.didFinishAbortingStream = true
+				await params.messageStateHandler.saveDiracMessagesAndUpdateHistory()
+				await params.messageStateHandler.overwriteApiConversationHistory(
+					params.messageStateHandler.getApiConversationHistory(),
+				)
+				await params.postStateToWebview()
+				await params.cancelTask()
+			}
 			// Throw error to signal cancellation to caller
 			throw new HookCancellationError(preCompactResult.wasCancelled)
 		}

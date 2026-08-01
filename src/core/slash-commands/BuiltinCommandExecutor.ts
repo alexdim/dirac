@@ -13,6 +13,8 @@ export async function executeBuiltinCommand(
 	permissionController: CommandPermissionController | undefined,
 	extensionPath: string | undefined,
 	sourceDir: string,
+	conversationCondensationAvailable = false,
+	taskHandoffCondensationAvailable = false,
 ): Promise<ParseSlashCommandResult | null> {
 	const { commandName, tagContent, contentStartIndex, slashMatch } = match
 	if (!SUPPORTED_DEFAULT_COMMANDS.includes(commandName)) return null
@@ -28,7 +30,20 @@ export async function executeBuiltinCommand(
 	}
 
 	const textWithoutSlashCommand = removeSlashCommand(fullText, contentStartIndex, slashMatch)
-	const replacement = buildCommandReplacements(extensionPath, sourceDir)[commandName]
+	if (commandName === "smol" || commandName === "compact") {
+		telemetryService.captureSlashCommandUsed(ulid, commandName, "builtin")
+		return {
+			processedText: textWithoutSlashCommand,
+			needsDiracrulesFileCheck: false,
+			directAction: { type: "condenseConversation" },
+		}
+	}
+	const replacement = buildCommandReplacements(
+		extensionPath,
+		sourceDir,
+		conversationCondensationAvailable,
+		taskHandoffCondensationAvailable,
+	)[commandName]
 	const processedText = (typeof replacement === "string" ? replacement : await replacement) + textWithoutSlashCommand
 	telemetryService.captureSlashCommandUsed(ulid, commandName, "builtin")
 

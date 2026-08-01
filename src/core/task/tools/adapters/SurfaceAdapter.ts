@@ -12,6 +12,7 @@ import {
 	IOrchestrationTrait,
 	ISkillsTrait,
 	ISymbolTrait,
+	IConversationCondensationTrait,
 	ISystemTrait,
 	SystemCommandResult,
 	ITelemetryTrait,
@@ -29,6 +30,7 @@ import { buildSkillsTrait } from "./traits/SkillsTraitBuilder"
 import { buildSystemTrait } from "./traits/SystemTraitBuilder"
 import { buildInteractionTrait, buildUiTrait, createCardFromMessenger } from "./traits/UiTraitBuilder"
 import { buildTelemetryTrait, buildWorkspaceTrait } from "./traits/WorkspaceTraitBuilder"
+import { buildConversationCondensationTrait } from "./traits/ConversationCondensationTraitBuilder"
 
 import { AnchorStateManager } from "@utils/AnchorStateManager"
 /**
@@ -41,6 +43,7 @@ export class SurfaceAdapter implements IToolEnvironment {
 	public readonly interaction: IInteractionTrait
 	public readonly system: ISystemTrait
 	public readonly orchestration: IOrchestrationTrait
+	public readonly conversationCondensation?: IConversationCondensationTrait
 	public readonly telemetry: ITelemetryTrait
 	public readonly workspace: IWorkspaceTrait
 	public readonly ast: IASTTrait
@@ -79,6 +82,9 @@ export class SurfaceAdapter implements IToolEnvironment {
 		this.symbol = buildSymbolTrait()
 		this.context = config.context
 		this.orchestration = buildOrchestrationTrait(config)
+		this.conversationCondensation = config.isSubagentExecution
+			? undefined
+			: buildConversationCondensationTrait(config)
 	}
 
 	public getCustomMetadata(): Record<string, any> {

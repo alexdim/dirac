@@ -9,7 +9,7 @@ import { executeSkillCommand } from "./SkillCommandExecutor"
 import type { ParseSlashCommandResult } from "./types"
 import { collectEnabledWorkflows, executeWorkflowCommand } from "./WorkflowCommandExecutor"
 
-export type { ParseSlashCommandResult } from "./types"
+export type { ParseSlashCommandResult, SlashCommandDirectAction } from "./types"
 
 /**
  * Parses text for slash commands and transforms them with appropriate instructions.
@@ -27,11 +27,22 @@ export async function parseSlashCommands(
 	permissionController?: CommandPermissionController,
 	extensionPath?: string,
 	sourceDir: string = getExtensionSourceDir(),
+	conversationCondensationAvailable = false,
+	taskHandoffCondensationAvailable = false,
 ): Promise<ParseSlashCommandResult> {
 	const match = findSlashCommandInTags(text)
 	if (!match) return { processedText: text, needsDiracrulesFileCheck: false }
 
-	const builtinResult = await executeBuiltinCommand(match, text, ulid, permissionController, extensionPath, sourceDir)
+	const builtinResult = await executeBuiltinCommand(
+		match,
+		text,
+		ulid,
+		permissionController,
+		extensionPath,
+		sourceDir,
+		conversationCondensationAvailable,
+		taskHandoffCondensationAvailable,
+	)
 	if (builtinResult) return builtinResult
 
 	const enabledWorkflows = collectEnabledWorkflows(localWorkflowToggles, globalWorkflowToggles)

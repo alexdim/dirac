@@ -1,7 +1,7 @@
 import { strict as assert } from "node:assert"
+import { DiracAskResponse } from "@shared/WebviewMessage"
 import { afterEach, describe, it } from "mocha"
 import sinon from "sinon"
-import { DiracAskResponse } from "@shared/WebviewMessage"
 import { CondenseTool } from "../condense/CondenseTool"
 
 function createMocks(source: "automatic" | "user" = "automatic") {
@@ -11,21 +11,32 @@ function createMocks(source: "automatic" | "user" = "automatic") {
 		finalize: sinon.stub().resolves(),
 		waitForInteraction: sinon.stub().resolves({ action: DiracAskResponse.APPROVE }),
 	}
+	const abortController = new AbortController()
 	const state: Record<string, unknown> = {
 		consecutiveMistakeCount: 0,
 		pendingCondenseSource: source === "automatic" ? "automatic" : undefined,
 		lastAutoCondenseTriggerIndex: 4,
+		abortSignal: abortController.signal,
 	}
 	let providerState: any = {}
+	const conversationCondensation = {
+		isAvailable: sinon.stub().returns(false),
+		condenseConversation: sinon.stub(),
+	}
+
 	const env = {
 		ui: { createCard: sinon.stub().resolves(card) },
+		conversationCondensation,
+		logging: { warn: sinon.stub() },
 		orchestration: {
 			getTaskState: sinon.stub().callsFake((key: string) => state[key]),
 			setTaskState: sinon.stub().callsFake((key: string, value: unknown) => {
 				state[key] = value
 			}),
 			getNextTruncationRange: sinon.stub().returns([1, 6]),
-			setTruncationRange: sinon.stub(),
+			setTruncationRange: sinon.stub().callsFake((range: [number, number]) => {
+				state.conversationHistoryDeletedRange = range
+			}),
 			resetTransientState: sinon.stub().resolves(),
 			runHook: sinon.stub().resolves({}),
 		},
@@ -54,7 +65,7 @@ function createMocks(source: "automatic" | "user" = "automatic") {
 			},
 		},
 	}
-	return { card, env, state, getProviderState: () => providerState }
+	return { card, env, state, abortController, conversationCondensation, getProviderState: () => providerState }
 }
 
 describe("CondenseTool", () => {
@@ -77,6 +88,55 @@ describe("CondenseTool", () => {
 			previousConversationHistoryDeletedRange: undefined,
 		})
 		assert.match(result, /Please continue the conversation/)
+	})
+
+	it("uses the Utility model for a no-context automatic condense before consuming source state", async () => {
+		const { card, env, state, conversationCondensation } = createMocks("automatic")
+		conversationCondensation.isAvailable.returns(true)
+		conversationCondensation.condenseConversation.resolves("utility summary")
+
+		const result = await new CondenseTool().processCall({}, env as any)
+
+		assert.equal(conversationCondensation.condenseConversation.callCount, 1)
+		assert.equal(state.pendingCondenseSource, undefined)
+		assert.equal(card.waitForInteraction.callCount, 0)
+		assert.deepEqual(env.orchestration.setTruncationRange.firstCall.args[0], [1, 6])
+		assert.match(result, /utility summary/)
+	})
+
+	it("returns active-model fallback instructions without mutating failed automatic condensation", async () => {
+		const { card, env, state, conversationCondensation } = createMocks("automatic")
+		conversationCondensation.isAvailable.returns(true)
+		conversationCondensation.condenseConversation.rejects(new Error("utility unavailable"))
+
+		const fallback = await new CondenseTool().processCall({}, env as any)
+
+		assert.equal(state.pendingCondenseSource, "automatic")
+		assert.equal(env.orchestration.setTruncationRange.callCount, 0)
+		assert.equal(card.waitForInteraction.callCount, 0)
+		assert.match(fallback, /Do not call it again without context/)
+
+		await new CondenseTool().processCall({ context: "active model summary" }, env as any)
+		assert.equal(card.waitForInteraction.callCount, 0)
+		assert.equal(state.pendingCondenseSource, undefined)
+	})
+
+	it("propagates task cancellation without fallback or compaction mutation", async () => {
+		const { abortController, env, state, conversationCondensation } = createMocks("automatic")
+		conversationCondensation.isAvailable.returns(true)
+		conversationCondensation.condenseConversation.callsFake(async (_template: string, options: { signal?: AbortSignal }) => {
+			assert.equal(options.signal, abortController.signal)
+			abortController.abort()
+			throw new Error("cancelled")
+		})
+
+		await assert.rejects(new CondenseTool().processCall({}, env as any), /cancelled/)
+
+		assert.equal(state.pendingCondenseSource, "automatic")
+		assert.equal(env.logging.warn.callCount, 0)
+		assert.equal(env.ui.createCard.callCount, 0)
+		assert.equal(env.orchestration.setTruncationRange.callCount, 0)
+		assert.equal(state.pendingApiConversationCompaction, undefined)
 	})
 
 	it("runs the hook before applying an approved user condense", async () => {
@@ -119,5 +179,63 @@ describe("CondenseTool", () => {
 		const result = await new CondenseTool().processCall({ context: "summary" }, env as any)
 
 		assert.match(result, /retain deployment constraints/)
+	})
+	it("does not compact when the task is cancelled after approval", async () => {
+		const { abortController, card, env, state } = createMocks("user")
+		card.waitForInteraction.callsFake(async () => {
+			abortController.abort()
+			return { action: DiracAskResponse.APPROVE }
+		})
+
+		await assert.rejects(new CondenseTool().processCall({ context: "summary" }, env as any), /Task instance aborted/)
+
+		assert.equal(env.orchestration.runHook.callCount, 0)
+		assert.equal(env.orchestration.setTruncationRange.callCount, 0)
+		assert.equal(state.pendingApiConversationCompaction, undefined)
+	})
+
+	it("does not compact when the task is cancelled by the PreCompact phase", async () => {
+		const { abortController, env, state } = createMocks("automatic")
+		env.orchestration.runHook.callsFake(async () => {
+			abortController.abort()
+			return {}
+		})
+
+		await assert.rejects(new CondenseTool().processCall({ context: "summary" }, env as any), /Task instance aborted/)
+
+		assert.equal(env.orchestration.setTruncationRange.callCount, 0)
+		assert.equal(state.pendingApiConversationCompaction, undefined)
+	})
+
+	it("rolls back task and provider state when compaction history persistence fails", async () => {
+		const { env, state, getProviderState } = createMocks("automatic")
+		const previousPendingCompaction = {
+			conversationHistoryDeletedRange: [0, 2],
+			previousConversationHistoryDeletedRange: undefined,
+		}
+		state.conversationHistoryDeletedRange = [0, 2]
+		state.skipNextAutoCondenseCheck = false
+		state.pendingApiConversationCompaction = previousPendingCompaction
+		env.config.messageState.saveDiracMessagesAndUpdateHistory.onFirstCall().rejects(new Error("history save failed"))
+		env.config.messageState.saveDiracMessagesAndUpdateHistory.onSecondCall().resolves()
+
+		await assert.rejects(new CondenseTool().processCall({ context: "summary" }, env as any), /history save failed/)
+
+		assert.deepEqual(state.conversationHistoryDeletedRange, [0, 2])
+		assert.equal(state.skipNextAutoCondenseCheck, false)
+		assert.equal(state.pendingApiConversationCompaction, previousPendingCompaction)
+		assert.deepEqual(getProviderState(), {})
+		assert.equal(env.orchestration.resetTransientState.callCount, 0)
+	})
+
+	it("returns the committed continuation when post-compaction presentation fails", async () => {
+		const { env, state } = createMocks("automatic")
+		env.ui.createCard.rejects(new Error("card unavailable"))
+
+		const result = await new CondenseTool().processCall({ context: "summary" }, env as any)
+
+		assert.match(result, /Please continue the conversation/)
+		assert.deepEqual(state.conversationHistoryDeletedRange, [1, 6])
+		assert.equal(env.logging.warn.callCount, 1)
 	})
 })

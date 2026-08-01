@@ -1,0 +1,69 @@
+import { strict as assert } from "node:assert"
+import { describe, it } from "mocha"
+import { convertDiracStorageToAnthropicMessage } from "../content"
+
+describe("message content provenance cleanup", () => {
+	it("removes transient user-input provenance for ordinary providers", () => {
+		const result = convertDiracStorageToAnthropicMessage({
+			role: "user",
+			content: [{ type: "text", text: "hello", isUserInput: true }],
+		})
+		const content = result.content as any[]
+
+		assert.equal("isUserInput" in content[0], false)
+		assert.equal(content[0].text, "hello")
+	})
+
+	it("removes provenance without discarding reasoning details for providers that preserve them", () => {
+		const reasoningDetails = [
+			{
+				type: "reasoning.text",
+				text: "reasoning",
+				signature: "signature",
+				format: "anthropic-claude-v1",
+				index: 0,
+			},
+		]
+		const result = convertDiracStorageToAnthropicMessage(
+			{
+				role: "user",
+				content: [
+					{ type: "text", text: "hello", isUserInput: true },
+					{ type: "text", text: "preserve me", reasoning_details: reasoningDetails },
+				],
+			},
+			"openrouter",
+		)
+		const content = result.content as any[]
+
+		assert.equal("isUserInput" in content[0], false)
+		assert.deepEqual(content[1].reasoning_details, reasoningDetails)
+	})
+
+	it("removes provenance recursively from tool results at the provider boundary", () => {
+		const result = convertDiracStorageToAnthropicMessage(
+			{
+				role: "user",
+				content: [
+					{
+						type: "tool_result",
+						tool_use_id: "tool-1",
+						content: [
+							{
+								type: "text",
+								text: "machine text",
+								isUserInput: true,
+								steeringMessageIds: ["steer-1"],
+							},
+						],
+					},
+				],
+			} as any,
+			"openrouter",
+		)
+		const nestedBlock = (result.content as any[])[0].content[0]
+
+		assert.equal("isUserInput" in nestedBlock, false)
+		assert.equal("steeringMessageIds" in nestedBlock, false)
+	})
+})

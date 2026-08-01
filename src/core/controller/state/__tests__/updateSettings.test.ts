@@ -157,6 +157,39 @@ describe("updateSettings", () => {
 			expect((apiModule.buildApiHandler as sinon.SinonStub).called).to.be.false
 		})
 
+		it("updates utility model settings without rebuilding the active task API", async () => {
+			const controller = createMockController({ task: {} })
+			await updateSettings(
+				controller,
+				UpdateSettingsRequest.create({
+					utilityModelEnabled: true,
+					utilityModelSelection: {
+						provider: ApiProvider.OPENAI,
+						modelId: "gpt-5-mini",
+						openAiProfileName: "utility-profile",
+						awsBedrockCustomSelected: true,
+						awsBedrockCustomModelBaseId: "base-model",
+					},
+				}),
+			)
+
+			expect(controller.stateManager.setGlobalState.calledWith("utilityModelEnabled", true)).to.be.true
+			expect(
+				controller.stateManager.setGlobalState.calledWith(
+					"utilityModelSelection",
+					sinon.match({
+						provider: "openai",
+						modelId: "gpt-5-mini",
+						openAiProfileName: "utility-profile",
+						awsBedrockCustomSelected: true,
+						awsBedrockCustomModelBaseId: "base-model",
+					}),
+				),
+			).to.be.true
+			expect((apiModule.buildApiHandler as sinon.SinonStub).called).to.be.false
+			expect(controller.task.setApiHandler.called).to.be.false
+		})
+
 		it("does not persist an invalid API configuration", async () => {
 			const controller = createMockController({ task: {} })
 			;(apiModule.buildApiHandler as sinon.SinonStub).throws(new Error("invalid candidate"))
@@ -427,6 +460,41 @@ describe("updateSettings", () => {
 			expect(controller.stateManager.setGlobalState.calledWith("actModeApiProvider", "openai")).to.be.true
 		})
 
+		it("converts and persists global Utility model settings from CLI protobuf values", async () => {
+			const controller = createMockController()
+			const request = UpdateSettingsRequestCli.create({
+				settings: {
+					utilityModelEnabled: true,
+					utilityModelSelection: {
+						provider: ApiProvider.OPENAI,
+						modelId: "gpt-5-mini",
+						openAiProfileName: "utility-profile",
+						awsBedrockCustomSelected: true,
+						awsBedrockCustomModelBaseId: "base-model",
+					},
+				},
+			})
+
+			await updateSettingsCli(controller, request)
+
+			expect(controller.stateManager.setGlobalState.calledWith("utilityModelEnabled", true)).to.be.true
+			expect(
+				controller.stateManager.setGlobalState.calledWith(
+					"utilityModelSelection",
+					sinon.match({
+						provider: "openai",
+						modelId: "gpt-5-mini",
+						openAiProfileName: "utility-profile",
+						awsBedrockCustomSelected: true,
+						awsBedrockCustomModelBaseId: "base-model",
+					}),
+				),
+			).to.be.true
+			const batch = controller.stateManager.setGlobalStateBatch.firstCall.args[0]
+			expect(batch.utilityModelEnabled).to.be.undefined
+			expect(batch.utilityModelSelection).to.be.undefined
+		})
+
 		it("should set customPrompt to 'compact' only when value is 'compact'", async () => {
 			const controller = createMockController()
 			const request = UpdateSettingsRequestCli.create({ settings: { customPrompt: "compact" } as any })
@@ -590,6 +658,28 @@ describe("updateSettings", () => {
 			expect(batch.preferredLanguage).to.equal("go")
 			expect(batch.openAiBaseUrl).to.equal("http://x")
 			expect(batch.openaiReasoningEffort).to.be.undefined
+		})
+
+		it("does not persist global Utility model settings as task overrides", async () => {
+			const controller = createMockController()
+			const request = UpdateTaskSettingsRequest.create({
+				taskId: "task-1",
+				settings: {
+					preferredLanguage: "go",
+					utilityModelEnabled: false,
+					utilityModelSelection: {
+						provider: ApiProvider.OPENAI,
+						modelId: "gpt-5-mini",
+					},
+				} as any,
+			})
+
+			await updateTaskSettings(controller, request)
+
+			const batch = controller.stateManager.setTaskSettingsBatch.firstCall.args[1]
+			expect(batch.preferredLanguage).to.equal("go")
+			expect(batch.utilityModelEnabled).to.be.undefined
+			expect(batch.utilityModelSelection).to.be.undefined
 		})
 
 		it("should convert mode and set task setting", async () => {

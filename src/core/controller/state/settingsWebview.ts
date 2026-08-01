@@ -1,6 +1,7 @@
 import { isValidAutoCondenseContextLimit } from "@shared/context-management"
 import { ToolRegistry } from "@core/task/tools/registry/ToolRegistry"
 import { UpdateSettingsRequest } from "@shared/proto/dirac/state"
+import { convertProtoToModelProviderSelection } from "@shared/proto-conversions/models/api-configuration-conversion"
 import { telemetryService } from "../../../services/telemetry"
 import { Controller } from ".."
 
@@ -11,6 +12,9 @@ export function applySimpleSettings(controller: Controller, request: UpdateSetti
 		sm.setGlobalState("planActSeparateModelsSetting", request.planActSeparateModelsSetting)
 	if (request.enableCheckpointsSetting !== undefined)
 		sm.setGlobalState("enableCheckpointsSetting", request.enableCheckpointsSetting)
+	if (request.utilityModelEnabled !== undefined) sm.setGlobalState("utilityModelEnabled", request.utilityModelEnabled)
+	if (request.utilityModelSelection !== undefined)
+		sm.setGlobalState("utilityModelSelection", convertProtoToModelProviderSelection(request.utilityModelSelection))
 	if (request.preferredLanguage !== undefined) sm.setGlobalState("preferredLanguage", request.preferredLanguage)
 	if (request.shellIntegrationTimeout !== undefined)
 		sm.setGlobalState("shellIntegrationTimeout", Number(request.shellIntegrationTimeout))

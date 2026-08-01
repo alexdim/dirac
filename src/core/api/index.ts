@@ -1,4 +1,6 @@
 import { ApiConfiguration, getModelInfo, ModelInfo, openAiModelInfoSaneDefaults, QwenApiRegions } from "@shared/api"
+import type { ModelProviderSelection } from "@shared/api"
+import { modelProviderSelectionUpdates } from "./modelProviderSelection"
 import { Mode } from "@shared/storage/types"
 import { DiracStorageMessage } from "@/shared/messages/content"
 import type {
@@ -61,6 +63,7 @@ export type {
 } from "./conversation"
 export type CommonApiHandlerOptions = {
 	onRetryAttempt?: ApiConfiguration["onRetryAttempt"]
+	disableRetries?: boolean
 	enableParallelToolCalling?: boolean
 }
 export interface ApiHandler {
@@ -139,6 +142,7 @@ const PROVIDER_REGISTRY: Record<
 	anthropic: (cfg, mc) =>
 		new AnthropicHandler({
 			onRetryAttempt: cfg.onRetryAttempt,
+			disableRetries: cfg.disableRetries,
 			apiKey: cfg.apiKey,
 			anthropicBaseUrl: cfg.anthropicBaseUrl,
 			anthropicHeaders: cfg.anthropicHeaders,
@@ -149,6 +153,7 @@ const PROVIDER_REGISTRY: Record<
 	openrouter: (cfg, mc) =>
 		new OpenRouterHandler({
 			onRetryAttempt: cfg.onRetryAttempt,
+			disableRetries: cfg.disableRetries,
 			openRouterApiKey: cfg.openRouterApiKey,
 			openRouterModelId: mc.openRouterModelId,
 			openRouterModelInfo: mc.openRouterModelInfo,
@@ -162,6 +167,7 @@ const PROVIDER_REGISTRY: Record<
 	bedrock: (cfg, mc) =>
 		new AwsBedrockHandler({
 			onRetryAttempt: cfg.onRetryAttempt,
+			disableRetries: cfg.disableRetries,
 			apiModelId: mc.apiModelId,
 			awsAccessKey: cfg.awsAccessKey,
 			awsSecretKey: cfg.awsSecretKey,
@@ -183,6 +189,7 @@ const PROVIDER_REGISTRY: Record<
 	vertex: (cfg, mc) =>
 		new VertexHandler({
 			onRetryAttempt: cfg.onRetryAttempt,
+			disableRetries: cfg.disableRetries,
 			vertexProjectId: cfg.vertexProjectId,
 			vertexRegion: cfg.vertexRegion,
 			apiModelId: mc.apiModelId,
@@ -229,6 +236,7 @@ const PROVIDER_REGISTRY: Record<
 			const normalizedBaseUrl = openAiBaseUrl.replace(/\/responses\/?$/, "")
 			return new OpenAiResponsesCompatibleHandler({
 				onRetryAttempt: cfg.onRetryAttempt,
+				disableRetries: cfg.disableRetries,
 				openAiApiKey: apiKey,
 				openAiBaseUrl: normalizedBaseUrl,
 				openAiModelId,
@@ -239,6 +247,7 @@ const PROVIDER_REGISTRY: Record<
 		}
 		return new OpenAiHandler({
 			onRetryAttempt: cfg.onRetryAttempt,
+			disableRetries: cfg.disableRetries,
 			openAiApiKey: apiKey,
 			openAiBaseUrl,
 			azureApiVersion,
@@ -252,6 +261,7 @@ const PROVIDER_REGISTRY: Record<
 	lmstudio: (cfg, mc) =>
 		new LmStudioHandler({
 			onRetryAttempt: cfg.onRetryAttempt,
+			disableRetries: cfg.disableRetries,
 			lmStudioBaseUrl: cfg.lmStudioBaseUrl,
 			lmStudioModelId: mc.lmStudioModelId,
 			lmStudioMaxTokens: cfg.lmStudioMaxTokens,
@@ -259,6 +269,7 @@ const PROVIDER_REGISTRY: Record<
 	gemini: (cfg, mc) =>
 		new GeminiHandler({
 			onRetryAttempt: cfg.onRetryAttempt,
+			disableRetries: cfg.disableRetries,
 			vertexProjectId: cfg.vertexProjectId,
 			vertexRegion: cfg.vertexRegion,
 			geminiApiKey: cfg.geminiApiKey,
@@ -272,6 +283,7 @@ const PROVIDER_REGISTRY: Record<
 	"openai-native": (cfg, mc) =>
 		new OpenAiNativeHandler({
 			onRetryAttempt: cfg.onRetryAttempt,
+			disableRetries: cfg.disableRetries,
 			openAiNativeApiKey: cfg.openAiNativeApiKey,
 			reasoningEffort: mc.reasoningEffort,
 			apiModelId: mc.apiModelId,
@@ -281,6 +293,7 @@ const PROVIDER_REGISTRY: Record<
 	"openai-codex": (cfg, mc) =>
 		new OpenAiCodexHandler({
 			onRetryAttempt: cfg.onRetryAttempt,
+			disableRetries: cfg.disableRetries,
 			reasoningEffort: mc.reasoningEffort,
 			apiModelId: mc.apiModelId,
 			enableParallelToolCalling: cfg.enableParallelToolCalling,
@@ -288,6 +301,7 @@ const PROVIDER_REGISTRY: Record<
 	deepseek: (cfg, mc) =>
 		new DeepSeekHandler({
 			onRetryAttempt: cfg.onRetryAttempt,
+			disableRetries: cfg.disableRetries,
 			deepSeekApiKey: cfg.deepSeekApiKey,
 			reasoningEffort: mc.reasoningEffort,
 			thinkingBudgetTokens: mc.thinkingBudgetTokens,
@@ -296,6 +310,7 @@ const PROVIDER_REGISTRY: Record<
 	requesty: (cfg, mc) =>
 		new RequestyHandler({
 			onRetryAttempt: cfg.onRetryAttempt,
+			disableRetries: cfg.disableRetries,
 			requestyBaseUrl: cfg.requestyBaseUrl,
 			requestyApiKey: cfg.requestyApiKey,
 			reasoningEffort: mc.reasoningEffort,
@@ -306,18 +321,21 @@ const PROVIDER_REGISTRY: Record<
 	fireworks: (cfg, mc) =>
 		new FireworksHandler({
 			onRetryAttempt: cfg.onRetryAttempt,
+			disableRetries: cfg.disableRetries,
 			fireworksApiKey: cfg.fireworksApiKey,
 			fireworksModelId: mc.fireworksModelId,
 		}),
 	together: (cfg, mc) =>
 		new TogetherHandler({
 			onRetryAttempt: cfg.onRetryAttempt,
+			disableRetries: cfg.disableRetries,
 			togetherApiKey: cfg.togetherApiKey,
 			togetherModelId: mc.togetherModelId,
 		}),
 	qwen: (cfg, mc) =>
 		new QwenHandler({
 			onRetryAttempt: cfg.onRetryAttempt,
+			disableRetries: cfg.disableRetries,
 			qwenApiKey: cfg.qwenApiKey,
 			qwenApiLine: cfg.qwenApiLine === QwenApiRegions.INTERNATIONAL ? QwenApiRegions.INTERNATIONAL : QwenApiRegions.CHINA,
 			apiModelId: mc.apiModelId,
@@ -326,19 +344,35 @@ const PROVIDER_REGISTRY: Record<
 	"qwen-code": (cfg, mc) =>
 		new QwenCodeHandler({
 			onRetryAttempt: cfg.onRetryAttempt,
+			disableRetries: cfg.disableRetries,
 			qwenCodeOauthPath: cfg.qwenCodeOauthPath,
 			apiModelId: mc.apiModelId,
 		}),
 	doubao: (cfg, mc) =>
-		new DoubaoHandler({ onRetryAttempt: cfg.onRetryAttempt, doubaoApiKey: cfg.doubaoApiKey, apiModelId: mc.apiModelId }),
+		new DoubaoHandler({
+			onRetryAttempt: cfg.onRetryAttempt,
+			disableRetries: cfg.disableRetries,
+			doubaoApiKey: cfg.doubaoApiKey,
+			apiModelId: mc.apiModelId,
+		}),
 	mistral: (cfg, mc) =>
-		new MistralHandler({ onRetryAttempt: cfg.onRetryAttempt, mistralApiKey: cfg.mistralApiKey, apiModelId: mc.apiModelId }),
+		new MistralHandler({
+			onRetryAttempt: cfg.onRetryAttempt,
+			disableRetries: cfg.disableRetries,
+			mistralApiKey: cfg.mistralApiKey,
+			apiModelId: mc.apiModelId,
+		}),
 	"vscode-lm": (cfg, mc) =>
-		new VsCodeLmHandler({ onRetryAttempt: cfg.onRetryAttempt, vsCodeLmModelSelector: mc.vsCodeLmModelSelector }),
+		new VsCodeLmHandler({
+			onRetryAttempt: cfg.onRetryAttempt,
+			disableRetries: cfg.disableRetries,
+			vsCodeLmModelSelector: mc.vsCodeLmModelSelector,
+		}),
 	"github-copilot": (cfg, mc) => new GithubCopilotHandler({ onRetryAttempt: cfg.onRetryAttempt, apiModelId: mc.apiModelId }),
 	litellm: (cfg, mc) =>
 		new LiteLlmHandler({
 			onRetryAttempt: cfg.onRetryAttempt,
+			disableRetries: cfg.disableRetries,
 			liteLlmApiKey: cfg.liteLlmApiKey,
 			liteLlmBaseUrl: cfg.liteLlmBaseUrl,
 			liteLlmModelId: mc.liteLlmModelId,
@@ -350,6 +384,7 @@ const PROVIDER_REGISTRY: Record<
 	moonshot: (cfg, mc) =>
 		new MoonshotHandler({
 			onRetryAttempt: cfg.onRetryAttempt,
+			disableRetries: cfg.disableRetries,
 			moonshotApiKey: cfg.moonshotApiKey,
 			moonshotApiLine: cfg.moonshotApiLine,
 			apiModelId: mc.apiModelId,
@@ -357,15 +392,22 @@ const PROVIDER_REGISTRY: Record<
 	huggingface: (cfg, mc) =>
 		new HuggingFaceHandler({
 			onRetryAttempt: cfg.onRetryAttempt,
+			disableRetries: cfg.disableRetries,
 			huggingFaceApiKey: cfg.huggingFaceApiKey,
 			huggingFaceModelId: mc.huggingFaceModelId,
 			huggingFaceModelInfo: mc.huggingFaceModelInfo,
 		}),
 	nebius: (cfg, mc) =>
-		new NebiusHandler({ onRetryAttempt: cfg.onRetryAttempt, nebiusApiKey: cfg.nebiusApiKey, apiModelId: mc.apiModelId }),
+		new NebiusHandler({
+			onRetryAttempt: cfg.onRetryAttempt,
+			disableRetries: cfg.disableRetries,
+			nebiusApiKey: cfg.nebiusApiKey,
+			apiModelId: mc.apiModelId,
+		}),
 	xai: (cfg, mc) =>
 		new XAIHandler({
 			onRetryAttempt: cfg.onRetryAttempt,
+			disableRetries: cfg.disableRetries,
 			xaiApiKey: cfg.xaiApiKey,
 			reasoningEffort: mc.reasoningEffort,
 			apiModelId: mc.apiModelId,
@@ -373,18 +415,21 @@ const PROVIDER_REGISTRY: Record<
 	sambanova: (cfg, mc) =>
 		new SambanovaHandler({
 			onRetryAttempt: cfg.onRetryAttempt,
+			disableRetries: cfg.disableRetries,
 			sambanovaApiKey: cfg.sambanovaApiKey,
 			apiModelId: mc.apiModelId,
 		}),
 	cerebras: (cfg, mc) =>
 		new CerebrasHandler({
 			onRetryAttempt: cfg.onRetryAttempt,
+			disableRetries: cfg.disableRetries,
 			cerebrasApiKey: cfg.cerebrasApiKey,
 			apiModelId: mc.apiModelId,
 		}),
 	groq: (cfg, mc) =>
 		new GroqHandler({
 			onRetryAttempt: cfg.onRetryAttempt,
+			disableRetries: cfg.disableRetries,
 			groqApiKey: cfg.groqApiKey,
 			groqModelId: mc.groqModelId,
 			groqModelInfo: mc.groqModelInfo,
@@ -393,6 +438,7 @@ const PROVIDER_REGISTRY: Record<
 	baseten: (cfg, mc) =>
 		new BasetenHandler({
 			onRetryAttempt: cfg.onRetryAttempt,
+			disableRetries: cfg.disableRetries,
 			basetenApiKey: cfg.basetenApiKey,
 			basetenModelId: mc.basetenModelId,
 			basetenModelInfo: mc.basetenModelInfo,
@@ -401,6 +447,7 @@ const PROVIDER_REGISTRY: Record<
 	"claude-code": (cfg, mc) =>
 		new ClaudeCodeHandler({
 			onRetryAttempt: cfg.onRetryAttempt,
+			disableRetries: cfg.disableRetries,
 			claudeCodePath: cfg.claudeCodePath,
 			apiModelId: mc.apiModelId,
 			thinkingBudgetTokens: mc.thinkingBudgetTokens,
@@ -408,6 +455,7 @@ const PROVIDER_REGISTRY: Record<
 	"huawei-cloud-maas": (cfg, mc) =>
 		new HuaweiCloudMaaSHandler({
 			onRetryAttempt: cfg.onRetryAttempt,
+			disableRetries: cfg.disableRetries,
 			huaweiCloudMaasApiKey: cfg.huaweiCloudMaasApiKey,
 			huaweiCloudMaasModelId: mc.huaweiCloudMaasModelId,
 			huaweiCloudMaasModelInfo: mc.huaweiCloudMaasModelInfo,
@@ -416,6 +464,7 @@ const PROVIDER_REGISTRY: Record<
 	"vercel-ai-gateway": (cfg, mc) =>
 		new VercelAIGatewayHandler({
 			onRetryAttempt: cfg.onRetryAttempt,
+			disableRetries: cfg.disableRetries,
 			vercelAiGatewayApiKey: cfg.vercelAiGatewayApiKey,
 			openRouterModelId: mc.vercelAiGatewayModelId,
 			openRouterModelInfo: mc.vercelAiGatewayModelInfo,
@@ -425,6 +474,7 @@ const PROVIDER_REGISTRY: Record<
 	zai: (cfg, mc) =>
 		new ZAiHandler({
 			onRetryAttempt: cfg.onRetryAttempt,
+			disableRetries: cfg.disableRetries,
 			zaiApiLine: cfg.zaiApiLine,
 			zaiApiKey: cfg.zaiApiKey,
 			thinkingBudgetTokens: mc.thinkingBudgetTokens,
@@ -433,6 +483,7 @@ const PROVIDER_REGISTRY: Record<
 	aihubmix: (cfg, mc) =>
 		new AIhubmixHandler({
 			onRetryAttempt: cfg.onRetryAttempt,
+			disableRetries: cfg.disableRetries,
 			apiKey: cfg.aihubmixApiKey,
 			baseURL: cfg.aihubmixBaseUrl,
 			appCode: cfg.aihubmixAppCode,
@@ -442,6 +493,7 @@ const PROVIDER_REGISTRY: Record<
 	minimax: (cfg, mc) =>
 		new MinimaxHandler({
 			onRetryAttempt: cfg.onRetryAttempt,
+			disableRetries: cfg.disableRetries,
 			minimaxApiKey: cfg.minimaxApiKey,
 			minimaxApiLine: cfg.minimaxApiLine,
 			apiModelId: mc.apiModelId,
@@ -450,11 +502,17 @@ const PROVIDER_REGISTRY: Record<
 	nousResearch: (cfg, mc) =>
 		new NousResearchHandler({
 			onRetryAttempt: cfg.onRetryAttempt,
+			disableRetries: cfg.disableRetries,
 			nousResearchApiKey: cfg.nousResearchApiKey,
 			apiModelId: mc.nousResearchModelId,
 		}),
 	wandb: (cfg, mc) =>
-		new WandbHandler({ onRetryAttempt: cfg.onRetryAttempt, wandbApiKey: cfg.wandbApiKey, apiModelId: mc.apiModelId }),
+		new WandbHandler({
+			onRetryAttempt: cfg.onRetryAttempt,
+			disableRetries: cfg.disableRetries,
+			wandbApiKey: cfg.wandbApiKey,
+			apiModelId: mc.apiModelId,
+		}),
 }
 
 function configuredProvider(configuration: ApiConfiguration, mode: Mode): string | undefined {
@@ -560,4 +618,41 @@ export function buildApiHandler(configuration: ApiConfiguration, mode: Mode): Ap
 		[mode === "plan" ? "planModeThinkingBudgetTokens" : "actModeThinkingBudgetTokens"]: maxTokens - 1,
 	}
 	return createHandlerForProvider(apiProvider, clippedOptions, mode)
+}
+
+export interface ApiHandlerForSelectionOptions {
+	ulid?: string
+}
+
+/**
+ * Creates an invocation-local configuration for a secret-free provider/model
+ * selection. Existing credentials and endpoints are retained, while no Plan or
+ * Act configuration object is mutated.
+ */
+export function createApiConfigurationForModelProviderSelection(
+	baseConfiguration: ApiConfiguration,
+	selection: ModelProviderSelection,
+	options: ApiHandlerForSelectionOptions = {},
+): ApiConfiguration {
+	return {
+		...baseConfiguration,
+		...modelProviderSelectionUpdates("act", selection),
+		apiProvider: selection.provider,
+		ulid: options.ulid,
+		disableRetries: true,
+		actModeThinkingBudgetTokens: undefined,
+		actModeReasoningEffort: undefined,
+		geminiSearchEnabled: false,
+		enableParallelToolCalling: false,
+		onRetryAttempt: undefined,
+	}
+}
+
+/** Builds a fresh one-shot handler for an independently selected Utility model. */
+export function buildApiHandlerForSelection(
+	baseConfiguration: ApiConfiguration,
+	selection: ModelProviderSelection,
+	options: ApiHandlerForSelectionOptions = {},
+): ApiHandler {
+	return buildApiHandler(createApiConfigurationForModelProviderSelection(baseConfiguration, selection, options), "act")
 }

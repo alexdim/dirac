@@ -1,4 +1,8 @@
-export const autoCondensePrompt = () => {
+export const autoCondensePrompt = (useUtilityModel = false) => {
+	if (useUtilityModel) {
+		return `The conversation is nearing its context limit. To continue effectively, you must now call the condense tool without a context parameter. A Utility model will generate the comprehensive continuation summary from the current conversation. You MUST ONLY respond by calling condense or attempt_completion.`
+	}
+
 	return `The conversation is nearing its context limit. To continue effectively, you must now call the condense tool with a comprehensive, high-fidelity summary of the task's progress.
 
 Your summary must be exhaustive, capturing the "whole nine yards":

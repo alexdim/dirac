@@ -49,4 +49,10 @@ describe("FeatureSettingsSection", () => {
 		expect(mockUpdateSetting).toHaveBeenCalledWith("hooksEnabled", true)
 	})
 
+	it("does not render the Utility Model toggle", () => {
+		render(<FeatureSettingsSection renderSectionHeader={() => null} />)
+
+		expect(screen.queryByRole("switch", { name: "Utility Model" })).not.toBeInTheDocument()
+	})
+
 })

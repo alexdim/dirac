@@ -96,11 +96,7 @@ function allocateUniqueSubagentName(usedNames: Set<string>): string {
 	throw new Error("Subagent name pool exhausted")
 }
 
-export function createSubagentCardInput(
-	identity: SubagentIdentity,
-	prompt: string,
-	taskTitle?: string,
-): Record<string, unknown> {
+export function createSubagentCardInput(identity: SubagentIdentity, prompt: string, taskTitle?: string): Record<string, unknown> {
 	return {
 		isSubagent: true,
 		agentId: identity.id,
@@ -198,10 +194,7 @@ export interface SubagentTrajectoryFormatOptions {
 	includeToolResults?: boolean
 }
 
-export function formatSubagentTrajectory(
-	data: SubagentCardData,
-	options: number | SubagentTrajectoryFormatOptions = {},
-): string {
+export function formatSubagentTrajectory(data: SubagentCardData, options: number | SubagentTrajectoryFormatOptions = {}): string {
 	const maxLineLength = typeof options === "number" ? options : (options.maxLineLength ?? 180)
 	const includeToolResults = typeof options === "number" ? true : (options.includeToolResults ?? true)
 	const line = (value: string) => truncateLine(value.replace(/\s+/g, " ").trim(), maxLineLength)
@@ -227,7 +220,9 @@ export function formatSubagentTrajectory(
 		line(data.prompt),
 		"",
 		"**Trajectory**",
-		...(activity.length > 0 ? activity : ["- Waiting to start…"]),
+		...(activity.length > 0
+			? activity
+			: [isTerminalSubagentStatus(data.status) ? "- No trajectory events were recorded." : "- Waiting to start…"]),
 	]
 		.map((renderedLine) => truncateLine(renderedLine, maxLineLength))
 		.join("\n")
@@ -247,12 +242,12 @@ function isTrajectoryEvent(value: unknown): value is SubagentTrajectoryEvent {
 }
 
 function readStatus(value: unknown, cardStatus: CardStatus): SubagentExecutionStatus {
-	if (Object.values(SubagentExecutionStatus).includes(value as SubagentExecutionStatus)) {
-		return value as SubagentExecutionStatus
-	}
 	if (cardStatus === CardStatus.SUCCESS) return SubagentExecutionStatus.COMPLETED
 	if (cardStatus === CardStatus.CANCELLED || cardStatus === CardStatus.ABANDONED) return SubagentExecutionStatus.CANCELLED
 	if (cardStatus === CardStatus.ERROR) return SubagentExecutionStatus.FAILED
+	if (Object.values(SubagentExecutionStatus).includes(value as SubagentExecutionStatus)) {
+		return value as SubagentExecutionStatus
+	}
 	if (cardStatus === CardStatus.PENDING) return SubagentExecutionStatus.PENDING
 	return SubagentExecutionStatus.RUNNING
 }

@@ -1,6 +1,9 @@
 import { Empty } from "@shared/proto/dirac/common"
 import { Settings as ProtoSettings, UpdateSettingsRequestCli } from "@shared/proto/dirac/state"
-import { convertProtoToApiProvider } from "@shared/proto-conversions/models/api-configuration-conversion"
+import {
+	convertProtoToApiProvider,
+	convertProtoToModelProviderSelection,
+} from "@shared/proto-conversions/models/api-configuration-conversion"
 import { TelemetrySetting } from "@shared/TelemetrySetting"
 import { DiracEnv } from "@/config"
 import { Logger } from "@/shared/services/Logger"
@@ -36,6 +39,8 @@ async function applyCliSettings(
 		subagentsEnabled,
 		browserSettings,
 		defaultTerminalProfile,
+		utilityModelEnabled,
+		utilityModelSelection,
 		...simpleSettings
 	} = settings
 	// Batch update for simple pass-through fields
@@ -48,6 +53,13 @@ async function applyCliSettings(
 	if (customPrompt === "compact") controller.stateManager.setGlobalState("customPrompt", "compact")
 	if (planModeApiProvider !== undefined) controller.stateManager.setGlobalState("planModeApiProvider", planModeApiProvider)
 	if (actModeApiProvider !== undefined) controller.stateManager.setGlobalState("actModeApiProvider", actModeApiProvider)
+	if (utilityModelEnabled !== undefined) controller.stateManager.setGlobalState("utilityModelEnabled", utilityModelEnabled)
+	if (utilityModelSelection !== undefined) {
+		controller.stateManager.setGlobalState(
+			"utilityModelSelection",
+			convertProtoToModelProviderSelection(utilityModelSelection),
+		)
+	}
 	// Telemetry setting
 	if (telemetrySetting) await controller.updateTelemetrySetting(telemetrySetting as TelemetrySetting)
 	// Settings with telemetry capture
@@ -83,7 +95,12 @@ export async function updateSettingsCli(controller: Controller, request: UpdateS
 	const actModeApiProvider =
 		settings?.actModeApiProvider === undefined ? undefined : convertProtoToApiProvider(settings.actModeApiProvider)
 	if (settings) {
-		Object.assign(candidateConfiguration, filterSimpleSettingsBatch(settings))
+		const {
+			utilityModelEnabled: _utilityModelEnabled,
+			utilityModelSelection: _utilityModelSelection,
+			...apiSettings
+		} = settings
+		Object.assign(candidateConfiguration, filterSimpleSettingsBatch(apiSettings))
 		if (planModeApiProvider !== undefined) {
 			candidateConfiguration.planModeApiProvider = planModeApiProvider
 		}

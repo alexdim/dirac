@@ -1,0 +1,66 @@
+import type { ModelProviderSelection } from "@shared/api"
+import { ConversationCondensationService } from "@core/text-condensation/ConversationCondensationService"
+import { UtilityModelTextCondenser } from "@core/text-condensation/UtilityModelTextCondenser"
+import { createDefaultTextCondensationTemplateRegistry } from "@core/text-condensation/templates"
+import {
+	getConfiguredUtilityModelSelection,
+	isUtilityTextCondensationAvailable,
+} from "@core/text-condensation/UtilityTextCondensationAvailability"
+import * as utilityModel from "@core/utility-model/UtilityModelRunner"
+import type { IConversationCondensationTrait } from "../../interfaces/IToolEnvironment"
+import type { TaskConfig } from "../../types/TaskConfig"
+
+export class ConversationCondensationUnavailableError extends Error {
+	constructor() {
+		super("Conversation condensation is unavailable")
+		this.name = "ConversationCondensationUnavailableError"
+	}
+}
+
+export function buildConversationCondensationTrait(config: TaskConfig): IConversationCondensationTrait {
+	const templates = createDefaultTextCondensationTemplateRegistry()
+
+	return {
+		isAvailable: (template) =>
+			isUtilityTextCondensationAvailable(
+				{
+					utilityModelEnabled: config.services.stateManager.getGlobalSettingsKey("utilityModelEnabled"),
+					utilityModelSelection: config.services.stateManager.getGlobalSettingsKey("utilityModelSelection"),
+				},
+				template,
+				templates,
+			),
+		condenseConversation: async (template, options) => {
+			const settings = {
+				utilityModelEnabled: config.services.stateManager.getGlobalSettingsKey("utilityModelEnabled"),
+				utilityModelSelection: config.services.stateManager.getGlobalSettingsKey("utilityModelSelection"),
+			}
+			const selection = getConfiguredUtilityModelSelection(settings.utilityModelSelection)
+			if (!isUtilityTextCondensationAvailable(settings, template, templates) || !selection) {
+				throw new ConversationCondensationUnavailableError()
+			}
+
+			const service = createConversationCondensationService(config, selection, templates)
+			return await service.condenseEffectiveConversation(template, options?.signal, options?.additionalSourceText)
+		},
+	}
+}
+
+
+function createConversationCondensationService(
+	config: TaskConfig,
+	selection: ModelProviderSelection,
+	templates: ReturnType<typeof createDefaultTextCondensationTemplateRegistry>,
+): ConversationCondensationService {
+	const runner = utilityModel.createUtilityModelRunner(config.services.stateManager.getApiConfiguration(), selection, {
+		ulid: config.ulid,
+	})
+	const textCondenser = new UtilityModelTextCondenser(runner, templates)
+
+	return new ConversationCondensationService({
+		messageState: config.messageState,
+		contextManager: config.services.contextManager,
+		getConversationHistoryDeletedRange: () => config.taskState.conversationHistoryDeletedRange,
+		textCondenser,
+	})
+}
