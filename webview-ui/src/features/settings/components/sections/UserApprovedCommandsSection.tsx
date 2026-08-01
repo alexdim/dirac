@@ -1,5 +1,5 @@
 import type { UserApprovedCommand, UserApprovedCommandMatch } from "@shared/UserApprovedCommand"
-import { VSCodeButton, VSCodeDropdown, VSCodeOption, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
+import { VSCodeButton, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
 import { useEffect, useRef, useState } from "react"
 import { useSettingsStore } from "@/features/settings/store/settingsStore"
 import Section from "../Section"
@@ -17,10 +17,17 @@ export const UserApprovedCommandsSection = ({ renderSectionHeader }: UserApprove
 	const [error, setError] = useState<string | null>(null)
 	const [isSaving, setIsSaving] = useState(false)
 	const mutationInProgress = useRef(false)
+	const exampleCommand = command.trim() || "npm test"
+	const commandWithArgumentsExample = command.trim() ? `${command.trim()} --example` : "npm test -- --watch"
 
 	useEffect(() => {
 		if (editingIndex !== null && editingIndex >= userApprovedCommands.length) cancelEdit()
 	}, [editingIndex, userApprovedCommands.length])
+
+	useEffect(() => {
+		if (editingIndex === null) return
+		document.getElementById("user-approved-command-input")?.focus()
+	}, [editingIndex])
 
 	const cancelEdit = () => {
 		setCommand("")
@@ -60,10 +67,11 @@ export const UserApprovedCommandsSection = ({ renderSectionHeader }: UserApprove
 
 		const entry: UserApprovedCommand = { command: trimmedCommand, match }
 		const duplicate = userApprovedCommands.some(
-			(candidate, index) => index !== editingIndex && candidate.command === entry.command && candidate.match === entry.match,
+			(candidate, index) =>
+				index !== editingIndex && candidate.command === entry.command && candidate.match === entry.match,
 		)
 		if (duplicate) {
-			setError("That command and match mode are already listed.")
+			setError("That command and approval scope are already listed.")
 			return
 		}
 
@@ -95,7 +103,9 @@ export const UserApprovedCommandsSection = ({ renderSectionHeader }: UserApprove
 				</p>
 
 				<div className="flex flex-col gap-2 rounded border border-(--vscode-widget-border) p-3">
-					<label className="font-medium" htmlFor="user-approved-command-input">Command</label>
+					<label className="font-medium" htmlFor="user-approved-command-input">
+						Command
+					</label>
 					<VSCodeTextField
 						className="w-full font-mono"
 						disabled={isSaving}
@@ -111,24 +121,71 @@ export const UserApprovedCommandsSection = ({ renderSectionHeader }: UserApprove
 						value={command}
 					/>
 
-					<label className="font-medium" htmlFor="user-approved-command-match">Match</label>
-					<VSCodeDropdown
-						className="w-full"
-						disabled={isSaving}
-						id="user-approved-command-match"
-						onChange={(event) => setMatch((event.target as HTMLSelectElement).value as UserApprovedCommandMatch)}
-						value={match}>
-						<VSCodeOption value="exact">Exact command</VSCodeOption>
-						<VSCodeOption value="prefix">Command starts with</VSCodeOption>
-					</VSCodeDropdown>
+					<fieldset className="flex flex-col gap-2" disabled={isSaving}>
+						<legend className="mb-1 font-medium">Approval scope</legend>
+						<label
+							className={`flex cursor-pointer items-start gap-2 rounded border p-3 ${
+								match === "exact"
+									? "border-(--vscode-focusBorder) bg-(--vscode-list-hoverBackground)"
+									: "border-(--vscode-widget-border)"
+							}`}>
+							<input
+								checked={match === "exact"}
+								className="mt-0.5 shrink-0"
+								name="user-approved-command-match"
+								onChange={() => setMatch("exact")}
+								type="radio"
+							/>
+							<span className="min-w-0">
+								<span className="flex flex-wrap items-center gap-2">
+									<span className="font-medium">Exact command only</span>
+									<span className="rounded bg-(--vscode-badge-background) px-1.5 py-0.5 text-xs text-(--vscode-badge-foreground)">
+										Safer
+									</span>
+								</span>
+								<span className="mt-1 block text-xs text-(--vscode-descriptionForeground)">
+									Approves <code className="break-all">{exampleCommand}</code>, but not{" "}
+									<code className="break-all">{commandWithArgumentsExample}</code>.
+								</span>
+							</span>
+						</label>
+						<label
+							className={`flex cursor-pointer items-start gap-2 rounded border p-3 ${
+								match === "prefix"
+									? "border-(--vscode-focusBorder) bg-(--vscode-list-hoverBackground)"
+									: "border-(--vscode-widget-border)"
+							}`}>
+							<input
+								checked={match === "prefix"}
+								className="mt-0.5 shrink-0"
+								name="user-approved-command-match"
+								onChange={() => setMatch("prefix")}
+								type="radio"
+							/>
+							<span className="min-w-0">
+								<span className="font-medium">Command with any arguments</span>
+								<span className="mt-1 block text-xs text-(--vscode-descriptionForeground)">
+									Approves both <code className="break-all">{exampleCommand}</code> and{" "}
+									<code className="break-all">{commandWithArgumentsExample}</code>.
+								</span>
+							</span>
+						</label>
+					</fieldset>
+					{match === "prefix" && (
+						<p className="m-0 text-xs text-(--vscode-editorWarning-foreground)">
+							Choose this only when you trust this command with every possible argument.
+						</p>
+					)}
 					<p className="m-0 text-xs text-(--vscode-descriptionForeground)">
-						{match === "exact"
-							? "Only the complete command is approved."
-							: "The command and any additional arguments are approved. Chained commands are checked separately."}
+						Each part of a chained command must be approved separately. Redirects are not covered by these entries.
 					</p>
 					{error && <p className="m-0 text-xs text-(--vscode-errorForeground)">{error}</p>}
 					<div className="flex justify-end gap-2">
-						{editingIndex !== null && <VSCodeButton appearance="secondary" disabled={isSaving} onClick={cancelEdit}>Cancel</VSCodeButton>}
+						{editingIndex !== null && (
+							<VSCodeButton appearance="secondary" disabled={isSaving} onClick={cancelEdit}>
+								Cancel
+							</VSCodeButton>
+						)}
 						<VSCodeButton disabled={isSaving} onClick={() => void save()}>
 							{isSaving ? "Saving…" : editingIndex === null ? "Add command" : "Save command"}
 						</VSCodeButton>
@@ -141,13 +198,19 @@ export const UserApprovedCommandsSection = ({ renderSectionHeader }: UserApprove
 						<p className="m-0 text-sm text-(--vscode-descriptionForeground)">No user-approved commands.</p>
 					) : (
 						userApprovedCommands.map((entry, index) => (
-							<div className="flex items-center gap-3 rounded border border-(--vscode-widget-border) px-3 py-2" key={`${entry.match}:${entry.command}`}>
+							<div
+								className="flex items-center gap-3 rounded border border-(--vscode-widget-border) px-3 py-2"
+								key={`${entry.match}:${entry.command}`}>
 								<code className="min-w-0 flex-1 break-all">{entry.command}</code>
 								<span className="shrink-0 text-xs text-(--vscode-descriptionForeground)">
-									{entry.match === "exact" ? "Exact" : "Starts with"}
+									{entry.match === "exact" ? "Exact only" : "Any arguments"}
 								</span>
-								<VSCodeButton appearance="secondary" disabled={isSaving} onClick={() => edit(entry, index)}>Edit</VSCodeButton>
-								<VSCodeButton appearance="secondary" disabled={isSaving} onClick={() => void remove(index)}>Delete</VSCodeButton>
+								<VSCodeButton appearance="secondary" disabled={isSaving} onClick={() => edit(entry, index)}>
+									Edit
+								</VSCodeButton>
+								<VSCodeButton appearance="secondary" disabled={isSaving} onClick={() => void remove(index)}>
+									Delete
+								</VSCodeButton>
 							</div>
 						))
 					)}

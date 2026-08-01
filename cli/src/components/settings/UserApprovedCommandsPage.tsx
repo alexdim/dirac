@@ -62,7 +62,7 @@ export const UserApprovedCommandsPage = ({ commands, isActive, onChange, onClose
 			(entry, index) => index !== editingIndex && entry.command === trimmed && entry.match === match,
 		)
 		if (duplicate) {
-			setError("That command and match mode are already listed.")
+			setError("That command and approval scope are already listed.")
 			return
 		}
 		const next = [...commands]
@@ -105,15 +105,24 @@ export const UserApprovedCommandsPage = ({ commands, isActive, onChange, onClose
 		return (
 			<Box flexDirection="column">
 				<Text bold>{editingIndex === -1 ? "Add user-approved command" : "Edit user-approved command"}</Text>
-				<Text>Command: <Text color={theme.primary}>{command || " "}</Text></Text>
-				<Text>Match: <Text color={theme.primary}>{match === "exact" ? "Exact command" : "Command starts with"}</Text></Text>
+				<Text>
+					Command: <Text color={theme.primary}>{command || " "}</Text>
+				</Text>
+				<Text>
+					Approval scope:{" "}
+					<Text color={theme.primary}>{match === "exact" ? "Exact command only" : "Command with any arguments"}</Text>
+				</Text>
 				<Text color={theme.muted}>
 					{match === "exact"
-						? "Only the complete command is approved."
-						: "Additional arguments are approved; chained commands are checked separately."}
+						? "This entry approves only the complete command. Added arguments are not covered."
+						: "This entry also approves the same command with any additional arguments."}
 				</Text>
+				{match === "prefix" && (
+					<Text color={theme.warning}>Choose this only when you trust every possible argument.</Text>
+				)}
+				<Text color={theme.muted}>Chained commands are checked one part at a time. Redirects are not covered.</Text>
 				{error && <Text color={theme.error}>{error}</Text>}
-				<Text color={theme.muted}>Type command · Tab match mode · Enter save · Esc cancel</Text>
+				<Text color={theme.muted}>Type command · Tab change scope · Enter save · Esc cancel</Text>
 			</Box>
 		)
 	}
@@ -130,7 +139,7 @@ export const UserApprovedCommandsPage = ({ commands, isActive, onChange, onClose
 						{selectedIndex === index ? "❯ " : "  "}
 					</Text>
 					<Text bold={selectedIndex === index}>{entry.command}</Text>
-					<Text color={theme.muted}> · {entry.match === "exact" ? "Exact" : "Starts with"}</Text>
+					<Text color={theme.muted}> · {entry.match === "exact" ? "Exact only" : "Any arguments"}</Text>
 				</Text>
 			))}
 			<Text bold={selectedIndex === commands.length} color={selectedIndex === commands.length ? theme.primary : theme.text}>
