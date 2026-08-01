@@ -18,6 +18,7 @@ export interface ApiConversationProviderState {
 	checkpoint?: ApiConversationCheckpoint
 	continuationReset?: ApiConversationContinuationReset
 	pendingCompaction?: PendingApiConversationCompaction
+	deliveredSteeringMessageIds?: string[]
 }
 
 export interface PendingApiConversationCompaction {

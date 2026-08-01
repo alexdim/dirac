@@ -15,11 +15,16 @@ type RemoteWorkflow = {
 
 export type Workflow = FileBasedWorkflow | RemoteWorkflow
 
+export type SlashCommandDirectAction = {
+	type: "condenseConversation"
+}
+
 export type ParseSlashCommandResult = {
 	processedText: string
 	needsDiracrulesFileCheck: boolean
 	isDirectResponse?: boolean
 	directResponseText?: string
+	directAction?: SlashCommandDirectAction
 }
 
 export type SlashCommandMatch = {

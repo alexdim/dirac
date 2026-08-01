@@ -1,6 +1,6 @@
 import { GlobalFileNames } from "@core/storage/disk"
 import { USER_CONTENT_TAGS } from "@shared/messages/constants"
-import { DiracContent, DiracTextContentBlock, DiracUserToolResultContentBlock } from "@shared/messages/content"
+import { DiracContent, DiracTextContentBlock } from "@shared/messages/content"
 import { SkillMetadata } from "@/shared/skills"
 import { ensureLocalDiracDirExists } from "../context/instructions/user-instructions/rule-helpers"
 import { getOrDiscoverSkills } from "../context/instructions/user-instructions/skills"
@@ -8,11 +8,9 @@ import { refreshWorkflowToggles } from "../context/instructions/user-instruction
 import { FileContextLoader } from "./context/FileContextLoader"
 import { MentionContextLoader } from "./context/MentionContextLoader"
 import { ContextLoaderDependencies } from "./types/context-loader"
+import { CONVERSATION_CONTINUATION_TEMPLATE_ID, TASK_HANDOFF_TEMPLATE_ID } from "@core/text-condensation/templates"
+import type { SlashCommandDirectAction } from "@core/slash-commands"
 
-type ToolResultBlock = DiracUserToolResultContentBlock
-function isToolResultBlock(block: DiracContent): block is ToolResultBlock {
-	return block.type === "tool_result"
-}
 
 export class ContextLoader {
 	private fileContextLoader: FileContextLoader
@@ -28,7 +26,7 @@ export class ContextLoader {
 		userContent: DiracContent[],
 		includeFileDetails = false,
 		useCompactPrompt = false,
-	): Promise<[DiracContent[], string, boolean, SkillMetadata[], boolean, string?]> {
+	): Promise<[DiracContent[], string, boolean, SkillMetadata[], boolean, string?, SlashCommandDirectAction?]> {
 		let needsDiracrulesFileCheck = false
 		const cwd = this.dependencies.cwd
 		const { localWorkflowToggles, globalWorkflowToggles } = await refreshWorkflowToggles(this.dependencies.stateManager, cwd)
@@ -39,6 +37,11 @@ export class ContextLoader {
 
 		let isDirectResponse = false
 		let directResponseText: string | undefined
+		let directAction: SlashCommandDirectAction | undefined
+		const conversationCondensationAvailable =
+			this.dependencies.isTextCondensationAvailable?.(CONVERSATION_CONTINUATION_TEMPLATE_ID) ?? false
+		const taskHandoffCondensationAvailable =
+			this.dependencies.isTextCondensationAvailable?.(TASK_HANDOFF_TEMPLATE_ID) ?? false
 
 		// Parse a single text block through mention/slash enrichment
 		const parseTextBlock = async (text: string): Promise<string> => {
@@ -47,6 +50,7 @@ export class ContextLoader {
 				needsDiracrulesFileCheck: needsCheck,
 				isDirectResponse: direct,
 				directResponseText: directText,
+				directAction: action,
 			} = await this.mentionContextLoader.enrichContext(
 				text,
 				cwd,
@@ -56,12 +60,15 @@ export class ContextLoader {
 				this.dependencies.getCurrentProviderInfo(),
 				includeFileDetails,
 				availableSkills,
+				conversationCondensationAvailable,
+				taskHandoffCondensationAvailable,
 			)
 			if (needsCheck) needsDiracrulesFileCheck = true
 			if (direct) {
 				directResponseText = directText
 				isDirectResponse = true
 			}
+			if (action) directAction = action
 			return enrichedText
 		}
 
@@ -75,7 +82,15 @@ export class ContextLoader {
 			? await ensureLocalDiracDirExists(this.dependencies.cwd, GlobalFileNames.diracRules)
 			: false
 
-		return [processedUserContent, environmentDetails, diracrulesError, availableSkills, isDirectResponse, directResponseText]
+		return [
+			processedUserContent,
+			environmentDetails,
+			diracrulesError,
+			availableSkills,
+			isDirectResponse,
+			directResponseText,
+			directAction,
+		]
 	}
 
 	// Discover skills and filter by global/local toggles
@@ -91,64 +106,29 @@ export class ContextLoader {
 		})
 	}
 
-	// Process a single content block, delegating text/tool_result handling
+	// Only explicitly marked user input may enter mention/slash enrichment. Every other
+	// block is machine-generated or attached context and must remain inert.
 	private async processContentBlock(
 		block: DiracContent,
 		parseTextBlock: (text: string) => Promise<string>,
 	): Promise<DiracContent> {
 		if (block.type === "text") return this.processTextContent(block, parseTextBlock)
-		if (isToolResultBlock(block)) return this.processToolResult(block, parseTextBlock)
 		return block
 	}
 
-	// Process a text block only if it contains a USER_CONTENT_TAG
+	// Process only explicitly marked user text containing a supported user-content tag.
+	// Remove the transient marker before returning content for persistence/provider dispatch.
 	private async processTextContent(
 		block: DiracTextContentBlock,
 		parseTextBlock: (text: string) => Promise<string>,
 	): Promise<DiracTextContentBlock> {
-		if (block.type !== "text" || !this.hasUserContentTag(block.text)) return block
+		const { isUserInput, ...contentBlock } = block
+		if (!isUserInput || !this.hasUserContentTag(block.text)) return contentBlock
 		const processedText = await parseTextBlock(block.text)
-		return { ...block, text: processedText }
+		return { ...contentBlock, text: processedText }
 	}
 
-	// Process a tool_result block, handling string and array content
-	private async processToolResult(
-		block: ToolResultBlock,
-		parseTextBlock: (text: string) => Promise<string>,
-	): Promise<DiracContent> {
-		if (!block.content) return block
-
-		// String content: skip tool output, otherwise convert to array and process
-		if (typeof block.content === "string") {
-			if (this.isLikelyToolOutput(block.content)) return block
-			const processed = await this.processTextContent({ type: "text", text: block.content }, parseTextBlock)
-			return { ...block, content: [processed] }
-		}
-
-		// Array content: process each text block, skipping tool output
-		if (Array.isArray(block.content)) {
-			const processedContent = await Promise.all(
-				block.content.map(async (contentBlock) => {
-					if (contentBlock.type === "text") {
-						if (this.isLikelyToolOutput(contentBlock.text)) return contentBlock
-						return this.processTextContent(contentBlock, parseTextBlock)
-					}
-					return contentBlock
-				}),
-			)
-			return { ...block, content: processedContent }
-		}
-
-		return block
-	}
-
-	// Check if text contains any USER_CONTENT_TAG
 	private hasUserContentTag(text: string): boolean {
 		return USER_CONTENT_TAGS.some((tag: string) => text.includes(tag))
-	}
-
-	// Detect read_file tool output by signature markers to skip mention processing
-	private isLikelyToolOutput(text: string): boolean {
-		return text.includes("[File Hash:") || text.includes("--- ")
 	}
 }

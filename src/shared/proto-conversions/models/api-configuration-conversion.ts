@@ -8,6 +8,7 @@ import {
 	ThinkingConfig,
 	OpenAiCompatibleProfile,
 } from "@shared/proto/dirac/models"
+import type { ModelProviderSelection as ProtoModelProviderSelection } from "@shared/proto/dirac/state"
 import {
 	ApiConfiguration,
 	ApiProvider,
@@ -18,6 +19,7 @@ import {
 	ModelInfo,
 	openAiModelInfoSaneDefaults,
 	OcaModelInfo,
+	ModelProviderSelection as AppModelProviderSelection,
 } from "../../api"
 import { OpenaiReasoningEffort } from "../../storage/types"
 
@@ -286,7 +288,9 @@ function convertProtoToOpenAiCompatibleModelInfo(
 }
 
 // Convert application ApiProvider to proto ApiProvider
-function convertApiProviderToProto(provider: string | undefined): ProtoApiProvider {
+export function convertApiProviderToProto(provider: ApiProvider | undefined): ProtoApiProvider {
+	if (provider === undefined) return ProtoApiProvider.ANTHROPIC
+
 	switch (provider) {
 		case "anthropic":
 			return ProtoApiProvider.ANTHROPIC
@@ -318,6 +322,8 @@ function convertApiProviderToProto(provider: string | undefined): ProtoApiProvid
 			return ProtoApiProvider.DOUBAO
 		case "mistral":
 			return ProtoApiProvider.MISTRAL
+		case "github-copilot":
+			return ProtoApiProvider.GITHUB_COPILOT
 		case "vscode-lm":
 			return ProtoApiProvider.VSCODE_LM
 		case "litellm":
@@ -350,6 +356,8 @@ function convertApiProviderToProto(provider: string | undefined): ProtoApiProvid
 			return ProtoApiProvider.VERCEL_AI_GATEWAY
 		case "zai":
 			return ProtoApiProvider.ZAI
+		case "oca":
+			return ProtoApiProvider.OCA
 		case "dify":
 			return ProtoApiProvider.DIFY
 		case "aihubmix":
@@ -360,8 +368,35 @@ function convertApiProviderToProto(provider: string | undefined): ProtoApiProvid
 			return ProtoApiProvider.NOUSRESEARCH
 		case "openai-codex":
 			return ProtoApiProvider.OPENAI_CODEX
-		default:
-			return ProtoApiProvider.ANTHROPIC
+	}
+	throw new Error(`Unsupported API provider: ${provider}`)
+}
+
+export function convertModelProviderSelectionToProto(
+	selection: AppModelProviderSelection,
+): ProtoModelProviderSelection {
+	return {
+		provider: convertApiProviderToProto(selection.provider),
+		modelId: selection.modelId,
+		modelInfo: convertModelInfoToProtoOpenRouter(selection.modelInfo),
+		openAiProfileName: selection.openAiProfileName,
+		vsCodeLmModelSelector: selection.vsCodeLmModelSelector,
+		awsBedrockCustomSelected: selection.awsBedrockCustomSelected,
+		awsBedrockCustomModelBaseId: selection.awsBedrockCustomModelBaseId,
+	}
+}
+
+export function convertProtoToModelProviderSelection(
+	selection: ProtoModelProviderSelection,
+): AppModelProviderSelection {
+	return {
+		provider: convertProtoToApiProvider(selection.provider),
+		modelId: selection.modelId,
+		modelInfo: convertProtoToModelInfo(selection.modelInfo),
+		openAiProfileName: selection.openAiProfileName,
+		vsCodeLmModelSelector: selection.vsCodeLmModelSelector,
+		awsBedrockCustomSelected: selection.awsBedrockCustomSelected,
+		awsBedrockCustomModelBaseId: selection.awsBedrockCustomModelBaseId,
 	}
 }
 
@@ -398,6 +433,8 @@ export function convertProtoToApiProvider(provider: ProtoApiProvider): ApiProvid
 			return "doubao"
 		case ProtoApiProvider.MISTRAL:
 			return "mistral"
+		case ProtoApiProvider.GITHUB_COPILOT:
+			return "github-copilot"
 		case ProtoApiProvider.VSCODE_LM:
 			return "vscode-lm"
 		case ProtoApiProvider.LITELLM:
@@ -430,6 +467,8 @@ export function convertProtoToApiProvider(provider: ProtoApiProvider): ApiProvid
 			return "vercel-ai-gateway"
 		case ProtoApiProvider.ZAI:
 			return "zai"
+		case ProtoApiProvider.OCA:
+			return "oca"
 		case ProtoApiProvider.DIFY:
 			return "dify"
 		case ProtoApiProvider.AIHUBMIX:
@@ -440,9 +479,10 @@ export function convertProtoToApiProvider(provider: ProtoApiProvider): ApiProvid
 			return "nousResearch"
 		case ProtoApiProvider.OPENAI_CODEX:
 			return "openai-codex"
-		default:
-			return "anthropic"
+		case ProtoApiProvider.UNRECOGNIZED:
+			throw new Error("Unrecognized API provider value")
 	}
+	throw new Error(`Unsupported protobuf API provider: ${provider}`)
 }
 
 // Converts application ApiConfiguration to proto ApiConfiguration

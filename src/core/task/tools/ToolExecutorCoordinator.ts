@@ -22,7 +22,7 @@ interface PartialToolUseHandler extends IDiracTool {
  * Throws an error for unregistered tools.
  */
 export class ToolExecutorCoordinator {
-	constructor() { }
+	constructor() {}
 
 	private modularTools = new Map<string, IDiracTool>()
 
@@ -112,6 +112,7 @@ export class ToolExecutorCoordinator {
 
 		let executionSuccess = false
 		let result: any
+		let response!: ToolResponse
 
 		const initialMistakeCount = config.taskState.consecutiveMistakeCount
 		const unfinalizedCards: { id: string; status: CardStatus }[] = []
@@ -129,45 +130,36 @@ export class ToolExecutorCoordinator {
 			config.taskState.consecutiveMistakeCount =
 				config.taskState.consecutiveMistakeCount > initialMistakeCount ? initialMistakeCount + 1 : 0
 
-			// 10. Return Result
-			return result
+			// 10. Store Result
+			response = result
 		} catch (error: any) {
 			executionSuccess = false
 
-			// Handle user text-based tool skip
 			if (error instanceof ToolSkippedByUserMessage) {
-				executionSuccess = false // Tool did not execute; distinguished via customMetadata.skippedByUser
-
-				// Don't increment mistake count - this is intentional user action
 				config.taskState.consecutiveMistakeCount = initialMistakeCount
-
-				// Store the user's message for forwarding to the LLM
 				config.taskState.pendingUserMessage = error.userMessage
 				config.taskState.pendingUserImages = error.userImages
 				config.taskState.pendingUserFiles = error.userFiles
 
-				// Finalize all cards as SKIPPED immediately
+				const finalStates: CardStatus[] = [
+					CardStatus.SUCCESS,
+					CardStatus.ERROR,
+					CardStatus.SKIPPED,
+					CardStatus.ABANDONED,
+					CardStatus.CANCELLED,
+				]
 				for (const card of env.getCreatedCards()) {
-					const finalStates: CardStatus[] = [
-						CardStatus.SUCCESS,
-						CardStatus.ERROR,
-						CardStatus.SKIPPED,
-						CardStatus.ABANDONED,
-						CardStatus.CANCELLED,
-					]
 					if (!finalStates.includes(card.status)) {
 						await card.finalize(CardStatus.SKIPPED)
 					}
 				}
 
 				env.telemetry.captureCustomMetadata({ skippedByUser: true, userMessageLength: error.userMessage.length })
-				return `[Tool '${block.name}' skipped by user with message: "${error.userMessage}"]`
+				response = `[Tool '${block.name}' skipped by user with message: "${error.userMessage}"]`
+			} else {
+				config.taskState.consecutiveMistakeCount = initialMistakeCount + 1
+				response = `Execution failed: ${error.message || error}`
 			}
-
-			// 11. Update Mistake Count (Failure)
-			config.taskState.consecutiveMistakeCount = initialMistakeCount + 1
-
-			return `Execution failed: ${error.message || error}`
 		} finally {
 			// 12. Telemetry
 			const duration = Date.now() - startTime
@@ -215,5 +207,6 @@ export class ToolExecutorCoordinator {
 				`Tool '${block.name}' did not finalize card(s): ${unfinalizedCards.map((c) => `${c.id} (${c.status})`).join(", ")}`,
 			)
 		}
+		return response
 	}
 }

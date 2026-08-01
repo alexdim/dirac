@@ -54,6 +54,8 @@ describe("parseSlashCommands", () => {
 			permissionController?: any
 			extensionPath?: string
 			sourceDir?: string
+			conversationCondensationAvailable?: boolean
+			taskHandoffCondensationAvailable?: boolean
 		} = {},
 	) {
 		const result = await parseSlashCommands(
@@ -66,6 +68,8 @@ describe("parseSlashCommands", () => {
 			opts.permissionController,
 			opts.extensionPath,
 			opts.sourceDir ?? "dist/source",
+			opts.conversationCondensationAvailable ?? false,
+			opts.taskHandoffCondensationAvailable ?? false,
 		)
 		// Flush microtasks so un-awaited telemetry proxy calls complete
 		await new Promise((resolve) => setImmediate(resolve))
@@ -123,15 +127,14 @@ describe("parseSlashCommands", () => {
 		it("detects slash commands inside <feedback> tags", async () => {
 			const text = "<feedback>/smol</feedback>"
 			const result = await parse(text)
-			expect(result.processedText).to.contain("condense")
+			expect(result.directAction).to.deep.equal({ type: "condenseConversation" })
 		})
 
 		it("detects slash commands inside <answer> tags", async () => {
 			const text = "<answer>/compact</answer>"
 			const result = await parse(text)
-			expect(result.processedText).to.contain("condense")
+			expect(result.directAction).to.deep.equal({ type: "condenseConversation" })
 		})
-
 
 		it("is case-insensitive on the tag name but preserves command casing", async () => {
 			const text = "<TASK>/newtask</TASK>"
@@ -151,15 +154,39 @@ describe("parseSlashCommands", () => {
 			expect(captureStub.calledWith(ULID, "newtask", "builtin")).to.be.true
 		})
 
-		it("handles /smol (alias for condense)", async () => {
+		it("keeps the legacy handoff-generation prompt when Utility task handoff is unavailable", async () => {
+			const result = await parse("<task>/newtask</task>")
+			expect(result.processedText).to.contain("Context: (required)")
+			expect(result.processedText).to.contain("<context>1. Current Work:")
+		})
+
+		it("requests a concise intent when Utility task handoff is available", async () => {
+			const result = await parse("<task>/newtask</task>", { taskHandoffCondensationAvailable: true })
+			expect(result.processedText).to.contain("only the concise intent")
+			expect(result.processedText).to.contain("one or two short sentences")
+			expect(result.processedText).to.contain("no more than 40 words")
+			expect(result.processedText).to.contain("<intent>")
+			expect(result.processedText).to.not.contain("<context>1. Current Work:")
+		})
+
+		it("handles /smol as a local condensation action", async () => {
 			const result = await parse("<task>/smol</task>")
-			expect(result.processedText).to.contain("condense")
+			expect(result.processedText).to.not.contain("/smol")
+			expect(result.directAction).to.deep.equal({ type: "condenseConversation" })
 			expect(captureStub.calledWith(ULID, "smol", "builtin")).to.be.true
 		})
 
-		it("handles /compact (alias for condense)", async () => {
+		it("does not generate an active-model condensation prompt", async () => {
+			const result = await parse("<task>/compact</task>", { conversationCondensationAvailable: true })
+			expect(result.processedText).to.not.contain("Call condense")
+			expect(result.processedText).to.not.contain("Context: (required)")
+			expect(result.directAction).to.deep.equal({ type: "condenseConversation" })
+		})
+
+		it("handles /compact as the same local condensation action", async () => {
 			const result = await parse("<task>/compact</task>")
-			expect(result.processedText).to.contain("condense")
+			expect(result.processedText).to.not.contain("/compact")
+			expect(result.directAction).to.deep.equal({ type: "condenseConversation" })
 			expect(captureStub.calledWith(ULID, "compact", "builtin")).to.be.true
 		})
 
@@ -170,7 +197,6 @@ describe("parseSlashCommands", () => {
 			expect(result.needsDiracrulesFileCheck).to.be.true
 			expect(captureStub.calledWith(ULID, "newrule", "builtin")).to.be.true
 		})
-
 
 		it("handles /askDirac", async () => {
 			const result = await parse("<task>/askDirac</task>")
@@ -344,7 +370,7 @@ describe("parseSlashCommands", () => {
 		it("skips a tag with no slash command and processes a later tag that has one", async () => {
 			const text = "<task>no command here</task> <feedback>/smol</feedback>"
 			const result = await parse(text)
-			expect(result.processedText).to.contain("condense")
+			expect(result.directAction).to.deep.equal({ type: "condenseConversation" })
 		})
 	})
 })

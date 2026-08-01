@@ -26,17 +26,22 @@ export const REASONING_DETAILS_PROVIDERS = ["dirac", "openrouter"]
  * fields unknown to Anthropic SDK.
  */
 export interface DiracTextContentBlock extends Anthropic.TextBlockParam, DiracSharedMessageParam {
+	// Transient provenance marker. Only text typed by the user may enter mention/slash-command parsing.
+	// ContextLoader removes this field before content is persisted or sent to providers.
+	isUserInput?: boolean
+	// Internal delivery receipt for queued steering. Removed before provider dispatch.
+	steeringMessageIds?: string[]
 	// reasoning_details only exists for providers listed in REASONING_DETAILS_PROVIDERS
 	reasoning_details?: DiracReasoningDetailParam[]
 	// Thought Signature associates with Gemini
 	signature?: string
 }
 
-export interface DiracImageContentBlock extends Anthropic.ImageBlockParam, DiracSharedMessageParam {}
+export interface DiracImageContentBlock extends Anthropic.ImageBlockParam, DiracSharedMessageParam { }
 
-export interface DiracDocumentContentBlock extends Anthropic.DocumentBlockParam, DiracSharedMessageParam {}
+export interface DiracDocumentContentBlock extends Anthropic.DocumentBlockParam, DiracSharedMessageParam { }
 
-export interface DiracUserToolResultContentBlock extends Anthropic.ToolResultBlockParam, DiracSharedMessageParam {}
+export interface DiracUserToolResultContentBlock extends Anthropic.ToolResultBlockParam, DiracSharedMessageParam { }
 
 /**
  * Assistant only content types
@@ -54,7 +59,7 @@ export interface DiracAssistantThinkingBlock extends Anthropic.ThinkingBlock, Di
 	summary?: unknown[] | DiracReasoningDetailParam[]
 }
 
-export interface DiracAssistantRedactedThinkingBlock extends Anthropic.RedactedThinkingBlockParam, DiracSharedMessageParam {}
+export interface DiracAssistantRedactedThinkingBlock extends Anthropic.RedactedThinkingBlockParam, DiracSharedMessageParam { }
 
 export type DiracToolResponseContent = DiracPromptInputContent | Array<DiracTextContentBlock | DiracImageContentBlock>
 
@@ -104,57 +109,73 @@ export interface DiracStorageMessage extends Anthropic.MessageParam {
 	ts?: number
 }
 
-/**
- * Converts DiracStorageMessage to Anthropic.MessageParam by removing Dirac-specific fields
- * Dirac-specific fields (like modelInfo, reasoning_details) are properly omitted.
- */
+export function removeUserInputMarkersFromContent(block: DiracContent): DiracContent {
+	const nestedContent =
+		block.type === "tool_result" && Array.isArray(block.content)
+			? block.content.map((contentBlock) => removeUserInputMarkersFromContent(contentBlock as DiracContent))
+			: undefined
+	const { isUserInput, ...contentBlock } = block as DiracContent & { isUserInput?: boolean }
+	if (nestedContent) return { ...contentBlock, content: nestedContent } as DiracContent
+	return contentBlock as DiracContent
+}
+
+export function removeUserInputMarkersFromMessage(message: DiracStorageMessage): DiracStorageMessage {
+	if (typeof message.content === "string") return message
+	return { ...message, content: message.content.map(removeUserInputMarkersFromContent) }
+}
+
+export function removeProviderBoundaryMetadataFromMessage(message: DiracStorageMessage): DiracStorageMessage {
+	if (typeof message.content === "string") return message
+	return { ...message, content: message.content.map(removeProviderBoundaryMetadata) }
+}
+
 export function convertDiracStorageToAnthropicMessage(
 	diracMessage: DiracStorageMessage,
 	provider = "anthropic",
 ): Anthropic.MessageParam {
 	const { role, content } = diracMessage
 
-	// Handle string content - fast path
-	if (typeof content === "string") {
-		return { role, content }
-	}
+	if (typeof content === "string") return { role, content }
 
-	// Removes thinking block that has no signature (invalid thinking block that's incompatible with Anthropic API)
-	const filteredContent = content.filter((b) => b.type !== "thinking" || !!b.signature)
-
-	// Handle array content - strip Dirac-specific fields for non-reasoning_details providers
-	const shouldCleanContent = !REASONING_DETAILS_PROVIDERS.includes(provider)
-	const cleanedContent = shouldCleanContent
-		? filteredContent.map(cleanContentBlock)
-		: (filteredContent as Anthropic.MessageParam["content"])
+	const filteredContent = content.filter((block) => block.type !== "thinking" || !!block.signature)
+	const cleanedContent = REASONING_DETAILS_PROVIDERS.includes(provider)
+		? filteredContent.map(removeProviderBoundaryMetadata)
+		: filteredContent.map(cleanContentBlock)
 
 	return { role, content: cleanedContent }
 }
 
-/**
- * Clean a content block by removing Dirac-specific fields and returning only Anthropic-compatible fields
- */
+function removeProviderBoundaryMetadata(block: DiracContent): DiracContent {
+	const nestedContent =
+		block.type === "tool_result" && Array.isArray(block.content)
+			? block.content.map((contentBlock) => removeProviderBoundaryMetadata(contentBlock as DiracContent))
+			: undefined
+	const { isUserInput, steeringMessageIds, ...contentBlock } = block as DiracContent & {
+		isUserInput?: boolean
+		steeringMessageIds?: string[]
+	}
+	if (nestedContent) return { ...contentBlock, content: nestedContent } as DiracContent
+	return contentBlock as DiracContent
+}
+
+
 export function cleanContentBlock(block: DiracContent): Anthropic.ContentBlock {
-	// Fast path: if no Dirac-specific fields exist, return as-is
-	const hasDiracFields =
-		"reasoning_details" in block ||
-		"call_id" in block ||
-		"summary" in block ||
-		"isComplete" in block ||
-		"isNativeToolCall" in block ||
-		(block.type !== "thinking" && "signature" in block)
+	const nestedContent =
+		block.type === "tool_result" && Array.isArray(block.content)
+			? block.content.map((contentBlock) => cleanContentBlock(contentBlock as DiracContent))
+			: undefined
+	const {
+		reasoning_details,
+		call_id,
+		summary,
+		isComplete,
+		isNativeToolCall,
+		isUserInput,
+		steeringMessageIds,
+		...rest
+	} = block as any
 
-	if (!hasDiracFields) {
-		return block as Anthropic.ContentBlock
-	}
-
-	// Removes Dirac-specific fields & the signature field that's added for Gemini.
-	const { reasoning_details, call_id, summary, isComplete, isNativeToolCall, ...rest } = block as any
-
-	// Remove signature from non-thinking blocks that were added for Gemini
-	if (block.type !== "thinking" && rest.signature) {
-		rest.signature = undefined
-	}
-
+	if (nestedContent) rest.content = nestedContent
+	if (block.type !== "thinking" && rest.signature) rest.signature = undefined
 	return rest satisfies Anthropic.ContentBlock
 }

@@ -20,6 +20,10 @@ function createSteerableTask() {
 		getDiracMessages: sinon.stub().callsFake(() => messages),
 		updateDiracMessage: sinon.stub().callsFake(async (index: number, update: any) => Object.assign(messages[index], update)),
 	}
+	task.messageStateHandler.getApiConversationHistory = sinon.stub().callsFake(() => task.apiConversationHistory)
+	task.messageStateHandler.getApiConversationProviderState = sinon.stub().returns({})
+	task.messageStateHandler.recordDeliveredSteeringMessageIds = sinon.stub().resolves()
+	task.messageStateHandler.saveDiracMessagesAndUpdateHistory = sinon.stub().resolves()
 
 	task.messageStateHandler.appendToLastApiConversationUserMessage = sinon.stub().callsFake(async (contentBlock: any) => {
 		const lastMessage = task.apiConversationHistory.at(-1)
@@ -78,6 +82,19 @@ describe("Task steering inbox", () => {
 		)
 	})
 
+	it("persists a sent transcript fallback when delivery-receipt persistence fails", async () => {
+		const { task, messages } = createSteerableTask()
+		await task.enqueueSteeringMessage("/reloadtools")
+		const claim = await task.claimSteeringMessages()
+		task.messageStateHandler.recordDeliveredSteeringMessageIds.rejects(new Error("receipt write failed"))
+
+		await assert.rejects(task.settleConsumedSteeringClaim(claim), /receipt write failed/)
+
+		assert.equal(task.taskState.steeringMessages[0].deliveryState, SteeringDeliveryState.SENT)
+		assert.deepEqual(messages[0].content.steering, { status: SteeringTranscriptStatus.SENT })
+		assert.equal(task.messageStateHandler.saveDiracMessagesAndUpdateHistory.callCount, 1)
+	})
+
 	it("rolls a failed request claim back while leaving later guidance queued", async () => {
 		const { task } = createSteerableTask()
 		task.taskMessenger.generateId.onFirstCall().returns("transcript-1").onSecondCall().returns("transcript-2")
@@ -131,6 +148,27 @@ describe("Task steering inbox", () => {
 		])
 	})
 
+	it("does not restore queued transcripts covered by persisted delivery receipts", () => {
+		const { task, messages } = createSteerableTask()
+		messages.push({
+			id: "delivered-transcript",
+			ts: 1,
+			content: {
+				type: DiracMessageType.MARKDOWN,
+				content: "/reloadtools",
+				role: "user",
+				steering: { status: SteeringTranscriptStatus.QUEUED },
+			},
+		})
+		task.messageStateHandler.getApiConversationProviderState.returns({
+			deliveredSteeringMessageIds: ["delivered-transcript"],
+		})
+
+		task.restoreQueuedSteeringFromTranscript()
+
+		assert.deepEqual(task.taskState.steeringMessages, [])
+	})
+
 	it("queued steering supersedes an uncommitted attempt completion", async () => {
 		const { task } = createSteerableTask()
 		task.taskState.didAttemptCompletion = true
@@ -159,7 +197,9 @@ describe("Task steering inbox", () => {
 
 		const followUp = await task.waitForFollowUp()
 
-		assert.deepEqual(followUp, [{ type: "text", text: "Immediate follow-up" }])
+		assert.deepEqual(followUp, [
+			{ type: "text", text: "<feedback>\nImmediate follow-up\n</feedback>", isUserInput: true },
+		])
 	})
 
 	it("does not let a stale plan-response flag reject steering without a waiting card", async () => {
@@ -170,6 +210,75 @@ describe("Task steering inbox", () => {
 		await task.enqueueSteeringMessage("Continue with the active task")
 		assert.equal(task.taskState.steeringMessages.length, 1)
 	})
+
+	it("marks queued steering as user input before context parsing", async () => {
+		const { task } = createSteerableTask()
+		const userContent: any[] = [{ type: "tool_result", tool_use_id: "tool-1", content: "tool output" }]
+		await task.enqueueSteeringMessage("/compact")
+
+		const claim = await task.appendQueuedSteeringToUserContent(userContent)
+
+		assert.ok(claim)
+		assert.equal(userContent.at(-1).isUserInput, true)
+		assert.ok(userContent.at(-1).text.includes("<steering_message>/compact</steering_message>"))
+	})
+
+	it("preserves FIFO while limiting a queued batch to the first steering command", async () => {
+		const { task } = createSteerableTask()
+		task.taskMessenger.generateId
+			.onFirstCall()
+			.returns("transcript-1")
+			.onSecondCall()
+			.returns("transcript-2")
+			.onThirdCall()
+			.returns("transcript-3")
+		await task.enqueueSteeringMessage("Keep the current API shape")
+		await task.enqueueSteeringMessage("/compact")
+		await task.enqueueSteeringMessage("/reloadtools")
+		const userContent: any[] = []
+
+		const claim = await task.appendQueuedSteeringToUserContent(userContent)
+
+		assert.deepEqual(
+			claim.messages.map((message: any) => message.text),
+			["Keep the current API shape"],
+		)
+		assert.equal(userContent.length, 1)
+		assert.ok(userContent[0].text.includes("Keep the current API shape"))
+		assert.deepEqual(
+			task.taskState.steeringMessages.map((message: any) => message.deliveryState),
+			[SteeringDeliveryState.CLAIMED, SteeringDeliveryState.QUEUED, SteeringDeliveryState.QUEUED],
+		)
+
+		await task.commitSteeringClaim(claim.id)
+		const commandContent: any[] = []
+		const commandClaim = await task.appendQueuedSteeringToUserContent(commandContent)
+		assert.deepEqual(commandClaim.messages.map((message: any) => message.text), ["/compact"])
+		assert.ok(commandContent[0].text.includes("<steering_message>/compact</steering_message>"))
+		assert.deepEqual(
+			task.taskState.steeringMessages.map((message: any) => message.deliveryState),
+			[SteeringDeliveryState.SENT, SteeringDeliveryState.CLAIMED, SteeringDeliveryState.QUEUED],
+		)
+	})
+
+	it("defers late command-shaped steering to the next context-loading boundary", async () => {
+		const { task, messages } = createSteerableTask()
+		const toolResult = { type: "tool_result", tool_use_id: "tool-1", content: "tool output" }
+		const persistedUserMessage = { role: "user", content: [toolResult] }
+		const outboundUserMessage = { role: "user", content: [toolResult] }
+		task.apiConversationHistory.push(persistedUserMessage)
+		task.taskMessenger.generateId.onFirstCall().returns("transcript-1").onSecondCall().returns("transcript-2")
+		await task.enqueueSteeringMessage("ordinary late guidance")
+		await task.enqueueSteeringMessage("/reloadtools")
+
+		await task.appendQueuedSteeringToNextApiRequest([outboundUserMessage])
+
+		assert.equal(persistedUserMessage.content.length, 1)
+		assert.equal(outboundUserMessage.content.length, 1)
+		assert.equal(task.taskState.steeringMessages[0].deliveryState, SteeringDeliveryState.QUEUED)
+		assert.deepEqual(messages[0].content.steering, { status: SteeringTranscriptStatus.QUEUED })
+	})
+
 
 	it("attaches queued steering to the next outbound tool-result request", async () => {
 		const { task, messages } = createSteerableTask()
@@ -192,5 +301,39 @@ describe("Task steering inbox", () => {
 			(outboundUserMessage.content.at(-1) as any).text.includes("<steering_message>Use the enum helper</steering_message>"),
 		)
 		assert.deepEqual(messages[0].content.steering, { status: SteeringTranscriptStatus.SENT })
+		assert.deepEqual((persistedUserMessage.content.at(-1) as any).steeringMessageIds, ["transcript-1"])
 	})
+	it("does not requeue late steering after API history has already consumed it", async () => {
+		const { task } = createSteerableTask()
+		const toolResult = { type: "tool_result", tool_use_id: "tool-1", content: "tool output" }
+		const persistedUserMessage = { role: "user", content: [toolResult] }
+		const outboundUserMessage = { role: "user", content: [toolResult] }
+		task.apiConversationHistory.push(persistedUserMessage)
+		await task.enqueueSteeringMessage("Persist exactly once")
+		task.messageStateHandler.updateDiracMessage.rejects(new Error("transcript update failed"))
+
+		await assert.rejects(task.appendQueuedSteeringToNextApiRequest([outboundUserMessage]), /transcript update failed/)
+
+		assert.equal(persistedUserMessage.content.length, 2)
+		assert.equal(outboundUserMessage.content.length, 2)
+		assert.equal(task.taskState.steeringMessages[0].deliveryState, SteeringDeliveryState.SENT)
+		task.restoreQueuedSteeringFromTranscript()
+		assert.deepEqual(task.taskState.steeringMessages, [])
+	})
+
+	it("keeps a consumed claim sent when durable receipt persistence fails", async () => {
+		const { task, messages } = createSteerableTask()
+		await task.enqueueSteeringMessage("/reloadtools")
+		const claim = await task.claimSteeringMessages()
+		task.messageStateHandler.recordDeliveredSteeringMessageIds.rejects(new Error("receipt persistence failed"))
+
+		await assert.rejects(task.settleConsumedSteeringClaim(claim), /receipt persistence failed/)
+
+		assert.equal(task.taskState.steeringMessages[0].deliveryState, SteeringDeliveryState.SENT)
+		assert.deepEqual(messages[0].content.steering, { status: SteeringTranscriptStatus.SENT })
+		task.restoreQueuedSteeringFromTranscript()
+		assert.deepEqual(task.taskState.steeringMessages, [])
+	})
+
+
 })

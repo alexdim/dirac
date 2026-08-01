@@ -39,10 +39,16 @@ export function withRetry(options: RetryOptions = {}) {
 					yield* originalMethod.apply(this, args)
 					return
 				} catch (error: any) {
+					const handlerInstance = this as {
+						options?: {
+							disableRetries?: boolean
+							onRetryAttempt?: (attempt: number, maxRetries: number, delay: number, error: any) => void
+						}
+					}
 					const isRateLimit = isRateLimited(error?.status) || error instanceof RetriableError
 					const isLastAttempt = attempt === maxRetries - 1
 
-					if ((!isRateLimit && !retryAllErrors) || isLastAttempt) {
+					if (handlerInstance.options?.disableRetries || (!isRateLimit && !retryAllErrors) || isLastAttempt) {
 						throw error
 					}
 
@@ -70,9 +76,6 @@ export function withRetry(options: RetryOptions = {}) {
 						delay = Math.min(maxDelay, baseDelay * 2 ** attempt)
 					}
 
-					const handlerInstance = this as {
-						options?: { onRetryAttempt?: (attempt: number, maxRetries: number, delay: number, error: any) => void }
-					}
 					if (handlerInstance.options?.onRetryAttempt) {
 						try {
 							await handlerInstance.options.onRetryAttempt(attempt + 1, maxRetries, delay, error)

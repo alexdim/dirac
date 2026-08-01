@@ -16,7 +16,7 @@ import { useAuthStatus } from "./hooks/useAuthStatus"
 import { useSettingsItems } from "./hooks/useSettingsItems"
 import { useSettingsActions } from "./hooks/useSettingsActions"
 import { SettingsListView } from "./SettingsListView"
-import { ProviderPickerPage, ModelPickerPage, LanguagePickerPage } from "./subpages/PickerPages"
+import { ProviderPickerPage, ModelPickerPage, LanguagePickerPage, UtilityModelPresetPickerPage } from "./subpages/PickerPages"
 import { ApiKeyInputPage, EditValuePage, ObjectEditorPage } from "./subpages/EditPages"
 import { BedrockSetupPage, BedrockCustomFlowPage } from "./subpages/SetupPages"
 import { CodexAuthPage, GithubAuthPage, AuthErrorPage } from "./subpages/AuthPages"
@@ -26,6 +26,7 @@ import { getFirstSelectableSettingsIndex, isSelectableSettingsItem } from "./nav
 import type { TelemetrySetting } from "@shared/TelemetrySetting"
 import type { OpenaiReasoningEffort } from "@shared/storage/types"
 import type { AutoApprovalSettings } from "@shared/AutoApprovalSettings"
+import type { ModelProviderPreset, ModelProviderSelection } from "@shared/api"
 import type { ObjectEditorState } from "../ConfigViewComponents"
 
 import { ToolRegistry } from "@/core/task/tools/registry/ToolRegistry"
@@ -51,6 +52,7 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 	)
 	const [isPickingProvider, setIsPickingProvider] = useState(initialMode === "provider-picker")
 	const [isPickingLanguage, setIsPickingLanguage] = useState(false)
+	const [isPickingUtilityModel, setIsPickingUtilityModel] = useState(false)
 	const [isEnteringApiKey, setIsEnteringApiKey] = useState(false)
 	const [pendingProvider, setPendingProvider] = useState<string | null>(null)
 	const [isConfiguringBedrock, setIsConfiguringBedrock] = useState(false)
@@ -111,6 +113,15 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 		}
 		return initial as Record<FeatureKey, boolean>
 	})
+	const [utilityModelEnabled, setUtilityModelEnabled] = useState<boolean>(() =>
+		stateManager.getGlobalSettingsKey("utilityModelEnabled"),
+	)
+	const [utilityModelSelection, setUtilityModelSelection] = useState<ModelProviderSelection | undefined>(() =>
+		stateManager.getGlobalSettingsKey("utilityModelSelection"),
+	)
+	const [modelProviderPresets] = useState<ModelProviderPreset[]>(() =>
+		stateManager.getGlobalSettingsKey("modelProviderPresets") ?? [],
+	)
 
 	const [lightTerminalTheme, setLightTerminalTheme] = useState<boolean>(() => {
 		const savedPreference = stateManager.getGlobalSettingsKey("cliTerminalColorMode")
@@ -235,6 +246,8 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 		planReasoningEffort,
 		autoApproveSettings,
 		features,
+		utilityModelEnabled,
+		utilityModelSelection,
 		lightTerminalTheme,
 		preferredLanguage,
 		telemetry,
@@ -267,6 +280,7 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 		handleBedrockComplete,
 		handleBedrockCustomFlowComplete,
 		handleLanguageSelect,
+		handleUtilityModelPresetSelect,
 		cancelCodexAuth,
 		cancelGithubAuth,
 		navigateItems,
@@ -295,6 +309,8 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 		autoApproveSettings,
 		setAutoApproveSettings,
 		features,
+		utilityModelEnabled,
+		setUtilityModelEnabled,
 		setFeatures,
 		setLightTerminalTheme,
 		preferredLanguage,
@@ -309,6 +325,8 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 		pickingModelKey,
 		setPickingModelKey,
 		setIsPickingLanguage,
+		setIsPickingUtilityModel,
+		setUtilityModelSelection,
 		setIsEnteringApiKey,
 		pendingProvider,
 		setPendingProvider,
@@ -342,6 +360,7 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 		setPickingModelKey(null)
 		setIsPickingProvider(false)
 		setIsPickingLanguage(false)
+		setIsPickingUtilityModel(false)
 		setIsEnteringApiKey(false)
 		setPendingProvider(null)
 		setApiKeyValue("")
@@ -387,6 +406,11 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 					setPendingProvider(null)
 					if (initialMode) onClose()
 				}
+				return
+			}
+
+			if (isPickingUtilityModel) {
+				if (key.escape) setIsPickingUtilityModel(false)
 				return
 			}
 
@@ -553,6 +577,18 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 				/>
 			)
 		}
+		if (isPickingUtilityModel) {
+			return (
+				<UtilityModelPresetPickerPage
+					isActive={isPickingUtilityModel && !isApplyingSetting}
+					presets={modelProviderPresets}
+					onSelect={(preset) =>
+						runSettingsAction("utility model selection", () => handleUtilityModelPresetSelect(preset))
+					}
+				/>
+			)
+		}
+
 		if (isPickingLanguage) {
 			return (
 				<LanguagePickerPage
@@ -603,6 +639,7 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 		isPickingProvider ||
 		isPickingModel ||
 		isPickingLanguage ||
+		isPickingUtilityModel ||
 		isEnteringApiKey ||
 		isConfiguringBedrock ||
 		isWaitingForCodexAuth ||

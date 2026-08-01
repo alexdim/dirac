@@ -1,5 +1,5 @@
 import { parseMentions } from "@core/mentions"
-import { parseSlashCommands } from "@core/slash-commands"
+import { parseSlashCommands, type SlashCommandDirectAction } from "@core/slash-commands"
 import { SkillMetadata } from "@/shared/skills"
 import { refreshToolRegistryForWorkspace } from "../tools/registry/refreshToolRegistry"
 import { ToolRegistry } from "../tools/registry/ToolRegistry"
@@ -11,13 +11,14 @@ export interface EnrichContextResult {
 	needsDiracrulesFileCheck: boolean
 	isDirectResponse?: boolean
 	directResponseText?: string
+	directAction?: SlashCommandDirectAction
 }
 
 export class MentionContextLoader {
 	constructor(
 		private dependencies: ContextLoaderDependencies,
 		private fileContextLoader: FileContextLoader,
-	) { }
+	) {}
 
 	// Parse mentions and slash commands, then optionally enrich with file/symbol context
 	async enrichContext(
@@ -29,26 +30,31 @@ export class MentionContextLoader {
 		providerInfo: any,
 		includePathContext: boolean,
 		availableSkills: SkillMetadata[],
+		conversationCondensationAvailable: boolean,
+		taskHandoffCondensationAvailable: boolean,
 	): Promise<EnrichContextResult> {
 		const parsedText = await parseMentions(text, cwd, this.urlContentFetcher, this.fileContextTracker, this.workspaceManager)
-		const { processedText, needsDiracrulesFileCheck, isDirectResponse, directResponseText } = await parseSlashCommands(
-			parsedText,
-			localWorkflowToggles,
-			globalWorkflowToggles,
-			ulid,
-			providerInfo,
-			availableSkills,
-			this.dependencies.commandPermissionController,
-			this.dependencies.extensionPath,
-			this.dependencies.sourceDir,
-		)
+		const { processedText, needsDiracrulesFileCheck, isDirectResponse, directResponseText, directAction } =
+			await parseSlashCommands(
+				parsedText,
+				localWorkflowToggles,
+				globalWorkflowToggles,
+				ulid,
+				providerInfo,
+				availableSkills,
+				this.dependencies.commandPermissionController,
+				this.dependencies.extensionPath,
+				this.dependencies.sourceDir,
+				conversationCondensationAvailable,
+				taskHandoffCondensationAvailable,
+			)
 
 		// Handle /reloadtools direct response: trigger tool registry refresh
 		if (isDirectResponse && directResponseText === "__RELOAD_TOOLS__") return await this.handleReloadTools()
 
 		// Skip automatic path and symbol detection for subsequent turns or very long prompts
 		if (!includePathContext || text.length > 1000)
-			return { enrichedText: processedText, needsDiracrulesFileCheck, isDirectResponse, directResponseText }
+			return { enrichedText: processedText, needsDiracrulesFileCheck, isDirectResponse, directResponseText, directAction }
 
 		const { filePaths, directoryPaths, symbols } = await this.fileContextLoader.extractContext(text, cwd)
 		const { skeletons, directoryLists } = await this.fileContextLoader.getPathContext(filePaths, directoryPaths, cwd)
@@ -56,9 +62,15 @@ export class MentionContextLoader {
 
 		const additionalContext = [...skeletons, ...directoryLists, ...symbolDefinitions]
 		if (additionalContext.length > 0) {
-			return { enrichedText: `${processedText}\n\n${additionalContext.join("\n\n")}`, needsDiracrulesFileCheck }
+			return {
+				enrichedText: `${processedText}\n\n${additionalContext.join("\n\n")}`,
+				needsDiracrulesFileCheck,
+				isDirectResponse,
+				directResponseText,
+				directAction,
+			}
 		}
-		return { enrichedText: processedText, needsDiracrulesFileCheck, isDirectResponse, directResponseText }
+		return { enrichedText: processedText, needsDiracrulesFileCheck, isDirectResponse, directResponseText, directAction }
 	}
 
 	// Refresh tool registry and build a summary response for /reloadtools
@@ -77,11 +89,11 @@ export class MentionContextLoader {
 		const userToolSummary =
 			userTools.length > 0
 				? userTools
-					.map(
-						(t) =>
-							`  - ${t.id} (${t.source}) — ${enabledTools.some((e) => e.id === t.id) ? "enabled" : "disabled"}`,
-					)
-					.join("\n")
+						.map(
+							(t) =>
+								`  - ${t.id} (${t.source}) — ${enabledTools.some((e) => e.id === t.id) ? "enabled" : "disabled"}`,
+						)
+						.join("\n")
 				: "  (none found)"
 		const reloadResponse = [
 			`Tools reloaded. Found ${allTools.length} total tools (${userTools.length} user tools).`,

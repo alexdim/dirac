@@ -4,7 +4,7 @@ import { useMemo } from "react"
 import { getProviderLabel } from "../../../utils/providers"
 import { StateManager } from "@/core/storage/StateManager"
 import { ProviderToBaseUrlKeyMap } from "@shared/storage"
-import { ApiProvider } from "@shared/api"
+import { ApiProvider, type ModelProviderSelection } from "@shared/api"
 import { supportsReasoningEffortForModel } from "@/utils/model-utils"
 import { getModelList, CUSTOM_MODEL_ID } from "../../ModelPicker"
 import { usesOpenRouterModels } from "../../../utils/openrouter-models"
@@ -27,6 +27,8 @@ interface UseSettingsItemsProps {
 	planReasoningEffort: OpenaiReasoningEffort
 	autoApproveSettings: AutoApprovalSettings
 	features: Record<FeatureKey, boolean>
+	utilityModelEnabled: boolean
+	utilityModelSelection?: ModelProviderSelection
 	lightTerminalTheme: boolean
 	preferredLanguage: string
 	telemetry: TelemetrySetting
@@ -60,6 +62,8 @@ export function useSettingsItems({
 	openRouterProviderSorting,
 	openRouterPreventFallbacks,
 	features,
+	utilityModelEnabled,
+	utilityModelSelection,
 	lightTerminalTheme,
 	preferredLanguage,
 	telemetry,
@@ -88,6 +92,9 @@ export function useSettingsItems({
 		const providerSortingLabel = openRouterProviderSorting
 			? openRouterProviderSorting[0].toUpperCase() + openRouterProviderSorting.slice(1)
 			: "Default"
+		const utilityModelLabel = utilityModelSelection
+			? `${getProviderLabel(utilityModelSelection.provider)} · ${utilityModelSelection.modelId}`
+			: "Not configured"
 
 		switch (currentTab) {
 			case SettingsTab.API: {
@@ -343,6 +350,36 @@ export function useSettingsItems({
 						type: SettingsItemType.CHECKBOX,
 						value: separateModels,
 					},
+					{ key: "utilityModelSpacer", label: "", type: SettingsItemType.SPACER, value: "" },
+					{ key: "utilityModelHeader", label: "Utility model", type: SettingsItemType.HEADER, value: "" },
+					{
+						key: "utilityModelEnabled",
+						label: "Enable utility model",
+						type: SettingsItemType.CHECKBOX,
+						value: utilityModelEnabled,
+					},
+					{
+						key: "utilityModelSelection",
+						label: "Selection",
+						type: utilityModelEnabled ? SettingsItemType.ACTION : SettingsItemType.READONLY,
+						value: utilityModelLabel,
+					},
+					...(utilityModelEnabled && !utilityModelSelection
+						? [
+							{
+								key: "utilityModelConfigurationWarning",
+								label: "",
+								type: SettingsItemType.READONLY,
+								value: "Configuration required: select a saved provider/model.",
+							},
+						]
+						: []),
+					{
+						key: "utilityModelDisclosure",
+						label: "",
+						type: SettingsItemType.READONLY,
+						value: "Conversation source text may be sent to this provider, which can differ from the active task provider.",
+					},
 				]
 			}
 
@@ -446,7 +483,7 @@ export function useSettingsItems({
 					builtin: "Built-in",
 					global: "Global",
 					workspace: "Workspace",
-						task: "Task",
+					task: "Task",
 				}
 				const result: ListItem[] = []
 				for (const source of SOURCE_ORDER) {
@@ -497,6 +534,8 @@ export function useSettingsItems({
 		planReasoningEffort,
 		autoApproveSettings,
 		features,
+		utilityModelEnabled,
+		utilityModelSelection,
 		lightTerminalTheme,
 		preferredLanguage,
 		telemetry,

@@ -8,7 +8,12 @@ import { combineCardSequences } from "@/shared/combineCardSequences"
 import { DiracMessage } from "@/shared/ExtensionMessage"
 import { getApiMetrics } from "@/shared/getApiMetrics"
 import { HistoryItem } from "@/shared/HistoryItem"
-import { DiracStorageMessage, DiracUserContent } from "@/shared/messages/content"
+import {
+	DiracStorageMessage,
+	DiracUserContent,
+	removeUserInputMarkersFromContent,
+	removeUserInputMarkersFromMessage,
+} from "@/shared/messages/content"
 import { Logger } from "@/shared/services/Logger"
 import { getCwd, getDesktopDir } from "@/utils/path"
 import {
@@ -158,7 +163,7 @@ export class MessageStateHandler extends EventEmitter<MessageStateHandlerEvents>
 	}
 
 	setApiConversationHistory(newHistory: DiracStorageMessage[]): void {
-		this.apiConversationHistory = newHistory
+		this.apiConversationHistory = newHistory.map(removeUserInputMarkersFromMessage)
 	}
 
 	getApiConversationProviderState(): ApiConversationProviderState {
@@ -284,22 +289,23 @@ export class MessageStateHandler extends EventEmitter<MessageStateHandlerEvents>
 
 	async addToApiConversationHistory(message: DiracStorageMessage) {
 		await this.withStateLock(async () => {
-			this.apiConversationHistory.push(message)
+			this.apiConversationHistory.push(removeUserInputMarkersFromMessage(message))
 			this.apiHistoryDirty = true
 		})
 		this.scheduleFlush()
 	}
 
 	async appendToLastApiConversationUserMessage(contentBlock: DiracUserContent): Promise<DiracStorageMessage> {
+		const sanitizedContentBlock = removeUserInputMarkersFromContent(contentBlock) as DiracUserContent
 		const message = await this.withStateLock(() => {
 			const lastMessage = this.apiConversationHistory.at(-1)
 			if (!lastMessage || lastMessage.role !== "user") {
 				throw new Error("Cannot append content without a final user API conversation message")
 			}
 			if (typeof lastMessage.content === "string") {
-				lastMessage.content = [{ type: "text", text: lastMessage.content }, contentBlock]
+				lastMessage.content = [{ type: "text", text: lastMessage.content }, sanitizedContentBlock]
 			} else {
-				lastMessage.content.push(contentBlock)
+				lastMessage.content.push(sanitizedContentBlock)
 			}
 			this.apiHistoryDirty = true
 			return lastMessage
@@ -311,8 +317,21 @@ export class MessageStateHandler extends EventEmitter<MessageStateHandlerEvents>
 	async overwriteApiConversationHistory(newHistory: DiracStorageMessage[]): Promise<void> {
 		await this.flushPendingWrites()
 		return await this.withStateLock(async () => {
-			this.apiConversationHistory = newHistory
+			this.apiConversationHistory = newHistory.map(removeUserInputMarkersFromMessage)
 			await saveApiConversationHistory(this.taskId, this.apiConversationHistory)
+		})
+	}
+
+	async recordDeliveredSteeringMessageIds(messageIds: readonly string[]): Promise<void> {
+		await this.flushPendingWrites()
+		await this.withStateLock(async () => {
+			const deliveredIds = new Set(this.apiConversationProviderState.deliveredSteeringMessageIds ?? [])
+			for (const messageId of messageIds) deliveredIds.add(messageId)
+			this.apiConversationProviderState = {
+				...this.apiConversationProviderState,
+				deliveredSteeringMessageIds: [...deliveredIds],
+			}
+			await saveApiConversationProviderState(this.taskId, this.apiConversationProviderState)
 		})
 	}
 

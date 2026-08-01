@@ -14,6 +14,7 @@ import { FileInfo } from "../../../../services/glob/list-files"
 import { DiracAskResponse } from "../../../../shared/WebviewMessage"
 import { IDiracContext } from "./IDiracContext"
 import { TaskConfig } from "../types/TaskConfig"
+import type { TextCondensationTemplateId } from "@core/text-condensation/TextCondenser"
 import type { SubagentIdentity } from "@shared/subagents"
 
 export interface ICardHandle {
@@ -409,6 +410,15 @@ export interface IAnchorTrait {
  * The Tool Environment provides access to all capabilities (traits)
  * available to a modular tool during its execution.
  */
+export interface IConversationCondensationTrait {
+	isAvailable(template: TextCondensationTemplateId): boolean
+	condenseConversation(
+		template: TextCondensationTemplateId,
+		options?: { signal?: AbortSignal; additionalSourceText?: string },
+	): Promise<string>
+}
+
+
 export interface IToolEnvironment {
 	readonly telemetry: ITelemetryTrait
 	readonly ui: IUITrait
@@ -425,6 +435,8 @@ export interface IToolEnvironment {
 	readonly browser: IBrowserTrait
 	readonly skills: ISkillsTrait
 	readonly orchestration: IOrchestrationTrait
+	/** Available only to task environments that own their conversation history. */
+	readonly conversationCondensation?: IConversationCondensationTrait
 
 	/** Persistent state management */
 	readonly context: IDiracContext

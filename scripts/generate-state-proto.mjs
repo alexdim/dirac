@@ -86,6 +86,7 @@ function inferProtoType(typeText, fieldName) {
 		// Specific model info types first
 		["OpenAiCompatibleProfile", "OpenAiCompatibleProfile"],
 		["ModelProviderPreset", "ModelProviderPreset"],
+		["ModelProviderSelection", "ModelProviderSelection"],
 		["OpenAiCompatibleModelInfo", "OpenAiCompatibleModelInfo"],
 		["LiteLLMModelInfo", "LiteLLMModelInfo"],
 		["OcaModelInfo", "OcaModelInfo"],

@@ -5,10 +5,7 @@ import { stripHashes } from "../../../../../shared/utils/line-hashing"
 import { formatResponse } from "@core/formatResponse"
 import { AgentConfigLoader } from "../../subagent/AgentConfigLoader"
 import { waitForPresentationOperation } from "../../subagent/PresentationDeadline"
-import {
-	DEFAULT_SUBAGENT_TIMEOUT_SECONDS,
-	resolveSubagentTimeoutSeconds,
-} from "../../subagent/SubagentExecutionPolicy"
+import { DEFAULT_SUBAGENT_TIMEOUT_SECONDS, resolveSubagentTimeoutSeconds } from "../../subagent/SubagentExecutionPolicy"
 import { SubagentStatusItem } from "@shared/ExtensionMessage"
 import { excerpt } from "../../../utils/excerpt"
 import { CardStatus, SubagentExecutionStatus } from "@shared/ExtensionMessage"
@@ -35,6 +32,23 @@ interface SubagentRequest {
 	includeHistory: boolean
 }
 
+type PresentationIssueScope = "aggregate" | "agent"
+type PresentationIssuePhase = "create" | "intermediate_update" | "terminal_update" | "finalize" | "late_replay"
+
+interface PresentationIssueContext {
+	scope: PresentationIssueScope
+	phase: PresentationIssuePhase
+	requestIndex?: number
+	agentId?: number
+	agentName?: string
+	cardId?: string
+	executionStatus?: SubagentExecutionStatus
+	timedOut: boolean
+}
+
+interface SubagentPresentationIssue extends PresentationIssueContext {
+	error: Error
+}
 
 export const use_subagents_spec: DiracToolSpec = {
 	id: DiracDefaultTool.USE_SUBAGENTS,
@@ -98,7 +112,34 @@ export class UseSubagentsTool implements IDiracTool {
 		}
 
 		const entries = this.initializeEntries(requests, env.orchestration.getHistory())
-		const presentationErrors: Error[] = []
+		const presentationIssues: SubagentPresentationIssue[] = []
+		let cardsCreated = 0
+		const taskId = env.config.ulid || "unknown"
+		const reportPresentationIssue = (context: PresentationIssueContext, error: unknown) => {
+			const normalizedError = error instanceof Error ? error : new Error(String(error))
+			presentationIssues.push({ ...context, error: normalizedError })
+			const correlation = [
+				`task=${taskId}`,
+				`scope=${context.scope}`,
+				`phase=${context.phase}`,
+				context.requestIndex === undefined ? undefined : `requestIndex=${context.requestIndex}`,
+				context.agentId === undefined ? undefined : `agentId=${context.agentId}`,
+				context.agentName === undefined ? undefined : `agentName=${context.agentName}`,
+				context.cardId === undefined ? undefined : `cardId=${context.cardId}`,
+				context.executionStatus === undefined ? undefined : `executionStatus=${context.executionStatus}`,
+				`timedOut=${context.timedOut}`,
+			]
+				.filter((value): value is string => value !== undefined)
+				.join(" ")
+			env.logging.warn(`[UseSubagentsTool] presentation_issue ${correlation}`, normalizedError)
+		}
+
+		entries.forEach((entry, requestIndex) => {
+			env.logging.debug(
+				`[UseSubagentsTool] identity_allocated task=${taskId} requestIndex=${requestIndex} agentId=${entry.index} agentName=${entry.name}`,
+			)
+		})
+
 		let card: ICardHandle | undefined
 		if (!env.config.isSubagentExecution) {
 			try {
@@ -109,15 +150,22 @@ export class UseSubagentsTool implements IDiracTool {
 				})
 				const cardCreation = await waitForPresentationOperation(cardPromise)
 				if (cardCreation.timedOut) {
-					presentationErrors.push(new Error("Aggregate subagent card creation timed out."))
+					reportPresentationIssue(
+						{ scope: "aggregate", phase: "create", timedOut: true },
+						new Error("Aggregate subagent card creation timed out."),
+					)
 					void cardPromise
 						.then((lateCard) => lateCard.finalize(CardStatus.ABANDONED))
-						.catch((error) => env.logging.warn("Late aggregate subagent card cleanup failed.", error))
+						.catch((error) =>
+							reportPresentationIssue({ scope: "aggregate", phase: "late_replay", timedOut: false }, error),
+						)
 				} else {
 					card = cardCreation.value
+					cardsCreated++
+					env.logging.debug(`[UseSubagentsTool] card_created task=${taskId} scope=aggregate cardId=${card.id}`)
 				}
 			} catch (error) {
-				presentationErrors.push(error as Error)
+				reportPresentationIssue({ scope: "aggregate", phase: "create", timedOut: false }, error)
 			}
 		}
 
@@ -130,13 +178,18 @@ export class UseSubagentsTool implements IDiracTool {
 					await present()
 				})
 				.catch((error) => {
-					presentationErrors.push(error as Error)
+					reportPresentationIssue(
+						{ scope: "aggregate", phase: "intermediate_update", cardId: card?.id, timedOut: false },
+						error,
+					)
 				})
 		}
 		const emitStatus = (status: SubagentExecutionStatus) => {
 			if (!card) return
 			const payload = this.calculateStatusPayload(status, entries)
-			const wrappingUpCount = entries.filter((entry) => entry.isWrappingUp && !isTerminalSubagentStatus(entry.status)).length
+			const wrappingUpCount = entries.filter(
+				(entry) => entry.isWrappingUp && !isTerminalSubagentStatus(entry.status),
+			).length
 			const patch = {
 				status: subagentCardStatus(status),
 				body: this.formatSubagentStatusMarkdown(payload),
@@ -147,18 +200,33 @@ export class UseSubagentsTool implements IDiracTool {
 			}
 			enqueueAggregatePresentation(() => card!.update(patch))
 		}
-		const runAggregateOperation = async (operation: Promise<void>, timeoutMessage: string) => {
+		const runAggregateOperation = async (
+			operation: Promise<void>,
+			phase: "terminal_update" | "finalize",
+			timeoutMessage: string,
+		) => {
 			let operationError: Error | undefined
 			const observedOperation = operation.catch((error) => {
 				operationError = error as Error
 			})
 			const outcome = await waitForPresentationOperation(observedOperation)
-			if (outcome.timedOut) presentationErrors.push(new Error(timeoutMessage))
-			else if (operationError) presentationErrors.push(operationError)
+			if (outcome.timedOut) {
+				reportPresentationIssue(
+					{ scope: "aggregate", phase, cardId: card?.id, executionStatus: finalStatus, timedOut: true },
+					new Error(timeoutMessage),
+				)
+			} else if (operationError) {
+				reportPresentationIssue(
+					{ scope: "aggregate", phase, cardId: card?.id, executionStatus: finalStatus, timedOut: false },
+					operationError,
+				)
+			}
 		}
 
 		emitStatus(SubagentExecutionStatus.RUNNING)
-		presentationErrors.push(...(await this.runSubagents(requests, subagentName, entries, env, emitStatus)))
+		await this.runSubagents(requests, subagentName, entries, env, emitStatus, reportPresentationIssue, () => {
+			cardsCreated++
+		})
 
 		const failures = entries.filter((entry) => entry.status === SubagentExecutionStatus.FAILED).length
 		const cancellations = entries.filter((entry) => entry.status === SubagentExecutionStatus.CANCELLED).length
@@ -179,30 +247,42 @@ export class UseSubagentsTool implements IDiracTool {
 						renderType: "markdown",
 						header: `Ran ${requests.length} subagents`,
 					}),
+					"terminal_update",
 					"Final aggregate subagent card update timed out.",
 				)
 				await runAggregateOperation(
 					card!.finalize(subagentCardStatus(finalStatus)),
+					"finalize",
 					"Aggregate subagent card finalization timed out.",
 				)
 			}
 			const intermediateUpdates = await waitForPresentationOperation(aggregatePresentationUpdates)
 			if (intermediateUpdates.timedOut) {
 				discardQueuedAggregatePresentation = true
-				presentationErrors.push(new Error("Aggregate subagent presentation did not drain before the timeout."))
-				void aggregatePresentationUpdates
-					.then(applyFinalAggregateState)
-					.catch((error) => env.logging.warn("Late aggregate subagent terminal replay failed.", error))
+				reportPresentationIssue(
+					{
+						scope: "aggregate",
+						phase: "intermediate_update",
+						cardId: card.id,
+						executionStatus: finalStatus,
+						timedOut: true,
+					},
+					new Error("Aggregate subagent presentation did not drain before the timeout."),
+				)
 			}
 			await applyFinalAggregateState()
 		}
 
-		if (presentationErrors.length > 0) {
-			env.logging.warn(
-				`Subagent execution completed with ${presentationErrors.length} presentation error(s).`,
-				presentationErrors[0],
-			)
-		}
+		const succeeded = entries.filter((entry) => entry.status === SubagentExecutionStatus.COMPLETED).length
+		env.telemetry.captureCustomMetadata({
+			subagentRequestedCount: entries.length,
+			subagentSucceededCount: succeeded,
+			subagentFailedCount: failures,
+			subagentCancelledCount: cancellations,
+			subagentPresentationCardsCreated: cardsCreated,
+			subagentPresentationIssueCount: presentationIssues.length,
+			subagentPresentationTimeoutCount: presentationIssues.filter((issue) => issue.timedOut).length,
+		})
 
 		return formatResponse.toolResult(this.formatFinalResponse(entries))
 	}
@@ -245,7 +325,9 @@ export class UseSubagentsTool implements IDiracTool {
 			throw new Error(`${subject} parameter task_title must contain no more than ${SUBAGENT_TASK_TITLE_MAX_WORDS} words`)
 		}
 		if (taskTitle.length > SUBAGENT_TASK_TITLE_MAX_CHARS) {
-			throw new Error(`${subject} parameter task_title must contain no more than ${SUBAGENT_TASK_TITLE_MAX_CHARS} characters`)
+			throw new Error(
+				`${subject} parameter task_title must contain no more than ${SUBAGENT_TASK_TITLE_MAX_CHARS} characters`,
+			)
 		}
 		return taskTitle
 	}
@@ -256,7 +338,6 @@ export class UseSubagentsTool implements IDiracTool {
 		if (title.length <= SUBAGENT_TASK_TITLE_MAX_CHARS) return title
 		return `${title.slice(0, SUBAGENT_TASK_TITLE_MAX_CHARS - 1)}…`
 	}
-
 
 	private parseOptions(args: any): Omit<SubagentRequest, "taskTitle" | "prompt"> {
 		const timeout = args.timeout === undefined ? DEFAULT_SUBAGENT_TIMEOUT_SECONDS : Number(args.timeout)
@@ -335,8 +416,11 @@ export class UseSubagentsTool implements IDiracTool {
 		entries: SubagentStatusItem[],
 		env: IToolEnvironment,
 		emitStatus: (status: SubagentExecutionStatus) => void,
-	): Promise<Error[]> {
+		reportPresentationIssue: (context: PresentationIssueContext, error: unknown) => void,
+		onCardCreated: () => void,
+	): Promise<void> {
 		let lastAggregateUpdateAt = 0
+		const taskId = env.config.ulid || "unknown"
 		const emitRunningStatus = (force = false) => {
 			const now = Date.now()
 			if (!force && now - lastAggregateUpdateAt < 100) return
@@ -347,9 +431,24 @@ export class UseSubagentsTool implements IDiracTool {
 		const execution = requests.map(async (request, index) => {
 			const entry = entries[index]
 			const trajectory: SubagentTrajectoryEvent[] = []
-			let presentationError: Error | undefined
+			const issueContext = {
+				scope: "agent" as const,
+				requestIndex: index,
+				agentId: entry.index,
+				agentName: entry.name,
+			}
 			let discardQueuedPresentationUpdates = false
 			let presentationUpdates = Promise.resolve()
+			let subagentCard: ICardHandle | undefined
+			const reportAgentIssue = (
+				phase: PresentationIssuePhase,
+				timedOut: boolean,
+				error: unknown,
+				executionStatus?: SubagentExecutionStatus,
+				cardId = subagentCard?.id,
+			) => {
+				reportPresentationIssue({ ...issueContext, phase, cardId, executionStatus, timedOut }, error)
+			}
 			const enqueuePresentationUpdate = (present: () => Promise<void>) => {
 				presentationUpdates = presentationUpdates
 					.then(async () => {
@@ -357,20 +456,24 @@ export class UseSubagentsTool implements IDiracTool {
 						await present()
 					})
 					.catch((error) => {
-						presentationError ??= error as Error
+						reportAgentIssue("intermediate_update", false, error)
 					})
 			}
-			const runCardOperation = async (operation: Promise<void>, timeoutMessage: string) => {
+			const runCardOperation = async (
+				operation: Promise<void>,
+				phase: "terminal_update" | "finalize",
+				timeoutMessage: string,
+				executionStatus: SubagentExecutionStatus,
+			) => {
 				let operationError: Error | undefined
 				const observedOperation = operation.catch((error) => {
 					operationError = error as Error
 				})
 				const outcome = await waitForPresentationOperation(observedOperation)
-				if (outcome.timedOut) presentationError ??= new Error(timeoutMessage)
-				else if (operationError) presentationError ??= operationError
+				if (outcome.timedOut) reportAgentIssue(phase, true, new Error(timeoutMessage), executionStatus)
+				else if (operationError) reportAgentIssue(phase, false, operationError, executionStatus)
 			}
 
-			let subagentCard: ICardHandle | undefined
 			if (!env.config.isSubagentExecution) {
 				try {
 					const cardPromise = env.ui.createCard({
@@ -396,15 +499,19 @@ export class UseSubagentsTool implements IDiracTool {
 					})
 					const cardCreation = await waitForPresentationOperation(cardPromise)
 					if (cardCreation.timedOut) {
-						presentationError = new Error(`Subagent '${entry.name}' card creation timed out.`)
+						reportAgentIssue("create", true, new Error(`Subagent '${entry.name}' card creation timed out.`))
 						void cardPromise
 							.then((lateCard) => lateCard.finalize(CardStatus.ABANDONED))
-							.catch((error) => env.logging.warn(`Late subagent '${entry.name}' card cleanup failed.`, error))
+							.catch((error) => reportAgentIssue("late_replay", false, error))
 					} else {
 						subagentCard = cardCreation.value
+						onCardCreated()
+						env.logging.debug(
+							`[UseSubagentsTool] card_created task=${taskId} scope=agent requestIndex=${index} agentId=${entry.index} agentName=${entry.name} cardId=${subagentCard.id}`,
+						)
 					}
 				} catch (error) {
-					presentationError = error as Error
+					reportAgentIssue("create", false, error)
 				}
 			}
 
@@ -439,12 +546,15 @@ export class UseSubagentsTool implements IDiracTool {
 						}
 
 						if (update.stats !== undefined || update.status !== undefined || update.isWrappingUp) {
-							emitRunningStatus(isTerminalSubagentStatus(status))
+							emitRunningStatus(isTerminalSubagentStatus(status) || update.isWrappingUp === true)
 						}
-						if (!subagentCard || (!trajectoryChanged && !update.isWrappingUp) || isTerminalSubagentStatus(status)) return
+						if (!subagentCard || (!trajectoryChanged && !update.isWrappingUp) || isTerminalSubagentStatus(status))
+							return
 
 						const cardUpdate = {
-							header: current.isWrappingUp ? `${current.name}: wrapping up` : `${current.name}: ${current.taskTitle}`,
+							header: current.isWrappingUp
+								? `${current.name}: wrapping up`
+								: `${current.name}: ${current.taskTitle}`,
 							status: subagentCardStatus(status),
 							body: stripHashes(
 								formatSubagentTrajectory({
@@ -462,6 +572,9 @@ export class UseSubagentsTool implements IDiracTool {
 					},
 				})
 				runSettled = true
+				env.logging.debug(
+					`[UseSubagentsTool] execution_settled task=${taskId} requestIndex=${index} agentId=${entry.index} agentName=${entry.name} status=${runResult.status}`,
+				)
 
 				recordSubagentProgress(trajectory, runResult)
 				if (subagentCard) {
@@ -483,25 +596,34 @@ export class UseSubagentsTool implements IDiracTool {
 					const applyTerminalCardState = async () => {
 						await runCardOperation(
 							subagentCard!.update(finalCardUpdate),
+							"terminal_update",
 							`Subagent '${entry.name}' final card update timed out.`,
+							runResult.status,
 						)
 						await runCardOperation(
 							subagentCard!.finalize(subagentCardStatus(runResult.status)),
+							"finalize",
 							`Subagent '${entry.name}' card finalization timed out.`,
+							runResult.status,
 						)
 					}
 					const intermediateUpdates = await waitForPresentationOperation(presentationUpdates)
 					if (intermediateUpdates.timedOut) {
 						discardQueuedPresentationUpdates = true
-						presentationError ??= new Error(`Subagent '${entry.name}' presentation did not drain before the timeout.`)
-						void presentationUpdates
-							.then(applyTerminalCardState)
-							.catch((error) => env.logging.warn(`Late subagent '${entry.name}' terminal replay failed.`, error))
+						reportAgentIssue(
+							"intermediate_update",
+							true,
+							new Error(`Subagent '${entry.name}' presentation did not drain before the timeout.`),
+							runResult.status,
+						)
 					}
 					await applyTerminalCardState()
+					env.logging.debug(
+						`[UseSubagentsTool] terminal_reconciled task=${taskId} requestIndex=${index} agentId=${entry.index} agentName=${entry.name} cardId=${subagentCard.id} status=${runResult.status}`,
+					)
 				}
 
-				return { runResult, presentationError }
+				return runResult
 			} catch (error) {
 				runSettled = true
 				const message = (error as Error).message || "Subagent execution failed"
@@ -523,55 +645,62 @@ export class UseSubagentsTool implements IDiracTool {
 					const applyFailedCardState = async () => {
 						await runCardOperation(
 							subagentCard!.update(failedCardUpdate),
+							"terminal_update",
 							`Subagent '${entry.name}' failed card update timed out.`,
+							SubagentExecutionStatus.FAILED,
 						)
 						await runCardOperation(
 							subagentCard!.finalize(CardStatus.ERROR),
+							"finalize",
 							`Subagent '${entry.name}' failed card finalization timed out.`,
+							SubagentExecutionStatus.FAILED,
 						)
 					}
 					const intermediateUpdates = await waitForPresentationOperation(presentationUpdates)
 					if (intermediateUpdates.timedOut) {
 						discardQueuedPresentationUpdates = true
-						presentationError ??= new Error(`Subagent '${entry.name}' presentation did not drain before the timeout.`)
-						void presentationUpdates
-							.then(applyFailedCardState)
-							.catch((lateError) => env.logging.warn(`Late subagent '${entry.name}' failure replay failed.`, lateError))
+						reportAgentIssue(
+							"intermediate_update",
+							true,
+							new Error(`Subagent '${entry.name}' presentation did not drain before the timeout.`),
+							SubagentExecutionStatus.FAILED,
+						)
 					}
 					await applyFailedCardState()
-				}
-				if (presentationError) {
-					env.logging.warn(`Subagent '${entry.name}' failed with an additional presentation error.`, presentationError)
 				}
 				throw error
 			}
 		})
 
-		const presentationErrors: Error[] = []
 		const results = await Promise.allSettled(execution)
 		results.forEach((result, index) => {
+			const entry = entries[index]
 			if (result.status === "rejected") {
-				entries[index].status = SubagentExecutionStatus.FAILED
-				entries[index].error = (result.reason as Error)?.message || "Subagent execution failed"
+				entry.status = SubagentExecutionStatus.FAILED
+				entry.error = (result.reason as Error)?.message || "Subagent execution failed"
+				env.logging.debug(
+					`[UseSubagentsTool] result_reconciled task=${taskId} requestIndex=${index} agentId=${entry.index} agentName=${entry.name} status=${entry.status}`,
+				)
 				return
 			}
 
-			const { runResult, presentationError } = result.value
-			entries[index].status = runResult.status
-			entries[index].result = runResult.result
-			entries[index].error = runResult.error
-			entries[index].toolCalls = runResult.stats.toolCalls
-			entries[index].inputTokens = runResult.stats.inputTokens
-			entries[index].outputTokens = runResult.stats.outputTokens
-			entries[index].cacheWrites = runResult.stats.cacheWriteTokens
-			entries[index].cacheReads = runResult.stats.cacheReadTokens
-			entries[index].totalCost = runResult.stats.totalCost
-			entries[index].contextTokens = runResult.stats.contextTokens
-			entries[index].contextWindow = runResult.stats.contextWindow
-			entries[index].contextUsagePercentage = runResult.stats.contextUsagePercentage
-			if (presentationError) presentationErrors.push(presentationError)
+			const runResult = result.value
+			entry.status = runResult.status
+			entry.result = runResult.result
+			entry.error = runResult.error
+			entry.toolCalls = runResult.stats.toolCalls
+			entry.inputTokens = runResult.stats.inputTokens
+			entry.outputTokens = runResult.stats.outputTokens
+			entry.cacheWrites = runResult.stats.cacheWriteTokens
+			entry.cacheReads = runResult.stats.cacheReadTokens
+			entry.totalCost = runResult.stats.totalCost
+			entry.contextTokens = runResult.stats.contextTokens
+			entry.contextWindow = runResult.stats.contextWindow
+			entry.contextUsagePercentage = runResult.stats.contextUsagePercentage
+			env.logging.debug(
+				`[UseSubagentsTool] result_reconciled task=${taskId} requestIndex=${index} agentId=${entry.index} agentName=${entry.name} status=${entry.status}`,
+			)
 		})
-		return presentationErrors
 	}
 
 	private formatFinalResponse(entries: SubagentStatusItem[]): string {

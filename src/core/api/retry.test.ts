@@ -233,5 +233,35 @@ describe("Retry Decorator", () => {
 				callCount.should.equal(2) // Initial attempt + 1 retry
 			}
 		})
+
+		it("does not retry when the handler disables retries", async () => {
+			let callCount = 0
+			const onRetryAttempt = sinon.spy()
+
+			class TestClass {
+				options = { disableRetries: true, onRetryAttempt }
+
+				@withRetry({ maxRetries: 3, baseDelay: 10 })
+				async *failMethod() {
+					callCount++
+					const error: any = new Error("Rate limit exceeded")
+					error.status = 429
+					throw error
+				}
+			}
+
+			const test = new TestClass()
+			try {
+				for await (const _ of test.failMethod()) {
+					// The method always fails.
+				}
+				throw new Error("Should have thrown")
+			} catch (error: any) {
+				error.message.should.equal("Rate limit exceeded")
+			}
+
+			callCount.should.equal(1)
+			onRetryAttempt.notCalled.should.be.true
+		})
 	})
 })

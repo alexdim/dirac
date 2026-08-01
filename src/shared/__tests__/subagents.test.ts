@@ -78,6 +78,22 @@ describe("subagent observability", () => {
 		assert.equal(data.taskTitle, undefined)
 	})
 
+	it("uses terminal card status when raw subagent status is stale", () => {
+		const data = readSubagentCardData({
+			id: "stale-status-agent",
+			header: "Gauss",
+			status: CardStatus.SUCCESS,
+			renderType: "markdown",
+			rawInput: createSubagentCardInput({ id: 2, name: "Gauss" }, "Research", "Researching status"),
+			rawOutput: createSubagentCardOutput(SubagentExecutionStatus.RUNNING, []),
+		})
+
+		assert.ok(data)
+		assert.equal(data.status, SubagentExecutionStatus.COMPLETED)
+		assert.match(formatSubagentTrajectory(data), /No trajectory events were recorded/)
+		assert.doesNotMatch(formatSubagentTrajectory(data), /Waiting to start/)
+	})
+
 	it("caps stored trajectory events and truncates oversized event text", () => {
 		const trajectory: SubagentTrajectoryEvent[] = []
 		for (let index = 0; index < SUBAGENT_TRAJECTORY_MAX_EVENTS + 5; index++) {
@@ -107,7 +123,6 @@ describe("subagent observability", () => {
 
 		assert.deepEqual(trajectory, [{ type: SubagentTrajectoryEventType.RESULT, text: "Finished" }])
 	})
-
 
 	it("discovers prior agents from persisted task messages", () => {
 		const identity = { id: 7, name: "Curie" }

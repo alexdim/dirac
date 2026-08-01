@@ -168,15 +168,14 @@ export class QwenCodeHandler implements ApiHandler {
 		try {
 			return await apiCall()
 		} catch (error: any) {
-			if (error.status === 401) {
-				// Token expired, refresh and retry
-				this.credentials = await this.refreshAccessToken(this.credentials!)
-				const client = this.ensureClient()
-				client.apiKey = this.credentials.access_token
-				client.baseURL = this.getBaseUrl(this.credentials)
-				return await apiCall()
-			}
-			throw error
+			if (error.status !== 401 || this.options.disableRetries) throw error
+
+			// Token expired, refresh and retry
+			this.credentials = await this.refreshAccessToken(this.credentials!)
+			const client = this.ensureClient()
+			client.apiKey = this.credentials.access_token
+			client.baseURL = this.getBaseUrl(this.credentials)
+			return await apiCall()
 		}
 	}
 

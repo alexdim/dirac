@@ -1,4 +1,5 @@
 import { DiracMessage, DiracMessageType, SteeringTranscriptStatus } from "@shared/ExtensionMessage"
+import type { DiracStorageMessage } from "@shared/messages/content"
 
 export enum SteeringDeliveryState {
 	QUEUED = "queued",
@@ -20,18 +21,37 @@ export interface SteeringClaim {
 	messages: SteeringMessage[]
 }
 
-export function restoreQueuedSteeringMessages(messages: readonly DiracMessage[]): SteeringMessage[] {
+export function collectDeliveredSteeringMessageIds(history: readonly DiracStorageMessage[]): Set<string> {
+	const deliveredIds = new Set<string>()
+	for (const message of history) {
+		if (typeof message.content === "string") continue
+		for (const block of message.content) {
+			if (block.type !== "text") continue
+			const messageIds = "steeringMessageIds" in block ? block.steeringMessageIds : undefined
+			for (const messageId of messageIds ?? []) deliveredIds.add(messageId)
+		}
+	}
+	return deliveredIds
+}
+
+export function restoreQueuedSteeringMessages(
+	messages: readonly DiracMessage[],
+	deliveredMessageIds: ReadonlySet<string> = new Set(),
+): SteeringMessage[] {
 	return messages.flatMap((message) => {
 		if (message.content.type !== DiracMessageType.MARKDOWN) return []
 		if (message.content.steering?.status !== SteeringTranscriptStatus.QUEUED) return []
+		if (deliveredMessageIds.has(message.id)) return []
 
-		return [{
-			id: message.id,
-			text: message.content.content,
-			createdAt: message.ts,
-			transcriptMessageId: message.id,
-			deliveryState: SteeringDeliveryState.QUEUED,
-		}]
+		return [
+			{
+				id: message.id,
+				text: message.content.content,
+				createdAt: message.ts,
+				transcriptMessageId: message.id,
+				deliveryState: SteeringDeliveryState.QUEUED,
+			},
+		]
 	})
 }
 function escapeXml(value: string): string {

@@ -35,6 +35,8 @@ export interface DiracToolSpec<TContext = any> {
 	id: DiracDefaultTool | string
 	name: string
 	description: string
+	/** Request-visible description; static description remains available to inventory UI. */
+	promptDescription?: string | ((context: TContext) => string)
 	instruction?: string
 	contextRequirements?: (context: TContext) => boolean
 	parameters?: Array<DiracToolSpecParameter<TContext>>

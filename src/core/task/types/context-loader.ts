@@ -7,6 +7,7 @@ import { CommandPermissionController } from "../../permissions/CommandPermission
 import { StateManager } from "../../storage/StateManager"
 import { TaskState } from "../TaskState"
 
+import type { TextCondensationTemplateId } from "@core/text-condensation/TextCondenser"
 export interface ContextLoaderDependencies {
 	ulid: string
 	stateManager: StateManager
@@ -23,6 +24,7 @@ export interface ContextLoaderDependencies {
 	getCurrentProviderInfo: () => ApiProviderInfo
 	getEnvironmentDetails: (includeFileDetails?: boolean) => Promise<string>
 	yoloModeToggled?: boolean
+	isTextCondensationAvailable?: (template: TextCondensationTemplateId) => boolean
 
 	postStateToWebview: () => Promise<void>
 }

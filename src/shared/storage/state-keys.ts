@@ -5,6 +5,7 @@ import {
 	LiteLLMModelInfo,
 	ModelInfo,
 	OpenAiCompatibleModelInfo,
+	ModelProviderSelection,
 	OpenAiCompatibleProfile,
 } from "@shared/api"
 import { BrowserSettings, DEFAULT_BROWSER_SETTINGS } from "@shared/BrowserSettings"
@@ -206,6 +207,8 @@ const USER_SETTINGS_FIELDS = {
 	acpDisabledProviders: { default: {} as Record<string, string> },
 	acpProviderApiTypes: { default: {} as Record<string, string> },
 	modelProviderPresets: { default: [] as import("@shared/api").ModelProviderPreset[] },
+	utilityModelEnabled: { default: false as boolean },
+	utilityModelSelection: { default: undefined as ModelProviderSelection | undefined },
 	autoApprovalSettings: {
 		default: DEFAULT_AUTO_APPROVAL_SETTINGS as AutoApprovalSettings,
 	},

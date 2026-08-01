@@ -30,7 +30,6 @@ describe("ApiConversationManager steering delivery", () => {
 
 		const result = await manager.prepareApiRequest({
 			userContent: [],
-			shouldCompact: false,
 			includeFileDetails: false,
 			useCompactPrompt: false,
 			previousApiReqIndex: 0,
@@ -45,6 +44,121 @@ describe("ApiConversationManager steering delivery", () => {
 			result.userContent.some((block: any) => block.text?.includes("<steering_messages>")),
 			false,
 		)
+		assert.equal(result.didConsumeUserContent, true)
+	})
+
+	it("runs the persistence callback immediately after the user message is stored", async () => {
+		const events: string[] = []
+		const dependencies: any = {
+			taskState: new TaskState(),
+			stateManager: { getGlobalSettingsKey: sinon.stub() },
+			runUserPromptSubmitHook: sinon.stub().resolves({}),
+			loadContext: sinon.stub().callsFake(async (content: any[]) => [content, "", false, [], false, undefined]),
+			taskMessenger: { upsertApiStatus: sinon.stub().resolves(), createCard: sinon.stub() },
+			messageStateHandler: {
+				addToApiConversationHistory: sinon.stub().callsFake(async () => events.push("persisted")),
+				getDiracMessages: sinon.stub().returns([]),
+				updateDiracMessage: sinon.stub().resolves(),
+			},
+			postStateToWebview: sinon.stub().resolves(),
+			taskInitializationStartTime: performance.now(),
+			ulid: "task-ulid",
+			taskId: "task-id",
+		}
+		const manager = new ApiConversationManager(dependencies)
+
+		await manager.prepareApiRequest({
+			userContent: [],
+			includeFileDetails: false,
+			useCompactPrompt: false,
+			previousApiReqIndex: 0,
+			isFirstRequest: false,
+			providerId: "provider",
+			modelId: "model",
+			mode: "act",
+			afterUserContentPersisted: async () => {
+				events.push("callback")
+			},
+		})
+
+		assert.deepEqual(events, ["persisted", "callback"])
+	})
+
+	it("does not consume user content when the prompt hook cancels", async () => {
+		const addToApiConversationHistory = sinon.stub().resolves()
+		const manager = new ApiConversationManager({
+			taskState: new TaskState(),
+			runUserPromptSubmitHook: sinon.stub().resolves({ cancel: true, errorMessage: "cancelled" }),
+			messageStateHandler: { addToApiConversationHistory },
+		} as any)
+
+		const result = await manager.prepareApiRequest({
+			userContent: [{ type: "text", text: "<steering_message>keep trying</steering_message>" }],
+			includeFileDetails: false,
+			useCompactPrompt: false,
+			previousApiReqIndex: 4,
+			isFirstRequest: false,
+			providerId: "provider",
+			modelId: "model",
+			mode: "act",
+		})
+
+		assert.equal(result.didConsumeUserContent, false)
+		assert.equal(addToApiConversationHistory.callCount, 0)
+	})
+
+	it("consumes direct-response commands without persisting ordinary user content", async () => {
+		const addToApiConversationHistory = sinon.stub().resolves()
+		const manager = new ApiConversationManager({
+			taskState: new TaskState(),
+			runUserPromptSubmitHook: sinon.stub().resolves({}),
+			loadContext: sinon.stub().resolves([[], "", false, [], true, "tools reloaded"]),
+			messageStateHandler: { addToApiConversationHistory },
+		} as any)
+
+		const result = await manager.prepareApiRequest({
+			userContent: [{ type: "text", text: "<steering_message>/reloadtools</steering_message>" }],
+			includeFileDetails: false,
+			useCompactPrompt: false,
+			previousApiReqIndex: 4,
+			isFirstRequest: false,
+			providerId: "provider",
+			modelId: "model",
+			mode: "act",
+		})
+
+		assert.equal(result.didConsumeUserContent, true)
+		assert.equal(result.directResponseText, "tools reloaded")
+		assert.equal(addToApiConversationHistory.callCount, 0)
+	})
+
+	it("consumes a condensation command even when local condensation cannot continue", async () => {
+		const addToApiConversationHistory = sinon.stub().resolves()
+		const runLocalConversationCompaction = sinon.stub().resolves(undefined)
+		const manager = new ApiConversationManager({
+			taskState: new TaskState(),
+			runUserPromptSubmitHook: sinon.stub().resolves({}),
+			loadContext: sinon
+				.stub()
+				.resolves([[], "", false, [], false, undefined, { type: "condenseConversation" }]),
+			runLocalConversationCompaction,
+			messageStateHandler: { addToApiConversationHistory },
+		} as any)
+
+		const result = await manager.prepareApiRequest({
+			userContent: [{ type: "text", text: "<steering_message>/compact</steering_message>" }],
+			includeFileDetails: false,
+			useCompactPrompt: false,
+			previousApiReqIndex: 4,
+			isFirstRequest: false,
+			providerId: "provider",
+			modelId: "model",
+			mode: "act",
+		})
+
+		assert.equal(runLocalConversationCompaction.callCount, 1)
+		assert.equal(result.didConsumeUserContent, true)
+		assert.equal(addToApiConversationHistory.callCount, 0)
 	})
 
 	describe("provider-native conversation compaction", () => {
@@ -52,7 +166,12 @@ describe("ApiConversationManager steering delivery", () => {
 			const taskState = new TaskState()
 			const history: any[] = [
 				{ role: "user", content: "old question" },
-				{ role: "assistant", content: "condense call", id: "resp_old", modelInfo: { providerId: "openai-codex", modelId: "model" } },
+				{
+					role: "assistant",
+					content: "condense call",
+					id: "resp_old",
+					modelInfo: { providerId: "openai-codex", modelId: "model" },
+				},
 				{ role: "user", content: "condense result" },
 			]
 			let providerState: any = {}
@@ -74,7 +193,9 @@ describe("ApiConversationManager steering delivery", () => {
 					getDiracMessages: sinon.stub().returns([]),
 					saveDiracMessagesAndUpdateHistory: sinon.stub().resolves(),
 				},
-				stateManager: { getGlobalSettingsKey: sinon.stub().callsFake((key: string) => (key === "hooksEnabled" ? false : undefined)) },
+				stateManager: {
+					getGlobalSettingsKey: sinon.stub().callsFake((key: string) => (key === "hooksEnabled" ? false : undefined)),
+				},
 				getCurrentProviderInfo: () => ({ providerId: "openai-codex" }),
 			}
 			return { dependencies, history, compactConversation, getProviderState: () => providerState }
@@ -85,6 +206,7 @@ describe("ApiConversationManager steering delivery", () => {
 			dependencies.taskState.pendingApiConversationCompaction = {
 				conversationHistoryDeletedRange: [0, 1],
 			}
+			getProviderState().deliveredSteeringMessageIds = ["transcript-1"]
 			const dispatch = await new ApiConversationManager(dependencies).prepareProviderConversationDispatch({
 				systemPrompt: "system",
 				tools: [],
@@ -93,11 +215,44 @@ describe("ApiConversationManager steering delivery", () => {
 				modelId: "model",
 			})
 
-			compactConversation.firstCall.args[0].messages.should.deepEqual(history)
-			getProviderState().checkpoint.compactedThroughHistoryIndex.should.equal(2)
-			dispatch.messages.should.deepEqual([])
+			assert.deepEqual(compactConversation.firstCall.args[0].messages, history)
+			assert.equal(getProviderState().checkpoint.compactedThroughHistoryIndex, 2)
+			assert.deepEqual(dispatch.messages, [])
 			assert.equal(dispatch.options.breakProviderContinuation, true)
 			assert.equal(dependencies.taskState.pendingApiConversationCompaction, undefined)
+			assert.deepEqual(getProviderState().deliveredSteeringMessageIds, ["transcript-1"])
+		})
+
+		it("preserves delivery receipts and sanitizes provider compaction input", async () => {
+			const { dependencies, history, compactConversation, getProviderState } = createCompactionDependencies()
+			history[0] = {
+				role: "user",
+				content: [
+					{
+						type: "text",
+						text: "queued guidance",
+						isUserInput: true,
+						steeringMessageIds: ["transcript-1"],
+					},
+				],
+			}
+			getProviderState().deliveredSteeringMessageIds = ["transcript-1"]
+			dependencies.taskState.pendingApiConversationCompaction = {
+				conversationHistoryDeletedRange: [0, 1],
+			}
+
+			await new ApiConversationManager(dependencies).prepareProviderConversationDispatch({
+				systemPrompt: "system",
+				tools: [],
+				truncatedMessages: history,
+				providerId: "openai-codex",
+				modelId: "model",
+			})
+
+			const compactedBlock = compactConversation.firstCall.args[0].messages[0].content[0]
+			assert.equal("isUserInput" in compactedBlock, false)
+			assert.equal("steeringMessageIds" in compactedBlock, false)
+			assert.deepEqual(getProviderState().deliveredSteeringMessageIds, ["transcript-1"])
 		})
 
 		it("falls back to plaintext truncation and breaks stale continuation", async () => {
@@ -117,7 +272,7 @@ describe("ApiConversationManager steering delivery", () => {
 				modelId: "model",
 			})
 
-			dispatch.messages.should.deepEqual(localHistory)
+			assert.deepEqual(dispatch.messages, localHistory)
 			assert.equal(dispatch.options.breakProviderContinuation, true)
 			assert.equal(getProviderState().checkpoint, undefined)
 		})
@@ -133,7 +288,7 @@ describe("ApiConversationManager steering delivery", () => {
 
 			await new ApiConversationManager(dependencies).determineContextCompaction(4)
 
-			dependencies.contextManager.shouldCompactContextWindow.firstCall.args[3].should.equal(123456)
+			assert.equal(dependencies.contextManager.shouldCompactContextWindow.firstCall.args[3], 123456)
 		})
 
 		it("recompacts the active checkpoint plus only its post-checkpoint suffix", async () => {
@@ -157,8 +312,8 @@ describe("ApiConversationManager steering delivery", () => {
 				modelId: "model",
 			})
 
-			compactConversation.firstCall.args[0].checkpoint.should.equal(priorCheckpoint)
-			compactConversation.firstCall.args[0].messages.should.deepEqual(history.slice(1))
+			assert.equal(compactConversation.firstCall.args[0].checkpoint, priorCheckpoint)
+			assert.deepEqual(compactConversation.firstCall.args[0].messages, history.slice(1))
 		})
 
 		it("schedules provider compaction after emergency plaintext truncation", async () => {
@@ -197,7 +352,6 @@ describe("ApiConversationManager steering delivery", () => {
 			assert.equal(getProviderState().pendingCompaction, undefined)
 		})
 
-
 		it("restores the persisted target truncation range before plaintext fallback", async () => {
 			const { dependencies, getProviderState } = createCompactionDependencies()
 			const targetMessages = [{ role: "user", content: "retained summary" }] as any
@@ -222,7 +376,6 @@ describe("ApiConversationManager steering delivery", () => {
 			assert.equal(dependencies.messageStateHandler.saveDiracMessagesAndUpdateHistory.callCount, 1)
 			assert.equal(getProviderState().pendingCompaction, undefined)
 		})
-
 
 		it("propagates cancellation without consuming pending compaction", async () => {
 			const { dependencies, compactConversation } = createCompactionDependencies()
@@ -250,7 +403,6 @@ describe("ApiConversationManager steering delivery", () => {
 			assert.equal(dependencies.messageStateHandler.overwriteApiConversationProviderState.callCount, 0)
 		})
 
-
 		it("propagates cancellation that occurs while compacted state is persisted", async () => {
 			const { dependencies } = createCompactionDependencies()
 			dependencies.taskState.pendingApiConversationCompaction = {
@@ -272,7 +424,6 @@ describe("ApiConversationManager steering delivery", () => {
 			)
 		})
 
-
 		it("skips the pre-condense token sample once after a successful condense", async () => {
 			const { dependencies } = createCompactionDependencies()
 			dependencies.stateManager.getGlobalSettingsKey.withArgs("useAutoCondense").returns(true)
@@ -284,7 +435,5 @@ describe("ApiConversationManager steering delivery", () => {
 			assert.equal(dependencies.taskState.skipNextAutoCondenseCheck, false)
 			assert.equal(dependencies.contextManager.shouldCompactContextWindow.callCount, 0)
 		})
-
 	})
-
 })

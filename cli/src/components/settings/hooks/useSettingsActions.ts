@@ -18,7 +18,7 @@ import { getNextSelectableSettingsIndex } from "../navigation"
 import type { AutoApprovalSettings } from "@shared/AutoApprovalSettings"
 import type { TelemetrySetting } from "@shared/TelemetrySetting"
 import type { OpenaiReasoningEffort } from "@shared/storage/types"
-import type { ApiProvider, ModelInfo } from "@shared/api"
+import { createModelProviderSelection, type ApiProvider, type ModelInfo, type ModelProviderPreset, type ModelProviderSelection } from "@shared/api"
 import type { ObjectEditorState } from "../../ConfigViewComponents"
 import type { BedrockConfig } from "../../BedrockSetup"
 import type { ToolMetadata } from "@shared/ExtensionMessage"
@@ -49,6 +49,8 @@ interface UseSettingsActionsProps {
 	autoApproveSettings: AutoApprovalSettings
 	setAutoApproveSettings: (settings: AutoApprovalSettings) => void
 	features: Record<FeatureKey, boolean>
+	utilityModelEnabled: boolean
+	setUtilityModelEnabled: (value: boolean) => void
 	setFeatures: (
 		features: Record<FeatureKey, boolean> | ((prev: Record<FeatureKey, boolean>) => Record<FeatureKey, boolean>),
 	) => void
@@ -65,6 +67,8 @@ interface UseSettingsActionsProps {
 	pickingModelKey: "actModelId" | "planModelId" | null
 	setPickingModelKey: (key: "actModelId" | "planModelId" | null) => void
 	setIsPickingLanguage: (value: boolean) => void
+	setIsPickingUtilityModel: (value: boolean) => void
+	setUtilityModelSelection: (selection: ModelProviderSelection | undefined) => void
 	setIsEnteringApiKey: (value: boolean) => void
 	pendingProvider: string | null
 	setPendingProvider: (provider: string | null) => void
@@ -114,6 +118,8 @@ export function useSettingsActions({
 	autoApproveSettings,
 	setAutoApproveSettings,
 	features,
+	utilityModelEnabled,
+	setUtilityModelEnabled,
 	setFeatures,
 	setLightTerminalTheme,
 	preferredLanguage,
@@ -128,6 +134,8 @@ export function useSettingsActions({
 	pickingModelKey,
 	setPickingModelKey,
 	setIsPickingLanguage,
+	setIsPickingUtilityModel,
+	setUtilityModelSelection,
 	setIsEnteringApiKey,
 	pendingProvider,
 	setPendingProvider,
@@ -164,6 +172,18 @@ export function useSettingsActions({
 			await rebuildTaskApi()
 		},
 		[features, stateManager, setFeatures, rebuildTaskApi],
+	)
+
+	const handleUtilityModelPresetSelect = useCallback(
+		async (preset: ModelProviderPreset) => {
+			const selection = createModelProviderSelection(preset)
+			stateManager.setGlobalState("utilityModelSelection", selection)
+			setUtilityModelSelection(selection)
+			await stateManager.flushPendingState()
+			await controller?.postStateToWebview()
+			setIsPickingUtilityModel(false)
+		},
+		[controller, stateManager, setIsPickingUtilityModel, setUtilityModelSelection],
 	)
 
 	const setReasoningEffortForMode = useCallback(
@@ -269,7 +289,22 @@ export function useSettingsActions({
 		)
 			return
 
+		if (item.key === "utilityModelEnabled") {
+			const newValue = !utilityModelEnabled
+			setUtilityModelEnabled(newValue)
+			stateManager.setGlobalState("utilityModelEnabled", newValue)
+			await stateManager.flushPendingState()
+			await controller?.postStateToWebview()
+			return
+		}
+
+
 		if (item.type === SettingsItemType.ACTION) {
+			if (item.key === "utilityModelSelection" && utilityModelEnabled) {
+				setIsPickingUtilityModel(true)
+				return
+			}
+
 			if (item.key === "codexSignOut") {
 				await openAiCodexOAuthManager.clearCredentials()
 				openAiCodexUsageService.clear()
@@ -459,6 +494,8 @@ export function useSettingsActions({
 		stateManager,
 		autoApproveSettings,
 		toggleFeature,
+		utilityModelEnabled,
+		setUtilityModelEnabled,
 		separateModels,
 		actReasoningEffort,
 		planReasoningEffort,
@@ -470,6 +507,7 @@ export function useSettingsActions({
 		setIsPickingModel,
 		setPickingModelKey,
 		setIsPickingLanguage,
+		setIsPickingUtilityModel,
 		setEditValue,
 		setIsEditing,
 		setLightTerminalTheme,
@@ -875,6 +913,7 @@ export function useSettingsActions({
 		cancelGithubAuth,
 		navigateItems,
 		toggleFeature,
+		handleUtilityModelPresetSelect,
 		setReasoningEffortForMode,
 	}
 }

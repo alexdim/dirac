@@ -66,6 +66,7 @@ export const SettingsListView: React.FC<SettingsListViewProps> = ({ items, selec
 								{isSelected ? "❯" : " "}{" "}
 							</Text>
 							<Text bold={isSelected} color={isSelected ? theme.strongText : theme.text}>{item.label}</Text>
+							{item.value !== "" && <Text color={theme.primary}>: {String(item.value)}</Text>}
 							{isSelected && <Text color={theme.muted}> (Enter)</Text>}
 						</Text>
 					)

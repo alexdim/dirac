@@ -67,6 +67,7 @@ import {
 	DiracTextContentBlock,
 	DiracToolResponseContent,
 	DiracUserContent,
+	removeProviderBoundaryMetadataFromMessage,
 } from "@shared/messages/content"
 import { DiracMessageModelInfo } from "@shared/messages/metrics"
 import { ShowMessageType } from "@shared/proto/index.host"
@@ -89,8 +90,13 @@ import { getOrDiscoverSkills } from "../context/instructions/user-instructions/s
 import { Controller } from "../controller"
 import { StateManager } from "../storage/StateManager"
 import { ApiConversationManager } from "./ApiConversationManager"
+import { LocalConversationCompaction } from "./LocalConversationCompaction"
+import type { SlashCommandDirectAction } from "@core/slash-commands"
+import { findSlashCommandInTags } from "@core/slash-commands/commandParser"
 import { AssistantStreamManager } from "./AssistantStreamManager"
 import { ContextLoader } from "./ContextLoader"
+import { createDefaultTextCondensationTemplateRegistry, TASK_HANDOFF_TEMPLATE_ID } from "@core/text-condensation/templates"
+import { isUtilityTextCondensationAvailable } from "@core/text-condensation/UtilityTextCondensationAvailability"
 import { EnvironmentManager } from "./EnvironmentManager"
 import { HookManager } from "./HookManager"
 import { LifecycleManager } from "./LifecycleManager"
@@ -102,6 +108,7 @@ import { StreamResponseHandler } from "./StreamResponseHandler"
 import { TaskMessenger } from "./TaskMessenger"
 import { TaskState } from "./TaskState"
 import {
+	collectDeliveredSteeringMessageIds,
 	formatSteeringMessages,
 	restoreQueuedSteeringMessages,
 	SteeringDeliveryState,
@@ -228,11 +235,17 @@ export class Task {
 	}
 
 	private async commitSteeringClaim(claimId: string): Promise<void> {
-		const claimedMessages = await this.withStateLock(() =>
-			this.taskState.steeringMessages
-				.filter((message) => message.deliveryState === SteeringDeliveryState.CLAIMED && message.claimId === claimId)
-				.map((message) => ({ ...message })),
-		)
+		const claimedMessages = await this.withStateLock(() => {
+			const messages = this.taskState.steeringMessages.filter(
+				(message) => message.deliveryState === SteeringDeliveryState.CLAIMED && message.claimId === claimId,
+			)
+			for (const message of messages) {
+				message.deliveryState = SteeringDeliveryState.SENT
+				message.claimId = undefined
+			}
+			return messages.map((message) => ({ ...message }))
+		})
+
 		const transcriptMessages = claimedMessages.map((message) => {
 			const index = this.messageStateHandler.findMessageIndexById(message.transcriptMessageId)
 			if (index === -1) throw new Error(`Steering transcript message not found: ${message.transcriptMessageId}`)
@@ -243,36 +256,37 @@ export class Task {
 			return { index, content: transcriptMessage.content }
 		})
 
+		for (const transcript of transcriptMessages) {
+			await this.messageStateHandler.updateDiracMessage(transcript.index, {
+				content: {
+					...transcript.content,
+					steering: { status: SteeringTranscriptStatus.SENT },
+				},
+			})
+		}
+		await this.messageStateHandler.saveDiracMessagesAndUpdateHistory()
+		await this.postStateToWebview()
+	}
+
+	private async settleConsumedSteeringClaim(claim: SteeringClaim): Promise<void> {
+		let receiptError: unknown
 		try {
-			for (const transcript of transcriptMessages) {
-				await this.messageStateHandler.updateDiracMessage(transcript.index, {
-					content: {
-						...transcript.content,
-						steering: { status: SteeringTranscriptStatus.SENT },
-					},
-				})
-			}
+			await this.messageStateHandler.recordDeliveredSteeringMessageIds(
+				claim.messages.map((message) => message.transcriptMessageId),
+			)
 		} catch (error) {
-			for (const transcript of transcriptMessages) {
-				await this.messageStateHandler.updateDiracMessage(transcript.index, {
-					content: {
-						...transcript.content,
-						steering: { status: SteeringTranscriptStatus.QUEUED },
-					},
-				})
-			}
-			await this.rollbackSteeringClaim(claimId)
-			throw error
+			receiptError = error
 		}
 
-		await this.withStateLock(() => {
-			for (const message of this.taskState.steeringMessages) {
-				if (message.deliveryState !== SteeringDeliveryState.CLAIMED || message.claimId !== claimId) continue
-				message.deliveryState = SteeringDeliveryState.SENT
-				message.claimId = undefined
+		try {
+			await this.commitSteeringClaim(claim.id)
+		} catch (commitError) {
+			if (receiptError) {
+				throw new AggregateError([receiptError, commitError], "Failed to persist consumed steering delivery")
 			}
-		})
-		await this.postStateToWebview()
+			throw commitError
+		}
+		if (receiptError) throw receiptError
 	}
 
 	private async rollbackSteeringClaim(claimId: string): Promise<void> {
@@ -285,13 +299,64 @@ export class Task {
 		})
 	}
 
+	private isSlashCommandSteeringMessage(message: Pick<SteeringMessage, "text">): boolean {
+		return findSlashCommandInTags(formatSteeringMessages([message])) !== null
+	}
+
+	private async releaseSteeringClaimSuffix(claim: SteeringClaim, retainedCount: number): Promise<SteeringClaim> {
+		const retainedMessages = claim.messages.slice(0, retainedCount)
+		const retainedMessageIds = new Set(retainedMessages.map((message) => message.id))
+		await this.withStateLock(() => {
+			for (const message of this.taskState.steeringMessages) {
+				if (message.deliveryState !== SteeringDeliveryState.CLAIMED || message.claimId !== claim.id) continue
+				if (retainedMessageIds.has(message.id)) continue
+				message.deliveryState = SteeringDeliveryState.QUEUED
+				message.claimId = undefined
+			}
+		})
+		return { ...claim, messages: retainedMessages }
+	}
+
+
+	private async appendQueuedSteeringToUserContent(userContent: DiracContent[]): Promise<SteeringClaim | undefined> {
+		const steeringClaim = await this.claimSteeringMessages()
+		if (!steeringClaim) return undefined
+		const commandIndex = steeringClaim.messages.findIndex((message) => this.isSlashCommandSteeringMessage(message))
+		if (commandIndex === -1) {
+			userContent.push({
+				type: "text",
+				text: formatSteeringMessages(steeringClaim.messages),
+				isUserInput: true,
+				steeringMessageIds: steeringClaim.messages.map((message) => message.transcriptMessageId),
+			})
+			return steeringClaim
+		}
+
+		const retainedCount = commandIndex === 0 ? 1 : commandIndex
+		const requestClaim = await this.releaseSteeringClaimSuffix(steeringClaim, retainedCount)
+		userContent.push({
+			type: "text",
+			text: formatSteeringMessages(requestClaim.messages),
+			isUserInput: true,
+			steeringMessageIds: requestClaim.messages.map((message) => message.transcriptMessageId),
+		})
+		return requestClaim
+	}
+
+
 	private async appendQueuedSteeringToNextApiRequest(outboundHistory: DiracStorageMessage[]): Promise<void> {
 		const steeringClaim = await this.claimSteeringMessages()
 		if (!steeringClaim) return
+		if (steeringClaim.messages.some((message) => this.isSlashCommandSteeringMessage(message))) {
+			await this.rollbackSteeringClaim(steeringClaim.id)
+			return
+		}
 
+		const messageIds = steeringClaim.messages.map((message) => message.transcriptMessageId)
 		const steeringBlock: DiracTextContentBlock = {
 			type: "text",
 			text: formatSteeringMessages(steeringClaim.messages),
+			steeringMessageIds: messageIds,
 		}
 		const outboundUserMessage = outboundHistory.at(-1)
 		if (!outboundUserMessage || outboundUserMessage.role !== "user") {
@@ -299,8 +364,10 @@ export class Task {
 			throw new Error("Cannot steer a model request without a final user message")
 		}
 
+		let userMessagePersisted = false
 		try {
 			const persistedUserMessage = await this.messageStateHandler.appendToLastApiConversationUserMessage(steeringBlock)
+			userMessagePersisted = true
 			if (outboundUserMessage !== persistedUserMessage) {
 				if (typeof outboundUserMessage.content === "string") {
 					outboundUserMessage.content = [{ type: "text", text: outboundUserMessage.content }, steeringBlock]
@@ -308,9 +375,9 @@ export class Task {
 					outboundUserMessage.content.push(steeringBlock)
 				}
 			}
-			await this.commitSteeringClaim(steeringClaim.id)
+			await this.settleConsumedSteeringClaim(steeringClaim)
 		} catch (error) {
-			await this.rollbackSteeringClaim(steeringClaim.id)
+			if (!userMessagePersisted) await this.rollbackSteeringClaim(steeringClaim.id)
 			throw error
 		}
 	}
@@ -383,6 +450,7 @@ export class Task {
 	private hookManager: HookManager
 	private lifecycleManager: LifecycleManager
 	private apiConversationManager: ApiConversationManager
+	private localConversationCompaction: LocalConversationCompaction
 	private assistantStreamManager: AssistantStreamManager
 	private contextCompactionObserver?: () => void
 	private switchToActMode: () => Promise<boolean>
@@ -729,6 +797,15 @@ export class Task {
 			extensionPath: HostProvider.get().extensionFsPath,
 			sourceDir: getExtensionSourceDir(),
 			getEnvironmentDetails: this.getEnvironmentDetails.bind(this),
+			isTextCondensationAvailable: (template) =>
+				isUtilityTextCondensationAvailable(
+					{
+						utilityModelEnabled: this.stateManager.getGlobalSettingsKey("utilityModelEnabled"),
+						utilityModelSelection: this.stateManager.getGlobalSettingsKey("utilityModelSelection"),
+					},
+					template,
+					createDefaultTextCondensationTemplateRegistry(),
+				),
 			commandPermissionController: this.commandPermissionController,
 			yoloModeToggled: !!this.stateManager.getGlobalSettingsKey("yoloModeToggled"),
 			postStateToWebview: () => this.postStateToWebview(),
@@ -762,6 +839,22 @@ export class Task {
 			time: () => this.environmentContextTracker.recordEnvironment(),
 		})
 
+		this.localConversationCompaction = new LocalConversationCompaction({
+			taskId: this.taskId,
+			ulid: this.ulid,
+			taskState: this.taskState,
+			messageStateHandler: this.messageStateHandler,
+			contextManager: this.contextManager,
+			stateManager: this.stateManager,
+			taskMessenger: this.taskMessenger,
+			getApi: () => this.api,
+			postStateToWebview: this.postStateToWebview,
+			cancelTask: this.cancelTask,
+			setActiveHookExecution: this.hookManager.setActiveHookExecution.bind(this.hookManager),
+			clearActiveHookExecution: this.hookManager.clearActiveHookExecution.bind(this.hookManager),
+			onContextCompacted: () => this.contextCompactionObserver?.(),
+		})
+
 		this.apiConversationManager = new ApiConversationManager({
 			taskState: this.taskState,
 			messageStateHandler: this.messageStateHandler,
@@ -780,6 +873,7 @@ export class Task {
 			loadContext: this.loadContext.bind(this),
 			getCurrentProviderInfo: this.getCurrentProviderInfo.bind(this),
 			getEnvironmentDetails: this.getEnvironmentDetails.bind(this),
+			getPinnedContext: () => this.taskState.pinnedContext,
 			writePromptMetadataArtifacts: this.writePromptMetadataArtifacts.bind(this),
 			handleHookCancellation: this.hookManager.handleHookCancellation.bind(this.hookManager),
 			setActiveHookExecution: this.hookManager.setActiveHookExecution.bind(this.hookManager),
@@ -788,6 +882,7 @@ export class Task {
 			cancelTask: this.cancelTask,
 			runUserPromptSubmitHook: this.runUserPromptSubmitHook.bind(this),
 			onContextCompacted: () => this.contextCompactionObserver?.(),
+			runLocalConversationCompaction: (source) => this.localConversationCompaction.run({ source }),
 		})
 
 		this.responseProcessor = new ResponseProcessor({
@@ -948,6 +1043,7 @@ export class Task {
 			const feedbackUserContent: DiracUserContent[] = []
 			feedbackUserContent.push({
 				type: "text",
+				isUserInput: true,
 				text: formatResponse.tooManyMistakes(text),
 			})
 
@@ -980,7 +1076,7 @@ export class Task {
 		userContent: DiracContent[],
 		includeFileDetails = false,
 		useCompactPrompt = false,
-	): Promise<[DiracContent[], string, boolean, SkillMetadata[], boolean, string?]> {
+	): Promise<[DiracContent[], string, boolean, SkillMetadata[], boolean, string?, SlashCommandDirectAction?]> {
 		return this.contextLoader.loadContext(userContent, includeFileDetails, useCompactPrompt)
 	}
 
@@ -1019,7 +1115,9 @@ export class Task {
 		const images = this.taskState.askResponseImages as string[] | undefined
 		const files = this.taskState.askResponseFiles as string[] | undefined
 
-		const userContent: DiracContent[] = [{ type: "text", text }]
+		const userContent: DiracContent[] = [
+			{ type: "text", text: `<feedback>\n${text}\n</feedback>`, isUserInput: true },
+		]
 		if (images && images.length > 0) {
 			userContent.push(...formatResponse.imageBlocks(images))
 		}
@@ -1112,7 +1210,14 @@ export class Task {
 	}
 
 	public restoreQueuedSteeringFromTranscript(): void {
-		this.taskState.steeringMessages = restoreQueuedSteeringMessages(this.messageStateHandler.getDiracMessages())
+		const deliveredMessageIds = collectDeliveredSteeringMessageIds(this.messageStateHandler.getApiConversationHistory())
+		for (const messageId of this.messageStateHandler.getApiConversationProviderState().deliveredSteeringMessageIds ?? []) {
+			deliveredMessageIds.add(messageId)
+		}
+		this.taskState.steeringMessages = restoreQueuedSteeringMessages(
+			this.messageStateHandler.getDiracMessages(),
+			deliveredMessageIds,
+		)
 	}
 
 	public async resumeTaskFromHistory() {
@@ -1408,12 +1513,21 @@ export class Task {
 			visible: visibleTabPaths.slice(0, cap),
 		}
 		const shellInfo = detectBestShell()
+		const taskHandoffCondensationAvailable = isUtilityTextCondensationAvailable(
+			{
+				utilityModelEnabled: this.stateManager.getGlobalSettingsKey("utilityModelEnabled"),
+				utilityModelSelection: this.stateManager.getGlobalSettingsKey("utilityModelSelection"),
+			},
+			TASK_HANDOFF_TEMPLATE_ID,
+			createDefaultTextCondensationTemplateRegistry(),
+		)
 		const promptContext: SystemPromptContext = {
 			cwd: this.cwd,
 			ide,
 			providerInfo,
 			editorTabs,
 			supportsBrowserUse,
+			taskHandoffCondensationAvailable,
 			skills: availableSkills,
 			globalDiracRulesFileInstructions,
 			localDiracRulesFileInstructions,
@@ -1765,7 +1879,8 @@ export class Task {
 				if (this.taskState.pendingUserMessage) {
 					this.taskState.userMessageContent.push({
 						type: "text",
-						text: this.taskState.pendingUserMessage,
+						text: `<feedback>\n${this.taskState.pendingUserMessage}\n</feedback>`,
+						isUserInput: true,
 					})
 				}
 				if (this.taskState.pendingUserImages?.length) {
@@ -1835,7 +1950,7 @@ export class Task {
 
 		const stream = this.api.createMessage(
 			systemPrompt,
-			providerDispatch.messages,
+			providerDispatch.messages.map(removeProviderBoundaryMetadataFromMessage),
 			toolSnapshot.nativeTools,
 			providerDispatch.options,
 		)
@@ -1936,26 +2051,62 @@ export class Task {
 		await this.initializeCheckpoints(isFirstRequest)
 
 		const useCompactPrompt = customPrompt === "compact" && isLocalModel(this.getCurrentProviderInfo())
-		const shouldCompact = await this.determineContextCompaction(previousApiReqIndex)
+		let shouldCompact = await this.determineContextCompaction(previousApiReqIndex)
+		if (shouldCompact) {
+			const continuation = await this.localConversationCompaction.run({
+				source: "automatic",
+				triggerApiRequestIndex: previousApiReqIndex,
+			})
+			if (!continuation) return true
+
+			const compactedContext: DiracContent[] = [{ type: "text", text: continuation }]
+			if (this.taskState.pinnedContext) {
+				compactedContext.push({ type: "text", text: this.taskState.pinnedContext })
+			}
+			userContent = [...compactedContext, ...userContent]
+			shouldCompact = false
+		}
+		const steeringClaim = await this.appendQueuedSteeringToUserContent(userContent)
 
 		this.taskState.status = TaskStatus.BUILDING_REQUEST
 
-		const apiRequestData = await this.apiConversationManager.prepareApiRequest({
-			userContent,
-			shouldCompact,
-			includeFileDetails,
-			useCompactPrompt,
-			previousApiReqIndex,
-			isFirstRequest,
-			providerId,
-			modelId: model.id,
-			mode: modelInfo.mode,
-		})
+		let apiRequestData: Awaited<ReturnType<ApiConversationManager["prepareApiRequest"]>>
+		let steeringClaimConsumed = false
+		try {
+			apiRequestData = await this.apiConversationManager.prepareApiRequest({
+				userContent,
+				includeFileDetails,
+				useCompactPrompt,
+				previousApiReqIndex,
+				isFirstRequest,
+				providerId,
+				modelId: model.id,
+				mode: modelInfo.mode,
+				afterUserContentPersisted: async () => {
+					steeringClaimConsumed = true
+					if (!steeringClaim) return
+					await this.settleConsumedSteeringClaim(steeringClaim)
+				},
+			})
+			if (steeringClaim && !steeringClaimConsumed) {
+				if (apiRequestData.didConsumeUserContent) {
+					steeringClaimConsumed = true
+					await this.settleConsumedSteeringClaim(steeringClaim)
+				} else {
+					await this.rollbackSteeringClaim(steeringClaim.id)
+				}
+			}
+		} catch (error) {
+			if (steeringClaim && !steeringClaimConsumed) await this.rollbackSteeringClaim(steeringClaim.id)
+			throw error
+		}
 		userContent = apiRequestData.userContent
 		const lastApiReqIndex = apiRequestData.lastApiReqIndex
 
-		if (apiRequestData.isDirectResponse && apiRequestData.directResponseText) {
-			await this.taskMessenger.upsertText(apiRequestData.directResponseText)
+		if (apiRequestData.isDirectResponse) {
+			if (apiRequestData.directResponseText) {
+				await this.taskMessenger.upsertText(apiRequestData.directResponseText)
+			}
 			return true
 		}
 

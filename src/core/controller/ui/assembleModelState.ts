@@ -8,6 +8,8 @@ export function assembleModelState(stateManager: StateManager) {
 	return {
 		apiConfiguration: stateManager.getApiConfiguration(),
 		modelProviderPresets: stateManager.getGlobalSettingsKey("modelProviderPresets"),
+		utilityModelEnabled: stateManager.getGlobalSettingsKey("utilityModelEnabled"),
+		utilityModelSelection: stateManager.getGlobalSettingsKey("utilityModelSelection"),
 		autoApprovalSettings: stateManager.getGlobalSettingsKey("autoApprovalSettings"),
 		browserSettings: stateManager.getGlobalSettingsKey("browserSettings"),
 		preferredLanguage: stateManager.getGlobalSettingsKey("preferredLanguage"),
