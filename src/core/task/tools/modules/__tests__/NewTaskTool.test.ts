@@ -112,6 +112,7 @@ describe("NewTaskTool", () => {
 		)
 		assert.ok(card.waitForInteraction.calledOnce)
 		assert.ok(card.finalize.calledWith("success"))
+		assert.ok(card.update.calledWithMatch({ header: "New Task Created" }))
 		assert.ok(env.orchestration.requestTaskReplacement.calledOnceWithExactly(context))
 	})
 

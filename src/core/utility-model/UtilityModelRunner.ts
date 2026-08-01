@@ -16,8 +16,14 @@ export interface UtilityModelUsageEvent {
 	usage: ApiStreamUsageChunk
 }
 
+export interface UtilityModelResolvedEvent {
+	selection: ModelProviderSelection
+	modelId: string
+}
+
 export interface UtilityModelRunnerOptions {
 	onUsage?: (event: UtilityModelUsageEvent) => void
+	onModelResolved?: (event: UtilityModelResolvedEvent) => void
 }
 
 export interface BuildUtilityModelRunnerOptions extends UtilityModelRunnerOptions {
@@ -74,6 +80,7 @@ export class UtilityModelRunner {
 			}
 			this.throwIfCancelled(request.signal)
 			completed = true
+			this.options.onModelResolved?.({ selection: this.selection, modelId: handler.getModel().id })
 		} finally {
 			request.signal?.removeEventListener("abort", abortHandler)
 			if (!completed) abortHandler()

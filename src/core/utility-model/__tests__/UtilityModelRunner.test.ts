@@ -18,11 +18,11 @@ function streamChunks(chunks: ApiStreamChunk[]): ApiStream {
 	})()
 }
 
-function fakeHandler(createMessage: ApiHandler["createMessage"], abort?: () => void): ApiHandler {
+function fakeHandler(createMessage: ApiHandler["createMessage"], abort?: () => void, modelId = "utility-model"): ApiHandler {
 	return {
 		createMessage,
 		abort,
-		getModel: () => ({ id: "utility-model", info: { supportsPromptCache: false } }),
+		getModel: () => ({ id: modelId, info: { supportsPromptCache: false } }),
 	}
 }
 
@@ -77,6 +77,26 @@ describe("UtilityModelRunner", () => {
 
 		assert.deepEqual(usages, [18])
 		assert.equal(chunks[0].type, "usage")
+	})
+
+	it("publishes the model resolved by the handler after a successful request", async () => {
+		const resolvedModels: string[] = []
+		const runner = new UtilityModelRunner(
+			selection,
+			() => fakeHandler(() => streamChunks([{ type: "text", text: "result" }]), undefined, "resolved-utility-model"),
+			{
+				onModelResolved: ({ selection: resolvedSelection, modelId }) => {
+					assert.equal(resolvedSelection, selection)
+					resolvedModels.push(modelId)
+				},
+			},
+		)
+
+		for await (const _chunk of runner.run({ systemPrompt: "prompt", messages: [] })) {
+			// Consume the complete request.
+		}
+
+		assert.deepEqual(resolvedModels, ["resolved-utility-model"])
 	})
 
 	it("does not construct a handler for a pre-aborted request", async () => {

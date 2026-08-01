@@ -40,13 +40,17 @@ export function buildConversationCondensationTrait(config: TaskConfig): IConvers
 				throw new ConversationCondensationUnavailableError()
 			}
 
-			const service = createConversationCondensationService(config, selection, templates)
+			let resolvedModelId: string | undefined
+			const service = createConversationCondensationService(config, selection, templates, (modelId) => {
+				resolvedModelId = modelId
+			})
 			const text = await service.condenseEffectiveConversation(template, options?.signal, options?.additionalSourceText)
+			if (!resolvedModelId) throw new Error("Conversation condensation completed without resolving a Utility model")
 			return {
 				text,
 				modelIdentity: {
 					providerId: selection.provider,
-					modelId: selection.modelId,
+					modelId: resolvedModelId,
 				},
 			}
 		},
@@ -58,9 +62,11 @@ function createConversationCondensationService(
 	config: TaskConfig,
 	selection: ModelProviderSelection,
 	templates: ReturnType<typeof createDefaultTextCondensationTemplateRegistry>,
+	onModelResolved: (modelId: string) => void,
 ): ConversationCondensationService {
 	const runner = utilityModel.createUtilityModelRunner(config.services.stateManager.getApiConfiguration(), selection, {
 		ulid: config.ulid,
+		onModelResolved: ({ modelId }) => onModelResolved(modelId),
 	})
 	const textCondenser = new UtilityModelTextCondenser(runner, templates)
 
