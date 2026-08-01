@@ -6,6 +6,7 @@ import {
 	Info,
 	type LucideIcon,
 	Puzzle,
+	ShieldCheck,
 	SlidersHorizontal,
 	SquareMousePointer,
 	SquareTerminal,
@@ -27,12 +28,22 @@ import DebugSection from "../sections/DebugSection"
 import FeatureSettingsSection from "../sections/FeatureSettingsSection"
 import GeneralSettingsSection from "../sections/GeneralSettingsSection"
 import TerminalSettingsSection from "../sections/TerminalSettingsSection"
+import UserApprovedCommandsSection from "../sections/UserApprovedCommandsSection"
 import ToolTogglePanel from "../sections/ToolTogglePanel"
 
 const IS_DEV = process.env.IS_DEV
 
 // Tab definitions
-type SettingsTabID = "api-config" | "features" | "tools" | "browser" | "terminal" | "general" | "about" | "debug"
+type SettingsTabID =
+	| "api-config"
+	| "user-approved-commands"
+	| "features"
+	| "tools"
+	| "browser"
+	| "terminal"
+	| "general"
+	| "about"
+	| "debug"
 interface SettingsTab {
 	id: SettingsTabID
 	name: string
@@ -49,6 +60,13 @@ export const SETTINGS_TABS: SettingsTab[] = [
 		tooltipText: "API Configuration",
 		headerText: "API Configuration",
 		icon: SlidersHorizontal,
+	},
+	{
+		id: "user-approved-commands",
+		name: "User-approved commands",
+		tooltipText: "User-approved commands",
+		headerText: "User-approved commands",
+		icon: ShieldCheck,
 	},
 	{
 		id: "features",
@@ -127,6 +145,7 @@ const renderSectionHeader = (tabId: string) => {
 
 const TAB_CONTENT_MAP: Record<SettingsTabID, React.FC<any>> = {
 	"api-config": ApiConfigurationSection,
+	"user-approved-commands": UserApprovedCommandsSection,
 	features: FeatureSettingsSection,
 	tools: ToolTogglePanel,
 	browser: BrowserSettingsSection,

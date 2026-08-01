@@ -1,19 +1,19 @@
 import { UpdateSettingsRequest } from "@shared/proto/dirac/state"
 import { StateServiceClient } from "@/shared/api/grpc-client"
 
-/**
- * Updates a single field in the settings.
- *
- * @param field - The field key to update
- * @param value - The new value for the field
- */
-export const updateSetting = (field: keyof UpdateSettingsRequest, value: any) => {
+function createUpdateSettingsRequest(field: keyof UpdateSettingsRequest, value: unknown): UpdateSettingsRequest {
 	const updateRequest: Partial<UpdateSettingsRequest> = {}
+	updateRequest[field] = value as never
+	return UpdateSettingsRequest.create(updateRequest)
+}
 
-	const convertedValue = value
-	updateRequest[field] = convertedValue
+export const persistSetting = (field: keyof UpdateSettingsRequest, value: unknown) => {
+	return StateServiceClient.updateSettings(createUpdateSettingsRequest(field, value))
+}
 
-	StateServiceClient.updateSettings(UpdateSettingsRequest.create(updateRequest)).catch((error) => {
+/** Updates a single setting without blocking the caller. */
+export const updateSetting = (field: keyof UpdateSettingsRequest, value: unknown): void => {
+	void persistSetting(field, value).catch((error) => {
 		console.error(`Failed to update setting ${field}:`, error)
 	})
 }

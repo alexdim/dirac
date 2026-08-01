@@ -15,6 +15,7 @@ function createMocks() {
 	}
 	const autoApprover = {
 		shouldAutoApproveTool: sinon.stub().returns(true),
+		isCommandAutoApproved: sinon.stub().returns(true),
 		isUnrestrictedAutoApprove: sinon.stub().returns(false),
 	}
 	const workspaceManager = {}
@@ -92,6 +93,7 @@ describe("ExecuteCommandTool", () => {
 
 	it("requires approval for unsafe commands", async () => {
 		const { tool, env, autoApprover, mockCard } = createMocks()
+		autoApprover.isCommandAutoApproved.returns(false)
 		// isSafeCommand will return false for commands with redirection
 		const args = { commands: ["ls > out.txt"] }
 
@@ -177,7 +179,7 @@ describe("ExecuteCommandTool", () => {
 
 	it("labels and collapses an approved permission card", async () => {
 		const { tool, env, autoApprover, mockCard } = createMocks()
-		autoApprover.shouldAutoApproveTool.returns(false)
+		autoApprover.isCommandAutoApproved.returns(false)
 
 		await tool.processCall({ commands: ["git add ."] }, env as any)
 
@@ -187,7 +189,7 @@ describe("ExecuteCommandTool", () => {
 
 	it("labels and collapses a rejected permission card", async () => {
 		const { tool, env, autoApprover, mockCard } = createMocks()
-		autoApprover.shouldAutoApproveTool.returns(false)
+		autoApprover.isCommandAutoApproved.returns(false)
 		mockCard.waitForInteraction.resolves({ action: DiracAskResponse.REJECT })
 
 		await tool.processCall({ commands: ["git add ."] }, env as any)
@@ -205,7 +207,7 @@ describe("ExecuteCommandTool", () => {
 
 	it("labels and collapses a permission card skipped by a user message", async () => {
 		const { tool, env, autoApprover, mockCard } = createMocks()
-		autoApprover.shouldAutoApproveTool.returns(false)
+		autoApprover.isCommandAutoApproved.returns(false)
 		const skipped = new ToolSkippedByUserMessage("Do something else")
 		mockCard.waitForInteraction.rejects(skipped)
 
@@ -223,7 +225,7 @@ describe("ExecuteCommandTool", () => {
 
 	it("labels and collapses a cancelled permission card when interaction is interrupted", async () => {
 		const { tool, env, autoApprover, mockCard } = createMocks()
-		autoApprover.shouldAutoApproveTool.returns(false)
+		autoApprover.isCommandAutoApproved.returns(false)
 		const interruption = new Error("interaction interrupted")
 		mockCard.waitForInteraction.rejects(interruption)
 
@@ -235,7 +237,7 @@ describe("ExecuteCommandTool", () => {
 
 	it("uses an aggregate outcome label for multiple approved commands", async () => {
 		const { tool, env, autoApprover, mockCard } = createMocks()
-		autoApprover.shouldAutoApproveTool.returns(false)
+		autoApprover.isCommandAutoApproved.returns(false)
 
 		await tool.processCall({ commands: ["git add .", "git commit -m test"] }, env as any)
 

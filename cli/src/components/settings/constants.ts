@@ -4,6 +4,7 @@ import { SettingsTab } from "./types"
 export const TABS: PanelTab[] = [
 	{ key: SettingsTab.API, label: "API" },
 	{ key: SettingsTab.AUTO_APPROVE, label: "Auto-approve" },
+	{ key: SettingsTab.USER_APPROVED_COMMANDS, label: "Approved commands" },
 	{ key: SettingsTab.FEATURES, label: "Features" },
 	{ key: SettingsTab.TOOLS, label: "Tools" },
 	{ key: SettingsTab.OTHER, label: "Other" },

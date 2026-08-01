@@ -79,6 +79,7 @@ interface SettingsState {
 	openAiCodexUsageRefreshError?: string
 	refreshOpenAiCodexUsage: (force?: boolean) => Promise<void>
 	autoApprovalSettings: ExtensionState["autoApprovalSettings"]
+	userApprovedCommands: ExtensionState["userApprovedCommands"]
 	browserSettings: ExtensionState["browserSettings"]
 	preferredLanguage: string
 	mode: string
@@ -190,6 +191,7 @@ let openAiCodexUsageRefreshGeneration = 0
 
 export const useSettingsStore = create<SettingsState>((set, get) => ({
 	autoApprovalSettings: DEFAULT_AUTO_APPROVAL_SETTINGS,
+	userApprovedCommands: [],
 	browserSettings: DEFAULT_BROWSER_SETTINGS,
 	preferredLanguage: "English",
 	mode: "act",

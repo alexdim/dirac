@@ -11,6 +11,7 @@ export function assembleModelState(stateManager: StateManager) {
 		utilityModelEnabled: stateManager.getGlobalSettingsKey("utilityModelEnabled"),
 		utilityModelSelection: stateManager.getGlobalSettingsKey("utilityModelSelection"),
 		autoApprovalSettings: stateManager.getGlobalSettingsKey("autoApprovalSettings"),
+		userApprovedCommands: stateManager.getGlobalSettingsKey("userApprovedCommands"),
 		browserSettings: stateManager.getGlobalSettingsKey("browserSettings"),
 		preferredLanguage: stateManager.getGlobalSettingsKey("preferredLanguage"),
 		mode: stateManager.getGlobalSettingsKey("mode"),

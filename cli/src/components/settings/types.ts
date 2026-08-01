@@ -3,6 +3,7 @@ import type { Controller } from "@/core/controller"
 export enum SettingsTab {
 	API = "api",
 	AUTO_APPROVE = "auto-approve",
+	USER_APPROVED_COMMANDS = "user-approved-commands",
 	FEATURES = "features",
 	TOOLS = "tools",
 	OTHER = "other",
