@@ -45,7 +45,7 @@ export const ModularCardBody: React.FC<ModularCardBodyProps> = ({ card, isActive
 			{presentation.body && (bodyWrapper ? bodyWrapper.renderBodyWrapper!(card, bodyContent) : bodyContent)}
 
 			{decorators.map((d) => (
-				<React.Fragment key={d.id}>{d.renderFooterExtra?.(card)}</React.Fragment>
+				<React.Fragment key={d.id}>{d.renderFooterExtra?.(card, onAction, isActive)}</React.Fragment>
 			))}
 
 			{!suppressDefaultActions && <CardActions card={card} isActive={isActive} onAction={onAction} />}

@@ -1,8 +1,7 @@
 import { IDiracTool } from "../../interfaces/IDiracTool"
 import { IToolEnvironment } from "../../interfaces/IToolEnvironment"
 import { DiracToolSpec, DiracDefaultTool } from "@/shared/tools"
-import { findLastIndex } from "@shared/array"
-import { CardStatus, DiracMessageType } from "@shared/ExtensionMessage"
+import { CardStatus } from "@shared/ExtensionMessage"
 import { DiracAskResponse } from "@shared/WebviewMessage"
 import { DiracIcon } from "@shared/icons"
 import { parsePartialArrayString } from "@shared/array"
@@ -67,28 +66,28 @@ export class AskFollowupQuestionTool implements IDiracTool {
 			)
 		}
 
-		const sharedMessage = {
-			question,
-			options: parsePartialArrayString(optionsRaw || "[]"),
-			selected: "",
-		}
+		const options = parsePartialArrayString(optionsRaw || "[]")
 		const cardHandle = await env.ui.createCard({
-			header: `Question: ${question.length > 60 ? question.substring(0, 57) + "..." : question}`,
+			header: "Question",
+			toolName: "ask_followup_question",
 			icon: DiracIcon.FOLLOW_UP,
 			body: question,
-			rawInput: { tool: "ask_followup_question", question, options: sharedMessage.options },
+			rawInput: { tool: "ask_followup_question", question, options },
 			renderType: "markdown",
 			requireFeedback: true,
-			feedbackPlaceholder: "Type another answer",
-			actions: sharedMessage.options.map((opt) => ({ label: opt, value: opt })),
+			feedbackPlaceholder: "Or type your own answer…",
+			actions: options.map((option) => ({ label: option, value: option })),
 			collapsed: false,
 			maxHeight: 1200,
 		})
 		const { response, value, text: interactionText, images, files: followupFiles } = await cardHandle.waitForInteraction()
 		if (response === DiracAskResponse.REJECT) {
 			await cardHandle.update({
-				header: `Declined: ${question.length > 40 ? question.substring(0, 37) + "..." : question}`,
-				body: "The user declined to answer.",
+				header: "Question declined",
+				body: `${question}\n\n*The user declined to answer.*`,
+				rawOutput: { declined: true },
+				requireFeedback: false,
+				actions: [],
 				collapsed: true,
 				outcome: "declined",
 			})
@@ -96,48 +95,30 @@ export class AskFollowupQuestionTool implements IDiracTool {
 			return formatResponse.toolResult("The user declined to answer the follow-up question.")
 		}
 
-		const text = interactionText || value
-
+		const selectedChoice = value && options.includes(value) ? value : undefined
+		const text = selectedChoice || interactionText || value
 		await cardHandle.update({
-			header: `Answered: ${question.length > 40 ? question.substring(0, 37) + "..." : question}`,
-			body: `**Answer:** ${text || "(no answer)"}`,
+			header: "Answered",
+			body: `${question}\n\n---\n\n**Answer:** ${text || "(no answer)"}`,
+			rawOutput: { answer: text || "", selectedChoice },
+			requireFeedback: false,
+			actions: [],
 			collapsed: true,
 			outcome: "accepted",
 		})
 		await cardHandle.finalize(CardStatus.SUCCESS)
 
+		if (text) {
+			await env.ui.upsertText(text, false, "user")
+		}
+
 		const apiConfig = env.config.services.stateManager.getApiConfiguration()
 		const provider = (env.config.mode === "plan" ? apiConfig.planModeApiProvider : apiConfig.actModeApiProvider) as string
 
-		const options = parsePartialArrayString(optionsRaw || "[]")
-		if (optionsRaw && text && options.includes(text)) {
-			const history = env.orchestration.getHistory()
+		if (selectedChoice) {
 			telemetryService.captureOptionSelected(env.config.ulid, options.length, env.config.mode)
-
-			const lastFollowupMessageIndex = findLastIndex(
-				history,
-				(m: any) => m.content.type === DiracMessageType.CARD && m.content.card.header === "Follow-up Question",
-			)
-			if (lastFollowupMessageIndex !== -1) {
-				const lastMsg = history[lastFollowupMessageIndex]
-				if (lastMsg.content.type === DiracMessageType.CARD) {
-					await env.orchestration.updateMessage(lastFollowupMessageIndex, {
-						content: {
-							...lastMsg.content,
-							card: {
-								...lastMsg.content.card,
-								body: JSON.stringify({
-									...sharedMessage,
-									selected: text,
-								}),
-							},
-						},
-					})
-				}
-			}
 		} else {
 			telemetryService.captureOptionsIgnored(env.config.ulid, options.length, env.config.mode)
-			await env.ui.upsertText(text ?? "", false, "user")
 		}
 
 		let fileContentString = ""
