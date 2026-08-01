@@ -9,7 +9,6 @@ import { IDiracTool } from "../../interfaces/IDiracTool"
 import { ICardHandle, IToolEnvironment } from "../../interfaces/IToolEnvironment"
 import { SurfaceType } from "../../interfaces/SurfaceType"
 import { ToolSkippedByUserMessage } from "../../types/ToolSkippedByUserMessage"
-import { isSafeCommand } from "../../utils/CommandSafetyChecker"
 import { resolveCommandTimeoutSeconds } from "../../utils/CommandTimeoutUtils"
 
 import { shortenCommandForDisplay } from "./path-display"
@@ -127,13 +126,8 @@ export class ExecuteCommandTool implements IDiracTool {
 
 		for (const cmd of commands) {
 			const actualCommand = this.stripWorkspaceHint(cmd.command)
-			const isSafe = isSafeCommand(actualCommand)
 			const permissionResult = this.commandPermissionController.validateCommand(actualCommand)
-			const isAllowedByRules = permissionResult.allowed
-			const autoApproveResult = this.autoApprover.shouldAutoApproveTool(DiracDefaultTool.BASH)
-			const autoApproveEnabled = Array.isArray(autoApproveResult) ? autoApproveResult[0] : autoApproveResult
-
-			if (!(isSafe && isAllowedByRules && autoApproveEnabled)) {
+			if (!permissionResult.allowed || !this.autoApprover.isCommandAutoApproved(actualCommand)) {
 				return true
 			}
 		}

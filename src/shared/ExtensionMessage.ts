@@ -21,6 +21,7 @@ export type { Mode, OpenaiReasoningEffort }
 export { OPENAI_REASONING_EFFORT_OPTIONS, isOpenaiReasoningEffort }
 
 import { TelemetrySetting } from "./TelemetrySetting"
+import type { UserApprovedCommand } from "./UserApprovedCommand"
 // webview will hold state
 export interface ExtensionMessage {
 	type: "grpc_response" // New type for gRPC responses
@@ -57,6 +58,7 @@ export interface ExtensionState {
 	utilityModelEnabled: boolean
 	utilityModelSelection?: ModelProviderSelection
 	autoApprovalSettings: AutoApprovalSettings
+	userApprovedCommands: UserApprovedCommand[]
 	browserSettings: BrowserSettings
 	remoteBrowserHost?: string
 	preferredLanguage?: string

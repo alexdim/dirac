@@ -16,6 +16,7 @@ import { useAuthStatus } from "./hooks/useAuthStatus"
 import { useSettingsItems } from "./hooks/useSettingsItems"
 import { useSettingsActions } from "./hooks/useSettingsActions"
 import { SettingsListView } from "./SettingsListView"
+import { UserApprovedCommandsPage } from "./UserApprovedCommandsPage"
 import { ProviderPickerPage, ModelPickerPage, LanguagePickerPage, UtilityModelPresetPickerPage } from "./subpages/PickerPages"
 import { ApiKeyInputPage, EditValuePage, ObjectEditorPage } from "./subpages/EditPages"
 import { BedrockSetupPage, BedrockCustomFlowPage } from "./subpages/SetupPages"
@@ -26,6 +27,7 @@ import { getFirstSelectableSettingsIndex, isSelectableSettingsItem } from "./nav
 import type { TelemetrySetting } from "@shared/TelemetrySetting"
 import type { OpenaiReasoningEffort } from "@shared/storage/types"
 import type { AutoApprovalSettings } from "@shared/AutoApprovalSettings"
+import { normalizeUserApprovedCommands, type UserApprovedCommand } from "@shared/UserApprovedCommand"
 import type { ModelProviderPreset, ModelProviderSelection } from "@shared/api"
 import type { ObjectEditorState } from "../ConfigViewComponents"
 
@@ -71,21 +73,22 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 	const [isApplyingSetting, setIsApplyingSetting] = useState(false)
 	const actionInProgressRef = React.useRef(false)
 
-	const runSettingsAction = useCallback((context: string, action: () => void | Promise<void>) => {
-		if (actionInProgressRef.current) return
+	const runSettingsAction = useCallback(async (context: string, action: () => void | Promise<void>): Promise<boolean> => {
+		if (actionInProgressRef.current) return false
 		actionInProgressRef.current = true
 		setIsApplyingSetting(true)
 		setSettingsError(null)
-		Promise.resolve()
-			.then(action)
-			.catch((error) => {
-				Logger.error(`Settings ${context} failed:`, error)
-				setSettingsError(error instanceof Error ? error.message : String(error))
-			})
-			.finally(() => {
-				actionInProgressRef.current = false
-				setIsApplyingSetting(false)
-			})
+		try {
+			await action()
+			return true
+		} catch (error) {
+			Logger.error(`Settings ${context} failed:`, error)
+			setSettingsError(error instanceof Error ? error.message : String(error))
+			return false
+		} finally {
+			actionInProgressRef.current = false
+			setIsApplyingSetting(false)
+		}
 	}, [])
 
 	// Tool toggle state
@@ -145,6 +148,9 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 	const [autoApproveSettings, setAutoApproveSettings] = useState<AutoApprovalSettings>(() => {
 		return stateManager.getGlobalSettingsKey("autoApprovalSettings") ?? DEFAULT_AUTO_APPROVAL_SETTINGS
 	})
+	const [userApprovedCommands, setUserApprovedCommands] = useState<UserApprovedCommand[]>(() =>
+		stateManager.getGlobalSettingsKey("userApprovedCommands"),
+	)
 	const [preferredLanguage, setPreferredLanguage] = useState<string>(
 		() => stateManager.getGlobalSettingsKey("preferredLanguage") || "English",
 	)
@@ -351,6 +357,17 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 		setToolToggles,
 	})
 
+	const updateUserApprovedCommands = useCallback(
+		(commands: UserApprovedCommand[]) =>
+			runSettingsAction("approved command update", async () => {
+				const normalizedCommands = normalizeUserApprovedCommands(commands)
+				stateManager.setGlobalState("userApprovedCommands", normalizedCommands)
+				await stateManager.flushPendingState()
+				setUserApprovedCommands(normalizedCommands)
+				await controller?.postStateToWebview()
+			}),
+		[controller, runSettingsAction, stateManager],
+	)
 	const handleTabChange = useCallback((tabKey: string) => {
 		setSettingsError(null)
 		setCurrentTab(tabKey as SettingsTab)
@@ -389,6 +406,11 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 			if (objectEditor) return
 			if (shouldIgnoreTerminalInput(input, key)) return
 			if (openRouterRoutingModelId) return
+			if (currentTab === SettingsTab.USER_APPROVED_COMMANDS) {
+				if (key.leftArrow) navigateTabs("left")
+				if (key.rightArrow) navigateTabs("right")
+				return
+			}
 
 			if (isPickingProvider) {
 				if (key.escape) {
@@ -631,6 +653,18 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 				/>
 			)
 		}
+
+		if (currentTab === SettingsTab.USER_APPROVED_COMMANDS) {
+			return (
+				<UserApprovedCommandsPage
+					commands={userApprovedCommands}
+					isActive={isRawModeSupported && !isApplyingSetting}
+					onChange={updateUserApprovedCommands}
+					onClose={onClose}
+				/>
+			)
+		}
+
 
 		return <SettingsListView items={items} selectedIndex={selectedIndex} />
 	}

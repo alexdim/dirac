@@ -94,6 +94,7 @@ function inferProtoType(typeText, fieldName) {
 		["ModelInfo", "OpenRouterModelInfo"],
 		// Other types - order matters for substring matching
 		["AutoApprovalSettings", "AutoApprovalSettings"],
+		["UserApprovedCommand", "UserApprovedCommand"],
 		["BrowserSettings", "BrowserSettings"],
 		["OpenaiReasoningEffort", "OpenaiReasoningEffort"],
 		["PlanActMode", "PlanActMode"],

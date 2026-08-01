@@ -1,6 +1,8 @@
 import { resolveWorkspacePath } from "@core/workspace"
 import { isMultiRootEnabled } from "@core/workspace/multi-root-utils"
 import { DiracDefaultTool } from "@shared/tools"
+import { isSafeCommand } from "./utils/CommandSafetyChecker"
+import { areCommandSegmentsApproved, isUserApprovedCommandSegment } from "./utils/UserApprovedCommandMatcher"
 import { CommandPermissionController } from "@/core/permissions/CommandPermissionController"
 import { StateManager } from "@/core/storage/StateManager"
 import { HostProvider } from "@/hosts/host-provider"
@@ -184,6 +186,19 @@ export class AutoApprove {
 			return true
 		}
 		return false
+	}
+
+	public isCommandAutoApproved(command: string): boolean {
+		const entries = this.stateManager.getGlobalSettingsKey("userApprovedCommands")
+		const autoApproveResult = this.shouldAutoApproveTool(DiracDefaultTool.BASH)
+		const safeCommandAutoApprovalEnabled = Array.isArray(autoApproveResult) ? autoApproveResult[0] : autoApproveResult
+
+		if (safeCommandAutoApprovalEnabled && isSafeCommand(command)) return true
+
+		return areCommandSegmentsApproved(command, (segment) => {
+			if (isUserApprovedCommandSegment(segment, entries)) return true
+			return safeCommandAutoApprovalEnabled && isSafeCommand(segment)
+		})
 	}
 
 	/**

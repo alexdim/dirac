@@ -124,6 +124,11 @@ message Secrets {
 // NOTE: Add new fields under API_HANDLER_SETTINGS_FIELDS or USER_SETTINGS_FIELDS
 // in src/shared/storage/state-keys.ts and use the scripts/generate-state-proto.mjs
 // script to regenerate this list.
+message UserApprovedCommand {
+  string command = 1;
+  string match = 2;
+}
+
 message Settings {
   optional string lite_llm_base_url = 1;
   optional bool lite_llm_use_prompt_cache = 2;
@@ -292,6 +297,7 @@ message Settings {
   map<string, int32> auto_condense_context_limits = 204;
   optional bool utility_model_enabled = 205;
   optional ModelProviderSelection utility_model_selection = 206;
+  repeated UserApprovedCommand user_approved_commands = 207;
 }
 
 message State {
@@ -429,6 +435,11 @@ message UpdateSettingsRequest {
   optional AutoCondenseContextLimitsUpdate auto_condense_context_limits = 46;
   optional bool utility_model_enabled = 47;
   optional ModelProviderSelection utility_model_selection = 48;
+  optional UserApprovedCommandsUpdate user_approved_commands = 49;
+}
+
+message UserApprovedCommandsUpdate {
+  repeated UserApprovedCommand commands = 1;
 }
 
 message AutoCondenseContextLimitsUpdate {

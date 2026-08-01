@@ -15,6 +15,7 @@ import { HistoryItem } from "@shared/HistoryItem"
 import { WorkspaceRoot } from "@shared/multi-root/types"
 import { Mode } from "@shared/storage/types"
 import { TelemetrySetting } from "@shared/TelemetrySetting"
+import { normalizeUserApprovedCommands, type UserApprovedCommand } from "@shared/UserApprovedCommand"
 import { LanguageModelChatSelector } from "vscode"
 
 // ============================================================================
@@ -211,6 +212,10 @@ const USER_SETTINGS_FIELDS = {
 	utilityModelSelection: { default: undefined as ModelProviderSelection | undefined },
 	autoApprovalSettings: {
 		default: DEFAULT_AUTO_APPROVAL_SETTINGS as AutoApprovalSettings,
+	},
+	userApprovedCommands: {
+		default: [] as UserApprovedCommand[],
+		transform: normalizeUserApprovedCommands,
 	},
 	globalDiracRulesToggles: { default: {} as DiracRulesToggles },
 	globalWorkflowToggles: { default: {} as DiracRulesToggles },

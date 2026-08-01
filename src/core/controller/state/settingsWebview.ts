@@ -3,6 +3,7 @@ import { ToolRegistry } from "@core/task/tools/registry/ToolRegistry"
 import { UpdateSettingsRequest } from "@shared/proto/dirac/state"
 import { convertProtoToModelProviderSelection } from "@shared/proto-conversions/models/api-configuration-conversion"
 import { telemetryService } from "../../../services/telemetry"
+import { normalizeUserApprovedCommands } from "@shared/UserApprovedCommand"
 import { Controller } from ".."
 
 /** Apply simple boolean/number/string settings that map directly to global state */
@@ -38,6 +39,8 @@ export function applySimpleSettings(controller: Controller, request: UpdateSetti
 	if (request.writePromptMetadataEnabled !== undefined)
 		sm.setGlobalState("writePromptMetadataEnabled", request.writePromptMetadataEnabled)
 	if (request.autoApproveAllToggled !== undefined) sm.setGlobalState("autoApproveAllToggled", request.autoApproveAllToggled)
+	if (request.userApprovedCommands !== undefined)
+		sm.setGlobalState("userApprovedCommands", normalizeUserApprovedCommands(request.userApprovedCommands.commands))
 	if (request.writePromptMetadataDirectory !== undefined)
 		sm.setGlobalState("writePromptMetadataDirectory", request.writePromptMetadataDirectory)
 	if (request.backgroundEditEnabled !== undefined) sm.setGlobalState("backgroundEditEnabled", !!request.backgroundEditEnabled)
