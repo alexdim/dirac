@@ -132,14 +132,29 @@ describe("NewTaskTool", () => {
 		assert.equal(env.orchestration.requestTaskReplacement.called, false)
 	})
 
-	it("uses the Utility model task-handoff capability for a concise intent", async () => {
+	it("keeps the current task on rejection without inserting empty feedback", async () => {
+		const { card, env } = createMocks()
+		card.waitForInteraction.resolves({
+			action: "reject",
+			response: "reject",
+			value: "reject",
+		})
+
+		const result = await new NewTaskTool().processCall({ context: "Generated context" }, env as any)
+
+		assert.match(result, /kept the current task/)
+		assert.ok(card.finalize.calledWith("cancelled"))
+		assert.equal(env.ui.upsertText.callCount, 0)
+		assert.equal(env.orchestration.requestTaskReplacement.callCount, 0)
+	})
+
+	it("delegates a concise intent directly to the authoritative Utility condensation operation", async () => {
 		const { card, env, conversationCondensation } = createMocks()
-		conversationCondensation.isAvailable.returns(true)
 		conversationCondensation.condenseConversation.resolves("# Completed handoff")
 
 		await new NewTaskTool().processCall({ intent: "Continue the requested implementation." }, env as any)
 
-		assert.ok(conversationCondensation.isAvailable.calledWith("task_handoff"))
+		assert.equal(conversationCondensation.isAvailable.callCount, 0)
 		assert.ok(
 			conversationCondensation.condenseConversation.calledWithMatch(
 				"task_handoff",
@@ -150,26 +165,19 @@ describe("NewTaskTool", () => {
 		assert.ok(card.finalize.calledWith("success"))
 		assert.ok(env.orchestration.requestTaskReplacement.calledOnceWithExactly("# Completed handoff"))
 	})
-	it("does not fall back to context when Utility availability changes after the request schema", async () => {
+	it("surfaces an unavailable Utility operation without previewing or replacing", async () => {
 		const { env, conversationCondensation } = createMocks()
-		conversationCondensation.isAvailable.returns(false)
+		conversationCondensation.condenseConversation.rejects(new Error("Conversation condensation is unavailable"))
 
-		const result = await new NewTaskTool().processCall(
-			{ intent: "Continue the requested implementation." },
-			env as any,
-		)
+		const result = await new NewTaskTool().processCall({ intent: "Continue the requested implementation." }, env as any)
 
-		assert.match(result, /no longer available/)
-		assert.equal(conversationCondensation.condenseConversation.callCount, 0)
+		assert.match(result, /Utility task-handoff generation failed: Conversation condensation is unavailable/)
+		assert.equal(conversationCondensation.condenseConversation.callCount, 1)
 		assert.equal(env.ui.createCard.callCount, 0)
 		assert.equal(env.orchestration.requestTaskReplacement.callCount, 0)
 	})
-
-
-
 	it("does not preview a generated handoff until the completed result is available", async () => {
 		const { env, conversationCondensation } = createMocks()
-		conversationCondensation.isAvailable.returns(true)
 		let resolveHandoff: (handoff: string) => void = () => assert.fail("Expected handoff resolution")
 		conversationCondensation.condenseConversation.returns(
 			new Promise<string>((resolve) => {
@@ -186,25 +194,20 @@ describe("NewTaskTool", () => {
 		assert.equal(env.ui.createCard.callCount, 1)
 	})
 
-	it("returns active-model fallback instructions without previewing or replacing on Utility failure", async () => {
+	it("surfaces the original Utility error without previewing or replacing", async () => {
 		const { env, state, conversationCondensation } = createMocks()
-		conversationCondensation.isAvailable.returns(true)
-		conversationCondensation.condenseConversation.rejects(new Error("utility unavailable"))
+		conversationCondensation.condenseConversation.rejects(new Error("provider rejected utility-model"))
 
-		const fallback = await new NewTaskTool().processCall(
-			{ intent: "Continue the requested implementation." },
-			env as any,
-		)
+		const result = await new NewTaskTool().processCall({ intent: "Continue the requested implementation." }, env as any)
 
 		assert.equal(env.ui.createCard.callCount, 0)
 		assert.equal(env.orchestration.requestTaskReplacement.callCount, 0)
 		assert.equal(state.consecutiveMistakeCount, 0)
-		assert.match(fallback, /same concise intent/)
+		assert.match(result, /Utility task-handoff generation failed: provider rejected utility-model/)
 	})
 
 	it("propagates task cancellation without fallback, preview, or replacement", async () => {
 		const { abortController, env, conversationCondensation } = createMocks()
-		conversationCondensation.isAvailable.returns(true)
 		conversationCondensation.condenseConversation.callsFake(async (_template: string, options: { signal?: AbortSignal }) => {
 			assert.equal(options.signal, abortController.signal)
 			abortController.abort()
@@ -218,6 +221,20 @@ describe("NewTaskTool", () => {
 
 		assert.equal(env.logging.warn.callCount, 0)
 		assert.equal(env.ui.createCard.callCount, 0)
+		assert.equal(env.orchestration.requestTaskReplacement.callCount, 0)
+	})
+
+	it("finalizes the preview as an error without masking an interaction failure", async () => {
+		const { card, env } = createMocks()
+		const interactionFailure = new Error("preview interaction failed")
+		card.waitForInteraction.rejects(interactionFailure)
+
+		await assert.rejects(
+			() => new NewTaskTool().processCall({ context: "handoff" }, env as any),
+			(error: unknown) => error === interactionFailure,
+		)
+
+		assert.ok(card.finalize.calledWith("error"))
 		assert.equal(env.orchestration.requestTaskReplacement.callCount, 0)
 	})
 
@@ -235,6 +252,7 @@ describe("NewTaskTool", () => {
 		await assert.rejects(new NewTaskTool().processCall({ context: "handoff" }, env as any), /Task instance aborted/)
 
 		assert.equal(env.orchestration.requestTaskReplacement.callCount, 0)
+		assert.ok(card.finalize.calledWith("cancelled"))
 	})
 
 	it("keeps the committed replacement when final presentation is interrupted", async () => {

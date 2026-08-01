@@ -105,11 +105,23 @@ export class TaskController {
 	}
 
 	private async runTaskWithReplacement(task: Task, run: Promise<void>): Promise<void> {
-		await run
-		if (this._task !== task || !task.taskState.pendingTaskReplacement) return
+		let runFailure: { error: unknown } | undefined
+		try {
+			await run
+		} catch (error) {
+			runFailure = { error }
+		}
 
 		const replacement = task.taskState.pendingTaskReplacement
-		task.taskState.pendingTaskReplacement = undefined
+		if (this._task !== task || !replacement) {
+			if (runFailure) throw runFailure.error
+			return
+		}
+
+		if (runFailure) {
+			Logger.warn("Old task run failed while starting an approved replacement", runFailure.error)
+		}
+
 		const taskId = await this.initTask(
 			replacement.context,
 			replacement.images,
@@ -120,6 +132,7 @@ export class TaskController {
 			undefined,
 			this.currentInitializationOptions,
 		)
+		task.taskState.pendingTaskReplacement = undefined
 		await Promise.all([...this.taskReplacementListeners].map((listener) => listener(taskId)))
 		await this._taskRunPromise
 	}
