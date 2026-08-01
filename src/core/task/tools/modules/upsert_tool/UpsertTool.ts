@@ -143,14 +143,14 @@ export class UpsertTool implements IDiracTool {
 				taskScopedToolIds.add(tool.name)
 			}
 			const paramHint = tool.parameters.map((parameter: any) => parameter.name).join(", ")
-			outcomeLines.push(`✅ Tool '${tool.name}' is ready. Invoke it by calling '${tool.name}' as a tool function with: ${paramHint}`)
+			outcomeLines.push(`✓ Tool '${tool.name}' is ready. Invoke it by calling '${tool.name}' as a tool function with: ${paramHint}`)
 		}
 
 		if (env.config.taskId) {
 			env.orchestration.setTaskState("taskScopedToolIds", [...taskScopedToolIds])
 		}
 
-		const successCount = outcomeLines.filter((line) => line.startsWith("✅")).length
+		const successCount = outcomeLines.filter((line) => line.startsWith("✓")).length
 		const finalStatus = hasFailure ? CardStatus.ERROR : CardStatus.SUCCESS
 		await updateProgress("Complete", `${successCount}/${tools.length} tools ready`, finalStatus)
 		await progressCard.finalize(finalStatus)

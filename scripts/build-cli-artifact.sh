@@ -12,6 +12,9 @@
 
 set -e
 
+GREEN='\033[0;32m'
+NC='\033[0m'
+
 REF="${1:-$(git rev-parse --abbrev-ref HEAD)}"
 PR_NUMBER="${2:-}"
 
@@ -30,7 +33,7 @@ fi
 gh workflow run pack-cli.yml "${ARGS[@]}"
 
 echo ""
-echo "✅ Workflow triggered!"
+echo -e "${GREEN}✓${NC} Workflow triggered!"
 echo ""
 echo "The workflow will create a GitHub Release with a public download URL."
 echo ""

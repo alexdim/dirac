@@ -21,6 +21,7 @@
 
 import { ChildProcess, spawn } from "child_process"
 import fs from "fs"
+import chalk from "chalk"
 import minimist from "minimist"
 import net from "net"
 import path from "path"
@@ -146,7 +147,7 @@ async function runSpec(specFile: string): Promise<void> {
 	const { server, grpcPort } = await startServer()
 	try {
 		await runTestingPlatform(specFile, grpcPort)
-		console.log(`✅ ${path.basename(specFile)} passed`)
+		console.log(`${chalk.green("✓")} ${path.basename(specFile)} passed`)
 	} finally {
 		await stopServer(server)
 	}
@@ -193,7 +194,7 @@ async function runAll(inputPath: string, count: number) {
 		if (failure > 0) process.exitCode = 1
 	}
 
-	console.log(`✅ Passed: ${success}`)
+	console.log(`${chalk.green("✓")} Passed: ${success}`)
 	if (failure > 0) console.log(`❌ Failed: ${failure}`)
 	console.log(`📋 Total specs: ${specFiles.length} Total runs: ${specFiles.length * count}`)
 	console.log(`🏁 All runs completed in ${((Date.now() - totalStart) / 1000).toFixed(2)}s`)

@@ -48,7 +48,7 @@ import {
  *
  * ### The Fix - Keep Complete Assistant Turns Together:
  * ```
- * ✅ CORRECT - Reasoning paired with its message:
+ * ✓ CORRECT - Reasoning paired with its message:
  * [
  *   { role: "user", content: [...] },
  *   { type: "reasoning", id: "rs_abc", summary: [...] },
@@ -59,7 +59,7 @@ import {
  *
  * **Per OpenAI Engineering Guidance:**
  * - ❌ WRONG: `content += filter(lambda x: x.type == "reasoning", resp.output)`
- * - ✅ CORRECT: `content += resp.output`
+ * - ✓ CORRECT: `content += resp.output`
  *
  * Never extract only reasoning items - always include the complete output sequence
  * (reasoning + message/function_call) as provided by the API.

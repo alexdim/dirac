@@ -1,6 +1,9 @@
 #!/bin/bash
 set -euo pipefail
 
+GREEN='\033[0;32m'
+NC='\033[0m'
+
 # Test script to build VSIX and CLI packages with bundled staging endpoints
 # This demonstrates the complete workflow for enterprise distribution
 
@@ -153,7 +156,7 @@ fi
 # Summary
 echo ""
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-echo "✅ Build complete!"
+echo -e "${GREEN}✓${NC} Build complete!"
 echo ""
 ls -lh "$OUTPUT_DIR" | grep -E '\.(vsix|tgz)$' || true
 echo ""

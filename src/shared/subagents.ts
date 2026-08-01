@@ -207,7 +207,7 @@ export function formatSubagentTrajectory(data: SubagentCardData, options: number
 			case SubagentTrajectoryEventType.TOOL_RESULT:
 				return includeToolResults ? [`  - ↳ ${line(event.text)}`] : []
 			case SubagentTrajectoryEventType.RESULT:
-				return [`- ✅ ${line(event.text)}`]
+				return [`- ✓ ${line(event.text)}`]
 			case SubagentTrajectoryEventType.ERROR:
 				return [`- ❌ ${line(event.text)}`]
 		}

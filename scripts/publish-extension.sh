@@ -181,7 +181,7 @@ rm -f "$CHANGELOG_FILE"
 
 echo ""
 echo "--------------------------------------------------"
-log_info "✅ Extension v${NEW_VERSION} released successfully!"
+log_info "${GREEN}✓${NC} Extension v${NEW_VERSION} released successfully!"
 echo ""
 echo "  • Published to VS Marketplace"
 echo "  • Published to Open VSX"

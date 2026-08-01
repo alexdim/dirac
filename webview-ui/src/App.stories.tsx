@@ -231,7 +231,7 @@ const mockActiveMessages: DiracMessage[] = [
 	createMessage(
 		3.3,
 		DiracMessageType.MARKDOWN,
-		"I've created a responsive navigation component with TypeScript support. The component includes:\n\n✅ Mobile-first responsive design\n✅ Accessible ARIA attributes\n✅ Toggle functionality for mobile\n✅ TypeScript interfaces for type safety\n✅ Theme support\n\nWould you like me to also create the CSS styles for this component?",
+		"I've created a responsive navigation component with TypeScript support. The component includes:\n\n✓ Mobile-first responsive design\n✓ Accessible ARIA attributes\n✓ Toggle functionality for mobile\n✓ TypeScript interfaces for type safety\n✓ Theme support\n\nWould you like me to also create the CSS styles for this component?",
 	),
 ]
 
