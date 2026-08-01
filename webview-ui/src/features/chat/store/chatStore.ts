@@ -7,9 +7,7 @@ import {
 	type TaskStatus,
 } from "@shared/ExtensionMessage"
 
-import { EmptyRequest } from "@shared/proto/dirac/common"
 import { create } from "zustand"
-import { StateServiceClient } from "@/shared/api/grpc-client"
 
 interface ChatState {
 	diracMessages: DiracMessage[]
@@ -21,12 +19,10 @@ interface ChatState {
 	cardUserToggledStates: Record<string, boolean>
 
 	// Actions
+	applyExtensionState: (state: ExtensionState) => void
 	setDiracMessages: (messages: DiracMessage[]) => void
 	setCardCollapsedState: (cardId: string, collapsed: boolean, userToggled?: boolean) => void
 	clearCardCollapsedStates: () => void
-
-	// Hydration
-	hydrate: () => () => void
 }
 
 function cardsById(messages: DiracMessage[]): Map<string, Card> {
@@ -83,27 +79,12 @@ export const useChatStore = create<ChatState>((set) => ({
 		})),
 	clearCardCollapsedStates: () => set({ cardCollapsedStates: {}, cardUserToggledStates: {} }),
 
-	hydrate: () => {
-		const cleanup = StateServiceClient.subscribeToState({} as EmptyRequest, {
-			onResponse: (state) => {
-				if (!state.stateJson) return
-				const parsedState = JSON.parse(state.stateJson) as ExtensionState
-
-				if (parsedState.diracMessages) {
-					set((state) => ({
-						...synchronizeResolvedCardCollapse(state, parsedState.diracMessages),
-						uiActionState: parsedState.uiActionState,
-						activeVoiceStreamId: parsedState.activeVoiceStreamId,
-						isApiRequestActive: parsedState.isApiRequestActive,
-						taskStatus: parsedState.taskStatus,
-					}))
-				}
-			},
-			onError: (error) => {
-				console.error("Error in chatStore state subscription:", error)
-			},
-			onComplete: () => {},
-		})
-		return cleanup
-	},
+	applyExtensionState: (extensionState) =>
+		set((state) => ({
+			...synchronizeResolvedCardCollapse(state, extensionState.diracMessages),
+			uiActionState: extensionState.uiActionState,
+			activeVoiceStreamId: extensionState.activeVoiceStreamId,
+			isApiRequestActive: extensionState.isApiRequestActive,
+			taskStatus: extensionState.taskStatus,
+		})),
 }))

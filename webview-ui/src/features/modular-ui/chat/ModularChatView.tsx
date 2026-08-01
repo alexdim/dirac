@@ -34,7 +34,6 @@ const MAX_IMAGES_AND_FILES_PER_MESSAGE = CHAT_CONSTANTS.MAX_IMAGES_AND_FILES_PER
 
 export const ModularChatView: React.FC<ChatViewProps> = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryView }) => {
 	const showNavbar = useShowNavbar()
-	const hydrate = useChatStore((state) => state.hydrate)
 	const version = useAppStore((state) => state.version)
 	const messages = useChatStore((state) => state.diracMessages)
 	const activeVoiceStreamId = useChatStore((state) => state.activeVoiceStreamId)
@@ -107,11 +106,6 @@ export const ModularChatView: React.FC<ChatViewProps> = ({ isHidden, showAnnounc
 	const shouldDisableFilesAndImages =
 		interactionState === InteractionState.RUNNING ||
 		selectedImages.length + selectedFiles.length >= MAX_IMAGES_AND_FILES_PER_MESSAGE
-
-	useEffect(() => {
-		const cleanup = hydrate()
-		return cleanup
-	}, [hydrate])
 
 	useMount(() => {
 		textAreaRef.current?.focus()

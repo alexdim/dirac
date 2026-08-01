@@ -1,4 +1,4 @@
-import { CardKind, CardStatus, type DiracMessage, DiracMessageType } from "@shared/ExtensionMessage"
+import { CardKind, CardStatus, type DiracMessage, DiracMessageType, type ExtensionState } from "@shared/ExtensionMessage"
 import { act, renderHook } from "@testing-library/react"
 import { useChatStore } from "../chatStore"
 
@@ -26,6 +26,10 @@ describe("useChatStore", () => {
 	beforeEach(() => {
 		useChatStore.setState({
 			diracMessages: [],
+			uiActionState: undefined,
+			activeVoiceStreamId: undefined,
+			isApiRequestActive: false,
+			taskStatus: undefined,
 			cardCollapsedStates: {},
 			cardUserToggledStates: {},
 		})
@@ -38,13 +42,41 @@ describe("useChatStore", () => {
 
 	it("should set messages", () => {
 		const { result } = renderHook(() => useChatStore())
-		const messages: DiracMessage[] = [{ ts: 1, type: "say", say: "text", text: "hello" }]
+		const messages: DiracMessage[] = [
+			{
+				id: "message-1",
+				ts: 1,
+				content: { type: DiracMessageType.MARKDOWN, content: "hello" },
+			},
+		]
 
 		act(() => {
 			result.current.setDiracMessages(messages)
 		})
 
 		expect(result.current.diracMessages).toEqual(messages)
+	})
+
+	it("applies task fields from a shared extension-state snapshot", () => {
+		const messages = [permissionCardMessage(CardStatus.RUNNING, false)]
+		const uiActionState = { globalButtons: [], cardButtons: [] } as ExtensionState["uiActionState"]
+		const extensionState = {
+			diracMessages: messages,
+			uiActionState,
+			activeVoiceStreamId: "message-1",
+			isApiRequestActive: true,
+			taskStatus: "streaming_text",
+		} as ExtensionState
+
+		useChatStore.getState().applyExtensionState(extensionState)
+
+		expect(useChatStore.getState()).toMatchObject({
+			diracMessages: messages,
+			uiActionState,
+			activeVoiceStreamId: "message-1",
+			isApiRequestActive: true,
+			taskStatus: "streaming_text",
+		})
 	})
 
 	it("should track collapsed cards and user toggles", () => {

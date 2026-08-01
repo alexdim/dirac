@@ -3,6 +3,7 @@ import type { ExtensionState } from "@shared/ExtensionMessage"
 import { EmptyRequest } from "@shared/proto/dirac/common"
 import { create } from "zustand"
 import { useTaskStore } from "@/entities/task/store/taskStore"
+import { useChatStore } from "@/features/chat/store/chatStore"
 import { useSettingsStore } from "@/features/settings/store/settingsStore"
 import { StateServiceClient, UiServiceClient } from "@/shared/api/grpc-client"
 
@@ -148,6 +149,7 @@ export const useAppStore = create<AppState>((set) => ({
 			onResponse: (state) => {
 				if (!state.stateJson) return
 				const parsedState = JSON.parse(state.stateJson) as ExtensionState
+				useChatStore.getState().applyExtensionState(parsedState)
 
 				set({
 					version: parsedState.version,
