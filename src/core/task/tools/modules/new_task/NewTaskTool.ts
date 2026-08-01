@@ -7,7 +7,11 @@ import { telemetryService } from "@/services/telemetry"
 import { CardStatus } from "@/shared/ExtensionMessage"
 import { DiracDefaultTool, DiracToolSpec } from "@/shared/tools"
 import { IDiracTool } from "../../interfaces/IDiracTool"
-import { ICardHandle, IToolEnvironment } from "../../interfaces/IToolEnvironment"
+import {
+	type ConversationCondensationResult,
+	ICardHandle,
+	IToolEnvironment,
+} from "../../interfaces/IToolEnvironment"
 
 export const new_task_spec: DiracToolSpec = {
 	id: DiracDefaultTool.NEW_TASK,
@@ -55,9 +59,16 @@ export class NewTaskTool implements IDiracTool {
 		}
 
 		let context = suppliedContext
+		let utilityModelIdentity: ConversationCondensationResult["modelIdentity"] | undefined
 		if (!context && intent) {
 			try {
-				context = await this.generateTaskHandoff(intent, signal, env.conversationCondensation?.condenseConversation)
+				const generatedHandoff = await this.generateTaskHandoff(
+					intent,
+					signal,
+					env.conversationCondensation?.condenseConversation,
+				)
+				context = generatedHandoff.text
+				utilityModelIdentity = generatedHandoff.modelIdentity
 			} catch (error) {
 				if (signal.aborted) throw error
 				const message = error instanceof Error ? error.message : String(error)
@@ -81,8 +92,12 @@ export class NewTaskTool implements IDiracTool {
 			})
 		}
 
+		const modelHeaderSuffix = utilityModelIdentity
+			? ` · ${utilityModelIdentity.providerId}/${utilityModelIdentity.modelId}`
+			: ""
+
 		const cardHandle = await env.ui.createCard({
-			header: "New Task",
+			header: `New Task${modelHeaderSuffix}`,
 			icon: DiracIcon.CHAT,
 			requireApproval: true,
 			requireFeedback: true,
@@ -94,11 +109,12 @@ export class NewTaskTool implements IDiracTool {
 			maxHeight: 1200,
 			do_not_auto_collapse: true,
 		})
-		return await this.resolvePreview(context, cardHandle, signal, env)
+		return await this.resolvePreview(context, modelHeaderSuffix, cardHandle, signal, env)
 	}
 
 	private async resolvePreview(
 		context: string,
+		modelHeaderSuffix: string,
 		cardHandle: ICardHandle,
 		signal: AbortSignal,
 		env: IToolEnvironment,
@@ -144,7 +160,7 @@ export class NewTaskTool implements IDiracTool {
 
 			try {
 				await cardHandle.update({
-					header: "New Task Created",
+					header: `New Task Created${modelHeaderSuffix}`,
 					collapsed: true,
 				})
 				await cardHandle.finalize(CardStatus.SUCCESS)
@@ -200,7 +216,7 @@ export class NewTaskTool implements IDiracTool {
 		intent: string,
 		signal: AbortSignal,
 		condenseConversation: NonNullable<IToolEnvironment["conversationCondensation"]>["condenseConversation"] | undefined,
-	): Promise<string> {
+	): Promise<ConversationCondensationResult> {
 		if (!condenseConversation) {
 			throw new Error("Utility task-handoff generation is unavailable")
 		}

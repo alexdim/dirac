@@ -93,7 +93,10 @@ describe("CondenseTool", () => {
 	it("uses the Utility model for a no-context automatic condense before consuming source state", async () => {
 		const { card, env, state, conversationCondensation } = createMocks("automatic")
 		conversationCondensation.isAvailable.returns(true)
-		conversationCondensation.condenseConversation.resolves("utility summary")
+		conversationCondensation.condenseConversation.resolves({
+			text: "utility summary",
+			modelIdentity: { providerId: "openai", modelId: "utility-model" },
+		})
 
 		const result = await new CondenseTool().processCall({}, env as any)
 

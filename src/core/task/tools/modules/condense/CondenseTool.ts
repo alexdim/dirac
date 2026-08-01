@@ -135,12 +135,12 @@ export class CondenseTool implements IDiracTool {
 		if (!condensation?.isAvailable(CONVERSATION_CONTINUATION_TEMPLATE_ID)) return undefined
 
 		try {
-			const generatedContext = await condensation.condenseConversation(CONVERSATION_CONTINUATION_TEMPLATE_ID, { signal })
+			const result = await condensation.condenseConversation(CONVERSATION_CONTINUATION_TEMPLATE_ID, { signal })
 			if (signal.aborted) throw new Error("Task instance aborted")
-			if (generatedContext.trim().length === 0) {
+			if (result.text.trim().length === 0) {
 				throw new Error("Utility condensation returned empty context")
 			}
-			return generatedContext
+			return result.text
 		} catch (error) {
 			if (signal.aborted) throw error
 			env.logging.warn("Utility conversation condensation failed", error)

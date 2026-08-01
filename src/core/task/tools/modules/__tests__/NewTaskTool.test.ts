@@ -150,7 +150,10 @@ describe("NewTaskTool", () => {
 
 	it("delegates a concise intent directly to the authoritative Utility condensation operation", async () => {
 		const { card, env, conversationCondensation } = createMocks()
-		conversationCondensation.condenseConversation.resolves("# Completed handoff")
+		conversationCondensation.condenseConversation.resolves({
+			text: "# Completed handoff",
+			modelIdentity: { providerId: "openai", modelId: "utility-model" },
+		})
 
 		await new NewTaskTool().processCall({ intent: "Continue the requested implementation." }, env as any)
 
@@ -161,7 +164,13 @@ describe("NewTaskTool", () => {
 				sinon.match({ additionalSourceText: sinon.match(/Continue the requested implementation/) }),
 			),
 		)
-		assert.ok(env.ui.createCard.calledWithMatch({ body: "# Completed handoff" }))
+		assert.ok(
+			env.ui.createCard.calledWithMatch({
+				header: "New Task · openai/utility-model",
+				body: "# Completed handoff",
+			}),
+		)
+		assert.ok(card.update.calledWithMatch({ header: "New Task Created · openai/utility-model" }))
 		assert.ok(card.finalize.calledWith("success"))
 		assert.ok(env.orchestration.requestTaskReplacement.calledOnceWithExactly("# Completed handoff"))
 	})
@@ -178,9 +187,12 @@ describe("NewTaskTool", () => {
 	})
 	it("does not preview a generated handoff until the completed result is available", async () => {
 		const { env, conversationCondensation } = createMocks()
-		let resolveHandoff: (handoff: string) => void = () => assert.fail("Expected handoff resolution")
+		let resolveHandoff: (handoff: {
+			text: string
+			modelIdentity: { providerId: string; modelId: string }
+		}) => void = () => assert.fail("Expected handoff resolution")
 		conversationCondensation.condenseConversation.returns(
-			new Promise<string>((resolve) => {
+			new Promise((resolve) => {
 				resolveHandoff = resolve
 			}),
 		)
@@ -189,7 +201,10 @@ describe("NewTaskTool", () => {
 		await new Promise((resolve) => setImmediate(resolve))
 		assert.equal(env.ui.createCard.callCount, 0)
 
-		resolveHandoff("# Completed handoff")
+		resolveHandoff({
+			text: "# Completed handoff",
+			modelIdentity: { providerId: "openai", modelId: "utility-model" },
+		})
 		await processing
 		assert.equal(env.ui.createCard.callCount, 1)
 	})
