@@ -240,9 +240,6 @@ export class SymbolIndexService {
 			}
 
 			const removalPaths = [...ineligiblePaths, ...rejectedPaths]
-			Logger.info(
-				`[SymbolIndexService] Reconciliation plan reason=${reason} indexed=${existingMetadata.size} eligible=${eligiblePaths.size} removals=${removalPaths.length} candidates=${candidates.length}`,
-			)
 			const removedBeforeParsing = await this.applyRemovalBatches(db, removalPaths, reason)
 			if (this.disposed || this.db !== db) return removedBeforeParsing > 0
 			const candidateResult = await this.applyCandidateBatches(db, candidates, reason)
@@ -256,9 +253,6 @@ export class SymbolIndexService {
 			const removed = removedBeforeParsing + candidateResult.removed
 			this.compactDatabaseIfNeeded(db, reason)
 			SymbolIndexTelemetry.recordReconciliation(eligiblePaths.size, removed, candidateResult.replaced)
-			Logger.info(
-				`[SymbolIndexService] Reconciled reason=${reason} elapsedMs=${Date.now() - startedAt} eligible=${eligiblePaths.size} removed=${removed} updated=${candidateResult.replaced}`,
-			)
 			return removed > 0 || candidateResult.changed
 		} finally {
 			this.isScanningInternal = false
@@ -368,12 +362,6 @@ export class SymbolIndexService {
 			removed += mutation.removed
 			replaced += mutation.replaced
 			retryRequested ||= staged.retryRequested
-			const processed = Math.min(offset + batch.length, candidates.length)
-			const batchNumber = Math.floor(offset / SymbolIndexService.INDEXING_BATCH_SIZE) + 1
-			if (processed === candidates.length || batchNumber % SymbolIndexService.PROGRESS_LOG_BATCH_INTERVAL === 0)
-				Logger.info(
-					`[SymbolIndexService] Indexing progress reason=${reason} processed=${processed}/${candidates.length} updated=${replaced} removed=${removed}`,
-				)
 			await this.yieldAfterMutationBatch()
 		}
 		return { changed, removed, replaced, retryRequested }
