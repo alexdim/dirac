@@ -18,9 +18,10 @@ const selection: ModelProviderSelection = {
 	modelId: "utility-model",
 }
 
-function textStream(text: string): ApiStream {
+function textStream(text: string, onComplete?: () => void): ApiStream {
 	return (async function* (): AsyncGenerator<ApiStreamChunk> {
 		yield { type: "text", text }
+		onComplete?.()
 	})()
 }
 
@@ -92,12 +93,16 @@ describe("ConversationCondensationTraitBuilder", () => {
 		const activeApi = config.api
 		const requests: UtilityModelRequest[] = []
 		const updatedSelection: ModelProviderSelection = { provider: "openai", modelId: "updated-utility-model" }
-		const createRunner = sinon.stub(utilityModel, "createUtilityModelRunner").returns({
-			run(request: UtilityModelRequest) {
-				requests.push(request)
-				return textStream("complete condensation")
-			},
-		} as ReturnType<typeof utilityModel.createUtilityModelRunner>)
+		const createRunner = sinon.stub(utilityModel, "createUtilityModelRunner").callsFake((_configuration, runnerSelection, options) => {
+			return {
+				run(request: UtilityModelRequest) {
+					requests.push(request)
+					return textStream("complete condensation", () => {
+						options?.onModelResolved?.({ selection: runnerSelection, modelId: "resolved-utility-model" })
+					})
+				},
+			} as ReturnType<typeof utilityModel.createUtilityModelRunner>
+		})
 		const trait = buildConversationCondensationTrait(config)
 
 		settings.utilityModelEnabled = false
@@ -109,23 +114,31 @@ describe("ConversationCondensationTraitBuilder", () => {
 
 		assert.deepEqual(await trait.condenseConversation("conversation_continuation"), {
 			text: "complete condensation",
-			modelIdentity: { providerId: "openai", modelId: "updated-utility-model" },
+			modelIdentity: { providerId: "openai", modelId: "resolved-utility-model" },
 		})
 		assert.equal(config.api, activeApi)
 		assert.equal(requests.length, 1)
-		sinon.assert.calledOnceWithExactly(createRunner, getApiConfiguration.returnValues[0], updatedSelection, { ulid: config.ulid })
+		sinon.assert.calledOnce(createRunner)
+		assert.equal(createRunner.firstCall.args[0], getApiConfiguration.returnValues[0])
+		assert.equal(createRunner.firstCall.args[1], updatedSelection)
+		assert.equal(createRunner.firstCall.args[2]?.ulid, config.ulid)
+		assert.equal(typeof createRunner.firstCall.args[2]?.onModelResolved, "function")
 	})
 
 	it("serializes history from the current task only", async () => {
 		const history: DiracStorageMessage[] = [{ role: "user", content: "current task-only history" }]
 		const { config } = createEnvironment(history)
 		const requests: UtilityModelRequest[] = []
-		sinon.stub(utilityModel, "createUtilityModelRunner").returns({
-			run(request: UtilityModelRequest) {
-				requests.push(request)
-				return textStream("complete condensation")
-			},
-		} as ReturnType<typeof utilityModel.createUtilityModelRunner>)
+		sinon.stub(utilityModel, "createUtilityModelRunner").callsFake((_configuration, runnerSelection, options) => {
+			return {
+				run(request: UtilityModelRequest) {
+					requests.push(request)
+					return textStream("complete condensation", () => {
+						options?.onModelResolved?.({ selection: runnerSelection, modelId: runnerSelection.modelId })
+					})
+				},
+			} as ReturnType<typeof utilityModel.createUtilityModelRunner>
+		})
 		const trait = buildConversationCondensationTrait(config)
 
 		await trait.condenseConversation("conversation_continuation")
