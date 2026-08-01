@@ -6,8 +6,8 @@ import { describe, it, afterEach } from "mocha"
 import sinon from "sinon"
 import { SurfaceAdapter } from "../SurfaceAdapter"
 import {
-    buildConversationCondensationTrait,
-    ConversationCondensationUnavailableError,
+	buildConversationCondensationTrait,
+	ConversationCondensationUnavailableError,
 } from "../traits/ConversationCondensationTraitBuilder"
 import { createMockTaskConfig } from "../../__tests__/helpers/mockTaskConfig"
 import type { UtilityModelRequest } from "@core/utility-model/UtilityModelRunner"
@@ -107,7 +107,10 @@ describe("ConversationCondensationTraitBuilder", () => {
 		assert.equal(trait.isAvailable("conversation_continuation"), true)
 		sinon.assert.notCalled(createRunner)
 
-		assert.equal(await trait.condenseConversation("conversation_continuation"), "complete condensation")
+		assert.deepEqual(await trait.condenseConversation("conversation_continuation"), {
+			text: "complete condensation",
+			modelIdentity: { providerId: "openai", modelId: "updated-utility-model" },
+		})
 		assert.equal(config.api, activeApi)
 		assert.equal(requests.length, 1)
 		sinon.assert.calledOnceWithExactly(createRunner, getApiConfiguration.returnValues[0], updatedSelection, { ulid: config.ulid })

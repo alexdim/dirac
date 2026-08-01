@@ -41,7 +41,14 @@ export function buildConversationCondensationTrait(config: TaskConfig): IConvers
 			}
 
 			const service = createConversationCondensationService(config, selection, templates)
-			return await service.condenseEffectiveConversation(template, options?.signal, options?.additionalSourceText)
+			const text = await service.condenseEffectiveConversation(template, options?.signal, options?.additionalSourceText)
+			return {
+				text,
+				modelIdentity: {
+					providerId: selection.provider,
+					modelId: selection.modelId,
+				},
+			}
 		},
 	}
 }

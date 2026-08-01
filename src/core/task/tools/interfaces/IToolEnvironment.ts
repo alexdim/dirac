@@ -410,12 +410,20 @@ export interface IAnchorTrait {
  * The Tool Environment provides access to all capabilities (traits)
  * available to a modular tool during its execution.
  */
+export interface ConversationCondensationResult {
+	text: string
+	modelIdentity: {
+		providerId: string
+		modelId: string
+	}
+}
+
 export interface IConversationCondensationTrait {
 	isAvailable(template: TextCondensationTemplateId): boolean
 	condenseConversation(
 		template: TextCondensationTemplateId,
 		options?: { signal?: AbortSignal; additionalSourceText?: string },
-	): Promise<string>
+	): Promise<ConversationCondensationResult>
 }
 
 
