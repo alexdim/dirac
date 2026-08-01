@@ -741,7 +741,7 @@ export class UseSubagentsTool implements IDiracTool {
 			const displayStatus = item.isWrappingUp && !isTerminalSubagentStatus(item.status) ? "wrapping up" : item.status
 			const statusIcon =
 				item.status === SubagentExecutionStatus.COMPLETED
-					? "✅"
+					? "✓"
 					: item.status === SubagentExecutionStatus.FAILED
 						? "❌"
 						: item.status === SubagentExecutionStatus.CANCELLED

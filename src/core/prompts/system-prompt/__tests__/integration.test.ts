@@ -214,7 +214,7 @@ describe("Prompt System Integration Tests", () => {
 	before(async () => {
 		SymbolIndexService.getInstance().setPersistenceEnabled(false)
 		SymbolIndexService.getInstance().setSkipRepoCheck(true)
-		console.log(UPDATE_SNAPSHOTS ? "🔄 SNAPSHOT UPDATE MODE" : "✅ SNAPSHOT TEST MODE")
+		console.log(UPDATE_SNAPSHOTS ? "🔄 SNAPSHOT UPDATE MODE" : "✓ SNAPSHOT TEST MODE")
 		await fs.mkdir(SNAPSHOTS_DIR, { recursive: true }).catch(() => { })
 	})
 

@@ -14,6 +14,7 @@
 
 import { fileURLToPath } from "node:url"
 import { execSync } from "child_process"
+import chalk from "chalk"
 import dotenv from "dotenv"
 import fs from "fs"
 import { cp } from "fs/promises"
@@ -41,7 +42,7 @@ async function main() {
 	await copyReadme()
 	await createNpmIgnoreFile()
 
-	console.log("\n✅ Build complete!")
+	console.log(`\n${chalk.green("✓")} Build complete!`)
 	console.log(`\n📦 NPM package ready in ${BUILD_DIR}/`)
 	console.log(`To publish: cd ${BUILD_DIR} && npm publish`)
 }

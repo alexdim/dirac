@@ -1,6 +1,9 @@
 #!/bin/bash
 set -e
 
+GREEN='\033[0;32m'
+NC='\033[0m'
+
 PLATFORM=$1
 if [ -z "$PLATFORM" ]; then
   echo "Usage: $0 <platform>"
@@ -52,4 +55,4 @@ tar -czf "dirac-$PLATFORM.tar.gz" -C "$STAGING" .
 # Clean up
 rm -rf "$STAGING"
 
-echo "✅ Successfully created dirac-$PLATFORM.tar.gz"
+echo -e "${GREEN}✓${NC} Successfully created dirac-$PLATFORM.tar.gz"

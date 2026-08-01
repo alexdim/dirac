@@ -30,7 +30,7 @@ Call the `upsert_tool` tool with the gathered information. It handles code gener
 
 ## Step 3: Handle Results
 
-- **Success** (`✅`): proceed to Step 4.
+- **Success** (`✓`): proceed to Step 4.
 - **Failure** (`❌`): read the error, adjust the requirements, and call `upsert_tool` again.
 
 ## Step 4: Inform the User

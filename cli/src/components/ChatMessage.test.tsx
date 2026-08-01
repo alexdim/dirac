@@ -159,7 +159,7 @@ describe("ChatMessage card rendering", () => {
 					header: "Dirac is running subagents",
 					status: "running" as any,
 					renderType: "markdown",
-					body: "### Subagent Status (1/3)\n\n| # | Status | Prompt | Tokens (In/Out) | Cost |\n|---|--------|--------|-----------------|------|\n| 1 | ✅ completed | Find codebase stats and size | 24,400 / 0 | $0.0340 |\n| 2 | ⏳ running | Find funny comments and easter eggs | 31,600 / 0 | $0.0560 |\n| 3 | ⏳ pending | Find unusual patterns and history | 28,900 / 0 | $0.0000 |",
+					body: "### Subagent Status (1/3)\n\n| # | Status | Prompt | Tokens (In/Out) | Cost |\n|---|--------|--------|-----------------|------|\n| 1 | ✓ completed | Find codebase stats and size | 24,400 / 0 | $0.0340 |\n| 2 | ⏳ running | Find funny comments and easter eggs | 31,600 / 0 | $0.0560 |\n| 3 | ⏳ pending | Find unusual patterns and history | 28,900 / 0 | $0.0000 |",
 				},
 			},
 		}

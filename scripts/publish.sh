@@ -342,7 +342,7 @@ cleanup_generated_files
 
 echo ""
 echo "--------------------------------------------------"
-log_info "✅ Dirac ${RELEASE_TAG} released successfully!"
+log_info "${GREEN}✓${NC} Dirac ${RELEASE_TAG} released successfully!"
 echo ""
 echo "  Extension:"
 echo "    • Published to VS Marketplace from $VSIX_FILE"

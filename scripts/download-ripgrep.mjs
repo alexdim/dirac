@@ -13,6 +13,7 @@ import path from "path"
 import { pipeline } from "stream/promises"
 import * as tar from "tar"
 import { promisify } from "util"
+import chalk from "chalk"
 import { createGunzip } from "zlib"
 
 const execAsync = promisify(exec)
@@ -235,7 +236,7 @@ async function main() {
 
 	let successCount = 0
 	for (const result of results) {
-		const status = result.success ? "✅" : "❌"
+		const status = result.success ? chalk.green("✓") : "❌"
 		console.log(`${status} ${result.platform}`)
 		if (result.success) {
 			successCount++
@@ -251,7 +252,7 @@ async function main() {
 		process.exit(1)
 	}
 
-	console.log("\n✅ All ripgrep binaries downloaded successfully!")
+	console.log(`\n${chalk.green("✓")} All ripgrep binaries downloaded successfully!`)
 }
 
 // Run the script

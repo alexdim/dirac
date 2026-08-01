@@ -275,7 +275,7 @@ export class SearchFilesTool implements IDiracTool<SearchFilesArgs, string> {
 				const resultCount = this.parseSearchResultCount(results)
 
 				if (card) {
-					await card.appendBody(`✅ Found ${resultCount} results in ${workspaceName || absolutePath}.\n`)
+					await card.appendBody(`✓ Found ${resultCount} results in ${workspaceName || absolutePath}.\n`)
 				}
 				return {
 					absolutePath,
