@@ -7,7 +7,7 @@ import { telemetryService } from "@/services/telemetry"
 import { CardStatus } from "@/shared/ExtensionMessage"
 import { DiracDefaultTool, DiracToolSpec } from "@/shared/tools"
 import { IDiracTool } from "../../interfaces/IDiracTool"
-import { IToolEnvironment } from "../../interfaces/IToolEnvironment"
+import { ICardHandle, IToolEnvironment } from "../../interfaces/IToolEnvironment"
 
 export const new_task_spec: DiracToolSpec = {
 	id: DiracDefaultTool.NEW_TASK,
@@ -56,20 +56,15 @@ export class NewTaskTool implements IDiracTool {
 
 		let context = suppliedContext
 		if (!context && intent) {
-			const condensation = env.conversationCondensation
-			if (!condensation?.isAvailable(TASK_HANDOFF_TEMPLATE_ID)) {
-				return formatResponse.toolResult(
-					"Utility task-handoff generation is no longer available. Call `new_task` again using the schema shown in the next request.",
-				)
+			try {
+				context = await this.generateTaskHandoff(intent, signal, env.conversationCondensation?.condenseConversation)
+			} catch (error) {
+				if (signal.aborted) throw error
+				const message = error instanceof Error ? error.message : String(error)
+				env.logging.warn("Utility task handoff generation failed", error)
+				return formatResponse.toolError(`Utility task-handoff generation failed: ${message}`)
 			}
-
-			context = await this.generateTaskHandoff(intent, signal, condensation.condenseConversation, env)
 			this.throwIfCancelled(signal)
-			if (!context) {
-				return formatResponse.toolResult(
-					"Utility task-handoff generation failed. Retry `new_task` with the same concise intent, or fix/disable the configured Utility model and follow the schema shown in the next request.",
-				)
-			}
 		}
 
 		if (!context) {
@@ -99,53 +94,92 @@ export class NewTaskTool implements IDiracTool {
 			maxHeight: 1200,
 			do_not_auto_collapse: true,
 		})
-		const { response, value, text, images, files: newTaskFiles } = await cardHandle.waitForInteraction()
-		this.throwIfCancelled(signal)
+		return await this.resolvePreview(context, cardHandle, signal, env)
+	}
 
-		const apiConfig = env.config.services.stateManager.getApiConfiguration()
-		const provider = (env.config.mode === "plan" ? apiConfig.planModeApiProvider : apiConfig.actModeApiProvider) as string
-		const hasFeedback = !!text || !!images?.length || !!newTaskFiles?.length
-		const approvedReplacement = response === "approve" && value === DiracDefaultTool.NEW_TASK
-
-		if (!approvedReplacement || hasFeedback) {
-			let fileContentString = ""
-			if (newTaskFiles && newTaskFiles.length > 0) {
-				fileContentString = await processFilesIntoText(newTaskFiles)
-				this.throwIfCancelled(signal)
-			}
-			await env.ui.upsertText(text ?? "", false, "user")
-			await cardHandle.finalize(CardStatus.CANCELLED)
-			telemetryService.captureToolUsage(
-				env.config.ulid,
-				this.spec().id,
-				env.config.api.getModel().id,
-				provider,
-				false,
-				false,
-				undefined,
-				true,
-			)
-			return formatResponse.toolResult(
-				`The user provided feedback instead of creating a new task:\n<feedback>\n${text ?? ""}\n</feedback>`,
-				images,
-				fileContentString,
-			)
-		}
-
-		this.throwIfCancelled(signal)
-		env.orchestration.requestTaskReplacement(context)
-
+	private async resolvePreview(
+		context: string,
+		cardHandle: ICardHandle,
+		signal: AbortSignal,
+		env: IToolEnvironment,
+	): Promise<any> {
+		let previewFinalized = false
+		let replacementCommitted = false
 		try {
-			await cardHandle.update({
-				header: "New Task Created",
-				collapsed: true,
-			})
-			await cardHandle.finalize(CardStatus.SUCCESS)
-		} catch (error) {
-			env.logging.warn("Failed to present completed task replacement", error)
-		}
+			const { response, value, text, images, files: newTaskFiles } = await cardHandle.waitForInteraction()
+			this.throwIfCancelled(signal)
 
-		return formatResponse.toolResult("The user has created a new task with the provided context.")
+			const apiConfig = env.config.services.stateManager.getApiConfiguration()
+			const provider = (env.config.mode === "plan" ? apiConfig.planModeApiProvider : apiConfig.actModeApiProvider) as string
+			const hasFeedback = !!text || !!images?.length || !!newTaskFiles?.length
+			const approvedReplacement = response === "approve" && value === DiracDefaultTool.NEW_TASK
+
+			if (hasFeedback) {
+				let fileContentString = ""
+				if (newTaskFiles && newTaskFiles.length > 0) {
+					fileContentString = await processFilesIntoText(newTaskFiles)
+					this.throwIfCancelled(signal)
+				}
+				if (text) await env.ui.upsertText(text, false, "user")
+				await cardHandle.finalize(CardStatus.CANCELLED)
+				previewFinalized = true
+				this.captureDismissal(env, provider)
+				return formatResponse.toolResult(
+					`The user provided feedback instead of creating a new task:\n<feedback>\n${text ?? ""}\n</feedback>`,
+					images,
+					fileContentString,
+				)
+			}
+
+			if (!approvedReplacement) {
+				await cardHandle.finalize(CardStatus.CANCELLED)
+				previewFinalized = true
+				this.captureDismissal(env, provider)
+				return formatResponse.toolResult("The user kept the current task.")
+			}
+
+			this.throwIfCancelled(signal)
+			env.orchestration.requestTaskReplacement(context)
+			replacementCommitted = true
+
+			try {
+				await cardHandle.update({
+					header: "New Task Created",
+					collapsed: true,
+				})
+				await cardHandle.finalize(CardStatus.SUCCESS)
+			} catch (error) {
+				env.logging.warn("Failed to present completed task replacement", error)
+			}
+
+			return formatResponse.toolResult("The user has created a new task with the provided context.")
+		} catch (error) {
+			if (!replacementCommitted && !previewFinalized) {
+				await this.finalizeInterruptedPreview(cardHandle, signal, env)
+			}
+			throw error
+		}
+	}
+
+	private captureDismissal(env: IToolEnvironment, provider: string): void {
+		telemetryService.captureToolUsage(
+			env.config.ulid,
+			this.spec().id,
+			env.config.api.getModel().id,
+			provider,
+			false,
+			false,
+			undefined,
+			true,
+		)
+	}
+
+	private async finalizeInterruptedPreview(cardHandle: ICardHandle, signal: AbortSignal, env: IToolEnvironment): Promise<void> {
+		try {
+			await cardHandle.finalize(signal.aborted ? CardStatus.CANCELLED : CardStatus.ERROR)
+		} catch (error) {
+			env.logging.warn("Failed to finalize interrupted new-task preview", error)
+		}
 	}
 
 	private nonEmptyString(value: unknown): string | undefined {
@@ -155,10 +189,7 @@ export class NewTaskTool implements IDiracTool {
 	}
 
 	private incrementMistakeCount(env: IToolEnvironment): void {
-		env.orchestration.setTaskState(
-			"consecutiveMistakeCount",
-			env.orchestration.getTaskState("consecutiveMistakeCount") + 1,
-		)
+		env.orchestration.setTaskState("consecutiveMistakeCount", env.orchestration.getTaskState("consecutiveMistakeCount") + 1)
 	}
 
 	private throwIfCancelled(signal: AbortSignal): void {
@@ -168,23 +199,14 @@ export class NewTaskTool implements IDiracTool {
 	private async generateTaskHandoff(
 		intent: string,
 		signal: AbortSignal,
-		condenseConversation: NonNullable<IToolEnvironment["conversationCondensation"]>["condenseConversation"],
-		env: IToolEnvironment,
-	): Promise<string | undefined> {
-		try {
-			const generatedContext = await condenseConversation(TASK_HANDOFF_TEMPLATE_ID, {
-				signal,
-				additionalSourceText: buildTaskHandoffIntentSource(intent),
-			})
-			this.throwIfCancelled(signal)
-			if (generatedContext.trim().length === 0) {
-				throw new Error("Utility handoff generation returned empty context")
-			}
-			return generatedContext
-		} catch (error) {
-			if (signal.aborted) throw error
-			env.logging.warn("Utility task handoff generation failed", error)
-			return undefined
+		condenseConversation: NonNullable<IToolEnvironment["conversationCondensation"]>["condenseConversation"] | undefined,
+	): Promise<string> {
+		if (!condenseConversation) {
+			throw new Error("Utility task-handoff generation is unavailable")
 		}
+		return await condenseConversation(TASK_HANDOFF_TEMPLATE_ID, {
+			signal,
+			additionalSourceText: buildTaskHandoffIntentSource(intent),
+		})
 	}
 }
