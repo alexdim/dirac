@@ -1,8 +1,15 @@
+import { strict as assert } from "node:assert"
+import * as api from "@core/api"
+import type { ApiStream } from "@core/api/transform/stream"
+import type { Controller } from "@core/controller"
+import type { ApiConfiguration, ModelProviderSelection } from "@shared/api"
+import type { DiracStorageMessage } from "@shared/messages/content"
+import * as utilityModel from "@core/utility-model/UtilityModelRunner"
 import { afterEach, describe, it } from "mocha"
 import "should"
 import sinon from "sinon"
 import * as gitUtils from "@/utils/git"
-import { getGitDiffStagedFirst } from "../commit-message-generator"
+import { createConfiguredCommitMessageStream, getGitDiffStagedFirst } from "../commit-message-generator"
 
 describe("commit-message-generator", () => {
 	describe("getGitDiffStagedFirst", () => {
@@ -45,5 +52,73 @@ describe("commit-message-generator", () => {
 			;(error !== undefined).should.be.true()
 			error!.message.should.equal("No changes in workspace for commit message")
 		})
+	})
+})
+
+async function* emptyStream(): ApiStream {}
+
+function createController(settings: Record<string, unknown>, apiConfiguration: ApiConfiguration): Controller {
+	return {
+		stateManager: {
+			getApiConfiguration: () => apiConfiguration,
+			getGlobalSettingsKey: (key: string) => settings[key],
+		},
+	} as unknown as Controller
+}
+
+describe("createConfiguredCommitMessageStream", () => {
+	afterEach(() => sinon.restore())
+
+	const messages: DiracStorageMessage[] = [{ role: "user", content: "commit prompt" }]
+
+	it("uses the existing Act-mode handler when the Utility model checkbox is disabled", () => {
+		const apiConfiguration: ApiConfiguration = { actModeApiProvider: "openai", actModeOpenAiModelId: "act-model" }
+		const controller = createController({ utilityModelEnabled: false }, apiConfiguration)
+		const expectedStream = emptyStream()
+		const createMessage = sinon.stub().returns(expectedStream)
+		const buildApiHandler = sinon.stub(api, "buildApiHandler").returns({ createMessage } as any)
+		const createUtilityModelRunner = sinon.stub(utilityModel, "createUtilityModelRunner")
+		const signal = new AbortController().signal
+
+		const stream = createConfiguredCommitMessageStream(controller, "system prompt", messages, signal)
+
+		assert.equal(stream, expectedStream)
+		sinon.assert.calledOnceWithExactly(buildApiHandler, apiConfiguration, "act")
+		sinon.assert.calledOnceWithExactly(createMessage, "system prompt", messages)
+		sinon.assert.notCalled(createUtilityModelRunner)
+	})
+
+	it("uses the selected Utility model and forwards the unchanged prompt when enabled", () => {
+		const selection: ModelProviderSelection = { provider: "openai", modelId: "utility-model" }
+		const apiConfiguration: ApiConfiguration = { actModeApiProvider: "openai", actModeOpenAiModelId: "act-model" }
+		const controller = createController({ utilityModelEnabled: true, utilityModelSelection: selection }, apiConfiguration)
+		const expectedStream = emptyStream()
+		const run = sinon.stub().returns(expectedStream)
+		const createUtilityModelRunner = sinon
+			.stub(utilityModel, "createUtilityModelRunner")
+			.returns({ run } as unknown as ReturnType<typeof utilityModel.createUtilityModelRunner>)
+		const buildApiHandler = sinon.stub(api, "buildApiHandler")
+		const signal = new AbortController().signal
+
+		const stream = createConfiguredCommitMessageStream(controller, "system prompt", messages, signal)
+
+		assert.equal(stream, expectedStream)
+		sinon.assert.calledOnceWithExactly(createUtilityModelRunner, apiConfiguration, selection)
+		sinon.assert.calledOnceWithExactly(run, { systemPrompt: "system prompt", messages, signal })
+		sinon.assert.notCalled(buildApiHandler)
+	})
+
+	it("fails clearly when the Utility model checkbox is enabled without a valid selection", () => {
+		const apiConfiguration: ApiConfiguration = { actModeApiProvider: "openai", actModeOpenAiModelId: "act-model" }
+		const controller = createController({ utilityModelEnabled: true }, apiConfiguration)
+		const createUtilityModelRunner = sinon.stub(utilityModel, "createUtilityModelRunner")
+		const buildApiHandler = sinon.stub(api, "buildApiHandler")
+
+		assert.throws(
+			() => createConfiguredCommitMessageStream(controller, "system prompt", messages, new AbortController().signal),
+			/Utility model is enabled but no valid Utility model is configured/,
+		)
+		sinon.assert.notCalled(createUtilityModelRunner)
+		sinon.assert.notCalled(buildApiHandler)
 	})
 })
