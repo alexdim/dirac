@@ -1,9 +1,12 @@
-import { buildApiHandler } from "@core/api"
+import * as api from "@core/api"
+import { getConfiguredUtilityModelSelection } from "@core/utility-model/UtilityModelSelection"
+import * as utilityModel from "@core/utility-model/UtilityModelRunner"
 import * as path from "path"
 import * as vscode from "vscode"
 import { Controller } from "@/core/controller"
 import { HostProvider } from "@/hosts/host-provider"
 import { ShowMessageType } from "@/shared/proto/host/window"
+import type { DiracStorageMessage } from "@/shared/messages/content"
 import { Logger } from "@/shared/services/Logger"
 import { getGitDiff } from "@/utils/git"
 
@@ -166,7 +169,34 @@ async function generateCommitMsgForRepository(controller: Controller, repository
 	)
 }
 
+export function createConfiguredCommitMessageStream(
+	controller: Controller,
+	systemPrompt: string,
+	messages: DiracStorageMessage[],
+	signal: AbortSignal,
+) {
+	const apiConfiguration = controller.stateManager.getApiConfiguration()
+	const utilityModelEnabled = controller.stateManager.getGlobalSettingsKey("utilityModelEnabled") === true
+
+	if (!utilityModelEnabled) {
+		return api.buildApiHandler(apiConfiguration, "act").createMessage(systemPrompt, messages)
+	}
+
+	const selection = getConfiguredUtilityModelSelection(controller.stateManager.getGlobalSettingsKey("utilityModelSelection"))
+	if (!selection) {
+		throw new Error("Utility model is enabled but no valid Utility model is configured")
+	}
+
+	return utilityModel.createUtilityModelRunner(apiConfiguration, selection).run({
+		systemPrompt,
+		messages,
+		signal,
+	})
+}
+
 async function performCommitMsgGeneration(controller: Controller, gitDiff: string, inputBox: any) {
+	let requestAbortController: AbortController | undefined
+
 	try {
 		vscode.commands.executeCommand("setContext", "dirac.isGeneratingCommit", true)
 
@@ -189,27 +219,15 @@ async function performCommitMsgGeneration(controller: Controller, gitDiff: strin
 		prompts.push(truncatedDiff)
 
 		const prompt = prompts.join("\n\n")
-
-		// Get the current API configuration
-		// Set to use Act mode for now by default
-		const apiConfiguration = controller.stateManager.getApiConfiguration()
-		const currentMode = "act"
-
-		// Build the API handler
-		const apiHandler = buildApiHandler(apiConfiguration, currentMode)
-
-		// Create a system prompt
-		const systemPrompt = PROMPT.system
-
-		// Create a message for the API
 		const messages = [{ role: "user" as const, content: prompt }]
 
-		commitGenerationAbortController = new AbortController()
-		const stream = apiHandler.createMessage(systemPrompt, messages)
+		requestAbortController = new AbortController()
+		commitGenerationAbortController = requestAbortController
+		const stream = createConfiguredCommitMessageStream(controller, PROMPT.system, messages, requestAbortController.signal)
 
 		let response = ""
 		for await (const chunk of stream) {
-			commitGenerationAbortController.signal.throwIfAborted()
+			requestAbortController.signal.throwIfAborted()
 			if (chunk.type === "text") {
 				response += chunk.text
 				inputBox.value = extractCommitMessage(response)
@@ -220,12 +238,17 @@ async function performCommitMsgGeneration(controller: Controller, gitDiff: strin
 			throw new Error("empty API response")
 		}
 	} catch (error) {
+		if (requestAbortController?.signal.aborted || error instanceof utilityModel.UtilityModelCancelledError) return
+
 		const errorMessage = error instanceof Error ? error.message : String(error)
 		HostProvider.window.showMessage({
 			type: ShowMessageType.ERROR,
 			message: `Failed to generate commit message: ${errorMessage}`,
 		})
 	} finally {
+		if (commitGenerationAbortController === requestAbortController) {
+			commitGenerationAbortController = undefined
+		}
 		vscode.commands.executeCommand("setContext", "dirac.isGeneratingCommit", false)
 	}
 }

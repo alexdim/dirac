@@ -1,4 +1,4 @@
-import { ALL_PROVIDERS, type ApiProvider, type ModelProviderSelection } from "@shared/api"
+import { getConfiguredUtilityModelSelection } from "@core/utility-model/UtilityModelSelection"
 import type { TextCondensationTemplateId } from "./TextCondenser"
 import type { TextCondensationTemplateRegistry } from "./TextCondensationTemplateRegistry"
 
@@ -7,15 +7,7 @@ export interface UtilityTextCondensationSettings {
 	utilityModelSelection: unknown
 }
 
-export function getConfiguredUtilityModelSelection(selection: unknown): ModelProviderSelection | undefined {
-	if (!selection || typeof selection !== "object") return undefined
-
-	const { provider, modelId } = selection as Partial<ModelProviderSelection>
-	if (typeof provider !== "string" || !ALL_PROVIDERS.includes(provider as ApiProvider)) return undefined
-	if (typeof modelId !== "string" || modelId.trim().length === 0) return undefined
-
-	return selection as ModelProviderSelection
-}
+export { getConfiguredUtilityModelSelection } from "@core/utility-model/UtilityModelSelection"
 
 export function isUtilityTextCondensationAvailable(
 	settings: UtilityTextCondensationSettings,
