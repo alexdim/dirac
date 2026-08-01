@@ -164,8 +164,8 @@
                 "title": "Generate Commit Message with Dirac",
                 "category": "Dirac",
                 "icon": {
-                    "light": "assets/icons/icon.svg",
-                    "dark": "assets/icons/icon.svg"
+                    "light": "assets/icons/icon-light.svg",
+                    "dark": "assets/icons/icon-dark.svg"
                 }
             },
             {
