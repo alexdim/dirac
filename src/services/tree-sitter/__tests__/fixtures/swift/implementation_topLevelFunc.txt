@@ -1,0 +1,8 @@
+sample.swift::topLevelFunc
+[Implementation Hash: 31aba4b0]
+/// topLevelFunc is a top-level function.
+func topLevelFunc(x: Int) -> Int {
+    let obj = SwiftClass(name: "example")
+    print(obj.getName())
+    return obj.calculate(a: x, b: 10)
+}

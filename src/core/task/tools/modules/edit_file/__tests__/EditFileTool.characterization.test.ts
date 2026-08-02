@@ -24,7 +24,7 @@ import { EditFileTool } from "../EditFileTool"
 
 class EditFileToolHandler {
 	private tool = new EditFileTool()
-	constructor(_validator: any, _forceSyntaxChecker: boolean) {}
+	constructor(_validator: any, _forceSyntaxChecker: boolean) { }
 	async execute(config: TaskConfig, params: any) {
 		const env = new SurfaceAdapter(config)
 		return this.tool.processCall(params, env)
@@ -166,7 +166,7 @@ describe("EditFileTool – characterization edge cases", () => {
 	afterEach(async () => {
 		sandbox.restore()
 		HostProvider.reset()
-		await fs.rm(tmpDir, { recursive: true, force: true }).catch(() => {})
+		await fs.rm(tmpDir, { recursive: true, force: true }).catch(() => { })
 	})
 
 	describe("parameter validation edge cases", () => {
@@ -402,12 +402,11 @@ describe("EditFileTool – characterization edge cases", () => {
 			])
 			const result = await handler.execute(config, block.params)
 			const finalContent = await fs.readFile(filePath, "utf8")
-			const finalAnchors = makeAnchors(filePath, finalContent, config.ulid)
-
 			assert.equal(finalContent, formattedContent)
-			assert.ok(result.includes(finalAnchors[0]), "formatted context should use its final disk anchor")
-			assert.ok(result.includes(finalAnchors[1]), "edited line should use its final disk anchor")
-			assert.ok(!result.includes(initialAnchors[0]), "pre-format context anchor should not be returned as current")
+			assert.ok(result.includes("formatted line 1"), "formatted context should reflect final disk content")
+			assert.ok(result.includes("new line 2"), "edited line should reflect final disk content")
+			assert.ok(!/^[A-Z][a-zA-Z]*§/m.test(result), "edit results should not expose reusable coordinates")
+			assert.ok(result.includes("presentation-only"), "result should require a fresh anchored read before another edit")
 			assert.ok(!result.includes("auto-formatting"), "formatter changes should not add model-facing noise")
 		})
 	})

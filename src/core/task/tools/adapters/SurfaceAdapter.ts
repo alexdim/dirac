@@ -1,7 +1,6 @@
 import { IDiracContext } from "../interfaces/IDiracContext"
 import {
 	CardParams,
-	IASTTrait,
 	IAnchorTrait,
 	IBrowserTrait,
 	ICardHandle,
@@ -11,7 +10,7 @@ import {
 	ILoggingTrait,
 	IOrchestrationTrait,
 	ISkillsTrait,
-	ISymbolTrait,
+	ISourceAstTrait,
 	IConversationCondensationTrait,
 	ISystemTrait,
 	SystemCommandResult,
@@ -22,7 +21,9 @@ import {
 } from "../interfaces/IToolEnvironment"
 import { TaskConfig } from "../types/TaskConfig"
 import { CardHandle } from "./CardHandle"
-import { buildAstTrait, buildDiagnosticsTrait, buildEditorTrait, buildSymbolTrait } from "./traits/AstEditorSymbolTraitBuilder"
+import { buildDiagnosticsTrait } from "./traits/DiagnosticsTraitBuilder"
+import { buildEditorTrait } from "./traits/EditorTraitBuilder"
+import { buildSourceAstTrait } from "./traits/SourceAstTraitBuilder"
 import { buildBrowserTrait } from "./traits/BrowserTraitBuilder"
 import { buildLoggingTrait } from "./traits/LoggingTraitBuilder"
 import { buildOrchestrationTrait } from "./traits/OrchestrationTraitBuilder"
@@ -46,11 +47,10 @@ export class SurfaceAdapter implements IToolEnvironment {
 	public readonly conversationCondensation?: IConversationCondensationTrait
 	public readonly telemetry: ITelemetryTrait
 	public readonly workspace: IWorkspaceTrait
-	public readonly ast: IASTTrait
+	public readonly sourceAst: ISourceAstTrait
 	public readonly anchors: IAnchorTrait
 	public readonly diagnostics: IDiagnosticsTrait
 	public readonly editor: IEditorTrait
-	public readonly symbol: ISymbolTrait
 	public readonly browser: IBrowserTrait
 	public readonly skills: ISkillsTrait
 	public readonly logging: ILoggingTrait
@@ -71,7 +71,7 @@ export class SurfaceAdapter implements IToolEnvironment {
 		this.system = buildSystemTrait(config, this.executeCommand.bind(this))
 		this.telemetry = buildTelemetryTrait(this)
 		this.workspace = buildWorkspaceTrait(config)
-		this.ast = buildAstTrait(config)
+		this.sourceAst = buildSourceAstTrait(config)
 		this.anchors = {
 			reconcile: (absolutePath, lines) => AnchorStateManager.reconcile(absolutePath, lines, config.ulid),
 			getDocumentFingerprint: (absolutePath) =>
@@ -79,7 +79,6 @@ export class SurfaceAdapter implements IToolEnvironment {
 		}
 		this.diagnostics = buildDiagnosticsTrait()
 		this.editor = buildEditorTrait(config)
-		this.symbol = buildSymbolTrait()
 		this.context = config.context
 		this.orchestration = buildOrchestrationTrait(config)
 		this.conversationCondensation = config.isSubagentExecution

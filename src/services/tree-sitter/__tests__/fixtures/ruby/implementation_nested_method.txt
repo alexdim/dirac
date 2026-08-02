@@ -1,0 +1,5 @@
+sample.rb::SampleModule.NestedClass.nested_method
+[Implementation Hash: 37e1a2ef]
+def nested_method
+      "nested"
+    end

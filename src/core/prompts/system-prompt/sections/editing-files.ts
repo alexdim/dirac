@@ -4,153 +4,37 @@ export const getEditingFilesInstructions = () => {
 	const delimiter = getDelimiter()
 	return `## EDITING FILES INSTRUCTIONS
 
-You have 4 file editing tools: 
+- \`write_to_file\`: create new files or deliberately overwrite complete files.
+- \`edit_file\`: make partial edits inside files using required line anchors.
+- \`edit_ast\`: rename exact indexed symbols or replace complete named definitions.
+- \`execute_command\`: perform mechanical bulk transformations that are not symbol-aware.
 
-1. \`write_to_file\` (for new files or complete overwrites) 
-2. \`edit_file\` (for targeted edits) 
-3. \`replace_symbol\` (for direct AST manipulation such as replacing a function or a symbol). updates AST precisely. Only use when economical.
-4. \`execute_command\` with commands like grep/awk/sed/find etc for bulk updates. CHEAPEST to execute and very useful for updating files in bulk. You can update the files without necessarily reading them. You can also write scripts that do the work for you (to avoid tedious multi round edits).
+### \`edit_file\` REQUIRES LINE ANCHORS
+\`edit_file\` can only edit source lines identified by current line anchors. It has no line-number, search-text, or unanchored editing mode. Plain source lines are not valid \`anchor\` or \`end_anchor\` values.
 
+Before calling \`edit_file\`, obtain standalone anchored output containing every editable line you will use as \`anchor\` or \`end_anchor\` from \`read_file\`, \`search_files\`, or \`inspect_ast\` with \`include_anchors: true\`. \`edit_file\` cannot infer or create these coordinates. Each editable source line has the form \`ANCHOR${delimiter}CONTENT\`; surrounding headers, separators, diagnostics, and other metadata are not coordinates.
 
+For example, \`Apple${delimiter}const value = calculate()\` is one anchored source line:
 
-### LINE-HASH PROTOCOL
-Every line returned by read tools (read_file, get_function, get_file_skeleton, search_files) follows the format: ANCHOR${delimiter}CONTENT
+- \`Apple\` is an opaque line ID maintained for that file in the current conversation. It has no semantic meaning.
+- Everything after \`${delimiter}\` is the exact current source line.
+- An unchanged line keeps its ID when surrounding lines move. A new or changed line gets a new ID, and a deleted line's ID stops resolving.
+- IDs are file-scoped. The same word in another file is unrelated.
 
-- ANCHOR: An opaque word-based tag (e.g., "Apple") used for stable referencing.
-- CONTENT: The original line text, verbatim. Blank lines are shown as "ANCHOR${delimiter}".
+The complete \`ANCHOR${delimiter}CONTENT\` line is the edit coordinate. \`edit_file\` rereads the file, locates the line by ID, and verifies that the supplied content exactly matches the current line. Treat the ID and content as an indivisible pair: copy the complete anchored line verbatim and never combine an ID from one line with content from another. Given \`Apple${delimiter}first\` and \`Banana${delimiter}second\`, \`Apple${delimiter}second\` is invalid.
 
-Example read output:
-Apple${delimiter}    def process(param1, param2):
+### REQUIRED \`edit_file\` WORKFLOW
+1. Obtain current anchors for every required edit coordinate: \`anchor\` and, for \`replace\`, \`end_anchor\`.
+2. Copy each complete \`ANCHOR${delimiter}CONTENT\` line verbatim into \`anchor\` or \`end_anchor\`.
+3. Use the smallest range that fully contains the intended edit.
+4. Put ordinary source code without anchors in \`text\`.
+5. If an anchor is rejected, reread the smallest relevant range and copy its current anchored lines before retrying. Do not widen the edit to work around an anchor failure.
 
-### CRITICAL RULES FOR ANCHORS
-1. FULL LINE MATCH: When providing \`anchor\` and \`end_anchor\`, you MUST include the ENTIRE line exactly as it appears in the read tool (Anchor Word + Delimiter + Content).
-   - Correct: "Apple${delimiter}    def process(data):"
-   - Incorrect: "Apple" or "Apple${delimiter}"
-2. ORDERING: \`anchor\` MUST appear before or be the exact same line as \`end_anchor\` in the file.
-
-### CRITICAL RULES FOR EDITING
-1. INDENTATION: You are strictly responsible for indentation. \`replace\` destroys the original lines, so your \`text\` parameter MUST include the correct leading spaces for every single line you insert.
-2. NO ANCHORS IN TEXT: The \`text\` parameter represents the raw, final code. NEVER include Anchor words or delimiters inside \`text\`.
-3. THE MOST COMMON error type is not balancing braces/indents. You edits must make sure the you neither omit a closing brace not emit an extra closing brace. 
-4. NON-OVERLAPPING: Multiple edits in the same file MUST NOT overlap.
-
-### edit_file OPERATIONS
-The \`edit_file\` tool supports three operations via the \`edit_type\` parameter:
-- \`replace\`: Replaces an inclusive range of lines from \`anchor\` to \`end_anchor\`.
-  * MULTI-LINE: You can replace a large block of code with a new multi-line block by using \`\\n\` in your \`text\` parameter.
-  * SINGLE LINE: To replace or delete a single line, use that exact same line for BOTH \`anchor\` and \`end_anchor\`.
-  * DELETE: To delete the range cleanly without leaving blank lines, use \`text: ""\`.
-- \`insert_after\`: Inserts \`text\` as new line(s) immediately after \`anchor\`.
-- \`insert_before\`: Inserts \`text\` as new line(s) immediately before \`anchor\`.
-
-### EXAMPLES
-
-#### Batched Multi-File Edit
-To add imports, simplify logic, or refactor across multiple files, use the \`files\` parameter. 
-
-Original Code (src/calculator.py):
-\`\`\`
-Apple${delimiter}def calculate_total(items):
-Brave${delimiter}    total = 0
-Cider${delimiter}    for item in items:
-Delta${delimiter}        if item.price > 0:
-Eagle${delimiter}            total += item.price
-Fox${delimiter}    return total
-\`\`\`
-
-Original Code (src/user.ts):
-\`\`\`
-Grape${delimiter}interface User {
-Hazel${delimiter}  id: string;
-Index${delimiter}  name: string;
-Joker${delimiter}  email: string;
-Karma${delimiter}  age: number;
-Lemon${delimiter}}
-Mango${delimiter}
-Nacho${delimiter}export function getUserDisplayName(user: User): string {
-Ocean${delimiter}  if (!user.name) {
-Piano${delimiter}    return "Anonymous";
-Quail${delimiter}  }
-River${delimiter}  return user.name;
-Snake${delimiter}}
-\`\`\`
-
-Invoke edit_file with:
-\`\`\`json
-{
-  "files": [
-    {
-      "path": "src/calculator.py",
-      "edits":[
-        {
-          "edit_type": "insert_before",
-          "anchor": "Apple${delimiter}def calculate_total(items):",
-          "text": "from typing import List\\n"
-        },
-        {
-          "edit_type": "replace",
-          "anchor": "Brave${delimiter}    total = 0",
-          "end_anchor": "Eagle${delimiter}            total += item.price",
-          "text": "    total = sum(item.price for item in items if item.price > 0)"
-        }
-      ]
-    },
-    {
-      "path": "src/user.ts",
-      "edits":[
-        {
-          "edit_type": "replace",
-          "anchor": "Karma${delimiter}  age: number;",
-          "end_anchor": "Karma${delimiter}  age: number;",
-          "text": ""
-        },
-        {
-          "edit_type": "replace",
-          "anchor": "Ocean${delimiter}  if (!user.name) {",
-          "end_anchor": "River${delimiter}  return user.name;",
-          "text": "  return user.name ? user.name : \\"Anonymous\\";"
-        },
-        {
-          "edit_type": "insert_after",
-          "anchor": "Snake${delimiter}}",
-          "text": "\\nexport function isAnonymous(user: User): boolean {\\n  return !user.name;\\n}"
-        }
-      ]
-    }
-  ]
-}
-\`\`\`
-
-Transformed Code (src/calculator.py):
-\`\`\`python
-# ---> CONSEQUENCE: \`insert_before\` Apple. The \\n in the text created the blank line (Zebra).
-Yacht${delimiter}from typing import List
-Zebra${delimiter}
-Apple${delimiter}def calculate_total(items):
-# ---> CONSEQUENCE: \`replace\` Brave through Eagle. The 4-space indentation was explicitly provided in the text.
-Aero${delimiter}    total = sum(item.price for item in items if item.price > 0)
-Fox${delimiter}    return total
-\`\`\`
-
-Transformed Code (src/user.ts):
-\`\`\`typescript
-Grape${delimiter}interface User {
-Hazel${delimiter}  id: string;
-Index${delimiter}  name: string;
-Joker${delimiter}  email: string;
-// ---> CONSEQUENCE: Karma was deleted cleanly because \`text\` was "". No blank line remains.
-Lemon${delimiter}}
-Mango${delimiter}
-Nacho${delimiter}export function getUserDisplayName(user: User): string {
-// ---> CONSEQUENCE: \`replace\` Ocean through River. We carefully did NOT include Snake (the closing brace) in \`end_anchor\`, so it remains intact below.
-Bison${delimiter}  return user.name ? user.name : "Anonymous";
-Snake${delimiter}}
-// ---> CONSEQUENCE: \`insert_after\` Snake. The \\n at the start of the text created the blank line (Camel).
-Camel${delimiter}
-Dart${delimiter}export function isAnonymous(user: User): boolean {
-Echo${delimiter}  return !user.name;
-Flare${delimiter}}
-\`\`\`
+- \`replace\` requires an inclusive range from \`anchor\` through \`end_anchor\`. To replace one line, use the same complete anchored line for both endpoints. To delete the range, use \`text: ""\`.
+- For a multi-line replacement, use the exact complete first and last lines of the intended range. Include the construct's closing syntax, but no unrelated surrounding lines.
+- \`insert_before\` and \`insert_after\` require one complete anchored line in \`anchor\`; omit \`end_anchor\` because it is semantically unused. Strict API transports may represent omitted optional fields as \`null\`, which the runtime normalizes away.
+- Never include anchors in replacement text. Preserve indentation and balanced syntax.
+- Edits in one call must not overlap; batch independent edits whenever possible.
 
 `
 }

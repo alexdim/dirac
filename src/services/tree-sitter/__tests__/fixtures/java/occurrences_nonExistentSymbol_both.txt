@@ -1,0 +1,7 @@
+The tool execution failed with the following error:
+<error>
+--- nonExistentSymbol in sample.java ---
+Symbol not found: Symbol not found: nonExistentSymbol in sample.java.
+
+Lookup kind: definitions and references.
+</error>

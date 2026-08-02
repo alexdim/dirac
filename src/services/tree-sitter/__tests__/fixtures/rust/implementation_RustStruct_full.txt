@@ -1,0 +1,6 @@
+sample.rs::RustStruct
+[Implementation Hash: 2de2bc56]
+/// A sample struct in Rust.
+pub struct RustStruct {
+    pub value: i32,
+}

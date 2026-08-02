@@ -1,5 +1,4 @@
 import { Anthropic } from "@anthropic-ai/sdk"
-import { hashLines } from "@utils/line-hashing"
 import * as diff from "diff"
 import * as path from "path"
 import { Mode } from "@shared/storage/types"
@@ -220,11 +219,10 @@ export const formatResponse = {
 	): [string, string] => {
 		const taskResumptionMessage = wasRecent
 			? ""
-			: `[TASK RESUMPTION] (${agoText}) CWD: '${cwd.toPosix()}'\n\n${
-					mode === "plan"
-						? "Note: Assume any previous tool use without a result failed. You are in PLAN MODE; respond using plan_mode_respond. Avoid redundant text."
-						: "Note: Assume any previous tool use without a result failed. Reassess the task context and continue if incomplete."
-				}`
+			: `[TASK RESUMPTION] (${agoText}) CWD: '${cwd.toPosix()}'\n\n${mode === "plan"
+				? "Note: Assume any previous tool use without a result failed. You are in PLAN MODE; respond using plan_mode_respond. Avoid redundant text."
+				: "Note: Assume any previous tool use without a result failed. Reassess the task context and continue if incomplete."
+			}`
 
 		const userResponseMessage = responseText
 			? `${mode === "plan" ? "Respond to this message" : "New instructions"}:\n<user_message>\n${responseText}\n</user_message>`
@@ -269,13 +267,6 @@ export const formatResponse = {
 		`IMPORTANT: Always base your future edit_file operations on this updated file state. (If you need to verify the current file content for a future edit, you may use the read_file tool.)\n\n` +
 		`${newProblemsMessage}`,
 
-	/** @deprecated Use edit_file instead */
-	diffError: (relPath: string, originalContent: string | undefined, absolutePath?: string, ulid?: string) =>
-		`This is likely because your edit could not be applied. Ensure your anchors (anchor and end_anchor) match specific, unique words that only appear on those lines. (Do NOT include the line's actual code, spaces, or braces in the anchors. Malformed XML will cause complete tool failure and break the entire editing process.)\n\n` +
-		`The file was reverted to its original state:\n\n` +
-		`<file_content path="${relPath.toPosix()}">\n${hashLines(originalContent || "", absolutePath, ulid)}\n</file_content>\n\n` +
-		`Now that you have the latest state of the file, try the operation again with fewer, more precise SEARCH blocks. (If you run into this error 3 times in a row, you may use the write_to_file tool as a fallback.)`,
-
 	diracIgnoreInstructions: (content: string) =>
 		`# .diracignore\n\n(The following is provided by a root-level .diracignore file where the user has specified files and directories that should not be accessed. When using list_files, you'll notice a ${LOCK_TEXT_SYMBOL} next to files that are blocked. Attempting to access the file's contents e.g. through read_file will result in an error.)\n\n${content}\n.diracignore`,
 
@@ -307,9 +298,9 @@ export const formatResponse = {
 		const filePersonalPronoun = fileCount === 1 ? "it" : "they"
 
 		return (
-			`<explicit_instructions>\nCRITICAL FILE STATE ALERT: ${fileCount} ${fileVerb} been externally modified since your last interaction. Your cached understanding of ${fileDemonstrativePronoun} is now stale and unreliable. Before making ANY modifications to ${fileDemonstrativePronoun}, you must execute read_file to obtain the current state, as ${filePersonalPronoun} may contain completely different content than what you expect:\n` +
+			`<explicit_instructions>\nCRITICAL FILE STATE ALERT: ${fileCount} ${fileVerb} been externally modified since your last interaction. Your cached understanding of ${fileDemonstrativePronoun} is now stale and unreliable. Before modifying ${fileDemonstrativePronoun}, read the current state. If you will use edit_file, call read_file with include_anchors: true so the result contains current complete edit coordinates:\n` +
 			`${editedFiles.map((file) => ` ${path.resolve(file).toPosix()}`).join("\n")}\n` +
-			`Failure to re-read before editing will result in edit_file errors, requiring subsequent attempts and wasting tokens. You DO NOT need to re-read these files after subsequent edits, unless instructed to do so.\n</explicit_instructions>`
+			`Editing from stale content or coordinates will fail. After any edit, obtain fresh anchored output before making another edit in the changed area.\n</explicit_instructions>`
 		)
 	},
 }
@@ -318,17 +309,17 @@ export const formatResponse = {
 const formatImagesIntoBlocks = (images?: string[]): Anthropic.ImageBlockParam[] => {
 	return images
 		? images.map((dataUrl) => {
-				// data:image/png;base64,base64string
-				const [rest, base64] = dataUrl.split(",")
-				const mimeType = rest.split(":")[1].split(";")[0]
-				return {
-					type: "image",
-					source: {
-						type: "base64",
-						media_type: mimeType,
-						data: base64,
-					},
-				} as Anthropic.ImageBlockParam
-			})
+			// data:image/png;base64,base64string
+			const [rest, base64] = dataUrl.split(",")
+			const mimeType = rest.split(":")[1].split(";")[0]
+			return {
+				type: "image",
+				source: {
+					type: "base64",
+					media_type: mimeType,
+					data: base64,
+				},
+			} as Anthropic.ImageBlockParam
+		})
 		: []
 }

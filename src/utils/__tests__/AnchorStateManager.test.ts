@@ -41,4 +41,61 @@ describe("AnchorStateManager persistence", () => {
 
 		assert.deepEqual(secondReconciliation, firstReconciliation)
 	})
+
+	it("rejects duplicate or structurally inconsistent persisted IDs", () => {
+		assert.throws(
+			() => AnchorStateManager.hydrate(taskId, {
+				version: 1,
+				documents: [{
+					absolutePath,
+					hashes: [1, 2],
+					anchors: ["Apple", "Apple"],
+					usedWords: ["Apple"],
+					availablePool: [],
+				}],
+			}),
+			/duplicate or invalid visible IDs/,
+		)
+
+		assert.throws(
+			() => AnchorStateManager.hydrate(taskId, {
+				version: 1,
+				documents: [{
+					absolutePath,
+					hashes: [1],
+					anchors: [],
+					usedWords: [],
+					availablePool: [],
+				}],
+			}),
+			/mismatched hashes and anchors/,
+		)
+	})
+
+	it("allows the same visible ID in different file scopes", () => {
+		const otherPath = "/workspace/other.ts"
+		AnchorStateManager.hydrate(taskId, {
+			version: 1,
+			documents: [absolutePath, otherPath].map((documentPath) => ({
+				absolutePath: documentPath,
+				hashes: [1],
+				anchors: ["Apple"],
+				usedWords: ["Apple"],
+				availablePool: [],
+			})),
+		})
+
+		assert.deepEqual(AnchorStateManager.getAnchors(absolutePath, taskId), ["Apple"])
+		assert.deepEqual(AnchorStateManager.getAnchors(otherPath, taskId), ["Apple"])
+	})
+
+	it("allocates unique opaque IDs beyond the former large-file threshold", () => {
+		const lines = Array.from({ length: 50_001 }, (_, index) => `line ${index}`)
+		const anchors = AnchorStateManager.reconcile(absolutePath, lines, taskId)
+
+		assert.equal(new Set(anchors).size, lines.length)
+		assert.ok(anchors.every((anchor) => /^[A-Z][a-zA-Z]*$/.test(anchor)))
+		assert.ok(anchors.every((anchor) => !/^L\d+$/.test(anchor)))
+	})
+
 })

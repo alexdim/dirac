@@ -1,0 +1,5 @@
+The tool execution failed with the following error:
+<error>
+sample.rs::nonExistentFunction
+Symbol not found: Symbol not found: nonExistentFunction in sample.rs.
+</error>

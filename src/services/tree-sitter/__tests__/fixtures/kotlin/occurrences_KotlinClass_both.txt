@@ -1,0 +1,7 @@
+--- KotlinClass in sample.kt ---
+sample.kt:
+  [definition] line 6:7 class KotlinClass(var name: String) {
+  [reference] line 6:7 class KotlinClass(var name: String) {
+  [reference] line 30:15     val obj = KotlinClass("example")
+
+Lookup kind: definitions and references.

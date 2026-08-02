@@ -1,42 +1,49 @@
 import type { IToolEnvironment } from "../../interfaces/IToolEnvironment"
-import { FileEdit } from "./types"
+import type { Edit, FileEdit } from "./types"
 
-// Validates and normalizes edit_file parameters — JSON parsing, array checks, mistake counting.
+/** Validates and normalizes the file-level shape while preserving per-edit partial success. */
 export class EditFileValidator {
-	// Parses/validates the files parameter; returns normalized files or an error string.
 	validateFiles(args: { files: string | FileEdit[] }, env: IToolEnvironment): FileEdit[] | string {
-		let { files } = args
+		let files: unknown = args?.files
 		if (typeof files === "string") {
 			try {
 				files = JSON.parse(files)
-			} catch (e) {
-				this.incrementMistake(env)
-				return `The 'files' parameter contains invalid JSON: ${e instanceof Error ? e.message : String(e)}`
+			} catch (error) {
+				return this.fail(env, `The 'files' parameter contains invalid JSON: ${error instanceof Error ? error.message : String(error)}`)
 			}
 		}
-		if (!Array.isArray(files)) {
-			this.incrementMistake(env)
-			return "The 'files' parameter must be a valid array of objects."
+		if (!Array.isArray(files) || files.length === 0) {
+			return this.fail(env, "The 'files' parameter must be a non-empty array of file objects.")
 		}
-		// Parse stringified edits inside each file
-		for (const file of files) {
-			if (typeof file.edits === "string") {
+
+		const normalized: FileEdit[] = []
+		for (const [fileIndex, candidate] of files.entries()) {
+			if (!candidate || typeof candidate !== "object" || Array.isArray(candidate)) {
+				return this.fail(env, `files[${fileIndex}] must be an object.`)
+			}
+			const file = candidate as Record<string, unknown>
+			if (typeof file.path !== "string" || file.path.trim().length === 0) {
+				return this.fail(env, `files[${fileIndex}].path must be a non-empty string.`)
+			}
+
+			let edits = file.edits
+			if (typeof edits === "string") {
 				try {
-					file.edits = JSON.parse(file.edits)
+					edits = JSON.parse(edits)
 				} catch {
-					this.incrementMistake(env)
-					return "The 'edits' parameter must be a valid JSON array of objects. If you provided a string, ensure it is valid JSON."
+					return this.fail(env, `files[${fileIndex}].edits must be a valid JSON array of edit objects.`)
 				}
 			}
-			if (!Array.isArray(file.edits)) {
-				this.incrementMistake(env)
-				return "The 'edits' parameter must be a valid JSON array of objects. If you provided a string, ensure it is valid JSON."
+			if (!Array.isArray(edits) || edits.length === 0) {
+				return this.fail(env, `files[${fileIndex}].edits must be a non-empty array of edit objects.`)
 			}
+			normalized.push({ path: file.path, edits: edits as Edit[] })
 		}
-		return files
+		return normalized
 	}
 
-	private incrementMistake(env: IToolEnvironment): void {
+	private fail(env: IToolEnvironment, message: string): string {
 		env.orchestration.setTaskState("consecutiveMistakeCount", env.config.taskState.consecutiveMistakeCount + 1)
+		return message
 	}
 }

@@ -1,5 +1,0 @@
-sample.swift::MyStruct.structMethod
-[Function Hash: 31252825]
-func structMethod() {
-        print("struct")
-    }

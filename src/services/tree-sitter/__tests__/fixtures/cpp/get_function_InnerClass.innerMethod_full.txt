@@ -1,5 +1,0 @@
-sample.cpp::MyNamespace.NamespaceClass.InnerClass.innerMethod
-[Function Hash: 2e9c4614]
-int innerMethod(int val) {
-                return val * 2;
-            }

@@ -3,6 +3,7 @@ import fs from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
 import { AnchorStateManager } from "@utils/AnchorStateManager"
+import { getDelimiter } from "@utils/line-hashing"
 import { afterEach, beforeEach, describe, it } from "mocha"
 import { formatResults } from "../index"
 
@@ -36,7 +37,7 @@ describe("Ripgrep search result anchors", () => {
 			true,
 		)
 
-		const emittedAnchor = output.match(/│([A-Z][a-zA-Z]*)§new first/)?.[1]
+		const emittedAnchor = output.match(/^([A-Z][a-zA-Z]*)§new first$/m)?.[1]
 		assert.ok(emittedAnchor)
 		assert.notEqual(emittedAnchor, oldAnchors[0])
 		assert.equal(emittedAnchor, AnchorStateManager.getAnchors(filePath, taskId)?.[0])
@@ -57,4 +58,40 @@ describe("Ripgrep search result anchors", () => {
 		assert.ok(output.includes("│plain line"))
 		assert.equal(AnchorStateManager.isTracking(filePath, taskId), false)
 	})
+
+	it("omits anchored coordinates when the file changed after search", async () => {
+		const filePath = path.join(tmpDir, "stale.txt")
+		await fs.writeFile(filePath, "current line")
+
+		const output = await formatResults(
+			[{ filePath, lines: [{ lineNum: 1, content: "stale line\n", isMatch: true }] }],
+			1,
+			tmpDir,
+			taskId,
+			true,
+		)
+
+		assert.ok(output.includes("file changed during search"))
+		assert.ok(!output.includes(`${getDelimiter()}stale line`))
+	})
+
+	it("emits long anchored source lines without presentation prefixes or trimming", async () => {
+		const filePath = path.join(tmpDir, "long.txt")
+		const sourceLine = `${"x".repeat(350)}  `
+		await fs.writeFile(filePath, sourceLine)
+
+		const output = await formatResults(
+			[{ filePath, lines: [{ lineNum: 1, content: `${sourceLine}\n`, isMatch: true }] }],
+			1,
+			tmpDir,
+			taskId,
+			true,
+		)
+		const anchor = AnchorStateManager.getAnchors(filePath, taskId)?.[0]
+
+		assert.ok(anchor)
+		assert.ok(output.includes(`${anchor}${getDelimiter()}${sourceLine}`))
+		assert.ok(!output.includes(`│${anchor}${getDelimiter()}`))
+	})
+
 })

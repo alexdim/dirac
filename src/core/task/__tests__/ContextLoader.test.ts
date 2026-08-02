@@ -20,7 +20,7 @@ const ruleConditionalsModule = require("@core/context/instructions/user-instruct
 const skillsModule = require("../../context/instructions/user-instructions/skills")
 const workflowsModule = require("../../context/instructions/user-instructions/workflows")
 const ruleHelpersModule = require("../../context/instructions/user-instructions/rule-helpers")
-const astAnchorModule = require("@utils/ASTAnchorBridge")
+const sourceAstModule = require("@services/source-ast/SourceAstService")
 const symbolIndexModule = require("../../../services/symbol-index/SymbolIndexService")
 const listFilesModule = require("@services/glob/list-files")
 // Stub source modules — @core/workspace re-exports are getter-only
@@ -34,7 +34,7 @@ describe("ContextLoader (characterization)", () => {
 	let tempDir: string
 	let originalMentions: any, originalSlash: any, originalExtractSymbol: any, originalSkills: any
 	let originalWorkflows: any, originalEnsureDir: any, originalListFiles: any
-	let originalResolveWorkspace: any, originalMultiRoot: any, originalRefreshToolRegistry: any, originalGetFileSkeleton: any
+	let originalResolveWorkspace: any, originalMultiRoot: any, originalRefreshToolRegistry: any, originalOutline: any
 
 	beforeEach(async () => {
 		sandbox = sinon.createSandbox()
@@ -51,7 +51,7 @@ describe("ContextLoader (characterization)", () => {
 		originalResolveWorkspace = workspaceResolverModule.resolveWorkspacePath
 		originalMultiRoot = multiRootModule.isMultiRootEnabled
 		originalRefreshToolRegistry = refreshToolRegistryModule.refreshToolRegistryForWorkspace
-		originalGetFileSkeleton = astAnchorModule.ASTAnchorBridge.getFileSkeleton
+		originalOutline = sourceAstModule.SourceAstService.prototype.outline
 	})
 
 	afterEach(async () => {
@@ -66,7 +66,7 @@ describe("ContextLoader (characterization)", () => {
 		workspaceResolverModule.resolveWorkspacePath = originalResolveWorkspace
 		multiRootModule.isMultiRootEnabled = originalMultiRoot
 		refreshToolRegistryModule.refreshToolRegistryForWorkspace = originalRefreshToolRegistry
-		astAnchorModule.ASTAnchorBridge.getFileSkeleton = originalGetFileSkeleton
+		sourceAstModule.SourceAstService.prototype.outline = originalOutline
 		sandbox.restore()
 		try {
 			await fs.rm(tempDir, { recursive: true, force: true })
@@ -117,6 +117,20 @@ describe("ContextLoader (characterization)", () => {
 		workspaceResolverModule.resolveWorkspacePath = (_ctx: any, relPath: string) =>
 			path.isAbsolute(relPath) ? relPath : path.join(tempDir, relPath)
 		multiRootModule.isMultiRootEnabled = () => false
+	}
+
+	function stubOutline(declaration?: string, status: string = declaration ? "success" : "not_found") {
+		sourceAstModule.SourceAstService.prototype.outline = async (request: { paths: string[] }) => ({
+			files: request.paths.map((requestedPath) => ({
+				path: requestedPath,
+				status,
+				definitions: status === "success" && declaration
+					? [{ declarationLine: 0, declarationText: declaration, calls: [], indentation: "" }]
+					: [],
+				lines: status === "success" && declaration ? [{ lineNumber: 1, text: declaration }] : [],
+				message: status === "success" ? undefined : `Source AST status: ${status}`,
+			})),
+		})
 	}
 
 	describe("loadContext - content block processing", () => {
@@ -440,7 +454,7 @@ describe("ContextLoader (characterization)", () => {
 				stubWorkflows()
 			stubResolveWorkspacePassthrough()
 			ruleConditionalsModule.extractSymbolLikeStrings = () => []
-			astAnchorModule.ASTAnchorBridge.getFileSkeleton = async () => null
+			stubOutline()
 			const loader = new ContextLoader(makeDependencies())
 			const result = await loader.loadContext([{ type: "text", isUserInput: true, text: "<task>x</task>" }], true, false)
 				; (result[0][0] as any).text.should.equal("WITH-CTX")
@@ -458,14 +472,14 @@ describe("ContextLoader (characterization)", () => {
 			// Create a real file so fs.stat says isFile
 			const fileName = "realfile.ts"
 			await fs.writeFile(path.join(tempDir, fileName), "export const x = 1")
-			astAnchorModule.ASTAnchorBridge.getFileSkeleton = async () => "SKELETON-CONTENT"
+			stubOutline("SKELETON-CONTENT")
 			const loader = new ContextLoader(makeDependencies())
 			const result = await loader.loadContext([{ type: "text", isUserInput: true, text: `<task>see ${fileName} here</task>` }], true, false)
 				; (result[0][0] as any).text.should.containEql("SKELETON-CONTENT")
 				; (result[0][0] as any).text.should.containEql("file_skeleton")
 		})
 
-		it("skips skeleton when ASTAnchorBridge returns 'Unsupported file type'", async () => {
+		it("skips skeleton when source AST reports an unsupported file", async () => {
 			stubParseMentions("p"),
 				stubParseSlashCommands({ processedText: "CTX", needsDiracrulesFileCheck: false }),
 				stubSkills(),
@@ -474,7 +488,7 @@ describe("ContextLoader (characterization)", () => {
 			ruleConditionalsModule.extractSymbolLikeStrings = () => []
 			const fileName = "data.json"
 			await fs.writeFile(path.join(tempDir, fileName), "{}")
-			astAnchorModule.ASTAnchorBridge.getFileSkeleton = async () => "Unsupported file type"
+			stubOutline(undefined, "unsupported")
 			const loader = new ContextLoader(makeDependencies())
 			const result = await loader.loadContext([{ type: "text", isUserInput: true, text: `<task>see ${fileName} here</task>` }], true, false)
 				; (result[0][0] as any).text.should.not.containEql("file_skeleton")
@@ -490,7 +504,7 @@ describe("ContextLoader (characterization)", () => {
 			const dirName = "subdir"
 			await fs.mkdir(path.join(tempDir, dirName))
 			listFilesModule.listFiles = async () => [[{ name: "a.ts", path: "a.ts" } as any], false]
-			astAnchorModule.ASTAnchorBridge.getFileSkeleton = async () => null
+			stubOutline()
 			const loader = new ContextLoader(makeDependencies())
 			// Directory must end with / to match path regex
 			const result = await loader.loadContext([{ type: "text", isUserInput: true, text: `<task>see ${dirName}/ here</task>` }], true, false)
@@ -508,7 +522,7 @@ describe("ContextLoader (characterization)", () => {
 			const dirs = ["d1", "d2", "d3", "d4"]
 			for (const d of dirs) await fs.mkdir(path.join(tempDir, d))
 			listFilesModule.listFiles = async () => [[], false]
-			astAnchorModule.ASTAnchorBridge.getFileSkeleton = async () => null
+			stubOutline()
 			const loader = new ContextLoader(makeDependencies())
 			const result = await loader.loadContext(
 				[{ type: "text", isUserInput: true, text: `<task>see ${dirs.map((d) => d + "/").join(" ")} here</task>` }],
@@ -533,7 +547,7 @@ describe("ContextLoader (characterization)", () => {
 			}
 			const fileName = "fenced.ts"
 			await fs.writeFile(path.join(tempDir, fileName), "x")
-			astAnchorModule.ASTAnchorBridge.getFileSkeleton = async () => null
+			stubOutline()
 			const loader = new ContextLoader(makeDependencies())
 			const result = await loader.loadContext(
 				[{ type: "text", isUserInput: true, text: `<task>\`\`\`\n${fileName}\n\`\`\`\nhere</task>` }],
@@ -550,7 +564,7 @@ describe("ContextLoader (characterization)", () => {
 				stubWorkflows()
 			stubResolveWorkspacePassthrough()
 			ruleConditionalsModule.extractSymbolLikeStrings = () => []
-			astAnchorModule.ASTAnchorBridge.getFileSkeleton = async () => null
+			stubOutline()
 			const loader = new ContextLoader(makeDependencies())
 			const result = await loader.loadContext(
 				[{ type: "text", isUserInput: true, text: `<task>see https://example.com/foo.ts here</task>` }],
@@ -569,7 +583,7 @@ describe("ContextLoader (characterization)", () => {
 			ruleConditionalsModule.extractSymbolLikeStrings = () => []
 			const fileName = "mentioned.ts"
 			await fs.writeFile(path.join(tempDir, fileName), "x")
-			astAnchorModule.ASTAnchorBridge.getFileSkeleton = async () => null
+			stubOutline()
 			const loader = new ContextLoader(makeDependencies())
 			const result = await loader.loadContext([{ type: "text", isUserInput: true, text: `<task>@${fileName} here</task>` }], true, false)
 				; (result[0][0] as any).text.should.not.containEql("file_skeleton")
@@ -582,7 +596,7 @@ describe("ContextLoader (characterization)", () => {
 				stubWorkflows()
 			stubResolveWorkspacePassthrough()
 			ruleConditionalsModule.extractSymbolLikeStrings = () => []
-			astAnchorModule.ASTAnchorBridge.getFileSkeleton = async () => null
+			stubOutline()
 			const loader = new ContextLoader(makeDependencies())
 			const result = await loader.loadContext([{ type: "text", isUserInput: true, text: `<task>/newtask here</task>` }], true, false)
 				; (result[0][0] as any).text.should.not.containEql("file_skeleton")
@@ -597,7 +611,7 @@ describe("ContextLoader (characterization)", () => {
 			ruleConditionalsModule.extractSymbolLikeStrings = () => []
 			const fileName = "trail.ts"
 			await fs.writeFile(path.join(tempDir, fileName), "x")
-			astAnchorModule.ASTAnchorBridge.getFileSkeleton = async () => "SKEL"
+			stubOutline("SKEL")
 			const loader = new ContextLoader(makeDependencies())
 			// Trailing comma should be trimmed, file should still be detected
 			const result = await loader.loadContext([{ type: "text", isUserInput: true, text: `<task>see ${fileName}, please</task>` }], true, false)
@@ -613,7 +627,7 @@ describe("ContextLoader (characterization)", () => {
 			ruleConditionalsModule.extractSymbolLikeStrings = () => []
 			const fileName = "dup.ts"
 			await fs.writeFile(path.join(tempDir, fileName), "x")
-			astAnchorModule.ASTAnchorBridge.getFileSkeleton = async () => "SKEL"
+			stubOutline("SKEL")
 			const loader = new ContextLoader(makeDependencies())
 			const result = await loader.loadContext(
 				[{ type: "text", isUserInput: true, text: `<task>${fileName} and ${fileName} here</task>` }],
@@ -634,7 +648,7 @@ describe("ContextLoader (characterization)", () => {
 				stubWorkflows()
 			stubResolveWorkspacePassthrough()
 			ruleConditionalsModule.extractSymbolLikeStrings = () => ["myFunc"]
-			astAnchorModule.ASTAnchorBridge.getFileSkeleton = async () => null
+			stubOutline()
 			// Stub SymbolIndexService.getInstance
 			const origGetInstance = symbolIndexModule.SymbolIndexService.getInstance
 			symbolIndexModule.SymbolIndexService.getInstance = () =>
@@ -662,7 +676,7 @@ describe("ContextLoader (characterization)", () => {
 				stubWorkflows()
 			stubResolveWorkspacePassthrough()
 			ruleConditionalsModule.extractSymbolLikeStrings = () => ["a", "b", "c", "d"] // 4 > 3
-			astAnchorModule.ASTAnchorBridge.getFileSkeleton = async () => null
+			stubOutline()
 			const origGetInstance = symbolIndexModule.SymbolIndexService.getInstance
 			let defsCalled = false
 			symbolIndexModule.SymbolIndexService.getInstance = () =>
@@ -691,7 +705,7 @@ describe("ContextLoader (characterization)", () => {
 				stubWorkflows()
 			stubResolveWorkspacePassthrough()
 			ruleConditionalsModule.extractSymbolLikeStrings = () => ["big"]
-			astAnchorModule.ASTAnchorBridge.getFileSkeleton = async () => null
+			stubOutline()
 			const longLine = "x".repeat(250)
 			await fs.writeFile(path.join(tempDir, "big.ts"), longLine)
 			const origGetInstance = symbolIndexModule.SymbolIndexService.getInstance

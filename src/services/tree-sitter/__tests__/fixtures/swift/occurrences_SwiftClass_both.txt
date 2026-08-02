@@ -1,0 +1,8 @@
+--- SwiftClass in sample.swift ---
+sample.swift:
+  [definition] line 4:7 class SwiftClass {
+  [reference] line 4:7 class SwiftClass {
+  [reference] line 23:15     let obj = SwiftClass(name: "example")
+  [reference] line 36:11 extension SwiftClass {
+
+Lookup kind: definitions and references.

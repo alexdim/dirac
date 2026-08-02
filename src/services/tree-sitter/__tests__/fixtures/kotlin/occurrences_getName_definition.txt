@@ -1,0 +1,5 @@
+--- getName in sample.kt ---
+sample.kt:
+  [definition] line 11:9     fun getName(): String {
+
+Lookup kind: definitions.

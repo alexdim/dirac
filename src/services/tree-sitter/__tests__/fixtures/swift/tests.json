@@ -1,5 +1,5 @@
 {
-	"get_function": [
+	"implementation": [
 		{
 			"name": "SwiftClass_full",
 			"symbols": [
@@ -43,39 +43,39 @@
 			]
 		}
 	],
-	"find_symbol_references": [
+	"occurrences": [
 		{
 			"name": "SwiftClass_both",
 			"symbols": [
 				"SwiftClass"
 			],
-			"find_type": "both"
+			"operation": "occurrences"
 		},
 		{
 			"name": "getName_definition",
 			"symbols": [
 				"getName"
 			],
-			"find_type": "definition"
+			"operation": "definitions"
 		},
 		{
 			"name": "nonExistentSymbol_both",
 			"symbols": [
 				"nonExistentSymbol"
 			],
-			"find_type": "both"
+			"operation": "occurrences"
 		}
 	],
-	"replace_symbol": [
+	"replace": [
 		{
 			"name": "topLevelFunc",
 			"symbol": "topLevelFunc",
-			"text": "func topLevelFunc(x: Int) -> Int {\n    print(\"Replaced Swift func\")\n    return x + 42\n}"
+			"replacement": "func topLevelFunc(x: Int) -> Int {\n    print(\"Replaced Swift func\")\n    return x + 42\n}"
 		},
 		{
 			"name": "nonExistentReplace",
 			"symbol": "nonExistentReplace",
-			"text": "should fail"
+			"replacement": "should fail"
 		}
 	]
 }

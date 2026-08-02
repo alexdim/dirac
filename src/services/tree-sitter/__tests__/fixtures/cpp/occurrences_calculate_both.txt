@@ -1,0 +1,7 @@
+--- calculate in sample.cpp ---
+sample.cpp:
+  [reference] line 24:9     int calculate(int a, int b);
+  [reference] line 33:15 int CppClass::calculate(int a, int b) {
+  [reference] line 62:22     std::cout << obj.calculate(10, 20) << std::endl;
+
+Lookup kind: definitions and references.

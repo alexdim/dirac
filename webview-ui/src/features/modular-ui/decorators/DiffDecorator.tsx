@@ -11,8 +11,7 @@ export const DiffDecorator: CardDecorator = {
 	renderHeaderActions: (card: Card) => {
 		const handleOpenFile = (e: React.MouseEvent) => {
 			e.stopPropagation()
-			// Heuristic: the header often contains the file path for diff cards
-			const path = card.header.trim()
+			const path = card.locations?.[0]?.path ?? card.diffs?.[0]?.path
 			if (path) {
 				FileServiceClient.openFileRelativePath(StringRequest.create({ value: path })).catch((err) =>
 					console.error("Failed to open file from ModularCard:", err),

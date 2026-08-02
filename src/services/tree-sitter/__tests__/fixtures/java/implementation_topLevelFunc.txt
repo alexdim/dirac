@@ -1,0 +1,8 @@
+sample.java::Main.topLevelFunc
+[Implementation Hash: acf75a86]
+class Main {
+
+public static int topLevelFunc(int x) {
+        JavaClass obj = new JavaClass("top-level");
+        return obj.calculate(x, 10);
+    }

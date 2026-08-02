@@ -1,7 +1,7 @@
 import { Card, CardStatus, SubagentExecutionStatus } from "@shared/ExtensionMessage"
 import { createSubagentCardInput, createSubagentCardOutput } from "@shared/subagents"
 import { describe, expect, it } from "vitest"
-import { getSubagentCardElapsedTime } from "./ModularCardHeader"
+import { getCardFilePath, getSubagentCardElapsedTime } from "./ModularCardHeader"
 
 function createSubagentCard(overrides: Partial<Card> = {}): Card {
 	return {
@@ -19,6 +19,21 @@ function createSubagentCard(overrides: Partial<Card> = {}): Card {
 		...overrides,
 	}
 }
+
+describe("getCardFilePath", () => {
+	it("prefers an exact machine-readable card location over header inference", () => {
+		const card: Card = {
+			id: "ast-card",
+			header: "Inspecting implementation from misleading.ts",
+			toolName: "inspect_ast",
+			status: CardStatus.SUCCESS,
+			renderType: "markdown",
+			locations: [{ path: "src/exact.ts", line: 9 }],
+		}
+
+		expect(getCardFilePath(card)).toBe("src/exact.ts")
+	})
+})
 
 describe("getSubagentCardElapsedTime", () => {
 	it("formats a running subagent duration as MM:SS", () => {

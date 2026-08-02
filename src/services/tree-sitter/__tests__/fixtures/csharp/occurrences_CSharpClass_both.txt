@@ -1,0 +1,9 @@
+--- CSharpClass in sample.cs ---
+sample.cs:
+  [definition] line 5:18     public class CSharpClass
+  [reference] line 5:18     public class CSharpClass
+  [reference] line 9:16         public CSharpClass(string name)
+  [reference] line 29:27             var obj = new CSharpClass("example");
+  [reference] line 36:27             var obj = new CSharpClass("top-level");
+
+Lookup kind: definitions and references.

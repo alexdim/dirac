@@ -172,6 +172,35 @@ describe("toolSpecFunctionDefinition strict optional parameters", () => {
 		expect(itemSchema.properties.mode.enum).to.deep.equal(["fast", "safe", null])
 	})
 
+	it("preserves primitive and container constraints while adding strict nullability", () => {
+		const result = toolSpecFunctionDefinition(
+			makeTool({
+				parameters: [{
+					name: "entries",
+					required: true,
+					type: "array",
+					instruction: "Entries",
+					minItems: 1,
+					items: {
+						type: "object",
+						properties: {
+							coordinate: { type: "string", pattern: "^[A-Z]+$", minLength: 1 },
+						},
+						required: [],
+					},
+				}],
+			}),
+			mockContext,
+			true,
+		) as any
+
+		const entries = result.function.parameters.properties.entries
+		expect(entries.minItems).to.equal(1)
+		expect(entries.items.properties.coordinate.type).to.deep.equal(["string", "null"])
+		expect(entries.items.properties.coordinate.pattern).to.equal("^[A-Z]+$")
+		expect(entries.items.properties.coordinate.minLength).to.equal(1)
+	})
+
 	it("does not change non-strict optional parameters", () => {
 		const result = toolSpecFunctionDefinition(makeTool(), mockContext, false) as any
 		expect(result.function.parameters.required).to.deep.equal(["path"])

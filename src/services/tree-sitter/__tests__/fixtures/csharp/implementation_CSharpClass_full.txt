@@ -1,0 +1,21 @@
+sample.cs::SampleNamespace.CSharpClass
+[Implementation Hash: 35a3d2d6]
+public class CSharpClass
+    {
+        public string Name { get; set; }
+
+        public CSharpClass(string name)
+        {
+            Name = name;
+        }
+
+        public string GetName()
+        {
+            return Name;
+        }
+
+        public int Calculate(int a, int b)
+        {
+            return a + b;
+        }
+    }

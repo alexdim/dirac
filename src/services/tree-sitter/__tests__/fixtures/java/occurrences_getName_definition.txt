@@ -1,0 +1,5 @@
+--- getName in sample.java ---
+sample.java:
+  [definition] line 16:19     public String getName() {
+
+Lookup kind: definitions.

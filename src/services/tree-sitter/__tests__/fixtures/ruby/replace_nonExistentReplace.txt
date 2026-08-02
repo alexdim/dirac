@@ -1,0 +1,6 @@
+The tool execution failed with the following error:
+<error>
+AST edit plan rejected.
+
+Symbol not found — nonExistentReplace in sample.rb: Symbol not found: nonExistentReplace in sample.rb.
+</error>

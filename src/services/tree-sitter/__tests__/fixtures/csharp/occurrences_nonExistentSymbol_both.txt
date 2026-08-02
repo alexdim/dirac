@@ -1,0 +1,7 @@
+The tool execution failed with the following error:
+<error>
+--- nonExistentSymbol in sample.cs ---
+Symbol not found: Symbol not found: nonExistentSymbol in sample.cs.
+
+Lookup kind: definitions and references.
+</error>

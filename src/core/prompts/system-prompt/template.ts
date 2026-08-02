@@ -33,14 +33,12 @@ PRIME DIRECTIVES
 
 TOOL USE
 
-${
-	enableParallelToolCalling
-		? " You may use multiple tools in a single response when the operations are independent (e.g., reading several files, searching in parallel). When refactoring a single file, multiple edits to different sections of the file are considered INDEPENDENT operations because we have stable hash anchors. You should batch them into a single response to save roundtrips."
-		: ""
-}
+${enableParallelToolCalling
+			? " You may use multiple tools in a single response when the operations are independent (e.g., reading several files, searching in parallel). When refactoring a single file, multiple edits to different sections are independent when their required line-anchor ranges do not overlap. Batch them into one response to save roundtrips."
+			: ""
+		}
 - Use the 'say' tool for interim updates or narration; avoid plain text outside of tool calls. Every response MUST contain at least one tool call.
-- Keep in mind that this harness exposes specific precision tooling for code exploration and manipulation (such as AST based tooling, hash anchored editing etc). Make use of those. Prefer the precision code exploration tooling to plan file reads where it makes saense.
-
+- Prefer \`inspect_ast\` for source outlines, complete named implementations, and exact symbol locations; use \`read_file\` for arbitrary ranges or non-source files. Prefer \`edit_ast\` for whole-symbol renames or replacements and \`edit_file\` for partial edits inside definitions.
 
 ACT MODE VS PLAN MODE
 
@@ -56,17 +54,15 @@ In each user message, the environment_details will specify the current mode. The
 SYSTEM INFO
 
 - Operating System: {{OS}}
-- Default Shell: {{SHELL}}${
-		context.activeShellIsPosix
+- Default Shell: {{SHELL}}${context.activeShellIsPosix
 			? "\n- You are running in a full-featured shell environment. You have access to standard Unix tools (`grep`, `sed`, `awk`, `find`, `xargs`, etc.)."
 			: process.platform === "win32"
 				? "\n- You are in a limited Windows shell environment. Standard Unix tools are NOT available. You MUST use PowerShell cmdlets or standard cmd commands."
 				: ""
-	}${
-		context.activeShellType === "git-bash"
+		}${context.activeShellType === "git-bash"
 			? "\n- Note: Use Git Bash path formatting (e.g., `/c/Users/...`) and account for Windows CRLF line endings."
 			: ""
-	}${context.activeShellType === "wsl" ? "\n- Note: Windows drives are mounted at `/mnt/c/`." : ""}
+		}${context.activeShellType === "wsl" ? "\n- Note: Windows drives are mounted at `/mnt/c/`." : ""}
 - Current Working Directory: ${currentCwd} (this is where all the tools will be executed from)
 - Available CPU Cores: {{AVAILABLE_CORES}} (Use this value for parallel jobs like 'make -j' instead of 'nproc')
 ${yoloModeToggled ? "- You are running in fully autonomous mode.\n" : ""}
@@ -76,37 +72,30 @@ OBJECTIVE
 You accomplish a given task iteratively, breaking it down into clear steps and working through them methodically.
 
 1. Analyze the user's task and set clear, achievable goals to accomplish it. Prioritize these goals in a logical order.
-2. Work through these goals sequentially, utilizing available tools ${
-		enableParallelToolCalling
+2. Work through these goals sequentially, utilizing available tools ${enableParallelToolCalling
 			? "as necessary. You may call multiple independent tools in a single response to work efficiently."
 			: "one at a time as necessary."
-	} 
-3. Once you've completed the user's task, you must use the attempt_completion tool to present the result of the task to the user. 
+		}
+3. Once you've completed the user's task, you must use the attempt_completion tool to present the result of the task to the user.
 ${yoloModeToggled ? "4. You are running in fully autonomous mode. Make sure to keep the CPU usage and RAM use reasonable when using `execute_command`.\n" : ""}
 
 {{SKILLS_SECTION}}
-${
-	userInstructions ||
-	diracRules ||
-	preferredLanguageInstructions ||
-	globalDiracRulesFileInstructions ||
-	localDiracRulesFileInstructions ||
-	localCursorRulesFileInstructions ||
-	localCursorRulesDirInstructions ||
-	localWindsurfRulesFileInstructions ||
-	localAgentsRulesFileInstructions
-		? `\n\n# USER'S CUSTOM INSTRUCTIONS\n\nThe following additional instructions are provided by the user.\n${
-				userInstructions ? `\n${userInstructions}` : ""
-			}${diracRules ? `\n${diracRules}` : ""}${preferredLanguageInstructions ? `\n${preferredLanguageInstructions}` : ""}${
-				diracIgnoreInstructions ? `\n${diracIgnoreInstructions}` : ""
-			}${globalDiracRulesFileInstructions ? `\n${globalDiracRulesFileInstructions}` : ""}${
-				localDiracRulesFileInstructions ? `\n${localDiracRulesFileInstructions}` : ""
-			}${localCursorRulesFileInstructions ? `\n${localCursorRulesFileInstructions}` : ""}${
-				localCursorRulesDirInstructions ? `\n${localCursorRulesDirInstructions}` : ""
-			}${localWindsurfRulesFileInstructions ? `\n${localWindsurfRulesFileInstructions}` : ""}${
-				localAgentsRulesFileInstructions ? `\n${localAgentsRulesFileInstructions}` : ""
+${userInstructions ||
+			diracRules ||
+			preferredLanguageInstructions ||
+			globalDiracRulesFileInstructions ||
+			localDiracRulesFileInstructions ||
+			localCursorRulesFileInstructions ||
+			localCursorRulesDirInstructions ||
+			localWindsurfRulesFileInstructions ||
+			localAgentsRulesFileInstructions
+			? `\n\n# USER'S CUSTOM INSTRUCTIONS\n\nThe following additional instructions are provided by the user.\n${userInstructions ? `\n${userInstructions}` : ""
+			}${diracRules ? `\n${diracRules}` : ""}${preferredLanguageInstructions ? `\n${preferredLanguageInstructions}` : ""}${diracIgnoreInstructions ? `\n${diracIgnoreInstructions}` : ""
+			}${globalDiracRulesFileInstructions ? `\n${globalDiracRulesFileInstructions}` : ""}${localDiracRulesFileInstructions ? `\n${localDiracRulesFileInstructions}` : ""
+			}${localCursorRulesFileInstructions ? `\n${localCursorRulesFileInstructions}` : ""}${localCursorRulesDirInstructions ? `\n${localCursorRulesDirInstructions}` : ""
+			}${localWindsurfRulesFileInstructions ? `\n${localWindsurfRulesFileInstructions}` : ""}${localAgentsRulesFileInstructions ? `\n${localAgentsRulesFileInstructions}` : ""
 			}`
-		: ""
-}
+			: ""
+		}
 `
 }

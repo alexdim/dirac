@@ -1,0 +1,5 @@
+The tool execution failed with the following error:
+<error>
+sample.swift::SwiftClass.extensionMethod
+Symbol not found: Symbol not found: SwiftClass.extensionMethod in sample.swift.
+</error>

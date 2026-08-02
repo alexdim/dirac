@@ -11,8 +11,7 @@ import { getCwd, getDesktopDir, isLocatedInPath, isLocatedInWorkspace } from "@/
 const WRITE_TOOLS: DiracDefaultTool[] = [
 	DiracDefaultTool.FILE_NEW,
 	DiracDefaultTool.EDIT_FILE,
-	DiracDefaultTool.REPLACE_SYMBOL,
-	DiracDefaultTool.RENAME_SYMBOL,
+	DiracDefaultTool.EDIT_AST,
 ]
 
 export class AutoApprove {
@@ -55,15 +54,13 @@ export class AutoApprove {
 		if (this.stateManager.getGlobalSettingsKey("yoloModeToggled")) {
 			switch (toolName) {
 				case DiracDefaultTool.FILE_READ:
-				case DiracDefaultTool.GET_FUNCTION:
-				case DiracDefaultTool.GET_FILE_SKELETON:
-				case DiracDefaultTool.FIND_SYMBOL_REFERENCES:
+				case DiracDefaultTool.INSPECT_AST:
 				case DiracDefaultTool.DIAGNOSTICS_SCAN:
 				case DiracDefaultTool.LIST_FILES:
 				case DiracDefaultTool.SEARCH:
 				case DiracDefaultTool.FILE_NEW:
 				case DiracDefaultTool.EDIT_FILE:
-				case DiracDefaultTool.REPLACE_SYMBOL:
+				case DiracDefaultTool.EDIT_AST:
 				case DiracDefaultTool.USE_SUBAGENTS:
 				case DiracDefaultTool.USE_SKILL:
 					return [true, true]
@@ -79,15 +76,13 @@ export class AutoApprove {
 		if (this.stateManager.getGlobalSettingsKey("autoApproveAllToggled")) {
 			switch (toolName) {
 				case DiracDefaultTool.FILE_READ:
-				case DiracDefaultTool.GET_FUNCTION:
-				case DiracDefaultTool.GET_FILE_SKELETON:
-				case DiracDefaultTool.FIND_SYMBOL_REFERENCES:
+				case DiracDefaultTool.INSPECT_AST:
 				case DiracDefaultTool.DIAGNOSTICS_SCAN:
 				case DiracDefaultTool.LIST_FILES:
 				case DiracDefaultTool.SEARCH:
 				case DiracDefaultTool.FILE_NEW:
 				case DiracDefaultTool.EDIT_FILE:
-				case DiracDefaultTool.REPLACE_SYMBOL:
+				case DiracDefaultTool.EDIT_AST:
 				case DiracDefaultTool.USE_SUBAGENTS:
 				case DiracDefaultTool.USE_SKILL:
 					return [true, true]
@@ -102,9 +97,7 @@ export class AutoApprove {
 
 		switch (toolName) {
 			case DiracDefaultTool.FILE_READ:
-			case DiracDefaultTool.GET_FUNCTION:
-			case DiracDefaultTool.GET_FILE_SKELETON:
-			case DiracDefaultTool.FIND_SYMBOL_REFERENCES:
+			case DiracDefaultTool.INSPECT_AST:
 			case DiracDefaultTool.DIAGNOSTICS_SCAN:
 			case DiracDefaultTool.LIST_FILES:
 			case DiracDefaultTool.SEARCH:
@@ -114,7 +107,7 @@ export class AutoApprove {
 
 			case DiracDefaultTool.FILE_NEW:
 			case DiracDefaultTool.EDIT_FILE:
-			case DiracDefaultTool.REPLACE_SYMBOL:
+			case DiracDefaultTool.EDIT_AST:
 				return [autoApprovalSettings.actions.editFiles, autoApprovalSettings.actions.editFilesExternally ?? false]
 
 			case DiracDefaultTool.BASH:

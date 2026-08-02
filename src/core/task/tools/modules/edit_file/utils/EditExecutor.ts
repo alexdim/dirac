@@ -1,158 +1,172 @@
-import { ToolUse } from "@core/assistant-message"
-import { getDelimiter, splitAnchor, stripHashes } from "@utils/line-hashing"
-import { AppliedEdit, Edit, FailedEdit, ResolvedEdit } from "../types"
+import { ToolUse } from "@core/assistant-message";
+import { containsAnchoredLine, getDelimiter, parseAnchoredLine } from "@utils/line-hashing";
+import { AppliedEdit, Edit, FailedEdit, ResolvedEdit } from "../types";
+
+const EDIT_TYPES = new Set<Edit["edit_type"]>(["replace", "insert_after", "insert_before"])
 
 export class EditExecutor {
 	resolveEdits(
 		blocks: ToolUse[],
 		lines: string[],
-		lineHashes: string[],
+		lineAnchors: string[],
 	): { resolvedEdits: ResolvedEdit[]; failedEdits: FailedEdit[] } {
 		const failedEdits: FailedEdit[] = []
 		const resolvedEdits: ResolvedEdit[] = []
-		const normalizedLineHashes = lineHashes.map((h) => h.trim())
 
 		for (const block of blocks) {
 			const edits = (block.params.edits as Edit[]) || []
 			for (const [editIndex, edit] of edits.entries()) {
-				const diagnostics: string[] = []
-				const editType = edit.edit_type
-
-				const { index: lineIdx, error: startError } = this.resolveAnchor(
-					"anchor",
-					edit.anchor,
-					normalizedLineHashes,
-					lines,
-				)
-				if (startError) diagnostics.push(startError)
-
-				let endIdx = lineIdx
-				if (editType === "replace") {
-					const { index: resolvedEndIdx, error: endError } = this.resolveAnchor(
-						"end_anchor",
-						edit.end_anchor,
-						normalizedLineHashes,
-						lines,
-					)
-					if (endError) diagnostics.push(endError)
-					endIdx = resolvedEndIdx
+				const shapeError = this.validateEdit(edit)
+				if (shapeError) {
+					failedEdits.push({ edit: edit ?? ({} as Edit), error: shapeError, editIndex })
+					continue
 				}
 
-				if (lineIdx !== -1 && endIdx !== -1 && endIdx < lineIdx) {
-					diagnostics.push("Range error: anchor must refer to a line that precedes or is the same as end_anchor.")
+				const diagnostics: string[] = []
+				const start = this.resolveAnchor("anchor", edit.anchor, lineAnchors, lines)
+				if (start.error) diagnostics.push(start.error)
+
+				let endIdx = start.index
+				if (edit.edit_type === "replace") {
+					const end = this.resolveAnchor("end_anchor", edit.end_anchor, lineAnchors, lines)
+					if (end.error) diagnostics.push(end.error)
+					endIdx = end.index
+				}
+				if (start.index !== -1 && endIdx !== -1 && endIdx < start.index) {
+					diagnostics.push("Range error: anchor must precede or equal end_anchor.")
 				}
 
 				if (diagnostics.length > 0) {
 					failedEdits.push({ edit, error: diagnostics.join(" "), editIndex })
 				} else {
-					resolvedEdits.push({ lineIdx, endIdx, edit, editIndex })
+					resolvedEdits.push({ lineIdx: start.index, endIdx, edit, editIndex })
 				}
 			}
 		}
-		return { resolvedEdits, failedEdits }
+
+		const conflicts = this.findConflicts(resolvedEdits)
+		if (conflicts.size === 0) return { resolvedEdits, failedEdits }
+		for (const resolved of resolvedEdits) {
+			const messages = conflicts.get(resolved)
+			if (!messages) continue
+			failedEdits.push({ edit: resolved.edit, editIndex: resolved.editIndex, error: messages.join(" ") })
+		}
+		return { resolvedEdits: resolvedEdits.filter((edit) => !conflicts.has(edit)), failedEdits }
+	}
+
+	private validateEdit(edit: Edit | undefined): string | undefined {
+		if (!edit || typeof edit !== "object" || Array.isArray(edit)) return "The edit must be an object."
+		if (!EDIT_TYPES.has(edit.edit_type)) {
+			return "edit_type is required and must be replace, insert_after, or insert_before."
+		}
+		if (typeof edit.text !== "string") return "text is required and must be a string."
+		if (containsAnchoredLine(edit.text)) {
+			return "text must contain ordinary source text only; remove line anchors from replacement text."
+		}
+		if (edit.edit_type === "replace" && (typeof edit.end_anchor !== "string" || edit.end_anchor.length === 0)) {
+			return "end_anchor is required for replace edits."
+		}
+		return undefined
 	}
 
 	resolveAnchor(
 		type: "anchor" | "end_anchor",
 		rawAnchor: string | undefined,
-		normalizedLineHashes: string[],
+		lineAnchors: string[],
 		lines: string[],
 	): { index: number; error?: string } {
-		const anchorRaw = rawAnchor || ""
-		if (!anchorRaw.trim()) return { index: -1, error: `${type} is missing.` }
-
-		const { anchor: anchorName, content: providedContent } = splitAnchor(anchorRaw)
-
-		// 1. Check if the anchor name is valid (starts with a capital letter, letters only)
-		const anchorExtractRegex = /^[A-Z][a-zA-Z]*$/
-		if (!anchorExtractRegex.test(anchorName)) {
+		if (typeof rawAnchor !== "string" || rawAnchor.length === 0) return { index: -1, error: `${type} is missing.` }
+		const parsed = parseAnchoredLine(rawAnchor)
+		if (!parsed) {
 			return {
 				index: -1,
-				error: `${type} is missing or incorrectly formatted. It must start with a single word followed by the delimiter (e.g., "Apple${getDelimiter()}").`,
+				error: `${type} must be one complete anchored source line in the form ANCHOR${getDelimiter()}CONTENT, copied verbatim from current anchored output.`,
 			}
 		}
 
-		// 2. Check if the anchor exists in the file
-		const index = normalizedLineHashes.indexOf(anchorName)
-		if (index === -1) {
+		const matchingIndices: number[] = []
+		for (let index = 0; index < lineAnchors.length; index++) {
+			if (lineAnchors[index] === parsed.anchor) matchingIndices.push(index)
+		}
+		if (matchingIndices.length === 0) {
 			return {
 				index: -1,
-				error: `${type} "${anchorName}" not found in the file. Please ensure you are using the latest anchors from the most recent read tool output.`,
+				error: `${type} line ID "${parsed.anchor}" was not found. Reread the smallest relevant range with include_anchors: true and copy the current complete line.`,
 			}
 		}
+		if (matchingIndices.length > 1) {
+			return { index: -1, error: `${type} line ID "${parsed.anchor}" resolves to multiple lines; the anchor state is invalid.` }
+		}
 
-		// 3. Check for newlines in the provided code line
-		if (providedContent.includes("\n") || providedContent.includes("\r")) {
+		const index = matchingIndices[0]
+		if (parsed.content !== lines[index]) {
 			return {
 				index: -1,
-				error: `${type} "${anchorName}" exists, but the provided code line contains a newline character. Anchors must refer to a single line only in the format Anchor${getDelimiter()}{line_text}.`,
+				error: `${type} has a valid line ID but the paired content does not exactly match the current source line. Expected: "${lines[index]}", Provided: "${parsed.content}".`,
 			}
 		}
-
-		// 4. Check if the code line matches the file's content
-		const actualContent = lines[index]
-		if (providedContent !== actualContent) {
-			return {
-				index: -1,
-				error: `${type} "${anchorName}" exists, but the code line you provided does not match the file's content. Expected: "${actualContent}", Provided: "${providedContent}".`,
-			}
-		}
-
 		return { index }
+	}
+
+	private findConflicts(resolvedEdits: ResolvedEdit[]): Map<ResolvedEdit, string[]> {
+		const conflicts = new Map<ResolvedEdit, string[]>()
+		for (let leftIndex = 0; leftIndex < resolvedEdits.length; leftIndex++) {
+			for (let rightIndex = leftIndex + 1; rightIndex < resolvedEdits.length; rightIndex++) {
+				const left = resolvedEdits[leftIndex]
+				const right = resolvedEdits[rightIndex]
+				if (!this.editsConflict(left, right)) continue
+				this.addConflict(conflicts, left, `Overlaps files edit index ${right.editIndex}; neither conflicting edit was applied.`)
+				this.addConflict(conflicts, right, `Overlaps files edit index ${left.editIndex}; neither conflicting edit was applied.`)
+			}
+		}
+		return conflicts
+	}
+
+	private addConflict(conflicts: Map<ResolvedEdit, string[]>, edit: ResolvedEdit, message: string): void {
+		const messages = conflicts.get(edit) ?? []
+		messages.push(message)
+		conflicts.set(edit, messages)
+	}
+
+	private editsConflict(left: ResolvedEdit, right: ResolvedEdit): boolean {
+		const leftReplace = left.edit.edit_type === "replace"
+		const rightReplace = right.edit.edit_type === "replace"
+		if (leftReplace && rightReplace) return left.lineIdx <= right.endIdx && right.lineIdx <= left.endIdx
+		if (!leftReplace && !rightReplace) return this.insertionBoundary(left) === this.insertionBoundary(right)
+
+		const replacement = leftReplace ? left : right
+		const insertion = leftReplace ? right : left
+		return insertion.lineIdx >= replacement.lineIdx && insertion.lineIdx <= replacement.endIdx
+	}
+
+	private insertionBoundary(edit: ResolvedEdit): number {
+		return edit.edit.edit_type === "insert_after" ? edit.lineIdx + 1 : edit.lineIdx
 	}
 
 	applyEdits(
 		lines: string[],
 		resolvedEdits: ResolvedEdit[],
 	): { finalLines: string[]; addedCount: number; removedCount: number; appliedEdits: AppliedEdit[] } {
-		const sortedEdits = [...resolvedEdits].sort((a, b) => b.lineIdx - a.lineIdx)
+		const sortedEdits = [...resolvedEdits].sort((left, right) => right.lineIdx - left.lineIdx)
 		const newLines = [...lines]
 		let addedCount = 0
 		let removedCount = 0
-		const changes: Array<{
-			originalLineIdx: number
-			replacementCount: number
-			removedCount: number
-			edit: Edit
-		}> = []
+		const changes: Array<{ originalLineIdx: number; replacementCount: number; removedCount: number; edit: Edit }> = []
 
 		for (const { lineIdx, endIdx, edit } of sortedEdits) {
-			const editType = edit.edit_type
-			const cleanText = stripHashes(edit.text || "")
-			const replacementLines = cleanText === "" ? [] : cleanText.split(/\r?\n/)
-
-			let removedInThisEdit: number
-			let spliceIndex: number
-
-			if (editType === "insert_after") {
-				spliceIndex = lineIdx + 1
-				removedInThisEdit = 0
-			} else if (editType === "insert_before") {
-				spliceIndex = lineIdx
-				removedInThisEdit = 0
-			} else {
-				// replace
-				spliceIndex = lineIdx
-				removedInThisEdit = endIdx - lineIdx + 1
-			}
-
+			const replacementLines = edit.text === "" ? [] : edit.text.split(/\r?\n/)
+			const spliceIndex = edit.edit_type === "insert_after" ? lineIdx + 1 : lineIdx
+			const removedInThisEdit = edit.edit_type === "replace" ? endIdx - lineIdx + 1 : 0
 			newLines.splice(spliceIndex, removedInThisEdit, ...replacementLines)
 			addedCount += replacementLines.length
 			removedCount += removedInThisEdit
-			changes.push({
-				originalLineIdx: lineIdx,
-				replacementCount: replacementLines.length,
-				removedCount: removedInThisEdit,
-				edit,
-			})
+			changes.push({ originalLineIdx: lineIdx, replacementCount: replacementLines.length, removedCount: removedInThisEdit, edit })
 		}
 
-		const appliedEdits: AppliedEdit[] = changes.map((change) => {
+		const appliedEdits = changes.map((change) => {
 			let shift = 0
 			for (const other of changes) {
-				if (other.originalLineIdx < change.originalLineIdx) {
-					shift += other.replacementCount - other.removedCount
-				}
+				if (other.originalLineIdx < change.originalLineIdx) shift += other.replacementCount - other.removedCount
 			}
 			return {
 				startIdx: change.originalLineIdx + shift,
@@ -164,15 +178,11 @@ export class EditExecutor {
 				linesDeleted: change.removedCount,
 			}
 		})
-
 		return { finalLines: newLines, addedCount, removedCount, appliedEdits }
 	}
 
 	formatFailureMessage(edit: Edit, error?: string, location?: { fileIndex: number; editIndex: number }): string {
-		const diagnostic = error
-			? ` Diagnostics: ${error}`
-			: " This almost certainly is because the anchors used were incorrect or not in ascending order or the text supplied was incorrect. please check again edit again"
 		const locationPrefix = location ? `files[${location.fileIndex}].edits[${location.editIndex}] ` : "Edit "
-		return `${locationPrefix}(anchor: "${edit.anchor}", end_anchor: "${edit.end_anchor}") failed.${diagnostic}`
+		return `${locationPrefix}(anchor: "${edit?.anchor}", end_anchor: "${edit?.end_anchor}") failed. Diagnostics: ${error ?? "The complete anchored coordinate was invalid."}`
 	}
 }

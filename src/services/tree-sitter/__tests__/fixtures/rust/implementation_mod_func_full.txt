@@ -1,0 +1,5 @@
+sample.rs::outer_rust.nested_mod.mod_func
+[Implementation Hash: 274dd87d]
+pub fn mod_func() {
+            println!("Inside nested mod");
+        }

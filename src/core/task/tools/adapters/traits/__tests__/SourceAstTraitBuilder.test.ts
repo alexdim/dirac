@@ -1,0 +1,79 @@
+import { strict as assert } from "node:assert"
+import * as path from "node:path"
+import { afterEach, describe, it } from "mocha"
+import sinon from "sinon"
+import { createMockTaskConfig } from "@core/task/tools/__tests__/helpers/mockTaskConfig"
+import * as workspace from "@core/workspace"
+import { SourceAstService } from "@services/source-ast/SourceAstService"
+import { AnchorStateManager } from "@utils/AnchorStateManager"
+import { buildSourceAstTrait } from "../SourceAstTraitBuilder"
+
+afterEach(() => sinon.restore())
+
+describe("SourceAstTraitBuilder", () => {
+	it("forwards every source-AST request to one service facade", async () => {
+		const cwd = path.join(path.sep, "workspace")
+		const { config } = createMockTaskConfig({ cwd })
+		const outlineRequest = { paths: ["src/a.ts"], includeAnchors: true }
+		const implementationRequest = { paths: ["src/a.ts"], symbols: ["A.run"] }
+		const occurrenceRequest = { paths: ["src"], symbols: ["run"], kind: "both" as const }
+		const renameRequest = { paths: ["src"], symbol: "run", replacement: "execute" }
+		const replacementRequest = { targets: [{ path: "src/a.ts", symbol: "A.run", replacement: "run() {}" }] }
+		const outlineResult = { files: [] }
+		const implementationResult = { targets: [] }
+		const occurrenceResult = { targets: [], occurrences: [] }
+		const renamePlan = { operation: "rename" as const, files: [], editCount: 0, unchangedTargets: [], failures: [] }
+		const replacementPlan = { operation: "replace" as const, files: [], editCount: 0, unchangedTargets: [], failures: [] }
+
+		const outline = sinon.stub(SourceAstService.prototype, "outline").resolves(outlineResult)
+		const implementations = sinon.stub(SourceAstService.prototype, "implementations").resolves(implementationResult)
+		const occurrences = sinon.stub(SourceAstService.prototype, "occurrences").resolves(occurrenceResult)
+		const planRename = sinon.stub(SourceAstService.prototype, "planRename").resolves(renamePlan)
+		const planReplacements = sinon.stub(SourceAstService.prototype, "planReplacements").resolves(replacementPlan)
+		const getAnchorFingerprint = sinon.stub(SourceAstService.prototype, "getAnchorFingerprint").returns("fingerprint")
+
+		const trait = buildSourceAstTrait(config)
+
+		assert.equal(await trait.outline(outlineRequest), outlineResult)
+		assert.equal(await trait.implementations(implementationRequest), implementationResult)
+		assert.equal(await trait.occurrences(occurrenceRequest), occurrenceResult)
+		assert.equal(await trait.planRename(renameRequest), renamePlan)
+		assert.equal(await trait.planReplacements(replacementRequest), replacementPlan)
+		assert.equal(trait.getAnchorFingerprint("/workspace/src/a.ts"), "fingerprint")
+		sinon.assert.calledOnceWithExactly(outline, outlineRequest)
+		sinon.assert.calledOnceWithExactly(implementations, implementationRequest)
+		sinon.assert.calledOnceWithExactly(occurrences, occurrenceRequest)
+		sinon.assert.calledOnceWithExactly(planRename, renameRequest)
+		sinon.assert.calledOnceWithExactly(planReplacements, replacementRequest)
+		sinon.assert.calledOnceWithExactly(getAnchorFingerprint, "/workspace/src/a.ts")
+	})
+
+	it("adapts path resolution, access checks, anchors, and fingerprints into service dependencies", async () => {
+		const cwd = path.join(path.sep, "workspace")
+		const absolutePath = path.join(cwd, "src", "a.ts")
+		const validateAccess = sinon.stub().returns(true)
+		const { config } = createMockTaskConfig({
+			cwd,
+			serviceOverrides: { diracIgnoreController: { validateAccess } as any },
+		})
+		sinon.stub(workspace, "resolveWorkspacePath").returns({ absolutePath, displayPath: "src/a.ts" } as any)
+		const reconcile = sinon.stub(AnchorStateManager, "reconcile").returns(["anchor"])
+		const fingerprint = sinon.stub(AnchorStateManager, "getDocumentFingerprint").returns("fingerprint")
+		let capturedDependencies: any
+		sinon.stub(SourceAstService.prototype, "outline").callsFake(async function (this: SourceAstService) {
+			capturedDependencies = (this as any).dependencies
+			return { files: [] }
+		})
+
+		const trait = buildSourceAstTrait(config)
+		await trait.outline({ paths: ["src/a.ts"] })
+
+		assert.deepEqual(await capturedDependencies.resolvePath("src/a.ts"), { absolutePath, displayPath: "src/a.ts" })
+		assert.equal(capturedDependencies.validateAccess(absolutePath), true)
+		assert.deepEqual(capturedDependencies.reconcileAnchors(absolutePath, ["line"]), ["anchor"])
+		assert.equal(capturedDependencies.getAnchorFingerprint(absolutePath), "fingerprint")
+		sinon.assert.calledOnceWithExactly(validateAccess, absolutePath)
+		sinon.assert.calledOnceWithExactly(reconcile, absolutePath, ["line"], config.ulid)
+		sinon.assert.calledOnceWithExactly(fingerprint, absolutePath, config.ulid)
+	})
+})

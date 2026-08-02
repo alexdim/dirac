@@ -1,0 +1,10 @@
+sample.kt::topLevelFunc
+[Implementation Hash: 6e73ffb9]
+/**
+ * topLevelFunc is a top-level function.
+ */
+fun topLevelFunc(x: Int): Int {
+    val obj = KotlinClass("example")
+    println(obj.getName())
+    return obj.calculate(x, 10)
+}

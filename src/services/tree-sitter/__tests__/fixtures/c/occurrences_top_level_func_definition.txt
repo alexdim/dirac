@@ -1,0 +1,5 @@
+--- top_level_func in sample.c ---
+sample.c:
+  [definition] line 10:5 int top_level_func(int x) {
+
+Lookup kind: definitions.

@@ -1,5 +1,5 @@
 {
-	"get_function": [
+	"implementation": [
 		{
 			"name": "JavaClass_full",
 			"symbols": [
@@ -43,39 +43,39 @@
 			]
 		}
 	],
-	"find_symbol_references": [
+	"occurrences": [
 		{
 			"name": "JavaClass_both",
 			"symbols": [
 				"JavaClass"
 			],
-			"find_type": "both"
+			"operation": "occurrences"
 		},
 		{
 			"name": "getName_definition",
 			"symbols": [
 				"getName"
 			],
-			"find_type": "definition"
+			"operation": "definitions"
 		},
 		{
 			"name": "nonExistentSymbol_both",
 			"symbols": [
 				"nonExistentSymbol"
 			],
-			"find_type": "both"
+			"operation": "occurrences"
 		}
 	],
-	"replace_symbol": [
+	"replace": [
 		{
 			"name": "topLevelFunc",
 			"symbol": "Main.topLevelFunc",
-			"text": "    public static int topLevelFunc(int x) {\n        System.out.println(\"Replaced Java func\");\n        return x + 100;\n    }"
+			"replacement": "    public static int topLevelFunc(int x) {\n        System.out.println(\"Replaced Java func\");\n        return x + 100;\n    }"
 		},
 		{
 			"name": "nonExistentReplace",
 			"symbol": "nonExistentReplace",
-			"text": "should fail"
+			"replacement": "should fail"
 		}
 	]
 }

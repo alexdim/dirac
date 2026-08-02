@@ -1,6 +1,0 @@
-sample.c::say_hello
-[Function Hash: dd118113]
-// say_hello function implementation.
-void say_hello(const char* name) {
-    printf("Hello, %s!\n", name);
-}

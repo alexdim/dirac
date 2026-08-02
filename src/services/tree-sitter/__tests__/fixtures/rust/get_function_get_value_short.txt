@@ -1,6 +1,0 @@
-sample.rs::get_value
-[Function Hash: 4a255b9d]
-/// Gets the value.
-    pub fn get_value(&self) -> i32 {
-        self.value
-    }

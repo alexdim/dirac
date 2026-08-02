@@ -1,0 +1,10 @@
+sample.java::JavaClass.getName
+[Implementation Hash: 59622565]
+public class JavaClass {
+
+/**
+     * getName returns the name.
+     */
+    public String getName() {
+        return this.name;
+    }

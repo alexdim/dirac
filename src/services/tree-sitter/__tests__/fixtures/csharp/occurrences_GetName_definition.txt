@@ -1,0 +1,5 @@
+--- GetName in sample.cs ---
+sample.cs:
+  [definition] line 14:23         public string GetName()
+
+Lookup kind: definitions.

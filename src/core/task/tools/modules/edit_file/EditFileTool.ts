@@ -1,5 +1,5 @@
 import { formatResponse } from "@core/formatResponse"
-import { getDelimiter } from "@utils/line-hashing"
+import { getAnchoredLinePattern, getDelimiter } from "@utils/line-hashing"
 import { DiracDefaultTool, DiracToolSpec } from "@/shared/tools"
 import { IDiracTool } from "../../interfaces/IDiracTool"
 import { IToolEnvironment } from "../../interfaces/IToolEnvironment"
@@ -22,24 +22,27 @@ export const edit_file_spec: DiracToolSpec = {
 	id: DiracDefaultTool.EDIT_FILE,
 	name: "edit_file",
 	description: `Edit one or more files by replacing, inserting after, or inserting before specific lines.
-Read the files of extract function first to get current anchors. Each file contains an array of edits.
+
+REQUIRED LINE ANCHORS:
+edit_file can only edit lines identified by current line anchors. It has no line-number, search-text, or unanchored editing mode. Before calling it, obtain anchored output containing every line you will use as anchor or end_anchor from read_file, search_files, or inspect_ast with include_anchors: true. edit_file cannot infer or create these coordinates.
+
+Each anchored source line has the form ANCHOR${getDelimiter()}CONTENT. The word before ${getDelimiter()} is an opaque, file-scoped line ID maintained for the current conversation; the text after it is the exact current source line. Unchanged lines keep their IDs when surrounding lines move. New or changed lines get new IDs, and deleted-line IDs stop resolving.
+
+The complete ANCHOR${getDelimiter()}CONTENT line is the edit coordinate. edit_file rereads the file, locates the line by ID, and verifies the supplied content exactly. Copy the complete anchored line verbatim. Never retype it or combine an ID from one line with content from another. Given Apple${getDelimiter()}first and Banana${getDelimiter()}second, Apple${getDelimiter()}second is invalid.
 
 EDIT TYPES:
-1. replace (default): Replaces an inclusive range of lines from anchor to end_anchor.
-2. insert_after: Inserts the provided text immediately after the line specified by anchor. end_anchor is not used.
-3. insert_before: Inserts the provided text immediately before the line specified by anchor. end_anchor is not used.
+1. replace: Replaces the inclusive range from anchor through end_anchor. For one line, use the same complete anchored line for both endpoints.
+2. insert_after: Inserts text immediately after the complete anchored line in anchor. end_anchor is not used.
+3. insert_before: Inserts text immediately before the complete anchored line in anchor. end_anchor is not used.
 
-ANCHOR RULES:
-1. Anchors are a single opaque word (e.g., "AppleBanana") and basically hashes that carry no meaning, followed by ${getDelimiter()} which is followed by the actual line content.
-2. For 'replace', anchors are inclusive, meaning what you specify as anchor and end_anchor, the lines belonging to both and everything in between will be overwritten.
-3. Anchors are file scoped. "Apple${getDelimiter()}" in one file is different from "Apple${getDelimiter()}" in another file.  
-
-When replacing multi-line statements, function calls, or dictionaries, you MUST ensure your end_anchor points to precisely the line where the construct ends (e.g. a closing bracket or end of function). Do not leave orphaned closing syntax on the following lines NOR do miss the closing syntax. 
-
-Tip: if you are stuck updating a single line, try to change it to 'replace' call with start line is few lines before the the target line and end line is a few lines after.
+RANGE RULES:
+1. Use the smallest range that fully contains the intended edit.
+2. For multi-line syntax, use the exact complete first and last lines, including the construct's closing syntax but no unrelated surrounding lines.
+3. Replacement text is ordinary source text and must not contain anchors.
+4. If an anchor fails, reread the smallest relevant range with include_anchors: true and copy its current anchored lines. Do not widen the range as a workaround.
 
 BATCHING RULES:
-You MUST batch all non-overlapping edits into a single tool call. As long as the edits do not overlap, our backend tooling guarantees safety. Multiple files can be edited in a single call also.`,
+Batch all non-overlapping edits into one call. Edits must not overlap; multiple files may be edited in the same call.`,
 	parameters: [
 		{
 			name: "files",
@@ -62,24 +65,24 @@ You MUST batch all non-overlapping edits into a single tool call. As long as the
 								edit_type: {
 									type: "string",
 									enum: ["replace", "insert_after", "insert_before"],
-									description: "The type of edit to perform. Defaults to 'replace'.",
+									description: "Required operation. Use replace, insert_after, or insert_before.",
 								},
 								anchor: {
 									type: "string",
 									description:
-										"Anchor for the start of the edit or the insertion point. Must contain a single line only, no newline char.",
-									pattern: `^[A-Za-z]+${getDelimiter()}[^\\r\\n]*$`,
+										`Required complete ANCHOR${getDelimiter()}CONTENT source line copied verbatim from current anchored output. Identifies the start of a replace range or the insertion point. Must contain one line only.`,
+									pattern: getAnchoredLinePattern(),
 								},
 								end_anchor: {
 									type: "string",
 									description:
-										"Anchor for the end of the edit (required for 'replace'). Must contain a single line only, no newline char.",
-									pattern: `^[A-Za-z]+${getDelimiter()}[^\\r\\n]*$`,
+										`Semantically required only for replace: the complete ANCHOR${getDelimiter()}CONTENT line at the inclusive end of the range. Use the same value as anchor for one line. Omit for insertions; strict providers may send null, which is normalized to omission before execution.`,
+									pattern: getAnchoredLinePattern(),
 								},
 								text: {
 									type: "string",
 									description:
-										"The new text content for the edit. use \\n for new lines. \\\\n if you want literal '\\n'.",
+										"Required ordinary source text. Use \\n for new lines and \\\\n for a literal '\\n'. Do not include line anchors.",
 								},
 							},
 							required: ["edit_type", "anchor", "text"],

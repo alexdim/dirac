@@ -1,0 +1,27 @@
+sample.php::PhpClass
+[Implementation Hash: 65f2b0e8]
+/**
+ * PhpClass is a sample class.
+ */
+class PhpClass
+{
+    private string $name;
+
+    public function __construct(string $name)
+    {
+        $this->name = $name;
+    }
+
+    /**
+     * getName returns the name.
+     */
+    public function getName(): string
+    {
+        return $this->name;
+    }
+
+    public function calculate(int $a, int $b): int
+    {
+        return $a + $b;
+    }
+}

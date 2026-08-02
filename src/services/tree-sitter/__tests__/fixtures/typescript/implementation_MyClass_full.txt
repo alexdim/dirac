@@ -1,0 +1,24 @@
+sample.ts::MyClass
+[Implementation Hash: b053e7d2]
+/**
+ * This is a sample class implementing an interface.
+ */
+class MyClass implements MyInterface {
+	id = "123"
+
+	/**
+	 * Gets the name.
+	 */
+	getName(): string {
+		return "MyClass"
+	}
+
+	/**
+	 * A method with parameters.
+	 * @param x The first parameter.
+	 * @param y The second parameter.
+	 */
+	processData(x: number, y: number): number {
+		return x + y
+	}
+}

@@ -1,7 +1,0 @@
-sample.java::JavaClass.InnerClass.innerMethod
-[Function Hash: f5ea982a]
-    public static class InnerClass {
-...
-public String innerMethod() {
-            return "inner";
-        }

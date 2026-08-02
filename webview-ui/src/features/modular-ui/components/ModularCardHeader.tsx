@@ -31,7 +31,7 @@ export const ModularCardHeader: React.FC<ModularCardHeaderProps> = ({
 	const isTerminal = isFinalStatus(status)
 	const isSubagentCard = readSubagentCardData(card) !== undefined
 	const [currentTime, setCurrentTime] = useState(() => Date.now())
-	const filePath = extractFirstPath(header)
+	const filePath = getCardFilePath(card)
 	const decorators = useMemo(() => CARD_DECORATORS.filter((decorator) => decorator.shouldApply(card)), [card])
 	const iconSizeClass = "size-3.5"
 	const elapsedTime = getSubagentCardElapsedTime(card, currentTime)
@@ -104,6 +104,11 @@ export const ModularCardHeader: React.FC<ModularCardHeaderProps> = ({
 		</div>
 	)
 }
+export function getCardFilePath(card: Card): string | undefined {
+	return card.locations?.[0]?.path ?? extractFirstPath(card.header) ?? undefined
+}
+
+
 export function getSubagentCardElapsedTime(card: Card, now = Date.now()): string | undefined {
 	if (!readSubagentCardData(card) || card.startTime === undefined) return undefined
 

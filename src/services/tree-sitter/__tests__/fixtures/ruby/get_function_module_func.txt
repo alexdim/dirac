@@ -1,5 +1,0 @@
-sample.rb::SampleModule.module_func
-[Function Hash: c0d380f2]
-def self.module_func
-    "hello"
-  end

@@ -1,7 +1,16 @@
 import { CardStatus, Card, RenderType, ActionButton, CardLocation, CleanupStrategy } from "../../../../shared/ExtensionMessage"
 import { FileDiagnostics } from "@shared/proto/index.dirac"
-import { SymbolRange } from "@utils/ASTAnchorBridge"
-import { SymbolLocation } from "@services/symbol-index/SymbolIndexService"
+import type {
+	AstImplementationRequest,
+	AstImplementationResult,
+	AstOccurrenceRequest,
+	AstOccurrenceResult,
+	AstOutlineRequest,
+	AstOutlineResult,
+	AstRenameRequest,
+	AstReplacementRequest,
+	SourceMutationPlan,
+} from "@services/source-ast/types"
 
 import { DiracMessage } from "../../../../shared/ExtensionMessage"
 import { SubagentProgressUpdate, SubagentRunResult } from "../subagent/SubagentRunner"
@@ -274,19 +283,13 @@ export interface IEditorTrait {
 	format(path: string): Promise<string>
 }
 
-export interface ISymbolTrait {
-	/** Returns the character range of a symbol in a file */
-	getSymbolRange(path: string, symbol: string, type?: string): Promise<SymbolRange | undefined>
-	/** Returns all definitions of a symbol in the project */
-	getDefinitions(symbol: string): Promise<SymbolLocation[]>
-	/** Returns all references to a symbol in the project */
-	getReferences(symbol: string): Promise<SymbolLocation[]>
-	/** Returns all occurrences (defs + refs) of a symbol */
-	getSymbols(symbol: string): Promise<SymbolLocation[]>
-	/** Forces an index update for a specific file */
-	updateIndex(path: string): Promise<void>
-	/** Initializes the symbol index for a project root */
-	initializeIndex(root: string): Promise<void>
+export interface ISourceAstTrait {
+	outline(request: AstOutlineRequest): Promise<AstOutlineResult>
+	implementations(request: AstImplementationRequest): Promise<AstImplementationResult>
+	occurrences(request: AstOccurrenceRequest): Promise<AstOccurrenceResult>
+	planRename(request: AstRenameRequest): Promise<SourceMutationPlan>
+	planReplacements(request: AstReplacementRequest): Promise<SourceMutationPlan>
+	getAnchorFingerprint(path: string): string | null
 }
 
 export interface IOrchestrationTrait {
@@ -360,25 +363,6 @@ export interface IOrchestrationTrait {
 	resetTransientState(): Promise<void>
 }
 
-export interface IASTTrait {
-	/**
-	 * Returns a skeleton of the file (classes, functions, etc.). Anchors are reconciled internally
-	 * and included in output only when includeAnchors is true.
-	 */
-	getSkeleton(path: string, options?: { showCallGraph?: boolean; includeAnchors?: boolean }): Promise<string>
-
-	/**
-	 * Returns specific functions from a file. Anchors are reconciled internally
-	 * and included in output only when includeAnchors is true.
-	 */
-	getFunctions(
-		absolutePath: string,
-		relPath: string,
-		functionNames: string[],
-		includeAnchors?: boolean,
-	): Promise<{ formattedContent: string; foundNames: string[] } | null>
-}
-
 export interface IDiagnosticsTrait {
 	/**
 	 * Prepares diagnostics for the specified files.
@@ -433,13 +417,11 @@ export interface IToolEnvironment {
 	readonly interaction: IInteractionTrait
 	readonly system: ISystemTrait
 	readonly workspace: IWorkspaceTrait
-	readonly ast: IASTTrait
+	readonly sourceAst: ISourceAstTrait
 	readonly diagnostics: IDiagnosticsTrait
 
 	readonly anchors: IAnchorTrait
 	readonly editor: IEditorTrait
-	readonly symbol: ISymbolTrait
-
 	readonly browser: IBrowserTrait
 	readonly skills: ISkillsTrait
 	readonly orchestration: IOrchestrationTrait

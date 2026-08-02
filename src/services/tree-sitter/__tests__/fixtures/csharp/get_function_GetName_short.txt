@@ -1,6 +1,0 @@
-sample.cs::SampleNamespace.CSharpClass.GetName
-[Function Hash: d88ee28f]
-public string GetName()
-        {
-            return Name;
-        }

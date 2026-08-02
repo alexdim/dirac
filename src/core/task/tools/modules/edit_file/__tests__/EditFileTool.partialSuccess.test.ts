@@ -254,7 +254,7 @@ describe("EditFileTool.execute – partial success", () => {
 			result.includes('files[0].edits[1] (anchor: "123missing", end_anchor: "123missing") failed. Diagnostics:'),
 			"Should identify the failed edit by its original index",
 		)
-		assert.ok(result.includes("anchor is missing or incorrectly formatted"), "Should include missing anchor error")
+		assert.ok(result.includes("must be one complete anchored source line"), "Should explain the complete-coordinate requirement")
 		assert.ok(!result.includes("The tool execution failed with the following error"), "Partial success is not total failure")
 		// Verify result contains context blocks
 		assert.ok(result.includes("new line 2"))
@@ -286,8 +286,7 @@ describe("EditFileTool.execute – partial success", () => {
 		assert.ok(result.includes("The tool execution failed with the following error"))
 		assert.ok(result.includes('files[0].edits[0] (anchor: "123badone", end_anchor: "123badone") failed. Diagnostics:'))
 		assert.ok(result.includes('files[0].edits[1] (anchor: "123badtwo", end_anchor: "123badtwo") failed. Diagnostics:'))
-		assert.ok(result.includes("anchor is missing or incorrectly formatted"))
-		assert.ok(result.includes("anchor is missing or incorrectly formatted"))
+		assert.ok(result.match(/must be one complete anchored source line/g)?.length === 2)
 	})
 
 	it("applies all edits successfully when there are no errors", async () => {
@@ -398,7 +397,8 @@ describe("EditFileTool.execute – partial success", () => {
 				{ paths: [fileName], include_anchors: true },
 				new SurfaceAdapter(config),
 			)) as string
-			assert.ok(repeatedRead.includes("no changes have been made to the file since your last read"))
+			assert.ok(repeatedRead.includes(oldAnchor))
+			assert.ok(!repeatedRead.includes("no changes have been made"))
 
 			const block = makeMultiEditBlock(fileName, [
 				{ edit_type: "replace", anchor: oldAnchor, end_anchor: oldAnchor, text: "restored line 2" },

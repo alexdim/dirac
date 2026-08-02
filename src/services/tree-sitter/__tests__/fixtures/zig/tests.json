@@ -1,5 +1,5 @@
 {
-	"get_function": [
+	"implementation": [
 		{
 			"name": "Point_full",
 			"symbols": [
@@ -31,39 +31,39 @@
 			]
 		}
 	],
-	"find_symbol_references": [
+	"occurrences": [
 		{
 			"name": "Point_both",
 			"symbols": [
 				"Point"
 			],
-			"find_type": "both"
+			"operation": "occurrences"
 		},
 		{
 			"name": "main_definition",
 			"symbols": [
 				"main"
 			],
-			"find_type": "definition"
+			"operation": "definitions"
 		},
 		{
 			"name": "nonExistentSymbol_both",
 			"symbols": [
 				"nonExistentSymbol"
 			],
-			"find_type": "both"
+			"operation": "occurrences"
 		}
 	],
-	"replace_symbol": [
+	"replace": [
 		{
 			"name": "helper_full",
 			"symbol": "helper",
-			"text": "fn helper(x: i32) i32 {\n    return x * 3;\n}"
+			"replacement": "fn helper(x: i32) i32 {\n    return x * 3;\n}"
 		},
 		{
 			"name": "nonExistentReplace",
 			"symbol": "nonExistentReplace",
-			"text": "should fail"
+			"replacement": "should fail"
 		}
 	]
 }

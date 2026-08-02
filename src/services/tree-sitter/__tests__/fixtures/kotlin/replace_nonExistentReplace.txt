@@ -1,0 +1,6 @@
+The tool execution failed with the following error:
+<error>
+AST edit plan rejected.
+
+Symbol not found — nonExistentReplace in sample.kt: Symbol not found: nonExistentReplace in sample.kt.
+</error>

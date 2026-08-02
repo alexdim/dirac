@@ -1,5 +1,6 @@
 import { formatResponse } from "@core/formatResponse"
-import { contentHash, formatLinesForModel } from "@utils/line-hashing"
+import { contentHash, formatLinesForModel, getDelimiter } from "@utils/line-hashing"
+import * as path from "node:path"
 import { CardStatus } from "@/shared/ExtensionMessage"
 import { DiracIcon } from "@/shared/icons"
 import { DiracDefaultTool, DiracToolSpec } from "@/shared/tools"
@@ -34,12 +35,13 @@ interface FullReadCacheRecord {
 }
 
 const MAX_TEXT_READ_SIZE = 50 * 1024
+const NON_EDITABLE_RICH_EXTENSIONS = new Set([".pdf", ".docx", ".xlsx", ".png", ".jpg", ".jpeg", ".webp"])
 
 export const read_file_spec: DiracToolSpec = {
 	id: DiracDefaultTool.FILE_READ,
 	name: "read_file",
 	description:
-		'Reads the complete contents of one or more files at the specified paths. Automatically extracts raw text from PDF and DOCX files. Returns the hash anchored lines that you can use with the edit_file tool. You can also specify a line range to read only a specific part of the file(s). Examples: { paths: ["src/main.ts", "package.json"] }, { paths: ["src/main.ts"] }, { paths: ["src/main.ts"], start_line: 10, end_line: 50 }, { paths: ["src/main.ts"], start_line: 100 }, { paths: ["src/main.ts"], end_line: 50 }. Consider using surgical tools like get_file_skeleton or get_function over this.',
+		"Reads complete files or selected line ranges, including extracted text from rich files such as PDF, DOCX, notebooks, and spreadsheets. Prefer inspect_ast when source structure or symbol identity matters. For editable text/source files, set include_anchors: true to read exact raw source lines as standalone coordinates required by edit_file. Extracted rich-file and image content is read-only and cannot provide edit_file coordinates.",
 	parameters: [
 		{
 			name: "paths",
@@ -68,7 +70,7 @@ export const read_file_spec: DiracToolSpec = {
 			required: false,
 			type: "boolean",
 			instruction:
-				"Optional. When true, returns source lines prefixed with stable hash anchors usable by edit_file. Default false.",
+				`Optional. For editable text/source files, true reads the raw file and returns each selected source line as a standalone complete ANCHOR${getDelimiter()}CONTENT coordinate required by edit_file. Plain output, extracted rich-file text, and images cannot be used by edit_file. Default false.`,
 			usage: "true",
 		},
 	],
@@ -153,7 +155,13 @@ export class ReadFileTool implements IDiracTool<ReadFileArgs> {
 				})
 				: undefined
 
-			const fileContent = await env.workspace.readRichFile(absolutePath)
+			const extension = path.extname(absolutePath).toLowerCase()
+			if (includeAnchors && NON_EDITABLE_RICH_EXTENSIONS.has(extension)) {
+				throw new Error("Line anchors are unavailable for extracted rich-file or image content. Read the editable source file that will actually be changed.")
+			}
+			const fileContent = includeAnchors
+				? { text: await env.workspace.readFile(absolutePath) }
+				: await env.workspace.readRichFile(absolutePath)
 			if (fileContent.imageBlock) {
 				if (card) {
 					await card.update({
@@ -166,7 +174,6 @@ export class ReadFileTool implements IDiracTool<ReadFileArgs> {
 				this.captureReadTelemetry(relPath, usedWorkspaceHint, env)
 				return { success: true, result: `${header}${fileContent.text}`, contentBlock: fileContent.imageBlock }
 			}
-
 			const selection = this.selectText(fileContent.text, lineRange)
 			this.enforceTextReadSize(selection.text)
 
@@ -188,7 +195,7 @@ export class ReadFileTool implements IDiracTool<ReadFileArgs> {
 				(anchorFingerprint !== undefined &&
 					typeof cachedRead !== "string" &&
 					cachedRead?.anchorFingerprint === anchorFingerprint)
-			if (selection.coversWholeFile && contentMatches && anchorMappingMatches) {
+			if (!includeAnchors && selection.coversWholeFile && contentMatches && anchorMappingMatches) {
 				const result = `${header}no changes have been made to the file since your last read (Hash: ${currentHash})`
 				if (card) {
 					await card.update({

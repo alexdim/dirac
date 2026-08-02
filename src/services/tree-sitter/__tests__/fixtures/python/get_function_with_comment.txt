@@ -1,8 +1,0 @@
-sample.py::ComplexDecorators.with_comment
-[Function Hash: 727c63be]
-class ComplexDecorators:
-...
-# Comment between decorator and function
-    @classmethod
-    def with_comment(cls):
-        return "commented"

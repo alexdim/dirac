@@ -1,7 +1,0 @@
-sample.py::outer_func.inner_func
-[Function Hash: 29c2311b]
-def inner_func(y):
-        """
-        Inner function.
-        """
-        return x + y

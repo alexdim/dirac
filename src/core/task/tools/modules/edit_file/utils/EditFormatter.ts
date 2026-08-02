@@ -1,11 +1,10 @@
 import { formatResponse } from "@core/formatResponse"
-import { formatLineWithHash, getDelimiter } from "@utils/line-hashing"
 import type { ToolResponse } from "../../../types/ToolResponse"
 import { AppliedEdit, PreparedEdits } from "../types"
 import { EditExecutor } from "./EditExecutor"
 
 export class EditFormatter {
-	constructor(private executor: EditExecutor) {}
+	constructor(private executor: EditExecutor) { }
 
 	getAdditionOnlyDiffBlock(
 		originalLines: string[],
@@ -14,44 +13,29 @@ export class EditFormatter {
 		finalHashes: string[],
 		applied: AppliedEdit,
 	): string {
-		const { originalStartIdx, originalEndIdx, startIdx, endIdx, edit } = applied
+		const { originalStartIdx, originalEndIdx, startIdx, endIdx } = applied
 		const res: string[] = []
 		const contextCount = 3
 
-		// 1. Context Before (from final on-disk state)
 		const finalStartIdx = Math.min(startIdx, finalLines.length)
 		const beforeStart = Math.max(0, finalStartIdx - contextCount)
-		for (let i = beforeStart; i < finalStartIdx; i++) {
-			res.push(` ${formatLineWithHash(finalLines[i], finalHashes[i])}`)
-		}
+		for (let i = beforeStart; i < finalStartIdx; i++) res.push(` ${finalLines[i]}`)
 
-		// 2. Deletion Summary (only count lines that are truly gone)
 		const finalHashesSet = new Set(finalHashes.slice(startIdx, endIdx + 1))
 		let trulyRemovedCount = 0
 		for (let i = originalStartIdx; i <= originalEndIdx; i++) {
-			if (!finalHashesSet.has(originalHashes[i])) {
-				trulyRemovedCount++
-			}
+			if (!finalHashesSet.has(originalHashes[i])) trulyRemovedCount++
 		}
+		if (trulyRemovedCount > 0) res.push(`${trulyRemovedCount} selected line(s) were deleted`)
 
-		if (trulyRemovedCount > 0) {
-			res.push(`${trulyRemovedCount} lines between ${edit.anchor} and ${edit.end_anchor} have been deleted`)
-		}
-
-		// 3. Added/Neutral Lines (from final state)
 		const originalHashesSet = new Set(originalHashes.slice(originalStartIdx, originalEndIdx + 1))
 		for (let i = startIdx; i <= endIdx; i++) {
-			const hash = finalHashes[i]
-			const prefix = originalHashesSet.has(hash) ? " " : "+"
-			res.push(`${prefix}${formatLineWithHash(finalLines[i], hash)}`)
+			const prefix = originalHashesSet.has(finalHashes[i]) ? " " : "+"
+			res.push(`${prefix}${finalLines[i]}`)
 		}
 
-		// 4. Context After (from final state)
 		const afterEnd = Math.min(finalLines.length - 1, endIdx + contextCount)
-		for (let i = endIdx + 1; i <= afterEnd; i++) {
-			res.push(` ${formatLineWithHash(finalLines[i], finalHashes[i])}`)
-		}
-
+		for (let i = endIdx + 1; i <= afterEnd; i++) res.push(` ${finalLines[i]}`)
 		return res.join("\n")
 	}
 
@@ -69,28 +53,21 @@ export class EditFormatter {
 
 		const finalStartIdx = Math.min(startIdx, finalLines.length)
 		const beforeStart = Math.max(0, finalStartIdx - contextBeforeCount)
-		for (let i = beforeStart; i < finalStartIdx; i++) {
-			res.push(` ${formatLineWithHash(finalLines[i], finalHashes[i])}`)
-		}
+		for (let i = beforeStart; i < finalStartIdx; i++) res.push(` ${finalLines[i]}`)
 
 		const finalHashesSet = new Set(finalHashes.slice(startIdx, endIdx + 1))
 		for (let i = originalStartIdx; i <= originalEndIdx; i++) {
-			if (!finalHashesSet.has(originalHashes[i])) {
-				res.push(`-${formatLineWithHash(originalLines[i], originalHashes[i])}`)
-			}
+			if (!finalHashesSet.has(originalHashes[i])) res.push(`-${originalLines[i]}`)
 		}
 
 		const originalHashesSet = new Set(originalHashes.slice(originalStartIdx, originalEndIdx + 1))
 		for (let i = startIdx; i <= endIdx; i++) {
-			const hash = finalHashes[i]
-			const prefix = originalHashesSet.has(hash) ? " " : "+"
-			res.push(`${prefix}${formatLineWithHash(finalLines[i], hash)}`)
+			const prefix = originalHashesSet.has(finalHashes[i]) ? " " : "+"
+			res.push(`${prefix}${finalLines[i]}`)
 		}
 
 		const afterEnd = Math.min(finalLines.length - 1, endIdx + contextAfterCount)
-		for (let i = endIdx + 1; i <= afterEnd; i++) {
-			res.push(` ${formatLineWithHash(finalLines[i], finalHashes[i])}`)
-		}
+		for (let i = endIdx + 1; i <= afterEnd; i++) res.push(` ${finalLines[i]}`)
 		return res.join("\n")
 	}
 
@@ -135,9 +112,7 @@ export class EditFormatter {
 
 		if (useFullFile) {
 			results.push(
-				`Because the changes were extensive, the full updated file content with anchors is provided below to ensure clarity:\n\n${finalLines
-					.map((line, index) => formatLineWithHash(line, newLineHashes[index]))
-					.join("\n")}`,
+				`Because the changes were extensive, the full updated file content is provided below for review. This plain output is not an edit_file coordinate; reread with include_anchors: true before another edit:\n\n${finalLines.join("\n")}`,
 			)
 		} else {
 			results.push(...appliedDiffs)
@@ -154,11 +129,8 @@ export class EditFormatter {
 
 		for (const applied of appliedEdits) {
 			if (applied.edit.text.includes("\\n")) {
-				const anchorName = applied.edit.anchor.split(getDelimiter())[0]
-				const endAnchorName = applied.edit.end_anchor?.split(getDelimiter())[0]
-				const endAnchorPart = endAnchorName ? ` and ending with ${endAnchorName}` : ""
 				results.push(
-					`Your edit starting with ${anchorName}${endAnchorPart} inserted a '\\n' literal in the code because you supplied double backslash '\\\\n'. If you meant to add a newline char instead, update it using '\\n' in the next call. You do not need escape characters in the text portion`,
+					`Your edit inserted a '\\n' literal in the code because you supplied double backslash '\\\\n'. If you meant to add a newline character instead, use '\\n' in the next call. Replacement text does not require escaping newline characters.`,
 				)
 			}
 		}
@@ -181,8 +153,8 @@ export class EditFormatter {
 		const lineChanges = ` (+${totalAdded}, -${totalRemoved} lines)`
 		const summary =
 			failedEdits.length > 0
-				? `Partial success in files[${prepared.fileIndex}] (${prepared.displayPath}): ${resolvedEdits.length} edit(s) applied${lineChanges}; ${failedEdits.length} failed. Do not retry the applied edits; retry only the indexed failed edits below. NOTE the UPDATED anchors below.`
-				: `Applied ${resolvedEdits.length} edit(s) successfully${lineChanges}. NOTE the UPDATED anchors below.`
+				? `Partial success in files[${prepared.fileIndex}] (${prepared.displayPath}): ${resolvedEdits.length} edit(s) applied${lineChanges}; ${failedEdits.length} failed. Do not retry the applied edits; retry only the indexed failures below. Diff lines are presentation-only, not edit_file coordinates; reread the smallest relevant range with include_anchors: true before retrying.`
+				: `Applied ${resolvedEdits.length} edit(s) successfully${lineChanges}. Diff lines are presentation-only, not edit_file coordinates; reread with include_anchors: true before another edit.`
 		if (wasStringified) {
 			results.push(
 				`Note: You provided the 'files' parameter as a stringified JSON array. While this was successfully parsed and applied, you should provide it as a native JSON array in the future.`,

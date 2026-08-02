@@ -106,6 +106,17 @@ message ActionButton {
   optional string style = 4;
 }
 
+message CardDiff {
+  string path = 1;
+  string old_text = 2;
+  string new_text = 3;
+}
+
+message CardLocation {
+  string path = 1;
+  optional int32 line = 2;
+}
+
 message Card {
   string id = 1;
   string header = 2;
@@ -126,6 +137,11 @@ message Card {
   optional int64 end_time_ms = 17;
   optional string outcome = 18;
   CardKind kind = 19;
+  optional string tool_name = 20;
+  optional string raw_input_json = 21;
+  optional string raw_output_json = 22;
+  repeated CardDiff diffs = 23;
+  repeated CardLocation locations = 24;
 }
 
 // Enum for DiracSayTool tool types

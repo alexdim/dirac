@@ -1,0 +1,7 @@
+--- PythonClass in sample.py ---
+sample.py:
+  [definition] line 3:7 class PythonClass:
+  [reference] line 3:7 class PythonClass:
+  [reference] line 27:11     obj = PythonClass("example")
+
+Lookup kind: definitions and references.

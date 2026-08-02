@@ -2,7 +2,6 @@ import deepEqual from "fast-deep-equal"
 import * as path from "path"
 import { Diagnostic, DiagnosticSeverity, FileDiagnostics } from "@/shared/proto/index.dirac"
 import { Logger } from "@/shared/services/Logger"
-import { formatLineWithHash } from "@/utils/line-hashing"
 import { arePathsEqual, getCwd } from "@/utils/path"
 
 export function getNewDiagnostics(oldDiagnostics: FileDiagnostics[], newDiagnostics: FileDiagnostics[]): FileDiagnostics[] {
@@ -91,7 +90,7 @@ export async function singleFileDiagnosticsToProblemsString(
 				.slice(start, end + 1)
 				.map((l, i) => {
 					const currentLineIdx = start + i
-					const content = hashes ? formatLineWithHash(l, hashes[currentLineIdx]) : l
+					const content = l
 					if (currentLineIdx === lineIdx) {
 						return `${content} <<<< [${source}${label}] Line ${line}: ${diagnostic.message}`
 					}
