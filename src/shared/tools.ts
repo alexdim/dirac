@@ -59,16 +59,13 @@ export enum DiracDefaultTool {
 	USE_SKILL = "use_skill",
 	LIST_SKILLS = "list_skills",
 	USE_SUBAGENTS = "use_subagents",
-	GET_FUNCTION = "get_function",
-	GET_FILE_SKELETON = "get_file_skeleton",
-	FIND_SYMBOL_REFERENCES = "find_symbol_references",
+	INSPECT_AST = "inspect_ast",
 
 	UPSERT_TOOL = "upsert_tool",
 
 	EDIT_FILE = "edit_file",
 	DIAGNOSTICS_SCAN = "diagnostics_scan",
-	REPLACE_SYMBOL = "replace_symbol",
-	RENAME_SYMBOL = "rename_symbol",
+	EDIT_AST = "edit_ast",
 }
 
 // Array of all tool names for compatibility
@@ -96,9 +93,7 @@ export const READ_ONLY_TOOLS = [
 	DiracDefaultTool.BROWSER,
 	DiracDefaultTool.ASK,
 	DiracDefaultTool.SAY,
-	DiracDefaultTool.GET_FUNCTION,
-	DiracDefaultTool.GET_FILE_SKELETON,
-	DiracDefaultTool.FIND_SYMBOL_REFERENCES,
+	DiracDefaultTool.INSPECT_AST,
 	DiracDefaultTool.DIAGNOSTICS_SCAN,
 
 	DiracDefaultTool.USE_SKILL,
@@ -111,8 +106,7 @@ export const READ_ONLY_TOOLS = [
 export const MUTATING_TOOLS: DiracDefaultTool[] = [
 	DiracDefaultTool.FILE_NEW,
 	DiracDefaultTool.EDIT_FILE,
-	DiracDefaultTool.REPLACE_SYMBOL,
-	DiracDefaultTool.RENAME_SYMBOL,
+	DiracDefaultTool.EDIT_AST,
 	DiracDefaultTool.BASH, // conservatively treat bash as it can modify the filesystem
 ]
 

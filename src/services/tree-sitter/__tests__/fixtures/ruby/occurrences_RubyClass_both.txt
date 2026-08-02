@@ -1,0 +1,7 @@
+--- RubyClass in sample.rb ---
+sample.rb:
+  [definition] line 2:7 class RubyClass
+  [reference] line 2:7 class RubyClass
+  [reference] line 21:9   obj = RubyClass.new("example")
+
+Lookup kind: definitions and references.

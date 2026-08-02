@@ -1,5 +1,0 @@
-sample.rs::SampleTrait
-[Function Hash: 52a1b2ec]
-pub trait SampleTrait {
-    fn trait_method(&self);
-}

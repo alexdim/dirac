@@ -1,0 +1,8 @@
+sample.cpp::CppClass.getName
+[Implementation Hash: 0da1120b]
+/**
+     * An inline method.
+     */
+    std::string getName() const {
+        return m_name;
+    }

@@ -1,0 +1,7 @@
+sample.java::JavaClass.InnerClass.innerMethod
+[Implementation Hash: f5ea982a]
+    public static class InnerClass {
+
+public String innerMethod() {
+            return "inner";
+        }

@@ -1,0 +1,7 @@
+The tool execution failed with the following error:
+<error>
+--- Point in sample.zig ---
+Unsupported file: sample.zig is excluded from the symbol index.
+
+Lookup kind: definitions and references.
+</error>

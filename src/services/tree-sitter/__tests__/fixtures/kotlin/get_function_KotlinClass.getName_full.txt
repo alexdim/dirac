@@ -1,8 +1,0 @@
-sample.kt::KotlinClass.getName
-[Function Hash: 96ec8232]
-/**
-     * getName returns the name.
-     */
-    fun getName(): String {
-        return this.name
-    }

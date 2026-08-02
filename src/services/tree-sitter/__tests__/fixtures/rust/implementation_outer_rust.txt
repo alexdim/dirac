@@ -1,0 +1,18 @@
+sample.rs::outer_rust
+[Implementation Hash: 4af8a635]
+/// A top-level function.
+pub fn outer_rust() {
+    /// Nested function in Rust.
+    fn inner_rust(a: i32) -> i32 {
+        a * 2
+    }
+
+    mod nested_mod {
+        pub fn mod_func() {
+            println!("Inside nested mod");
+        }
+    }
+
+    nested_mod::mod_func();
+    println!("Inner: {}", inner_rust(5));
+}

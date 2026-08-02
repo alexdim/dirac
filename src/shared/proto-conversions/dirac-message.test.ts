@@ -89,6 +89,50 @@ describe("Dirac message proto conversion", () => {
 		assert.equal(legacyConverted.content.steering?.status, SteeringTranscriptStatus.SENT)
 	})
 
+	it("round trips structured card tool metadata, diffs, and exact locations", () => {
+		const rawInput = {
+			tool: "edit_ast",
+			operation: "replace",
+			targets: [{ path: "src/service.ts", symbol: "UserService.load" }],
+		}
+		const rawOutput = { status: "planned", fileCount: 1 }
+		const diffs = [{ path: "src/service.ts", oldText: "old", newText: "new" }]
+		const locations = [{ path: "src/service.ts", line: 12 }]
+		const message: import("@shared/ExtensionMessage").DiracMessage = {
+			id: "ast-card-message",
+			ts: 4,
+			content: {
+				type: DiracMessageType.CARD,
+				card: {
+					id: "ast-card",
+					header: "Replacing UserService.load",
+					toolName: "edit_ast",
+					status: CardStatus.WAITING_FOR_INPUT,
+					renderType: "diff",
+					rawInput,
+					rawOutput,
+					diffs,
+					locations,
+				},
+			},
+		}
+
+		const proto = convertDiracMessageToProto(message)
+		assert.equal(proto.card?.toolName, "edit_ast")
+		assert.equal(proto.card?.rawInputJson, JSON.stringify(rawInput))
+		assert.deepEqual(proto.card?.diffs, [{ path: "src/service.ts", oldText: "old", newText: "new" }])
+		assert.deepEqual(proto.card?.locations, [{ path: "src/service.ts", line: 12 }])
+
+		const roundTripped = convertProtoToDiracMessage(proto)
+		if (roundTripped.content.type !== DiracMessageType.CARD) assert.fail("Expected card")
+		assert.equal(roundTripped.content.card.toolName, "edit_ast")
+		assert.deepEqual(roundTripped.content.card.rawInput, rawInput)
+		assert.deepEqual(roundTripped.content.card.rawOutput, rawOutput)
+		assert.deepEqual(roundTripped.content.card.diffs, diffs)
+		assert.deepEqual(roundTripped.content.card.locations, locations)
+	})
+
+
 	it("preserves unspecified card identity for legacy header compatibility", () => {
 		const legacy = ProtoDiracMessage.create({
 			id: "legacy-card",

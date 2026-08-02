@@ -9,6 +9,55 @@ import { StateManager } from "@/core/storage/StateManager"
 
 const SOURCE_PRIORITY: Record<ToolSource, number> = { builtin: 0, global: 1, workspace: 2, task: 3 }
 
+const TOOL_OPERATION_SCOPES: Readonly<Record<string, readonly string[]>> = {
+	inspect_ast: ["outline", "implementation", "definitions", "references", "occurrences"],
+	edit_ast: ["rename", "replace"],
+}
+
+
+interface ToolAuthorization {
+	allowed: boolean
+	operations?: string[]
+}
+
+function resolveToolAuthorization(tool: DiscoveredTool, allowed: readonly string[]): ToolAuthorization {
+	const identifiers = [tool.id, tool.name, tool.spec.name].filter(Boolean)
+	const allowedSet = new Set(allowed)
+	if (identifiers.some((identifier) => allowedSet.has(identifier))) {
+		return { allowed: true }
+	}
+
+	const supportedOperations = identifiers.flatMap((identifier) => TOOL_OPERATION_SCOPES[identifier] ?? [])
+	if (supportedOperations.length === 0) {
+		return { allowed: false }
+	}
+
+	const operations = Array.from(
+		new Set(
+			supportedOperations.filter((operation) =>
+				identifiers.some((identifier) => allowedSet.has(`${identifier}:${operation}`)),
+			),
+		),
+	)
+	return operations.length > 0 ? { allowed: true, operations } : { allowed: false }
+}
+
+function scopeToolSpec(spec: DiracToolSpec, operations: readonly string[]): DiracToolSpec {
+	const operationSummary = `This subagent is authorized only for operation${operations.length === 1 ? "" : "s"}: ${operations.join(", ")}.`
+	const promptDescription = spec.promptDescription
+	return {
+		...spec,
+		description: `${spec.description} ${operationSummary}`,
+		promptDescription:
+			typeof promptDescription === "function"
+				? (context) => `${promptDescription(context)} ${operationSummary}`
+				: `${promptDescription ?? spec.description} ${operationSummary}`,
+		parameters: spec.parameters?.map((parameter) =>
+			parameter.name === "operation" ? { ...parameter, enum: [...operations] } : parameter,
+		),
+	}
+}
+
 export class ToolRegistry {
 	private static instance: ToolRegistry | undefined
 	private builtinTools: Map<string, DiscoveredTool> = new Map()
@@ -184,7 +233,8 @@ export class ToolRegistry {
 
 	getEnabledSpecsForSubagent(context: SystemPromptContext, allowed: string[]): DiracToolSpec[] {
 		return this.getEnabledTools()
-			.filter((tool) => this.isDiscoveredToolAllowed(tool, allowed))
+			.map((tool) => this.scopeToolForSubagent(tool, allowed))
+			.filter((tool): tool is DiscoveredTool => Boolean(tool))
 			.map((tool) => tool.spec)
 			.filter((spec) => !spec.contextRequirements || spec.contextRequirements(context))
 	}
@@ -228,16 +278,61 @@ export class ToolRegistry {
 
 	createEnabledToolsForSubagent(config: TaskConfig, allowed: string[]): IDiracTool[] {
 		return this.getEnabledTools()
-			.filter((tool) => this.isDiscoveredToolAllowed(tool, allowed))
-			.map((t) => t.factory(config))
+			.map((tool) => this.scopeToolForSubagent(tool, allowed))
+			.filter((tool): tool is DiscoveredTool => Boolean(tool))
+			.map((tool) => tool.factory(config))
 	}
 
-	isToolAllowed(toolName: string, allowed: string[]): boolean {
+	isToolAllowed(toolName: string, allowed: string[], operation?: string): boolean {
 		const tool = this.findToolByIdOrName(toolName)
 		if (!tool) {
 			return allowed.includes(toolName)
 		}
-		return this.isEnabled(tool.id) && this.isDiscoveredToolAllowed(tool, allowed)
+		if (!this.isEnabled(tool.id)) {
+			return false
+		}
+		const authorization = resolveToolAuthorization(tool, allowed)
+		return (
+			authorization.allowed &&
+			(!authorization.operations || (typeof operation === "string" && authorization.operations.includes(operation)))
+		)
+	}
+
+	scopeToolForSubagent(tool: DiscoveredTool, allowed: readonly string[]): DiscoveredTool | undefined {
+		const authorization = resolveToolAuthorization(tool, allowed)
+		if (!authorization.allowed) {
+			return undefined
+		}
+		if (!authorization.operations) {
+			return tool
+		}
+
+		const operations = authorization.operations
+		const spec = scopeToolSpec(tool.spec, operations)
+		return {
+			...tool,
+			spec,
+			factory: (config?: any) => {
+				const original = tool.factory(config)
+				const scopedTool: IDiracTool & { bufferPartialToolUse?: (...args: any[]) => Promise<void> } = {
+					spec: () => spec,
+					supportedSurfaces: () => original.supportedSurfaces(),
+					processCall: async (args: any, env: any) => {
+						const operation = args?.operation
+						if (typeof operation !== "string" || !operations.includes(operation)) {
+							throw new Error(
+								`Operation '${typeof operation === "string" ? operation : "<missing>"}' is not authorized for tool '${spec.name}' in this subagent. Allowed operations: ${operations.join(", ")}.`,
+							)
+						}
+						return original.processCall(args, env)
+					},
+				}
+				if ("bufferPartialToolUse" in original && typeof (original as any).bufferPartialToolUse === "function") {
+					scopedTool.bufferPartialToolUse = (...args: any[]) => (original as any).bufferPartialToolUse(...args)
+				}
+				return scopedTool
+			},
+		}
 	}
 
 	loadToggles(toggles: Record<string, boolean>): void {
@@ -382,8 +477,4 @@ export class ToolRegistry {
 		return [...aIds].some((id) => bIds.has(id))
 	}
 
-	private isDiscoveredToolAllowed(tool: DiscoveredTool, allowed: string[]): boolean {
-		const allowedSet = new Set(allowed)
-		return allowedSet.has(tool.id) || allowedSet.has(tool.name) || allowedSet.has(tool.spec.name)
-	}
 }

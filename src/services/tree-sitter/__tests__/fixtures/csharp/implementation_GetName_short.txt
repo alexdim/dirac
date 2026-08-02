@@ -1,0 +1,6 @@
+sample.cs::SampleNamespace.CSharpClass.GetName
+[Implementation Hash: d88ee28f]
+public string GetName()
+        {
+            return Name;
+        }

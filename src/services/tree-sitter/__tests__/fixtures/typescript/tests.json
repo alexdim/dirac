@@ -1,5 +1,5 @@
 {
-	"get_function": [
+	"implementation": [
 		{
 			"name": "MyClass_full",
 			"symbols": [
@@ -61,58 +61,58 @@
 			]
 		}
 	],
-	"find_symbol_references": [
+	"occurrences": [
 		{
 			"name": "MyClass_both",
 			"symbols": [
 				"MyClass"
 			],
-			"find_type": "both"
+			"operation": "occurrences"
 		},
 		{
 			"name": "getName_definition",
 			"symbols": [
 				"getName"
 			],
-			"find_type": "definition"
+			"operation": "definitions"
 		},
 		{
 			"name": "innerFunction_definition",
 			"symbols": [
 				"innerFunction"
 			],
-			"find_type": "definition"
+			"operation": "definitions"
 		},
 		{
 			"name": "shadowed_reference",
 			"symbols": [
 				"shadowed"
 			],
-			"find_type": "reference"
+			"operation": "references"
 		},
 		{
 			"name": "nonExistentSymbol_both",
 			"symbols": [
 				"nonExistentSymbol"
 			],
-			"find_type": "both"
+			"operation": "occurrences"
 		}
 	],
-	"replace_symbol": [
+	"replace": [
 		{
 			"name": "topLevelFunction",
 			"symbol": "topLevelFunction",
-			"text": "/**\n * A replaced top-level function.\n */\nfunction topLevelFunction() {\n    console.log(\"Replaced!\");\n}"
+			"replacement": "/**\n * A replaced top-level function.\n */\nfunction topLevelFunction() {\n    console.log(\"Replaced!\");\n}"
 		},
 		{
 			"name": "nestedMethod_full",
 			"symbol": "outerFunction.NestedClass.nestedMethod",
-			"text": "        nestedMethod() {\n            return \"replaced nested\";\n        }"
+			"replacement": "        nestedMethod() {\n            return \"replaced nested\";\n        }"
 		},
 		{
 			"name": "nonExistentReplace",
 			"symbol": "nonExistentReplace",
-			"text": "should fail"
+			"replacement": "should fail"
 		}
 	]
 }

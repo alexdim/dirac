@@ -1,0 +1,21 @@
+sample.py::PythonClass
+[Implementation Hash: 054d4bc4]
+class PythonClass:
+    """
+    A sample class in Python.
+    """
+    def __init__(self, name: str):
+        self.name = name
+
+    @property
+    def get_name(self) -> str:
+        """
+        A property decorator.
+        """
+        return self.name
+
+    def calculate(self, a: int, b: int) -> int:
+        """
+        A method with parameters.
+        """
+        return a + b

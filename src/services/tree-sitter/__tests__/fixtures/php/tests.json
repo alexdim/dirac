@@ -1,5 +1,5 @@
 {
-	"get_function": [
+	"implementation": [
 		{
 			"name": "PhpClass_full",
 			"symbols": [
@@ -37,39 +37,39 @@
 			]
 		}
 	],
-	"find_symbol_references": [
+	"occurrences": [
 		{
 			"name": "PhpClass_both",
 			"symbols": [
 				"PhpClass"
 			],
-			"find_type": "both"
+			"operation": "occurrences"
 		},
 		{
 			"name": "getName_definition",
 			"symbols": [
 				"getName"
 			],
-			"find_type": "definition"
+			"operation": "definitions"
 		},
 		{
 			"name": "nonExistentSymbol_both",
 			"symbols": [
 				"nonExistentSymbol"
 			],
-			"find_type": "both"
+			"operation": "occurrences"
 		}
 	],
-	"replace_symbol": [
+	"replace": [
 		{
 			"name": "top_level_func",
 			"symbol": "top_level_func",
-			"text": "function top_level_func(int $x): int\n{\n    echo \"Replaced PHP func\";\n    return $x * 10;\n}"
+			"replacement": "function top_level_func(int $x): int\n{\n    echo \"Replaced PHP func\";\n    return $x * 10;\n}"
 		},
 		{
 			"name": "nonExistentReplace",
 			"symbol": "nonExistentReplace",
-			"text": "should fail"
+			"replacement": "should fail"
 		}
 	]
 }

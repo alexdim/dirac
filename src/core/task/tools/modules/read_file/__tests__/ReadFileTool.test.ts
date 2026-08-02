@@ -240,7 +240,9 @@ describe("ReadFileToolHandler.execute – include_anchors visibility and cache",
 		assert.ok(/^[A-Z][a-zA-Z]*§second line/m.test(anchoredResult))
 
 		const repeatedAnchoredResult = (await handler.execute(config, makeReadBlock(realFile, true))) as string
-		assert.ok(repeatedAnchoredResult.includes("no changes have been made to the file since your last read"))
+		assert.ok(/^[A-Z][a-zA-Z]*§first line/m.test(repeatedAnchoredResult))
+		assert.ok(/^[A-Z][a-zA-Z]*§second line/m.test(repeatedAnchoredResult))
+		assert.ok(!repeatedAnchoredResult.includes("no changes have been made"))
 	})
 
 	it("re-emits anchored content when the persisted file hash outlives anchor state", async () => {
@@ -261,7 +263,7 @@ describe("ReadFileToolHandler.execute – include_anchors visibility and cache",
 		assert.ok(AnchorStateManager.isTracking(absolutePath, config.ulid))
 	})
 
-	it("suppresses a restored anchored reread only when the exact mapping was restored", async () => {
+	it("re-emits a restored anchored mapping so its coordinates remain available", async () => {
 		const { config, validator } = createConfig()
 		const handler = new ReadFileToolHandler(validator)
 		const realFile = "restored-anchor-state.txt"
@@ -276,7 +278,9 @@ describe("ReadFileToolHandler.execute – include_anchors visibility and cache",
 		AnchorStateManager.hydrate(config.ulid, persisted)
 		const repeatedRead = (await handler.execute(config, makeReadBlock(realFile, true))) as string
 
-		assert.ok(repeatedRead.includes("no changes have been made to the file since your last read"))
+		assert.ok(/^[A-Z][a-zA-Z]*§first line/m.test(repeatedRead))
+		assert.ok(/^[A-Z][a-zA-Z]*§second line/m.test(repeatedRead))
+		assert.ok(!repeatedRead.includes("no changes have been made"))
 		assert.equal(AnchorStateManager.getDocumentFingerprint(absolutePath, config.ulid), fingerprint)
 	})
 

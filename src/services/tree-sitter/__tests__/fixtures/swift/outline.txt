@@ -1,0 +1,24 @@
+--- sample.swift ---
+|----
+│class SwiftClass {
+|----
+│    var name: String
+|----
+│    init(name: String) {
+|----
+│    func getName() -> String {
+|----
+│    func calculate(a: Int, b: Int) -> Int {
+|----
+│func topLevelFunc(x: Int) -> Int {
+│    # Calls: [SwiftClass]
+|----
+│    let obj = SwiftClass(name: "example")
+│        # Calls: [SwiftClass]
+|----
+│struct MyStruct {
+|----
+│    func structMethod() {
+|----
+│    func extensionMethod() {
+|----

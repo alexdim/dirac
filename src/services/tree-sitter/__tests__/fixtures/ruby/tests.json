@@ -1,5 +1,5 @@
 {
-	"get_function": [
+	"implementation": [
 		{
 			"name": "RubyClass_full",
 			"symbols": [
@@ -43,39 +43,39 @@
 			]
 		}
 	],
-	"find_symbol_references": [
+	"occurrences": [
 		{
 			"name": "RubyClass_both",
 			"symbols": [
 				"RubyClass"
 			],
-			"find_type": "both"
+			"operation": "occurrences"
 		},
 		{
 			"name": "get_name_definition",
 			"symbols": [
 				"get_name"
 			],
-			"find_type": "definition"
+			"operation": "definitions"
 		},
 		{
 			"name": "nonExistentSymbol_both",
 			"symbols": [
 				"nonExistentSymbol"
 			],
-			"find_type": "both"
+			"operation": "occurrences"
 		}
 	],
-	"replace_symbol": [
+	"replace": [
 		{
 			"name": "top_level_func",
 			"symbol": "top_level_func",
-			"text": "def top_level_func(x)\n  puts \"Replaced Ruby func\"\n  x + 42\nend"
+			"replacement": "def top_level_func(x)\n  puts \"Replaced Ruby func\"\n  x + 42\nend"
 		},
 		{
 			"name": "nonExistentReplace",
 			"symbol": "nonExistentReplace",
-			"text": "should fail"
+			"replacement": "should fail"
 		}
 	]
 }

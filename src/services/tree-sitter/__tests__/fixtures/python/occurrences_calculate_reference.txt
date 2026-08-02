@@ -1,0 +1,6 @@
+--- calculate in sample.py ---
+sample.py:
+  [reference] line 17:9     def calculate(self, a: int, b: int) -> int:
+  [reference] line 29:16     return obj.calculate(x, 10)
+
+Lookup kind: references.

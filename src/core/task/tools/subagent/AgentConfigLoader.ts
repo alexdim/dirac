@@ -12,6 +12,7 @@ import { buildSubagentToolName } from "./SubagentToolName"
 export const AGENTS_CONFIG_DIRECTORY_NAME = "Agents"
 const SUBAGENT_DYNAMIC_TOOL_NAMESPACE = "subagent"
 
+
 const AgentBaseConfigSchema = z.object({
 	name: z.string().trim().min(1),
 	description: z.string().trim().min(1),
@@ -31,13 +32,13 @@ const AgentConfigFrontmatterSchema = z.object({
 
 export type AgentBaseConfig = z.infer<typeof AgentBaseConfigSchema>
 
-function normalizeToolName(toolName: string): string {
+function normalizeToolName(toolName: string): string[] {
 	const trimmed = toolName.trim()
 	if (!trimmed) {
 		throw new Error("Tool name cannot be empty.")
 	}
 
-	return trimmed
+	return [trimmed]
 }
 
 function parseTools(tools: string | string[] | undefined): string[] {
@@ -49,8 +50,7 @@ function parseTools(tools: string | string[] | undefined): string[] {
 	if (rawTools.length === 0) {
 		return []
 	}
-
-	return Array.from(new Set(rawTools.map(normalizeToolName)))
+	return Array.from(new Set(rawTools.flatMap(normalizeToolName)))
 }
 
 function normalizeSkillName(skillName: string): string {

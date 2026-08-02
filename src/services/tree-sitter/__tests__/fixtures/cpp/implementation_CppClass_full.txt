@@ -1,0 +1,27 @@
+sample.cpp::CppClass
+[Implementation Hash: 5e68a09d]
+/**
+ * A sample class in C++.
+ */
+class CppClass {
+public:
+    /**
+     * Constructor.
+     */
+    CppClass(const std::string& name) : m_name(name) {}
+
+    /**
+     * An inline method.
+     */
+    std::string getName() const {
+        return m_name;
+    }
+
+    /**
+     * An out-of-line method declaration.
+     */
+    int calculate(int a, int b);
+
+private:
+    std::string m_name;
+}

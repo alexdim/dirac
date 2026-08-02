@@ -1,0 +1,9 @@
+sample.c::top_level_func
+[Implementation Hash: 0bf33f0c]
+// top_level_func function.
+int top_level_func(int x) {
+    MyStruct s;
+    s.id = x;
+    say_hello("World");
+    return s.id + 10;
+}

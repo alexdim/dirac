@@ -1,0 +1,21 @@
+sample.kt::KotlinClass
+[Implementation Hash: 99b51c44]
+class KotlinClass(var name: String) {
+
+    /**
+     * getName returns the name.
+     */
+    fun getName(): String {
+        return this.name
+    }
+
+    fun calculate(a: Int, b: Int): Int {
+        return a + b
+    }
+
+    companion object {
+        fun companionMethod(): String {
+            return "companion"
+        }
+    }
+}

@@ -1,0 +1,20 @@
+--- sample.cs ---
+|----
+│namespace SampleNamespace
+│    # Calls: [Calculate, GetName]
+|----
+│    public class CSharpClass
+|----
+│        public string GetName()
+|----
+│        public int Calculate(int a, int b)
+|----
+│    public static class Program
+│        # Calls: [Calculate, GetName]
+|----
+│        public static void Main(string[] args)
+│            # Calls: [Calculate, GetName]
+|----
+│        public static int TopLevelFunc(int x)
+│            # Calls: [Calculate]
+|----

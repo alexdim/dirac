@@ -23,7 +23,7 @@ import { createMockContext, createMockTaskMessenger } from "../../../__tests__/h
 class EditFileToolHandler {
 	private tool = new EditFileTool()
 	public diagnosticsTimeoutMs: number = 0
-	constructor(_validator: any, _forceSyntaxChecker: boolean) {}
+	constructor(_validator: any, _forceSyntaxChecker: boolean) { }
 	async execute(config: TaskConfig, block: any) {
 		const env = new SurfaceAdapter(config)
 		return this.tool.processCall(block.params, env)
@@ -195,7 +195,7 @@ describe("EditFileTool.diagnostics", () => {
 	afterEach(async () => {
 		sandbox.restore()
 		HostProvider.reset()
-		await fs.rm(tmpDir, { recursive: true, force: true }).catch(() => {})
+		await fs.rm(tmpDir, { recursive: true, force: true }).catch(() => { })
 	})
 
 	it("reports reduction in linter errors", async () => {
@@ -308,11 +308,8 @@ describe("EditFileTool.diagnostics", () => {
 		assert.ok(result.includes("Applied 1 edit(s) successfully"))
 		assert.ok(result.includes("Found 1 problems"))
 
-		const finalLines = ["line 1", "bad line 2", "line 3"]
-		const finalAnchors = AnchorStateManager.reconcile(filePath, finalLines, config.ulid).map(
-			(a, i) => `${a}${ANCHOR_DELIMITER}${finalLines[i]}`,
-		)
-		assert.ok(result.includes(finalAnchors[1]))
+		assert.ok(result.includes("bad line 2 <<<<"))
+		assert.ok(!/^[A-Z][a-zA-Z]*§bad line 2/m.test(result))
 	})
 
 	it("limits new linter errors to 5", async () => {

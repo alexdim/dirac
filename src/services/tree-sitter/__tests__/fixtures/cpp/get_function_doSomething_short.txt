@@ -1,5 +1,0 @@
-sample.cpp::MyNamespace.NamespaceClass.doSomething
-[Function Hash: 2beb1cbd]
-void doSomething() {
-            std::cout << "Doing something in MyNamespace" << std::endl;
-        }

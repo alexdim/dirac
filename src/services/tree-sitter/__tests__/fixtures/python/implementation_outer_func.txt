@@ -1,0 +1,20 @@
+sample.py::outer_func
+[Implementation Hash: d2551d66]
+def outer_func(x):
+    """
+    Outer function in Python.
+    """
+    def inner_func(y):
+        """
+        Inner function.
+        """
+        return x + y
+
+    class NestedClass:
+        """
+        Nested class in Python.
+        """
+        def nested_method(self):
+            return inner_func(10)
+
+    return NestedClass().nested_method()

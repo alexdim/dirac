@@ -1,0 +1,5 @@
+--- GetName in sample.go ---
+sample.go:
+  [definition] line 18:20 func (s *GoStruct) GetName() string {
+
+Lookup kind: definitions.

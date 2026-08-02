@@ -1,0 +1,19 @@
+sample.rb::RubyClass
+[Implementation Hash: ce2496f4]
+# RubyClass is a sample class.
+class RubyClass
+  attr_accessor :name
+
+  def initialize(name)
+    @name = name
+  end
+
+  # get_name returns the name.
+  def get_name
+    @name
+  end
+
+  def calculate(a, b)
+    a + b
+  end
+end

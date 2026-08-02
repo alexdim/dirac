@@ -1,0 +1,261 @@
+import { strict as assert } from "node:assert"
+import { CardStatus } from "@shared/ExtensionMessage"
+import type { IToolEnvironment } from "../../../interfaces/IToolEnvironment"
+import { InspectAstTool, inspect_ast_spec } from "../InspectAstTool"
+
+function definition(qualifiedName = "main", declarationLine = 0) {
+	return {
+		simpleName: qualifiedName.split(".").at(-1)!,
+		qualifiedName,
+		kind: "function" as const,
+		nameRange: { startIndex: 0, endIndex: 4, startLine: declarationLine, startColumn: 0, endLine: declarationLine, endColumn: 4 },
+		definitionRange: { startIndex: 0, endIndex: 18, startLine: declarationLine, startColumn: 0, endLine: declarationLine, endColumn: 18 },
+		replacementRange: { startIndex: 0, endIndex: 18, startLine: declarationLine, startColumn: 0, endLine: declarationLine, endColumn: 18 },
+		declarationLine,
+		declarationText: `function ${qualifiedName.split(".").at(-1)}() {}`,
+		indentation: "",
+		calls: [],
+		contextLines: [],
+	}
+}
+
+function makeCard(params: any) {
+	return {
+		...params,
+		id: "card-1",
+		header: params.header,
+		status: params.status,
+		collapsed: params.collapsed,
+		renderType: params.renderType ?? "text",
+		updates: [] as any[],
+		finalStatuses: [] as CardStatus[],
+		async update(patch: any) {
+			this.updates.push(patch)
+			Object.assign(this, patch)
+		},
+		async finalize(status: CardStatus) {
+			this.finalStatuses.push(status)
+			this.status = status
+		},
+		async appendBody() { },
+		async waitForInteraction() { return { action: "", response: "" } },
+	}
+}
+
+function createEnvironment(options: {
+	subagent?: boolean
+	result?: any
+	outlineResult?: any
+	implementationResult?: any
+	occurrenceResult?: any
+} = {}) {
+	let mistakeCount = 3
+	const cards: any[] = []
+	const telemetry: any[] = []
+	const taskContext = new Map<string, unknown>()
+	const outlineResult = options.outlineResult ?? options.result ?? {
+		files: [{
+			path: "src/a.ts",
+			absolutePath: "/repo/src/a.ts",
+			status: "success",
+			definitions: [],
+			lines: [],
+		}],
+	}
+	const env = {
+		config: { isSubagentExecution: options.subagent === true },
+		context: {
+			task: {
+				get: (key: string) => taskContext.get(key),
+				set: (key: string, value: unknown) => taskContext.set(key, value),
+			},
+		},
+		orchestration: {
+			getTaskState: () => mistakeCount,
+			setTaskState: (_key: string, value: number) => { mistakeCount = value },
+		},
+		ui: {
+			createCard: async (params: any) => {
+				const card = makeCard(params)
+				cards.push(card)
+				return card
+			},
+			upsertText: async () => { },
+		},
+		telemetry: { captureCustomMetadata: (metadata: any) => telemetry.push(metadata) },
+		sourceAst: {
+			outline: async () => outlineResult,
+			implementations: async () => options.implementationResult ?? ({ targets: [] }),
+			occurrences: async () => options.occurrenceResult ?? ({ targets: [], occurrences: [] }),
+			getAnchorFingerprint: () => null,
+		},
+	} as unknown as IToolEnvironment
+	return { env, cards, telemetry, getMistakeCount: () => mistakeCount }
+}
+
+describe("InspectAstTool", () => {
+	it("advertises a strongly directive read-only schema", () => {
+		assert.equal(inspect_ast_spec.name, "inspect_ast")
+		assert.match(inspect_ast_spec.description, /Prefer inspect_ast over broad read_file or text search/)
+		assert.match(inspect_ast_spec.description, /never modifies files/)
+		const operationParameter = inspect_ast_spec.parameters?.find((parameter) => parameter.name === "operation")
+		assert.deepEqual(operationParameter?.enum, [
+			"outline",
+			"implementation",
+			"definitions",
+			"references",
+			"occurrences",
+		])
+		assert.match(operationParameter?.instruction ?? "", /outline takes source-file paths \(no symbols\)/)
+		assert.match(operationParameter?.instruction ?? "", /implementation takes source-file paths plus symbols/)
+		assert.match(operationParameter?.instruction ?? "", /file or directory scopes plus symbols/)
+		assert.match(operationParameter?.instruction ?? "", /definition locations, reference locations, or both/)
+	})
+
+	it("creates exact metadata cards and terminates them", async () => {
+		const main = definition()
+		const { env, cards, telemetry, getMistakeCount } = createEnvironment({
+			result: {
+				files: [{
+					path: "src/a.ts",
+					absolutePath: "/repo/src/a.ts",
+					status: "success",
+					definitions: [main],
+					lines: [{ lineNumber: 1, text: main.declarationText }],
+				}],
+			},
+		})
+
+		const output = await new InspectAstTool().processCall({ operation: "outline", paths: ["src/a.ts"] }, env)
+		assert.match(output, /function main/)
+		assert.match(output, /===== RESULT 1\/1 =====/)
+		assert.equal(cards.length, 1)
+		assert.deepEqual(cards[0].rawInput, {
+			tool: "inspect_ast",
+			operation: "outline",
+			path: "src/a.ts",
+			includeAnchors: false,
+		})
+		assert.deepEqual(cards[0].updates[0].locations, [{ path: "src/a.ts", line: 1 }])
+		assert.deepEqual(cards[0].finalStatuses, [CardStatus.SUCCESS])
+		assert.equal(telemetry[0].operation, "outline")
+		assert.equal(telemetry[0].resultGroupCount, 1)
+		assert.equal(getMistakeCount(), 0)
+	})
+
+	it("reduces Cartesian implementation results to one block and card per symbol", async () => {
+		const run = definition("A.run")
+		const { env, cards, telemetry } = createEnvironment({
+			implementationResult: {
+				targets: [{
+					path: "src/a.ts",
+					absolutePath: "/repo/src/a.ts",
+					symbol: "A.run",
+					status: "success",
+					definition: run,
+					contentHash: "hash-a",
+					lines: [{ lineNumber: 1, text: "run() {}" }],
+				}, {
+					path: "src/b.ts",
+					absolutePath: "/repo/src/b.ts",
+					symbol: "A.run",
+					status: "success",
+					definition: run,
+					contentHash: "hash-b",
+					lines: [{ lineNumber: 1, text: "run() {}" }],
+				}, {
+					path: "src/a.ts",
+					symbol: "B.load",
+					status: "not_found",
+				}, {
+					path: "src/b.ts",
+					symbol: "B.load",
+					status: "not_found",
+				}],
+			},
+		})
+
+		const output = await new InspectAstTool().processCall({
+			operation: "implementation",
+			paths: ["src/a.ts", "src/b.ts"],
+			symbols: ["A.run", "B.load"],
+		}, env)
+
+		assert.equal(output.match(/===== RESULT \d\/2 =====/g)?.length, 2)
+		assert.match(output, /Symbol: A\.run\nStatus: SUCCESS\nMatches: 2/)
+		assert.match(output, /Symbol: B\.load\nStatus: FAILURE\nMatches: 0/)
+		assert.equal(cards.length, 2)
+		assert.deepEqual(cards[0].rawInput.paths, ["src/a.ts", "src/b.ts"])
+		assert.equal(cards[0].rawInput.symbol, "A.run")
+		assert.deepEqual(cards[0].finalStatuses, [CardStatus.SUCCESS])
+		assert.deepEqual(cards[1].finalStatuses, [CardStatus.ERROR])
+		assert.equal(telemetry[0].backendTargetCount, 4)
+		assert.equal(telemetry[0].resultGroupCount, 2)
+		assert.equal(telemetry[0].successfulGroupCount, 1)
+		assert.equal(telemetry[0].failureGroupCount, 1)
+	})
+
+	it("preserves successful source output when card or telemetry observability fails", async () => {
+		const main = definition()
+		const { env, cards } = createEnvironment({
+			result: {
+				files: [{
+					path: "src/a.ts",
+					absolutePath: "/repo/src/a.ts",
+					status: "success",
+					definitions: [main],
+					lines: [{ lineNumber: 1, text: main.declarationText }],
+				}],
+			},
+		})
+		const originalCreateCard = env.ui.createCard
+			; (env.ui as any).createCard = async (params: any) => {
+				const created = await originalCreateCard(params)
+				created.update = async () => { throw new Error("card unavailable") }
+				return created
+			}
+			; (env.telemetry as any).captureCustomMetadata = () => { throw new Error("telemetry unavailable") }
+
+		const output = await new InspectAstTool().processCall({ operation: "outline", paths: ["src/a.ts"] }, env)
+
+		assert.match(output, /function main/)
+		assert.match(output, /Observability warning/)
+		assert.match(output, /card update failed/)
+		assert.match(output, /telemetry failed/)
+		assert.deepEqual(cards[0].finalStatuses, [CardStatus.SUCCESS])
+	})
+
+	it("continues inspection when card creation is unavailable", async () => {
+		const main = definition()
+		const { env } = createEnvironment({
+			result: {
+				files: [{
+					path: "src/a.ts",
+					absolutePath: "/repo/src/a.ts",
+					status: "success",
+					definitions: [main],
+					lines: [{ lineNumber: 1, text: main.declarationText }],
+				}],
+			},
+		})
+			; (env.ui as any).createCard = async () => { throw new Error("cards unavailable") }
+
+		const output = await new InspectAstTool().processCall({ operation: "outline", paths: ["src/a.ts"] }, env)
+
+		assert.match(output, /function main/)
+		assert.match(output, /card creation failed/)
+	})
+
+	it("does not create interactive cards during subagent execution", async () => {
+		const { env, cards } = createEnvironment({ subagent: true })
+		await new InspectAstTool().processCall({ operation: "outline", paths: "src/a.ts" }, env)
+		assert.equal(cards.length, 0)
+	})
+
+	it("increments mistakes only for malformed calls", async () => {
+		const { env, getMistakeCount } = createEnvironment()
+		const result = await new InspectAstTool().processCall({ operation: "implementation", paths: ["src/a.ts"] }, env)
+		assert.match(result, /tool execution failed/)
+		assert.equal(getMistakeCount(), 4)
+	})
+})

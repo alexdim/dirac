@@ -1,0 +1,11 @@
+sample.php::top_level_func
+[Implementation Hash: 504747e8]
+/**
+ * top_level_func is a top-level function.
+ */
+function top_level_func(int $x): int
+{
+    $obj = new PhpClass("example");
+    echo $obj->getName();
+    return $obj->calculate($x, 10);
+}

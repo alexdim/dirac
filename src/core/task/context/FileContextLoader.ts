@@ -4,7 +4,8 @@ import { resolveWorkspacePath } from "@core/workspace"
 import { isMultiRootEnabled } from "@core/workspace/multi-root-utils"
 import { listFiles } from "@services/glob/list-files"
 import { mentionRegexGlobal } from "@shared/context-mentions"
-import { ASTAnchorBridge } from "@utils/ASTAnchorBridge"
+import { SourceAstService } from "@services/source-ast/SourceAstService"
+import { AnchorStateManager } from "@utils/AnchorStateManager"
 import * as fs from "fs/promises"
 import * as fsSync from "fs"
 import * as readline from "readline"
@@ -30,7 +31,7 @@ interface PathMatch {
 }
 
 export class FileContextLoader {
-	constructor(private dependencies: ContextLoaderDependencies) {}
+	constructor(private dependencies: ContextLoaderDependencies) { }
 
 	// Extract file paths, directory paths, and symbols from text by scrubbing code fences, URLs, mentions, and slash commands
 	async extractContext(
@@ -171,18 +172,36 @@ export class FileContextLoader {
 	// Collect AST skeletons for file paths
 	private async collectSkeletons(filePaths: string[], cwd: string): Promise<string[]> {
 		const skeletons: string[] = []
+		const sourceAst = new SourceAstService({
+			root: cwd,
+			resolvePath: async (requestedPath) => ({
+				absolutePath: this.resolveAbsolute(requestedPath, cwd),
+				displayPath: requestedPath,
+			}),
+			validateAccess: (absolutePath) => this.dependencies.diracIgnoreController.validateAccess(absolutePath),
+			reconcileAnchors: (absolutePath, lines) => AnchorStateManager.reconcile(absolutePath, lines, this.dependencies.ulid),
+			getAnchorFingerprint: (absolutePath) =>
+				AnchorStateManager.getDocumentFingerprint(absolutePath, this.dependencies.ulid),
+		})
 		for (const relPath of filePaths) {
 			try {
-				const absolutePath = this.resolveAbsolute(relPath, cwd)
-				const skeleton = await ASTAnchorBridge.getFileSkeleton(
-					absolutePath,
-					this.dependencies.diracIgnoreController,
-					this.dependencies.ulid,
-					{ showCallGraph: true },
-				)
-				if (skeleton && !skeleton.includes("Unsupported file type")) {
-					skeletons.push(`<file_skeleton path="${relPath}">\n${skeleton}\n</file_skeleton>`)
+				const result = await sourceAst.outline({ paths: [relPath], showCallGraph: true })
+				const file = result.files[0]
+				if (!file || file.status !== "success") continue
+				const callsByLine = new Map(file.definitions.map((definition) => [definition.declarationLine + 1, definition]))
+				let body = "|----\n"
+				let previousLine = -1
+				for (const line of file.lines) {
+					if (previousLine !== -1 && line.lineNumber > previousLine + 1) body += "|----\n"
+					body += `│${line.text}\n`
+					const definition = callsByLine.get(line.lineNumber)
+					if (definition?.calls.length) {
+						body += `│${definition.indentation}    # Calls: [${definition.calls.join(", ")}]\n`
+					}
+					previousLine = line.lineNumber
 				}
+				body += "|----\n"
+				skeletons.push(`<file_skeleton path="${relPath}">\n${body}\n</file_skeleton>`)
 			} catch {
 				/* Ignore errors for individual files */
 			}

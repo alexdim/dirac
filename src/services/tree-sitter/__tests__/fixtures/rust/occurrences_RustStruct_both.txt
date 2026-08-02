@@ -1,0 +1,10 @@
+--- RustStruct in sample.rs ---
+sample.rs:
+  [definition] line 2:12 pub struct RustStruct {
+  [reference] line 2:12 pub struct RustStruct {
+  [reference] line 6:6 impl RustStruct {
+  [reference] line 9:9         RustStruct { value }
+  [reference] line 45:22 impl SampleTrait for RustStruct {
+  [reference] line 52:20     let instance = RustStruct::new(42);
+
+Lookup kind: definitions and references.

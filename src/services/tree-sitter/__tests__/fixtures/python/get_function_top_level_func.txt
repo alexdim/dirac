@@ -1,9 +1,0 @@
-sample.py::top_level_func
-[Function Hash: 0061cf06]
-def top_level_func(x: int):
-    """
-    A top-level function in Python.
-    """
-    obj = PythonClass("example")
-    print(obj.get_name)
-    return obj.calculate(x, 10)

@@ -1,0 +1,6 @@
+The tool execution failed with the following error:
+<error>
+sample.ts::getName
+Ambiguous symbol: Ambiguous symbol 'getName' in sample.ts.
+Candidates: MyInterface.getName (method, line 6), MyClass.getName (method, line 18)
+</error>

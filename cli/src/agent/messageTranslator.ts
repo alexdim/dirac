@@ -22,9 +22,8 @@ const TOOL_KIND_MAP: Record<string, acp.ToolKind> = {
 	// File operations
 	edit_file: "edit",
 	editFile: "edit",
-	replace_symbol: "edit",
-	replaceSymbol: "edit",
-	rename_symbol: "edit",
+	edit_ast: "edit",
+	editAst: "edit",
 	write_to_file: "edit",
 	newFileCreated: "edit",
 	editedExistingFile: "edit",
@@ -40,14 +39,8 @@ const TOOL_KIND_MAP: Record<string, acp.ToolKind> = {
 	listSkills: "read",
 	list_code_definition_names: "read",
 	listCodeDefinitionNames: "read",
-	get_function: "read",
-	getFunction: "read",
-	get_file_skeleton: "read",
-	getFileSkeleton: "read",
 	search_files: "search",
 	searchFiles: "search",
-	find_symbol_references: "search",
-	findSymbolReferences: "search",
 	// Other
 	condense: "think",
 	use_skill: "other",
@@ -82,14 +75,24 @@ export function parseWebSearchMarkerText(text: string | undefined): string | und
 	return query || WEB_SEARCH_FALLBACK_QUERY
 }
 
-function toolKindForCard(header: string): acp.ToolKind {
-	return TOOL_KIND_MAP[header] ?? getBrowserActionKind(header) ?? "other"
-}
-
 function toolNameForCard(card: { header: string; toolName?: string; rawInput?: Record<string, unknown> }): string {
 	if (card.toolName) return card.toolName
 	if (typeof card.rawInput?.tool === "string") return card.rawInput.tool
 	return card.header
+}
+
+function toolKindForCard(card: {
+	header: string
+	toolName?: string
+	rawInput?: Record<string, unknown>
+}): acp.ToolKind {
+	const toolName = toolNameForCard(card)
+	const operation = typeof card.rawInput?.operation === "string" ? card.rawInput.operation : undefined
+	if (toolName === "inspect_ast" || toolName === "inspectAst") {
+		return operation === "definitions" || operation === "references" || operation === "occurrences" ? "search" : "read"
+	}
+	if (toolName === "edit_ast" || toolName === "editAst") return "edit"
+	return TOOL_KIND_MAP[toolName] ?? TOOL_KIND_MAP[card.header] ?? getBrowserActionKind(card.header) ?? "other"
 }
 
 /**
@@ -308,7 +311,7 @@ function translateCardMessage(
 		...(location.line === undefined ? {} : { line: location.line }),
 	}))
 	const isExisting = sessionState.pendingToolCalls.has(toolCallId)
-	const kind = toolKindForCard(card.header)
+	const kind = toolKindForCard(card)
 	const name = toolNameForCard(card)
 	const content = card.diffs?.map((diff) => ({ type: "diff" as const, ...diff }))
 	const rawInput = card.rawInput ?? (card.body ? { body: card.body } : undefined)

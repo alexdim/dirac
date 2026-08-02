@@ -1,0 +1,16 @@
+sample.cpp::cpp_main
+[Implementation Hash: 19e3bd99]
+/**
+ * A top-level function.
+ */
+void cpp_main() {
+    CppClass obj("test");
+    std::cout << obj.getName() << std::endl;
+    std::cout << obj.calculate(10, 20) << std::endl;
+
+    MyNamespace::NamespaceClass nsObj;
+    nsObj.doSomething();
+
+    MyNamespace::NamespaceClass::InnerClass innerObj;
+    std::cout << "Inner: " << innerObj.innerMethod(5) << std::endl;
+}

@@ -1,0 +1,5 @@
+--- get_value in sample.rs ---
+sample.rs:
+  [definition] line 13:12     pub fn get_value(&self) -> i32 {
+
+Lookup kind: definitions.

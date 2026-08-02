@@ -1,0 +1,5 @@
+sample.swift::MyStruct.structMethod
+[Implementation Hash: 31252825]
+func structMethod() {
+        print("struct")
+    }

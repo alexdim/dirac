@@ -25,6 +25,8 @@ import { expect } from "chai"
 import { getSystemPrompt } from "../index"
 import type { SystemPromptContext } from "../types"
 import type { ToolRequestSnapshot } from "@core/task/tools/runtime/ToolSnapshot"
+import { ToolDiscoveryService } from "@core/task/tools/discovery/ToolDiscoveryService"
+import { DiracToolSet } from "../registry/DiracToolSet"
 
 // ============================================================================
 // Configuration
@@ -176,6 +178,55 @@ function emptyToolSnapshot(): ToolRequestSnapshot {
 	}
 }
 
+function builtinToolSnapshot(context: SystemPromptContext): ToolRequestSnapshot {
+	const inventoryEnabledTools = ToolDiscoveryService.scanBuiltinTools()
+	const contextFilteredSpecs = inventoryEnabledTools
+		.map((tool) => tool.spec)
+		.filter((spec) => !spec.contextRequirements || spec.contextRequirements(context))
+	const promptVisibleSpecs = DiracToolSet.withDynamicSubagentToolSpecs(contextFilteredSpecs, context)
+	const nativeTools = DiracToolSet.convertSpecsToNativeTools(promptVisibleSpecs, context)
+	const dynamicSubagentToolNames = new Set(
+		promptVisibleSpecs
+			.filter((spec) => spec.id === "use_subagents" && spec.name !== "use_subagents")
+			.map((spec) => spec.name),
+	)
+	const executableToolNames = new Set([
+		...inventoryEnabledTools.map((tool) => tool.spec.name),
+		...dynamicSubagentToolNames,
+	])
+	return {
+		inventoryVersion: 1,
+		requestId: "test-builtins",
+		promptVisibleSpecs,
+		inventoryEnabledTools,
+		activeSkillIds: [],
+		nativeTools,
+		coordinator: { has: (name: string) => executableToolNames.has(name) } as any,
+		executableToolNames,
+		dynamicSubagentToolNames,
+	}
+}
+
+function assertConsolidatedAstSpecs(snapshot: ToolRequestSnapshot): void {
+	const astSpecs = snapshot.promptVisibleSpecs.filter((spec) => spec.name.endsWith("_ast"))
+	expect(astSpecs.map((spec) => spec.name)).to.deep.equal(["edit_ast", "inspect_ast"])
+	const inspect = astSpecs.find((spec) => spec.name === "inspect_ast")!
+	const edit = astSpecs.find((spec) => spec.name === "edit_ast")!
+	expect(inspect.description).to.include("Prefer inspect_ast")
+	expect(inspect.description).to.include("never modifies files")
+	expect(inspect.parameters?.find((parameter) => parameter.name === "operation")?.enum).to.deep.equal([
+		"outline",
+		"implementation",
+		"definitions",
+		"references",
+		"occurrences",
+	])
+	expect(edit.description).to.include("Strongly prefer edit_ast")
+	expect(edit.description).to.include("partial edits inside a definition")
+	expect(edit.parameters?.find((parameter) => parameter.name === "operation")?.enum).to.deep.equal(["rename", "replace"])
+	expect(edit.parameters?.find((parameter) => parameter.name === "targets")?.type).to.equal("array")
+}
+
 async function runPromptTest(
 	testCtx: TestRunner,
 	context: SystemPromptContext,
@@ -185,7 +236,8 @@ async function runPromptTest(
 	) => Promise<void>,
 ): Promise<void> {
 	testCtx.timeout(TEST_TIMEOUT)
-	const toolSnapshot = emptyToolSnapshot()
+	const toolSnapshot = builtinToolSnapshot(context)
+	assertConsolidatedAstSpecs(toolSnapshot)
 	const result = await getSystemPrompt(context, toolSnapshot)
 	await handler({ ...result, tools: toolSnapshot.nativeTools })
 }

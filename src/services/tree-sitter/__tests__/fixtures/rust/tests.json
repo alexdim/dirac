@@ -1,5 +1,5 @@
 {
-	"get_function": [
+	"implementation": [
 		{
 			"name": "RustStruct_full",
 			"symbols": [
@@ -73,58 +73,58 @@
 			]
 		}
 	],
-	"find_symbol_references": [
+	"occurrences": [
 		{
 			"name": "RustStruct_both",
 			"symbols": [
 				"RustStruct"
 			],
-			"find_type": "both"
+			"operation": "occurrences"
 		},
 		{
 			"name": "new_reference",
 			"symbols": [
 				"new"
 			],
-			"find_type": "reference"
+			"operation": "references"
 		},
 		{
 			"name": "get_value_definition",
 			"symbols": [
 				"get_value"
 			],
-			"find_type": "definition"
+			"operation": "definitions"
 		},
 		{
 			"name": "inner_rust_definition",
 			"symbols": [
 				"inner_rust"
 			],
-			"find_type": "definition"
+			"operation": "definitions"
 		},
 		{
 			"name": "nonExistentSymbol_both",
 			"symbols": [
 				"nonExistentSymbol"
 			],
-			"find_type": "both"
+			"operation": "occurrences"
 		}
 	],
-	"replace_symbol": [
+	"replace": [
 		{
 			"name": "rust_main",
 			"symbol": "rust_main",
-			"text": "/// Replaced Rust main.\npub fn rust_main() {\n    println!(\"Replaced Rust!\");\n}"
+			"replacement": "/// Replaced Rust main.\npub fn rust_main() {\n    println!(\"Replaced Rust!\");\n}"
 		},
 		{
 			"name": "mod_func_full",
 			"symbol": "outer_rust.nested_mod.mod_func",
-			"text": "        pub fn mod_func() {\n            println!(\"Replaced mod func\");\n        }"
+			"replacement": "        pub fn mod_func() {\n            println!(\"Replaced mod func\");\n        }"
 		},
 		{
 			"name": "nonExistentReplace",
 			"symbol": "nonExistentReplace",
-			"text": "should fail"
+			"replacement": "should fail"
 		}
 	]
 }

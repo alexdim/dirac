@@ -1,0 +1,9 @@
+sample.py::PythonClass.calculate
+[Implementation Hash: 2c33192c]
+class PythonClass:
+
+def calculate(self, a: int, b: int) -> int:
+        """
+        A method with parameters.
+        """
+        return a + b

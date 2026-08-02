@@ -92,7 +92,10 @@ export class SubagentContextBuilder {
 		const activeSkills = this.baseConfig.taskState.availableSkills.filter((skill) => activeSkillIds.has(skill.name))
 		const skillTools = ToolRegistry.getInstance().resolveSkillDependencyTools(activeSkills)
 		const enabledTools = this.mergeTools(parentTools, skillTools)
-		const allowedEnabledTools = enabledTools.filter((tool) => this.isDiscoveredToolAllowed(tool))
+		const registry = ToolRegistry.getInstance()
+		const allowedEnabledTools = enabledTools
+			.map((tool) => registry.scopeToolForSubagent(tool, this.allowedTools))
+			.filter((tool): tool is DiscoveredTool => Boolean(tool))
 		const contextFilteredSpecs = allowedEnabledTools
 			.map((tool) => tool.spec)
 			.filter((spec) => !spec.contextRequirements || spec.contextRequirements(context))
@@ -124,8 +127,7 @@ export class SubagentContextBuilder {
 	}
 
 	isDiscoveredToolAllowed(tool: DiscoveredTool): boolean {
-		const allowedSet = new Set(this.allowedTools)
-		return allowedSet.has(tool.id) || allowedSet.has(tool.name) || allowedSet.has(tool.spec.name)
+		return Boolean(ToolRegistry.getInstance().scopeToolForSubagent(tool, this.allowedTools))
 	}
 }
 

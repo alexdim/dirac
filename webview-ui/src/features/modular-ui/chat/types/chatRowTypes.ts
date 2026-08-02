@@ -27,7 +27,7 @@ export interface DisplayUnit {
 	content?: string // Expanded detail (diff, file content, etc.)
 	path?: string // For file-related actions
 	isFilePath?: boolean // Whether the path points to a specific file (vs directory/cwd)
-	symbol?: string // For symbol-related actions (replace_symbol, etc.)
+	symbol?: string // For symbol-aware AST actions (edit_ast, etc.)
 	hasComponent?: boolean // Whether a specialized component is handling the expansion
 	toolName?: string // The raw tool name for tooltip
 }

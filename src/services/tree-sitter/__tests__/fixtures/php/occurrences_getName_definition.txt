@@ -1,0 +1,5 @@
+--- getName in sample.php ---
+sample.php:
+  [definition] line 20:21     public function getName(): string
+
+Lookup kind: definitions.

@@ -1,6 +1,0 @@
-sample.py::outer_func.NestedClass.nested_method
-[Function Hash: fb35e695]
-    class NestedClass:
-...
-def nested_method(self):
-            return inner_func(10)

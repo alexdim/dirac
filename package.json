@@ -1,7 +1,7 @@
 {
     "name": "dirac",
     "displayName": "Dirac",
-    "description": "Reduces API costs by more than 50%, produces better and faster work. Uses Hash anchored parallel edits, AST manipulation and a whole lot of neat optimizations. Fully Open Source.",
+    "description": "Reduces API costs by more than 50%, produces better and faster work. Uses line-anchored parallel edits, AST manipulation and a whole lot of neat optimizations. Fully Open Source.",
     "version": "0.4.32",
     "icon": "assets/icons/icon.png",
     "workspaces": [
@@ -43,7 +43,7 @@
         "developer-tools",
         "open-source-ai",
         "ast-editing",
-        "hash-anchored-edits",
+        "line-anchored-edits",
         "multi-file-editing",
         "context-optimization",
         "native-tool-calling",
@@ -67,8 +67,8 @@
                 "steps": [
                     {
                         "id": "hash-anchored-edits",
-                        "title": "Hash Anchored MultiFile Edits",
-                        "description": "Dirac targets line hashes for high-accuracy edits, batching multiple changes across files in a single shot.",
+                        "title": "Line-Anchored MultiFile Edits",
+                        "description": "Dirac targets exact source lines with opaque stateful IDs, batching multiple changes across files in a single shot.",
                         "media": {
                             "markdown": "walkthrough/step1.md"
                         }

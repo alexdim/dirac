@@ -1,5 +1,0 @@
-sample.kt::Singleton.singletonMethod
-[Function Hash: 783a7a92]
-fun singletonMethod() {
-        println("singleton")
-    }

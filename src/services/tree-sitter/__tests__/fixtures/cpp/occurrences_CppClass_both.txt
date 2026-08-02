@@ -1,0 +1,9 @@
+Partial failure: some requested AST targets succeeded while others failed.
+
+--- CppClass in sample.cpp ---
+sample.cpp:
+  [definition] line 7:7 class CppClass {
+
+Partial failure: References for 'CppClass' are ambiguous: the symbol index records only the simple name 'CppClass' and cannot assign references among CppClass, CppClass.CppClass. No references were returned or planned.
+
+Lookup kind: definitions and references.

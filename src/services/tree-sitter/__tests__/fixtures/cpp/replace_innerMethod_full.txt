@@ -1,0 +1,3 @@
+Replacement completed: 1 edit(s) in 1 file(s).
+
+Saved sample.cpp (1 edit(s)). No diagnostics problems reported.

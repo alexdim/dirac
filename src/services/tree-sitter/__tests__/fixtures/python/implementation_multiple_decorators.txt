@@ -1,0 +1,11 @@
+sample.py::ComplexDecorators.multiple_decorators
+[Implementation Hash: f79d784b]
+class ComplexDecorators:
+
+@property
+    @staticmethod
+    def multiple_decorators():
+        """
+        Method with multiple decorators.
+        """
+        return "multiple"

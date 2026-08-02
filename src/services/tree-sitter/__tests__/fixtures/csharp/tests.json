@@ -1,5 +1,5 @@
 {
-	"get_function": [
+	"implementation": [
 		{
 			"name": "CSharpClass_full",
 			"symbols": [
@@ -37,39 +37,39 @@
 			]
 		}
 	],
-	"find_symbol_references": [
+	"occurrences": [
 		{
 			"name": "CSharpClass_both",
 			"symbols": [
 				"CSharpClass"
 			],
-			"find_type": "both"
+			"operation": "occurrences"
 		},
 		{
 			"name": "GetName_definition",
 			"symbols": [
 				"GetName"
 			],
-			"find_type": "definition"
+			"operation": "definitions"
 		},
 		{
 			"name": "nonExistentSymbol_both",
 			"symbols": [
 				"nonExistentSymbol"
 			],
-			"find_type": "both"
+			"operation": "occurrences"
 		}
 	],
-	"replace_symbol": [
+	"replace": [
 		{
 			"name": "TopLevelFunc",
 			"symbol": "Program.TopLevelFunc",
-			"text": "        public static int TopLevelFunc(int x)\n        {\n            Console.WriteLine(\"Replaced C# func\");\n            return x * 100;\n        }"
+			"replacement": "        public static int TopLevelFunc(int x)\n        {\n            Console.WriteLine(\"Replaced C# func\");\n            return x * 100;\n        }"
 		},
 		{
 			"name": "nonExistentReplace",
 			"symbol": "nonExistentReplace",
-			"text": "should fail"
+			"replacement": "should fail"
 		}
 	]
 }

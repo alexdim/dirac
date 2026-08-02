@@ -277,6 +277,61 @@ describe("ToolRegistry", () => {
 			registry.registerUserTool(makeTool({ id: "user_id", name: "user_name", source: "workspace" }))
 			assert.strictEqual(registry.isToolAllowed("user_name", ["user_id"]), false)
 		})
+
+
+		it("narrows consolidated AST schemas and runtime execution to scoped operations", async () => {
+			const registry = ToolRegistry.getInstance()
+			let receivedOperation: string | undefined
+			registry.registerBuiltin(
+				makeTool({
+					id: "inspect_ast",
+					spec: {
+						id: "inspect_ast" as DiracDefaultTool,
+						name: "inspect_ast",
+						description: "Inspect source AST",
+						parameters: [
+							{
+								name: "operation",
+								required: true,
+								type: "string",
+								enum: ["outline", "implementation", "definitions", "references", "occurrences"],
+								instruction: "Operation",
+							},
+						],
+					} as DiracToolSpec,
+					factory: () => ({
+						spec: () => ({}) as DiracToolSpec,
+						supportedSurfaces: () => ["all" as const],
+						processCall: async (args: any) => {
+							receivedOperation = args.operation
+							return "ok"
+						},
+					}),
+				}),
+			)
+
+			const specs = registry.getEnabledSpecsForSubagent({} as any, ["inspect_ast:outline"])
+			assert.deepStrictEqual(specs[0].parameters?.find((parameter) => parameter.name === "operation")?.enum, ["outline"])
+
+			const [tool] = registry.createEnabledToolsForSubagent({} as any, ["inspect_ast:outline"])
+			await tool.processCall({ operation: "outline" }, {} as any)
+			assert.strictEqual(receivedOperation, "outline")
+			await assert.rejects(() => tool.processCall({ operation: "references" }, {} as any), /not authorized/)
+		})
+
+		it("plain consolidated AST names grant every family operation", () => {
+			const registry = ToolRegistry.getInstance()
+			registry.registerBuiltin(makeTool({ id: "edit_ast" }))
+			assert.strictEqual(registry.isToolAllowed("edit_ast", ["edit_ast"], "rename"), true)
+			assert.strictEqual(registry.isToolAllowed("edit_ast", ["edit_ast"], "replace"), true)
+		})
+
+		it("scoped consolidated AST entries reject unauthorized runtime operations", () => {
+			const registry = ToolRegistry.getInstance()
+			registry.registerBuiltin(makeTool({ id: "edit_ast" }))
+			assert.strictEqual(registry.isToolAllowed("edit_ast", ["edit_ast:rename"], "rename"), true)
+			assert.strictEqual(registry.isToolAllowed("edit_ast", ["edit_ast:rename"], "replace"), false)
+		})
 	})
 
 	describe("replaceUserTool", () => {

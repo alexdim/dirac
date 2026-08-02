@@ -295,98 +295,103 @@ export async function formatResults(
 	anchorTaskId?: string,
 	includeAnchors?: boolean,
 ): Promise<string> {
-	let output = ""
-	if (matchCount >= MAX_RESULTS) {
-		output += `Showing first ${MAX_RESULTS} of ${matchCount.toLocaleString()}+ results. Use a more specific search if necessary.\n\n`
-	} else {
-		output += `Found ${matchCount === 1 ? "1 result" : `${matchCount.toLocaleString()} results`}.\n\n`
-	}
-
+	let output = matchCount >= MAX_RESULTS
+		? `Showing first ${MAX_RESULTS} of ${matchCount.toLocaleString()}+ results. Use a more specific search if necessary.\n\n`
+		: `Found ${matchCount === 1 ? "1 result" : `${matchCount.toLocaleString()} results`}.\n\n`
 	let byteSize = Buffer.byteLength(output, "utf8")
 	let wasLimitReached = false
 
-	// results are already sorted by file and then lineNum
 	for (const fileResult of results) {
 		const absoluteFilePath = fileResult.filePath
 		const relPath = path.relative(cwd, absoluteFilePath)
-		let anchors: string[] = []
+		let currentLines: string[] | undefined
+		let anchors: string[] | undefined
 
 		if (includeAnchors) {
 			try {
-				const content = await fs.readFile(absoluteFilePath, "utf8")
-				const lines = content.split(/\r?\n/)
-				anchors = AnchorStateManager.reconcile(absoluteFilePath, lines, anchorTaskId)
+				currentLines = (await fs.readFile(absoluteFilePath, "utf8")).split(/\r?\n/)
+				anchors = AnchorStateManager.reconcile(absoluteFilePath, currentLines, anchorTaskId)
 			} catch (error) {
 				Logger.error(`Error reading file for search anchors: ${absoluteFilePath}`, error)
+				const message = `${relPath}\n[Anchored results unavailable because the file could not be reread. Rerun search_files.]\n\n`
+				if (byteSize + Buffer.byteLength(message, "utf8") >= MAX_BYTE_SIZE) {
+					wasLimitReached = true
+					break
+				}
+				output += message
+				byteSize += Buffer.byteLength(message, "utf8")
+				continue
+			}
+
+			const changedDuringSearch = fileResult.lines.some((line) => {
+				const searchedContent = line.content.replace(/\r?\n$/, "")
+				return currentLines?.[line.lineNum - 1] !== searchedContent
+			})
+			if (changedDuringSearch) {
+				const message = `${relPath}\n[Anchored results omitted because the file changed during search. Rerun search_files for current coordinates.]\n\n`
+				if (byteSize + Buffer.byteLength(message, "utf8") >= MAX_BYTE_SIZE) {
+					wasLimitReached = true
+					break
+				}
+				output += message
+				byteSize += Buffer.byteLength(message, "utf8")
+				continue
 			}
 		}
 
 		const filePathHeader = `${relPath.toPosix()}\n│----\n`
-		const headerBytes = Buffer.byteLength(filePathHeader, "utf8")
-
-		if (byteSize + headerBytes >= MAX_BYTE_SIZE) {
+		if (byteSize + Buffer.byteLength(filePathHeader, "utf8") >= MAX_BYTE_SIZE) {
 			wasLimitReached = true
 			break
 		}
-
 		output += filePathHeader
-		byteSize += headerBytes
+		byteSize += Buffer.byteLength(filePathHeader, "utf8")
 
 		let fileSkippedResults = 0
 		let lastLineNum = -1
-
-		for (let i = 0; i < fileResult.lines.length; i++) {
-			const line = fileResult.lines[i]
-
-			if (line.content.length > MAX_LINE_LENGTH) {
+		for (const line of fileResult.lines) {
+			const sourceLine = includeAnchors ? currentLines![line.lineNum - 1] : line.content.replace(/\r?\n$/, "")
+			if (!includeAnchors && sourceLine.length > MAX_LINE_LENGTH) {
 				if (line.isMatch) fileSkippedResults++
 				continue
 			}
 
-			// Add separator if there's a gap in line numbers
 			if (lastLineNum !== -1 && line.lineNum !== lastLineNum + 1) {
 				const separator = "│----\n"
-				const separatorBytes = Buffer.byteLength(separator, "utf8")
-				if (byteSize + separatorBytes >= MAX_BYTE_SIZE) {
+				if (byteSize + Buffer.byteLength(separator, "utf8") >= MAX_BYTE_SIZE) {
 					wasLimitReached = true
 					break
 				}
 				output += separator
-				byteSize += separatorBytes
+				byteSize += Buffer.byteLength(separator, "utf8")
 			}
 
-			const anchor = anchors[line.lineNum - 1] || `L${line.lineNum}`
-			const strippedLine = line.content.replace(/\r?\n$/, "")
-			const displayLine = includeAnchors ? formatLineWithHash(strippedLine, anchor) : strippedLine
-			const lineString = `│${displayLine}\n`
-			const lineBytes = Buffer.byteLength(lineString, "utf8")
-
-			if (byteSize + lineBytes >= MAX_BYTE_SIZE) {
+			const displayLine = includeAnchors
+				? formatLineWithHash(sourceLine, anchors![line.lineNum - 1])
+				: sourceLine
+			const lineString = includeAnchors ? `${displayLine}\n` : `│${displayLine}\n`
+			if (byteSize + Buffer.byteLength(lineString, "utf8") >= MAX_BYTE_SIZE) {
 				wasLimitReached = true
 				break
 			}
-
 			output += lineString
-			byteSize += lineBytes
+			byteSize += Buffer.byteLength(lineString, "utf8")
 			lastLineNum = line.lineNum
 		}
-
 		if (wasLimitReached) break
 
 		if (fileSkippedResults > 0) {
 			const note = `│ (${fileSkippedResults} result${fileSkippedResults > 1 ? "s" : ""} skipped due to line length limits)\n`
-			const noteBytes = Buffer.byteLength(note, "utf8")
-			if (byteSize + noteBytes < MAX_BYTE_SIZE) {
+			if (byteSize + Buffer.byteLength(note, "utf8") < MAX_BYTE_SIZE) {
 				output += note
-				byteSize += noteBytes
+				byteSize += Buffer.byteLength(note, "utf8")
 			}
 		}
 
 		const closing = "│----\n\n"
-		const closingBytes = Buffer.byteLength(closing, "utf8")
-		if (byteSize + closingBytes < MAX_BYTE_SIZE) {
+		if (byteSize + Buffer.byteLength(closing, "utf8") < MAX_BYTE_SIZE) {
 			output += closing
-			byteSize += closingBytes
+			byteSize += Buffer.byteLength(closing, "utf8")
 		} else {
 			wasLimitReached = true
 			break
@@ -395,10 +400,7 @@ export async function formatResults(
 
 	if (wasLimitReached) {
 		const truncationMessage = `\n[Results truncated due to exceeding the ${MAX_RIPGREP_MB}MB size limit. Please use a more specific search pattern.]`
-		if (byteSize + Buffer.byteLength(truncationMessage, "utf8") < MAX_BYTE_SIZE) {
-			output += truncationMessage
-		}
+		if (byteSize + Buffer.byteLength(truncationMessage, "utf8") < MAX_BYTE_SIZE) output += truncationMessage
 	}
-
-	return output.trim()
+	return output.replace(/\n+$/, "")
 }

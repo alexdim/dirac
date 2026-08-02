@@ -5,7 +5,7 @@
 
 It is a well studied phenomenon that any given model's reasoning ability degrades with the context length. If we can keep context tightly curated, we improve both accuracy and cost while making larger changes tractable in a single task. 
 
-Dirac is an open-source coding agent built with this in mind. It reduces API costs by **64.8%** on average while producing better and faster work. Using hash-anchored parallel edits, AST manipulation, and a suite of advanced optimizations. Oh, and no MCP.
+Dirac is an open-source coding agent built with this in mind. It reduces API costs by **64.8%** on average while producing better and faster work. Using line-anchored parallel edits, AST manipulation, and a suite of advanced optimizations. Oh, and no MCP.
 
 Our goal: Optimize for bang-for-the-buck on tooling with bare minimum prompting instead of going blindly minimalistic.
 
@@ -44,8 +44,8 @@ All tasks for all models used `gemini-3-flash-preview` with thinking set to `hig
 
 ## 🚀 Key Features
 
-- **Hash-Anchored Edits**: Dirac uses stable line hashes to target edits with extreme precision, avoiding the "lost in translation" issues of traditional line-number based editing.
-  ![Hash-Anchored Edits](https://www.dirac.run/static/images/multiple_edit.png)
+- **Line-Anchored Edits**: Dirac uses opaque, stateful line IDs paired with exact source content to target edits precisely without relying on line numbers.
+  ![Line-Anchored Edits](https://www.dirac.run/static/images/multiple_edit.png)
 - **AST-Native Precision**: Built-in understanding of language syntax (TypeScript, Python, C++, etc.) allows Dirac to perform structural manipulations like function extraction or class refactoring with 100% accuracy.
   ![AST-Native Precision](https://www.dirac.run/static/images/parallel_AST_edit.png)
 - **Multi-File Batching**: Dirac can process and edit multiple files in a single LLM roundtrip, significantly reducing latency and API costs.

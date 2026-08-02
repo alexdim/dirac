@@ -1,0 +1,5 @@
+--- innerMethod in sample.cpp ---
+sample.cpp:
+  [definition] line 49:17             int innerMethod(int val) {
+
+Lookup kind: definitions.

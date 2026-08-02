@@ -434,14 +434,6 @@ describe("SurfaceAdapter", () => {
 		})
 	})
 
-	describe("symbol trait", () => {
-		it("getDefinitions delegates to SymbolIndexService", async () => {
-			const svc = require("@/services/symbol-index/SymbolIndexService").SymbolIndexService
-			sinon.stub(svc, "getInstance").returns({ getDefinitions: sinon.stub().resolves(["loc1"]) })
-			const result = await adapter.symbol.getDefinitions({ name: "foo" } as any)
-			result.should.deepEqual(["loc1"])
-		})
-	})
 
 	describe("orchestration trait", () => {
 		it("switchToActMode delegates to callbacks.switchToActMode", async () => {

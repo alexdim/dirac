@@ -7,6 +7,7 @@ import { DiracIcon } from "@/shared/icons"
 import { WorkspacePathAdapter } from "../../../../workspace/WorkspacePathAdapter"
 import * as fs from "fs/promises"
 import * as path from "path"
+import { getDelimiter } from "@utils/line-hashing"
 
 export interface SearchFilesArgs {
 	paths: string[]
@@ -68,7 +69,7 @@ export const search_files_spec: DiracToolSpec = {
 			required: false,
 			type: "boolean",
 			instruction:
-				"Optional. When true, returns source lines prefixed with stable hash anchors usable by edit_file. Default false.",
+				`Optional. When true, each current matched/context source line is emitted as a standalone complete ANCHOR${getDelimiter()}CONTENT coordinate required by edit_file; headers and separators remain unanchored. If a file changes during search, anchored results for it are omitted and must be searched again. Default false.`,
 			usage: "true",
 		},
 	],
@@ -105,10 +106,10 @@ export class SearchFilesTool implements IDiracTool<SearchFilesArgs, string> {
 		const isSubagent = env.config.isSubagentExecution
 		const card = !isSubagent
 			? await env.ui.createCard({
-					header: `Searching '${regex}' in ${headerPath}`,
-					icon: DiracIcon.SEARCH,
-					collapsed: true,
-				})
+				header: `Searching '${regex}' in ${headerPath}`,
+				icon: DiracIcon.SEARCH,
+				collapsed: true,
+			})
 			: undefined
 
 		try {
@@ -359,9 +360,8 @@ export class SearchFilesTool implements IDiracTool<SearchFilesArgs, string> {
 			if (totalResultCount === 0) {
 				finalResult = "Found 0 results."
 			} else {
-				finalResult = `Found ${
-					totalResultCount === 1 ? "1 result" : `${totalResultCount.toLocaleString()} results`
-				} across ${allSearchPaths.length} workspace${allSearchPaths.length > 1 ? "s" : ""}.\n\n${allResults.join("\n\n")}`
+				finalResult = `Found ${totalResultCount === 1 ? "1 result" : `${totalResultCount.toLocaleString()} results`
+					} across ${allSearchPaths.length} workspace${allSearchPaths.length > 1 ? "s" : ""}.\n\n${allResults.join("\n\n")}`
 			}
 		} else {
 			finalResult = allResults[0] || "Found 0 results."

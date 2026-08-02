@@ -1,0 +1,5 @@
+sample.rs::trait_method
+[Implementation Hash: 2c5333a9]
+fn trait_method(&self) {
+        println!("Trait method called for value: {}", self.value);
+    }

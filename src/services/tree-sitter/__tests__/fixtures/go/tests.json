@@ -1,5 +1,5 @@
 {
-	"get_function": [
+	"implementation": [
 		{
 			"name": "GoStruct_full",
 			"symbols": [
@@ -31,39 +31,39 @@
 			]
 		}
 	],
-	"find_symbol_references": [
+	"occurrences": [
 		{
 			"name": "GoStruct_both",
 			"symbols": [
 				"GoStruct"
 			],
-			"find_type": "both"
+			"operation": "occurrences"
 		},
 		{
 			"name": "GetName_definition",
 			"symbols": [
 				"GetName"
 			],
-			"find_type": "definition"
+			"operation": "definitions"
 		},
 		{
 			"name": "nonExistentSymbol_both",
 			"symbols": [
 				"nonExistentSymbol"
 			],
-			"find_type": "both"
+			"operation": "occurrences"
 		}
 	],
-	"replace_symbol": [
+	"replace": [
 		{
 			"name": "TopLevelFunc",
 			"symbol": "TopLevelFunc",
-			"text": "func TopLevelFunc(x int) int {\n\tfmt.Println(\"Replaced Go func\")\n\treturn x * 2\n}"
+			"replacement": "func TopLevelFunc(x int) int {\n\tfmt.Println(\"Replaced Go func\")\n\treturn x * 2\n}"
 		},
 		{
 			"name": "nonExistentReplace",
 			"symbol": "nonExistentReplace",
-			"text": "should fail"
+			"replacement": "should fail"
 		}
 	]
 }

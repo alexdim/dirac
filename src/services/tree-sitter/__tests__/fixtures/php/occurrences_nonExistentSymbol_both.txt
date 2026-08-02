@@ -1,0 +1,7 @@
+The tool execution failed with the following error:
+<error>
+--- nonExistentSymbol in sample.php ---
+Symbol not found: Symbol not found: nonExistentSymbol in sample.php.
+
+Lookup kind: definitions and references.
+</error>

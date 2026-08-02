@@ -1,91 +1,88 @@
 /**
- * Shared utility for hash-anchored line protocol.
- * Used by both the extension (to generate/reconcile hashes) and the webview (to strip hashes for display).
+ * Shared utilities for the model-facing line-anchor protocol.
+ * Visible anchor IDs are opaque stateful coordinates, not content hashes.
  */
 
 export const ANCHOR_DELIMITER = "§"
 
-/**
- * Returns the centralized delimiter used to separate anchors from content.
- *
- * @returns The anchor delimiter string
- */
+const ANCHOR_ID_PATTERN = /^[A-Z][a-zA-Z]*$/
+
+export interface AnchoredLineParts {
+	anchor: string
+	content: string
+}
+
+/** Returns the centralized delimiter used to separate an anchor ID from exact line content. */
 export function getDelimiter(): string {
 	return ANCHOR_DELIMITER
 }
 
-/**
- * Removes a hash anchor prefix from a line when the line starts with one.
- */
+/** Returns whether a visible anchor ID satisfies the shared producer/consumer contract. */
+export function isValidAnchorId(value: string): boolean {
+	return ANCHOR_ID_PATTERN.test(value)
+}
+
+/** Returns the JSON Schema pattern for one complete model-facing anchored source line. */
+export function getAnchoredLinePattern(): string {
+	const escapedDelimiter = ANCHOR_DELIMITER.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
+	return `^[A-Z][a-zA-Z]*${escapedDelimiter}[^\\r\\n]*$`
+}
+
+/** Parses one complete anchored source line without normalizing either half of the coordinate. */
+export function parseAnchoredLine(value: string): AnchoredLineParts | null {
+	if (typeof value !== "string" || value.includes("\n") || value.includes("\r")) return null
+	const delimiterIndex = value.indexOf(ANCHOR_DELIMITER)
+	if (delimiterIndex <= 0) return null
+
+	const anchor = value.substring(0, delimiterIndex)
+	if (!isValidAnchorId(anchor)) return null
+	return {
+		anchor,
+		content: value.substring(delimiterIndex + ANCHOR_DELIMITER.length),
+	}
+}
+
+/** Returns whether any source-text line begins with a complete line anchor. */
+export function containsAnchoredLine(content: string): boolean {
+	return content.split(/\r?\n/).some((line) => parseAnchoredLine(line) !== null)
+}
+
+/** Removes a line-anchor prefix when it starts at the requested offset. */
 function stripAnchorPrefix(line: string, offset = 0): string {
-	const delimiterIndex = line.indexOf(ANCHOR_DELIMITER, offset)
-	if (delimiterIndex === -1) {
-		return line
-	}
+	const parsed = parseAnchoredLine(line.substring(offset))
+	return parsed ? line.substring(0, offset) + parsed.content : line
+}
 
-	const prefix = line.substring(offset, delimiterIndex)
-	if (!/^[A-Z][a-zA-Z]*$/.test(prefix)) {
-		return line
-	}
-
-	return line.substring(0, offset) + line.substring(delimiterIndex + ANCHOR_DELIMITER.length)
+function transformLinesPreservingSeparators(content: string, transform: (line: string) => string): string {
+	return content
+		.split(/(\r?\n)/)
+		.map((part, index) => index % 2 === 0 ? transform(part) : part)
+		.join("")
 }
 
 /**
- * Strips hash prefixes from raw content.
- * Only removes a prefix when the line starts directly with an anchor word followed by the delimiter.
- * Interior anchors and indented anchor-like literals are preserved exactly.
- *
- * @param content - The content containing hashed lines
- * @returns The clean content without line-start hashes
+ * Strips line-anchor prefixes from raw content.
+ * Interior anchor-like text and indented anchor-like literals are preserved exactly.
  */
 export function stripHashes(content: string): string {
-	if (!content) {
-		return ""
-	}
-
-	return content
-		.split("\n")
-		.map((line) => stripAnchorPrefix(line))
-		.join("\n")
+	if (!content) return ""
+	return transformLinesPreservingSeparators(content, (line) => stripAnchorPrefix(line))
 }
 
-/**
- * Strips hash prefixes from diff-formatted content.
- * Preserves a leading diff marker (+, -, or space) and removes an anchor immediately after it.
- * Lines without a diff marker use the same behavior as stripHashes.
- *
- * @param content - The diff content containing hashed lines
- * @returns The clean diff content without anchor prefixes
- */
+/** Strips line anchors after an optional leading diff marker while preserving that marker. */
 export function stripHashesFromDiff(content: string): string {
-	if (!content) {
-		return ""
-	}
-
-	return content
-		.split("\n")
-		.map((line) => {
-			if (line.length > 0 && (line[0] === "+" || line[0] === "-" || line[0] === " ")) {
-				return stripAnchorPrefix(line, 1)
-			}
-
-			return stripAnchorPrefix(line)
-		})
-		.join("\n")
+	if (!content) return ""
+	return transformLinesPreservingSeparators(content, (line) => {
+		if (line.length > 0 && (line[0] === "+" || line[0] === "-" || line[0] === " ")) {
+			return stripAnchorPrefix(line, 1)
+		}
+		return stripAnchorPrefix(line)
+	})
 }
 
-/**
- * Extracts the ID from a line reference provided by the model.
- * Handles both "ID" and "ID:CONTENT" formats.
- *
- * @param ref - The line reference string
- * @returns The extracted ID
- */
+/** Extracts the identifier portion of a line reference without validating the complete coordinate. */
 export function extractId(ref: string): string {
-	if (!ref) {
-		return ""
-	}
+	if (!ref) return ""
 	const delimiterIndex = ref.indexOf(ANCHOR_DELIMITER)
 	return delimiterIndex === -1 ? ref : ref.substring(0, delimiterIndex)
 }

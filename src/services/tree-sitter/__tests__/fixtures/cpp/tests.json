@@ -1,5 +1,5 @@
 {
-	"get_function": [
+	"implementation": [
 		{
 			"name": "CppClass_full",
 			"symbols": [
@@ -79,58 +79,58 @@
 			]
 		}
 	],
-	"find_symbol_references": [
+	"occurrences": [
 		{
 			"name": "CppClass_both",
 			"symbols": [
 				"CppClass"
 			],
-			"find_type": "both"
+			"operation": "occurrences"
 		},
 		{
 			"name": "getName_reference",
 			"symbols": [
 				"getName"
 			],
-			"find_type": "reference"
+			"operation": "references"
 		},
 		{
 			"name": "calculate_both",
 			"symbols": [
 				"calculate"
 			],
-			"find_type": "both"
+			"operation": "occurrences"
 		},
 		{
 			"name": "innerMethod_definition",
 			"symbols": [
 				"innerMethod"
 			],
-			"find_type": "definition"
+			"operation": "definitions"
 		},
 		{
 			"name": "nonExistentSymbol_both",
 			"symbols": [
 				"nonExistentSymbol"
 			],
-			"find_type": "both"
+			"operation": "occurrences"
 		}
 	],
-	"replace_symbol": [
+	"replace": [
 		{
 			"name": "cpp_main",
 			"symbol": "cpp_main",
-			"text": "void cpp_main() {\n    std::cout << \"Replaced C++!\" << std::endl;\n}"
+			"replacement": "void cpp_main() {\n    std::cout << \"Replaced C++!\" << std::endl;\n}"
 		},
 		{
 			"name": "innerMethod_full",
 			"symbol": "MyNamespace.NamespaceClass.InnerClass.innerMethod",
-			"text": "            int innerMethod(int val) {\n                return val * 100;\n            }"
+			"replacement": "            int innerMethod(int val) {\n                return val * 100;\n            }"
 		},
 		{
 			"name": "nonExistentReplace",
 			"symbol": "nonExistentReplace",
-			"text": "should fail"
+			"replacement": "should fail"
 		}
 	]
 }

@@ -21,36 +21,42 @@ export function toolSpecFunctionDefinition(tool: DiracToolSpec, context: SystemP
 	}
 
 	const processSchema = (schema: any, optional = false): any => {
-		if (schema.type === "object") {
-			const properties: Record<string, any> = {}
-			const originalRequired = new Set<string>(schema.required ?? [])
+		const {
+			type,
+			properties: rawProperties,
+			required: rawRequired,
+			items: rawItems,
+			enum: enumValues,
+			...constraints
+		} = schema
 
-			for (const [key, value] of Object.entries(schema.properties ?? {})) {
+		if (type === "object") {
+			const properties: Record<string, any> = {}
+			const originalRequired = new Set<string>(rawRequired ?? [])
+			for (const [key, value] of Object.entries(rawProperties ?? {})) {
 				properties[key] = processSchema(value, !originalRequired.has(key))
 			}
-
 			return {
+				...constraints,
 				type: optional ? nullableType("object") : "object",
 				properties,
 				required: Object.keys(properties),
 				additionalProperties: false,
-				...(schema.description ? { description: schema.description } : {}),
 			}
 		}
 
-		if (schema.type === "array" && schema.items) {
+		if (type === "array" && rawItems) {
 			return {
+				...constraints,
 				type: optional ? nullableType("array") : "array",
-				items: processSchema(schema.items),
-				...(schema.description ? { description: schema.description } : {}),
+				items: processSchema(rawItems),
 			}
 		}
 
-		const { type, description, enum: enumValues } = schema
 		const processedEnum = optional && enumValues && !enumValues.includes(null) ? [...enumValues, null] : enumValues
 		return {
+			...constraints,
 			type: optional ? nullableType(type) : type,
-			...(description ? { description } : {}),
 			...(processedEnum ? { enum: processedEnum } : {}),
 		}
 	}

@@ -1,0 +1,5 @@
+sample.php::AnotherClass.staticMethod
+[Implementation Hash: 63517dd3]
+public static function staticMethod() {
+        return "static";
+    }

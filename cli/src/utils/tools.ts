@@ -9,14 +9,12 @@
  */
 export const FILE_EDIT_TOOLS = new Set([
 	"edit_file",
-	"replace_symbol",
+	"edit_ast",
 	"write_to_file",
-	"rename_symbol",
 	"edited_existing_file",
 	"new_file_created",
 	"editedExistingFile",
 	"newFileCreated",
-	"renameSymbol",
 ])
 
 /**
@@ -24,14 +22,12 @@ export const FILE_EDIT_TOOLS = new Set([
  */
 export const FILE_SAVE_TOOLS = new Set([
 	"edit_file",
-	"replace_symbol",
+	"edit_ast",
 	"write_to_file",
-	"rename_symbol",
 	"edited_existing_file",
 	"new_file_created",
 	"editedExistingFile",
 	"newFileCreated",
-	"renameSymbol",
 ])
 
 /**
@@ -71,8 +67,7 @@ export const TOOL_DESCRIPTIONS: Record<string, { ask: string; say: string }> = {
 	file_deleted: { ask: "wants to delete", say: "deleted" },
 	write_to_file: { ask: "wants to create", say: "created" },
 	edit_file: { ask: "wants to edit", say: "edited" },
-	replace_symbol: { ask: "wants to replace", say: "replaced" },
-	rename_symbol: { ask: "wants to rename", say: "renamed" },
+	edit_ast: { ask: "wants to edit source symbols", say: "edited source symbols" },
 
 	// Directory operations
 	list_files: { ask: "wants to view files in", say: "viewed files in" },
@@ -82,9 +77,7 @@ export const TOOL_DESCRIPTIONS: Record<string, { ask: string; say: string }> = {
 	search_files: { ask: "wants to search for", say: "searched for" },
 
 	// Code Analysis
-	find_symbol_references: { ask: "wants to find references for", say: "found references for" },
-	get_function: { ask: "wants to extract", say: "extracted" },
-	get_file_skeleton: { ask: "wants to read the structure of", say: "read the structure of" },
+	inspect_ast: { ask: "wants to inspect source structure", say: "inspected source structure" },
 	diagnostics_scan: { ask: "wants to scan for diagnostics in", say: "scanned for diagnostics in" },
 
 	// Command execution
@@ -190,36 +183,39 @@ export function getToolMainArg(toolName: string, args: Record<string, unknown>):
 	}
 
 	// Special handling for specific tools
-	if (normalized === "get_function") {
-		const functionNames = asStringArray(getArg("function_names") || getArg("function_name"))
+	if (normalized === "inspect_ast") {
+		const operation = getArg("operation")
+		const symbols = asStringArray(getArg("symbols") || getArg("symbol"))
 		const paths = asStringArray(getArg("paths") || getArg("path"))
-
-		const functionsStr = formatList(functionNames)
+		const operationLabel = typeof operation === "string" ? operation : "inspect"
+		const symbolsStr = formatList(symbols)
 		const pathsStr = formatList(paths)
 
-		if (functionsStr && pathsStr) return `${functionsStr} from ${pathsStr}`
-		return functionsStr || pathsStr
+		if (symbolsStr && pathsStr) return `${operationLabel}: ${symbolsStr} in ${pathsStr}`
+		if (pathsStr) return `${operationLabel}: ${pathsStr}`
+		if (symbolsStr) return `${operationLabel}: ${symbolsStr}`
+		return operationLabel
 	}
 
-	if (normalized === "replace_symbol") {
-		const replacements = Array.isArray(getArg("replacements")) ? (getArg("replacements") as any[]) : []
-		if (replacements.length > 0) {
-			const symbols = replacements.map((r) => r.symbol).filter((s): s is string => typeof s === "string")
-			const paths = [...new Set(replacements.map((r) => r.path).filter((p): p is string => typeof p === "string"))]
+	if (normalized === "edit_ast") {
+		const operation = getArg("operation")
+		const targets = Array.isArray(getArg("targets")) ? (getArg("targets") as any[]) : []
+		const symbols = targets.map((target) => target?.symbol).filter((symbol): symbol is string => typeof symbol === "string")
+		const paths = [
+			...new Set(targets.map((target) => target?.path).filter((path): path is string => typeof path === "string")),
+		]
+		const operationLabel = typeof operation === "string" ? operation : "edit"
+		const symbolsStr = formatList(symbols)
+		const pathsStr = formatList(paths)
 
-			const symbolsStr = formatList(symbols)
-			const pathsStr = formatList(paths)
-
-			if (symbolsStr && pathsStr) return `${symbolsStr} in ${pathsStr}`
-			return symbolsStr || pathsStr
+		if (operationLabel === "rename" && targets.length > 0 && typeof targets[0]?.replacement === "string") {
+			const rename = `'${targets[0].symbol}' to '${targets[0].replacement}'`
+			return pathsStr ? `rename: ${rename} in ${pathsStr}` : `rename: ${rename}`
 		}
-
-		const symbol = getArg("symbol")
-		const path = getArg("path")
-		if (typeof symbol === "string" && typeof path === "string") {
-			return `${symbol} in ${path}`
-		}
-		return (typeof symbol === "string" ? symbol : "") || (typeof path === "string" ? path : "")
+		if (symbolsStr && pathsStr) return `${operationLabel}: ${symbolsStr} in ${pathsStr}`
+		if (pathsStr) return `${operationLabel}: ${pathsStr}`
+		if (symbolsStr) return `${operationLabel}: ${symbolsStr}`
+		return operationLabel
 	}
 
 	if (normalized === "edit_file") {
@@ -240,27 +236,6 @@ export function getToolMainArg(toolName: string, args: Record<string, unknown>):
 		if (typeof path === "string") return path
 	}
 
-	if (normalized === "rename_symbol") {
-		const existingSymbol = getArg("existing_symbol") || getArg("existingSymbol")
-		const newSymbol = getArg("new_symbol") || getArg("newSymbol")
-		const paths = asStringArray(getArg("paths") || getArg("path"))
-
-		if (typeof existingSymbol === "string" && typeof newSymbol === "string") {
-			const base = `'${existingSymbol}' to '${newSymbol}'`
-			return paths.length > 0 ? `${base} in ${formatList(paths)}` : base
-		}
-	}
-
-	if (normalized === "find_symbol_references") {
-		const symbols = asStringArray(getArg("symbols") || getArg("symbol"))
-		const paths = asStringArray(getArg("paths") || getArg("path"))
-
-		const symbolsStr = formatList(symbols)
-		const pathsStr = formatList(paths)
-
-		if (symbolsStr && pathsStr) return `${symbolsStr} in ${pathsStr}`
-		return symbolsStr || pathsStr
-	}
 
 	// Generic argument extraction
 	// Search files: show 'regex' in path(s)

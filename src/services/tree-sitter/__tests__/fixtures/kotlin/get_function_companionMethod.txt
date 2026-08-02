@@ -1,5 +1,0 @@
-sample.kt::KotlinClass.companionMethod
-[Function Hash: f4959c9b]
-fun companionMethod(): String {
-            return "companion"
-        }

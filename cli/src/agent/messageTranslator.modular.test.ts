@@ -192,6 +192,58 @@ describe("messageTranslator (Modular Architecture)", () => {
 			})
 		})
 
+		it("classifies inspect_ast operations from machine-readable metadata", () => {
+			const outline = translateMessage(
+				createCardMessage({
+					id: "outline-1",
+					header: "Localized outline header",
+					toolName: "inspect_ast",
+					status: CardStatus.SUCCESS,
+					rawInput: { tool: "inspect_ast", operation: "outline", paths: ["src"] },
+				}),
+				sessionState,
+			)
+			const references = translateMessage(
+				createCardMessage({
+					id: "references-1",
+					header: "Localized references header",
+					toolName: "inspect_ast",
+					status: CardStatus.SUCCESS,
+					rawInput: { tool: "inspect_ast", operation: "references", paths: ["src"], symbols: ["User"] },
+				}),
+				sessionState,
+			)
+
+			expect(outline.updates[0]).toMatchObject({ name: "inspect_ast", kind: "read" })
+			expect(references.updates[0]).toMatchObject({ name: "inspect_ast", kind: "search" })
+		})
+
+		it("prefers toolName and operation metadata for edit_ast cards", () => {
+			const result = translateMessage(
+				createCardMessage({
+					id: "edit-ast-1",
+					header: "Header that must not determine kind",
+					toolName: "edit_ast",
+					status: CardStatus.WAITING_FOR_INPUT,
+					requireApproval: true,
+					rawInput: { tool: "inspect_ast", operation: "replace", targets: [{ path: "src/file.ts", symbol: "load" }] },
+					rawOutput: { status: "planned", editCount: 1 },
+					locations: [{ path: "src/file.ts", line: 8 }],
+					diffs: [{ path: "src/file.ts", oldText: "old", newText: "new" }],
+				}),
+				sessionState,
+			)
+
+			expect(result.updates[0]).toMatchObject({
+				name: "edit_ast",
+				kind: "edit",
+				locations: [{ path: "src/file.ts", line: 8 }],
+				rawOutput: { status: "planned", editCount: 1 },
+			})
+			expect(result.permissionRequest?.toolCall).toMatchObject({ name: "edit_ast", kind: "edit" })
+		})
+
+
 		it("should translate an existing Card update to tool_call_update", () => {
 			const card1 = {
 				id: "tool-1",

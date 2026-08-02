@@ -2,6 +2,7 @@ import * as fs from "node:fs"
 import * as path from "node:path"
 import { createHash } from "node:crypto"
 import * as diff from "diff"
+import { isValidAnchorId } from "../shared/utils/line-hashing"
 
 interface TrackedDocument {
 	hashes: Uint32Array
@@ -26,7 +27,6 @@ export interface PersistedAnchorState {
 export class AnchorStateManager {
 	private static storage = new Map<string, Map<string, TrackedDocument>>()
 	private static dictionary: string[] = []
-	private static readonly MAX_TRACKED_LINES = 50000
 	private static readonly MAX_TRACKED_FILES = 1024
 	private static readonly MAX_TRACKED_TASKS = 50
 
@@ -46,13 +46,13 @@ export class AnchorStateManager {
 	private static getDictionary(): string[] {
 		if (AnchorStateManager.dictionary.length === 0) {
 			const dictionaryPath = path.join(__dirname, ".hash_anchors")
-			// do not catch errors here, we should fail loudly
+			// Do not catch errors here; anchor allocation must fail loudly.
 			AnchorStateManager.dictionary = fs.readFileSync(dictionaryPath, "utf8").split(/\r?\n/).filter(Boolean)
 		}
 		return AnchorStateManager.dictionary
 	}
 
-	private static refill(usedWords: Set<string>, pool: string[]) {
+	private static refill(usedWords: Set<string>, pool: string[]): void {
 		const dictionary = AnchorStateManager.getDictionary()
 		const newWords: string[] = []
 		const newWordSet = new Set<string>()
@@ -88,55 +88,37 @@ export class AnchorStateManager {
 
 	private static getUniqueWord(usedWords: Set<string>, pool: string[]): string {
 		while (true) {
-			if (pool.length === 0) {
-				AnchorStateManager.refill(usedWords, pool)
-			}
+			if (pool.length === 0) AnchorStateManager.refill(usedWords, pool)
 
 			const word = pool.pop()!
-			if (!usedWords.has(word)) {
-				return word
-			}
-			// If we hit a collision (word was in usedWords but not in pool),
-			// just pop the next one.
+			if (!usedWords.has(word)) return word
 		}
 	}
 
-	private static getTaskState(taskId = "default"): Map<string, TrackedDocument> {
-		let state = AnchorStateManager.storage.get(taskId)
-		if (!state) {
-			state = new Map<string, TrackedDocument>()
-			AnchorStateManager.storage.set(taskId, state)
+	private static storeTaskState(taskId: string, state: Map<string, TrackedDocument>): void {
+		AnchorStateManager.storage.delete(taskId)
+		AnchorStateManager.storage.set(taskId, state)
+		if (AnchorStateManager.storage.size <= AnchorStateManager.MAX_TRACKED_TASKS) return
 
-			// Implement LRU for tasks
-			if (AnchorStateManager.storage.size > AnchorStateManager.MAX_TRACKED_TASKS) {
-				const oldestTaskId = AnchorStateManager.storage.keys().next().value
-				if (oldestTaskId !== undefined) {
-					AnchorStateManager.storage.delete(oldestTaskId)
-				}
-			}
-		} else {
-			// Refresh LRU position for existing task
-			AnchorStateManager.storage.delete(taskId)
-			AnchorStateManager.storage.set(taskId, state)
-		}
+		const oldestTaskId = AnchorStateManager.storage.keys().next().value
+		if (oldestTaskId !== undefined) AnchorStateManager.storage.delete(oldestTaskId)
+	}
+
+	private static getTaskState(taskId = "default"): Map<string, TrackedDocument> {
+		const state = AnchorStateManager.storage.get(taskId) ?? new Map<string, TrackedDocument>()
+		AnchorStateManager.storeTaskState(taskId, state)
 		return state
 	}
 
 	/**
-	 * Reconciles the current file content with our saved state using Myers Diff.
-	 * Unchanged lines keep their exact word anchors. New lines get new words.
+	 * Reconciles current file content with saved state using Myers diff.
+	 * Unchanged lines keep their visible IDs; new lines receive unused IDs.
 	 */
 	public static reconcile(absolutePath: string, currentLines: string[], taskId?: string): string[] {
-		// Safeguard for massive files
-		if (currentLines.length > AnchorStateManager.MAX_TRACKED_LINES) {
-			return currentLines.map((_, i) => `L${i + 1}`)
-		}
-
 		const state = AnchorStateManager.getTaskState(taskId)
 		const currentHashes = AnchorStateManager.computeHashes(currentLines)
 		let tracked = state.get(absolutePath)
 
-		// Fast path: if hashes are identical, nothing changed
 		if (tracked && tracked.hashes.length === currentHashes.length) {
 			let identical = true
 			for (let i = 0; i < currentHashes.length; i++) {
@@ -146,26 +128,23 @@ export class AnchorStateManager {
 				}
 			}
 			if (identical) {
-				// Refresh LRU position
 				AnchorStateManager.updateState(absolutePath, tracked, taskId)
 				return tracked.anchors
 			}
 		}
 
-		// First time seeing this file? Assign unique random words to every line.
 		if (!tracked) {
 			const usedWords = new Set<string>()
 			const pool = [...AnchorStateManager.getDictionary()]
-			// Initial shuffle of dictionary
 			for (let i = pool.length - 1; i > 0; i--) {
 				const j = Math.floor(Math.random() * (i + 1))
-					;[pool[i], pool[j]] = [pool[j], pool[i]]
+				;[pool[i], pool[j]] = [pool[j], pool[i]]
 			}
 
 			const anchors = currentLines.map(() => {
-				const w = AnchorStateManager.getUniqueWord(usedWords, pool)
-				usedWords.add(w)
-				return w
+				const word = AnchorStateManager.getUniqueWord(usedWords, pool)
+				usedWords.add(word)
+				return word
 			})
 
 			tracked = { hashes: currentHashes, anchors, usedWords, availablePool: pool }
@@ -173,67 +152,53 @@ export class AnchorStateManager {
 			return anchors
 		}
 
-		// We have history! Run Myers Diff on hashes (integers) instead of strings.
-		// Note: diffArrays accepts any array-like, but we convert Uint32Array to regular Array
-		// because jsdiff's internal comparisons are more reliable with standard Arrays.
 		const changes = diff.diffArrays(Array.from(tracked.hashes), Array.from(currentHashes))
-
 		const newAnchors: string[] = []
 		const newUsedWords = new Set<string>(tracked.usedWords)
 		const pool = tracked.availablePool
+
 		// Older persisted documents may not have retained their remaining pool.
-		// Restore unused dictionary words in a stable order so future reconciliation
-		// remains deterministic after hydration.
 		if (pool.length === 0 && newUsedWords.size < AnchorStateManager.getDictionary().length) {
-			const dictionary = AnchorStateManager.getDictionary()
-			for (const word of dictionary) {
+			for (const word of AnchorStateManager.getDictionary()) {
 				if (!newUsedWords.has(word)) pool.push(word)
 			}
 		}
 
-		let oldIdx = 0
-
+		let oldIndex = 0
 		for (const change of changes) {
 			if (change.added) {
-				// New lines (typed by user or added by LLM) get NEW words
 				for (let i = 0; i < change.count!; i++) {
 					const word = AnchorStateManager.getUniqueWord(newUsedWords, pool)
 					newAnchors.push(word)
 					newUsedWords.add(word)
 				}
-			} else if (change.removed) {
-				// Deleted lines: We just advance the old index.
-				oldIdx += change.count!
-			} else {
-				// Unchanged lines: CARRY OVER THE EXACT SAME WORD ANCHOR
-				for (let i = 0; i < change.count!; i++) {
-					const preservedWord = tracked.anchors[oldIdx]
-					newAnchors.push(preservedWord)
-					newUsedWords.add(preservedWord)
-					oldIdx++
-				}
+				continue
+			}
+			if (change.removed) {
+				oldIndex += change.count!
+				continue
+			}
+			for (let i = 0; i < change.count!; i++) {
+				const preservedWord = tracked.anchors[oldIndex]
+				newAnchors.push(preservedWord)
+				newUsedWords.add(preservedWord)
+				oldIndex++
 			}
 		}
 
-		// Update the state cache
 		tracked = { hashes: currentHashes, anchors: newAnchors, usedWords: newUsedWords, availablePool: pool }
 		AnchorStateManager.updateState(absolutePath, tracked, taskId)
 		return newAnchors
 	}
 
-	private static updateState(absolutePath: string, document: TrackedDocument, taskId?: string) {
+	private static updateState(absolutePath: string, document: TrackedDocument, taskId?: string): void {
 		const state = AnchorStateManager.getTaskState(taskId)
-		// Implement LRU by deleting and re-inserting
 		state.delete(absolutePath)
 		state.set(absolutePath, document)
+		if (state.size <= AnchorStateManager.MAX_TRACKED_FILES) return
 
-		// Evict oldest if limit exceeded
-		if (state.size > AnchorStateManager.MAX_TRACKED_FILES) {
-			const oldestKey = state.keys().next().value
-			if (oldestKey !== undefined) {
-				state.delete(oldestKey)
-			}
-		}
+		const oldestPath = state.keys().next().value
+		if (oldestPath !== undefined) state.delete(oldestPath)
 	}
 
 	private static fingerprint(document: TrackedDocument): string {
@@ -241,7 +206,7 @@ export class AnchorStateManager {
 		return createHash("sha256").update(JSON.stringify(revision)).digest("hex")
 	}
 
-	/** Returns an exact revision for the current line-hash-to-anchor mapping. */
+	/** Returns an exact revision for the current content-fingerprint-to-visible-ID mapping. */
 	public static getDocumentFingerprint(absolutePath: string, taskId?: string): string | null {
 		const document = AnchorStateManager.getTaskState(taskId).get(absolutePath)
 		return document ? AnchorStateManager.fingerprint(document) : null
@@ -259,6 +224,42 @@ export class AnchorStateManager {
 		return { version: 1, documents }
 	}
 
+	private static validatePersistedDocument(document: PersistedAnchorDocument, seenPaths: Set<string>): void {
+		if (!document || typeof document.absolutePath !== "string" || !path.isAbsolute(document.absolutePath)) {
+			throw new Error("Persisted anchor document must have an absolutePath.")
+		}
+		if (seenPaths.has(document.absolutePath)) {
+			throw new Error(`Persisted anchor state contains duplicate document path: ${document.absolutePath}`)
+		}
+		seenPaths.add(document.absolutePath)
+
+		if (!Array.isArray(document.hashes) || !Array.isArray(document.anchors) || document.hashes.length !== document.anchors.length) {
+			throw new Error(`Persisted anchor state has mismatched hashes and anchors for ${document.absolutePath}.`)
+		}
+		if (document.hashes.some((hash) => !Number.isInteger(hash) || hash < 0 || hash > 0xffffffff)) {
+			throw new Error(`Persisted anchor state contains an invalid content fingerprint for ${document.absolutePath}.`)
+		}
+
+		const anchors = new Set(document.anchors)
+		if (anchors.size !== document.anchors.length || document.anchors.some((anchor) => !isValidAnchorId(anchor))) {
+			throw new Error(`Persisted anchor state contains duplicate or invalid visible IDs for ${document.absolutePath}.`)
+		}
+		if (!Array.isArray(document.usedWords) || document.usedWords.some((anchor) => !isValidAnchorId(anchor))) {
+			throw new Error(`Persisted anchor state contains invalid used IDs for ${document.absolutePath}.`)
+		}
+		const usedWords = new Set(document.usedWords)
+		if (usedWords.size !== document.usedWords.length || document.anchors.some((anchor) => !usedWords.has(anchor))) {
+			throw new Error(`Persisted anchor state has inconsistent used IDs for ${document.absolutePath}.`)
+		}
+		if (!Array.isArray(document.availablePool) || document.availablePool.some((anchor) => !isValidAnchorId(anchor))) {
+			throw new Error(`Persisted anchor state contains invalid available IDs for ${document.absolutePath}.`)
+		}
+		const availablePool = new Set(document.availablePool)
+		if (availablePool.size !== document.availablePool.length || document.availablePool.some((anchor) => usedWords.has(anchor))) {
+			throw new Error(`Persisted anchor state has an inconsistent available ID pool for ${document.absolutePath}.`)
+		}
+	}
+
 	/** Replaces in-memory state with the exact persisted conversation snapshot. */
 	public static hydrate(taskId: string, persisted: PersistedAnchorState | undefined): void {
 		AnchorStateManager.storage.delete(taskId)
@@ -266,9 +267,17 @@ export class AnchorStateManager {
 		if (persisted.version !== 1) {
 			throw new Error(`Unsupported persisted anchor state version: ${String((persisted as any).version)}`)
 		}
+		if (!Array.isArray(persisted.documents)) {
+			throw new Error("Persisted anchor state must contain a documents array.")
+		}
+		if (persisted.documents.length > AnchorStateManager.MAX_TRACKED_FILES) {
+			throw new Error(`Persisted anchor state exceeds the ${AnchorStateManager.MAX_TRACKED_FILES}-document task limit.`)
+		}
 
 		const state = new Map<string, TrackedDocument>()
+		const seenPaths = new Set<string>()
 		for (const document of persisted.documents) {
+			AnchorStateManager.validatePersistedDocument(document, seenPaths)
 			state.set(document.absolutePath, {
 				hashes: Uint32Array.from(document.hashes),
 				anchors: [...document.anchors],
@@ -276,7 +285,7 @@ export class AnchorStateManager {
 				availablePool: [...document.availablePool],
 			})
 		}
-		AnchorStateManager.storage.set(taskId, state)
+		AnchorStateManager.storeTaskState(taskId, state)
 	}
 
 	/** Returns true if the file is currently being tracked. */
@@ -284,22 +293,22 @@ export class AnchorStateManager {
 		return AnchorStateManager.getTaskState(taskId).has(absolutePath)
 	}
 
-	/** Gets current anchors for a file if it's being tracked, otherwise returns null. */
+	/** Gets current anchors for a file if it is being tracked. */
 	public static getAnchors(absolutePath: string, taskId?: string): string[] | null {
 		return AnchorStateManager.getTaskState(taskId).get(absolutePath)?.anchors || null
 	}
 
-	/** Clear state for a file (useful if needed for cleanup). */
-	public static clearState(absolutePath: string, taskId?: string) {
+	/** Clears state for one file. */
+	public static clearState(absolutePath: string, taskId?: string): void {
 		AnchorStateManager.getTaskState(taskId).delete(absolutePath)
 	}
 
-	/** Resets all anchors for a specific task or all tasks. */
-	public static reset(taskId?: string) {
+	/** Resets anchor state for one task or for all tasks. */
+	public static reset(taskId?: string): void {
 		if (taskId) {
 			AnchorStateManager.storage.delete(taskId)
-		} else {
-			AnchorStateManager.storage.clear()
+			return
 		}
+		AnchorStateManager.storage.clear()
 	}
 }

@@ -1,0 +1,8 @@
+--- MyClass in sample.ts ---
+sample.ts:
+  [definition] line 12:7 class MyClass implements MyInterface {
+  [reference] line 12:7 class MyClass implements MyInterface {
+  [reference] line 36:23 	const instance = new MyClass()
+  [reference] line 86:10 export { MyClass, topLevelFunction, outerFunction, DecoratedClass, shadowingFunction }
+
+Lookup kind: definitions and references.

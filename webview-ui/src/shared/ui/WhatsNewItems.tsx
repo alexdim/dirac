@@ -78,8 +78,8 @@ export const WhatsNewItems: React.FC<WhatsNewItemsProps> = ({
 			) : (
 				<>
 					<li className="mb-2">
-						<strong>Hash Anchored MultiFile Edits:</strong> Dirac targets line hashes to perform high accuracy code
-						edits and can batch multiple edits in a single file and multiple files in one shot.
+						<strong>Line-Anchored MultiFile Edits:</strong> Dirac targets exact source lines with opaque stateful IDs
+						and can batch multiple edits in a single file and multiple files in one shot.
 					</li>
 					<li className="mb-2">
 						<strong>AST Precision:</strong> Dirac understands language syntax and can read from and manipulate a

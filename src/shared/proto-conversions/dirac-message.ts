@@ -105,6 +105,28 @@ function convertProtoEnumToSteeringStatus(
 }
 
 
+function serializeCardRecord(value: Record<string, unknown> | undefined): string | undefined {
+	if (value === undefined) return undefined
+	try {
+		return JSON.stringify(value)
+	} catch {
+		return undefined
+	}
+}
+
+function parseCardRecord(value: string | undefined): Record<string, unknown> | undefined {
+	if (!value) return undefined
+	try {
+		const parsed: unknown = JSON.parse(value)
+		return parsed !== null && typeof parsed === "object" && !Array.isArray(parsed)
+			? (parsed as Record<string, unknown>)
+			: undefined
+	} catch {
+		return undefined
+	}
+}
+
+
 function convertCardToProto(card: AppCard): Card {
 	return {
 		id: card.id,
@@ -124,6 +146,20 @@ function convertCardToProto(card: AppCard): Card {
 		startTimeMs: card.startTime ?? undefined,
 		endTimeMs: card.endTime ?? undefined,
 		outcome: card.outcome ?? undefined,
+		toolName: card.toolName ?? undefined,
+		rawInputJson: serializeCardRecord(card.rawInput),
+		rawOutputJson: serializeCardRecord(card.rawOutput),
+		diffs:
+			card.diffs?.map((diff) => ({
+				path: diff.path,
+				oldText: diff.oldText,
+				newText: diff.newText,
+			})) ?? [],
+		locations:
+			card.locations?.map((location) => ({
+				path: location.path,
+				line: location.line,
+			})) ?? [],
 		actions:
 			card.actions?.map((action) => ({
 				label: action.label,
@@ -153,6 +189,17 @@ function convertProtoToCard(protoCard: Card): AppCard {
 		startTime: protoCard.startTimeMs ?? undefined,
 		endTime: protoCard.endTimeMs ?? undefined,
 		outcome: protoCard.outcome ?? undefined,
+		toolName: protoCard.toolName ?? undefined,
+		rawInput: parseCardRecord(protoCard.rawInputJson),
+		rawOutput: parseCardRecord(protoCard.rawOutputJson),
+		diffs:
+			protoCard.diffs.length > 0
+				? protoCard.diffs.map((diff) => ({ path: diff.path, oldText: diff.oldText, newText: diff.newText }))
+				: undefined,
+		locations:
+			protoCard.locations.length > 0
+				? protoCard.locations.map((location) => ({ path: location.path, line: location.line ?? undefined }))
+				: undefined,
 		actions:
 			protoCard.actions?.map((action) => ({
 				label: action.label,

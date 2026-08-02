@@ -1,0 +1,133 @@
+import { strict as assert } from "node:assert"
+import { describe, it } from "mocha"
+import type { ToolUse } from "@core/assistant-message"
+import { getDelimiter } from "@utils/line-hashing"
+import type { Edit } from "../types"
+import { EditExecutor } from "../utils/EditExecutor"
+
+const lines = ["first", "", "third"]
+const lineAnchors = ["Apple", "Banana", "Cherry"]
+const coordinate = (anchor: string, content: string) => `${anchor}${getDelimiter()}${content}`
+
+function block(edits: Array<Edit | Record<string, unknown>>): ToolUse {
+	return {
+		type: "tool_use",
+		name: "edit_file",
+		params: { edits },
+	} as ToolUse
+}
+
+describe("EditExecutor required-anchor contract", () => {
+	it("resolves a complete coordinate for a blank source line", () => {
+		const executor = new EditExecutor()
+		const edit: Edit = {
+			edit_type: "replace",
+			anchor: coordinate("Banana", ""),
+			end_anchor: coordinate("Banana", ""),
+			text: "replacement",
+		}
+
+		const result = executor.resolveEdits([block([edit])], lines, lineAnchors)
+		assert.equal(result.failedEdits.length, 0)
+		assert.equal(result.resolvedEdits[0].lineIdx, 1)
+		assert.equal(result.resolvedEdits[0].endIdx, 1)
+	})
+
+	it("rejects identifiers, line numbers, and search text without complete coordinates", () => {
+		const executor = new EditExecutor()
+		for (const malformed of ["Apple", "1", "first"]) {
+			const edit: Edit = {
+				edit_type: "replace",
+				anchor: malformed,
+				end_anchor: malformed,
+				text: "replacement",
+			}
+			const result = executor.resolveEdits([block([edit])], lines, lineAnchors)
+			assert.equal(result.resolvedEdits.length, 0)
+			assert.match(result.failedEdits[0].error, /must be one complete anchored source line/)
+		}
+	})
+
+	it("rejects an ID spliced together with another line's content", () => {
+		const executor = new EditExecutor()
+		const spliced = coordinate("Apple", "third")
+		const edit: Edit = { edit_type: "replace", anchor: spliced, end_anchor: spliced, text: "replacement" }
+
+		const result = executor.resolveEdits([block([edit])], lines, lineAnchors)
+		assert.equal(result.resolvedEdits.length, 0)
+		assert.match(result.failedEdits[0].error, /paired content does not exactly match/)
+	})
+
+	it("requires a known edit type and an end coordinate only for replace", () => {
+		const executor = new EditExecutor()
+		const anchor = coordinate("Apple", "first")
+		const invalidType = executor.resolveEdits([
+			block([{ edit_type: "remove", anchor, end_anchor: anchor, text: "" }]),
+		], lines, lineAnchors)
+		assert.match(invalidType.failedEdits[0].error, /edit_type is required/)
+
+		const missingEnd = executor.resolveEdits([
+			block([{ edit_type: "replace", anchor, text: "replacement" }]),
+		], lines, lineAnchors)
+		assert.match(missingEnd.failedEdits[0].error, /end_anchor is required for replace/)
+
+		const insertion = executor.resolveEdits([
+			block([{ edit_type: "insert_after", anchor, end_anchor: null, text: "inserted" }]),
+		], lines, lineAnchors)
+		assert.equal(insertion.failedEdits.length, 0)
+		assert.equal(insertion.resolvedEdits.length, 1)
+	})
+
+	it("rejects anchored source lines in replacement text", () => {
+		const executor = new EditExecutor()
+		const anchor = coordinate("Apple", "first")
+		const edit: Edit = {
+			edit_type: "replace",
+			anchor,
+			end_anchor: anchor,
+			text: coordinate("Cherry", "third"),
+		}
+
+		const result = executor.resolveEdits([block([edit])], lines, lineAnchors)
+		assert.equal(result.resolvedEdits.length, 0)
+		assert.match(result.failedEdits[0].error, /ordinary source text only/)
+	})
+
+	it("rejects anchored replacement lines separated with CRLF", () => {
+		const executor = new EditExecutor()
+		const anchor = coordinate("Apple", "first")
+		const edit: Edit = {
+			edit_type: "replace",
+			anchor,
+			end_anchor: anchor,
+			text: `ordinary\r\n${coordinate("Cherry", "third")}`,
+		}
+
+		const result = executor.resolveEdits([block([edit])], lines, lineAnchors)
+		assert.equal(result.resolvedEdits.length, 0)
+		assert.match(result.failedEdits[0].error, /ordinary source text only/)
+	})
+
+	it("rejects every edit in an overlapping batch", () => {
+		const executor = new EditExecutor()
+		const edits: Edit[] = [
+			{
+				edit_type: "replace",
+				anchor: coordinate("Apple", "first"),
+				end_anchor: coordinate("Banana", ""),
+				text: "left",
+			},
+			{
+				edit_type: "replace",
+				anchor: coordinate("Banana", ""),
+				end_anchor: coordinate("Cherry", "third"),
+				text: "right",
+			},
+		]
+
+		const result = executor.resolveEdits([block(edits)], lines, lineAnchors)
+		assert.equal(result.resolvedEdits.length, 0)
+		assert.equal(result.failedEdits.length, 2)
+		assert.ok(result.failedEdits.every((failed) => failed.error.includes("Overlaps files edit index")))
+	})
+})

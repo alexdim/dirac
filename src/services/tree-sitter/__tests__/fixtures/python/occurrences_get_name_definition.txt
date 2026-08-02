@@ -1,0 +1,5 @@
+--- get_name in sample.py ---
+sample.py:
+  [definition] line 11:9     def get_name(self) -> str:
+
+Lookup kind: definitions.

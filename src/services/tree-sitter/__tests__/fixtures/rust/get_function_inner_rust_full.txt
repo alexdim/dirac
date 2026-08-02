@@ -1,6 +1,0 @@
-sample.rs::outer_rust.inner_rust
-[Function Hash: 6713a593]
-/// Nested function in Rust.
-    fn inner_rust(a: i32) -> i32 {
-        a * 2
-    }
