@@ -127,7 +127,7 @@ describe("ApiConversationManager steering delivery", () => {
 		assert.equal(createCard.callCount, 0)
 		assert.equal(taskState.lastAutoCondenseTriggerIndex, 7)
 		assert.equal(taskState.pendingCondenseSource, "automatic")
-		assert.equal(onContextCompacted.callCount, 1)
+		assert.equal(onContextCompacted.callCount, 0)
 		assert.equal(result.didConsumeUserContent, true)
 		const storedContent = addToApiConversationHistory.firstCall.args[0].content
 		assert.ok(storedContent.some((block: any) => block.text === "retain this pinned context"))

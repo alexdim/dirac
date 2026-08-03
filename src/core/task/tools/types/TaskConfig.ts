@@ -131,6 +131,7 @@ export interface TaskCallbacks {
 		context: "initial_task" | "resume" | "feedback",
 	) => Promise<{ cancel?: boolean; wasCancelled?: boolean; contextModification?: string; errorMessage?: string }>
 	resetTransientState: () => Promise<void>
+	notifyContextCompacted: () => void
 }
 
 /**

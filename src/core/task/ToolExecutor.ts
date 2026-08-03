@@ -87,6 +87,7 @@ export class ToolExecutor {
 		) => Promise<{ cancel?: boolean; wasCancelled?: boolean; contextModification?: string; errorMessage?: string }>,
 		private diracContext: IDiracContext,
 		private resetTransientState: () => Promise<void>,
+		private notifyContextCompacted: () => void,
 	) {
 		this.autoApprover = new AutoApprove(this.stateManager, this.commandPermissionController)
 		this.coordinator = new ToolExecutorCoordinator()
@@ -187,6 +188,7 @@ export class ToolExecutor {
 				getActiveHookExecution: this.getActiveHookExecution,
 				runUserPromptSubmitHook: this.runUserPromptSubmitHook,
 				resetTransientState: this.resetTransientState,
+				notifyContextCompacted: this.notifyContextCompacted,
 			},
 			coordinator,
 			taskMessenger: this.taskMessenger,
