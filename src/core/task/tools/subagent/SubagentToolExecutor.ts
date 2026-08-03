@@ -1,9 +1,17 @@
 import { ToolUse } from "@core/assistant-message"
 import { formatResponse } from "@core/formatResponse"
 import type { ToolRequestSnapshot } from "@core/task/tools/runtime/ToolSnapshot"
-import { TOOL_EXAMPLES } from "@core/tool-examples"
 import { DiracContent } from "@shared/messages/content"
 import { DiracDefaultTool } from "@shared/tools"
+import {
+	canonicalizeResponseToolCall,
+	responseOperationFromToolCall,
+	ResponseOperation,
+	ResponseParameter,
+	ResponseShapeError,
+	validateResponseShape,
+} from "@shared/responseTool"
+import type { ResponseArguments } from "@shared/responseTool"
 import type { TaskState } from "../../TaskState"
 import type { TaskConfig } from "../types/TaskConfig"
 import type { SubagentToolCall } from "./SubagentRunner"
@@ -11,15 +19,15 @@ import { SubagentExecutionStatus } from "@shared/ExtensionMessage"
 import { createSubagentTrajectoryEvent, SubagentTrajectoryEventType } from "@shared/subagents"
 import { formatToolCallPreview, pushSubagentToolResultBlock, serializeToolResult, toToolUseParams } from "./SubagentRunner"
 
-// Executes finalized tool calls for a subagent turn — handles attempt_completion, denied tools, and dispatch.
+// Executes finalized tool calls for a subagent turn, including intercepted completion, authorization, and dispatch.
 // Extracted from SubagentRunner.run() to reduce the 400-line method.
 export class SubagentToolExecutor {
 	constructor(
 		private createSubagentTaskConfig: (state: TaskState, coordinator: any) => TaskConfig,
 		private isAllowedTool: (toolName: string, requestSnapshot: ToolRequestSnapshot) => boolean,
-	) { }
+	) {}
 
-	// Processes all tool calls for a turn. Returns "completed" result if attempt_completion was called, or tool result blocks.
+	// Processes all tool calls for a turn. Returns a completed result for the complete response operation.
 	async executeToolCalls(
 		finalizedToolCalls: SubagentToolCall[],
 		state: TaskState,
@@ -30,31 +38,61 @@ export class SubagentToolExecutor {
 	): Promise<{ completed?: { result: string; stats: any }; toolResultBlocks: DiracContent[] }> {
 		const toolResultBlocks: DiracContent[] = []
 		for (const call of finalizedToolCalls) {
-			const toolName = call.name
-			const toolCallParams = toToolUseParams(call.input)
+			const toolCallBlock: ToolUse = {
+				type: "tool_use",
+				name: call.name,
+				params: toToolUseParams(call.input),
+				isNativeToolCall: call.isNativeToolCall,
+				call_id: call.call_id || call.toolUseId,
+				signature: call.signature,
+			}
+			try {
+				canonicalizeResponseToolCall(toolCallBlock)
+			} catch (error) {
+				if (!(error instanceof ResponseShapeError)) throw error
+				pushSubagentToolResultBlock(toolResultBlocks, call, call.name, formatResponse.toolError(error.message))
+				continue
+			}
+			const toolName = toolCallBlock.name
+			const toolCallParams = toolCallBlock.params
+			const responseOperation = responseOperationFromToolCall(toolCallBlock)
 			const toolCallPreview = formatToolCallPreview(toolName, toolCallParams)
 			onProgress({
 				latestToolCall: toolCallPreview,
 				trajectoryEvent: createSubagentTrajectoryEvent(SubagentTrajectoryEventType.TOOL, toolCallPreview),
 			})
-			const message = (toolCallParams as Record<string, unknown>).message
-			if (toolName === DiracDefaultTool.SAY && typeof message === "string") {
-				onProgress({ trajectoryEvent: createSubagentTrajectoryEvent(SubagentTrajectoryEventType.MESSAGE, message) })
+			if (responseOperation && !this.isResponseOperationAllowed(responseOperation, requestSnapshot)) {
+				pushSubagentToolResultBlock(
+					toolResultBlocks,
+					call,
+					toolName,
+					formatResponse.toolError(
+						`The '${responseOperation}' response operation is not available inside this subagent run.`,
+					),
+				)
+				continue
 			}
-
-			// attempt_completion — returns final result
-			if (toolName === DiracDefaultTool.ATTEMPT) {
-				const completionResult = toolCallParams.result?.trim()
-				if (!completionResult) {
-					const example = TOOL_EXAMPLES[DiracDefaultTool.ATTEMPT]
-					pushSubagentToolResultBlock(
-						toolResultBlocks,
-						call,
-						toolName,
-						formatResponse.missingToolParameterError("result", example),
-					)
+			let responseArguments: ResponseArguments | undefined
+			if (responseOperation) {
+				try {
+					responseArguments = validateResponseShape(toolCallParams)
+				} catch (error) {
+					if (!(error instanceof ResponseShapeError)) throw error
+					pushSubagentToolResultBlock(toolResultBlocks, call, toolName, formatResponse.toolError(error.message))
 					continue
 				}
+			}
+			if (responseOperation === ResponseOperation.PROGRESS) {
+				onProgress({
+					trajectoryEvent: createSubagentTrajectoryEvent(
+						SubagentTrajectoryEventType.MESSAGE,
+						responseArguments!.text,
+					),
+				})
+			}
+
+			if (responseOperation === ResponseOperation.COMPLETE) {
+				const completionResult = responseArguments!.text.trim()
 				stats.toolCalls += 1
 				onProgress({ stats: { ...stats } })
 				onProgress({ status: SubagentExecutionStatus.COMPLETED, result: completionResult, stats: { ...stats } })
@@ -63,7 +101,7 @@ export class SubagentToolExecutor {
 
 			if (isWrappingUp) {
 				const result = formatResponse.toolError(
-					"Research is no longer available because the deadline expired. Call attempt_completion with your partial findings now.",
+					'Research is no longer available because the deadline expired. Call respond with operation "complete" and your partial findings now.',
 				)
 				onProgress({
 					trajectoryEvent: createSubagentTrajectoryEvent(SubagentTrajectoryEventType.TOOL_RESULT, result),
@@ -84,14 +122,6 @@ export class SubagentToolExecutor {
 			}
 
 			// Dispatch to coordinator
-			const toolCallBlock: ToolUse = {
-				type: "tool_use",
-				name: toolName as DiracDefaultTool,
-				params: toolCallParams,
-				isNativeToolCall: call.isNativeToolCall,
-				call_id: call.call_id || call.toolUseId,
-				signature: call.signature,
-			}
 			if (call.call_id) state.toolUseIdMap.set(call.call_id, call.toolUseId)
 			const subagentConfig = this.createSubagentTaskConfig(state, requestSnapshot.coordinator)
 			let toolResult: unknown
@@ -114,5 +144,11 @@ export class SubagentToolExecutor {
 			pushSubagentToolResultBlock(toolResultBlocks, call, `[${toolName}]`, serializedToolResult)
 		}
 		return { toolResultBlocks }
+	}
+
+	private isResponseOperationAllowed(operation: ResponseOperation, snapshot: ToolRequestSnapshot): boolean {
+		const spec = snapshot.promptVisibleSpecs.find((candidate) => candidate.name === DiracDefaultTool.RESPOND)
+		const allowed = spec?.parameters?.find((parameter) => parameter.name === ResponseParameter.OPERATION)?.enum
+		return Array.isArray(allowed) && allowed.includes(operation)
 	}
 }

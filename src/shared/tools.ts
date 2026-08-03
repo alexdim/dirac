@@ -44,9 +44,7 @@ export interface DiracToolSpec<TContext = any> {
 
 // Define available tool ids
 export enum DiracDefaultTool {
-	SAY = "say",
-	ASK = "ask_followup_question",
-	ATTEMPT = "attempt_completion",
+	RESPOND = "respond",
 	BASH = "execute_command",
 	FILE_READ = "read_file",
 	FILE_NEW = "write_to_file",
@@ -54,7 +52,6 @@ export enum DiracDefaultTool {
 	LIST_FILES = "list_files",
 	BROWSER = "browser_action",
 	NEW_TASK = "new_task",
-	PLAN_MODE = "plan_mode_respond",
 	CONDENSE = "condense",
 	USE_SKILL = "use_skill",
 	LIST_SKILLS = "list_skills",
@@ -91,8 +88,6 @@ export const READ_ONLY_TOOLS = [
 	DiracDefaultTool.FILE_READ,
 	DiracDefaultTool.SEARCH,
 	DiracDefaultTool.BROWSER,
-	DiracDefaultTool.ASK,
-	DiracDefaultTool.SAY,
 	DiracDefaultTool.INSPECT_AST,
 	DiracDefaultTool.DIAGNOSTICS_SCAN,
 

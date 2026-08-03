@@ -3,6 +3,7 @@ import { DiracAskResponse } from "@shared/WebviewMessage";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { AcpSessionStatus, type AcpSessionState } from "./public-types.js";
 import { TaskMessageBridge } from "./taskMessageBridge.js";
+import { ResponseOperation, responseCardInput } from "@shared/responseTool";
 
 function questionCard(overrides: Record<string, unknown> = {}): DiracMessage {
 	return {
@@ -18,7 +19,7 @@ function questionCard(overrides: Record<string, unknown> = {}): DiracMessage {
 				renderType: "markdown",
 				requireFeedback: true,
 				feedbackPlaceholder: "Type another answer",
-				rawInput: { tool: "ask_followup_question" },
+				rawInput: responseCardInput(ResponseOperation.QUESTION, "Choose a target"),
 				actions: [
 					{ label: "Option A", value: "option-a" },
 					{ label: "Option B", value: "option-b" },
@@ -41,7 +42,7 @@ function feedbackCard(): DiracMessage {
 	return questionCard({
 		id: "plan-1",
 		header: "Proposed Plan",
-		rawInput: { tool: "plan_mode_respond" },
+		rawInput: responseCardInput(ResponseOperation.PLAN, "Proposed Plan"),
 		actions: undefined,
 	});
 }

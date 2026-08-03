@@ -3,8 +3,7 @@ import {
     type DiracMessage,
     DiracMessageType,
 } from "@shared/ExtensionMessage";
-
-export const ASK_FOLLOWUP_QUESTION_TOOL_ID = "ask_followup_question";
+import { isQuestionResponseCard, ResponseCardHeader } from "@shared/responseTool";
 
 /** Identify cards created by the follow-up-question flow without classifying generic feedback cards. */
 export function isFollowupQuestionCard(message: DiracMessage): boolean {
@@ -14,8 +13,5 @@ export function isFollowupQuestionCard(message: DiracMessage): boolean {
 	if (card.status !== CardStatus.WAITING_FOR_INPUT) return false;
 	if (!card.requireFeedback || card.requireApproval) return false;
 
-	return (
-		card.rawInput?.tool === ASK_FOLLOWUP_QUESTION_TOOL_ID ||
-		card.header.startsWith("Question:")
-	);
+	return isQuestionResponseCard(card) || card.header.startsWith(`${ResponseCardHeader.QUESTION}:`);
 }

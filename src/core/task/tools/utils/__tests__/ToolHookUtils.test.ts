@@ -4,11 +4,33 @@ import type { ToolUse } from "@core/assistant-message"
 import * as HookExecutor from "@core/hooks/hook-executor"
 import { TaskState } from "@core/task/TaskState"
 import { DiracDefaultTool } from "@shared/tools"
+import { ResponseOperation } from "@shared/responseTool"
 import * as sinon from "sinon"
 import { ToolHookUtils } from "../ToolHookUtils"
 
 describe("ToolHookUtils", () => {
 	describe("runPreToolUseIfEnabled", () => {
+		it("skips hooks for response completion", async () => {
+			const executeHookStub = sinon.stub(HookExecutor, "executeHook")
+			const config: any = {
+				services: { stateManager: { getGlobalSettingsKey: () => true } },
+			}
+			const block: ToolUse = {
+				type: "tool_use",
+				name: DiracDefaultTool.RESPOND,
+				params: { operation: ResponseOperation.COMPLETE, text: "Done" },
+			}
+
+			try {
+				const shouldContinue = await ToolHookUtils.runPreToolUseIfEnabled(config, block)
+
+				shouldContinue.should.equal(true)
+				executeHookStub.called.should.equal(false)
+			} finally {
+				executeHookStub.restore()
+			}
+		})
+
 		it("returns early without running hooks when hooks are disabled", async () => {
 			const saySpy = sinon.spy(async () => Date.now())
 			const cancelTaskSpy = sinon.spy(async () => {})

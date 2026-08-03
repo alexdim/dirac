@@ -1,13 +1,10 @@
-import { IDiracTool } from "../../interfaces/IDiracTool"
 import { ICardHandle, IToolEnvironment } from "../../interfaces/IToolEnvironment"
-import { DiracToolSpec, DiracDefaultTool } from "@/shared/tools"
+import { CardHeader } from "@shared/cardIdentity"
+import { DiracDefaultTool } from "@/shared/tools"
 import { DiracIcon } from "@/shared/icons"
-import { formatResponse } from "@core/formatResponse"
 import { CardKind, CardStatus, DiracMessageType, SubagentExecutionStatus } from "@shared/ExtensionMessage"
-import { showSystemNotification } from "@integrations/notifications"
-import { telemetryService } from "@/services/telemetry"
-import { getTaskCompletionTelemetry } from "../../utils"
 import { waitForPresentationOperation } from "../../subagent/PresentationDeadline"
+import { ResponseOperation, responseCardInput } from "@shared/responseTool"
 import {
 	allocateSubagentIdentity,
 	createSubagentCardInput,
@@ -19,43 +16,8 @@ import {
 	type SubagentTrajectoryEvent,
 } from "@shared/subagents"
 
-
-export const attempt_completion_spec: DiracToolSpec = {
-	id: DiracDefaultTool.ATTEMPT,
-	name: "attempt_completion",
-	description:
-		"Presents a brief and informative summary of the final result. Keep it concise while covering important changes. Avoid redundant text.",
-	parameters: [
-		{
-			name: "result",
-			required: true,
-			instruction: "The final result of the task.",
-		},
-	],
-}
-
-export class AttemptCompletionTool implements IDiracTool {
-	spec(): DiracToolSpec {
-		return attempt_completion_spec
-	}
-
-	supportedSurfaces() {
-		return ["all" as const]
-	}
-
-	async processCall(args: any, env: IToolEnvironment): Promise<any> {
-		const { result } = args
-
-		if (!result) {
-			env.orchestration.setTaskState(
-				"consecutiveMistakeCount",
-				env.orchestration.getTaskState("consecutiveMistakeCount") + 1,
-			)
-			return formatResponse.toolError("Missing required parameter: result")
-		}
-
-		env.orchestration.setTaskState("consecutiveMistakeCount", 0)
-
+export class CompletionResponseOperation {
+	async execute(result: string, env: IToolEnvironment): Promise<any> {
 		const doubleCheckResponse = await this.handleDoubleCheckCompletion(env, result)
 		if (doubleCheckResponse) {
 			return doubleCheckResponse
@@ -84,17 +46,17 @@ export class AttemptCompletionTool implements IDiracTool {
 
 		try {
 			if (!env.config.isSubagentExecution && env.config.autoApprovalSettings.enableNotifications) {
-				showSystemNotification({
+				env.system.showNotification({
 					subtitle: "Task Completed",
 					message: result.replace(/\n/g, " "),
 				})
 			}
 			if (!env.config.isSubagentExecution) {
-				telemetryService.captureTaskCompleted(env.config.ulid, getTaskCompletionTelemetry(env.config))
+				env.telemetry.captureTaskCompleted()
 				await env.orchestration.runHook("Notification", {
 					notification: {
 						event: "task_completed",
-						source: "attempt_completion",
+						source: `${DiracDefaultTool.RESPOND}:${ResponseOperation.COMPLETE}`,
 						message: result,
 						waitingForUserInput: true,
 					},
@@ -103,6 +65,7 @@ export class AttemptCompletionTool implements IDiracTool {
 		} catch (error) {
 			env.logging.warn("Completion succeeded, but a completion notification failed", error)
 		}
+		env.telemetry.captureCustomMetadata({ operation: ResponseOperation.COMPLETE, mode: env.config.mode })
 
 		return result
 	}
@@ -144,7 +107,7 @@ export class AttemptCompletionTool implements IDiracTool {
 ${verificationInstructions}
 </verification_checklist>${taskSection}
 
-If everything checks out, call attempt_completion again with your final result.`
+If everything checks out, call respond with operation "complete" and your final result.`
 	}
 
 	private async runVerificationSubagent(env: IToolEnvironment, result: string): Promise<any | undefined> {
@@ -291,9 +254,11 @@ Otherwise, respond with "VERIFICATION: FAILED" followed by all the details on wh
 	private async handleCompletionResult(env: IToolEnvironment, result: string): Promise<void> {
 		const card = await env.ui.createCard({
 			kind: CardKind.TASK_COMPLETION,
+			toolName: DiracDefaultTool.RESPOND,
 			icon: DiracIcon.COMPLETE,
-			header: "Task Completed",
+			header: CardHeader.TASK_COMPLETED,
 			body: result,
+			rawInput: responseCardInput(ResponseOperation.COMPLETE, result),
 			renderType: "markdown",
 			collapsed: false,
 			maxHeight: 1200,

@@ -4,6 +4,11 @@ import { ToolRegistry } from "../../registry/ToolRegistry"
 import type { DiscoveredTool } from "../DiscoveredTool"
 import { ToolDiscoveryService } from "../ToolDiscoveryService"
 import type { DiracDefaultTool, DiracToolSpec } from "@/shared/tools"
+import { LegacyResponseTool, RESPOND_TOOL_NAME } from "@shared/responseTool"
+
+const legacyCompletionToolName = LegacyResponseTool.COMPLETE
+const legacyProgressToolName = LegacyResponseTool.PROGRESS
+const legacyResponseToolNames = Object.values(LegacyResponseTool)
 
 function makeTool(overrides: Partial<DiscoveredTool> = {}): DiscoveredTool {
 	const id = overrides.id ?? "test_tool"
@@ -80,17 +85,22 @@ describe("ToolRegistry", () => {
 
 		it("rejects user tools that collide with built-in ids", () => {
 			const registry = ToolRegistry.getInstance()
-			registry.registerBuiltin(makeTool({ id: "say", source: "builtin" }))
-			registry.registerUserTool(makeTool({ id: "say", source: "global", modulePath: "user" }))
+			registry.registerBuiltin(makeTool({ id: "collision", source: "builtin" }))
+			registry.registerUserTool(makeTool({ id: "collision", source: "global", modulePath: "user" }))
 			assert.strictEqual(registry.getAllTools().length, 1)
 			assert.strictEqual(registry.getAllTools()[0].source, "builtin")
 		})
 
 		it("rejects user tools that collide with built-in names", () => {
 			const registry = ToolRegistry.getInstance()
-			registry.registerBuiltin(makeTool({ id: "builtin_id", name: "say", source: "builtin" }))
-			registry.registerUserTool(makeTool({ id: "user_id", name: "say", source: "global" }))
+			registry.registerBuiltin(makeTool({ id: "builtin_id", name: "collision", source: "builtin" }))
+			registry.registerUserTool(makeTool({ id: "user_id", name: "collision", source: "global" }))
 			assert.strictEqual(registry.getToolsBySource("global").length, 0)
+		})
+
+		it("reserves legacy response aliases after their built-ins are removed", () => {
+			const registry = ToolRegistry.getInstance()
+			assert.equal(registry.registerUserTool(makeTool({ id: legacyCompletionToolName, source: "global" })), false)
 		})
 
 		it("lets workspace user tools override global user tools", () => {
@@ -278,7 +288,6 @@ describe("ToolRegistry", () => {
 			assert.strictEqual(registry.isToolAllowed("user_name", ["user_id"]), false)
 		})
 
-
 		it("narrows consolidated AST schemas and runtime execution to scoped operations", async () => {
 			const registry = ToolRegistry.getInstance()
 			let receivedOperation: string | undefined
@@ -332,6 +341,13 @@ describe("ToolRegistry", () => {
 			assert.strictEqual(registry.isToolAllowed("edit_ast", ["edit_ast:rename"], "rename"), true)
 			assert.strictEqual(registry.isToolAllowed("edit_ast", ["edit_ast:rename"], "replace"), false)
 		})
+
+		it("narrows response operations consistently for subagents", () => {
+			const registry = ToolRegistry.getInstance()
+			registry.registerBuiltin(makeTool({ id: RESPOND_TOOL_NAME }))
+			assert.equal(registry.isToolAllowed(RESPOND_TOOL_NAME, [`${RESPOND_TOOL_NAME}:progress`], "progress"), true)
+			assert.equal(registry.isToolAllowed(RESPOND_TOOL_NAME, [`${RESPOND_TOOL_NAME}:progress`], "question"), false)
+		})
 	})
 
 	describe("replaceUserTool", () => {
@@ -375,7 +391,6 @@ describe("ToolRegistry", () => {
 			assert.strictEqual(registry.getVersion(), version)
 		})
 	})
-
 
 	describe("removeUserTool", () => {
 		it("removes a registered user tool and returns true", () => {
@@ -435,6 +450,26 @@ describe("ToolRegistry", () => {
 			const toggles = registry.getToggles()
 			assert.deepStrictEqual(toggles, { a: false })
 		})
+
+		it("migrates legacy response toggles conservatively", () => {
+			const registry = ToolRegistry.getInstance()
+			registry.registerBuiltin(makeTool({ id: RESPOND_TOOL_NAME, source: "builtin" }))
+
+			registry.loadToggles({})
+			assert.deepStrictEqual(registry.getToggles(), {})
+
+			registry.loadToggles(Object.fromEntries(legacyResponseToolNames.map((name) => [name, true])))
+			assert.deepStrictEqual(registry.getToggles(), { [RESPOND_TOOL_NAME]: true })
+
+			registry.loadToggles(Object.fromEntries(legacyResponseToolNames.map((name) => [name, false])))
+			assert.deepStrictEqual(registry.getToggles(), { [RESPOND_TOOL_NAME]: false })
+
+			registry.loadToggles({ [legacyProgressToolName]: true, [legacyCompletionToolName]: false })
+			assert.deepStrictEqual(registry.getToggles(), { [RESPOND_TOOL_NAME]: false })
+
+			registry.loadToggles({ [RESPOND_TOOL_NAME]: true, [legacyCompletionToolName]: false })
+			assert.deepStrictEqual(registry.getToggles(), { [RESPOND_TOOL_NAME]: true })
+		})
 	})
 
 	describe("reconcileWorkspaceUserTools", () => {
@@ -491,7 +526,6 @@ describe("ToolRegistry", () => {
 			assert.strictEqual(registry.getVersion(), version + 1)
 		})
 	})
-
 
 	describe("skill-only exposure", () => {
 		const skillOnlyExposure = { kind: "skill_only" as const, authorizedSkillIds: ["new-tool"] }

@@ -6,6 +6,7 @@ import type { TaskConfig } from "../types/TaskConfig"
 import type { SubagentIdentity } from "@shared/subagents"
 import type { AgentBaseConfig } from "./AgentConfigLoader"
 import { AgentConfigLoader } from "./AgentConfigLoader"
+import { LEGACY_RESPONSE_TOOLS, RESPOND_TOOL_NAME, ResponseOperation } from "@shared/responseTool"
 
 export type AgentConfig = Partial<AgentBaseConfig>
 
@@ -15,14 +16,19 @@ export interface SubagentBuilderOptions {
 	agentIdentity?: SubagentIdentity
 }
 
-export const SUBAGENT_DEFAULT_ALLOWED_TOOLS: DiracDefaultTool[] = Object.values(DiracDefaultTool).filter(
-	(tool) => tool !== DiracDefaultTool.USE_SUBAGENTS && tool !== DiracDefaultTool.CONDENSE,
-)
+export const SUBAGENT_DEFAULT_ALLOWED_TOOLS: string[] = [
+	...Object.values(DiracDefaultTool).filter(
+		(tool) =>
+			tool !== DiracDefaultTool.USE_SUBAGENTS && tool !== DiracDefaultTool.CONDENSE && tool !== DiracDefaultTool.RESPOND,
+	),
+	`${RESPOND_TOOL_NAME}:${ResponseOperation.PROGRESS}`,
+	`${RESPOND_TOOL_NAME}:${ResponseOperation.COMPLETE}`,
+]
 
 export const SUBAGENT_SYSTEM_SUFFIX = `\n\n# Subagent Execution Mode
-ou are running as a research subagent spawned by the main agent. Perform the requested task and report back.
+You are running as a research subagent spawned by the main agent. Perform the requested task and report back.
 You may use any tool at your disposal to accomplish the task. You may create and execute scripts or temporary files, but **do not modify or delete any pre-existing files**.
-Call attempt_completion when finished or if you realize the task is not making any progress or otherwise ill suited to let main agent know. Focus on providing actionable information and relevant file paths.
+Call respond with operation "complete" when finished or if the task is not making progress. Focus on actionable information and relevant file paths.
 `
 
 export class SubagentBuilder {
@@ -71,7 +77,11 @@ export class SubagentBuilder {
 		const sourceTools =
 			this.options.allowedTools ??
 			(configuredTools && configuredTools.length > 0 ? configuredTools : SUBAGENT_DEFAULT_ALLOWED_TOOLS)
-		return Array.from(new Set([...sourceTools, DiracDefaultTool.ATTEMPT]))
+		const migrated = sourceTools.map((tool) => {
+			const operation = LEGACY_RESPONSE_TOOLS[tool as keyof typeof LEGACY_RESPONSE_TOOLS]
+			return operation ? `${RESPOND_TOOL_NAME}:${operation}` : tool
+		})
+		return Array.from(new Set([...migrated, `${RESPOND_TOOL_NAME}:${ResponseOperation.COMPLETE}`]))
 	}
 
 	private buildAgentIdentitySystemPrefix(): string {

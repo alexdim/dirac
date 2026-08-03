@@ -1,5 +1,6 @@
 import "should"
 import { expect } from "chai"
+import { LegacyResponseParameter, LegacyResponseTool } from "@shared/responseTool"
 import { convertToOpenAIResponsesInput } from "../openai-response-format"
 
 // Characterization tests for convertToOpenAIResponsesInput.
@@ -186,6 +187,28 @@ describe("convertToOpenAIResponsesInput", () => {
 				name: "fn",
 				arguments: '{"x":1}',
 			})
+		})
+
+		it("preserves legacy response history names and call IDs", () => {
+			const result = convertToOpenAIResponsesInput([
+				{
+					role: "assistant",
+					content: [
+						{
+							type: "tool_use",
+							id: "legacy-call",
+							call_id: "provider-call",
+							name: LegacyResponseTool.COMPLETE,
+							input: { [LegacyResponseParameter.RESULT]: "Done" },
+						},
+					],
+				},
+				{ role: "user", content: [{ type: "tool_result", tool_use_id: "legacy-call", content: "Accepted" }] },
+			] as any)
+
+			;(result.input[0] as any).name.should.equal(LegacyResponseTool.COMPLETE)
+			;(result.input[0] as any).call_id.should.equal("provider-call")
+			;(result.input[1] as any).call_id.should.equal("provider-call")
 		})
 
 		it("defaults tool_use input to empty object when undefined", () => {

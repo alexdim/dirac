@@ -11,9 +11,9 @@ export const CONFIGURABLE_TOOL_EXPOSURE: ToolExposure = { kind: "configurable" }
 export type ToolSource = "builtin" | "global" | "workspace" | "task"
 
 export interface DiscoveredTool {
-	/** Unique identifier (e.g., "say", "my_custom_tool") */
+	/** Unique identifier (e.g., "respond", "my_custom_tool") */
 	id: string
-	/** LLM-facing name (e.g., "say") */
+	/** LLM-facing name (e.g., "respond") */
 	name: string
 	/** Where this tool was discovered */
 	source: ToolSource

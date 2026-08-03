@@ -256,11 +256,7 @@ describe("EditFileTool.execute – validation", () => {
 
 		// Verify tool response indicates error
 		assert.ok(typeof result === "string")
-		assert.ok(
-			result.includes(
-				"The 'edits' parameter must be a valid JSON array of objects. If you provided a string, ensure it is valid JSON.",
-			),
-		)
+		assert.ok(result.includes("files[0].edits must be a valid JSON array of edit objects."))
 	})
 
 	it("rejects non-array edits if string parsing fails", async () => {
@@ -290,6 +286,6 @@ describe("EditFileTool.execute – validation", () => {
 
 		// Verify tool response indicates error
 		assert.ok(typeof result === "string")
-		assert.ok(result.includes("The \'edits\' parameter must be a valid JSON array of objects"))
+		assert.ok(result.includes("files[0].edits must be a valid JSON array of edit objects."))
 	})
 })

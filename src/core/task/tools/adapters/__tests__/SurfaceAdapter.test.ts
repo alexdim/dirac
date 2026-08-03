@@ -39,10 +39,10 @@ describe("SurfaceAdapter", () => {
 				"orchestration",
 				"telemetry",
 				"workspace",
-				"ast",
+				"sourceAst",
+				"anchors",
 				"diagnostics",
 				"editor",
-				"symbol",
 				"browser",
 				"skills",
 				"logging",
@@ -168,7 +168,7 @@ describe("SurfaceAdapter", () => {
 		it("prefixes subagent text with its display name", async () => {
 			config.agentIdentity = { id: 2, name: "Feynman" }
 			config.taskMessenger.upsertText = sinon.stub().resolves()
-			adapter = new SurfaceAdapter(config, "say")
+			adapter = new SurfaceAdapter(config, "test_tool")
 
 			await adapter.ui.upsertText("Working on it.", false, "assistant")
 
@@ -433,7 +433,6 @@ describe("SurfaceAdapter", () => {
 			results.get("a.ts")!.autoFormatting.should.equal(true)
 		})
 	})
-
 
 	describe("orchestration trait", () => {
 		it("switchToActMode delegates to callbacks.switchToActMode", async () => {

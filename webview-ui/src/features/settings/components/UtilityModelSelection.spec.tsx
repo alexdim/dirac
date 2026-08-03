@@ -50,7 +50,7 @@ describe("UtilityModelSelection", () => {
 		expect(screen.getByLabelText("Utility model selection")).toBeDisabled()
 		expect(screen.queryByText("Utility model is enabled but no provider/model is configured.")).not.toBeInTheDocument()
 
-		fireEvent.click(toggle, { target: { checked: true } })
+		fireEvent.click(toggle)
 		expect(mockUpdateSetting).toHaveBeenCalledWith("utilityModelEnabled", true)
 	})
 

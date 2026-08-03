@@ -136,6 +136,8 @@ class RawAcpClient {
 const clients: RawAcpClient[] = []
 const workspaces: string[] = []
 const configs: string[] = []
+const permissionTestProvider = process.env.DIRAC_ACP_PERMISSION_TEST_PROVIDER
+const permissionTestModel = process.env.DIRAC_ACP_PERMISSION_TEST_MODEL
 
 afterEach(async () => {
 	await Promise.all(clients.splice(0).map((client) => client.close()))
@@ -335,37 +337,51 @@ describe("ACP protocol conformance over raw stdio", () => {
 		})
 	})
 
-	it("cancels a prompt while a permission request is pending", async () => {
-		const { client, cwd } = await createClient()
-		await client.initialize()
-		const session = await client.request("session/new", { cwd, mcpServers: [] })
-		const sessionId = session.result?.sessionId as string
+	it.runIf(Boolean(permissionTestProvider && permissionTestModel))(
+		"cancels a prompt while a permission request is pending",
+		async () => {
+			const configDir = await temporaryDirectory("dirac-acp-config-")
+			const cwd = await temporaryDirectory("dirac-acp-workspace-")
+			const client = createRawClient(configDir, cwd, [
+				"--provider",
+				permissionTestProvider!,
+				"--model",
+				permissionTestModel!,
+			])
+			await client.initialize()
+			const session = await client.request("session/new", { cwd, mcpServers: [] })
+			const sessionId = session.result?.sessionId as string
 
-		const prompt = client.request("session/prompt", {
-			sessionId,
-			prompt: [
-				{ type: "text", text: "Use the write_to_file tool to create a file named cancelled.txt containing cancelled." },
-			],
-		})
-		const permission = await client.waitForPermission(30_000)
-		expect(permission.params?.sessionId).toBe(sessionId)
-		const updatedDuringTurn = await client.request("session/set_config_option", {
-			sessionId,
-			configId: "auto_approve",
-			type: "boolean",
-			value: true,
-		})
-		expect(updatedDuringTurn.result?.configOptions).toEqual(
-			expect.arrayContaining([
-				expect.objectContaining({ id: "mode", currentValue: "act" }),
-				expect.objectContaining({ id: "auto_approve", currentValue: true }),
-				expect.objectContaining({ id: "yolo", currentValue: false }),
-			]),
-		)
-		client.notify("session/cancel", { sessionId })
+			const prompt = client.request("session/prompt", {
+				sessionId,
+				prompt: [
+					{
+						type: "text",
+						text: "Use the write_to_file tool to create a file named cancelled.txt containing cancelled.",
+					},
+				],
+			})
+			const permission = await client.waitForPermission(30_000)
+			expect(permission.params?.sessionId).toBe(sessionId)
+			const updatedDuringTurn = await client.request("session/set_config_option", {
+				sessionId,
+				configId: "auto_approve",
+				type: "boolean",
+				value: true,
+			})
+			expect(updatedDuringTurn.result?.configOptions).toEqual(
+				expect.arrayContaining([
+					expect.objectContaining({ id: "mode", currentValue: "act" }),
+					expect.objectContaining({ id: "auto_approve", currentValue: true }),
+					expect.objectContaining({ id: "yolo", currentValue: false }),
+				]),
+			)
+			client.notify("session/cancel", { sessionId })
 
-		await expect(prompt).resolves.toMatchObject({ result: { stopReason: "cancelled" } })
-	}, 45_000)
+			await expect(prompt).resolves.toMatchObject({ result: { stopReason: "cancelled" } })
+		},
+		45_000,
+	)
 
 	it("loads and replays a persisted session in a new ACP process", async () => {
 		const configDir = await temporaryDirectory("dirac-acp-config-")

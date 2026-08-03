@@ -1,4 +1,5 @@
 import { HostProvider } from "@/hosts/host-provider"
+import { diagnosticsToProblemsString } from "@/integrations/diagnostics"
 import type { IDiagnosticsTrait } from "../../interfaces/IToolEnvironment"
 
 export function buildDiagnosticsTrait(): IDiagnosticsTrait {
@@ -10,5 +11,7 @@ export function buildDiagnosticsTrait(): IDiagnosticsTrait {
 			const response = await HostProvider.workspace.getDiagnostics({ filePaths: paths })
 			return response.fileDiagnostics || []
 		},
+		formatProblems: (diagnostics, fileContentMap, maxErrors) =>
+			diagnosticsToProblemsString(diagnostics, undefined, fileContentMap, maxErrors),
 	}
 }

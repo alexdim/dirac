@@ -1,5 +1,6 @@
 import { sendRelinquishControlEvent } from "@core/controller/ui/subscribeToRelinquishControl"
 import { findLast } from "@shared/array"
+import { isTaskCompletionCard } from "@shared/cardIdentity"
 import { HostProvider } from "@/hosts/host-provider"
 import { ShowMessageType } from "@/shared/proto/host/window"
 import { Logger } from "@/shared/services/Logger"
@@ -104,7 +105,7 @@ export class CheckpointDiffPresenter {
 				// Get last task completed
 				const lastTaskCompletedMessageCheckpointHash = findLast(
 					this.services.messageStateHandler.getDiracMessages().slice(0, messageIndex),
-					(m) => m.content.type === "card" && m.content.card.header === "Completion Result",
+					(m) => m.content.type === "card" && isTaskCompletionCard(m.content.card),
 				)?.lastCheckpointHash
 
 				// This value *should* always exist

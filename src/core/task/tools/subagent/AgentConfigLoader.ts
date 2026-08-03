@@ -6,6 +6,7 @@ import fs from "fs/promises"
 import os from "os"
 import * as path from "path"
 import { z } from "zod"
+import { LEGACY_RESPONSE_TOOLS, RESPOND_TOOL_NAME } from "@shared/responseTool"
 import { buildSubagentToolName } from "./SubagentToolName"
 
 /** Default Directory for agent configurations: ~/Documents/Dirac/Agents */
@@ -38,7 +39,8 @@ function normalizeToolName(toolName: string): string[] {
 		throw new Error("Tool name cannot be empty.")
 	}
 
-	return [trimmed]
+	const operation = LEGACY_RESPONSE_TOOLS[trimmed as keyof typeof LEGACY_RESPONSE_TOOLS]
+	return [operation ? `${RESPOND_TOOL_NAME}:${operation}` : trimmed]
 }
 
 function parseTools(tools: string | string[] | undefined): string[] {

@@ -12,6 +12,7 @@ import { UrlContentFetcher } from "@services/browser/UrlContentFetcher"
 import { CardStatus, DiracMessage } from "@shared/ExtensionMessage"
 import { DiracContent } from "@shared/messages/content"
 import { DiracDefaultTool, type DiracToolSpec } from "@shared/tools"
+import { canonicalizeResponseToolCall, isCompletionResponseCall } from "@shared/responseTool"
 import { isParallelToolCallingEnabled, modelDoesntSupportWebp } from "@/utils/model-utils"
 import { ToolUse } from "../assistant-message"
 import { ContextManager } from "../context/context-management/ContextManager"
@@ -29,13 +30,7 @@ import { ToolExecutorCoordinator } from "./tools/ToolExecutorCoordinator"
 import { TaskConfig, validateTaskConfig } from "./tools/types/TaskConfig"
 import { ToolDisplayUtils } from "./tools/utils/ToolDisplayUtils"
 
-export function canonicalizeAttemptCompletionParams(block: ToolUse): boolean {
-	if (block.name === DiracDefaultTool.ATTEMPT && !block.params?.result && typeof block.params?.response === "string") {
-		block.params.result = block.params.response
-		return true
-	}
-	return false
-}
+export { canonicalizeResponseToolCall }
 
 // Main tool execution entry point — dispatches tool calls, manages hooks, errors, and results.
 export class ToolExecutor {
@@ -249,10 +244,10 @@ export class ToolExecutor {
 	}
 
 	private async execute(block: ToolUse, isComplete = true): Promise<boolean> {
-		if (!this.coordinator.has(block.name)) return false
-		canonicalizeAttemptCompletionParams(block)
-		const config = this.asToolConfig()
 		try {
+			canonicalizeResponseToolCall(block, isComplete)
+			if (!this.coordinator.has(block.name)) return false
+			const config = this.asToolConfig()
 			if (this.taskState.didRejectTool) {
 				const reason = !isComplete
 					? "Tool was interrupted and not executed due to user rejecting a previous tool."
@@ -310,7 +305,7 @@ export class ToolExecutor {
 			toolResult = ToolResultPusher.appendLoopWarning(toolResult, count)
 			await this.resultPusher.pushToolResult(toolResult, block)
 			if (this.taskState.abort) return
-			if (hooksEnabled && block.name !== "attempt_completion") {
+			if (hooksEnabled && !isCompletionResponseCall(block)) {
 				if (
 					await this.hookRunner.runPostToolUseHook(
 						block,
@@ -328,7 +323,7 @@ export class ToolExecutor {
 			executionSuccess = false
 			toolResult = formatResponse.toolError(`Tool execution failed: ${error}`)
 			if (this.taskState.abort) throw error
-			if (toolWasExecuted && hooksEnabled && block.name !== "attempt_completion") {
+			if (toolWasExecuted && hooksEnabled && !isCompletionResponseCall(block)) {
 				if (
 					await this.hookRunner.runPostToolUseHook(
 						block,

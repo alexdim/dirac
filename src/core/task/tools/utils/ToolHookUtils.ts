@@ -3,6 +3,7 @@ import { getHookModelContext } from "@core/hooks/hook-model-context"
 import { getHooksEnabledSafe } from "@core/hooks/hooks-utils"
 import { PreToolUseHookCancellationError } from "@core/hooks/PreToolUseHookCancellationError"
 import type { TaskConfig } from "../types/TaskConfig"
+import { isCompletionResponseCall } from "@shared/responseTool"
 
 /**
  * Utility functions for tool hook execution.
@@ -27,7 +28,7 @@ export class ToolHookUtils {
 			return true // Hooks disabled, continue execution
 		}
 
-		if (block.name == "attempt_completion") {
+		if (isCompletionResponseCall(block)) {
 			return true // Skip this hook
 		}
 

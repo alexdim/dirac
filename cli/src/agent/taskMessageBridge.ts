@@ -1,6 +1,7 @@
 import type * as acp from "@agentclientprotocol/sdk";
 import type { DiracMessageChange } from "@core/task/message-state";
 import { isSuccessfulTaskCompletionCard } from "@shared/cardIdentity";
+import { isPlanResponseCard } from "@shared/responseTool";
 import { CardStatus, DiracMessage, DiracMessageType } from "@shared/ExtensionMessage";
 import { DiracAskResponse } from "@shared/WebviewMessage";
 import { Controller } from "@/core/controller";
@@ -83,16 +84,15 @@ export class TaskMessageBridge {
 	 * emission arrives under a NEW ts, keyed by a stable per-subtype string.
 	 *
 	 * Two distinct mechanisms produce this ts change mid-stream:
-	 *   - completion_result: AttemptCompletionHandler delete-and-replaces the message
+	 *   - completion_result: the completion operation delete-and-replaces the message
 	 *     (partial ts=T1 removed, fresh non-partial ts=T2 created).
-	 *   - followup / plan_mode_respond: the tool handler issues the final ask() with
+	 *   - interactive response operations: the tool handler issues the final ask() with
 	 *     partial=undefined, which TaskMessenger.ask() stores under a fresh Date.now()
 	 *     ts rather than reusing the streaming partial's ts.
 	 *
 	 * In both cases the ts-keyed partialMessageLastContent sees "" for the new ts and
-	 * re-emits the full text, duplicating it. Accumulating under a stable subtype key
-	 * bridges the gap so the delta computes correctly. Keys: "completion_result",
-	 * "followup", "plan_mode_respond". Cleared at the start of each prompt cycle.
+	 * re-emits the full text, duplicating it. Stable subtype keys bridge the gap so
+	 * the delta computes correctly. Cleared at the start of each prompt cycle.
 	 */
 	private readonly tsUnstableStreamLastContent: Map<string, string> = new Map();
 
@@ -904,7 +904,7 @@ export class TaskMessageBridge {
 			return;
 		}
 
-		// attempt_completion is a deliberate ACP boundary even though the core task
+		// A successful completion response is a deliberate ACP boundary even though the core task
 		// remains alive to accept optional follow-up feedback.
 		if (isSuccessfulTaskCompletionCard(card)) {
 			promptResolved.value = true;
@@ -918,7 +918,7 @@ export class TaskMessageBridge {
 	): Promise<void> {
 		if (
 			message.content.type !== DiracMessageType.CARD ||
-			message.content.card.header !== "Proposed Plan"
+			!isPlanResponseCard(message.content.card)
 		)
 			return;
 

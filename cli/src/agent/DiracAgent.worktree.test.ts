@@ -146,6 +146,7 @@ describe("DiracAgent ACP worktrees", () => {
 			"dev.dirac/seq",
 			"dev.dirac/session.close",
 			"dev.dirac/session.delete",
+			"dev.dirac/steering_status",
 			"dev.dirac/whisper",
 			"dev.dirac/worktree.integrate",
 			"dev.dirac/worktree.provision",

@@ -6,12 +6,14 @@ import type { IDiracTool } from "../interfaces/IDiracTool"
 import type { TaskConfig } from "../types/TaskConfig"
 import type { DiscoveredTool, ToolSource } from "../discovery/DiscoveredTool"
 import { StateManager } from "@/core/storage/StateManager"
+import { LEGACY_RESPONSE_TOOLS, RESPOND_TOOL_NAME, RESPONSE_OPERATIONS, ResponseParameter } from "@shared/responseTool"
 
 const SOURCE_PRIORITY: Record<ToolSource, number> = { builtin: 0, global: 1, workspace: 2, task: 3 }
 
 const TOOL_OPERATION_SCOPES: Readonly<Record<string, readonly string[]>> = {
 	inspect_ast: ["outline", "implementation", "definitions", "references", "occurrences"],
 	edit_ast: ["rename", "replace"],
+	[RESPOND_TOOL_NAME]: RESPONSE_OPERATIONS,
 }
 
 
@@ -53,7 +55,7 @@ function scopeToolSpec(spec: DiracToolSpec, operations: readonly string[]): Dira
 				? (context) => `${promptDescription(context)} ${operationSummary}`
 				: `${promptDescription ?? spec.description} ${operationSummary}`,
 		parameters: spec.parameters?.map((parameter) =>
-			parameter.name === "operation" ? { ...parameter, enum: [...operations] } : parameter,
+			parameter.name === ResponseParameter.OPERATION ? { ...parameter, enum: [...operations] } : parameter,
 		),
 	}
 }
@@ -318,7 +320,7 @@ export class ToolRegistry {
 					spec: () => spec,
 					supportedSurfaces: () => original.supportedSurfaces(),
 					processCall: async (args: any, env: any) => {
-						const operation = args?.operation
+						const operation = args?.[ResponseParameter.OPERATION]
 						if (typeof operation !== "string" || !operations.includes(operation)) {
 							throw new Error(
 								`Operation '${typeof operation === "string" ? operation : "<missing>"}' is not authorized for tool '${spec.name}' in this subagent. Allowed operations: ${operations.join(", ")}.`,
@@ -336,8 +338,14 @@ export class ToolRegistry {
 	}
 
 	loadToggles(toggles: Record<string, boolean>): void {
+		const migrated = { ...toggles }
+		const legacyNames = Object.keys(LEGACY_RESPONSE_TOOLS)
+		if (!(RESPOND_TOOL_NAME in migrated) && legacyNames.some((name) => name in migrated)) {
+			migrated[RESPOND_TOOL_NAME] = legacyNames.every((name) => migrated[name] ?? true)
+		}
+		for (const name of legacyNames) delete migrated[name]
 		this.enabledOverrides = new Map(
-			Object.entries(toggles).filter(([toolId]) => this.getTool(toolId)?.exposure.kind === "configurable"),
+			Object.entries(migrated).filter(([toolId]) => this.getTool(toolId)?.exposure.kind === "configurable"),
 		)
 	}
 
@@ -443,7 +451,6 @@ export class ToolRegistry {
 		return current.factory === next.factory && current.spec === next.spec
 	}
 
-
 	private getTool(toolId: string): DiscoveredTool | undefined {
 		return this.builtinTools.get(toolId) ?? this.userTools.get(toolId)
 	}
@@ -460,7 +467,10 @@ export class ToolRegistry {
 	}
 
 	private collidesWithBuiltin(tool: DiscoveredTool): boolean {
-		return Array.from(this.builtinTools.values()).some((builtin) => this.toolsCollide(builtin, tool))
+		return (
+			[...this.toolIdentifiers(tool)].some((id) => id in LEGACY_RESPONSE_TOOLS) ||
+			Array.from(this.builtinTools.values()).some((builtin) => this.toolsCollide(builtin, tool))
+		)
 	}
 
 	private findUserToolByIdOrName(tool: DiscoveredTool): DiscoveredTool | undefined {

@@ -32,7 +32,7 @@ const PROGRESS_UPDATE_DRAIN_TIMEOUT_MS = 1_000
 const PARENT_ABORT_POLL_INTERVAL_MS = 50
 const WRAP_UP_TIMEOUT_SECONDS = 90
 const WRAP_UP_PROMPT =
-	"The research deadline has elapsed. Stop investigating and summarize the concrete findings you already established. Call attempt_completion now. Do not perform further research."
+	'The research deadline has elapsed. Stop investigating and summarize the concrete findings you already established. Call respond with operation "complete" now. Do not perform further research.'
 
 export type SubagentRunStatus =
 	| typeof SubagentExecutionStatus.COMPLETED
@@ -738,7 +738,7 @@ export class SubagentRunner {
 
 					emptyAssistantResponseRetries += 1
 					if (emptyAssistantResponseRetries > MAX_EMPTY_ASSISTANT_RETRIES) {
-						const error = `Subagent did not call attempt_completion. Last response: "${excerpt(assistantText, 200)}"`
+						const error = `Subagent did not call respond with operation "complete". Last response: "${excerpt(assistantText, 200)}"`
 						instrumentedOnProgress({ status: SubagentExecutionStatus.FAILED, error, stats: { ...stats } })
 						return { status: SubagentExecutionStatus.FAILED, error, stats }
 					}

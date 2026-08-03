@@ -29,6 +29,7 @@ const mocks = vi.hoisted(() => {
 		applyRuntimeModeChange: vi.fn(),
 		createApiHandlerForRuntime: vi.fn(() => ({ getModel: () => ({ id: "act-model", info: {} }) })),
 		setApiHandler: vi.fn(),
+		canAcceptSteeringMessage: vi.fn(() => false),
 	}
 
 	class MockController {
@@ -305,7 +306,7 @@ describe("DiracAgent ACP conversation continuity", () => {
 			; (agent as any).ctx = { extensionContext: {}, DATA_DIR: "/tmp/dirac-test-data" }
 		const { sessionId } = await agent.newSession({ cwd: "/tmp/workspace", mcpServers: [] } as any)
 		const controller = mocks.controllers[0]
-			; (agent as any).sessionStates.get(sessionId).status = "configuring"
+			; (agent as any).configuringSessions.add(sessionId)
 
 		await expect(agent.closeSession({ sessionId } as any)).rejects.toThrow("applying a runtime configuration change")
 		await expect(agent.shutdown()).resolves.toBeUndefined()

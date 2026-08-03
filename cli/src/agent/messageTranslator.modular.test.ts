@@ -6,6 +6,7 @@ import { translateMessage, translateMessages } from "./messageTranslator"
 import { handlePermissionResponse } from "./permissionHandler"
 import type { AcpSessionState } from "./public-types"
 import { AcpSessionStatus } from "./public-types"
+import { ResponseOperation, responseCardInput } from "@shared/responseTool"
 
 function createMarkdownMessage(content: string, isReasoning = false): DiracMessage {
 	return {
@@ -120,7 +121,11 @@ describe("messageTranslator (Modular Architecture)", () => {
 			expect(toolCall.title).toBe("read_file")
 			expect(toolCall.name).toBe("read_file")
 			expect(toolCall.status).toBe("pending")
-			expect(result.updates[1]).toMatchObject({ sessionUpdate: "tool_call_update", toolCallId: "tool-1", status: "in_progress" })
+			expect(result.updates[1]).toMatchObject({
+				sessionUpdate: "tool_call_update",
+				toolCallId: "tool-1",
+				status: "in_progress",
+			})
 			expect(sessionState.pendingToolCalls.has("tool-1")).toBe(true)
 		})
 
@@ -243,7 +248,6 @@ describe("messageTranslator (Modular Architecture)", () => {
 			expect(result.permissionRequest?.toolCall).toMatchObject({ name: "edit_ast", kind: "edit" })
 		})
 
-
 		it("should translate an existing Card update to tool_call_update", () => {
 			const card1 = {
 				id: "tool-1",
@@ -307,7 +311,6 @@ describe("messageTranslator (Modular Architecture)", () => {
 			expect(result.permissionRequest?.toolCall.name).toBe("new_task")
 		})
 
-
 		it("attaches the pending command and diff to an approval request's tool call", () => {
 			const result = translateMessage(
 				createCardMessage({
@@ -325,10 +328,11 @@ describe("messageTranslator (Modular Architecture)", () => {
 				toolCallId: "edit-approval-1",
 				name: "edit_file",
 				rawInput: { command: "python apply_edit.py", language: "bash" },
-				content: [{ type: "diff", path: "src/file.ts", oldText: "const before = true\n", newText: "const after = true\n" }],
+				content: [
+					{ type: "diff", path: "src/file.ts", oldText: "const before = true\n", newText: "const after = true\n" },
+				],
 			})
 		})
-
 
 		it("attaches a write preview diff to the permission request tool call", () => {
 			const result = translateMessage(
@@ -349,10 +353,12 @@ describe("messageTranslator (Modular Architecture)", () => {
 			})
 		})
 
-
 		it("marks always approval and rejection responses for persisted rules", () => {
 			const allow = handlePermissionResponse({ outcome: { outcome: "selected", optionId: "allow_always" } } as any, "tool")
-			const reject = handlePermissionResponse({ outcome: { outcome: "selected", optionId: "reject_always" } } as any, "tool")
+			const reject = handlePermissionResponse(
+				{ outcome: { outcome: "selected", optionId: "reject_always" } } as any,
+				"tool",
+			)
 
 			expect(allow).toMatchObject({ response: "approve", persistentAction: "allow" })
 			expect(reject).toMatchObject({ response: "reject", persistentAction: "deny" })
@@ -365,7 +371,7 @@ describe("messageTranslator (Modular Architecture)", () => {
 					header: "Question: Choose a target",
 					status: CardStatus.WAITING_FOR_INPUT,
 					requireFeedback: true,
-					rawInput: { tool: "ask_followup_question" },
+					rawInput: responseCardInput(ResponseOperation.QUESTION, "Choose a target"),
 				}),
 				sessionState,
 			)
@@ -399,7 +405,6 @@ describe("messageTranslator (Modular Architecture)", () => {
 			const update = result.updates[0] as acp.ToolCall
 			expect(update.status).toBe("failed")
 		})
-
 
 		it("preserves structured raw tool input and output", () => {
 			const created = translateMessage(

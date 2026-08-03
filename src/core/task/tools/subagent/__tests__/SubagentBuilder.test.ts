@@ -4,6 +4,7 @@ import type { TaskConfig } from "@core/task/tools/types/TaskConfig"
 import { afterEach, describe, it } from "mocha"
 import sinon from "sinon"
 import { DiracDefaultTool } from "@/shared/tools"
+import { RESPOND_TOOL_NAME, ResponseOperation } from "@shared/responseTool"
 import { AgentConfigLoader } from "../AgentConfigLoader"
 import { SUBAGENT_DEFAULT_ALLOWED_TOOLS, SUBAGENT_SYSTEM_SUFFIX, SubagentBuilder } from "../SubagentBuilder"
 
@@ -36,12 +37,12 @@ describe("SubagentBuilder", () => {
 			getCachedConfig: (subagentName?: string) =>
 				subagentName === "cached-agent"
 					? {
-						name: "cached-agent",
-						description: "cached description",
-						tools: [DiracDefaultTool.LIST_FILES],
-						modelId: "gpt-5",
-						systemPrompt: "cached system prompt",
-					}
+							name: "cached-agent",
+							description: "cached description",
+							tools: [DiracDefaultTool.LIST_FILES],
+							modelId: "gpt-5",
+							systemPrompt: "cached system prompt",
+						}
 					: undefined,
 		} as unknown as AgentConfigLoader)
 
@@ -57,7 +58,10 @@ describe("SubagentBuilder", () => {
 		assert.equal((effectiveApiConfig as Record<string, unknown>).actModeOpenAiModelId, "gpt-5")
 		assert.equal((effectiveApiConfig as Record<string, unknown>).actModeApiModelId, "act-default")
 
-		assert.deepEqual(builder.getAllowedTools(), [DiracDefaultTool.LIST_FILES, DiracDefaultTool.ATTEMPT])
+		assert.deepEqual(builder.getAllowedTools(), [
+			DiracDefaultTool.LIST_FILES,
+			`${RESPOND_TOOL_NAME}:${ResponseOperation.COMPLETE}`,
+		])
 		const prompt = builder.buildSystemPrompt("generated system prompt")
 		assert.match(prompt, /# Agent Profile/)
 		assert.match(prompt, /Name: cached-agent/)
@@ -84,12 +88,12 @@ describe("SubagentBuilder", () => {
 			getCachedConfig: (subagentName?: string) =>
 				subagentName === "openrouter-agent"
 					? {
-						name: "openrouter-agent",
-						description: "openrouter plan agent",
-						tools: [DiracDefaultTool.FILE_READ],
-						modelId: "openrouter/custom-model",
-						systemPrompt: "plan system",
-					}
+							name: "openrouter-agent",
+							description: "openrouter plan agent",
+							tools: [DiracDefaultTool.FILE_READ],
+							modelId: "openrouter/custom-model",
+							systemPrompt: "plan system",
+						}
 					: undefined,
 		} as unknown as AgentConfigLoader)
 
@@ -123,8 +127,10 @@ describe("SubagentBuilder", () => {
 			systemSuffix: "\n\n# Custom Builder Mode",
 		})
 
-		assert.deepEqual(builder.getAllowedTools(), [DiracDefaultTool.ATTEMPT])
-		assert.equal(builder.buildSystemPrompt("generated prompt"), "configured system# Agent Profile\nName: configured-agent\nDescription: configured description\n\n\n\n# Custom Builder Mode")
+		assert.deepEqual(builder.getAllowedTools(), [`${RESPOND_TOOL_NAME}:${ResponseOperation.COMPLETE}`])
+		assert.equal(
+			builder.buildSystemPrompt("generated prompt"),
+			"configured system# Agent Profile\nName: configured-agent\nDescription: configured description\n\n\n\n# Custom Builder Mode",
+		)
 	})
-
 })

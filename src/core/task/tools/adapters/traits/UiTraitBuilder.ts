@@ -15,6 +15,7 @@ export function buildUiTrait(config: TaskConfig, createCardFn: (params: CardPara
 		streamText: async (type: "markdown" | "reasoning") => {
 			return await config.taskMessenger.streamText(type)
 		},
+		publishState: async () => await config.callbacks.postStateToWebview(),
 	}
 }
 

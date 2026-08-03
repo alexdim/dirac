@@ -1,4 +1,5 @@
 import { DiracDefaultTool } from "@/shared/tools"
+import { RESPOND_TOOL_NAME, ResponseOperation } from "@shared/responseTool"
 import { CardStatus, SubagentExecutionStatus } from "@shared/ExtensionMessage"
 import { ICardHandle, IToolEnvironment } from "../../interfaces/IToolEnvironment"
 import { waitForPresentationOperation } from "../../subagent/PresentationDeadline"
@@ -22,13 +23,12 @@ import {
 	TOOL_IMPLEMENTATION_SENTINEL,
 } from "./constants"
 
-
 const BUILDER_ALLOWED_TOOLS = [
 	DiracDefaultTool.FILE_READ,
 	DiracDefaultTool.EDIT_FILE,
 	DiracDefaultTool.FILE_NEW,
 	DiracDefaultTool.BASH,
-	DiracDefaultTool.ATTEMPT,
+	`${RESPOND_TOOL_NAME}:${ResponseOperation.COMPLETE}`,
 ]
 
 interface ToolBuildRequest {
@@ -178,14 +178,10 @@ async function runBuilderSubagentAttempt(
 		body: formatSubagentTrajectory({ ...identity, prompt, status: result.status, trajectory }),
 		rawOutput: createSubagentCardOutput(result.status, trajectory),
 	}
-	const finalProgressDetail =
-		result.status === SubagentExecutionStatus.COMPLETED ? "completed" : result.error || result.status
+	const finalProgressDetail = result.status === SubagentExecutionStatus.COMPLETED ? "completed" : result.error || result.status
 	const applyTerminalPresentationState = async () => {
 		if (card) {
-			await runPresentationOperation(
-				card.update(finalPatch),
-				`Tool builder '${request.name}' final card update timed out.`,
-			)
+			await runPresentationOperation(card.update(finalPatch), `Tool builder '${request.name}' final card update timed out.`)
 			await runPresentationOperation(
 				card.finalize(subagentCardStatus(result.status)),
 				`Tool builder '${request.name}' card finalization timed out.`,
@@ -250,7 +246,7 @@ ${repairSection}
 2. On the first attempt, replace the exact sentinel statement \`throw new Error(${JSON.stringify(TOOL_IMPLEMENTATION_SENTINEL)})\` with the complete processCall implementation using edit_file. On repair attempts, make only the edits needed to address the validator feedback.
 3. Write ${request.toolDir}/${SMOKE_ARGS_FILE} as a JSON object containing realistic arguments for a successful smoke test. This is the only auxiliary file you may write.
 4. Run: \`npx tsx ${JSON.stringify(`${request.toolDir}/test-harness.ts`)}\` via execute_command. The harness reads ${SMOKE_ARGS_FILE} itself.
-5. If the harness fails, repair the implementation and rerun it. Then call attempt_completion with a brief summary.
+5. If the harness fails, repair the implementation and rerun it. Then call respond with operation "complete" and a brief summary.
 
 Never leave the sentinel token in tool.ts, including in comments or strings.`
 }

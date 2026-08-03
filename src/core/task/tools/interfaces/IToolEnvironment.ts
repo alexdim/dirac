@@ -118,6 +118,9 @@ export interface IUITrait {
 	 * Creates a text stream for real-time feedback.
 	 */
 	streamText(type: "markdown" | "reasoning"): Promise<import("../../../../shared/ExtensionMessage").ITextStreamHandle>
+
+	/** Publishes task state changes to the active UI surface. */
+	publishState(): Promise<void>
 }
 
 export interface IInteractionTrait {
@@ -125,7 +128,10 @@ export interface IInteractionTrait {
 	 * Triggers a transient permission request.
 	 * The UI for this request is separate from any execution cards.
 	 */
-	askPermission(message: string, preview?: PermissionPreview): Promise<{
+	askPermission(
+		message: string,
+		preview?: PermissionPreview,
+	): Promise<{
 		approved: boolean
 		action: string
 		value?: string
@@ -146,13 +152,15 @@ export interface PermissionPreview {
 	rawInput?: import("../../../../shared/ExtensionMessage").CardRawInput
 }
 
-
 export interface ITelemetryTrait {
 	/**
 	 * Captures custom tool usage telemetry.
 	 * Standard telemetry (invocation, duration, success) is handled automatically by the coordinator.
 	 */
 	captureCustomMetadata(metadata: Record<string, any>): void
+	captureTaskCompleted(): void
+	captureOptionSelected(optionCount: number, mode: import("@shared/storage/types").Mode): void
+	captureOptionsIgnored(optionCount: number, mode: import("@shared/storage/types").Mode): void
 }
 
 export interface SystemCommandResult {
@@ -163,7 +171,6 @@ export interface SystemCommandResult {
 	signal?: NodeJS.Signals | null
 	logFilePath?: string
 }
-
 
 export interface ISystemTrait {
 	/**
@@ -201,6 +208,9 @@ export interface ISystemTrait {
 	 * Opens a URL in the user's default browser.
 	 */
 	openUrl(url: string): Promise<void>
+
+	/** Shows a native desktop notification when the host supports it. */
+	showNotification(options: { title?: string; subtitle?: string; message: string }): void
 }
 
 export interface IBrowserTrait {
@@ -235,6 +245,8 @@ export interface IWorkspaceTrait {
 	 * Reads the content of a file, handling rich formats (PDF, DOCX, images).
 	 */
 	readRichFile(path: string): Promise<{ text: string; imageBlock?: any }>
+	/** Loads user-attached files into model-facing text. */
+	formatAttachedFiles(paths: string[]): Promise<string>
 	/**
 	 * Returns information about a file (size, existence, etc.).
 	 */
@@ -373,6 +385,15 @@ export interface IDiagnosticsTrait {
 	 * Returns raw diagnostics for the specified files.
 	 */
 	getRaw(paths: string[]): Promise<FileDiagnostics[]>
+
+	/**
+	 * Formats diagnostics with optional anchored source context for model-facing output.
+	 */
+	formatProblems(
+		diagnostics: FileDiagnostics[],
+		fileContentMap?: Map<string, { lines: string[]; hashes?: string[] }>,
+		maxErrors?: number,
+	): Promise<string>
 }
 
 export interface ILoggingTrait {
@@ -388,7 +409,6 @@ export interface IAnchorTrait {
 	reconcile(absolutePath: string, lines: string[]): string[]
 	getDocumentFingerprint(absolutePath: string): string | null
 }
-
 
 /**
  * The Tool Environment provides access to all capabilities (traits)
@@ -409,7 +429,6 @@ export interface IConversationCondensationTrait {
 		options?: { signal?: AbortSignal; additionalSourceText?: string },
 	): Promise<ConversationCondensationResult>
 }
-
 
 export interface IToolEnvironment {
 	readonly telemetry: ITelemetryTrait

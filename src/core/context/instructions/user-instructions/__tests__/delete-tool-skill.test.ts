@@ -26,7 +26,7 @@ describe("delete-tool skill template", () => {
 			assert.match(instructions, /<workspace>\/\.dirac\/tools/)
 			assert.match(instructions, /list_files/)
 			assert.match(instructions, /read_file/)
-			assert.match(instructions, /ask_followup_question/)
+			assert.match(instructions, /respond.*question/s)
 			assert.match(instructions, /execute_command/)
 			assert.match(instructions, /rm -rf/)
 			assert.match(instructions, /cache\/tools/)

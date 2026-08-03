@@ -2,21 +2,17 @@ import * as fs from "fs/promises"
 import * as path from "path"
 import { TOOL_IMPLEMENTATION_SENTINEL } from "./constants"
 
-export function buildScaffoldedToolSource(
-	name: string,
-	description: string,
-	parameters: any[],
-): string {
+export function buildScaffoldedToolSource(name: string, description: string, parameters: any[]): string {
 	const paramsArray = Array.isArray(parameters)
 		? parameters
-			.map((p: any) => {
-				const pName = p.name || "param"
-				const pType = p.type || "string"
-				const pRequired = p.required !== false
-				const pInstruction = p.instruction || ""
-				return `        { name: ${JSON.stringify(pName)}, type: ${JSON.stringify(pType)}, required: ${pRequired}, instruction: ${JSON.stringify(pInstruction)} },`
-			})
-			.join("\n")
+				.map((p: any) => {
+					const pName = p.name || "param"
+					const pType = p.type || "string"
+					const pRequired = p.required !== false
+					const pInstruction = p.instruction || ""
+					return `        { name: ${JSON.stringify(pName)}, type: ${JSON.stringify(pType)}, required: ${pRequired}, instruction: ${JSON.stringify(pInstruction)} },`
+				})
+				.join("\n")
 		: ""
 
 	return [
@@ -119,7 +115,7 @@ const env = {
     updateIndex: noOp, initializeIndex: noOp,
   },
   ast: { getSkeleton: async () => "", getFunctions: async () => null },
-  diagnostics: { prepare: noOp, getRaw: async () => [] },
+  diagnostics: { prepare: noOp, getRaw: async () => [], formatProblems: async () => "" },
   telemetry: { captureCustomMetadata: () => {} },
   logging: { error: () => {}, warn: () => {}, info: () => {}, debug: () => {}, log: () => {}, trace: () => {} },
 }

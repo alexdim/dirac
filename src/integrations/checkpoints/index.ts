@@ -3,6 +3,7 @@ import { WorkspaceRootManager } from "@core/workspace/WorkspaceRootManager"
 import CheckpointTracker from "@integrations/checkpoints/CheckpointTracker"
 import { DiffViewProvider } from "@integrations/editor/DiffViewProvider"
 import { findLast, findLastIndex } from "@shared/array"
+import { isTaskCompletionCard } from "@shared/cardIdentity"
 import { HistoryItem } from "@shared/HistoryItem"
 import { DiracCheckpointRestore } from "@shared/WebviewMessage"
 import { Logger } from "@/shared/services/Logger"
@@ -175,11 +176,11 @@ export class TaskCheckpointManager implements ICheckpointManager {
 						})
 				}
 			} else {
-				// attempt_completion: check last 3 messages for existing completion checkpoint
+				// Avoid duplicate completion checkpoints near the terminal response card.
 				const lastFivediracMessages = this.services.messageStateHandler.getDiracMessages().slice(-3)
 				const lastCompletionResultMessage = findLast(
 					lastFivediracMessages,
-					(m) => m.content.type === "card" && m.content.card.header === "Completion Result",
+					(m) => m.content.type === "card" && isTaskCompletionCard(m.content.card),
 				)
 				if (lastCompletionResultMessage?.lastCheckpointHash) {
 					Logger.log("Completion checkpoint already exists, skipping duplicate checkpoint creation")
@@ -236,7 +237,7 @@ export class TaskCheckpointManager implements ICheckpointManager {
 			const diracMessages = this.services.messageStateHandler.getDiracMessages()
 			const messageIndex = findLastIndex(
 				diracMessages,
-				(m) => m.content.type === "card" && m.content.card.header === "Completion Result",
+				(m) => m.content.type === "card" && isTaskCompletionCard(m.content.card),
 			)
 			const message = diracMessages[messageIndex]
 			if (!message) {
@@ -277,7 +278,7 @@ export class TaskCheckpointManager implements ICheckpointManager {
 			// Find previous checkpoint hash (last completion or first checkpoint)
 			const lastTaskCompletedMessageCheckpointHash = findLast(
 				this.services.messageStateHandler.getDiracMessages().slice(0, messageIndex),
-				(m) => m.content.type === "card" && m.content.card.header === "Completion Result",
+				(m) => m.content.type === "card" && isTaskCompletionCard(m.content.card),
 			)?.lastCheckpointHash
 			const firstCheckpointMessageCheckpointHash = this.services.messageStateHandler
 				.getDiracMessages()

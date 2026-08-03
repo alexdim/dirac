@@ -10,8 +10,10 @@ import { HostProvider } from "@/hosts/host-provider"
 import { ApiFormat } from "@/shared/proto/dirac/models"
 import { Logger } from "@/shared/services/Logger"
 import { DiracDefaultTool } from "@/shared/tools"
+import { ResponseOperation } from "@shared/responseTool"
 import { TaskState } from "../../../TaskState"
 import { list_files_spec, ListFilesTool } from "../../modules/list_files"
+import { respondSpec, RespondTool } from "../../modules/respond/RespondTool"
 import { SubagentRunner } from "../SubagentRunner"
 import { SubagentBuilder } from "../SubagentBuilder"
 import { DiracAskResponse } from "@shared/WebviewMessage"
@@ -67,7 +69,7 @@ function createTaskConfig(): TaskConfig {
 					supportsPromptCache: true,
 				},
 			}),
-			createMessage: sinon.stub().callsFake(async function* () { }),
+			createMessage: sinon.stub().callsFake(async function* () {}),
 		},
 		services: {
 			stateManager: {
@@ -135,7 +137,7 @@ function createTaskConfigWithListFilesSnapshot(): TaskConfig {
 	config.activeToolSnapshot = {
 		inventoryVersion: 1,
 		requestId: "test-main-snapshot",
-		promptVisibleSpecs: [list_files_spec],
+		promptVisibleSpecs: [list_files_spec, respondSpec],
 		inventoryEnabledTools: [
 			{
 				id: DiracDefaultTool.LIST_FILES,
@@ -146,11 +148,20 @@ function createTaskConfigWithListFilesSnapshot(): TaskConfig {
 				factory: () => new ListFilesTool(),
 				modulePath: "modules/list_files/tool.ts",
 			},
+			{
+				id: DiracDefaultTool.RESPOND,
+				name: DiracDefaultTool.RESPOND,
+				source: "builtin",
+				exposure: { kind: "configurable" },
+				spec: respondSpec,
+				factory: () => new RespondTool(),
+				modulePath: "modules/respond/tool.ts",
+			},
 		],
 		activeSkillIds: [],
-		nativeTools: [{ name: "list_files" } as any],
+		nativeTools: [{ name: "list_files" } as any, { name: DiracDefaultTool.RESPOND } as any],
 		coordinator: config.coordinator as any,
-		executableToolNames: new Set([DiracDefaultTool.LIST_FILES]),
+		executableToolNames: new Set([DiracDefaultTool.LIST_FILES, DiracDefaultTool.RESPOND]),
 		dynamicSubagentToolNames: new Set(),
 	}
 	return config
@@ -195,7 +206,7 @@ describe("SubagentRunner", () => {
 		createMessage.onSecondCall().callsFake(async function* (_systemPrompt: string, conversation: unknown[]) {
 			const assistantMessage = conversation[1] as {
 				role: string
-				content: Array<{ type?: string;[key: string]: unknown }>
+				content: Array<{ type?: string; [key: string]: unknown }>
 			}
 			assert.equal(assistantMessage.role, "assistant")
 
@@ -204,7 +215,7 @@ describe("SubagentRunner", () => {
 			assert.equal(toolUse.id, "toolu_subagent_1")
 			assert.equal(toolUse.name, DiracDefaultTool.LIST_FILES)
 
-			const userMessage = conversation[2] as { role: string; content: Array<{ type?: string;[key: string]: unknown }> }
+			const userMessage = conversation[2] as { role: string; content: Array<{ type?: string; [key: string]: unknown }> }
 			assert.equal(userMessage.role, "user")
 			const toolResult = userMessage.content.find((block) => block.type === "tool_result")
 			assert.ok(toolResult)
@@ -215,8 +226,8 @@ describe("SubagentRunner", () => {
 				tool_call: {
 					function: {
 						id: "toolu_subagent_complete_1",
-						name: DiracDefaultTool.ATTEMPT,
-						arguments: JSON.stringify({ result: "done" }),
+						name: DiracDefaultTool.RESPOND,
+						arguments: JSON.stringify({ operation: ResponseOperation.COMPLETE, text: "done" }),
 					},
 				},
 			}
@@ -262,13 +273,17 @@ describe("SubagentRunner", () => {
 			yield {
 				type: "tool_calls",
 				tool_call: {
-					function: { id: "call-2", name: DiracDefaultTool.ATTEMPT, arguments: JSON.stringify({ result: "done" }) },
+					function: {
+						id: "call-2",
+						name: DiracDefaultTool.RESPOND,
+						arguments: JSON.stringify({ operation: ResponseOperation.COMPLETE, text: "done" }),
+					},
 				},
 			}
 		})
 		const promptRegistry = PromptRegistry.getInstance()
 		sinon.stub(promptRegistry, "get").callsFake(async () => {
-			promptRegistry.nativeTools = [{ name: "list_files" } as any, { name: "attempt_completion" } as any]
+			promptRegistry.nativeTools = [{ name: "list_files" } as any, { name: "respond" } as any]
 			return "system prompt"
 		})
 		sinon.stub(skills, "getOrDiscoverSkills").resolves([])
@@ -304,13 +319,17 @@ describe("SubagentRunner", () => {
 			yield {
 				type: "tool_calls",
 				tool_call: {
-					function: { id: "call-2", name: DiracDefaultTool.ATTEMPT, arguments: JSON.stringify({ result: "done" }) },
+					function: {
+						id: "call-2",
+						name: DiracDefaultTool.RESPOND,
+						arguments: JSON.stringify({ operation: ResponseOperation.COMPLETE, text: "done" }),
+					},
 				},
 			}
 		})
 		const promptRegistry = PromptRegistry.getInstance()
 		sinon.stub(promptRegistry, "get").callsFake(async () => {
-			promptRegistry.nativeTools = [{ name: "list_files" } as any, { name: "attempt_completion" } as any]
+			promptRegistry.nativeTools = [{ name: "list_files" } as any, { name: "respond" } as any]
 			return "system prompt"
 		})
 		sinon.stub(skills, "getOrDiscoverSkills").resolves([])
@@ -322,7 +341,7 @@ describe("SubagentRunner", () => {
 			const runner = new SubagentRunner(createTaskConfigWithListFilesSnapshot())
 			const resultPromise = runner.run("List files", (update) => {
 				if (!update.trajectoryEvent) return
-				return new Promise<void>(() => { })
+				return new Promise<void>(() => {})
 			})
 			await clock.tickAsync(0)
 			await clock.tickAsync(1_000)
@@ -362,8 +381,8 @@ describe("SubagentRunner", () => {
 				tool_call: {
 					function: {
 						id: "toolu_subagent_previous_tokens_complete_1",
-						name: DiracDefaultTool.ATTEMPT,
-						arguments: JSON.stringify({ result: "done" }),
+						name: DiracDefaultTool.RESPOND,
+						arguments: JSON.stringify({ operation: ResponseOperation.COMPLETE, text: "done" }),
 					},
 				},
 			}
@@ -385,7 +404,7 @@ describe("SubagentRunner", () => {
 			return false
 		})
 
-		const result = await runner.run("List files", () => { })
+		const result = await runner.run("List files", () => {})
 
 		assert.equal(result.status, "completed")
 		assert.equal(result.result, "done")
@@ -410,7 +429,7 @@ describe("SubagentRunner", () => {
 		createMessage.onSecondCall().callsFake(async function* (_systemPrompt: string, conversation: unknown[]) {
 			const lastMessage = conversation[conversation.length - 1] as {
 				role: string
-				content: Array<{ type?: string;[key: string]: unknown }>
+				content: Array<{ type?: string; [key: string]: unknown }>
 			}
 
 			assert.equal(lastMessage.role, "user")
@@ -425,8 +444,8 @@ describe("SubagentRunner", () => {
 				tool_call: {
 					function: {
 						id: "toolu_subagent_complete_2",
-						name: DiracDefaultTool.ATTEMPT,
-						arguments: JSON.stringify({ result: "done" }),
+						name: DiracDefaultTool.RESPOND,
+						arguments: JSON.stringify({ operation: ResponseOperation.COMPLETE, text: "done" }),
 					},
 				},
 			}
@@ -442,7 +461,7 @@ describe("SubagentRunner", () => {
 		initializeHostProvider()
 
 		const runner = new SubagentRunner(createTaskConfigWithListFilesSnapshot())
-		const result = await runner.run("List files", () => { })
+		const result = await runner.run("List files", () => {})
 
 		assert.equal(result.status, "completed")
 		assert.equal(result.result, "done")
@@ -480,8 +499,8 @@ describe("SubagentRunner", () => {
 				tool_call: {
 					function: {
 						id: "toolu_subagent_complete_3",
-						name: DiracDefaultTool.ATTEMPT,
-						arguments: JSON.stringify({ result: "done" }),
+						name: DiracDefaultTool.RESPOND,
+						arguments: JSON.stringify({ operation: ResponseOperation.COMPLETE, text: "done" }),
 					},
 				},
 			}
@@ -498,7 +517,7 @@ describe("SubagentRunner", () => {
 		initializeHostProvider()
 
 		const runner = new SubagentRunner(createTaskConfigWithListFilesSnapshot())
-		const result = await runner.run("List files", () => { })
+		const result = await runner.run("List files", () => {})
 
 		assert.equal(result.status, "completed")
 		assert.equal(result.result, "done")
@@ -537,8 +556,8 @@ describe("SubagentRunner", () => {
 		initializeHostProvider()
 
 		const clock = sinon.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "setInterval", "clearInterval", "Date"] })
-		const runner = new SubagentRunner(createTaskConfig())
-		const runPromise = runner.run("List files", () => { })
+		const runner = new SubagentRunner(createTaskConfigWithListFilesSnapshot())
+		const runPromise = runner.run("List files", () => {})
 		await clock.runAllAsync()
 		const result = await runPromise
 		clock.restore()
@@ -554,7 +573,7 @@ describe("SubagentRunner", () => {
 		createMessage.onFirstCall().callsFake(async function* () {
 			yield* []
 			const contextError = new Error("context length exceeded")
-				; (contextError as Error & { status: number }).status = 400
+			;(contextError as Error & { status: number }).status = 400
 			throw contextError
 		})
 
@@ -568,7 +587,7 @@ describe("SubagentRunner", () => {
 		initializeHostProvider()
 
 		const runner = new SubagentRunner(createTaskConfigWithListFilesSnapshot())
-		const result = await runner.run("Huge prompt", () => { })
+		const result = await runner.run("Huge prompt", () => {})
 
 		assert.equal(result.status, "failed")
 		assert.equal(createMessage.callCount, 1)
@@ -582,8 +601,8 @@ describe("SubagentRunner", () => {
 				tool_call: {
 					function: {
 						id: "toolu_subagent_complete_4",
-						name: DiracDefaultTool.ATTEMPT,
-						arguments: JSON.stringify({ result: "done" }),
+						name: DiracDefaultTool.RESPOND,
+						arguments: JSON.stringify({ operation: ResponseOperation.COMPLETE, text: "done" }),
 					},
 				},
 			}
@@ -599,7 +618,7 @@ describe("SubagentRunner", () => {
 		initializeHostProvider()
 
 		const runner = new SubagentRunner(createTaskConfigWithListFilesSnapshot())
-		const result = await runner.run("List files", () => { })
+		const result = await runner.run("List files", () => {})
 
 		assert.equal(result.status, "completed")
 		assert.equal(createMessage.callCount, 1)
@@ -612,8 +631,8 @@ describe("SubagentRunner", () => {
 				tool_call: {
 					function: {
 						id: "toolu_subagent_skills_filtered_1",
-						name: DiracDefaultTool.ATTEMPT,
-						arguments: JSON.stringify({ result: "done" }),
+						name: DiracDefaultTool.RESPOND,
+						arguments: JSON.stringify({ operation: ResponseOperation.COMPLETE, text: "done" }),
 					},
 				},
 			}
@@ -638,7 +657,7 @@ describe("SubagentRunner", () => {
 		initializeHostProvider()
 
 		const runner = new SubagentRunner(createTaskConfigWithListFilesSnapshot())
-		const result = await runner.run("Run task", () => { })
+		const result = await runner.run("Run task", () => {})
 
 		assert.equal(result.status, "completed")
 		assert.equal(createMessage.callCount, 1)
@@ -651,8 +670,8 @@ describe("SubagentRunner", () => {
 				tool_call: {
 					function: {
 						id: "toolu_subagent_skills_unconfigured_1",
-						name: DiracDefaultTool.ATTEMPT,
-						arguments: JSON.stringify({ result: "done" }),
+						name: DiracDefaultTool.RESPOND,
+						arguments: JSON.stringify({ operation: ResponseOperation.COMPLETE, text: "done" }),
 					},
 				},
 			}
@@ -676,8 +695,8 @@ describe("SubagentRunner", () => {
 		stubApiHandler(createMessage)
 		initializeHostProvider()
 
-		const runner = new SubagentRunner(createTaskConfig())
-		const result = await runner.run("Run task", () => { })
+		const runner = new SubagentRunner(createTaskConfigWithListFilesSnapshot())
+		const result = await runner.run("Run task", () => {})
 
 		assert.equal(result.status, "completed")
 		assert.equal(createMessage.callCount, 1)
@@ -690,8 +709,8 @@ describe("SubagentRunner", () => {
 				tool_call: {
 					function: {
 						id: "toolu_subagent_skills_missing_1",
-						name: DiracDefaultTool.ATTEMPT,
-						arguments: JSON.stringify({ result: "done" }),
+						name: DiracDefaultTool.RESPOND,
+						arguments: JSON.stringify({ operation: ResponseOperation.COMPLETE, text: "done" }),
 					},
 				},
 			}
@@ -715,8 +734,8 @@ describe("SubagentRunner", () => {
 		stubApiHandler(createMessage)
 		initializeHostProvider()
 
-		const runner = new SubagentRunner(createTaskConfig())
-		const result = await runner.run("Run task", () => { })
+		const runner = new SubagentRunner(createTaskConfigWithListFilesSnapshot())
+		const result = await runner.run("Run task", () => {})
 
 		assert.equal(result.status, "completed")
 		assert.equal(createMessage.callCount, 1)
@@ -765,8 +784,8 @@ describe("SubagentRunner", () => {
 				tool_call: {
 					function: {
 						id: "toolu_subagent_workspace_complete_1",
-						name: DiracDefaultTool.ATTEMPT,
-						arguments: JSON.stringify({ result: "done" }),
+						name: DiracDefaultTool.RESPOND,
+						arguments: JSON.stringify({ operation: ResponseOperation.COMPLETE, text: "done" }),
 					},
 				},
 			}
@@ -782,7 +801,7 @@ describe("SubagentRunner", () => {
 		initializeHostProvider()
 
 		const runner = new SubagentRunner(createTaskConfigWithListFilesSnapshot())
-		const result = await runner.run("List files", () => { })
+		const result = await runner.run("List files", () => {})
 
 		assert.equal(result.status, "completed")
 		assert.equal(result.result, "done")
@@ -791,7 +810,7 @@ describe("SubagentRunner", () => {
 
 	it("returns after the wrap-up deadline when the API stream ignores abort", async () => {
 		const createMessage = sinon.stub().callsFake(async function* () {
-			await new Promise<void>(() => { })
+			await new Promise<void>(() => {})
 		})
 		const promptRegistry = PromptRegistry.getInstance()
 		sinon.stub(promptRegistry, "get").resolves("system prompt")
@@ -886,8 +905,8 @@ describe("SubagentRunner", () => {
 				tool_call: {
 					function: {
 						id: "toolu_subagent_wrap_up_complete",
-						name: DiracDefaultTool.ATTEMPT,
-						arguments: JSON.stringify({ result: "partial report" }),
+						name: DiracDefaultTool.RESPOND,
+						arguments: JSON.stringify({ operation: ResponseOperation.COMPLETE, text: "partial report" }),
 					},
 				},
 			}
@@ -930,7 +949,7 @@ describe("SubagentRunner", () => {
 
 	it("returns cancelled when the parent task is cancelled even if the API stream never settles", async () => {
 		const createMessage = sinon.stub().callsFake(async function* () {
-			await new Promise<void>(() => { })
+			await new Promise<void>(() => {})
 		})
 		const promptRegistry = PromptRegistry.getInstance()
 		sinon.stub(promptRegistry, "get").resolves("system prompt")
@@ -942,7 +961,7 @@ describe("SubagentRunner", () => {
 		try {
 			const config = createTaskConfigWithListFilesSnapshot()
 			const runner = new SubagentRunner(config)
-			const runPromise = runner.run("Never settles", () => { })
+			const runPromise = runner.run("Never settles", () => {})
 			await clock.tickAsync(0)
 			config.taskState.abort = true
 			await clock.tickAsync(50)

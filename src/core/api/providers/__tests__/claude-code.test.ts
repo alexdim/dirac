@@ -295,12 +295,12 @@ describe("ClaudeCodeHandler", () => {
 				type: "tool_use",
 				id: "toolu_1",
 				name: "StructuredOutput",
-				input: { tool: "attempt_completion", params: { result: "done" } },
+				input: { tool: "respond", params: { operation: "complete", text: "done" } },
 			})
 
 			toolCalls.should.have.length(1)
-			toolCalls[0].function.name.should.equal("attempt_completion")
-			JSON.parse(toolCalls[0].function.arguments).should.deepEqual({ result: "done" })
+			toolCalls[0].function.name.should.equal("respond")
+			JSON.parse(toolCalls[0].function.arguments).should.deepEqual({ operation: "complete", text: "done" })
 		})
 	})
 

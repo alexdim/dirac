@@ -2,8 +2,16 @@ import { expect } from "chai"
 import { describe, it } from "mocha"
 import { DiracDefaultTool } from "@/shared/tools"
 import type { DiracToolSpec } from "../spec"
-import { shouldUseStrictToolSchemas, toolSpecFunctionDeclarations, toolSpecFunctionDefinition, toolSpecInputSchema } from "../spec"
+import {
+	shouldUseStrictToolSchemas,
+	toolSpecFunctionDeclarations,
+	toolSpecFunctionDefinition,
+	toolSpecInputSchema,
+	toOpenAIResponsesAPITool,
+} from "../spec"
 import type { SystemPromptContext } from "../types"
+import { respondSpec } from "@core/task/tools/modules/respond/RespondTool"
+import { RESPONSE_OPERATIONS } from "@shared/responseTool"
 const mockContext: SystemPromptContext = {
 	cwd: "/test/project",
 	ide: "TestIde",
@@ -31,6 +39,41 @@ const makeTool = (overrides?: Partial<DiracToolSpec>): DiracToolSpec => ({
 		},
 	],
 	...overrides,
+})
+
+describe("respond provider schemas", () => {
+	it("preserves the compact operation and bounded options contract across providers", () => {
+		const anthropic = toolSpecInputSchema(respondSpec, mockContext)
+		const openAI = toolSpecFunctionDefinition(respondSpec, mockContext)
+		const strictOpenAI = toolSpecFunctionDefinition(respondSpec, mockContext, true)
+		const responses = toOpenAIResponsesAPITool(openAI)
+		const gemini = toolSpecFunctionDeclarations(respondSpec, mockContext)
+		const anthropicProperties = anthropic.input_schema.properties as Record<string, any>
+		const openAIProperties = ((openAI as any).function.parameters as any).properties
+		const strictProperties = ((strictOpenAI as any).function.parameters as any).properties
+		const geminiProperties = gemini.parameters?.properties as Record<string, any>
+
+		expect(Object.keys(anthropicProperties).sort()).to.deep.equal(["operation", "options", "text"])
+		expect(anthropicProperties.operation.enum).to.deep.equal(RESPONSE_OPERATIONS)
+		expect(anthropicProperties.operation.description).to.include("plan = Plan Mode response/proposal")
+		expect(anthropicProperties.operation.description).to.include("question = required user input")
+		expect(anthropicProperties.options).to.include({ type: "array", minItems: 2, maxItems: 5 })
+		expect(anthropicProperties.options.items).to.deep.equal({ type: "string" })
+		expect(openAIProperties.operation.enum).to.deep.equal(RESPONSE_OPERATIONS)
+		expect(strictProperties.options.type).to.deep.equal(["array", "null"])
+		expect(strictProperties.options.items).to.deep.equal({ type: "string" })
+		expect(geminiProperties.operation.enum).to.deep.equal(RESPONSE_OPERATIONS)
+		expect(geminiProperties.options.items.type).to.equal("STRING")
+		expect((responses as any).name).to.equal("respond")
+	})
+
+	it("is at least sixty percent smaller than the recorded legacy aggregate", () => {
+		const anthropicBytes = JSON.stringify(toolSpecInputSchema(respondSpec, mockContext)).length
+		const openAIBytes = JSON.stringify(toolSpecFunctionDefinition(respondSpec, mockContext)).length
+
+		expect(anthropicBytes).to.be.at.most(Math.floor(1460 * 0.4))
+		expect(openAIBytes).to.be.at.most(Math.floor(1752 * 0.4))
+	})
 })
 
 describe("toolSpecFunctionDeclarations (Gemini)", () => {
@@ -175,20 +218,22 @@ describe("toolSpecFunctionDefinition strict optional parameters", () => {
 	it("preserves primitive and container constraints while adding strict nullability", () => {
 		const result = toolSpecFunctionDefinition(
 			makeTool({
-				parameters: [{
-					name: "entries",
-					required: true,
-					type: "array",
-					instruction: "Entries",
-					minItems: 1,
-					items: {
-						type: "object",
-						properties: {
-							coordinate: { type: "string", pattern: "^[A-Z]+$", minLength: 1 },
+				parameters: [
+					{
+						name: "entries",
+						required: true,
+						type: "array",
+						instruction: "Entries",
+						minItems: 1,
+						items: {
+							type: "object",
+							properties: {
+								coordinate: { type: "string", pattern: "^[A-Z]+$", minLength: 1 },
+							},
+							required: [],
 						},
-						required: [],
 					},
-				}],
+				],
 			}),
 			mockContext,
 			true,
@@ -274,4 +319,3 @@ describe("shouldUseStrictToolSchemas", () => {
 		expect(shouldUseStrictToolSchemas(makeProviderInfo("openai-native", "gpt-5", true))).to.be.true
 	})
 })
-

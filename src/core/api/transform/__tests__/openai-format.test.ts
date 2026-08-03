@@ -1,4 +1,5 @@
 import "should"
+import { LegacyResponseParameter, LegacyResponseTool } from "@shared/responseTool"
 import { convertToOpenAiMessages } from "../openai-format"
 
 // Characterization tests for convertToOpenAiMessages.
@@ -162,6 +163,26 @@ describe("convertToOpenAiMessages", () => {
 			;(result[0] as any).tool_calls.should.deepEqual([
 				{ id: "call_1", type: "function", function: { name: "get_weather", arguments: '{"city":"SF"}' } },
 			])
+		})
+
+		it("preserves legacy response history names and tool-result correlation", () => {
+			const result = convertToOpenAiMessages([
+				{
+					role: "assistant",
+					content: [
+						{
+							type: "tool_use",
+							id: "legacy-call",
+							name: LegacyResponseTool.COMPLETE,
+							input: { [LegacyResponseParameter.RESULT]: "Done" },
+						},
+					],
+				},
+				{ role: "user", content: [{ type: "tool_result", tool_use_id: "legacy-call", content: "Accepted" }] },
+			] as any)
+
+			;(result[0] as any).tool_calls[0].function.name.should.equal(LegacyResponseTool.COMPLETE)
+			;(result[1] as any).tool_call_id.should.equal((result[0] as any).tool_calls[0].id)
 		})
 
 		it("sets content to null when only tool_calls present", () => {
