@@ -82,7 +82,7 @@ import Mutex from "p-mutex"
 import pWaitFor from "p-wait-for"
 import * as path from "path"
 import { ulid } from "ulid"
-import { SkillMetadata } from "@/shared/skills"
+import { filterSkillsByProviderCapabilities, SkillMetadata } from "@/shared/skills"
 import { getAvailableCores } from "@/utils/os"
 import { detectBestShell } from "@/utils/shell-detection"
 import { RuleContextBuilder } from "../context/instructions/user-instructions/RuleContextBuilder"
@@ -90,6 +90,7 @@ import { getOrDiscoverSkills } from "../context/instructions/user-instructions/s
 import { Controller } from "../controller"
 import { StateManager } from "../storage/StateManager"
 import { ApiConversationManager } from "./ApiConversationManager"
+import { activateTaskSkill } from "./activateTaskSkill"
 import { LocalConversationCompaction } from "./LocalConversationCompaction"
 import type { SlashCommandDirectAction } from "@core/slash-commands"
 import { findSlashCommandInTags } from "@core/slash-commands/commandParser"
@@ -317,7 +318,6 @@ export class Task {
 		return { ...claim, messages: retainedMessages }
 	}
 
-
 	private async appendQueuedSteeringToUserContent(userContent: DiracContent[]): Promise<SteeringClaim | undefined> {
 		const steeringClaim = await this.claimSteeringMessages()
 		if (!steeringClaim) return undefined
@@ -342,7 +342,6 @@ export class Task {
 		})
 		return requestClaim
 	}
-
 
 	private async appendQueuedSteeringToNextApiRequest(outboundHistory: DiracStorageMessage[]): Promise<void> {
 		const steeringClaim = await this.claimSteeringMessages()
@@ -871,6 +870,7 @@ export class Task {
 			streamHandler: this.streamHandler,
 			withStateLock: this.withStateLock.bind(this),
 			loadContext: this.loadContext.bind(this),
+			activateSkill: (skillId) => activateTaskSkill(this.taskId, this.taskState, skillId),
 			getCurrentProviderInfo: this.getCurrentProviderInfo.bind(this),
 			getEnvironmentDetails: this.getEnvironmentDetails.bind(this),
 			getPinnedContext: () => this.taskState.pinnedContext,
@@ -1072,11 +1072,11 @@ export class Task {
 		return { didEndLoop: false, userContent }
 	}
 
-	async loadContext(
+		async loadContext(
 		userContent: DiracContent[],
 		includeFileDetails = false,
 		useCompactPrompt = false,
-	): Promise<[DiracContent[], string, boolean, SkillMetadata[], boolean, string?, SlashCommandDirectAction?]> {
+	): Promise<[DiracContent[], string, boolean, SkillMetadata[], boolean, string?, SlashCommandDirectAction[]?]> {
 		return this.contextLoader.loadContext(userContent, includeFileDetails, useCompactPrompt)
 	}
 
@@ -1115,9 +1115,7 @@ export class Task {
 		const images = this.taskState.askResponseImages as string[] | undefined
 		const files = this.taskState.askResponseFiles as string[] | undefined
 
-		const userContent: DiracContent[] = [
-			{ type: "text", text: `<feedback>\n${text}\n</feedback>`, isUserInput: true },
-		]
+		const userContent: DiracContent[] = [{ type: "text", text: `<feedback>\n${text}\n</feedback>`, isUserInput: true }]
 		if (images && images.length > 0) {
 			userContent.push(...formatResponse.imageBlocks(images))
 		}
@@ -1296,7 +1294,13 @@ export class Task {
 		const mode = this.stateManager.getGlobalSettingsKey("mode")
 		const providerId = (mode === "plan" ? apiConfig.planModeApiProvider : apiConfig.actModeApiProvider) as string
 		const customPrompt = this.stateManager.getGlobalSettingsKey("customPrompt")
-		return { model, providerId, customPrompt, mode }
+		return {
+			model,
+			providerId,
+			customPrompt,
+			mode,
+			supportsNativeWebSearch: this.api.supportsNativeWebSearch?.() === true,
+		}
 	}
 
 	private async writePromptMetadataArtifacts(params: {
@@ -1493,10 +1497,13 @@ export class Task {
 		}
 		// Discover and filter available skills
 		const resolvedSkills = await getOrDiscoverSkills(this.cwd, this.taskState)
+		const providerSkills = filterSkillsByProviderCapabilities(resolvedSkills, {
+			native_web_search: providerInfo.supportsNativeWebSearch === true,
+		})
 		// Filter skills by toggle state (enabled by default)
 		const globalSkillsToggles = this.stateManager.getGlobalSettingsKey("globalSkillsToggles") ?? {}
 		const localSkillsToggles = this.stateManager.getWorkspaceStateKey("localSkillsToggles") ?? {}
-		const availableSkills = resolvedSkills.filter((skill) => {
+		const availableSkills = providerSkills.filter((skill) => {
 			if (this.stateManager.getGlobalSettingsKey("yoloModeToggled") && skill.interactiveOnly) return false
 			if (skill.source === "builtin") return true
 			const toggles = skill.source === "global" ? globalSkillsToggles : localSkillsToggles

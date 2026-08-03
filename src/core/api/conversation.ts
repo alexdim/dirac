@@ -29,6 +29,7 @@ export interface PendingApiConversationCompaction {
 export interface ApiConversationRequestOptions {
 	checkpoint?: ApiConversationCheckpoint
 	breakProviderContinuation?: boolean
+	enableNativeWebSearch?: boolean
 }
 
 export interface ApiConversationCompactionRequest {

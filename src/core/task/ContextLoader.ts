@@ -1,7 +1,7 @@
 import { GlobalFileNames } from "@core/storage/disk"
 import { USER_CONTENT_TAGS } from "@shared/messages/constants"
 import { DiracContent, DiracTextContentBlock } from "@shared/messages/content"
-import { SkillMetadata } from "@/shared/skills"
+import { filterSkillsByProviderCapabilities, SkillMetadata } from "@/shared/skills"
 import { ensureLocalDiracDirExists } from "../context/instructions/user-instructions/rule-helpers"
 import { getOrDiscoverSkills } from "../context/instructions/user-instructions/skills"
 import { refreshWorkflowToggles } from "../context/instructions/user-instructions/workflows"
@@ -10,7 +10,6 @@ import { MentionContextLoader } from "./context/MentionContextLoader"
 import { ContextLoaderDependencies } from "./types/context-loader"
 import { CONVERSATION_CONTINUATION_TEMPLATE_ID, TASK_HANDOFF_TEMPLATE_ID } from "@core/text-condensation/templates"
 import type { SlashCommandDirectAction } from "@core/slash-commands"
-
 
 export class ContextLoader {
 	private fileContextLoader: FileContextLoader
@@ -26,8 +25,7 @@ export class ContextLoader {
 		userContent: DiracContent[],
 		includeFileDetails = false,
 		useCompactPrompt = false,
-	): Promise<[DiracContent[], string, boolean, SkillMetadata[], boolean, string?, SlashCommandDirectAction?]> {
-		let needsDiracrulesFileCheck = false
+	): Promise<[DiracContent[], string, boolean, SkillMetadata[], boolean, string?, SlashCommandDirectAction[]?]> {
 		const cwd = this.dependencies.cwd
 		const { localWorkflowToggles, globalWorkflowToggles } = await refreshWorkflowToggles(this.dependencies.stateManager, cwd)
 
@@ -35,23 +33,21 @@ export class ContextLoader {
 		const availableSkills = await this.resolveAvailableSkills(cwd)
 		this.dependencies.taskState.availableSkills = availableSkills
 
-		let isDirectResponse = false
-		let directResponseText: string | undefined
-		let directAction: SlashCommandDirectAction | undefined
+		type ParsedTextMetadata = {
+			needsDiracrulesFileCheck: boolean
+			isDirectResponse: boolean
+			directResponseText?: string
+			directAction?: SlashCommandDirectAction
+		}
+		const parsedTextMetadata: Array<ParsedTextMetadata | undefined> = []
 		const conversationCondensationAvailable =
 			this.dependencies.isTextCondensationAvailable?.(CONVERSATION_CONTINUATION_TEMPLATE_ID) ?? false
 		const taskHandoffCondensationAvailable =
 			this.dependencies.isTextCondensationAvailable?.(TASK_HANDOFF_TEMPLATE_ID) ?? false
 
-		// Parse a single text block through mention/slash enrichment
-		const parseTextBlock = async (text: string): Promise<string> => {
-			const {
-				enrichedText,
-				needsDiracrulesFileCheck: needsCheck,
-				isDirectResponse: direct,
-				directResponseText: directText,
-				directAction: action,
-			} = await this.mentionContextLoader.enrichContext(
+		// Parse a single text block through mention/slash enrichment and retain metadata by input order.
+		const parseTextBlock = async (text: string, blockIndex: number): Promise<string> => {
+			const result = await this.mentionContextLoader.enrichContext(
 				text,
 				cwd,
 				localWorkflowToggles,
@@ -63,20 +59,28 @@ export class ContextLoader {
 				conversationCondensationAvailable,
 				taskHandoffCondensationAvailable,
 			)
-			if (needsCheck) needsDiracrulesFileCheck = true
-			if (direct) {
-				directResponseText = directText
-				isDirectResponse = true
+			parsedTextMetadata[blockIndex] = {
+				needsDiracrulesFileCheck: result.needsDiracrulesFileCheck,
+				isDirectResponse: result.isDirectResponse ?? false,
+				directResponseText: result.directResponseText,
+				directAction: result.directAction,
 			}
-			if (action) directAction = action
-			return enrichedText
+			return result.enrichedText
 		}
 
-		// Process all content and environment details in parallel
+		// Process all content and environment details in parallel.
 		const [processedUserContent, environmentDetails] = await Promise.all([
-			Promise.all(userContent.map((block) => this.processContentBlock(block, parseTextBlock))),
+			Promise.all(
+				userContent.map((block, blockIndex) =>
+					this.processContentBlock(block, (text) => parseTextBlock(text, blockIndex)),
+				),
+			),
 			this.dependencies.getEnvironmentDetails(includeFileDetails),
 		])
+		const parsedResults = parsedTextMetadata.filter((result): result is ParsedTextMetadata => result !== undefined)
+		const needsDiracrulesFileCheck = parsedResults.some((result) => result.needsDiracrulesFileCheck)
+		const lastDirectResponse = [...parsedResults].reverse().find((result) => result.isDirectResponse)
+		const directActions = parsedResults.flatMap((result) => (result.directAction ? [result.directAction] : []))
 
 		const diracrulesError = needsDiracrulesFileCheck
 			? await ensureLocalDiracDirExists(this.dependencies.cwd, GlobalFileNames.diracRules)
@@ -87,18 +91,21 @@ export class ContextLoader {
 			environmentDetails,
 			diracrulesError,
 			availableSkills,
-			isDirectResponse,
-			directResponseText,
-			directAction,
+			lastDirectResponse !== undefined,
+			lastDirectResponse?.directResponseText,
+			directActions.length > 0 ? directActions : undefined,
 		]
 	}
 
 	// Discover skills and filter by global/local toggles
 	private async resolveAvailableSkills(cwd: string): Promise<SkillMetadata[]> {
 		const resolvedSkills = await getOrDiscoverSkills(cwd, this.dependencies.taskState)
+		const providerSkills = filterSkillsByProviderCapabilities(resolvedSkills, {
+			native_web_search: this.dependencies.getCurrentProviderInfo().supportsNativeWebSearch === true,
+		})
 		const globalToggles = this.dependencies.stateManager.getGlobalSettingsKey("globalSkillsToggles") ?? {}
 		const localToggles = this.dependencies.stateManager.getWorkspaceStateKey("localSkillsToggles") ?? {}
-		return resolvedSkills.filter((skill) => {
+		return providerSkills.filter((skill) => {
 			if (this.dependencies.yoloModeToggled && skill.interactiveOnly) return false
 			if (skill.source === "builtin") return true
 			const toggles = skill.source === "global" ? globalToggles : localToggles

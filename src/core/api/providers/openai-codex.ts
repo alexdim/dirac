@@ -161,6 +161,10 @@ export class OpenAiCodexHandler implements ApiHandler {
 		this.sessionId = uuidv7()
 	}
 
+	supportsNativeWebSearch(): boolean {
+		return true
+	}
+
 	private shouldEnableParallelToolCalling(): boolean {
 		return isParallelToolCallingEnabled(this.options.enableParallelToolCalling ?? false)
 	}
@@ -171,7 +175,7 @@ export class OpenAiCodexHandler implements ApiHandler {
 
 	async compactConversation(request: ApiConversationCompactionRequest): Promise<ApiConversationCompactionResult> {
 		const model = this.getModel()
-		const finalTools: CodexTool[] = [...((request.tools ?? []) as ChatCompletionTool[]), { type: "web_search" }]
+		const finalTools: CodexTool[] = [...((request.tools ?? []) as ChatCompletionTool[])]
 		const input = [...(request.checkpoint?.input ?? []), ...convertToOpenAIResponsesInput(request.messages).input]
 		const fullBody = this.buildRequestBody(model, input, request.systemPrompt, finalTools, {
 			usePersistedReasoning: model.info.supportsPersistedReasoning === true,
@@ -241,7 +245,8 @@ export class OpenAiCodexHandler implements ApiHandler {
 		tools?: ChatCompletionTool[],
 		options?: ApiConversationRequestOptions,
 	): ApiStream {
-		const finalTools: CodexTool[] = [...(tools || []), { type: "web_search" }]
+		const finalTools: CodexTool[] = [...(tools || [])]
+		if (options?.enableNativeWebSearch) finalTools.push({ type: "web_search" })
 		const model = this.getModel()
 		const usePersistedReasoning = model.info.supportsPersistedReasoning === true
 		const useWebsocketMode = this.useWebsocketMode(model.info.apiFormat) || usePersistedReasoning

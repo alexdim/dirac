@@ -9,7 +9,7 @@ export const use_skill_spec: DiracToolSpec = {
 	id: DiracDefaultTool.USE_SKILL,
 	name: "use_skill",
 	description:
-		"Load and activate a skill by name. Skills provide specialized instructions for specific tasks. Use this tool ONCE when a user's request matches one of the available skill descriptions shown in the SKILLS section of your system prompt. After activation, follow the skill's instructions directly - do not call use_skill again.",
+		"Load and activate a skill by name. Skills provide specialized instructions for specific tasks. Reusing an active skill reloads its instructions without duplicating activation.",
 	parameters: [
 		{
 			name: "skill_name",
@@ -56,7 +56,11 @@ export class UseSkillTool implements IDiracTool {
 				return errorMsg
 			}
 
-			await env.orchestration.activateSkill(skillContent.name)
+			const activeSkillIds = env.orchestration.getTaskState("activeSkillIds")
+			const alreadyActive = activeSkillIds.includes(skillContent.name)
+			if (!alreadyActive) {
+				await env.orchestration.activateSkill(skillContent.name)
+			}
 
 			const globalCount = availableSkills.filter((skill) => skill.source === "global").length
 			const projectCount = availableSkills.filter((skill) => skill.source === "project").length
@@ -70,8 +74,9 @@ export class UseSkillTool implements IDiracTool {
 
 			const { docs, scripts } = await env.skills.listSupportingFiles(skillContent.path)
 
-			let activationMessage = `# Skill "${skillContent.name}" is now active\n\n${skillContent.instructions}\n\n---\n`
-			activationMessage += `IMPORTANT: The skill is now loaded. Do NOT call use_skill again for this task. Simply follow the instructions above to complete the user's request.\n`
+			const activationState = alreadyActive ? "already active; instructions reloaded" : "now active"
+			let activationMessage = `# Skill "${skillContent.name}" is ${activationState}\n\n${skillContent.instructions}\n\n---\n`
+			activationMessage += `IMPORTANT: The skill instructions are loaded. Follow them to continue the task.\n`
 
 			const skillDir = skillContent.path.replace(/SKILL\.md$/, "")
 			if (docs.length > 0 || scripts.length > 0) {
@@ -88,7 +93,7 @@ export class UseSkillTool implements IDiracTool {
 
 			if (card) {
 				await card.update({
-					header: `Activated skill: ${skill_name}`,
+					header: alreadyActive ? `Reloaded active skill: ${skill_name}` : `Activated skill: ${skill_name}`,
 					status: CardStatus.SUCCESS,
 					body: `✓ Skill source: ${skillContent.source}\nDirectory: ${skillDir}`,
 				})

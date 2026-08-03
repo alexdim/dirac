@@ -74,6 +74,7 @@ export interface ApiHandler {
 		options?: ApiConversationRequestOptions,
 	): ApiStream
 	compactConversation?(request: ApiConversationCompactionRequest): Promise<ApiConversationCompactionResult>
+	supportsNativeWebSearch?(): boolean
 	getModel(): ApiHandlerModel
 	getApiStreamUsage?(): Promise<ApiStreamUsageChunk | undefined>
 	abort?(): void
@@ -89,6 +90,7 @@ export interface ApiProviderInfo {
 	model: ApiHandlerModel
 	mode: Mode
 	customPrompt?: string // "compact"
+	supportsNativeWebSearch?: boolean
 }
 
 export interface SingleCompletionHandler {

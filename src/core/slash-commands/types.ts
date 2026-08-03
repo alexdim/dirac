@@ -15,9 +15,9 @@ type RemoteWorkflow = {
 
 export type Workflow = FileBasedWorkflow | RemoteWorkflow
 
-export type SlashCommandDirectAction = {
-	type: "condenseConversation"
-}
+export type SlashCommandDirectAction =
+	| { type: "condenseConversation" }
+	| { type: "activateSkill"; skillId: string }
 
 export type ParseSlashCommandResult = {
 	processedText: string

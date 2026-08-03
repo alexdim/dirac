@@ -50,6 +50,12 @@ Tell the user:
 - Enabled tools are available to the main agent and to subagents whose allowlist includes the tool id/name.
 `
 
+const WEB_SEARCH_SKILL_INSTRUCTIONS = `
+# Native Web Search
+
+Provider-native web search is now enabled for subsequent requests in this task. Continue the user's request and use web search whenever current or externally verifiable information is required.
+`
+
 const DELETE_TOOL_SKILL_INSTRUCTIONS = `
 # Deleting a User-Defined Custom Tool
 
@@ -132,6 +138,7 @@ After successful deletion, tell the user:
 
 const BUILTIN_SKILL_CONTENT = new Map<string, string>([
 	["<builtin>/new-tool/SKILL.md", NEW_TOOL_SKILL_INSTRUCTIONS],
+	["<builtin>/web-search/SKILL.md", WEB_SEARCH_SKILL_INSTRUCTIONS],
 	["<builtin>/delete-tool/SKILL.md", DELETE_TOOL_SKILL_INSTRUCTIONS],
 ])
 
@@ -142,6 +149,13 @@ export const BUILTIN_SKILLS: SkillMetadata[] = [
 		path: "<builtin>/new-tool/SKILL.md",
 		source: "builtin",
 		toolDependencies: ["upsert_tool"],
+	},
+	{
+		name: "web-search",
+		description: "Enable provider-native web search when current or externally verifiable information is needed",
+		path: "<builtin>/web-search/SKILL.md",
+		source: "builtin",
+		requiredProviderCapability: "native_web_search",
 	},
 	{
 		name: "delete-tool",

@@ -1,5 +1,6 @@
 import * as path from "node:path"
 import { getOrDiscoverSkills } from "@core/context/instructions/user-instructions/skills"
+import { filterSkillsByProviderCapabilities } from "@shared/skills"
 import { PromptRegistry, DiracToolSet } from "@core/prompts/system-prompt"
 import type { SystemPromptContext } from "@core/prompts/system-prompt/types"
 import { validateToolRequestSnapshot, type ToolRequestSnapshot } from "@core/task/tools/runtime/ToolSnapshot"
@@ -19,7 +20,7 @@ export class SubagentContextBuilder {
 		private agent: SubagentBuilder,
 		private allowedTools: string[],
 		private apiHandler: any,
-	) { }
+	) {}
 
 	// Builds the full system prompt context for the subagent run.
 	async buildContext(): Promise<{
@@ -40,10 +41,14 @@ export class SubagentContextBuilder {
 			model: api.getModel(),
 			mode,
 			customPrompt: this.baseConfig.services.stateManager.getGlobalSettingsKey("customPrompt"),
+			supportsNativeWebSearch: api.supportsNativeWebSearch?.() === true,
 		}
 		const host = HostRegistryInfo.get()
 		const availableSkills = await getOrDiscoverSkills(this.baseConfig.cwd, this.baseConfig.taskState)
-		const skills = this.resolveSkills(availableSkills)
+		const providerSkills = filterSkillsByProviderCapabilities(availableSkills, {
+			native_web_search: providerInfo.supportsNativeWebSearch,
+		})
+		const skills = this.resolveSkills(providerSkills)
 		const context: SystemPromptContext = {
 			providerInfo,
 			cwd: this.baseConfig.cwd,

@@ -32,7 +32,11 @@ export async function executeSkillCommand(
 
 		processedText += textWithoutSlashCommand
 		telemetryService.captureSlashCommandUsed(ulid, commandName, "skill")
-		return { processedText, needsDiracrulesFileCheck: false }
+		return {
+			processedText,
+			needsDiracrulesFileCheck: false,
+			directAction: { type: "activateSkill", skillId: skillContent.name },
+		}
 	} catch (error) {
 		Logger.error(`Error loading skill ${skill.name}: ${error}`)
 		return null

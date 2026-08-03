@@ -30,7 +30,17 @@ export async function getStateToPostToWebview(deps: {
 	const authState = await assembleAuthState(stateManager)
 	const { latestAnnouncementId, ...runtimeState } = await assembleRuntimeState()
 	const toolState = await assembleToolState(stateManager, primaryRootPath)
-	const availableSkills = await discoverAvailableSkills(stateManager, cwd, task?.taskState || {})
+	const apiConfiguration = stateManager.getApiConfiguration()
+	const mode = stateManager.getGlobalSettingsKey("mode")
+	const configuredProviderId =
+		(mode === "plan" ? apiConfiguration.planModeApiProvider : apiConfiguration.actModeApiProvider) ??
+		apiConfiguration.apiProvider
+	const supportsNativeWebSearch = task
+		? task.api?.supportsNativeWebSearch?.() === true
+		: configuredProviderId === "openai-codex"
+	const availableSkills = await discoverAvailableSkills(stateManager, cwd, task?.taskState || {}, {
+		native_web_search: supportsNativeWebSearch,
+	})
 
 	const taskHistory = stateManager.getGlobalStateKey("taskHistory")
 	const lastShownAnnouncementId = stateManager.getGlobalStateKey("lastShownAnnouncementId")
