@@ -32,6 +32,7 @@ import {
 } from "./InspectAstValidator"
 
 const IMPLEMENTATION_CACHE_KEY = "inspectAstImplementationCache"
+const MAX_HEADER_PATH_LENGTH = 60
 
 export const inspect_ast_spec: DiracToolSpec = {
 	id: DiracDefaultTool.INSPECT_AST,
@@ -331,18 +332,44 @@ export class InspectAstTool implements IDiracTool<InspectAstArgs, string> {
 	}
 
 	private runningHeader(group: InspectAstResultGroup): string {
-		if (group.operation === "outline") return `Inspecting outline of ${group.path}`
-		if (group.operation === "implementation") return `Inspecting implementation of ${group.symbol}`
-		return `Finding ${group.operation} for ${group.symbol}`
+		const pathLabel = this.pathLabel(group.operation === "outline" ? [group.path] : group.searchedPaths)
+		if (group.operation === "outline") return `Inspecting outline of ${pathLabel}`
+		if (group.operation === "implementation") return `Inspecting implementation of ${group.symbol} in ${pathLabel}`
+		return `Finding ${group.operation} for ${group.symbol} in ${pathLabel}`
 	}
 
 	private completedHeader(group: InspectAstResultGroup): string {
+		const pathLabel = this.pathLabel(this.completedHeaderPaths(group))
 		if (group.operation === "outline") {
-			return group.status === "success" ? `Inspected ${group.path}` : `No definitions in ${group.path}`
+			return group.status === "success" ? `Inspected ${pathLabel}` : `No definitions in ${pathLabel}`
 		}
-		if (group.status === "failure") return `No match for ${group.symbol}`
-		if (group.operation === "implementation") return `Extracted ${group.symbol}`
-		return `Found ${group.operation} for ${group.symbol}`
+		if (group.status === "failure") return `No match for ${group.symbol} in ${pathLabel}`
+		if (group.operation === "implementation") return `Extracted ${group.symbol} from ${pathLabel}`
+		return `Found ${group.operation} for ${group.symbol} in ${pathLabel}`
+	}
+
+	private completedHeaderPaths(group: InspectAstResultGroup): string[] {
+		if (group.operation === "outline") return [group.path]
+		if (group.operation === "implementation") {
+			return group.matches.length > 0 ? group.matches.map((match) => match.path) : group.searchedPaths
+		}
+		return group.occurrences.length > 0
+			? group.occurrences.map((occurrence) => occurrence.displayPath)
+			: group.searchedPaths
+	}
+
+	private pathLabel(paths: string[]): string {
+		const uniquePaths = [...new Set(paths)]
+		const firstPath = this.truncateHeaderPath(uniquePaths[0])
+		return uniquePaths.length === 1 ? firstPath : `${firstPath} (+${uniquePaths.length - 1} more)`
+	}
+
+	private truncateHeaderPath(path: string): string {
+		if (path.length <= MAX_HEADER_PATH_LENGTH) return path
+		const visibleLength = MAX_HEADER_PATH_LENGTH - 1
+		const leadingLength = Math.ceil(visibleLength / 2)
+		const trailingLength = Math.floor(visibleLength / 2)
+		return `${path.slice(0, leadingLength)}…${path.slice(-trailingLength)}`
 	}
 
 	private countForGroup(group: InspectAstResultGroup): { key: string; label: string; value: number } {
