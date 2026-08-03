@@ -313,7 +313,7 @@ export async function runPlainTextTask(options: PlainTextTaskOptions): Promise<b
 			const card = completionCard.content.card
 			process.stdout.write(cardBodyForDisplay(card.body, card.renderType) + "\n")
 		} else {
-			// Fallback to the last markdown message (e.g. if task was interrupted or didn't use attempt_completion)
+			// Fallback to the last markdown message when no completion card exists.
 			const lastMarkdown = [...messages]
 				.reverse()
 				.find((m) => m.content.type === DiracMessageType.MARKDOWN && !m.content.isReasoning)

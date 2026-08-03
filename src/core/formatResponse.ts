@@ -43,9 +43,7 @@ export const formatResponse = {
 		`[PROTOCOL REMINDER] Your previous response did not include any tool calls. In ACT MODE, every response MUST include at least one tool call to move the task forward.
 
 # Next Steps
-- If you have completed the user's task, use the 'attempt_completion' tool.
-- If you require additional information from the user, use the 'ask_followup_question' tool.
-- If you want to provide an interim update or narration, use the 'say' tool.
+- Use 'respond' with operation 'complete' if finished, 'question' for required input, or 'progress' for an update.
 - Otherwise, proceed with the next step of the task using the appropriate tool.
 
 (This is an automated message, so do not respond to it conversationally.)`,
@@ -220,7 +218,7 @@ export const formatResponse = {
 		const taskResumptionMessage = wasRecent
 			? ""
 			: `[TASK RESUMPTION] (${agoText}) CWD: '${cwd.toPosix()}'\n\n${mode === "plan"
-				? "Note: Assume any previous tool use without a result failed. You are in PLAN MODE; respond using plan_mode_respond. Avoid redundant text."
+				? "Note: Assume any previous tool use without a result failed. You are in PLAN MODE; use respond with operation 'plan'. Avoid redundant text."
 				: "Note: Assume any previous tool use without a result failed. Reassess the task context and continue if incomplete."
 			}`
 

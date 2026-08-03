@@ -6,7 +6,7 @@ import { EditFormatter } from "./utils/EditFormatter"
 
 // Applies prepared batches to disk, formats files, and produces final diagnostic results.
 export class EditFileApplier {
-	constructor(private resultsFormatter: EditFormatter) { }
+	constructor(private resultsFormatter: EditFormatter) {}
 
 	async applyAndSave(
 		env: IToolEnvironment,
@@ -98,8 +98,15 @@ export class EditFileApplier {
 		for (const batch of preparedBatches) {
 			const applied = appliedResults.get(batch.absolutePath)
 			const fileDiagnostics = rawDiagnostics.find((d) => d.filePath === batch.absolutePath)?.diagnostics || []
+			const diagnosticDetails = await env.diagnostics.formatProblems(
+				[{ filePath: batch.absolutePath, diagnostics: fileDiagnostics }],
+				new Map([[batch.absolutePath, { lines: applied.finalLines, hashes: applied.newLineHashes }]]),
+			)
 			const diagnosticsResult = {
-				newProblemsMessage: fileDiagnostics.length > 0 ? `Found ${fileDiagnostics.length} problems` : "",
+				newProblemsMessage:
+					fileDiagnostics.length > 0
+						? `Found ${fileDiagnostics.length} problems${diagnosticDetails ? `\n${diagnosticDetails}` : ""}`
+						: "",
 				fixedCount: 0,
 			}
 			const result = this.resultsFormatter.createResultsResponse(

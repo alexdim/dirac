@@ -4,6 +4,7 @@
  */
 import { describe, it } from "mocha"
 import "should"
+import { LegacyResponseTool, RESPOND_TOOL_NAME } from "@shared/responseTool"
 import { formatResponse } from "./formatResponse"
 
 describe("formatResponse", () => {
@@ -86,11 +87,13 @@ describe("formatResponse", () => {
 	})
 
 	describe("noToolsUsed", () => {
-		it("returns a string for native tool calls", () => {
-			formatResponse.noToolsUsed(true).should.be.a.String()
-		})
-		it("returns a string for non-native tool calls", () => {
-			formatResponse.noToolsUsed(false).should.be.a.String()
+		it("requires another tool-calling turn through the consolidated response contract", () => {
+			for (const nativeToolCalls of [true, false]) {
+				const reminder = formatResponse.noToolsUsed(nativeToolCalls)
+				reminder.should.containEql("every response MUST include at least one tool call")
+				reminder.should.containEql(`Use '${RESPOND_TOOL_NAME}'`)
+				reminder.should.not.containEql(LegacyResponseTool.COMPLETE)
+			}
 		})
 	})
 

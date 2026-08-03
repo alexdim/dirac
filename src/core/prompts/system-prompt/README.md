@@ -50,7 +50,7 @@ Dirac uses a modular, multi-stage pipeline to generate the final system prompt. 
 - **Function**: `SYSTEM_PROMPT(context: SystemPromptContext)`
 - **Role**: Returns the base template string containing Dirac's identity, editing protocols, and operating rules.
 - **Placeholders**: Uses `{{PLACEHOLDER}}` tags (e.g., `{{OS}}`, `{{SHELL}}`, `{{CWD}}`) that will be resolved later.
-- **Conditional Content**: Contains inline logic to add/remove instructions based on flags like `enableParallelToolCalling` or `supportsBrowserUse`.
+- **Conditional Content**: Contains inline logic for prompt-affecting context such as parallel tool calling, autonomous mode, shell type, skills, and user instructions.
 
 ### 6. Template Engine: `src/core/prompts/system-prompt/templates/TemplateEngine.ts`
 - **Role**: Performs string replacement for placeholders.
@@ -60,7 +60,7 @@ Dirac uses a modular, multi-stage pipeline to generate the final system prompt. 
 ### 7. Native Schema Conversion: `src/core/prompts/system-prompt/spec.ts`
 - **Role**: Transforms internal `DiracToolSpec` objects into the specific JSON schemas required by LLM providers.
 - **Anthropic (`toolSpecInputSchema`)**: Generates an `input_schema` object with standard property/required fields.
-- **OpenAI (`toolSpecFunctionDefinition`)**: Generates a standard OpenAI function definition, setting `additionalProperties: false` and `strict: false`.
+- **OpenAI (`toolSpecFunctionDefinition`)**: Generates an OpenAI function definition. Strict schemas are enabled only for model/provider combinations that support them.
 - **Gemini (`toolSpecFunctionDeclarations`)**: Uses a recursive `toGoogleSchema` function to map parameter types to Gemini's uppercase type system (e.g., `string` -> `STRING`, `array` -> `ARRAY`).
 
 ---
@@ -94,9 +94,9 @@ Dirac is built on a **Native First** architecture. Native tool calling is more t
 Instructions are separated into sections (Identity, Tool Guidelines, Editing Files, Rules) defined in `src/core/prompts/system-prompt/templates/placeholders.ts`.
 
 ### Snapshots & Testing
-Every major change to the system prompt must be validated against the snapshots in `src/core/prompts/system-prompt/__tests__/__snapshots__/`.
-- Use `src/core/prompts/system-prompt/__tests__/integration.test.ts` to verify that your changes produce the expected output across different providers and configurations.
-- To update snapshots after intentional changes:
-    ```bash
-    UPDATE_SNAPSHOTS=true npm run test:unit
-    ```
+`integration.test.ts` keeps one golden snapshot of the provider-neutral system prompt and one aggregate native-tool snapshot for each distinct schema family: Anthropic, OpenAI-compatible, and Gemini. Focused tests cover provider routing and schema edge cases without duplicating identical snapshots.
+
+To update snapshots after an intentional change:
+```bash
+UPDATE_SNAPSHOTS=true npm run test:unit
+```

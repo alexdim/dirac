@@ -5,6 +5,7 @@ import { openUrlInBrowser } from "@utils/github-url-utils"
 import { ExtensionRegistryInfo } from "@/registry"
 import { HostProvider } from "@/hosts/host-provider"
 import * as os from "os"
+import { showSystemNotification } from "@integrations/notifications"
 
 // Builds the system trait — command execution, file search, system info, URL opening.
 export function buildSystemTrait(
@@ -53,5 +54,6 @@ export function buildSystemTrait(
 			}
 		},
 		openUrl: async (url) => await openUrlInBrowser(url),
+		showNotification: (options) => void showSystemNotification(options),
 	}
 }

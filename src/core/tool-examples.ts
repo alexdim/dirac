@@ -1,8 +1,7 @@
 import { DiracDefaultTool } from "@shared/tools"
 
 export const TOOL_EXAMPLES: Partial<Record<DiracDefaultTool, string>> = {
-	[DiracDefaultTool.ASK]: '{"question": "What should I do next?"}',
-	[DiracDefaultTool.ATTEMPT]: '{"result": "Summary of work done..."}',
+	[DiracDefaultTool.RESPOND]: '{"operation":"complete","text":"Summary of work done..."}',
 	[DiracDefaultTool.CONDENSE]: '{"context": "Detailed summary of the conversation..."}',
 	[DiracDefaultTool.DIAGNOSTICS_SCAN]: '{"paths": ["src"]}',
 	[DiracDefaultTool.BROWSER]: '{"action": "launch", "url": "https://google.com"}',
@@ -14,7 +13,6 @@ export const TOOL_EXAMPLES: Partial<Record<DiracDefaultTool, string>> = {
 	[DiracDefaultTool.INSPECT_AST]: '{"operation": "implementation", "paths": ["src/main.ts"], "symbols": ["main"]}',
 	[DiracDefaultTool.LIST_FILES]: '{"paths": ["src"]}',
 	[DiracDefaultTool.NEW_TASK]: '{"context": "Detailed summary of the conversation..."}',
-	[DiracDefaultTool.PLAN_MODE]: '{"response": "I have gathered context..."}',
 	[DiracDefaultTool.FILE_READ]: '{"paths": ["src/main.ts"]}',
 	[DiracDefaultTool.SEARCH]: '{"paths": ["src"], "regex": "TODO"}',
 	[DiracDefaultTool.USE_SUBAGENTS]:

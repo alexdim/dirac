@@ -1,5 +1,6 @@
 import { describe, it } from "mocha"
 import "should"
+import { DiracDefaultTool } from "@shared/tools"
 import { buildStructuredToolSchema, extractStructuredToolCalls, STRUCTURED_OUTPUT_TOOL_NAME } from "./structured-output"
 
 describe("claude-code structured-output", () => {
@@ -83,11 +84,11 @@ describe("claude-code structured-output", () => {
 		it("skips unrecognised tool definitions", () => {
 			const tools: any[] = [
 				{ totally: "unknown" },
-				{ type: "function", function: { name: "say", parameters: { type: "object" } } },
+				{ type: "function", function: { name: DiracDefaultTool.RESPOND, parameters: { type: "object" } } },
 			]
 			const schema = buildStructuredToolSchema(tools)
 			schema.properties.tool_calls.items.oneOf.should.have.length(1)
-			schema.properties.tool_calls.items.oneOf[0].properties.tool.should.deepEqual({ const: "say" })
+			schema.properties.tool_calls.items.oneOf[0].properties.tool.should.deepEqual({ const: DiracDefaultTool.RESPOND })
 		})
 	})
 

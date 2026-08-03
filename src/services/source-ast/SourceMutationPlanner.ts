@@ -26,7 +26,7 @@ interface PendingFileEdits {
 }
 
 export class SourceMutationPlanner {
-	constructor(private readonly dependencies: SourceMutationPlannerDependencies) { }
+	constructor(private readonly dependencies: SourceMutationPlannerDependencies) {}
 
 	public async planRename(request: AstRenameRequest): Promise<SourceMutationPlan> {
 		const occurrenceResult = await this.dependencies.occurrenceResolver.resolve({
@@ -58,6 +58,12 @@ export class SourceMutationPlanner {
 			.map((target) => ({ path: target.path, symbol: target.symbol, reason: target.message ?? "Symbol not found." }))
 
 		const files = new Map<string, PendingFileEdits>()
+		const blockedOccurrences = new Set(
+			occurrenceResult.targets
+				.filter((target) => target.partialFailure)
+				.flatMap((target) => target.occurrences)
+				.map((occurrence) => this.occurrenceIdentity(occurrence)),
+		)
 		const expectedText = this.simpleSymbol(request.symbol)
 		if (request.replacement === expectedText) {
 			return {
@@ -73,6 +79,7 @@ export class SourceMutationPlanner {
 			}
 		}
 		for (const occurrence of occurrenceResult.occurrences) {
+			if (blockedOccurrences.has(this.occurrenceIdentity(occurrence))) continue
 			let pending = files.get(occurrence.absolutePath)
 			if (!pending) {
 				const originalContent = await this.readFile(occurrence.absolutePath)
@@ -297,6 +304,22 @@ export class SourceMutationPlanner {
 	private simpleSymbol(symbol: string): string {
 		const normalized = symbol.replace(/::/g, ".")
 		return normalized.slice(normalized.lastIndexOf(".") + 1)
+	}
+
+	private occurrenceIdentity(occurrence: {
+		absolutePath: string
+		startLine: number
+		startColumn: number
+		endLine: number
+		endColumn: number
+	}): string {
+		return [
+			occurrence.absolutePath,
+			occurrence.startLine,
+			occurrence.startColumn,
+			occurrence.endLine,
+			occurrence.endColumn,
+		].join(":")
 	}
 
 	private async readFile(absolutePath: string): Promise<string> {

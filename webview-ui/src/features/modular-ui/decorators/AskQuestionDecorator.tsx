@@ -3,11 +3,10 @@ import { ArrowRightIcon, CheckCircle2Icon, KeyboardIcon, MessageCircleQuestionIc
 import React from "react"
 import { cn } from "@/lib/utils"
 import { CardDecorator } from "./types"
-
-const ASK_FOLLOWUP_TOOL = "ask_followup_question"
+import { isQuestionResponseCard } from "@shared/responseTool"
 
 export function isAskQuestionCard(card: Card): boolean {
-	return card.toolName === ASK_FOLLOWUP_TOOL || card.rawInput?.tool === ASK_FOLLOWUP_TOOL
+	return isQuestionResponseCard(card)
 }
 
 interface AskQuestionChoicesProps {
@@ -33,6 +32,7 @@ export const AskQuestionChoices: React.FC<AskQuestionChoicesProps> = ({ card, is
 					<div className="grid gap-2">
 						{actions.map((action, index) => (
 							<button
+								key={action.value}
 								aria-label={`Choose ${action.label}`}
 								className={cn(
 									"group flex min-h-11 w-full items-center gap-3 rounded-md border border-foreground/10 bg-foreground/[0.035] px-3 py-2.5 text-left text-sm text-foreground",
@@ -86,7 +86,5 @@ export const AskQuestionDecorator: CardDecorator = {
 		)
 	},
 	suppressDefaultActions: true,
-	renderFooterExtra: (card, onAction, isActive) => (
-		<AskQuestionChoices card={card} isActive={isActive} onAction={onAction} />
-	),
+	renderFooterExtra: (card, onAction, isActive) => <AskQuestionChoices card={card} isActive={isActive} onAction={onAction} />,
 }

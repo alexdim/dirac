@@ -88,7 +88,7 @@ Format the list clearly, for example:
   3. run_tests — Run the project test command
 \`\`\`
 
-Use \`ask_followup_question\` to let the user select which tool(s) to delete. Include a "Cancel — don't delete anything" option.
+Use \`respond\` with operation \`question\` to let the user select which tool(s) to delete. Include a "Cancel — don't delete anything" option.
 
 ## Step 3: Confirm Deletion
 
@@ -102,7 +102,7 @@ After the user selects one or more tools, confirm the deletion explicitly:
 >
 > Proceed?
 
-Use \`ask_followup_question\` with "Yes, delete" and "No, cancel" options.
+Use \`respond\` with operation \`question\` and "Yes, delete" and "No, cancel" options.
 
 ## Step 4: Delete the Tool
 

@@ -1,6 +1,8 @@
 import "should"
 import { CardStatus, TaskStatus } from "@shared/ExtensionMessage"
 import { DiracAskResponse } from "@shared/WebviewMessage"
+import { ResponseOperation } from "@shared/responseTool"
+import { DiracDefaultTool } from "@shared/tools"
 import { expect } from "chai"
 import sinon from "sinon"
 import { expectLoggerErrors } from "@/test/loggerGuard"
@@ -582,6 +584,44 @@ describe("ResponseProcessor", () => {
 			await processor.presentAssistantMessage()
 			// Promise should remain for read-only tools
 			expect(taskState.initialCheckpointCommitPromise).to.equal(checkpointPromise)
+		})
+
+		it("does not await checkpoint for progress responses", async () => {
+			const checkpointPromise = Promise.resolve("hash")
+			taskState.initialCheckpointCommitPromise = checkpointPromise
+			taskState.assistantMessageContent = [
+				{
+					type: "tool_use",
+					name: DiracDefaultTool.RESPOND,
+					params: { operation: ResponseOperation.PROGRESS, text: "Update" },
+					isComplete: true,
+					call_id: "c1",
+				} as any,
+			]
+			taskState.isApiRequestActive = false
+
+			await processor.presentAssistantMessage()
+
+			expect(taskState.initialCheckpointCommitPromise).to.equal(checkpointPromise)
+		})
+
+		it("awaits checkpoint for completion responses", async () => {
+			const checkpointPromise = Promise.resolve("hash")
+			taskState.initialCheckpointCommitPromise = checkpointPromise
+			taskState.assistantMessageContent = [
+				{
+					type: "tool_use",
+					name: DiracDefaultTool.RESPOND,
+					params: { operation: ResponseOperation.COMPLETE, text: "Done" },
+					isComplete: true,
+					call_id: "c1",
+				} as any,
+			]
+			taskState.isApiRequestActive = false
+
+			await processor.presentAssistantMessage()
+
+			expect(taskState.initialCheckpointCommitPromise).to.be.undefined
 		})
 	})
 

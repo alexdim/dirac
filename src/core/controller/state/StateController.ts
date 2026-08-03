@@ -3,6 +3,7 @@ import type { ChatContent } from "@shared/ChatContent"
 import type { TelemetrySetting } from "@shared/TelemetrySetting"
 import type { Mode } from "@shared/storage/types"
 import { DiracAskResponse } from "@shared/WebviewMessage"
+import { PlanInteractionResponse } from "@shared/responseTool"
 import { TaskStatus } from "@shared/ExtensionMessage"
 import type { StateManager } from "@core/storage/StateManager"
 import { telemetryService } from "@/services/telemetry"
@@ -93,7 +94,7 @@ export class StateController {
 				await task.submitCardResponse(
 					cardId,
 					DiracAskResponse.APPROVE,
-					chatContent?.message || "PLAN_MODE_TOGGLE_RESPONSE",
+					chatContent?.message || PlanInteractionResponse.MODE_TOGGLE,
 					chatContent?.images || [],
 					chatContent?.files || [],
 				)

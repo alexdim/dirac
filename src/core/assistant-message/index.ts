@@ -37,6 +37,8 @@ export const toolParamNames = [
 	"uri",
 	"question",
 	"options",
+	"operation",
+	"message",
 	"response",
 	"result",
 	"context",
@@ -45,7 +47,6 @@ export const toolParamNames = [
 	"steps_to_reproduce",
 	"api_request_output",
 	"additional_context",
-	"needs_more_exploration",
 	"edits",
 	"timeout",
 	"include_history",
@@ -78,7 +79,7 @@ export type ToolParamName = (typeof toolParamNames)[number]
 
 export interface ToolUse {
 	type: "tool_use"
-	name: DiracDefaultTool // id of the tool being used
+	name: DiracDefaultTool | string // accepted legacy and dynamic names are normalized before dispatch
 	// params is a partial record, allowing only some or none of the possible parameters to be used
 	params: Partial<Record<ToolParamName, any>>
 	/**

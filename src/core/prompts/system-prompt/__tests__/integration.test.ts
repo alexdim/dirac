@@ -1,8 +1,8 @@
 /**
  * System Prompt Integration Tests with Snapshot Testing
  *
- * This test suite validates that system prompts remain consistent across different
- * context configurations using snapshot testing.
+ * This suite snapshots the provider-neutral system prompt and each distinct native
+ * tool-schema serialization family.
  *
  * Usage:
  * - Run tests normally: `npm run test:unit`
@@ -27,6 +27,7 @@ import type { SystemPromptContext } from "../types"
 import type { ToolRequestSnapshot } from "@core/task/tools/runtime/ToolSnapshot"
 import { ToolDiscoveryService } from "@core/task/tools/discovery/ToolDiscoveryService"
 import { DiracToolSet } from "../registry/DiracToolSet"
+import { toolSpecFunctionDeclarations, toolSpecInputSchema } from "../spec"
 
 // ============================================================================
 // Configuration
@@ -141,11 +142,10 @@ export const mockProviderInfo = {
 	mode: "act" as const,
 }
 
-const makeProviderInfo = (modelId: string, providerId = "test") => ({
+const makeProviderInfo = (providerId: string, modelId: string) => ({
 	providerId,
 	model: { ...mockProviderInfo.model, id: modelId },
 	mode: "act" as const,
-	customPrompt: providerId.includes("lmstudio") ? "compact" : undefined,
 })
 
 const baseContext: SystemPromptContext = {
@@ -162,7 +162,7 @@ const baseContext: SystemPromptContext = {
 	providerInfo: mockProviderInfo,
 }
 
-type TestRunner = Mocha.Context & { skip(): void; timeout(ms: number): void }
+type TestRunner = Mocha.Context & { timeout(ms: number): void }
 
 function emptyToolSnapshot(): ToolRequestSnapshot {
 	return {
@@ -221,8 +221,8 @@ function assertConsolidatedAstSpecs(snapshot: ToolRequestSnapshot): void {
 		"references",
 		"occurrences",
 	])
-	expect(edit.description).to.include("Strongly prefer edit_ast")
-	expect(edit.description).to.include("partial edits inside a definition")
+	expect(edit.description).to.include("AST-aware rename")
+	expect(edit.description).to.include("whole-definition replacement")
 	expect(edit.parameters?.find((parameter) => parameter.name === "operation")?.enum).to.deep.equal(["rename", "replace"])
 	expect(edit.parameters?.find((parameter) => parameter.name === "targets")?.type).to.equal("array")
 }
@@ -230,7 +230,6 @@ function assertConsolidatedAstSpecs(snapshot: ToolRequestSnapshot): void {
 async function runPromptTest(
 	testCtx: TestRunner,
 	context: SystemPromptContext,
-	modelId: string,
 	handler: (
 		result: Awaited<ReturnType<typeof getSystemPrompt>> & { tools: ToolRequestSnapshot["nativeTools"] },
 	) => Promise<void>,
@@ -246,16 +245,27 @@ async function runPromptTest(
 // Test Data
 // ============================================================================
 
-const contextVariations: Array<{ name: string; override: Partial<SystemPromptContext> }> = [
-	{ name: "basic", override: {} },
-	{ name: "no-browser", override: { supportsBrowserUse: false } },
+const nativeToolSchemaCases = [
+	{
+		name: "Anthropic",
+		snapshotName: "anthropic.tools.snap",
+		providerInfo: makeProviderInfo("anthropic", "claude-4-5-sonnet"),
+	},
+	{
+		name: "OpenAI-compatible",
+		snapshotName: "openai.tools.snap",
+		providerInfo: makeProviderInfo("openai", "gpt-5"),
+	},
+	{
+		name: "Gemini",
+		snapshotName: "gemini.tools.snap",
+		providerInfo: makeProviderInfo("gemini", "gemini-3"),
+	},
 ]
 
-const modelTestCases = [
-	{ modelId: "claude-4-5-sonnet", providerId: "anthropic" }, // Anthropic format
-	{ modelId: "gpt-5", providerId: "openai" }, // OpenAI format
-	{ modelId: "gemini-3", providerId: "gemini" }, // Gemini format
-	{ modelId: "gemini-3", providerId: "vertex" }, // Vertex/Gemini format
+const providerNeutralityCases = [
+	...nativeToolSchemaCases.map(({ providerInfo }) => providerInfo),
+	makeProviderInfo("vertex", "gemini-3"),
 ]
 
 // ============================================================================
@@ -271,41 +281,45 @@ describe("Prompt System Integration Tests", () => {
 	})
 
 	describe("Snapshot Testing", () => {
-		for (const { modelId, providerId } of modelTestCases) {
-			describe(`Model: ${modelId} (${providerId})`, () => {
-				it(`should generate consistent native tools object`, async function () {
-					const providerInfo = makeProviderInfo(modelId, providerId)
+		it("should generate a consistent provider-neutral system prompt", async function () {
+			await runPromptTest(this, baseContext, async ({ systemPrompt }) => {
+				expect(systemPrompt).to.be.a("string").with.length.greaterThan(100)
+				await assertSnapshot("base.snap", systemPrompt)
+			})
+		})
 
-					const context: SystemPromptContext = {
-						...baseContext,
-						providerInfo,
-					}
+		it("should not customize the system prompt by provider or model", async function () {
+			this.timeout(TEST_TIMEOUT)
+			const prompts: string[] = []
 
-					await runPromptTest(this, context, modelId, async ({ tools }) => {
-						const snapshotName = `${providerId}_${modelId.replace(/[^a-zA-Z0-9]/g, "_")}.tools.snap`
-						await assertJsonSnapshot(snapshotName, tools)
-					})
+			for (const providerInfo of providerNeutralityCases) {
+				const context: SystemPromptContext = { ...baseContext, providerInfo }
+				const toolSnapshot = builtinToolSnapshot(context)
+				assertConsolidatedAstSpecs(toolSnapshot)
+				prompts.push((await getSystemPrompt(context, toolSnapshot)).systemPrompt)
+			}
+
+			for (const prompt of prompts.slice(1)) {
+				expect(prompt).to.equal(prompts[0])
+			}
+		})
+
+		for (const { name, snapshotName, providerInfo } of nativeToolSchemaCases) {
+			it(`should generate consistent ${name} native tools`, async function () {
+				const context: SystemPromptContext = { ...baseContext, providerInfo }
+
+				await runPromptTest(this, context, async ({ tools }) => {
+					await assertJsonSnapshot(snapshotName, tools)
 				})
-
-				for (const { name: contextName, override } of contextVariations) {
-					it(`should generate consistent prompt with ${contextName} context`, async function () {
-						const providerInfo = makeProviderInfo(modelId, providerId)
-						const context: SystemPromptContext = {
-							...baseContext,
-							...override,
-							providerInfo,
-						}
-
-						await runPromptTest(this, context, modelId, async ({ systemPrompt, tools }) => {
-							expect(systemPrompt).to.be.a("string").with.length.greaterThan(100)
-
-							const snapshotName = `${providerId}_${modelId.replace(/[^a-zA-Z0-9]/g, "_")}-${contextName}.snap`
-							await assertSnapshot(snapshotName, systemPrompt)
-						})
-					})
-				}
 			})
 		}
+	})
+
+	describe("Native Converter Routing", () => {
+		it("should use Gemini schemas only for Vertex Gemini models", () => {
+			expect(DiracToolSet.getNativeConverter("vertex", "gemini-3")).to.equal(toolSpecFunctionDeclarations)
+			expect(DiracToolSet.getNativeConverter("vertex", "claude-sonnet")).to.equal(toolSpecInputSchema)
+		})
 	})
 
 	describe("Parallel Tool Calling", () => {
@@ -315,7 +329,7 @@ describe("Prompt System Integration Tests", () => {
 				enableParallelToolCalling: true,
 			}
 
-			await runPromptTest(this, context, "default", async ({ systemPrompt }) => {
+			await runPromptTest(this, context, async ({ systemPrompt }) => {
 				expect(systemPrompt).to.include(
 					"You may use multiple tools in a single response when the operations are independent",
 				)
@@ -324,15 +338,11 @@ describe("Prompt System Integration Tests", () => {
 	})
 
 	describe("Context-Specific Features", () => {
-		const featureTests = [{ name: "user instructions when provided", context: {}, check: "USER'S CUSTOM INSTRUCTIONS" }]
-
-		for (const { name, context, check } of featureTests) {
-			it(`should include ${name}`, async function () {
-				await runPromptTest(this, { ...baseContext, ...context }, "default", async ({ systemPrompt }) => {
-					expect(systemPrompt.toLowerCase()).to.include(check.toLowerCase())
-				})
+		it("should include user instructions when provided", async function () {
+			await runPromptTest(this, baseContext, async ({ systemPrompt }) => {
+				expect(systemPrompt).to.include("USER'S CUSTOM INSTRUCTIONS")
 			})
-		}
+		})
 	})
 
 	describe("Error Handling", () => {

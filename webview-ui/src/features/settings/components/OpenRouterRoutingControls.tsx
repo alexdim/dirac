@@ -314,7 +314,7 @@ function compareEndpointsByCachePricing(a: OpenRouterEndpoint, b: OpenRouterEndp
 function formatEndpointPricing(endpoint: OpenRouterEndpoint): string {
 	return [endpoint.inputPricing, endpoint.outputPricing, endpoint.cachePricing]
 		.map((pricingValue) => `$${formatPricingPerMillion(pricingValue)}`)
-		.join("/")
+		.join("/") + " I/O/C"
 }
 
 function formatPricingPerMillion(pricingPerToken: string): string {

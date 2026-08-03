@@ -3,6 +3,8 @@
  * Centralizes tool name handling and categorization
  */
 
+import { RESPOND_TOOL_NAME } from "@shared/responseTool"
+
 /**
  * Tools that perform file edits (create, modify, delete)
  * Used to determine when to show DiffView and skip dynamic rendering
@@ -92,10 +94,8 @@ export const TOOL_DESCRIPTIONS: Record<string, { ask: string; say: string }> = {
 	use_subagents: { ask: "wants to start subagents", say: "started subagents" },
 	use_skill: { ask: "wants to use a skill", say: "used a skill" },
 	list_skills: { ask: "wants to list available skills", say: "listed available skills" },
-	ask_followup_question: { ask: "wants to ask a question", say: "asked a question" },
-	attempt_completion: { ask: "wants to complete the task", say: "completed the task" },
+	[RESPOND_TOOL_NAME]: { ask: "wants to respond", say: "responded" },
 	new_task: { ask: "wants to create a new task", say: "created a new task" },
-	plan_mode_respond: { ask: "wants to propose a plan", say: "proposed a plan" },
 	focus_chain: { ask: "wants to update the todo list", say: "updated the todo list" },
 	condense: { ask: "wants to condense the conversation", say: "condensed the conversation" },
 	subagent: { ask: "wants to use a subagent", say: "used a subagent" },
@@ -235,7 +235,6 @@ export function getToolMainArg(toolName: string, args: Record<string, unknown>):
 		}
 		if (typeof path === "string") return path
 	}
-
 
 	// Generic argument extraction
 	// Search files: show 'regex' in path(s)

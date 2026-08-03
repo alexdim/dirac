@@ -286,7 +286,7 @@ describe("EditFileTool.execute – partial success", () => {
 		assert.ok(result.includes("The tool execution failed with the following error"))
 		assert.ok(result.includes('files[0].edits[0] (anchor: "123badone", end_anchor: "123badone") failed. Diagnostics:'))
 		assert.ok(result.includes('files[0].edits[1] (anchor: "123badtwo", end_anchor: "123badtwo") failed. Diagnostics:'))
-		assert.ok(result.match(/must be one complete anchored source line/g)?.length === 2)
+		assert.ok(result.match(/must be one complete anchored source line/g)?.length === 4)
 	})
 
 	it("applies all edits successfully when there are no errors", async () => {
@@ -349,7 +349,7 @@ describe("EditFileTool.execute – partial success", () => {
 		taskState.assistantMessageContent = [block]
 		const failedEdit = await handler.execute(config, block)
 
-		assert.ok(typeof failedEdit === "string" && failedEdit.includes("not found in the file"))
+		assert.ok(typeof failedEdit === "string" && failedEdit.includes("was not found"))
 		assert.equal(await fs.readFile(filePath, "utf8"), originalContent)
 		assert.notEqual(AnchorStateManager.getDocumentFingerprint(filePath, config.ulid), emittedFingerprint)
 

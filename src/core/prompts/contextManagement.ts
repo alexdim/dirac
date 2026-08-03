@@ -1,6 +1,6 @@
 export const autoCondensePrompt = (useUtilityModel = false) => {
 	if (useUtilityModel) {
-		return `The conversation is nearing its context limit. To continue effectively, you must now call the condense tool without a context parameter. A Utility model will generate the comprehensive continuation summary from the current conversation. You MUST ONLY respond by calling condense or attempt_completion.`
+		return `The conversation is nearing its context limit. Call condense without a context parameter, or respond with operation "complete" if finished.`
 	}
 
 	return `The conversation is nearing its context limit. To continue effectively, you must now call the condense tool with a comprehensive, high-fidelity summary of the task's progress.
@@ -11,7 +11,7 @@ Your summary must be exhaustive, capturing the "whole nine yards":
 - A detailed account of all files examined or modified, including critical code snippets.
 - The precise current status and the exact next steps to take.
 
-This summary will be your only context moving forward, so ensure no relevant detail is lost. You MUST ONLY respond by calling condense or attempt_completion.`
+This summary will be your only context moving forward, so ensure no relevant detail is lost. Call only condense, or respond with operation "complete" if finished.`
 }
 
 export const continuationPrompt = (summaryText: string) => `

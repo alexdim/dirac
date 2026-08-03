@@ -106,10 +106,12 @@ describe("InspectAstTool", () => {
 			"references",
 			"occurrences",
 		])
-		assert.match(operationParameter?.instruction ?? "", /outline takes source-file paths \(no symbols\)/)
-		assert.match(operationParameter?.instruction ?? "", /implementation takes source-file paths plus symbols/)
-		assert.match(operationParameter?.instruction ?? "", /file or directory scopes plus symbols/)
-		assert.match(operationParameter?.instruction ?? "", /definition locations, reference locations, or both/)
+		assert.equal(typeof operationParameter?.instruction, "string")
+		const instruction = operationParameter!.instruction as string
+		assert.match(instruction, /outline takes source-file paths \(no symbols\)/)
+		assert.match(instruction, /implementation takes source-file paths plus symbols/)
+		assert.match(instruction, /file or directory scopes plus symbols/)
+		assert.match(instruction, /definition locations, reference locations, or both/)
 	})
 
 	it("creates exact metadata cards and terminates them", async () => {

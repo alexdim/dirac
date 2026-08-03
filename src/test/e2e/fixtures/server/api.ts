@@ -34,8 +34,9 @@ export const name = "dirac"
 
 The specific task of updating the name in test.ts has been completed successfully.
 
-<attempt_completion>
-<result>
+<respond>
+<operation>complete</operation>
+<text>
 I have successfully replaced the name "john" with "dirac" in the test.ts file. The file now exports:
 
 \`\`\`typescript
@@ -43,8 +44,8 @@ export const name = "dirac"
 \`\`\`
 
 The change has been applied and saved to the file.
-</result>
-</attempt_completion>`
+</text>
+</respond>`
 
 const edit_request = `<thinking>
 The user wants me to replace the name "john" with "dirac" in the test.ts file. I can see the file content provided:

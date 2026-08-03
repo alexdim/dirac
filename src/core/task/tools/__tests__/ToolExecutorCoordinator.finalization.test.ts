@@ -10,7 +10,7 @@ class UnfinalizedCardTool implements IDiracTool {
 	constructor(private readonly failExecution: boolean) {}
 
 	spec(): DiracToolSpec {
-		return { id: DiracDefaultTool.SAY, name: DiracDefaultTool.SAY, description: "test", parameters: [] }
+		return { id: DiracDefaultTool.RESPOND, name: DiracDefaultTool.RESPOND, description: "test", parameters: [] }
 	}
 
 	supportedSurfaces() {
@@ -27,7 +27,7 @@ class UnfinalizedCardTool implements IDiracTool {
 function block() {
 	return {
 		type: "tool_use" as const,
-		name: DiracDefaultTool.SAY,
+		name: DiracDefaultTool.RESPOND,
 		params: {},
 	}
 }

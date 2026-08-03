@@ -1,8 +1,10 @@
 import { TaskStatus } from "@shared/ExtensionMessage"
 import { Session } from "@shared/services/Session"
 import { READ_ONLY_TOOLS } from "@shared/tools"
+import { responseOperationFromToolCall, ResponseOperation } from "@shared/responseTool"
 import cloneDeep from "clone-deep"
 import { ResponseProcessorDependencies } from "../types/response-processor"
+import type { ToolUse } from "../../assistant-message"
 import { ResponseFormatter } from "./ResponseFormatter"
 
 // Presents assistant message content to the UI — streams text/reasoning deltas,
@@ -123,15 +125,18 @@ export class AssistantMessagePresenter {
 		this.deps.taskState.status = isBlockComplete ? TaskStatus.EXECUTING_TOOL : TaskStatus.BUILDING_TOOL_CALL
 		await this.deps.postStateToWebview()
 		await this.deps.assistantStreamManager.pauseForToolCall()
-		await this.awaitCheckpointIfNeeded(block.name)
+		await this.awaitCheckpointIfNeeded(block)
 		await this.deps.toolExecutor.executeTool(block, isBlockComplete)
 		if (block.call_id) Session.get().updateToolCall(block.call_id, block.name)
 	}
 
 	// Await initial checkpoint for non-read-only tools
-	private async awaitCheckpointIfNeeded(toolName: string): Promise<void> {
+	private async awaitCheckpointIfNeeded(block: ToolUse): Promise<void> {
 		if (!this.deps.taskState.initialCheckpointCommitPromise) return
-		if ((READ_ONLY_TOOLS as readonly string[]).includes(toolName)) return
+		const responseOperation = responseOperationFromToolCall(block)
+		if (responseOperation && responseOperation !== ResponseOperation.PLAN && responseOperation !== ResponseOperation.COMPLETE)
+			return
+		if ((READ_ONLY_TOOLS as readonly string[]).includes(block.name)) return
 		await this.deps.taskState.initialCheckpointCommitPromise
 		this.deps.taskState.initialCheckpointCommitPromise = undefined
 	}

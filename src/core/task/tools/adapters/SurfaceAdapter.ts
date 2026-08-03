@@ -30,7 +30,8 @@ import { buildOrchestrationTrait } from "./traits/OrchestrationTraitBuilder"
 import { buildSkillsTrait } from "./traits/SkillsTraitBuilder"
 import { buildSystemTrait } from "./traits/SystemTraitBuilder"
 import { buildInteractionTrait, buildUiTrait, createCardFromMessenger } from "./traits/UiTraitBuilder"
-import { buildTelemetryTrait, buildWorkspaceTrait } from "./traits/WorkspaceTraitBuilder"
+import { buildTelemetryTrait } from "./traits/TelemetryTraitBuilder"
+import { buildWorkspaceTrait } from "./traits/WorkspaceTraitBuilder"
 import { buildConversationCondensationTrait } from "./traits/ConversationCondensationTraitBuilder"
 
 import { AnchorStateManager } from "@utils/AnchorStateManager"
@@ -69,7 +70,7 @@ export class SurfaceAdapter implements IToolEnvironment {
 		this.browser = buildBrowserTrait(config)
 		this.skills = buildSkillsTrait(config)
 		this.system = buildSystemTrait(config, this.executeCommand.bind(this))
-		this.telemetry = buildTelemetryTrait(this)
+		this.telemetry = buildTelemetryTrait(this, config)
 		this.workspace = buildWorkspaceTrait(config)
 		this.sourceAst = buildSourceAstTrait(config)
 		this.anchors = {

@@ -1862,7 +1862,7 @@ export class Task {
 				this.taskState.userMessageContent.push({
 					type: "text",
 					text: hitTokenLimit
-						? "You have reached the output token limit. Please continue your response from where you left off. If you were in the middle of a tool call, start over with that tool call. If you were finished, call attempt_completion."
+						? "You reached the output token limit. Continue from where you stopped; restart an interrupted tool call, or call respond with operation 'complete' if finished."
 						: formatResponse.noToolsUsed(this.taskState.useNativeToolCalls),
 				})
 				this.taskState.consecutiveMistakeCount++

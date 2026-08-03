@@ -1,66 +1,37 @@
 # System Prompt Integration Tests
 
-This directory contains integration tests for the system prompt generation with snapshot testing capabilities.
+These tests protect the two outputs assembled by the system-prompt pipeline:
 
-## Overview
+1. The provider-neutral system prompt string.
+2. Provider-native tool definitions.
 
-The integration tests validate that system prompts remain consistent across different:
-- Model families (Generic, Next-Gen, XS)
-- Provider configurations (OpenAI, Anthropic, LMStudio, etc.)
-- Context variations (browser enabled/disabled, focus chain, etc.)
+## Snapshot Coverage
 
-## Snapshot Testing
+The `__snapshots__/` directory intentionally contains only four files:
 
-The tests use snapshot testing to detect unintended changes in prompt generation. Snapshots are stored in the `__snapshots__/` directory.
+- `base.snap` — the complete provider-neutral system prompt.
+- `anthropic.tools.snap` — the complete built-in tool set serialized as Anthropic tools.
+- `openai.tools.snap` — the complete built-in tool set serialized as OpenAI-compatible function tools.
+- `gemini.tools.snap` — the complete built-in tool set serialized as Gemini function declarations.
 
-### Running Tests
+Provider/model combinations do not get separate prompt snapshots because the prompt is not customized by provider or model. A direct invariance test enforces that contract across Anthropic, OpenAI, Gemini, and Vertex contexts.
 
-#### Normal Test Mode
+Vertex Gemini does not get a duplicate tool snapshot because it uses the Gemini converter. A focused routing test covers that selection.
+
+Focused tests in `spec.test.ts` cover converter behavior such as strict OpenAI schemas, nested constraints, empty parameters, dynamic descriptions, and provider-specific response-tool contracts.
+
+## Running Tests
+
 ```bash
-# Run tests and compare against existing snapshots
-npm test
-# or
-yarn test
+npm run test:unit
 ```
 
+To update snapshots after an intentional prompt or tool-schema change:
 
+```bash
+npm run test:unit -- --update-snapshots
+# or
+UPDATE_SNAPSHOTS=true npm run test:unit
+```
 
-### Workflow
-
-1. **Make changes** to prompt generation code
-2. **Run tests** to see if snapshots still match
-3. **Review differences** to ensure changes are intentional
-4. **Update snapshots** if changes are correct: `npm test -- --update-snapshots`
-5. **Commit both** code changes and updated snapshots
-
-### Snapshot Files
-
-Snapshots are stored with descriptive names:
-- `openai_gpt-3-basic.snap` - OpenAI GPT-3 with basic context
-- `anthropic_claude-sonnet-4-no-browser.snap` - Claude Sonnet 4 without browser support
-- `lmstudio_qwen3_coder-no-mcp.snap` - LMStudio Qwen3 Coder without additional servers
-- `old-next-gen-with-focus.snap` - Legacy next-gen prompt with focus chain
-- `section-title-comparison.json` - Section title compatibility analysis
-
-### Best Practices
-
-1. **Review all changes** before updating snapshots
-2. **Update snapshots atomically** - don't mix code and snapshot changes
-3. **Test thoroughly** after updating snapshots
-4. **Document significant changes** in commit messages
-5. **Consider backward compatibility** when changing prompt structure
-
-## Test Structure
-
-### Model Test Cases
-- **Generic Models**: Basic GPT-3 style models
-- **Next-Gen Models**: Advanced models like Claude Sonnet 4
-- **XS Models**: Compact models like Qwen3 Coder
-
-### Context Variations
-- **Basic**: Full context with all features enabled
-- **No Browser**: Browser support disabled
-- **No Focus Chain**: Focus chain feature disabled
-
-### Legacy Compatibility
-Tests also validate compatibility with legacy prompt generation to ensure smooth transitions.
+Always review snapshot diffs before committing them.

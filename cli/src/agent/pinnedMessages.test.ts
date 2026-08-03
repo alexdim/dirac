@@ -43,6 +43,10 @@ vi.mock("@/core/controller", () => ({
 				},
 				setContextCompactionObserver: vi.fn(),
 				rebuildApiHandler: vi.fn(),
+				createApiHandlerForRuntime: vi.fn(() => ({})),
+				setApiHandler: vi.fn(),
+				applyRuntimeModeChange: vi.fn(),
+				canAcceptSteeringMessage: vi.fn(() => false),
 			}
 			this.taskRunPromise = Promise.resolve()
 		})
@@ -56,6 +60,10 @@ vi.mock("@/core/controller", () => ({
 				},
 				setContextCompactionObserver: vi.fn(),
 				rebuildApiHandler: vi.fn(),
+				createApiHandlerForRuntime: vi.fn(() => ({})),
+				setApiHandler: vi.fn(),
+				applyRuntimeModeChange: vi.fn(),
+				canAcceptSteeringMessage: vi.fn(() => false),
 			}
 			this.taskRunPromise = Promise.resolve()
 		})

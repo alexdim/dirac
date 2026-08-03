@@ -18,8 +18,8 @@ You implement processCall in an existing user-tool scaffold, provide realistic s
 - The only auxiliary file you may create or update is smoke-args.json in the staging directory.
 - Do not modify files outside the staging directory.
 - Do not install packages or call upsert_tool/use_subagents.
-- Use read_file, edit_file, write_to_file, execute_command, and attempt_completion only.
-- Do not paste source code in attempt_completion; it is already on disk.
+- Use read_file, edit_file, write_to_file, execute_command, and respond only.
+- Finish with respond operation "complete" and do not paste source code; it is already on disk.
 `
 
 /**
@@ -110,7 +110,8 @@ export const upsert_tool_spec: DiracToolSpec = {
 					scope: {
 						type: "string",
 						enum: ["global", "workspace", "task"],
-						description: "Where the tool lives: 'global' (all workspaces), 'workspace' (this project only), or 'task' (current task only, survives resume).",
+						description:
+							"Where the tool lives: 'global' (all workspaces), 'workspace' (this project only), or 'task' (current task only, survives resume).",
 					},
 					description: {
 						type: "string",
@@ -118,7 +119,8 @@ export const upsert_tool_spec: DiracToolSpec = {
 					},
 					parameters: {
 						type: "array",
-						description: "Array of parameter objects: { name: string, type: string, required: boolean, instruction: string }.",
+						description:
+							"Array of parameter objects: { name: string, type: string, required: boolean, instruction: string }.",
 						items: {
 							type: "object",
 							properties: {
@@ -146,7 +148,8 @@ export const upsert_tool_spec: DiracToolSpec = {
 					},
 					requirements: {
 						type: "string",
-						description: "Natural language description of what the tool should do — its behavior, logic, and edge cases.",
+						description:
+							"Natural language description of what the tool should do — its behavior, logic, and edge cases.",
 					},
 				},
 				required: ["name", "scope", "description", "parameters", "requirements"],
@@ -172,10 +175,7 @@ export async function resolveTaskToolDir(name: string, taskId: string): Promise<
 	return path.join(taskDir, "tools", name)
 }
 
-export function buildManifest(
-	name: string,
-	scope: ToolScope,
-): ManifestData {
+export function buildManifest(name: string, scope: ToolScope): ManifestData {
 	return {
 		schemaVersion: 1,
 		id: name,

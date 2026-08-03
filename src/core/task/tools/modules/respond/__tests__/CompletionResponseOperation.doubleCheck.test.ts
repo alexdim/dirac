@@ -4,14 +4,14 @@ import sinon from "sinon"
 import { TaskState } from "../../../../TaskState"
 
 /**
- * Tests for the double-check completion feature in AttemptCompletionHandler.
+ * Tests for the completion operation's double-check state.
  *
- * When doubleCheckCompletionEnabled is true, each attempt_completion call
+ * When doubleCheckCompletionEnabled is true, each complete response call
  * is rejected the first time (setting pending=true), then accepted on the
  * immediate follow-up (resetting pending=false). This means every completion
  * attempt gets double-checked, not just the first one in a task.
  */
-describe("AttemptCompletionHandler double-check completion", () => {
+describe("completion response double-check", () => {
 	let taskState: TaskState
 	let sandbox: sinon.SinonSandbox
 

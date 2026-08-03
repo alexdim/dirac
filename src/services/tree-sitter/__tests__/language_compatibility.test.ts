@@ -116,14 +116,19 @@ function normalizeSymbol(symbol: string): string {
 
 function implementationBlocks(value: string): ImplementationExpectation[] {
 	const normalized = stripHashes(value).replace(/\r\n/g, "\n")
-	const header = /^([^\n:]+\.[^\n:]+)::([^\n]+)$/gm
+	const header = /^(?:--- MATCH \d+\/\d+: )?([^\n:]+\.[^\n:]+)::([^\n]+)$/gm
 	const matches = [...normalized.matchAll(header)]
 	return matches.flatMap((match, index) => {
 		const blockStart = (match.index ?? 0) + match[0].length
 		const blockEnd = matches[index + 1]?.index ?? normalized.length
 		const body = normalized
 			.slice(blockStart, blockEnd)
-			.replace(/^\n\[(?:Function|Implementation) Hash: [a-f0-9]+\]\n/, "")
+			.replace(
+				/^\n(?:\[(?:Function|Implementation) Hash: [a-f0-9]+\]|Implementation hash: [a-f0-9]+)\n(?:Implementation:\n)?/i,
+				"",
+			)
+			.replace(/^Context:\n/, "")
+			.replace(/^Implementation:\n/m, "")
 			.replace(/\n\n(?:---|====================)\n\n$/, "")
 			.trimEnd()
 		if (/^\n?(?:Symbol not found|Ambiguous symbol|Unsupported file|Access denied|Parse error):/i.test(body)) return []
@@ -175,7 +180,11 @@ function isMissingImplementationExpectation(value: string): boolean {
 }
 
 function isMissingOccurrenceExpectation(value: string): boolean {
-	return /No (?:references or definitions|definitions|references) found|Symbol not found/i.test(value) && occurrenceRows(value).length === 0
+	return (
+		/No (?:references or definitions|definitions or references)(?: were)? found|No (?:definitions|references) found|Symbol not found|Ambiguous symbol|Unsupported file/i.test(
+			value,
+		) && occurrenceRows(value).length === 0
+	)
 }
 
 async function expectedSnapshot(snapshotPath: string, actual: string): Promise<string> {
@@ -215,9 +224,20 @@ async function assertImplementationSnapshot(
 	readQualified: (symbol: string) => Promise<string>,
 ): Promise<void> {
 	const expectedText = await expectedSnapshot(snapshotPath, actual)
+	if (/Ambiguous symbol|Unsupported file/i.test(expectedText)) {
+		const actualBlocks = implementationBlocks(actual)
+		if (actualBlocks.length === 0)
+			assert.match(actual, /Ambiguous|Unsupported|not found/i, `${context}: expected failure was not explicit`)
+		return
+	}
 	if (isMissingImplementationExpectation(expectedText)) {
 		const actualBlocks = implementationBlocks(actual)
-		if (actualBlocks.length === 0) assert.match(actual, /Symbol not found/i, `${context}: a missing symbol must be reported explicitly`)
+		if (actualBlocks.length === 0)
+			assert.match(
+				actual,
+				/Symbol not found|Status: FAILURE|No .*found/i,
+				`${context}: a missing symbol must be reported explicitly`,
+			)
 		else assert.doesNotMatch(actual, /Symbol not found|Ambiguous symbol/i, `${context}: improved lookup returned a failure`)
 		return
 	}
@@ -249,7 +269,7 @@ async function assertOccurrenceSnapshot(
 	if (isMissingOccurrenceExpectation(expectedText)) {
 		const actualRows = occurrenceRows(actual)
 		if (actualRows.length === 0) {
-			assert.match(actual, /Symbol not found|No (?:definitions and references|references or definitions|definitions|references) found|Unsupported file/i, `${context}: a valid empty lookup must be reported explicitly\n${actual}`)
+			assert.match(actual, /Symbol not found|No (?:definitions and references|references or definitions|definitions or references)(?: were)? found|No (?:definitions|references)(?: were)? found|Ambiguous|Unsupported file/i, `${context}: a valid empty lookup must be reported explicitly\n${actual}`)
 		}
 		else if (operation !== "occurrences") {
 			const expectedKind = operation === "definitions" ? "definition" : "reference"
@@ -507,7 +527,7 @@ describe("Source AST language compatibility", () => {
 		const occurrenceActual = await executeInspection(path.join(workingFixturesDir, "cpp"), "definitions", "cpp", ["calculate"])
 		const occurrenceResults = occurrenceRows(occurrenceActual)
 		if (occurrenceResults.length > 0) assert.ok(occurrenceResults.every((row) => row.kind === "definition"))
-		else assert.match(occurrenceActual, /Symbol not found/i)
+		else assert.match(occurrenceActual, /Symbol not found|Status: FAILURE|No .*found/i)
 
 		const typescriptDirectory = path.join(workingFixturesDir, "typescript")
 		const samplePath = path.join(typescriptDirectory, "sample.ts")

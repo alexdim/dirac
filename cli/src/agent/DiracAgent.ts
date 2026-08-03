@@ -18,6 +18,7 @@ import { PROTOCOL_VERSION, RequestError } from "@agentclientprotocol/sdk"
 import type { DiracMessageChange } from "@core/task/message-state"
 import type { ApiProvider } from "@shared/api"
 import { isResumePromptCard } from "@shared/cardIdentity"
+import { isPlanResponseCard } from "@shared/responseTool"
 import type { DiracMessage } from "@shared/ExtensionMessage"
 import { CardStatus, DiracMessageType, TaskStatus } from "@shared/ExtensionMessage"
 import { CLI_ONLY_COMMANDS, VSCODE_ONLY_COMMANDS } from "@shared/slashCommands"
@@ -1764,7 +1765,7 @@ export class DiracAgent implements acp.Agent {
 						// cannot be cleared by waitForFollowUp() resetting stale response state.
 						await pWaitFor(() => controller.task?.taskState.status === TaskStatus.AWAITING_USER_INPUT, { interval: 10 })
 
-						// attempt_completion ends the ACP turn, not the conversation. The core
+						// A completion response ends the ACP turn, not the conversation. The core
 						// task remains alive in waitForFollowUp() so the next session/prompt can
 						// continue with the same API conversation history.
 						Logger.debug("[DiracAgent] Continuing completed task in existing ACP session:", controller.task.taskId)
@@ -2229,7 +2230,7 @@ export class DiracAgent implements acp.Agent {
 	}
 
 	private planFromMessage(message: DiracMessage): acp.Plan | undefined {
-		if (message.content.type !== DiracMessageType.CARD || message.content.card.header !== "Proposed Plan") {
+		if (message.content.type !== DiracMessageType.CARD || !isPlanResponseCard(message.content.card)) {
 			return undefined
 		}
 

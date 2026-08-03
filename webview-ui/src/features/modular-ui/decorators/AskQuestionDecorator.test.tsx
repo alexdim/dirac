@@ -2,6 +2,7 @@ import { fireEvent, render, screen } from "@testing-library/react"
 import { Card, CardStatus } from "@shared/ExtensionMessage"
 import { describe, expect, it, vi } from "vitest"
 import { AskQuestionChoices, isAskQuestionCard } from "./AskQuestionDecorator"
+import { ResponseOperation, responseCardInput } from "@shared/responseTool"
 
 function createQuestionCard(overrides: Partial<Card> = {}): Card {
 	return {
@@ -10,7 +11,7 @@ function createQuestionCard(overrides: Partial<Card> = {}): Card {
 		status: CardStatus.WAITING_FOR_INPUT,
 		renderType: "markdown",
 		body: "Which approach should I use?",
-		rawInput: { tool: "ask_followup_question", question: "Which approach should I use?" },
+		rawInput: responseCardInput(ResponseOperation.QUESTION, "Which approach should I use?"),
 		actions: [
 			{ label: "Use the existing API", value: "existing" },
 			{ label: "Create a new API", value: "new" },

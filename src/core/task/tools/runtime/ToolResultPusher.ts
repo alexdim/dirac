@@ -30,7 +30,7 @@ export class ToolResultPusher {
 	// Appends a warning to the tool result if the tool call count exceeds 50.
 	static appendLoopWarning(toolResult: any, count: number): any {
 		if (count < 50 || (count - 50) % 25 !== 0) return toolResult
-		const warning = `\n\n[SYSTEM NOTE: You have executed ${count} tool calls in this task. Please ensure you are not in an infinite loop and are making progress towards the goal. If you have completed the task, please call attempt_completion. If you are stuck, consider a different approach.]`
+		const warning = `\n\n[SYSTEM NOTE: You have executed ${count} tool calls. Ensure you are making progress. If finished, call respond with operation "complete"; if stuck, change approach.]`
 		if (typeof toolResult === "string") return toolResult + warning
 		if (Array.isArray(toolResult)) {
 			const lastBlock = toolResult[toolResult.length - 1]

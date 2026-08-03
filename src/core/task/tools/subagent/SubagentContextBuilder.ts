@@ -69,7 +69,7 @@ export class SubagentContextBuilder {
 	appendExecutionDeadline(systemPrompt: string, timeoutSeconds: number): string {
 		return (
 			systemPrompt +
-			`\n\n# Execution Deadline\nYou must complete your task and call attempt_completion within ${timeoutSeconds} seconds.`
+			`\n\n# Execution Deadline\nYou must complete your task and call respond with operation "complete" within ${timeoutSeconds} seconds.`
 		)
 	}
 

@@ -50,7 +50,7 @@ const UtilityModelSelection = () => {
 			<VSCodeCheckbox
 				aria-label="Enable utility model"
 				checked={utilityModelEnabled}
-				onClick={(event: any) => updateSetting("utilityModelEnabled", event.target.checked === true)}>
+				onChange={(event: any) => updateSetting("utilityModelEnabled", event.target.checked === true)}>
 				Enable utility model
 			</VSCodeCheckbox>
 
