@@ -4,6 +4,7 @@
  *
  * Phase 1 — Refactoring Safety Net
  */
+import { strict as assert } from "node:assert"
 import { afterEach, beforeEach, describe, it } from "mocha"
 import "should"
 import { DiracAskResponse } from "@shared/WebviewMessage"
@@ -116,6 +117,52 @@ describe("Task (original)", () => {
 		})
 		t.should.not.be.undefined()
 		t.taskId.should.equal("test-123")
+	})
+
+	it("routes automatic compaction to the active model when Utility condensation is unavailable", async () => {
+		const task = new Task({
+			controller: createMockController(),
+			updateTaskHistory: sandbox.stub().resolves([]),
+			postStateToWebview: sandbox.stub().resolves(),
+			reinitExistingTaskFromId: sandbox.stub().resolves(),
+			cancelTask: sandbox.stub().resolves(),
+			shellIntegrationTimeout: 5000,
+			terminalReuseEnabled: true,
+			terminalOutputLineLimit: 500,
+			defaultTerminalProfile: "default",
+			vscodeTerminalExecutionMode: "vscodeTerminal",
+			cwd: tempDir,
+			stateManager: StateManager.get(),
+			task: "test task",
+			taskId: "test-active-model-compaction-fallback",
+			taskLockAcquired: false,
+		}) as any
+		const userContent = [{ type: "text", text: "continue" }]
+		sandbox.stub(task, "getCurrentProviderInfo").returns({
+			model: { id: "act-model", info: {} },
+			providerId: "anthropic",
+			mode: "act",
+		})
+		sandbox.stub(task.modelContextTracker, "recordModelUsage").resolves()
+		sandbox.stub(task, "handleMistakeLimitReached").resolves({ didEndLoop: false, userContent })
+		sandbox.stub(task.messageStateHandler, "getDiracMessages").returns([
+			{ content: { type: "api_status", status: {} } },
+		])
+		sandbox.stub(task, "initializeCheckpoints").resolves()
+		sandbox.stub(task, "determineContextCompaction").resolves(true)
+		sandbox.stub(task.localConversationCompaction, "isAvailable").returns(false)
+		const utilityRun = sandbox.stub(task.localConversationCompaction, "run").resolves(undefined)
+		sandbox.stub(task, "appendQueuedSteeringToUserContent").resolves(undefined)
+		const prepareApiRequest = sandbox.stub(task.apiConversationManager, "prepareApiRequest").resolves({
+			userContent,
+			lastApiReqIndex: 0,
+			isDirectResponse: true,
+			didConsumeUserContent: true,
+		})
+
+		assert.equal(await task.recursivelyMakeDiracRequests(userContent), true)
+		assert.equal(utilityRun.callCount, 0)
+		assert.equal(prepareApiRequest.firstCall.args[0].shouldCompact, true)
 	})
 
 	it("propagates a replacement API handler to every task-owned manager", () => {

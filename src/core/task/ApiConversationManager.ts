@@ -1,6 +1,8 @@
 import { getHookModelContext } from "@core/hooks/hook-model-context"
 import { getHooksEnabledSafe } from "@core/hooks/hooks-utils"
 import { executePreCompactHookWithCleanup, HookCancellationError } from "@core/hooks/precompact-executor"
+import { autoCondensePrompt } from "@core/prompts/contextManagement"
+import type { SlashCommandDirectAction } from "@core/slash-commands"
 import type { ApiConversationCheckpoint, ApiConversationRequestOptions } from "@core/api/conversation"
 import { formatContentBlockToMarkdown } from "@integrations/misc/export-markdown"
 import { telemetryService } from "@services/telemetry"
@@ -313,6 +315,7 @@ export class ApiConversationManager {
 
 	public async prepareApiRequest(params: {
 		userContent: DiracContent[]
+		shouldCompact?: boolean
 		includeFileDetails: boolean
 		useCompactPrompt: boolean
 		previousApiReqIndex: number
@@ -347,17 +350,37 @@ export class ApiConversationManager {
 			}
 		}
 
-		const [
-			parsedUserContent,
-			environmentDetails,
-			diracrulesError,
-			availableSkills,
-			isDirectResponse,
-			loadedDirectResponseText,
-			directActions,
-		] = await this.dependencies.loadContext(nextUserContent, params.includeFileDetails, params.useCompactPrompt)
-		const directResponseText = loadedDirectResponseText ?? params.directResponseText
-		this.dependencies.taskState.availableSkills = availableSkills
+		let parsedUserContent: DiracContent[]
+		let environmentDetails: string
+		let diracrulesError: boolean
+		let isDirectResponse = false
+		let directResponseText = params.directResponseText
+		let directActions: SlashCommandDirectAction[] | undefined
+
+		if (params.shouldCompact) {
+			parsedUserContent = [...nextUserContent]
+			environmentDetails = ""
+			diracrulesError = false
+			this.dependencies.taskState.lastAutoCondenseTriggerIndex = params.previousApiReqIndex
+			this.dependencies.taskState.pendingCondenseSource = "automatic"
+		} else {
+			const [
+				loadedUserContent,
+				loadedEnvironmentDetails,
+				loadedDiracrulesError,
+				availableSkills,
+				loadedIsDirectResponse,
+				loadedDirectResponseText,
+				loadedDirectActions,
+			] = await this.dependencies.loadContext(nextUserContent, params.includeFileDetails, params.useCompactPrompt)
+			parsedUserContent = loadedUserContent
+			environmentDetails = loadedEnvironmentDetails
+			diracrulesError = loadedDiracrulesError
+			isDirectResponse = loadedIsDirectResponse
+			directResponseText = loadedDirectResponseText ?? params.directResponseText
+			directActions = loadedDirectActions
+			this.dependencies.taskState.availableSkills = availableSkills
+		}
 
 		const skillIds = [
 			...new Set(
@@ -412,6 +435,13 @@ export class ApiConversationManager {
 		// do not add environment details to the message which we are compacting the context window
 		if (environmentDetails) {
 			userContent.push({ type: "text", text: environmentDetails })
+		}
+
+		if (params.shouldCompact) {
+			const pinnedContext = this.dependencies.getPinnedContext?.()
+			if (pinnedContext) userContent.push({ type: "text", text: pinnedContext })
+			userContent.push({ type: "text", text: autoCondensePrompt() })
+			this.dependencies.onContextCompacted?.()
 		}
 
 		// getting verbose details is an expensive operation, it uses globby to top-down build file structure of project which for large projects can take a few seconds

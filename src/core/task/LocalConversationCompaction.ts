@@ -59,7 +59,18 @@ interface UtilityModelIdentity {
  * model produces and validates the summary before any conversation state changes.
  */
 export class LocalConversationCompaction {
-	constructor(private readonly dependencies: LocalConversationCompactionDependencies) {}
+	constructor(private readonly dependencies: LocalConversationCompactionDependencies) { }
+
+	isAvailable(): boolean {
+		return isUtilityTextCondensationAvailable(
+			{
+				utilityModelEnabled: this.dependencies.stateManager.getGlobalSettingsKey("utilityModelEnabled"),
+				utilityModelSelection: this.dependencies.stateManager.getGlobalSettingsKey("utilityModelSelection"),
+			},
+			CONVERSATION_CONTINUATION_TEMPLATE_ID,
+			createDefaultTextCondensationTemplateRegistry(),
+		)
+	}
 
 	async run(options: LocalConversationCompactionOptions): Promise<string | undefined> {
 		const templates = createDefaultTextCondensationTemplateRegistry()
@@ -70,10 +81,7 @@ export class LocalConversationCompaction {
 		const selection = getConfiguredUtilityModelSelection(settings.utilityModelSelection)
 		const configuredIdentity = this.getConfiguredIdentity(settings.utilityModelSelection)
 
-		if (!selection || !isUtilityTextCondensationAvailable(settings, CONVERSATION_CONTINUATION_TEMPLATE_ID, templates)) {
-			await this.displayUnavailableFailure(configuredIdentity)
-			return undefined
-		}
+		if (!selection || !this.isAvailable()) return undefined
 
 		let handler: ApiHandler
 		let identity: UtilityModelIdentity
@@ -249,16 +257,6 @@ export class LocalConversationCompaction {
 		}
 	}
 
-	private async displayUnavailableFailure(identity: UtilityModelIdentity | undefined): Promise<void> {
-		const card = await this.dependencies.taskMessenger.createCard({
-			header: `Conversation Condensation Failed · ${identity ? this.formatIdentity(identity) : "Utility model unavailable"}`,
-			status: CardStatus.ERROR,
-			icon: DiracIcon.SUMMARIZE,
-			body: "No valid Utility model is available for conversation condensation. Enable and configure a Utility model in settings, then retry.",
-			collapsed: false,
-		})
-		await card.finalize(CardStatus.ERROR, true)
-	}
 
 	private async displayFailure(identity: UtilityModelIdentity | undefined, error: unknown): Promise<void> {
 		const card = await this.dependencies.taskMessenger.createCard({

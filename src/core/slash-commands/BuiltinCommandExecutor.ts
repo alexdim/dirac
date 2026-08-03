@@ -30,7 +30,7 @@ export async function executeBuiltinCommand(
 	}
 
 	const textWithoutSlashCommand = removeSlashCommand(fullText, contentStartIndex, slashMatch)
-	if (commandName === "smol" || commandName === "compact") {
+	if ((commandName === "smol" || commandName === "compact") && conversationCondensationAvailable) {
 		telemetryService.captureSlashCommandUsed(ulid, commandName, "builtin")
 		return {
 			processedText: textWithoutSlashCommand,

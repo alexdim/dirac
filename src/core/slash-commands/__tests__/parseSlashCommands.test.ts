@@ -169,24 +169,26 @@ describe("parseSlashCommands", () => {
 			expect(result.processedText).to.not.contain("<context>1. Current Work:")
 		})
 
-		it("handles /smol as a local condensation action", async () => {
+		it("falls back to active-model condensation for /smol when Utility condensation is unavailable", async () => {
 			const result = await parse("<task>/smol</task>")
 			expect(result.processedText).to.not.contain("/smol")
-			expect(result.directAction).to.deep.equal({ type: "condenseConversation" })
+			expect(result.processedText).to.contain("Context: (required)")
+			expect(result.directAction).to.be.undefined
 			expect(captureStub.calledWith(ULID, "smol", "builtin")).to.be.true
 		})
 
-		it("does not generate an active-model condensation prompt", async () => {
+		it("uses local Utility condensation when it is available", async () => {
 			const result = await parse("<task>/compact</task>", { conversationCondensationAvailable: true })
 			expect(result.processedText).to.not.contain("Call condense")
 			expect(result.processedText).to.not.contain("Context: (required)")
 			expect(result.directAction).to.deep.equal({ type: "condenseConversation" })
 		})
 
-		it("handles /compact as the same local condensation action", async () => {
+		it("falls back to active-model condensation for /compact when Utility condensation is unavailable", async () => {
 			const result = await parse("<task>/compact</task>")
 			expect(result.processedText).to.not.contain("/compact")
-			expect(result.directAction).to.deep.equal({ type: "condenseConversation" })
+			expect(result.processedText).to.contain("Context: (required)")
+			expect(result.directAction).to.be.undefined
 			expect(captureStub.calledWith(ULID, "compact", "builtin")).to.be.true
 		})
 

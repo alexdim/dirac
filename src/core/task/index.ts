@@ -1072,7 +1072,7 @@ export class Task {
 		return { didEndLoop: false, userContent }
 	}
 
-		async loadContext(
+	async loadContext(
 		userContent: DiracContent[],
 		includeFileDetails = false,
 		useCompactPrompt = false,
@@ -2059,7 +2059,7 @@ export class Task {
 
 		const useCompactPrompt = customPrompt === "compact" && isLocalModel(this.getCurrentProviderInfo())
 		let shouldCompact = await this.determineContextCompaction(previousApiReqIndex)
-		if (shouldCompact) {
+		if (shouldCompact && this.localConversationCompaction.isAvailable()) {
 			const continuation = await this.localConversationCompaction.run({
 				source: "automatic",
 				triggerApiRequestIndex: previousApiReqIndex,
@@ -2082,6 +2082,7 @@ export class Task {
 		try {
 			apiRequestData = await this.apiConversationManager.prepareApiRequest({
 				userContent,
+				shouldCompact,
 				includeFileDetails,
 				useCompactPrompt,
 				previousApiReqIndex,
