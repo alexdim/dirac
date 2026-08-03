@@ -85,6 +85,55 @@ describe("ApiConversationManager steering delivery", () => {
 		assert.deepEqual(events, ["persisted", "callback"])
 	})
 
+	it("prepares active-model automatic compaction when Utility condensation is unavailable", async () => {
+		const taskState = new TaskState()
+		const loadContext = sinon.stub()
+		const createCard = sinon.stub()
+		const addToApiConversationHistory = sinon.stub().resolves()
+		const onContextCompacted = sinon.stub()
+		const manager = new ApiConversationManager({
+			taskState,
+			stateManager: { getGlobalSettingsKey: sinon.stub() },
+			runUserPromptSubmitHook: sinon.stub().resolves({}),
+			loadContext,
+			activateSkill: sinon.stub().resolves(),
+			taskMessenger: { upsertApiStatus: sinon.stub().resolves(), createCard },
+			messageStateHandler: {
+				addToApiConversationHistory,
+				getDiracMessages: sinon.stub().returns([]),
+				updateDiracMessage: sinon.stub().resolves(),
+			},
+			getPinnedContext: () => "retain this pinned context",
+			postStateToWebview: sinon.stub().resolves(),
+			onContextCompacted,
+			taskInitializationStartTime: performance.now(),
+			ulid: "task-ulid",
+			taskId: "task-id",
+		} as any)
+
+		const result = await manager.prepareApiRequest({
+			userContent: [{ type: "text", text: "continue the task" }],
+			shouldCompact: true,
+			includeFileDetails: false,
+			useCompactPrompt: false,
+			previousApiReqIndex: 7,
+			isFirstRequest: false,
+			providerId: "provider",
+			modelId: "model",
+			mode: "act",
+		})
+
+		assert.equal(loadContext.callCount, 0)
+		assert.equal(createCard.callCount, 0)
+		assert.equal(taskState.lastAutoCondenseTriggerIndex, 7)
+		assert.equal(taskState.pendingCondenseSource, "automatic")
+		assert.equal(onContextCompacted.callCount, 1)
+		assert.equal(result.didConsumeUserContent, true)
+		const storedContent = addToApiConversationHistory.firstCall.args[0].content
+		assert.ok(storedContent.some((block: any) => block.text === "retain this pinned context"))
+		assert.ok(storedContent.some((block: any) => block.text?.includes("must now call the condense tool")))
+	})
+
 	it("does not consume user content when the prompt hook cancels", async () => {
 		const addToApiConversationHistory = sinon.stub().resolves()
 		const manager = new ApiConversationManager({

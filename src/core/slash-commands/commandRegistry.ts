@@ -1,4 +1,4 @@
-import { askDiracToolResponse, newRuleToolResponse, newTaskToolResponse } from "../prompts/commands"
+import { askDiracToolResponse, condenseToolResponse, newRuleToolResponse, newTaskToolResponse } from "../prompts/commands"
 
 // Builtin slash commands recognized by the parser.
 export const SUPPORTED_DEFAULT_COMMANDS = ["newtask", "smol", "compact", "newrule", "permissions", "askDirac", "reloadtools"]
@@ -22,11 +22,13 @@ export const SLASH_COMMAND_IN_TEXT_REGEX = /(^|\s)\/([a-zA-Z0-9_.:@-]+)(?=\s|$)/
 export function buildCommandReplacements(
 	extensionPath: string | undefined,
 	sourceDir: string,
-	_conversationCondensationAvailable = false,
+	conversationCondensationAvailable = false,
 	taskHandoffCondensationAvailable = false,
 ): Record<string, string | Promise<string>> {
 	return {
 		newtask: newTaskToolResponse(taskHandoffCondensationAvailable),
+		smol: condenseToolResponse(conversationCondensationAvailable),
+		compact: condenseToolResponse(conversationCondensationAvailable),
 		newrule: newRuleToolResponse(),
 		askDirac: askDiracToolResponse(extensionPath, sourceDir),
 		reloadtools: "__RELOAD_TOOLS__",

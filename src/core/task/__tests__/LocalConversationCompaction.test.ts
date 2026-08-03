@@ -75,6 +75,16 @@ function createMocks() {
 describe("LocalConversationCompaction", () => {
 	afterEach(() => sinon.restore())
 
+	it("silently declines when no Utility model is configured", async () => {
+		const { card, compaction, dependencies } = createMocks()
+		dependencies.stateManager.getGlobalSettingsKey.withArgs("utilityModelEnabled").returns(false)
+
+		assert.equal(compaction.isAvailable(), false)
+		assert.equal(await compaction.run({ source: "automatic" }), undefined)
+		assert.equal(dependencies.taskMessenger.createCard.callCount, 0)
+		assert.equal(card.finalize.callCount, 0)
+	})
+
 	it("returns the committed continuation when success-card presentation fails", async () => {
 		expectLoggerErrors()
 		const { card, compaction, onContextCompacted, taskState } = createMocks()
