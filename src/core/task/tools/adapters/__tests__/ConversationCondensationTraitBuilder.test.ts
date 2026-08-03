@@ -59,7 +59,7 @@ describe("ConversationCondensationTraitBuilder", () => {
 
 		assert.equal(trait.isAvailable("conversation_continuation"), false)
 		await assert.rejects(
-			() => trait.condenseConversation("conversation_continuation"),
+			() => trait.condenseConversation("conversation_continuation", { historyScope: "effective" }),
 			ConversationCondensationUnavailableError,
 		)
 	})
@@ -112,10 +112,13 @@ describe("ConversationCondensationTraitBuilder", () => {
 		assert.equal(trait.isAvailable("conversation_continuation"), true)
 		sinon.assert.notCalled(createRunner)
 
-		assert.deepEqual(await trait.condenseConversation("conversation_continuation"), {
-			text: "complete condensation",
-			modelIdentity: { providerId: "openai", modelId: "resolved-utility-model" },
-		})
+		assert.deepEqual(
+			await trait.condenseConversation("conversation_continuation", { historyScope: "effective" }),
+			{
+				text: "complete condensation",
+				modelIdentity: { providerId: "openai", modelId: "resolved-utility-model" },
+			},
+		)
 		assert.equal(config.api, activeApi)
 		assert.equal(requests.length, 1)
 		sinon.assert.calledOnce(createRunner)
@@ -141,12 +144,61 @@ describe("ConversationCondensationTraitBuilder", () => {
 		})
 		const trait = buildConversationCondensationTrait(config)
 
-		await trait.condenseConversation("conversation_continuation")
+		await trait.condenseConversation("conversation_continuation", { historyScope: "effective" })
 
 		assert.equal(config.messageState.getApiConversationHistory.callCount, 1)
 		assert.match(requests[0].messages[0].content as string, /current task-only history/)
 		assert.deepEqual(history, [{ role: "user", content: "current task-only history" }])
 	})
+
+	it("sends complete history and trailing intent to the Utility model after repeated compactions", async () => {
+		const history: DiracStorageMessage[] = [
+			{ role: "user", content: "full-history-first" },
+			{ role: "assistant", content: "full-history-before-compaction" },
+			{ role: "user", content: "full-history-first-summary" },
+			{ role: "assistant", content: "full-history-between-compactions" },
+			{ role: "user", content: "full-history-second-summary" },
+			{ role: "assistant", content: "full-history-last" },
+		]
+		const { config } = createEnvironment(history)
+		config.taskState.conversationHistoryDeletedRange = [1, 4]
+		const getTruncatedMessages = sinon.stub().returns([history[0], history.at(-1)])
+		config.services.contextManager = { getTruncatedMessages } as any
+		const requests: UtilityModelRequest[] = []
+		sinon.stub(utilityModel, "createUtilityModelRunner").callsFake((_configuration, runnerSelection, options) => {
+			return {
+				run(request: UtilityModelRequest) {
+					requests.push(request)
+					return textStream("complete handoff", () => {
+						options?.onModelResolved?.({ selection: runnerSelection, modelId: runnerSelection.modelId })
+					})
+				},
+			} as ReturnType<typeof utilityModel.createUtilityModelRunner>
+		})
+		const trait = buildConversationCondensationTrait(config)
+
+		await trait.condenseConversation("task_handoff", {
+			historyScope: "complete",
+			additionalSourceText: '=== REQUESTED NEW TASK INTENT ===\n{"intent":"authoritative intent"}',
+		})
+
+		assert.equal(requests.length, 1)
+		const source = JSON.parse(requests[0].messages[0].content as string).sourceText as string
+		for (const marker of [
+			"full-history-first",
+			"full-history-before-compaction",
+			"full-history-first-summary",
+			"full-history-between-compactions",
+			"full-history-second-summary",
+			"full-history-last",
+		]) {
+			assert.ok(source.includes(marker), `Missing Utility request marker: ${marker}`)
+		}
+		assert.ok(source.indexOf("REQUESTED NEW TASK INTENT") > source.indexOf("full-history-last"))
+		assert.ok(source.includes("authoritative intent"))
+		sinon.assert.notCalled(getTruncatedMessages)
+	})
+
 
 	it("exposes a narrow facade for parent tasks and no capability for subagents", () => {
 		const { config } = createEnvironment()

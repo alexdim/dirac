@@ -428,7 +428,11 @@ export interface IConversationCondensationTrait {
 	isAvailable(template: TextCondensationTemplateId): boolean
 	condenseConversation(
 		template: TextCondensationTemplateId,
-		options?: { signal?: AbortSignal; additionalSourceText?: string },
+		options: {
+			historyScope: "complete" | "effective"
+			signal?: AbortSignal
+			additionalSourceText?: string
+		},
 	): Promise<ConversationCondensationResult>
 }
 

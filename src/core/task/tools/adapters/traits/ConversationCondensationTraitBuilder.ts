@@ -44,7 +44,7 @@ export function buildConversationCondensationTrait(config: TaskConfig): IConvers
 			const service = createConversationCondensationService(config, selection, templates, (modelId) => {
 				resolvedModelId = modelId
 			})
-			const text = await service.condenseEffectiveConversation(template, options?.signal, options?.additionalSourceText)
+			const text = await service.condenseConversation(template, options)
 			if (!resolvedModelId) throw new Error("Conversation condensation completed without resolving a Utility model")
 			return {
 				text,
