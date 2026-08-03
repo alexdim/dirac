@@ -373,6 +373,8 @@ export interface IOrchestrationTrait {
 	doesLatestTaskCompletionHaveNewChanges(): Promise<boolean>
 
 	resetTransientState(): Promise<void>
+	/** Reports that conversation truncation state was successfully persisted. */
+	notifyContextCompacted(): void
 }
 
 export interface IDiagnosticsTrait {

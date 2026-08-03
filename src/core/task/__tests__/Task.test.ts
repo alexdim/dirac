@@ -165,6 +165,43 @@ describe("Task (original)", () => {
 		assert.equal(prepareApiRequest.firstCall.args[0].shouldCompact, true)
 	})
 
+	it("clears an unconsumed automatic-condense source before a completion follow-up", async () => {
+		const task = new Task({
+			controller: createMockController(),
+			updateTaskHistory: sandbox.stub().resolves([]),
+			postStateToWebview: sandbox.stub().resolves(),
+			reinitExistingTaskFromId: sandbox.stub().resolves(),
+			cancelTask: sandbox.stub().resolves(),
+			shellIntegrationTimeout: 5000,
+			terminalReuseEnabled: true,
+			terminalOutputLineLimit: 500,
+			defaultTerminalProfile: "default",
+			vscodeTerminalExecutionMode: "vscodeTerminal",
+			cwd: tempDir,
+			stateManager: StateManager.get(),
+			task: "test task",
+			taskId: "test-automatic-condense-source-cleanup",
+			taskLockAcquired: false,
+		}) as any
+		task.taskState.pendingCondenseSource = "automatic"
+		task.taskState.didAttemptCompletion = true
+		const makeRequests = sandbox.stub(task, "recursivelyMakeDiracRequests")
+		makeRequests.onFirstCall().resolves(true)
+		makeRequests.onSecondCall().resolves(true)
+		const waitForFollowUp = sandbox.stub(task, "waitForFollowUp").callsFake(async () => {
+			assert.equal(task.taskState.pendingCondenseSource, undefined)
+			return [{ type: "text", text: "continue after completion" }]
+		})
+		sandbox.stub(task.taskMessenger, "upsertText").resolves()
+		sandbox.stub(task.messageStateHandler, "flushTaskHistory").resolves()
+
+		await task.initiateTaskLoop([{ type: "text", text: "initial request" }])
+
+		assert.equal(waitForFollowUp.callCount, 1)
+		assert.equal(makeRequests.callCount, 2)
+		assert.equal(task.taskState.pendingCondenseSource, undefined)
+	})
+
 	it("propagates a replacement API handler to every task-owned manager", () => {
 		const t = new Task({
 			controller: createMockController(),

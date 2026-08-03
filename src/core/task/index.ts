@@ -409,6 +409,14 @@ export class Task {
 		this.contextCompactionObserver = observer
 	}
 
+	private notifyContextCompacted(): void {
+		try {
+			this.contextCompactionObserver?.()
+		} catch (error) {
+			Logger.error("Context compaction observer failed", error)
+		}
+	}
+
 	public async getActiveHookExecution(): Promise<typeof this.taskState.activeHookExecution> {
 		return this.hookManager.getActiveHookExecution()
 	}
@@ -771,6 +779,7 @@ export class Task {
 			this.runUserPromptSubmitHook.bind(this),
 			this.diracContext,
 			this.resetTransientState.bind(this),
+			this.notifyContextCompacted.bind(this),
 		)
 		this.environmentManager = new EnvironmentManager({
 			cwd: this.cwd,
@@ -851,7 +860,7 @@ export class Task {
 			cancelTask: this.cancelTask,
 			setActiveHookExecution: this.hookManager.setActiveHookExecution.bind(this.hookManager),
 			clearActiveHookExecution: this.hookManager.clearActiveHookExecution.bind(this.hookManager),
-			onContextCompacted: () => this.contextCompactionObserver?.(),
+			onContextCompacted: this.notifyContextCompacted.bind(this),
 		})
 
 		this.apiConversationManager = new ApiConversationManager({
@@ -881,7 +890,7 @@ export class Task {
 			taskInitializationStartTime: this.taskInitializationStartTime,
 			cancelTask: this.cancelTask,
 			runUserPromptSubmitHook: this.runUserPromptSubmitHook.bind(this),
-			onContextCompacted: () => this.contextCompactionObserver?.(),
+			onContextCompacted: this.notifyContextCompacted.bind(this),
 			runLocalConversationCompaction: (source) => this.localConversationCompaction.run({ source }),
 		})
 
@@ -1235,6 +1244,8 @@ export class Task {
 			includeFileDetails = false // we only need file details the first time
 
 			if (didEndLoop) {
+				// Automatic-condense state survives in-request retries, but not a terminal turn boundary.
+				this.taskState.pendingCondenseSource = undefined
 				if (this.taskState.didAttemptCompletion) {
 					const followUp = await this.waitForFollowUp()
 					if (followUp) {

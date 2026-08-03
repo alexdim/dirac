@@ -38,6 +38,7 @@ function createMocks(source: "automatic" | "user" = "automatic") {
 				state.conversationHistoryDeletedRange = range
 			}),
 			resetTransientState: sinon.stub().resolves(),
+			notifyContextCompacted: sinon.stub(),
 			runHook: sinon.stub().resolves({}),
 		},
 		config: {
@@ -88,6 +89,8 @@ describe("CondenseTool", () => {
 			previousConversationHistoryDeletedRange: undefined,
 		})
 		assert.match(result, /Please continue the conversation/)
+		assert.equal(env.orchestration.notifyContextCompacted.callCount, 1)
+		assert.ok(env.orchestration.notifyContextCompacted.calledAfter(card.finalize))
 	})
 
 	it("uses the Utility model for a no-context automatic condense before consuming source state", async () => {
@@ -105,6 +108,7 @@ describe("CondenseTool", () => {
 		assert.equal(card.waitForInteraction.callCount, 0)
 		assert.deepEqual(env.orchestration.setTruncationRange.firstCall.args[0], [1, 6])
 		assert.match(result, /utility summary/)
+		assert.equal(env.orchestration.notifyContextCompacted.callCount, 1)
 	})
 
 	it("returns active-model fallback instructions without mutating failed automatic condensation", async () => {
@@ -118,10 +122,12 @@ describe("CondenseTool", () => {
 		assert.equal(env.orchestration.setTruncationRange.callCount, 0)
 		assert.equal(card.waitForInteraction.callCount, 0)
 		assert.match(fallback, /Do not call it again without context/)
+		assert.equal(env.orchestration.notifyContextCompacted.callCount, 0)
 
 		await new CondenseTool().processCall({ context: "active model summary" }, env as any)
 		assert.equal(card.waitForInteraction.callCount, 0)
 		assert.equal(state.pendingCondenseSource, undefined)
+		assert.equal(env.orchestration.notifyContextCompacted.callCount, 1)
 	})
 
 	it("propagates task cancellation without fallback or compaction mutation", async () => {
@@ -140,6 +146,7 @@ describe("CondenseTool", () => {
 		assert.equal(env.ui.createCard.callCount, 0)
 		assert.equal(env.orchestration.setTruncationRange.callCount, 0)
 		assert.equal(state.pendingApiConversationCompaction, undefined)
+		assert.equal(env.orchestration.notifyContextCompacted.callCount, 0)
 	})
 
 	it("runs the hook before applying an approved user condense", async () => {
@@ -162,6 +169,7 @@ describe("CondenseTool", () => {
 		assert.equal(env.orchestration.setTruncationRange.callCount, 0)
 		assert.equal(state.pendingApiConversationCompaction, undefined)
 		assert.match(result, /include the latest changes/)
+		assert.equal(env.orchestration.notifyContextCompacted.callCount, 0)
 	})
 
 	it("does not mutate truncation state when the hook cancels", async () => {
@@ -173,6 +181,7 @@ describe("CondenseTool", () => {
 		assert.equal(env.orchestration.setTruncationRange.callCount, 0)
 		assert.equal(state.pendingApiConversationCompaction, undefined)
 		assert.match(result, /cancelled by PreCompact hook/)
+		assert.equal(env.orchestration.notifyContextCompacted.callCount, 0)
 	})
 
 	it("includes hook context modifications in the continuation", async () => {
@@ -195,6 +204,7 @@ describe("CondenseTool", () => {
 		assert.equal(env.orchestration.runHook.callCount, 0)
 		assert.equal(env.orchestration.setTruncationRange.callCount, 0)
 		assert.equal(state.pendingApiConversationCompaction, undefined)
+		assert.equal(env.orchestration.notifyContextCompacted.callCount, 0)
 	})
 
 	it("does not compact when the task is cancelled by the PreCompact phase", async () => {
@@ -208,6 +218,7 @@ describe("CondenseTool", () => {
 
 		assert.equal(env.orchestration.setTruncationRange.callCount, 0)
 		assert.equal(state.pendingApiConversationCompaction, undefined)
+		assert.equal(env.orchestration.notifyContextCompacted.callCount, 0)
 	})
 
 	it("rolls back task and provider state when compaction history persistence fails", async () => {
@@ -229,6 +240,7 @@ describe("CondenseTool", () => {
 		assert.equal(state.pendingApiConversationCompaction, previousPendingCompaction)
 		assert.deepEqual(getProviderState(), {})
 		assert.equal(env.orchestration.resetTransientState.callCount, 0)
+		assert.equal(env.orchestration.notifyContextCompacted.callCount, 0)
 	})
 
 	it("returns the committed continuation when post-compaction presentation fails", async () => {
@@ -240,5 +252,6 @@ describe("CondenseTool", () => {
 		assert.match(result, /Please continue the conversation/)
 		assert.deepEqual(state.conversationHistoryDeletedRange, [1, 6])
 		assert.equal(env.logging.warn.callCount, 1)
+		assert.equal(env.orchestration.notifyContextCompacted.callCount, 1)
 	})
 })

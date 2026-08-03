@@ -87,6 +87,7 @@ export function createMockCallbacks(): TaskCallbacks {
 		getActiveHookExecution: sinon.stub().resolves(undefined),
 		runUserPromptSubmitHook: sinon.stub().resolves({}),
 		resetTransientState: sinon.stub().resolves(),
+		notifyContextCompacted: sinon.stub(),
 	}
 }
 

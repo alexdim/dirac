@@ -110,6 +110,12 @@ export class CondenseTool implements IDiracTool {
 		}
 
 		try {
+			env.orchestration.notifyContextCompacted()
+		} catch (error) {
+			env.logging.warn("Failed to report completed conversation compaction", error)
+		}
+
+		try {
 			this.captureSuccessfulCondense(source, env)
 		} catch (error) {
 			env.logging.warn("Failed to record completed conversation compaction", error)

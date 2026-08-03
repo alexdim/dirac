@@ -441,7 +441,6 @@ export class ApiConversationManager {
 			const pinnedContext = this.dependencies.getPinnedContext?.()
 			if (pinnedContext) userContent.push({ type: "text", text: pinnedContext })
 			userContent.push({ type: "text", text: autoCondensePrompt() })
-			this.dependencies.onContextCompacted?.()
 		}
 
 		// getting verbose details is an expensive operation, it uses globby to top-down build file structure of project which for large projects can take a few seconds

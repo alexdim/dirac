@@ -66,6 +66,7 @@ export const TASK_CALLBACKS_KEYS = [
 	"getActiveHookExecution",
 	"runUserPromptSubmitHook",
 	"resetTransientState",
+	"notifyContextCompacted",
 ] as const
 
 /**

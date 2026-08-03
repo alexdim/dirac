@@ -61,5 +61,6 @@ export function buildOrchestrationTrait(config: TaskConfig): IOrchestrationTrait
 		doesLatestTaskCompletionHaveNewChanges: () => config.callbacks.doesLatestTaskCompletionHaveNewChanges(),
 		updateMessage: (index, updates) => config.callbacks.updateDiracMessage(index, updates as Partial<DiracMessage>),
 		resetTransientState: () => config.callbacks.resetTransientState(),
+		notifyContextCompacted: () => config.callbacks.notifyContextCompacted(),
 	}
 }
