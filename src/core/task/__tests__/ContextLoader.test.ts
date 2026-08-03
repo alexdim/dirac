@@ -745,6 +745,41 @@ describe("ContextLoader (characterization)", () => {
 				; (result[0][1] as any).text.should.equal("E")
 		})
 
+		it("collects direct actions from every user block in input order", async () => {
+			mentionsModule.parseMentions = async (text: string) => text
+			slashCommandsModule.parseSlashCommands = async (text: string) => {
+				if (text.includes("one")) {
+					await new Promise((resolve) => setTimeout(resolve, 10))
+					return {
+						processedText: "first",
+						needsDiracrulesFileCheck: false,
+						directAction: { type: "activateSkill", skillId: "first-skill" },
+					}
+				}
+				return {
+					processedText: "second",
+					needsDiracrulesFileCheck: false,
+					directAction: { type: "activateSkill", skillId: "second-skill" },
+				}
+			}
+			stubSkills(), stubWorkflows()
+			const loader = new ContextLoader(makeDependencies())
+
+			const result = await loader.loadContext(
+				[
+					{ type: "text", isUserInput: true, text: "<task>one</task>" },
+					{ type: "text", isUserInput: true, text: "<task>two</task>" },
+				],
+				false,
+				false,
+			)
+
+			result[6]!.should.deepEqual([
+				{ type: "activateSkill", skillId: "first-skill" },
+				{ type: "activateSkill", skillId: "second-skill" },
+			])
+		})
+
 		it("processes user text while preserving tool results", async () => {
 			stubParseMentions("p"),
 				stubParseSlashCommands({ processedText: "E", needsDiracrulesFileCheck: false }),

@@ -11,10 +11,11 @@ import * as sinon from "sinon"
 
 import * as disk from "@/core/storage/disk"
 import { Logger } from "@/shared/services/Logger"
+import { filterSkillsByProviderCapabilities, NATIVE_WEB_SEARCH_SKILL_NAME } from "@shared/skills"
 import * as fsUtils from "@/utils/fs"
-import { discoverSkills, getAvailableSkills, getSkillContent } from "../skills"
+import { BUILTIN_SKILLS, discoverSkills, getAvailableSkills, getSkillContent } from "../skills"
 
-/** Filter out built-in skills (new-tool, delete-tool) that are appended by discoverSkills */
+/** Filter out trusted built-in skills appended by discoverSkills. */
 const filterBuiltin = (skills: { path: string; name?: string; description?: string; source?: string }[]) =>
 	skills.filter((s) => !s.path.startsWith("<builtin>"))
 
@@ -58,6 +59,16 @@ describe("Skills Utility Functions", () => {
 
 	afterEach(() => {
 		sandbox.restore()
+	})
+
+	describe("provider capability filtering", () => {
+		it("advertises native web search only when the provider supports it", () => {
+			const unsupported = filterSkillsByProviderCapabilities(BUILTIN_SKILLS, { native_web_search: false })
+			const supported = filterSkillsByProviderCapabilities(BUILTIN_SKILLS, { native_web_search: true })
+
+			unsupported.some((skill) => skill.name === NATIVE_WEB_SEARCH_SKILL_NAME).should.equal(false)
+			supported.some((skill) => skill.name === NATIVE_WEB_SEARCH_SKILL_NAME).should.equal(true)
+		})
 	})
 
 	describe("discoverSkills", () => {
@@ -328,7 +339,6 @@ Content`)
 			expect(skills[0].source).to.equal("builtin")
 			expect(skills[0].toolDependencies).to.deep.equal(["upsert_tool"])
 		})
-
 	})
 
 	describe("Metadata Validation", () => {

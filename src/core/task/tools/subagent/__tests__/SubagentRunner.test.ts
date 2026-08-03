@@ -19,6 +19,7 @@ import { SubagentBuilder } from "../SubagentBuilder"
 import { DiracAskResponse } from "@shared/WebviewMessage"
 import { SubagentExecutionStatus } from "@shared/ExtensionMessage"
 import { SubagentTrajectoryEventType } from "@shared/subagents"
+import { SubagentToolExecutor } from "../SubagentToolExecutor"
 
 function initializeHostProvider() {
 	HostProvider.reset()
@@ -259,6 +260,39 @@ describe("SubagentRunner", () => {
 			),
 		)
 		assert.ok(updates.some((update) => update.trajectoryEvent?.type === SubagentTrajectoryEventType.TOOL_RESULT))
+	})
+
+	it("syncs activated skills to the parent before a completed tool turn returns", async () => {
+		const createMessage = sinon.stub().callsFake(async function* () {
+			yield {
+				type: "tool_calls",
+				tool_call: {
+					function: {
+						id: "toolu_subagent_skill_complete_1",
+						name: DiracDefaultTool.RESPOND,
+						arguments: JSON.stringify({ operation: ResponseOperation.COMPLETE, text: "done" }),
+					},
+				},
+			}
+		})
+		const promptRegistry = PromptRegistry.getInstance()
+		sinon.stub(promptRegistry, "get").callsFake(async () => {
+			promptRegistry.nativeTools = [{ name: DiracDefaultTool.RESPOND } as any]
+			return "system prompt"
+		})
+		sinon.stub(skills, "getOrDiscoverSkills").resolves([])
+		sinon.stub(SubagentToolExecutor.prototype, "executeToolCalls").callsFake(async (_calls, state, _snapshot, stats) => {
+			state.activeSkillIds = ["web-search"]
+			return { completed: { result: "done", stats }, toolResultBlocks: [] }
+		})
+		stubApiHandler(createMessage)
+		initializeHostProvider()
+		const config = createTaskConfigWithListFilesSnapshot()
+
+		const result = await new SubagentRunner(config).run("Search", () => {})
+
+		assert.equal(result.status, SubagentExecutionStatus.COMPLETED)
+		assert.deepEqual(config.taskState.activeSkillIds, ["web-search"])
 	})
 
 	it("delivers all accepted progress updates before normal completion", async () => {

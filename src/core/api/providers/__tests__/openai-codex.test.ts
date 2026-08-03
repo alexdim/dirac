@@ -42,6 +42,38 @@ describe("OpenAiCodexHandler persisted reasoning", () => {
 		sinon.restore()
 	})
 
+	it("advertises provider-native web search support", () => {
+		createHandler().supportsNativeWebSearch().should.equal(true)
+	})
+
+	it("attaches hosted web search only after activation and resets continuation", async () => {
+		const handler = createHandler()
+		const requests: any[] = []
+		sinon.stub(handler as any, "createResponseStreamWebsocket").callsFake(async function* (request: any) {
+			requests.push(request)
+			yield { type: "usage", id: "resp_123" }
+		})
+
+		await drain(handler.createMessage("system", [{ role: "user", content: "old question" }] as any, tools))
+		await drain(
+			handler.createMessage(
+				"system",
+				[
+					{ role: "user", content: "old question" },
+					currentCodexResponse(),
+					{ role: "user", content: "search now" },
+				] as any,
+				tools,
+				{ enableNativeWebSearch: true },
+			),
+		)
+
+		requests[0].tools.some((tool: any) => tool.type === "web_search").should.equal(false)
+		requests[1].tools.some((tool: any) => tool.type === "web_search").should.equal(true)
+		expect(requests[1].previous_response_id).to.equal(undefined)
+		requests[1].input.should.have.length(3)
+	})
+
 	it("uses full context until the active websocket session completes a response", async () => {
 		const handler = createHandler()
 		const requests: any[] = []
@@ -427,6 +459,7 @@ describe("OpenAiCodexHandler persisted reasoning", () => {
 		expect(body.previous_response_id).to.equal(undefined)
 		expect(body.stream).to.equal(undefined)
 		body.reasoning.context.should.equal("all_turns")
+		body.tools.some((tool: any) => tool.type === "web_search").should.equal(false)
 	})
 
 	it("does not retry compact authentication failures when retries are disabled", async () => {

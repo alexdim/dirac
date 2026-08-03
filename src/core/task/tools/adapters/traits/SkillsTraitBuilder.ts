@@ -1,5 +1,6 @@
 import type { ISkillsTrait } from "../../interfaces/IToolEnvironment"
 import type { TaskConfig } from "../../types/TaskConfig"
+import { filterSkillsByProviderCapabilities } from "@shared/skills"
 import { getOrDiscoverSkills, getSkillContent, listSupportingFiles } from "@core/context/instructions/user-instructions/skills"
 
 // Builds the skills trait — discovery, content loading, and supporting file listing.
@@ -7,10 +8,13 @@ export function buildSkillsTrait(config: TaskConfig): ISkillsTrait {
 	return {
 		getAvailableSkills: async () => {
 			const resolvedSkills = await getOrDiscoverSkills(config.cwd, config.taskState)
+			const providerSkills = filterSkillsByProviderCapabilities(resolvedSkills, {
+				native_web_search: config.api.supportsNativeWebSearch?.() === true,
+			})
 			const stateManager = config.services.stateManager
 			const globalToggles = stateManager.getGlobalSettingsKey("globalSkillsToggles") ?? {}
 			const localToggles = stateManager.getWorkspaceStateKey("localSkillsToggles") ?? {}
-			return resolvedSkills.filter((skill) => {
+			return providerSkills.filter((skill) => {
 				if (config.yoloModeToggled && skill.interactiveOnly) return false
 				if (skill.source === "builtin") return true
 				const toggles = skill.source === "global" ? globalToggles : localToggles

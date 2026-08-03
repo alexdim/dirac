@@ -1,12 +1,18 @@
 import { getOrDiscoverSkills } from "@core/context/instructions/user-instructions/skills"
 import type { StateManager } from "@core/storage/StateManager"
+import { filterSkillsByProviderCapabilities, type SkillProviderCapabilities } from "@shared/skills"
 
-/** Discovers skills for the cwd and filters by global/local toggles. */
-export async function discoverAvailableSkills(stateManager: StateManager, cwd: string, taskState: any) {
+export async function discoverAvailableSkills(
+	stateManager: StateManager,
+	cwd: string,
+	taskState: any,
+	providerCapabilities: SkillProviderCapabilities,
+) {
 	const globalSkillsToggles = stateManager.getGlobalSettingsKey("globalSkillsToggles")
 	const localSkillsToggles = stateManager.getWorkspaceStateKey("localSkillsToggles")
 	const discoveredSkills = await getOrDiscoverSkills(cwd, taskState || {})
-	return discoveredSkills.filter((skill) => {
+	const providerSkills = filterSkillsByProviderCapabilities(discoveredSkills, providerCapabilities)
+	return providerSkills.filter((skill) => {
 		if (skill.source === "builtin") return true
 		const toggles = skill.source === "global" ? globalSkillsToggles : localSkillsToggles
 		return toggles[skill.path] !== false

@@ -4,6 +4,7 @@ import sinon from "sinon"
 import { ApiConversationManager } from "../ApiConversationManager"
 import { TaskState } from "../TaskState"
 import { expectLoggerErrors } from "../../../test/loggerGuard"
+import { NATIVE_WEB_SEARCH_SKILL_NAME } from "@shared/skills"
 
 describe("ApiConversationManager steering delivery", () => {
 	it("does not consume steering before the provider dispatch boundary", async () => {
@@ -138,9 +139,7 @@ describe("ApiConversationManager steering delivery", () => {
 		const manager = new ApiConversationManager({
 			taskState: new TaskState(),
 			runUserPromptSubmitHook: sinon.stub().resolves({}),
-			loadContext: sinon
-				.stub()
-				.resolves([[], "", false, [], false, undefined, { type: "condenseConversation" }]),
+			loadContext: sinon.stub().resolves([[], "", false, [], false, undefined, [{ type: "condenseConversation" }]]),
 			runLocalConversationCompaction,
 			messageStateHandler: { addToApiConversationHistory },
 		} as any)
@@ -159,6 +158,81 @@ describe("ApiConversationManager steering delivery", () => {
 		assert.equal(runLocalConversationCompaction.callCount, 1)
 		assert.equal(result.didConsumeUserContent, true)
 		assert.equal(addToApiConversationHistory.callCount, 0)
+	})
+
+	it("activates every unique slash-command skill before the first provider dispatch", async () => {
+		const taskState = new TaskState()
+		const history: any[] = []
+		const events: string[] = []
+		let providerState: any = {}
+		const activateSkill = sinon.stub().callsFake(async (skillId: string) => {
+			events.push(`activated:${skillId}`)
+			taskState.activeSkillIds = [...new Set([...taskState.activeSkillIds, skillId])]
+		})
+		const dependencies: any = {
+			taskState,
+			api: { supportsNativeWebSearch: () => true },
+			contextManager: {
+				getTruncatedMessages: sinon.stub().callsFake((messages: any[]) => messages),
+			},
+			stateManager: { getGlobalSettingsKey: sinon.stub() },
+			runUserPromptSubmitHook: sinon.stub().resolves({}),
+			loadContext: sinon.stub().resolves([
+				[{ type: "text", text: "search current information" }],
+				"",
+				false,
+				[],
+				false,
+				undefined,
+				[
+					{ type: "activateSkill", skillId: NATIVE_WEB_SEARCH_SKILL_NAME },
+					{ type: "activateSkill", skillId: "code-review" },
+					{ type: "activateSkill", skillId: NATIVE_WEB_SEARCH_SKILL_NAME },
+				],
+			]),
+			activateSkill,
+			taskMessenger: { upsertApiStatus: sinon.stub().resolves(), createCard: sinon.stub() },
+			messageStateHandler: {
+				addToApiConversationHistory: sinon.stub().callsFake(async (message: any) => {
+					events.push("persisted")
+					history.push(message)
+				}),
+				getApiConversationHistory: () => history,
+				getApiConversationProviderState: () => providerState,
+				overwriteApiConversationProviderState: sinon.stub().callsFake(async (state: any) => {
+					providerState = state
+				}),
+				getDiracMessages: sinon.stub().returns([]),
+				updateDiracMessage: sinon.stub().resolves(),
+			},
+			postStateToWebview: sinon.stub().resolves(),
+			taskInitializationStartTime: performance.now(),
+			ulid: "task-ulid",
+			taskId: "task-id",
+		}
+		const manager = new ApiConversationManager(dependencies)
+
+		await manager.prepareApiRequest({
+			userContent: [{ type: "text", text: "<task>/web-search search current information</task>" }],
+			includeFileDetails: false,
+			useCompactPrompt: false,
+			previousApiReqIndex: 0,
+			isFirstRequest: false,
+			providerId: "openai-codex",
+			modelId: "model",
+			mode: "act",
+		})
+		const dispatch = await manager.prepareProviderConversationDispatch({
+			systemPrompt: "system",
+			tools: [],
+			truncatedMessages: history,
+			providerId: "openai-codex",
+			modelId: "model",
+		})
+
+		assert.deepEqual(events, [`activated:${NATIVE_WEB_SEARCH_SKILL_NAME}`, "activated:code-review", "persisted"])
+		assert.equal(activateSkill.callCount, 2)
+		assert.equal(dispatch.options.enableNativeWebSearch, true)
 	})
 
 	describe("provider-native conversation compaction", () => {
@@ -200,6 +274,31 @@ describe("ApiConversationManager steering delivery", () => {
 			}
 			return { dependencies, history, compactConversation, getProviderState: () => providerState }
 		}
+
+		it("enables native web search only for a capable provider with the skill active", async () => {
+			const { dependencies, history } = createCompactionDependencies()
+			dependencies.taskState.activeSkillIds = [NATIVE_WEB_SEARCH_SKILL_NAME]
+			dependencies.api.supportsNativeWebSearch = () => true
+
+			const enabledDispatch = await new ApiConversationManager(dependencies).prepareProviderConversationDispatch({
+				systemPrompt: "system",
+				tools: [],
+				truncatedMessages: history,
+				providerId: "openai-codex",
+				modelId: "model",
+			})
+			assert.equal(enabledDispatch.options.enableNativeWebSearch, true)
+
+			dependencies.api.supportsNativeWebSearch = () => false
+			const disabledDispatch = await new ApiConversationManager(dependencies).prepareProviderConversationDispatch({
+				systemPrompt: "system",
+				tools: [],
+				truncatedMessages: history,
+				providerId: "unsupported",
+				modelId: "model",
+			})
+			assert.equal(disabledDispatch.options.enableNativeWebSearch, false)
+		})
 
 		it("installs a checkpoint after the condense result is in API history", async () => {
 			const { dependencies, history, compactConversation, getProviderState } = createCompactionDependencies()

@@ -6,6 +6,7 @@ import { StreamResponseHandler } from "@core/task/StreamResponseHandler"
 import { type ToolRequestSnapshot } from "@core/task/tools/runtime/ToolSnapshot"
 import { DiracAssistantToolUseBlock, DiracContent, DiracStorageMessage, DiracTextContentBlock } from "@shared/messages"
 import { Logger } from "@shared/services/Logger"
+import { NATIVE_WEB_SEARCH_SKILL_NAME } from "@shared/skills"
 import { DiracTool } from "@shared/tools"
 import { ContextManager } from "@/core/context/context-management/ContextManager"
 import { checkContextWindowExceededError } from "@/core/context/context-management/context-error-handling"
@@ -516,6 +517,7 @@ export class SubagentRunner {
 
 			const initialContext = await this.contextBuilder.buildContext()
 			const context = initialContext.context
+			state.availableSkills = context.skills ?? []
 			let requestSnapshot = initialContext.requestSnapshot
 			let useNativeToolCalls = initialContext.useNativeToolCalls
 			stats.contextWindow = context.providerInfo.model.info.contextWindow || 0
@@ -735,7 +737,6 @@ export class SubagentRunner {
 						continue
 					}
 
-
 					emptyAssistantResponseRetries += 1
 					if (emptyAssistantResponseRetries > MAX_EMPTY_ASSISTANT_RETRIES) {
 						const error = `Subagent did not call respond with operation "complete". Last response: "${excerpt(assistantText, 200)}"`
@@ -779,6 +780,9 @@ export class SubagentRunner {
 					instrumentedOnProgress,
 					this.wrapUpRequested || this.isWrappingUp,
 				)
+				this.baseConfig.taskState.activeSkillIds = [
+					...new Set([...this.baseConfig.taskState.activeSkillIds, ...state.activeSkillIds]),
+				]
 				if (this.shouldAbort()) {
 					await this.abort()
 					return this.reportAbortResult(conversation, stats, instrumentedOnProgress)
@@ -796,10 +800,8 @@ export class SubagentRunner {
 					continue
 				}
 
-				this.baseConfig.taskState.activeSkillIds = [
-					...new Set([...this.baseConfig.taskState.activeSkillIds, ...state.activeSkillIds]),
-				]
 				const refreshedContext = await this.contextBuilder.buildContext()
+				state.availableSkills = refreshedContext.context.skills ?? []
 				requestSnapshot = refreshedContext.requestSnapshot
 				useNativeToolCalls = refreshedContext.useNativeToolCalls
 				systemPrompt = this.contextBuilder.appendExecutionDeadline(refreshedContext.systemPrompt, timeout)
@@ -986,7 +988,10 @@ export class SubagentRunner {
 			const truncatedConversation = contextManager
 				.getTruncatedMessages(fullConversation, contextState.conversationHistoryDeletedRange)
 				.map((message) => message as DiracStorageMessage)
-			const stream = api.createMessage(systemPrompt, truncatedConversation, nativeTools)
+			const enableNativeWebSearch =
+				api.supportsNativeWebSearch?.() === true &&
+				this.activeTaskState?.activeSkillIds.includes(NATIVE_WEB_SEARCH_SKILL_NAME) === true
+			const stream = api.createMessage(systemPrompt, truncatedConversation, nativeTools, { enableNativeWebSearch })
 			const iterator = stream[Symbol.asyncIterator]()
 
 			try {

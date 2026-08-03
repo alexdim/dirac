@@ -6,12 +6,9 @@ import { formatContentBlockToMarkdown } from "@integrations/misc/export-markdown
 import { telemetryService } from "@services/telemetry"
 import { findLastIndex } from "@shared/array"
 import { CardStatus, DiracMessageType, Mode } from "@shared/ExtensionMessage"
-import {
-	DiracContent,
-	DiracStorageMessage,
-	removeProviderBoundaryMetadataFromMessage,
-} from "@shared/messages/content"
+import { DiracContent, DiracStorageMessage, removeProviderBoundaryMetadataFromMessage } from "@shared/messages/content"
 import type { DiracTool } from "@shared/tools"
+import { NATIVE_WEB_SEARCH_SKILL_NAME } from "@shared/skills"
 import { Logger } from "@shared/services/Logger"
 import { getAutoCondenseContextLimit } from "@shared/context-management"
 import { ApiConversationManagerDependencies } from "./types/api-conversation-manager"
@@ -304,9 +301,13 @@ export class ApiConversationManager {
 
 		if (this.dependencies.taskState.abort) throw new Error("Task instance aborted")
 
+		const enableNativeWebSearch =
+			this.dependencies.api.supportsNativeWebSearch?.() === true &&
+			this.dependencies.taskState.activeSkillIds.includes(NATIVE_WEB_SEARCH_SKILL_NAME)
+
 		return {
 			messages: checkpoint ? fullHistory.slice(checkpoint.compactedThroughHistoryIndex + 1) : dispatchMessages,
-			options: { checkpoint, breakProviderContinuation },
+			options: { checkpoint, breakProviderContinuation, enableNativeWebSearch },
 		}
 	}
 
@@ -353,12 +354,21 @@ export class ApiConversationManager {
 			availableSkills,
 			isDirectResponse,
 			loadedDirectResponseText,
-			directAction,
+			directActions,
 		] = await this.dependencies.loadContext(nextUserContent, params.includeFileDetails, params.useCompactPrompt)
 		const directResponseText = loadedDirectResponseText ?? params.directResponseText
 		this.dependencies.taskState.availableSkills = availableSkills
 
-		if (directAction?.type === "condenseConversation") {
+		const skillIds = [
+			...new Set(
+				(directActions ?? []).flatMap((action) => (action.type === "activateSkill" ? [action.skillId] : [])),
+			),
+		]
+		for (const skillId of skillIds) {
+			await this.dependencies.activateSkill(skillId)
+		}
+
+		if (directActions?.some((action) => action.type === "condenseConversation")) {
 			const continuation = await this.dependencies.runLocalConversationCompaction("user")
 			if (!continuation) {
 				return {

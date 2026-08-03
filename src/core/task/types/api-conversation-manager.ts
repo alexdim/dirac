@@ -25,6 +25,7 @@ export interface ApiConversationManagerDependencies {
 	taskMessenger: TaskMessenger
 	postStateToWebview: () => Promise<void>
 	diffViewProvider: DiffViewProvider
+	activateSkill: (skillId: string) => Promise<void>
 	toolExecutor: ToolExecutor
 	streamHandler: StreamResponseHandler
 	withStateLock: <T>(fn: () => T | Promise<T>) => Promise<T>
@@ -32,7 +33,7 @@ export interface ApiConversationManagerDependencies {
 		userContent: DiracContent[],
 		includeFileDetails?: boolean,
 		useCompactPrompt?: boolean,
-	) => Promise<[DiracContent[], string, boolean, SkillMetadata[], boolean, string?, SlashCommandDirectAction?]>
+	) => Promise<[DiracContent[], string, boolean, SkillMetadata[], boolean, string?, SlashCommandDirectAction[]?]>
 	getCurrentProviderInfo: () => ApiProviderInfo
 	getEnvironmentDetails: (includeFileDetails?: boolean) => Promise<string>
 	runUserPromptSubmitHook: (

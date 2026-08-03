@@ -312,6 +312,7 @@ describe("parseSlashCommands", () => {
 			expect(result.processedText).to.contain("code-review")
 			expect(result.processedText).to.contain("Review the code carefully.")
 			expect(result.processedText).to.not.contain("/code-review")
+			expect(result.directAction).to.deep.equal({ type: "activateSkill", skillId: "code-review" })
 			expect(captureStub.calledWith(ULID, "code-review", "skill")).to.be.true
 		})
 

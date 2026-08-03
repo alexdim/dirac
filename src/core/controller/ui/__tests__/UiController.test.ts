@@ -10,6 +10,7 @@ import * as ToolRegistryModule from "@core/task/tools/registry/ToolRegistry"
 // Modules stubbed via their exported namespace (ts-node/commonjs keeps live bindings)
 import * as workspaceSetup from "@core/workspace/setup"
 import { TaskStatus } from "@shared/ExtensionMessage"
+import { NATIVE_WEB_SEARCH_SKILL_NAME } from "@shared/skills"
 import { expect } from "chai"
 import { afterEach, beforeEach, describe, it } from "mocha"
 import * as sinon from "sinon"
@@ -205,6 +206,39 @@ describe("getStateToPostToWebview", () => {
 			const stateManager = makeFakeStateManager({ globalState: { favoritedModelIds: ["m1", "m2"] } })
 			const state = await getStateToPostToWebview({ stateManager, backgroundCommandRunning: false })
 			expect(state.favoritedModelIds).to.deep.equal(["m1", "m2"])
+		})
+	})
+	describe("skill capability filtering", () => {
+		it("advertises native web search only for a capable provider", async () => {
+			const webSearchSkill = {
+				name: NATIVE_WEB_SEARCH_SKILL_NAME,
+				description: "Native search",
+				path: "<builtin>/web-search/SKILL.md",
+				source: "builtin",
+				requiredProviderCapability: "native_web_search",
+			}
+			const ordinarySkill = {
+				name: "ordinary-skill",
+				description: "Ordinary",
+				path: "/skills/ordinary/SKILL.md",
+				source: "project",
+			}
+			;(skillsModule.getOrDiscoverSkills as sinon.SinonStub).resolves([webSearchSkill, ordinarySkill])
+
+			const unsupportedState = await getStateToPostToWebview({
+				stateManager: makeFakeStateManager({ apiConfiguration: { actModeApiProvider: "anthropic" } }),
+				backgroundCommandRunning: false,
+			})
+			const supportedState = await getStateToPostToWebview({
+				stateManager: makeFakeStateManager({ apiConfiguration: { actModeApiProvider: "openai-codex" } }),
+				backgroundCommandRunning: false,
+			})
+
+			expect(unsupportedState.availableSkills!.map((skill) => skill.name)).to.deep.equal(["ordinary-skill"])
+			expect(supportedState.availableSkills!.map((skill) => skill.name)).to.deep.equal([
+				NATIVE_WEB_SEARCH_SKILL_NAME,
+				"ordinary-skill",
+			])
 		})
 	})
 

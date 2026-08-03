@@ -1,6 +1,6 @@
 import type { Hooks } from "@core/hooks/hook-factory"
 import { getHookModelContext } from "@core/hooks/hook-model-context"
-import { updateTaskMetadata } from "@core/storage/disk"
+import { activateTaskSkill } from "@core/task/activateTaskSkill"
 import type { DiracMessage } from "@shared/ExtensionMessage"
 import type { IOrchestrationTrait } from "../../interfaces/IToolEnvironment"
 import { SubagentRunner } from "../../subagent/SubagentRunner"
@@ -57,12 +57,7 @@ export function buildOrchestrationTrait(config: TaskConfig): IOrchestrationTrait
 			config.taskState.pendingTaskReplacement = { context, images, files }
 			config.taskState.abort = true
 		},
-		activateSkill: async (skillId) => {
-			const metadata = await updateTaskMetadata(config.taskId, (current) => {
-				current.active_skill_ids = [...new Set([...(current.active_skill_ids ?? []), skillId])]
-			})
-			config.taskState.activeSkillIds = metadata.active_skill_ids ?? []
-		},
+		activateSkill: (skillId) => activateTaskSkill(config.taskId, config.taskState, skillId),
 		doesLatestTaskCompletionHaveNewChanges: () => config.callbacks.doesLatestTaskCompletionHaveNewChanges(),
 		updateMessage: (index, updates) => config.callbacks.updateDiracMessage(index, updates as Partial<DiracMessage>),
 		resetTransientState: () => config.callbacks.resetTransientState(),
