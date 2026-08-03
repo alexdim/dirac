@@ -104,6 +104,12 @@ describe("CondenseTool", () => {
 		const result = await new CondenseTool().processCall({}, env as any)
 
 		assert.equal(conversationCondensation.condenseConversation.callCount, 1)
+		assert.ok(
+			conversationCondensation.condenseConversation.calledWithMatch(
+				"conversation_continuation",
+				sinon.match({ historyScope: "effective" }),
+			),
+		)
 		assert.equal(state.pendingCondenseSource, undefined)
 		assert.equal(card.waitForInteraction.callCount, 0)
 		assert.deepEqual(env.orchestration.setTruncationRange.firstCall.args[0], [1, 6])

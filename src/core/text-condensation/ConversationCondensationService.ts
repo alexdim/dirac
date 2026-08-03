@@ -12,9 +12,17 @@ export interface ConversationCondensationServiceDependencies {
 	serializer?: ConversationTextSerializer
 }
 
+export type ConversationHistoryScope = "complete" | "effective"
+
+export interface ConversationCondensationOptions {
+	historyScope: ConversationHistoryScope
+	signal?: AbortSignal
+	additionalSourceText?: string
+}
+
 /**
- * Collects the current effective conversation and returns only a completed
- * condensation. It has no authority to mutate task or conversation state.
+ * Collects the requested view of the current conversation and returns only a
+ * completed condensation. It has no authority to mutate task or conversation state.
  */
 export class ConversationCondensationService {
 	private readonly serializer: ConversationTextSerializer
@@ -23,19 +31,24 @@ export class ConversationCondensationService {
 		this.serializer = dependencies.serializer ?? new ConversationTextSerializer()
 	}
 
-	async condenseEffectiveConversation(
+	async condenseConversation(
 		template: TextCondensationTemplateId,
-		signal?: AbortSignal,
-		additionalSourceText?: string,
+		options: ConversationCondensationOptions,
 	): Promise<string> {
-		const effectiveHistory = this.getEffectiveHistory()
-		const conversationSource = this.serializer.serialize(effectiveHistory)
-		const source = additionalSourceText ? `${conversationSource}\n\n${additionalSourceText}` : conversationSource
-		return await this.collect(this.dependencies.textCondenser.condense(this.sourceStream(source), { template, signal }))
+		const history = this.getConversationHistory(options.historyScope)
+		const conversationSource = this.serializer.serialize(history)
+		const source = options.additionalSourceText
+			? `${conversationSource}\n\n${options.additionalSourceText}`
+			: conversationSource
+		return await this.collect(
+			this.dependencies.textCondenser.condense(this.sourceStream(source), { template, signal: options.signal }),
+		)
 	}
 
-	private getEffectiveHistory(): DiracStorageMessage[] {
+	private getConversationHistory(historyScope: ConversationHistoryScope): DiracStorageMessage[] {
 		const completeHistory = structuredClone(this.dependencies.messageState.getApiConversationHistory())
+		if (historyScope === "complete") return completeHistory
+
 		return this.dependencies.contextManager.getTruncatedMessages(
 			completeHistory,
 			this.dependencies.getConversationHistoryDeletedRange(),

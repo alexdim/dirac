@@ -221,6 +221,7 @@ export class NewTaskTool implements IDiracTool {
 			throw new Error("Utility task-handoff generation is unavailable")
 		}
 		return await condenseConversation(TASK_HANDOFF_TEMPLATE_ID, {
+			historyScope: "complete",
 			signal,
 			additionalSourceText: buildTaskHandoffIntentSource(intent),
 		})

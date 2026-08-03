@@ -183,10 +183,10 @@ export class LocalConversationCompaction {
 			getConversationHistoryDeletedRange: () => this.dependencies.taskState.conversationHistoryDeletedRange,
 			textCondenser,
 		})
-		return await service.condenseEffectiveConversation(
-			CONVERSATION_CONTINUATION_TEMPLATE_ID,
-			this.dependencies.taskState.abortSignal,
-		)
+		return await service.condenseConversation(CONVERSATION_CONTINUATION_TEMPLATE_ID, {
+			historyScope: "effective",
+			signal: this.dependencies.taskState.abortSignal,
+		})
 	}
 
 	private async runPreCompactHook(

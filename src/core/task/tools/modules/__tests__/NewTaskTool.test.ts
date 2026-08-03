@@ -162,7 +162,10 @@ describe("NewTaskTool", () => {
 		assert.ok(
 			conversationCondensation.condenseConversation.calledWithMatch(
 				"task_handoff",
-				sinon.match({ additionalSourceText: sinon.match(/Continue the requested implementation/) }),
+				sinon.match({
+					historyScope: "complete",
+					additionalSourceText: sinon.match(/Continue the requested implementation/),
+				}),
 			),
 		)
 		assert.ok(

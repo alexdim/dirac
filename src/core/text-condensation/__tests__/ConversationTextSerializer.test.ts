@@ -13,7 +13,11 @@ async function collectText(stream: TextStream): Promise<string> {
 	return output
 }
 
-function createService(history: DiracStorageMessage[], condenser: TextCondenser): ConversationCondensationService {
+function createService(
+	history: DiracStorageMessage[],
+	condenser: TextCondenser,
+	deletedRange: [number, number] = [1, 1],
+): ConversationCondensationService {
 	return new ConversationCondensationService({
 		messageState: { getApiConversationHistory: () => history } as Pick<MessageStateHandler, "getApiConversationHistory">,
 		contextManager: {
@@ -21,7 +25,7 @@ function createService(history: DiracStorageMessage[], condenser: TextCondenser)
 				return [messages[0], messages.at(-1)]
 			},
 		} as Pick<ContextManager, "getTruncatedMessages">,
-		getConversationHistoryDeletedRange: () => [1, 1],
+		getConversationHistoryDeletedRange: () => deletedRange,
 		textCondenser: condenser,
 	})
 }
@@ -117,7 +121,10 @@ describe("ConversationTextSerializer", () => {
 		}
 		const service = createService(history, condenser)
 
-		assert.equal(await service.condenseEffectiveConversation("conversation_continuation"), "complete summary")
+		assert.equal(
+			await service.condenseConversation("conversation_continuation", { historyScope: "effective" }),
+			"complete summary",
+		)
 		assert.ok(receivedSource.includes("original request"))
 		assert.ok(receivedSource.includes("prior continuation summary"))
 		assert.ok(!receivedSource.includes("discarded intermediate work"))
@@ -127,7 +134,26 @@ describe("ConversationTextSerializer", () => {
 			{ role: "user", content: "prior continuation summary" },
 		])
 	})
-	it("appends supplemental source text after effective conversation history", async () => {
+
+	it("appends intent after complete history even when repeated compactions hide multiple transcript ranges", async () => {
+		const history: DiracStorageMessage[] = [
+			{ role: "user", content: "original task request" },
+			{ role: "assistant", content: "work before first compaction" },
+			{ role: "user", content: "first continuation summary" },
+			{ role: "assistant", content: "work between compactions" },
+			{ role: "user", content: "second continuation summary" },
+			{
+				role: "assistant",
+				content: [
+					{
+						type: "tool_use",
+						id: "new-task-call",
+						name: "new_task",
+						input: { intent: "latest new-task tool intent" },
+					},
+				],
+			},
+		]
 		let receivedSource = ""
 		const condenser: TextCondenser = {
 			condense(input: TextStream): TextStream {
@@ -137,20 +163,31 @@ describe("ConversationTextSerializer", () => {
 				})()
 			},
 		}
-		const service = createService([{ role: "user", content: "current request" }], condenser)
+		const service = createService(history, condenser, [1, 4])
 
 		assert.equal(
-			await service.condenseEffectiveConversation(
-				"task_handoff",
-				undefined,
-				'=== REQUESTED NEW TASK INTENT ===\n{"intent":"Implement the schema switch."}',
-			),
+			await service.condenseConversation("task_handoff", {
+				historyScope: "complete",
+				additionalSourceText:
+					'=== REQUESTED NEW TASK INTENT ===\n{"intent":"Implement the schema switch."}',
+			}),
 			"handoff",
 		)
-		assert.ok(receivedSource.includes("current request"))
-		assert.ok(receivedSource.includes("REQUESTED NEW TASK INTENT"))
+		for (const marker of [
+			"original task request",
+			"work before first compaction",
+			"first continuation summary",
+			"work between compactions",
+			"second continuation summary",
+			"latest new-task tool intent",
+		]) {
+			assert.ok(receivedSource.includes(marker), `Missing complete-history marker: ${marker}`)
+		}
+		assert.ok(receivedSource.indexOf("REQUESTED NEW TASK INTENT") > receivedSource.indexOf("latest new-task tool intent"))
 		assert.ok(receivedSource.includes("Implement the schema switch."))
 	})
+
+
 	it("does not return partial output when the condenser fails", async () => {
 		const failure = new Error("condenser failed")
 		const condenser: TextCondenser = {
@@ -163,6 +200,9 @@ describe("ConversationTextSerializer", () => {
 		}
 		const service = createService([{ role: "user", content: "source" }], condenser)
 
-		await assert.rejects(() => service.condenseEffectiveConversation("conversation_continuation"), failure)
+		await assert.rejects(
+			() => service.condenseConversation("conversation_continuation", { historyScope: "effective" }),
+			failure,
+		)
 	})
 })
