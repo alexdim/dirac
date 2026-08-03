@@ -24,6 +24,7 @@ function makeCard(params: any) {
 		...params,
 		id: "card-1",
 		header: params.header,
+		initialHeader: params.header,
 		status: params.status,
 		collapsed: params.collapsed,
 		renderType: params.renderType ?? "text",
@@ -138,6 +139,8 @@ describe("InspectAstTool", () => {
 			path: "src/a.ts",
 			includeAnchors: false,
 		})
+		assert.equal(cards[0].initialHeader, "Inspecting outline of src/a.ts")
+		assert.equal(cards[0].updates[0].header, "Inspected src/a.ts")
 		assert.deepEqual(cards[0].updates[0].locations, [{ path: "src/a.ts", line: 1 }])
 		assert.deepEqual(cards[0].finalStatuses, [CardStatus.SUCCESS])
 		assert.equal(telemetry[0].operation, "outline")
@@ -189,12 +192,79 @@ describe("InspectAstTool", () => {
 		assert.equal(cards.length, 2)
 		assert.deepEqual(cards[0].rawInput.paths, ["src/a.ts", "src/b.ts"])
 		assert.equal(cards[0].rawInput.symbol, "A.run")
+		assert.equal(cards[0].initialHeader, "Inspecting implementation of A.run in src/a.ts (+1 more)")
+		assert.equal(cards[0].updates[0].header, "Extracted A.run from src/a.ts (+1 more)")
+		assert.equal(cards[1].initialHeader, "Inspecting implementation of B.load in src/a.ts (+1 more)")
+		assert.equal(cards[1].updates[0].header, "No match for B.load in src/a.ts (+1 more)")
 		assert.deepEqual(cards[0].finalStatuses, [CardStatus.SUCCESS])
 		assert.deepEqual(cards[1].finalStatuses, [CardStatus.ERROR])
 		assert.equal(telemetry[0].backendTargetCount, 4)
 		assert.equal(telemetry[0].resultGroupCount, 2)
 		assert.equal(telemetry[0].successfulGroupCount, 1)
 		assert.equal(telemetry[0].failureGroupCount, 1)
+	})
+
+	it("includes concrete relative file paths in every occurrence-operation header", async () => {
+		for (const operation of ["definitions", "references", "occurrences"] as const) {
+			const { env, cards } = createEnvironment({
+				occurrenceResult: {
+					targets: [{
+						path: "src",
+						symbol: "load",
+						status: "success",
+						occurrences: [{
+							absolutePath: "/repo/src/services/UserService.ts",
+							displayPath: "src/services/UserService.ts",
+							symbol: "load",
+							kind: operation === "references" ? "reference" : "definition",
+							startLine: 4,
+							startColumn: 1,
+							endLine: 4,
+							endColumn: 5,
+						}, {
+							absolutePath: "/repo/src/controllers/UserController.ts",
+							displayPath: "src/controllers/UserController.ts",
+							symbol: "load",
+							kind: "reference",
+							startLine: 8,
+							startColumn: 2,
+							endLine: 8,
+							endColumn: 6,
+						}],
+					}],
+					occurrences: [],
+				},
+			})
+
+			await new InspectAstTool().processCall({ operation, paths: ["src"], symbols: ["load"] }, env)
+
+			assert.equal(cards[0].initialHeader, `Finding ${operation} for load in src`)
+			assert.equal(
+				cards[0].updates[0].header,
+				`Found ${operation} for load in src/services/UserService.ts (+1 more)`,
+			)
+		}
+	})
+
+	it("middle-truncates long relative paths in card headers", async () => {
+		const longPath = `src/${"nested/".repeat(10)}UserService.ts`
+		const { env, cards } = createEnvironment({
+			outlineResult: {
+				files: [{
+					path: longPath,
+					absolutePath: `/repo/${longPath}`,
+					status: "success",
+					definitions: [definition()],
+					lines: [{ lineNumber: 1, text: "function main() {}" }],
+				}],
+			},
+		})
+
+		await new InspectAstTool().processCall({ operation: "outline", paths: [longPath] }, env)
+
+		const expectedPath = `${longPath.slice(0, 30)}…${longPath.slice(-29)}`
+		assert.equal(cards[0].initialHeader, `Inspecting outline of ${expectedPath}`)
+		assert.equal(cards[0].updates[0].header, `Inspected ${expectedPath}`)
 	})
 
 	it("preserves successful source output when card or telemetry observability fails", async () => {
