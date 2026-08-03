@@ -1,27 +1,49 @@
 #!/bin/bash
 
-# Unified local publish script for Dirac (extension + CLI).
-# Usage: ./scripts/publish.sh [patch|minor|major] [--dry-run]
+# Unified, resumable local release publisher for Dirac (extension + CLI).
 #
-# This script:
-#   1. Bumps versions in package.json, package-lock.json, and cli/package.json in lockstep
-#   2. Builds the extension (.vsix) and CLI npm package
-#   3. Generates annotated Git tags with changelog messages (vX.Y.Z and vX.Y.Z-cli)
-#   4. Publishes extension to VS Marketplace and Open VSX from this machine
-#   5. Publishes CLI to npm from this machine and updates the Homebrew formula
-#   6. Commits, tags, and pushes only after local publishing succeeds
+# Start a release:
+#   ./scripts/publish.sh patch
+#   ./scripts/publish.sh minor
+#   ./scripts/publish.sh major
 #
-# This script intentionally does not dispatch GitHub release workflows.
-# With --dry-run, it builds and packages but does not publish, commit, tag, or push.
+# Resume or verify one exact release:
+#   ./scripts/publish.sh --resume v0.4.33
+#
+# Build and publication happen locally. GitHub Actions are not involved.
 
 set -euo pipefail
 
-# Colors for output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 CYAN='\033[0;36m'
-NC='\033[0m' # No Color
+NC='\033[0m'
+
+REPOSITORY="dirac-run/dirac"
+DEFAULT_BRANCH="master"
+EXTENSION_ID="dirac-run.dirac"
+NPM_PACKAGE="dirac-cli"
+STATE_ROOT=".scratch-release"
+MUTATED_FILES=(package.json package-lock.json cli/package.json cli/dirac.rb)
+
+MODE=""
+BUMP_TYPE=""
+RESUME_TAG=""
+DRY_RUN=false
+VERSION=""
+RELEASE_TAG=""
+CLI_TAG=""
+STATE_DIR=""
+MANIFEST_FILE=""
+RELEASE_NOTES_FILE=""
+CLI_RELEASE_NOTES_FILE=""
+VSIX_FILE=""
+NPM_TARBALL=""
+BASE_COMMIT=""
+RELEASE_COMMIT=""
+PREVIOUS_TAG=""
+PREVIOUS_CLI_TAG=""
 
 function log_info() {
     echo -e "${GREEN}[INFO]${NC} $1"
@@ -32,191 +54,328 @@ function log_warn() {
 }
 
 function log_error() {
-    echo -e "${RED}[ERROR]${NC} $1"
+    echo -e "${RED}[ERROR]${NC} $1" >&2
 }
 
 function log_step() {
     echo -e "${CYAN}[STEP]${NC} $1"
 }
 
+function die() {
+    log_error "$1"
+    exit 1
+}
+
 function usage() {
-    echo "Usage: $0 [patch|minor|major] [--dry-run]"
+    cat <<'EOF'
+Usage:
+  ./scripts/publish.sh {patch|minor|major} [--dry-run]
+  ./scripts/publish.sh --resume vX.Y.Z
+EOF
 }
 
-# Parse arguments
-BUMP_TYPE=""
-DRY_RUN=false
-
-for arg in "$@"; do
-    case "$arg" in
-        patch|minor|major)
-            BUMP_TYPE="$arg"
-            ;;
-        --dry-run)
-            DRY_RUN=true
-            ;;
-        *)
-            log_error "Unknown argument: $arg"
-            usage
-            exit 1
-            ;;
-    esac
-done
-
-if [ -z "$BUMP_TYPE" ]; then
-    log_error "Missing version bump type."
-    usage
-    exit 1
-fi
-
-if [ "$DRY_RUN" = true ]; then
-    log_warn "DRY RUN mode — will not publish, commit, tag, or push."
-fi
-
-# 1. Validate environment
-if [ ! -f "package.json" ] || [ ! -f "package-lock.json" ] || [ ! -d "cli" ]; then
-    log_error "This script must be run from the repository root."
-    exit 1
-fi
-
-for cmd in git node npm npx; do
-    if ! command -v "$cmd" &>/dev/null; then
-        log_error "Required command not found: $cmd"
+function parse_args() {
+    if [ "$#" -eq 0 ]; then
+        usage
         exit 1
     fi
-done
 
-MUTATED_FILES=(package.json package-lock.json cli/package.json cli/dirac.rb)
-CHANGELOG_FILE=".scratch-release-changelog.md"
-CLI_CHANGELOG_FILE=".scratch-release-cli-changelog.md"
-ARTIFACT_DIR=".scratch-release-artifacts"
-VSIX_FILE=""
-NPM_TARBALL=""
+    while [ "$#" -gt 0 ]; do
+        case "$1" in
+            patch|minor|major)
+                [ -z "$MODE" ] || die "Choose either a version bump or --resume, not both."
+                MODE="new"
+                BUMP_TYPE="$1"
+                ;;
+            --resume)
+                [ -z "$MODE" ] || die "Choose either a version bump or --resume, not both."
+                [ "$#" -ge 2 ] || die "--resume requires an exact tag such as v0.4.33."
+                MODE="resume"
+                RESUME_TAG="$2"
+                shift
+                ;;
+            --dry-run)
+                DRY_RUN=true
+                ;;
+            -h|--help)
+                usage
+                exit 0
+                ;;
+            *)
+                die "Unknown argument: $1"
+                ;;
+        esac
+        shift
+    done
 
-function cleanup_generated_files() {
-    local exit_code=$?
-
-    if [ "$DRY_RUN" = true ]; then
-        git checkout -- "${MUTATED_FILES[@]}" 2>/dev/null || true
+    [ -n "$MODE" ] || die "Missing version bump or --resume."
+    if [ "$MODE" = "resume" ] && [ "$DRY_RUN" = true ]; then
+        die "--dry-run cannot be combined with --resume. Resume is already idempotent and verifies before mutating."
     fi
-
-    if [ -n "$VSIX_FILE" ]; then
-        rm -f "$VSIX_FILE"
-    fi
-    rm -f "$CHANGELOG_FILE" "$CLI_CHANGELOG_FILE"
-    rm -rf "$ARTIFACT_DIR"
-
-    return "$exit_code"
-}
-trap cleanup_generated_files EXIT
-
-function assert_mutated_files_clean() {
-    local dirty
-    dirty=$(git status --porcelain -- "${MUTATED_FILES[@]}")
-    if [ -n "$dirty" ]; then
-        log_error "Release-managed files already have local changes. Commit or stash them before running publish."
-        echo "$dirty"
-        exit 1
+    if [ "$MODE" = "resume" ] && ! [[ "$RESUME_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+        die "Invalid release tag '$RESUME_TAG'. Expected vX.Y.Z."
     fi
 }
 
-if [ "$DRY_RUN" = false ]; then
-    if [ -n "$(git status --porcelain)" ]; then
-        log_error "Working tree is dirty. Please commit or stash changes first."
-        exit 1
-    fi
-    if [ -z "${VSCE_PAT:-}" ]; then
-        log_error "VSCE_PAT not set. Cannot publish to VS Marketplace."
-        exit 1
-    fi
-    if [ -z "${OVSX_PAT:-}" ]; then
-        log_error "OVSX_PAT not set. Cannot publish to Open VSX."
-        exit 1
-    fi
-else
-    assert_mutated_files_clean
-fi
+function require_commands() {
+    local commands=(git node npm npx gh)
+    local command
+    for command in "${commands[@]}"; do
+        command -v "$command" >/dev/null 2>&1 || die "Required command not found: $command"
+    done
+}
+
+function assert_repository_root() {
+    [ -f package.json ] && [ -f package-lock.json ] && [ -d cli ] && [ -d .git ] \
+        || die "Run this script from the Dirac repository root."
+}
 
 function compute_new_version() {
     node -e '
 const [version, bumpType] = process.argv.slice(1)
 const match = /^(\d+)\.(\d+)\.(\d+)$/.exec(version)
-if (!match) {
-  throw new Error(`Cannot bump non-standard semver version: ${version}`)
-}
+if (!match) throw new Error(`Cannot bump non-standard semver version: ${version}`)
 let major = Number(match[1])
 let minor = Number(match[2])
 let patch = Number(match[3])
-switch (bumpType) {
-  case "major": major += 1; minor = 0; patch = 0; break
-  case "minor": minor += 1; patch = 0; break
-  case "patch": patch += 1; break
-  default: throw new Error(`Unknown bump type: ${bumpType}`)
-}
+if (bumpType === "major") { major += 1; minor = 0; patch = 0 }
+else if (bumpType === "minor") { minor += 1; patch = 0 }
+else if (bumpType === "patch") { patch += 1 }
+else throw new Error(`Unknown bump type: ${bumpType}`)
 process.stdout.write(`${major}.${minor}.${patch}`)
 ' "$1" "$2"
 }
 
+function configure_release_paths() {
+    VERSION="$1"
+    RELEASE_TAG="v${VERSION}"
+    CLI_TAG="v${VERSION}-cli"
+    STATE_DIR="${STATE_ROOT}/${RELEASE_TAG}"
+    MANIFEST_FILE="${STATE_DIR}/manifest.json"
+    RELEASE_NOTES_FILE="${STATE_DIR}/release-notes.md"
+    CLI_RELEASE_NOTES_FILE="${STATE_DIR}/cli-release-notes.md"
+    VSIX_FILE="${STATE_DIR}/dirac-${VERSION}.vsix"
+    NPM_TARBALL="${STATE_DIR}/dirac-cli-${VERSION}.tgz"
+}
+
+function manifest_get() {
+    local key="$1"
+    MANIFEST_PATH="$MANIFEST_FILE" MANIFEST_KEY="$key" node <<'NODE'
+const fs = require("node:fs")
+const manifest = JSON.parse(fs.readFileSync(process.env.MANIFEST_PATH, "utf8"))
+const value = manifest[process.env.MANIFEST_KEY]
+process.stdout.write(value === undefined || value === null ? "" : String(value))
+NODE
+}
+
+function manifest_set() {
+    local key="$1"
+    local value="$2"
+    MANIFEST_PATH="$MANIFEST_FILE" MANIFEST_KEY="$key" MANIFEST_VALUE="$value" node <<'NODE'
+const fs = require("node:fs")
+const path = process.env.MANIFEST_PATH
+const temporaryPath = `${path}.tmp.${process.pid}`
+const manifest = JSON.parse(fs.readFileSync(path, "utf8"))
+manifest[process.env.MANIFEST_KEY] = process.env.MANIFEST_VALUE
+fs.writeFileSync(temporaryPath, `${JSON.stringify(manifest, null, 2)}\n`)
+fs.renameSync(temporaryPath, path)
+NODE
+}
+
+function create_manifest() {
+    [ ! -e "$STATE_DIR" ] || die "Release state already exists without a usable manifest: $STATE_DIR"
+    mkdir -p "$STATE_ROOT"
+    local temporary_state_dir="${STATE_DIR}.tmp.$$"
+    mkdir "$temporary_state_dir"
+    VERSION_VALUE="$VERSION" BASE_VALUE="$BASE_COMMIT" RELEASE_VALUE="$RELEASE_COMMIT" \
+        PREVIOUS_VALUE="$PREVIOUS_TAG" PREVIOUS_CLI_VALUE="$PREVIOUS_CLI_TAG" \
+        MANIFEST_PATH="${temporary_state_dir}/manifest.json" node <<'NODE'
+const fs = require("node:fs")
+const manifest = {
+  version: process.env.VERSION_VALUE,
+  releaseTag: `v${process.env.VERSION_VALUE}`,
+  cliTag: `v${process.env.VERSION_VALUE}-cli`,
+  baseCommit: process.env.BASE_VALUE,
+  releaseCommit: process.env.RELEASE_VALUE,
+  previousTag: process.env.PREVIOUS_VALUE,
+  previousCliTag: process.env.PREVIOUS_CLI_VALUE,
+  vsixSha256: "",
+  npmTarballSha256: "",
+  completed: "false"
+}
+fs.writeFileSync(process.env.MANIFEST_PATH, `${JSON.stringify(manifest, null, 2)}\n`)
+NODE
+    mv "$temporary_state_dir" "$STATE_DIR"
+}
+
+function load_manifest() {
+    [ -f "$MANIFEST_FILE" ] || die "Release manifest not found: $MANIFEST_FILE"
+    [ "$(manifest_get version)" = "$VERSION" ] \
+        || die "Release manifest does not belong to ${RELEASE_TAG}."
+    BASE_COMMIT="$(manifest_get baseCommit)"
+    RELEASE_COMMIT="$(manifest_get releaseCommit)"
+    PREVIOUS_TAG="$(manifest_get previousTag)"
+    PREVIOUS_CLI_TAG="$(manifest_get previousCliTag)"
+}
+
+function incomplete_release_tag() {
+    [ -d "$STATE_ROOT" ] || return 0
+    local manifest completed tag
+    while IFS= read -r manifest; do
+        completed=$(MANIFEST_PATH="$manifest" node -p \
+            "String(JSON.parse(require('node:fs').readFileSync(process.env.MANIFEST_PATH, 'utf8')).completed)")
+        [ "$completed" = "true" ] && continue
+        tag=$(MANIFEST_PATH="$manifest" node -p \
+            "JSON.parse(require('node:fs').readFileSync(process.env.MANIFEST_PATH, 'utf8')).releaseTag")
+        printf '%s' "$tag"
+        return 0
+    done < <(find "$STATE_ROOT" -mindepth 2 -maxdepth 2 -name manifest.json \
+        ! -path '*.tmp.*/*' -print | sort)
+}
+
+function sha256_file() {
+    node -e '
+const fs = require("node:fs")
+const crypto = require("node:crypto")
+const data = fs.readFileSync(process.argv[1])
+process.stdout.write(crypto.createHash("sha256").update(data).digest("hex"))
+' "$1"
+}
+
 function write_versions() {
-    VERSION_TO_WRITE="$1" node <<'NODE'
+    VERSION_TO_WRITE="$VERSION" node <<'NODE'
 const fs = require("node:fs")
 const version = process.env.VERSION_TO_WRITE
 
 function readJson(path) {
-    return JSON.parse(fs.readFileSync(path, "utf8"))
+  return JSON.parse(fs.readFileSync(path, "utf8"))
 }
 
 function writeJson(path, value, indent) {
-    fs.writeFileSync(path, `${JSON.stringify(value, null, indent)}\n`)
+  const temporaryPath = `${path}.scratch-release-tmp.${process.pid}`
+  fs.writeFileSync(temporaryPath, `${JSON.stringify(value, null, indent)}\n`)
+  fs.renameSync(temporaryPath, path)
 }
 
 const rootPackage = readJson("package.json")
 const cliPackage = readJson("cli/package.json")
 const lockfile = readJson("package-lock.json")
-
 rootPackage.version = version
 cliPackage.version = version
 lockfile.version = version
-
-if (lockfile.packages?.[""]) {
-    lockfile.packages[""].version = version
-}
-if (lockfile.packages?.cli) {
-    lockfile.packages.cli.version = version
-}
-if (lockfile.dependencies?.["dirac-cli"]) {
-    lockfile.dependencies["dirac-cli"].version = version
-}
-
+if (lockfile.packages?.[""]) lockfile.packages[""].version = version
+if (lockfile.packages?.cli) lockfile.packages.cli.version = version
+if (lockfile.dependencies?.["dirac-cli"]) lockfile.dependencies["dirac-cli"].version = version
 writeJson("package.json", rootPackage, 4)
 writeJson("cli/package.json", cliPackage, "\t")
 writeJson("package-lock.json", lockfile, 4)
 NODE
 }
 
-function tag_exists() {
-    local tag="$1"
-    git rev-parse "$tag" >/dev/null 2>&1 || git ls-remote --exit-code --tags origin "refs/tags/${tag}" >/dev/null 2>&1
+function write_homebrew_formula() {
+    local sha256="$1"
+    VERSION_TO_WRITE="$VERSION" SHA_TO_WRITE="$sha256" node <<'NODE'
+const fs = require("node:fs")
+const version = process.env.VERSION_TO_WRITE
+const sha = process.env.SHA_TO_WRITE
+const path = "cli/dirac.rb"
+const temporaryPath = `${path}.scratch-release-tmp.${process.pid}`
+let formula = fs.readFileSync(path, "utf8")
+formula = formula.replace(
+  /url "https:\/\/registry\.npmjs\.org\/dirac-cli\/-\/dirac-cli-[^"]+\.tgz"/,
+  `url "https://registry.npmjs.org/dirac-cli/-/dirac-cli-${version}.tgz"`
+)
+formula = formula.replace(/sha256 "[a-f0-9]+"/, `sha256 "${sha}"`)
+fs.writeFileSync(temporaryPath, formula)
+fs.renameSync(temporaryPath, path)
+NODE
 }
 
-function generate_changelog() {
+function assert_clean_worktree() {
+    [ -z "$(git status --porcelain)" ] || die "Working tree is dirty. Commit or stash changes before starting a release."
+}
+
+function assert_only_release_files_changed() {
+    local status path allowed managed
+    while IFS= read -r status; do
+        [ -n "$status" ] || continue
+        path="${status:3}"
+        allowed=false
+        for managed in "${MUTATED_FILES[@]}"; do
+            if [ "$path" = "$managed" ]; then
+                allowed=true
+                break
+            fi
+        done
+        [ "$allowed" = true ] || die "Unexpected working-tree change while resuming: $path"
+    done < <(git status --porcelain)
+}
+
+function sync_remote_metadata() {
+    log_step "Refreshing origin/master and release tags..."
+    git fetch origin \
+        "+refs/heads/${DEFAULT_BRANCH}:refs/remotes/origin/${DEFAULT_BRANCH}" \
+        "refs/tags/*:refs/tags/*"
+}
+
+function local_tag_commit() {
+    git rev-parse -q --verify "refs/tags/$1" >/dev/null 2>&1 || return 1
+    git rev-list -n 1 "$1"
+}
+
+function remote_tag_commit() {
+    local tag="$1"
+    local refs peeled direct
+    refs=$(git ls-remote origin "refs/tags/${tag}" "refs/tags/${tag}^{}") \
+        || die "Could not read remote tag ${tag}."
+    peeled=$(printf '%s\n' "$refs" | awk '$2 ~ /\^\{\}$/ { print $1; exit }')
+    if [ -n "$peeled" ]; then
+        printf '%s' "$peeled"
+        return 0
+    fi
+    direct=$(printf '%s\n' "$refs" | awk '$2 !~ /\^\{\}$/ { print $1; exit }')
+    [ -n "$direct" ] || return 1
+    printf '%s' "$direct"
+}
+
+function discover_previous_tag() {
+    local source_ref="$1"
+    local target_tag="$2"
+    local kind="$3"
+    local tag
+    while IFS= read -r tag; do
+        [ "$tag" != "$target_tag" ] || continue
+        if [ "$kind" = "stable" ] && [[ "$tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            printf '%s' "$tag"
+            return 0
+        fi
+        if [ "$kind" = "cli" ] && [[ "$tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+-cli$ ]]; then
+            printf '%s' "$tag"
+            return 0
+        fi
+    done < <(git tag --merged "$source_ref" --sort=-version:refname)
+    return 0
+}
+
+function generate_release_notes() {
     local output_file="$1"
     local title="$2"
     local previous_tag="$3"
-    local new_tag="$4"
+    local target_tag="$4"
+    local source_ref="$5"
     local changes
 
     if [ -n "$previous_tag" ]; then
-        changes=$(git log "${previous_tag}..HEAD" --pretty=format:"- %s" --no-merges \
+        changes=$(git log "${previous_tag}..${source_ref}" --pretty=format:"- %s" --no-merges \
             | grep -iE '^- (feat|fix|perf|docs|revert)[:(]' || true)
     else
-        changes=$(git log --pretty=format:"- %s" --no-merges \
+        changes=$(git log "$source_ref" --pretty=format:"- %s" --no-merges \
             | grep -iE '^- (feat|fix|perf|docs|revert)[:(]' \
             | head -50 || true)
     fi
 
     {
-        echo "## What's Changed in ${new_tag}"
+        echo "## ${title}"
         echo ""
         if [ -n "$changes" ]; then
             printf '%s\n' "$changes"
@@ -224,135 +383,596 @@ function generate_changelog() {
             echo "- (no user-facing changes)"
         fi
         echo ""
-        echo ""
-        echo "**Full Changelog**: https://github.com/dirac-run/dirac/compare/${previous_tag:-v0.0.0}...${new_tag}"
+        if [ -n "$previous_tag" ]; then
+            echo "**Full Changelog**: https://github.com/${REPOSITORY}/compare/${previous_tag}...${target_tag}"
+        fi
     } > "$output_file"
-
-    echo ""
-    echo -e "${CYAN}--- ${title} Changelog ---${NC}"
-    cat "$output_file"
-    echo -e "${CYAN}--- End ${title} Changelog ---${NC}"
-    echo ""
 }
 
-# 2. Determine versions and target tags
-OLD_VERSION=$(node -p "require('./package.json').version")
-OLD_CLI_VERSION=$(cd cli && node -p "require('./package.json').version")
-NEW_VERSION=$(compute_new_version "$OLD_VERSION" "$BUMP_TYPE")
-RELEASE_TAG="v${NEW_VERSION}"
-CLI_TAG="v${NEW_VERSION}-cli"
-
-log_info "Current extension version: $OLD_VERSION"
-log_info "Current CLI version: $OLD_CLI_VERSION"
-log_info "Target version: $NEW_VERSION"
-
-if [ "$OLD_VERSION" != "$OLD_CLI_VERSION" ]; then
-    log_warn "Extension ($OLD_VERSION) and CLI ($OLD_CLI_VERSION) versions are out of sync."
-    log_warn "Both will be set to $NEW_VERSION."
-fi
-
-for tag in "$RELEASE_TAG" "$CLI_TAG"; do
-    if tag_exists "$tag"; then
-        log_error "Tag $tag already exists locally or on origin. This version was already released."
-        exit 1
+function ensure_release_notes() {
+    local source_ref="${RELEASE_COMMIT:-$BASE_COMMIT}"
+    if [ ! -f "$RELEASE_NOTES_FILE" ]; then
+        generate_release_notes "$RELEASE_NOTES_FILE" "Highlights" "$PREVIOUS_TAG" "$RELEASE_TAG" "$source_ref"
     fi
-done
+    if [ ! -f "$CLI_RELEASE_NOTES_FILE" ]; then
+        generate_release_notes "$CLI_RELEASE_NOTES_FILE" "CLI changes" "$PREVIOUS_CLI_TAG" "$CLI_TAG" "$source_ref"
+    fi
+}
 
-LAST_TAG=$(git tag -l 'v*' --sort=-version:refname | grep -v '\-cli' | head -1 || true)
-LAST_CLI_TAG=$(git tag -l 'v*-cli' --sort=-version:refname | head -1 || true)
+function package_version_at_ref() {
+    local ref="$1"
+    local path="$2"
+    git show "${ref}:${path}" | node -e '
+let input = ""
+process.stdin.on("data", chunk => input += chunk)
+process.stdin.on("end", () => process.stdout.write(JSON.parse(input).version || ""))
+'
+}
 
-if [ -z "$LAST_TAG" ]; then
-    log_warn "No previous extension release tag found. Extension changelog will include recent commits."
-fi
-if [ -z "$LAST_CLI_TAG" ]; then
-    log_warn "No previous CLI release tag found. CLI changelog will include recent commits."
-fi
+function version_snapshot_matches() {
+    local ref="$1"
+    local root_version cli_version formula_version
+    root_version=$(package_version_at_ref "$ref" package.json) || return 1
+    cli_version=$(package_version_at_ref "$ref" cli/package.json) || return 1
+    REF_TO_CHECK="$ref" EXPECTED_VERSION="$VERSION" node <<'NODE' || return 1
+const { execFileSync } = require("node:child_process")
+const ref = process.env.REF_TO_CHECK
+const expected = process.env.EXPECTED_VERSION
+const input = execFileSync("git", ["show", `${ref}:package-lock.json`], { encoding: "utf8" })
+const lock = JSON.parse(input)
+const versions = [lock.version, lock.packages?.[""]?.version, lock.packages?.cli?.version].filter(Boolean)
+process.exit(versions.every(version => version === expected) ? 0 : 1)
+NODE
+    formula_version=$(git show "${ref}:cli/dirac.rb" | sed -n 's#.*dirac-cli-\([0-9][0-9.]*\)\.tgz.*#\1#p' | head -1)
+    [ "$root_version" = "$VERSION" ] \
+        && [ "$cli_version" = "$VERSION" ] \
+        && [ "$formula_version" = "$VERSION" ]
+}
 
-# 3. Bump versions in lockstep
-log_step "Bumping version ($BUMP_TYPE): $OLD_VERSION -> $NEW_VERSION"
-write_versions "$NEW_VERSION"
-VSIX_FILE="dirac-${NEW_VERSION}.vsix"
+function formula_sha_at_ref() {
+    git show "$1:cli/dirac.rb" | sed -n 's/.*sha256 "\([a-f0-9]*\)".*/\1/p' | head -1
+}
 
-# 4. Generate changelogs for annotated tags
-generate_changelog "$CHANGELOG_FILE" "Extension" "$LAST_TAG" "$RELEASE_TAG"
-generate_changelog "$CLI_CHANGELOG_FILE" "CLI" "$LAST_CLI_TAG" "$CLI_TAG"
+function find_release_commit() {
+    local commit
+    if commit=$(local_tag_commit "$RELEASE_TAG"); then
+        printf '%s' "$commit"
+        return 0
+    fi
 
-# 5. Build extension
-log_step "Building extension package..."
-npm run compile
-npx @vscode/vsce package --allow-missing-repository
+    commit=$(git log --all --format='%H' --extended-regexp \
+        --grep="^chore: bump version to ${RELEASE_TAG}$" -n 1)
+    if [ -n "$commit" ] && [ "$(package_version_at_ref "$commit" package.json)" = "$VERSION" ]; then
+        printf '%s' "$commit"
+        return 0
+    fi
+    return 1
+}
 
-if [ ! -f "$VSIX_FILE" ]; then
-    log_error "Expected extension package not found: $VSIX_FILE"
-    exit 1
-fi
+function verify_retained_artifact() {
+    local path="$1"
+    local manifest_key="$2"
+    local expected actual
+    [ -f "$path" ] || return 1
+    expected=$(manifest_get "$manifest_key")
+    [ -n "$expected" ] || return 1
+    actual=$(sha256_file "$path")
+    if [ "$actual" != "$expected" ]; then
+        die "Retained artifact checksum changed: $path"
+    fi
+    return 0
+}
 
-# 6. Build CLI npm package and Homebrew formula from the exact npm tarball
-log_step "Building CLI npm package..."
-npm run compile-standalone-npm
+function assert_build_checkout() {
+    local expected_ref="${RELEASE_COMMIT:-$BASE_COMMIT}"
+    [ "$(git rev-parse HEAD)" = "$expected_ref" ] \
+        || die "An artifact is missing, but HEAD is not the release source ${expected_ref}. Restore that release checkout and rerun --resume."
+    assert_only_release_files_changed
+}
 
-log_step "Packing CLI npm artifact and updating Homebrew formula..."
-rm -rf "$ARTIFACT_DIR"
-mkdir -p "$ARTIFACT_DIR"
-npx tsx cli/scripts/update-brew-formula.mts --package-dir dist-standalone --pack-destination "$ARTIFACT_DIR" --keep-tarball
-NPM_TARBALL="${ARTIFACT_DIR}/dirac-cli-${NEW_VERSION}.tgz"
+function ensure_vsix() {
+    if verify_retained_artifact "$VSIX_FILE" vsixSha256; then
+        log_info "Reusing retained VSIX: $VSIX_FILE"
+        return
+    fi
 
-if [ ! -f "$NPM_TARBALL" ]; then
-    log_error "Expected CLI npm tarball not found: $NPM_TARBALL"
-    exit 1
-fi
+    local expected_sha actual_sha
+    expected_sha=$(manifest_get vsixSha256)
+    assert_build_checkout
+    log_step "Building extension package locally..."
+    rm -f "$VSIX_FILE"
+    npx @vscode/vsce package --allow-missing-repository --out "$VSIX_FILE"
+    [ -f "$VSIX_FILE" ] || die "Expected extension package was not created: $VSIX_FILE"
+    actual_sha=$(sha256_file "$VSIX_FILE")
+    if [ -n "$expected_sha" ] && [ "$actual_sha" != "$expected_sha" ]; then
+        die "Rebuilt VSIX does not match the retained release checksum. Restore the original artifact."
+    fi
+    [ -n "$expected_sha" ] || manifest_set vsixSha256 "$actual_sha"
+}
 
-if [ "$DRY_RUN" = true ]; then
-    log_info "Dry run complete. No changes were committed, tagged, pushed, or published."
-    log_info "Version bump tested: $OLD_VERSION -> $NEW_VERSION"
-    log_info "Extension package tested: $VSIX_FILE"
-    log_info "CLI npm package tested: $NPM_TARBALL"
-    log_info "Homebrew formula update tested: cli/dirac.rb"
-    exit 0
-fi
+function ensure_npm_tarball() {
+    local expected_sha actual_sha committed_formula_sha
+    expected_sha=$(manifest_get npmTarballSha256)
 
-# 7. Commit version bump and formula update before publishing from local artifacts.
-log_step "Committing version bump and Homebrew formula update..."
-git add package.json package-lock.json cli/package.json cli/dirac.rb
-git commit -m "chore: bump version to ${RELEASE_TAG}"
+    if verify_retained_artifact "$NPM_TARBALL" npmTarballSha256; then
+        actual_sha=$(sha256_file "$NPM_TARBALL")
+        log_info "Reusing retained npm tarball: $NPM_TARBALL"
+    else
+        assert_build_checkout
+        log_step "Building CLI npm package locally..."
+        rm -f "$NPM_TARBALL"
+        npm run compile-standalone-npm
+        npm pack dist-standalone --pack-destination "$STATE_DIR"
+        [ -f "$NPM_TARBALL" ] || die "Expected CLI package was not created: $NPM_TARBALL"
+        actual_sha=$(sha256_file "$NPM_TARBALL")
+        if [ -n "$expected_sha" ] && [ "$actual_sha" != "$expected_sha" ]; then
+            die "Rebuilt npm tarball does not match the retained release checksum. Restore the original artifact."
+        fi
+        [ -n "$expected_sha" ] || manifest_set npmTarballSha256 "$actual_sha"
+    fi
 
-# 8. Publish extension locally from the already-built .vsix
-log_step "Publishing extension to VS Marketplace..."
-npx @vscode/vsce publish --packagePath "$VSIX_FILE" -p "$VSCE_PAT"
-log_info "Published extension to VS Marketplace."
+    if [ -z "$RELEASE_COMMIT" ]; then
+        write_homebrew_formula "$actual_sha"
+        return
+    fi
 
-log_step "Publishing extension to Open VSX..."
-npx ovsx publish "$VSIX_FILE" -p "$OVSX_PAT"
-log_info "Published extension to Open VSX."
+    committed_formula_sha=$(formula_sha_at_ref "$RELEASE_COMMIT")
+    [ "$actual_sha" = "$committed_formula_sha" ] \
+        || die "CLI tarball does not match the Homebrew SHA in release commit ${RELEASE_COMMIT}."
+}
 
-# 9. Publish CLI locally from the exact tarball used for Homebrew SHA
-log_step "Publishing CLI to npm..."
-npm publish "$NPM_TARBALL"
-log_info "Published CLI to npm (dirac-cli@${NEW_VERSION})."
+function ensure_release_commit() {
+    if [ -n "$RELEASE_COMMIT" ]; then
+        version_snapshot_matches "$RELEASE_COMMIT" \
+            || die "Release commit ${RELEASE_COMMIT} does not contain a consistent ${VERSION} version snapshot."
+        return
+    fi
 
-# 10. Tag and push after all local publishing succeeds
-log_step "Creating annotated tags and pushing to GitHub..."
-git tag -a "$RELEASE_TAG" -F "$CHANGELOG_FILE"
-git tag -a "$CLI_TAG" -F "$CLI_CHANGELOG_FILE"
-git push origin master
-git push origin "$RELEASE_TAG" "$CLI_TAG"
+    if [ "$(git rev-parse HEAD)" != "$BASE_COMMIT" ]; then
+        local subject parent
+        subject=$(git log -1 --format='%s' HEAD)
+        parent=$(git rev-parse HEAD^ 2>/dev/null || true)
+        if [ "$subject" = "chore: bump version to ${RELEASE_TAG}" ] && [ "$parent" = "$BASE_COMMIT" ] \
+            && version_snapshot_matches HEAD; then
+            RELEASE_COMMIT=$(git rev-parse HEAD)
+            manifest_set releaseCommit "$RELEASE_COMMIT"
+            return
+        fi
+        die "HEAD moved since ${RELEASE_TAG} preparation began. Resume from the release checkout instead."
+    fi
 
-trap - EXIT
-cleanup_generated_files
+    assert_only_release_files_changed
+    git add "${MUTATED_FILES[@]}"
+    git diff --cached --quiet && die "No release metadata changes are available to commit."
+    log_step "Committing release metadata..."
+    git commit -m "chore: bump version to ${RELEASE_TAG}"
+    RELEASE_COMMIT=$(git rev-parse HEAD)
+    manifest_set releaseCommit "$RELEASE_COMMIT"
+    version_snapshot_matches "$RELEASE_COMMIT" \
+        || die "Created release commit does not contain a consistent ${VERSION} version snapshot."
+}
 
-echo ""
-echo "--------------------------------------------------"
-log_info "${GREEN}✓${NC} Dirac ${RELEASE_TAG} released successfully!"
-echo ""
-echo "  Extension:"
-echo "    • Published to VS Marketplace from $VSIX_FILE"
-echo "    • Published to Open VSX from $VSIX_FILE"
-echo "    • Annotated tag pushed: $RELEASE_TAG"
-echo ""
-echo "  CLI:"
-echo "    • Published to npm from $NPM_TARBALL"
-echo "    • Homebrew formula updated from the same tarball SHA"
-echo "    • Annotated tag pushed: $CLI_TAG"
-echo ""
-echo "  GitHub release workflows were not dispatched by this script."
-echo "--------------------------------------------------"
+function ensure_local_tag() {
+    local tag="$1"
+    local notes_file="$2"
+    local existing
+    if existing=$(local_tag_commit "$tag"); then
+        [ "$existing" = "$RELEASE_COMMIT" ] \
+            || die "Local tag ${tag} points to ${existing}, expected ${RELEASE_COMMIT}."
+        return
+    fi
+    log_step "Creating annotated tag ${tag}..."
+    git tag -a "$tag" "$RELEASE_COMMIT" -F "$notes_file"
+}
+
+function ensure_local_tags() {
+    ensure_release_notes
+    ensure_local_tag "$RELEASE_TAG" "$RELEASE_NOTES_FILE"
+    ensure_local_tag "$CLI_TAG" "$CLI_RELEASE_NOTES_FILE"
+}
+
+function ensure_remote_refs() {
+    local remote_branch remote_release_tag remote_cli_tag
+    local refspecs=()
+
+    remote_branch=$(git rev-parse "refs/remotes/origin/${DEFAULT_BRANCH}")
+    if [ "$remote_branch" != "$RELEASE_COMMIT" ]; then
+        if git merge-base --is-ancestor "$RELEASE_COMMIT" "$remote_branch"; then
+            log_info "Remote ${DEFAULT_BRANCH} already contains release commit ${RELEASE_COMMIT}."
+        elif git merge-base --is-ancestor "$remote_branch" "$RELEASE_COMMIT"; then
+            refspecs+=("${RELEASE_COMMIT}:refs/heads/${DEFAULT_BRANCH}")
+        else
+            die "origin/${DEFAULT_BRANCH} diverged from release commit ${RELEASE_COMMIT}; refusing to push."
+        fi
+    fi
+
+    if remote_release_tag=$(remote_tag_commit "$RELEASE_TAG"); then
+        [ "$remote_release_tag" = "$RELEASE_COMMIT" ] \
+            || die "Remote tag ${RELEASE_TAG} points to ${remote_release_tag}, expected ${RELEASE_COMMIT}."
+    else
+        refspecs+=("refs/tags/${RELEASE_TAG}:refs/tags/${RELEASE_TAG}")
+    fi
+
+    if remote_cli_tag=$(remote_tag_commit "$CLI_TAG"); then
+        [ "$remote_cli_tag" = "$RELEASE_COMMIT" ] \
+            || die "Remote tag ${CLI_TAG} points to ${remote_cli_tag}, expected ${RELEASE_COMMIT}."
+    else
+        refspecs+=("refs/tags/${CLI_TAG}:refs/tags/${CLI_TAG}")
+    fi
+
+    if [ "${#refspecs[@]}" -eq 0 ]; then
+        log_info "GitHub source branch and tags are already correct."
+        return
+    fi
+
+    log_step "Atomically pushing release source and tags..."
+    git push --atomic origin "${refspecs[@]}"
+    sync_remote_metadata
+}
+
+function github_release_state() {
+    local json
+    if json=$(gh release view "$RELEASE_TAG" --repo "$REPOSITORY" \
+        --json tagName,isDraft,isPrerelease,url 2>/dev/null); then
+        RELEASE_JSON="$json" node <<'NODE'
+const release = JSON.parse(process.env.RELEASE_JSON)
+if (release.isPrerelease) process.stdout.write("prerelease")
+else if (release.isDraft) process.stdout.write("draft")
+else process.stdout.write("public")
+NODE
+        return
+    fi
+
+    gh api "repos/${REPOSITORY}" --silent >/dev/null \
+        || die "Cannot access ${REPOSITORY} through gh. Run 'gh auth status' and try again."
+    printf 'missing'
+}
+
+function require_gh_authentication() {
+    gh auth status --hostname github.com >/dev/null 2>&1 \
+        || die "GitHub CLI is not authenticated. Run: gh auth login --hostname github.com"
+}
+
+function ensure_draft_release() {
+    local state
+    state=$(github_release_state)
+    case "$state" in
+        draft|public)
+            log_info "GitHub Release ${RELEASE_TAG} already exists (${state})."
+            ;;
+        prerelease)
+            die "GitHub Release ${RELEASE_TAG} unexpectedly exists as a prerelease."
+            ;;
+        missing)
+            local args=(release create "$RELEASE_TAG" --repo "$REPOSITORY" --verify-tag --draft
+                --generate-notes --title "Dirac ${RELEASE_TAG}" --notes-file "$RELEASE_NOTES_FILE")
+            if [ -n "$PREVIOUS_TAG" ]; then
+                args+=(--notes-start-tag "$PREVIOUS_TAG")
+            fi
+            log_step "Creating draft GitHub Release ${RELEASE_TAG}..."
+            gh "${args[@]}"
+            ;;
+        *)
+            die "Unknown GitHub Release state: $state"
+            ;;
+    esac
+}
+
+function marketplace_has_version() {
+    local json
+    json=$(npx @vscode/vsce show "$EXTENSION_ID" --json) \
+        || die "Could not query VS Marketplace."
+    MARKETPLACE_JSON="$json" EXPECTED_VERSION="$VERSION" node <<'NODE'
+const extension = JSON.parse(process.env.MARKETPLACE_JSON)
+const expected = process.env.EXPECTED_VERSION
+process.exit((extension.versions || []).some(version => version.version === expected) ? 0 : 1)
+NODE
+}
+
+function open_vsx_has_version() {
+    EXPECTED_VERSION="$VERSION" node --input-type=module <<'NODE'
+const version = process.env.EXPECTED_VERSION
+const response = await fetch(`https://open-vsx.org/api/dirac-run/dirac/${version}`)
+if (response.status === 404) process.exit(1)
+if (!response.ok) throw new Error(`Open VSX query failed: HTTP ${response.status}`)
+const extension = await response.json()
+process.exit(extension.version === version ? 0 : 1)
+NODE
+}
+
+function npm_has_version() {
+    local json
+    json=$(npm view "$NPM_PACKAGE" versions --json) || die "Could not query npm."
+    NPM_VERSIONS_JSON="$json" EXPECTED_VERSION="$VERSION" node <<'NODE'
+const versions = JSON.parse(process.env.NPM_VERSIONS_JSON)
+const list = Array.isArray(versions) ? versions : [versions]
+process.exit(list.includes(process.env.EXPECTED_VERSION) ? 0 : 1)
+NODE
+}
+
+function npm_formula_matches_registry() {
+    local expected_sha
+    expected_sha=$(formula_sha_at_ref "$RELEASE_COMMIT")
+    [ -n "$expected_sha" ] || return 1
+    EXPECTED_VERSION="$VERSION" EXPECTED_SHA="$expected_sha" node --input-type=module <<'NODE'
+import crypto from "node:crypto"
+const version = process.env.EXPECTED_VERSION
+const response = await fetch(`https://registry.npmjs.org/dirac-cli/-/dirac-cli-${version}.tgz`)
+if (response.status === 404) process.exit(1)
+if (!response.ok) throw new Error(`npm tarball query failed: HTTP ${response.status}`)
+const bytes = Buffer.from(await response.arrayBuffer())
+const actual = crypto.createHash("sha256").update(bytes).digest("hex")
+process.exit(actual === process.env.EXPECTED_SHA ? 0 : 1)
+NODE
+}
+
+function remote_release_refs_match() {
+    local branch stable cli
+    branch=$(git rev-parse "refs/remotes/origin/${DEFAULT_BRANCH}") || return 1
+    git merge-base --is-ancestor "$RELEASE_COMMIT" "$branch" || return 1
+    stable=$(remote_tag_commit "$RELEASE_TAG") || return 1
+    cli=$(remote_tag_commit "$CLI_TAG") || return 1
+    [ "$stable" = "$RELEASE_COMMIT" ] && [ "$cli" = "$RELEASE_COMMIT" ]
+}
+
+function release_is_complete() {
+    local complete=true state
+    log_step "Auditing ${RELEASE_TAG}..."
+
+    if ! version_snapshot_matches "$RELEASE_COMMIT"; then
+        log_warn "Version snapshot is incomplete."
+        complete=false
+    fi
+    if ! remote_release_refs_match; then
+        log_warn "Remote source refs are incomplete."
+        complete=false
+    fi
+    if ! marketplace_has_version; then
+        log_warn "VS Marketplace is missing ${VERSION}."
+        complete=false
+    fi
+    if ! open_vsx_has_version; then
+        log_warn "Open VSX is missing ${VERSION}."
+        complete=false
+    fi
+    if ! npm_has_version; then
+        log_warn "npm is missing ${NPM_PACKAGE}@${VERSION}."
+        complete=false
+    elif ! npm_formula_matches_registry; then
+        log_warn "Homebrew formula SHA does not match npm's ${VERSION} tarball."
+        complete=false
+    fi
+    state=$(github_release_state)
+    if [ "$state" != "public" ]; then
+        log_warn "GitHub Release is ${state}."
+        complete=false
+    fi
+
+    [ "$complete" = true ]
+}
+
+function wait_for_registry() {
+    local label="$1"
+    local check_function="$2"
+    local attempt
+    for attempt in 1 2 3 4 5 6; do
+        if "$check_function"; then
+            log_info "Verified ${label}."
+            return
+        fi
+        [ "$attempt" -eq 6 ] || sleep 10
+    done
+    die "${label} did not report ${VERSION} after publication. Resume later with: scripts/publish.sh --resume ${RELEASE_TAG}"
+}
+
+function publish_missing_registries() {
+    if marketplace_has_version; then
+        log_info "VS Marketplace already has ${VERSION}; skipping."
+    else
+        [ -n "${VSCE_PAT:-}" ] || die "VSCE_PAT is required because VS Marketplace is missing ${VERSION}."
+        ensure_vsix
+        log_step "Publishing retained VSIX to VS Marketplace..."
+        npx @vscode/vsce publish --packagePath "$VSIX_FILE" -p "$VSCE_PAT"
+        wait_for_registry "VS Marketplace ${VERSION}" marketplace_has_version
+    fi
+
+    if open_vsx_has_version; then
+        log_info "Open VSX already has ${VERSION}; skipping."
+    else
+        [ -n "${OVSX_PAT:-}" ] || die "OVSX_PAT is required because Open VSX is missing ${VERSION}."
+        ensure_vsix
+        log_step "Publishing retained VSIX to Open VSX..."
+        npx --yes ovsx@1.1.0 publish "$VSIX_FILE" -p "$OVSX_PAT"
+        wait_for_registry "Open VSX ${VERSION}" open_vsx_has_version
+    fi
+
+    if npm_has_version; then
+        log_info "npm already has ${NPM_PACKAGE}@${VERSION}; skipping."
+    else
+        ensure_npm_tarball
+        log_step "Publishing retained CLI tarball to npm..."
+        npm publish "$NPM_TARBALL"
+        wait_for_registry "npm ${NPM_PACKAGE}@${VERSION}" npm_has_version
+    fi
+
+    npm_formula_matches_registry \
+        || die "Published npm tarball does not match the Homebrew SHA in release commit ${RELEASE_COMMIT}."
+}
+
+function publish_github_release() {
+    local state
+    state=$(github_release_state)
+    case "$state" in
+        public)
+            log_info "GitHub Release ${RELEASE_TAG} is already public; skipping."
+            ;;
+        draft)
+            log_step "Publishing GitHub Release ${RELEASE_TAG}..."
+            gh release edit "$RELEASE_TAG" --repo "$REPOSITORY" --draft=false
+            ;;
+        *)
+            die "Cannot publish GitHub Release ${RELEASE_TAG}; current state is ${state}."
+            ;;
+    esac
+}
+
+function reconstruct_resume_state() {
+    RELEASE_COMMIT=$(find_release_commit) \
+        || die "Cannot find the release commit for ${RELEASE_TAG}. Start that version with patch/minor/major or restore its release state."
+    version_snapshot_matches "$RELEASE_COMMIT" \
+        || die "Found commit ${RELEASE_COMMIT}, but its ${VERSION} version snapshot is inconsistent."
+    BASE_COMMIT=$(git rev-parse "${RELEASE_COMMIT}^")
+    PREVIOUS_TAG=$(discover_previous_tag "$RELEASE_COMMIT" "$RELEASE_TAG" stable)
+    PREVIOUS_CLI_TAG=$(discover_previous_tag "$RELEASE_COMMIT" "$CLI_TAG" cli)
+
+    if release_is_complete; then
+        print_success
+        exit 0
+    fi
+
+    log_info "Reconstructing local recovery state for ${RELEASE_TAG}."
+    create_manifest
+    ensure_release_notes
+}
+
+function initialize_new_release() {
+    local incomplete_tag
+    incomplete_tag=$(incomplete_release_tag)
+    if [ -n "$incomplete_tag" ]; then
+        die "Incomplete release state exists for ${incomplete_tag}. Use: scripts/publish.sh --resume ${incomplete_tag}"
+    fi
+    assert_clean_worktree
+    [ "$(git branch --show-current)" = "$DEFAULT_BRANCH" ] \
+        || die "New releases must start from the ${DEFAULT_BRANCH} branch."
+
+    local old_version old_cli_version
+    old_version=$(node -p "require('./package.json').version")
+    old_cli_version=$(node -p "require('./cli/package.json').version")
+    [ "$old_version" = "$old_cli_version" ] \
+        || die "Extension (${old_version}) and CLI (${old_cli_version}) versions are out of sync."
+
+    configure_release_paths "$(compute_new_version "$old_version" "$BUMP_TYPE")"
+    [ ! -e "$STATE_DIR" ] \
+        || die "Release state already exists for ${RELEASE_TAG}. Use: scripts/publish.sh --resume ${RELEASE_TAG}"
+    if local_tag_commit "$RELEASE_TAG" >/dev/null 2>&1 || remote_tag_commit "$RELEASE_TAG" >/dev/null 2>&1; then
+        die "${RELEASE_TAG} already exists. Use: scripts/publish.sh --resume ${RELEASE_TAG}"
+    fi
+    if local_tag_commit "$CLI_TAG" >/dev/null 2>&1 || remote_tag_commit "$CLI_TAG" >/dev/null 2>&1; then
+        die "${CLI_TAG} already exists. Use: scripts/publish.sh --resume ${RELEASE_TAG}"
+    fi
+
+    require_gh_authentication
+    [ -n "${VSCE_PAT:-}" ] || die "VSCE_PAT is required to start a release."
+    [ -n "${OVSX_PAT:-}" ] || die "OVSX_PAT is required to start a release."
+
+    BASE_COMMIT=$(git rev-parse HEAD)
+    PREVIOUS_TAG=$(discover_previous_tag "$BASE_COMMIT" "$RELEASE_TAG" stable)
+    PREVIOUS_CLI_TAG=$(discover_previous_tag "$BASE_COMMIT" "$CLI_TAG" cli)
+    create_manifest
+    log_info "Starting ${RELEASE_TAG} from ${BASE_COMMIT}."
+}
+
+function initialize_resume() {
+    configure_release_paths "${RESUME_TAG#v}"
+    require_gh_authentication
+    if [ -f "$MANIFEST_FILE" ]; then
+        load_manifest
+        if [ -n "$RELEASE_COMMIT" ] && release_is_complete; then
+            print_success
+            exit 0
+        fi
+        return
+    fi
+    reconstruct_resume_state
+}
+
+function prepare_uncommitted_release() {
+    if [ -n "$RELEASE_COMMIT" ]; then
+        return
+    fi
+    [ "$(git rev-parse HEAD)" = "$BASE_COMMIT" ] \
+        || ensure_release_commit
+    write_versions
+    ensure_release_notes
+    ensure_vsix
+    ensure_npm_tarball
+    ensure_release_commit
+}
+
+function reconcile_release() {
+    prepare_uncommitted_release
+    ensure_release_notes
+    ensure_local_tags
+    ensure_remote_refs
+    ensure_draft_release
+    publish_missing_registries
+    publish_github_release
+
+    sync_remote_metadata
+    release_is_complete || die "Final verification failed. Resume with: scripts/publish.sh --resume ${RELEASE_TAG}"
+    manifest_set completed true
+    rm -f "$VSIX_FILE" "$NPM_TARBALL"
+    print_success
+}
+
+function print_success() {
+    echo ""
+    echo "--------------------------------------------------"
+    log_info "Dirac ${RELEASE_TAG} is complete."
+    echo "  • Source and tags: https://github.com/${REPOSITORY}/tree/${RELEASE_TAG}"
+    echo "  • GitHub Release:  https://github.com/${REPOSITORY}/releases/tag/${RELEASE_TAG}"
+    echo "  • VS Marketplace:  ${VERSION}"
+    echo "  • Open VSX:        ${VERSION}"
+    echo "  • npm:             ${NPM_PACKAGE}@${VERSION}"
+    echo "--------------------------------------------------"
+}
+
+function run_dry_run() {
+    assert_clean_worktree
+    local old_version
+    old_version=$(node -p "require('./package.json').version")
+    configure_release_paths "$(compute_new_version "$old_version" "$BUMP_TYPE")"
+    STATE_DIR="${STATE_ROOT}/dry-run-${RELEASE_TAG}-$$"
+    MANIFEST_FILE="${STATE_DIR}/manifest.json"
+    RELEASE_NOTES_FILE="${STATE_DIR}/release-notes.md"
+    CLI_RELEASE_NOTES_FILE="${STATE_DIR}/cli-release-notes.md"
+    VSIX_FILE="${STATE_DIR}/dirac-${VERSION}.vsix"
+    NPM_TARBALL="${STATE_DIR}/dirac-cli-${VERSION}.tgz"
+    BASE_COMMIT=$(git rev-parse HEAD)
+    PREVIOUS_TAG=$(discover_previous_tag "$BASE_COMMIT" "$RELEASE_TAG" stable)
+    PREVIOUS_CLI_TAG=$(discover_previous_tag "$BASE_COMMIT" "$CLI_TAG" cli)
+    create_manifest
+
+    function restore_dry_run() {
+        git checkout -- "${MUTATED_FILES[@]}" 2>/dev/null || true
+        rm -rf "$STATE_DIR"
+    }
+    trap restore_dry_run EXIT
+
+    write_versions
+    ensure_release_notes
+    ensure_vsix
+    ensure_npm_tarball
+    log_info "Dry run complete for ${RELEASE_TAG}. Nothing was committed, tagged, pushed, or published."
+}
+
+function main() {
+    parse_args "$@"
+    assert_repository_root
+    require_commands
+
+    if [ "$DRY_RUN" = true ]; then
+        run_dry_run
+        return
+    fi
+
+    sync_remote_metadata
+    if [ "$MODE" = "new" ]; then
+        initialize_new_release
+    else
+        initialize_resume
+    fi
+    reconcile_release
+}
+
+main "$@"
