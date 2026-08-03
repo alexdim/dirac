@@ -46,6 +46,7 @@ ascratch/
 cli_opentui/
 tmp/
 .scratch-release-changelog.md
+.scratch-release/
 proto/
 scripts/
 biome.jsonc
