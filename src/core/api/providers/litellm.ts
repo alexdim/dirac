@@ -320,16 +320,15 @@ export class LiteLlmHandler implements ApiHandler {
 	}
 
 	// Parses a single LiteLLM stream chunk into Dirac ApiStreamChunk(s).
-	// NOTE: tool_calls are only processed when delta.content is also truthy —
-	// this is the existing behavior (characterized in tests).
 	private async *parseLiteLlmChunk(chunk: any, toolCallProcessor: ToolCallProcessor): ApiStream {
 		const delta = chunk.choices?.[0]?.delta
 
-		// Handle normal text content (and tool calls nested within — existing behavior)
+		if (delta?.tool_calls) {
+			yield* toolCallProcessor.processToolCallDeltas(delta.tool_calls)
+		}
+
+		// Handle normal text content
 		if (delta?.content) {
-			if (delta?.tool_calls) {
-				yield* toolCallProcessor.processToolCallDeltas(delta.tool_calls)
-			}
 			yield { type: "text", text: delta.content }
 		}
 

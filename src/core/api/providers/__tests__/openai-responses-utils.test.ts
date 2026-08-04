@@ -1,6 +1,75 @@
 import "should"
 import { expect } from "chai"
-import { buildResponseCreateParams, processResponsesEvents, shouldRetryWithFullContext } from "../openai-responses-utils"
+import {
+	buildResponseCreateParams,
+	parseSseResponse,
+	processResponsesEvents,
+	shouldRetryWithFullContext,
+	yieldUsage,
+} from "../openai-responses-utils"
+
+describe("yieldUsage", () => {
+	it("does not bill reasoning tokens twice", async () => {
+		const chunks: any[] = []
+		for await (const chunk of yieldUsage(
+			{ inputPrice: 1, outputPrice: 2 } as any,
+			{
+				input_tokens: 100,
+				output_tokens: 30,
+				output_tokens_details: { reasoning_tokens: 20 },
+			},
+		)) {
+			chunks.push(chunk)
+		}
+
+		chunks.should.have.length(1)
+		chunks[0].outputTokens.should.equal(30)
+		chunks[0].reasoningTokens.should.equal(20)
+		expect(chunks[0].totalCost).to.be.approximately(0.00016, 1e-12)
+	})
+})
+
+describe("parseSseResponse", () => {
+	it("rejects malformed complete SSE events", async () => {
+		const body = new ReadableStream<Uint8Array>({
+			start(controller) {
+				controller.enqueue(new TextEncoder().encode("data: {malformed}\n"))
+				controller.close()
+			},
+		})
+
+		await (async () => {
+			for await (const _event of parseSseResponse(body)) {
+				// no events expected
+			}
+		})().should.be.rejectedWith(SyntaxError)
+	})
+
+	it("finishes and cancels the reader when the server sends DONE without closing", async () => {
+		let cancelled = false
+		const body = new ReadableStream<Uint8Array>({
+			start(controller) {
+				controller.enqueue(new TextEncoder().encode("data: [DONE]\n"))
+			},
+			cancel() {
+				cancelled = true
+			},
+		})
+		const iterator = parseSseResponse(body)[Symbol.asyncIterator]()
+		let timeout: NodeJS.Timeout | undefined
+
+		const result = await Promise.race([
+			iterator.next(),
+			new Promise<never>((_resolve, reject) => {
+				timeout = setTimeout(() => reject(new Error("SSE parser did not stop at DONE")), 100)
+			}),
+		])
+		if (timeout) clearTimeout(timeout)
+
+		expect(result.done).to.equal(true)
+		cancelled.should.equal(true)
+	})
+})
 
 // Characterization tests for shouldRetryWithFullContext.
 // The function decides whether a failed request should be retried with the full
@@ -70,6 +139,66 @@ describe("buildResponseCreateParams", () => {
 	})
 })
 describe("processResponsesEvents", () => {
+	it("does not repeat completed function arguments after streaming deltas", async () => {
+		async function* stream() {
+			yield {
+				type: "response.output_item.added",
+				item: { type: "function_call", id: "item-1", call_id: "call-1", name: "read_file", arguments: "" },
+			}
+			yield { type: "response.function_call_arguments.delta", item_id: "item-1", delta: '{"path":' }
+			yield { type: "response.function_call_arguments.delta", item_id: "item-1", delta: '"a"}' }
+			yield {
+				type: "response.function_call_arguments.done",
+				item_id: "item-1",
+				name: "read_file",
+				arguments: '{"path":"a"}',
+			}
+			yield {
+				type: "response.output_item.done",
+				item: {
+					type: "function_call",
+					id: "item-1",
+					call_id: "call-1",
+					name: "read_file",
+					arguments: '{"path":"a"}',
+				},
+			}
+		}
+
+		const argumentsChunks: string[] = []
+		for await (const chunk of processResponsesEvents(stream() as any, {} as any)) {
+			if (chunk.type === "tool_calls") argumentsChunks.push(chunk.tool_call.function.arguments)
+		}
+
+		argumentsChunks.join("").should.equal('{"path":"a"}')
+	})
+
+	it("emits final function arguments when no argument deltas arrive", async () => {
+		async function* stream() {
+			yield {
+				type: "response.output_item.added",
+				item: { type: "function_call", id: "item-1", call_id: "call-1", name: "read_file", arguments: "" },
+			}
+			yield {
+				type: "response.output_item.done",
+				item: {
+					type: "function_call",
+					id: "item-1",
+					call_id: "call-1",
+					name: "read_file",
+					arguments: '{"path":"a"}',
+				},
+			}
+		}
+
+		const argumentsChunks: string[] = []
+		for await (const chunk of processResponsesEvents(stream() as any, {} as any)) {
+			if (chunk.type === "tool_calls") argumentsChunks.push(chunk.tool_call.function.arguments)
+		}
+
+		argumentsChunks.join("").should.equal('{"path":"a"}')
+	})
+
 	it("separates OpenAI reasoning summary parts into distinct paragraphs", async () => {
 		async function* stream() {
 			yield {

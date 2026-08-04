@@ -31,7 +31,7 @@ async function collect<T>(gen: AsyncIterable<T>): Promise<T[]> {
 // whose send() returns { stream: fakeStream(chunks) }.
 function makeHandler(chunks: any[]): AwsBedrockHandler {
 	const handler = new AwsBedrockHandler({ apiModelId: "anthropic.claude-sonnet-4-6" })
-	const fakeClient = { send: sinon.stub().resolves({ stream: fakeStream(chunks) }) }
+	const fakeClient = { send: sinon.stub().resolves({ stream: fakeStream(chunks) }), destroy: sinon.stub() }
 	sinon.stub(handler as any, "getBedrockClient").resolves(fakeClient as any)
 	sinon.stub(handler, "getModel").returns({
 		id: "anthropic.claude-sonnet-4-6",
@@ -44,6 +44,104 @@ function makeHandler(chunks: any[]): AwsBedrockHandler {
 function runStream(handler: AwsBedrockHandler, chunks: any[]): Promise<any[]> {
 	return collect((handler as any).executeConverseStream({}, ZERO_PRICE_MODEL))
 }
+
+describe("AwsBedrockHandler credentials", () => {
+	it("resolves explicit task credentials without mutating process.env", async () => {
+		const keys = ["AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY", "AWS_SESSION_TOKEN", "AWS_REGION", "AWS_PROFILE"]
+		const previous = new Map(keys.map((key) => [key, process.env[key]]))
+		process.env.AWS_ACCESS_KEY_ID = "ambient-access"
+		process.env.AWS_SECRET_ACCESS_KEY = "ambient-secret"
+		process.env.AWS_SESSION_TOKEN = "ambient-token"
+		process.env.AWS_REGION = "ambient-region"
+		process.env.AWS_PROFILE = "ambient-profile"
+
+		try {
+			const handler = new AwsBedrockHandler({
+				awsAccessKey: "task-access",
+				awsSecretKey: "task-secret",
+				awsSessionToken: "task-token",
+				awsRegion: "task-region",
+			})
+
+			const credentials = await (handler as any).getAwsCredentials()
+
+			credentials.should.deepEqual({
+				accessKeyId: "task-access",
+				secretAccessKey: "task-secret",
+				sessionToken: "task-token",
+			})
+			process.env.AWS_ACCESS_KEY_ID!.should.equal("ambient-access")
+			process.env.AWS_SECRET_ACCESS_KEY!.should.equal("ambient-secret")
+			process.env.AWS_SESSION_TOKEN!.should.equal("ambient-token")
+			process.env.AWS_REGION!.should.equal("ambient-region")
+			process.env.AWS_PROFILE!.should.equal("ambient-profile")
+		} finally {
+			for (const [key, value] of previous) {
+				if (value === undefined) delete process.env[key]
+				else process.env[key] = value
+			}
+		}
+	})
+})
+
+describe("AwsBedrockHandler cancellation", () => {
+	afterEach(() => sinon.restore())
+
+	it("aborts an active Bedrock SDK request", async () => {
+		let requestStarted!: () => void
+		const started = new Promise<void>((resolve) => {
+			requestStarted = resolve
+		})
+		const send = sinon.stub().callsFake((_command: unknown, options: { abortSignal: AbortSignal }) => {
+			requestStarted()
+			return new Promise((_resolve, reject) => {
+				options.abortSignal.addEventListener("abort", () => {
+					reject(Object.assign(new Error("cancelled"), { name: "AbortError" }))
+				})
+			})
+		})
+		const handler = new AwsBedrockHandler({
+			apiModelId: "anthropic.claude-sonnet-4-6",
+			disableRetries: true,
+		})
+		sinon.stub(handler as any, "getBedrockClient").resolves({ send, destroy: sinon.stub() })
+		const next = handler.createMessage("system", [{ role: "user", content: "hello" }]).next()
+		await started
+
+		handler.abort()
+
+		await next.should.be.rejectedWith({ name: "AbortError" })
+		send.firstCall.args[1].abortSignal.aborted.should.equal(true)
+	})
+
+	it("does not start another Bedrock request when aborted during retry backoff", async () => {
+		const clock = sinon.useFakeTimers()
+		let notifyRetryStarted!: () => void
+		const retryStarted = new Promise<void>((resolve) => {
+			notifyRetryStarted = resolve
+		})
+		const rateLimitError = Object.assign(new Error("rate limited"), { status: 429 })
+		const send = sinon.stub().rejects(rateLimitError)
+		const handler = new AwsBedrockHandler({
+			apiModelId: "anthropic.claude-sonnet-4-6",
+			onRetryAttempt: () => notifyRetryStarted(),
+		})
+		const getBedrockClient = sinon
+			.stub(handler as any, "getBedrockClient")
+			.resolves({ send, destroy: sinon.stub() })
+
+		const pendingChunk = handler.createMessage("system", [{ role: "user", content: "hello" }]).next()
+		const rejectedChunk = pendingChunk.should.be.rejected()
+		await retryStarted
+
+		handler.abort()
+		await clock.tickAsync(1_000)
+		await rejectedChunk
+
+		sinon.assert.calledOnce(getBedrockClient)
+		sinon.assert.calledOnce(send)
+	})
+})
 
 describe("AwsBedrockHandler.executeConverseStream", () => {
 	afterEach(() => sinon.restore())
@@ -358,9 +456,19 @@ describe("AwsBedrockHandler.executeConverseStream", () => {
 	})
 
 	describe("edge cases", () => {
+		it("destroys the per-request client after stream completion", async () => {
+			const handler = new AwsBedrockHandler({})
+			const fakeClient = { send: sinon.stub().resolves({ stream: fakeStream([]) }), destroy: sinon.stub() }
+			sinon.stub(handler as any, "getBedrockClient").resolves(fakeClient as any)
+
+			await collect((handler as any).executeConverseStream({}, ZERO_PRICE_MODEL))
+
+			sinon.assert.calledOnce(fakeClient.destroy)
+		})
+
 		it("yields nothing when stream is absent", async () => {
 			const handler = new AwsBedrockHandler({})
-			const fakeClient = { send: sinon.stub().resolves({}) }
+			const fakeClient = { send: sinon.stub().resolves({}), destroy: sinon.stub() }
 			sinon.stub(handler as any, "getBedrockClient").resolves(fakeClient as any)
 			sinon.stub(handler, "getModel").returns({ id: "x", info: ZERO_PRICE_MODEL })
 			const out = await collect((handler as any).executeConverseStream({}, ZERO_PRICE_MODEL))

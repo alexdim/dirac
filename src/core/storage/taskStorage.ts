@@ -5,16 +5,27 @@ import fs from "fs/promises"
 import * as path from "path"
 import Mutex from "p-mutex"
 import { Logger } from "@/shared/services/Logger"
+import { atomicWriteFile } from "./atomicWrite"
 import { GlobalFileNames } from "./fileNames"
 import { ensureTaskDirectoryExists } from "./directoryEnsurers"
 
 const taskMetadataLocks = new Map<string, Mutex>()
+const taskSettingsLocks = new Map<string, Mutex>()
 
 function getTaskMetadataLock(taskId: string): Mutex {
 	let lock = taskMetadataLocks.get(taskId)
 	if (!lock) {
 		lock = new Mutex()
 		taskMetadataLocks.set(taskId, lock)
+	}
+	return lock
+}
+
+function getTaskSettingsLock(taskId: string): Mutex {
+	let lock = taskSettingsLocks.get(taskId)
+	if (!lock) {
+		lock = new Mutex()
+		taskSettingsLocks.set(taskId, lock)
 	}
 	return lock
 }
@@ -35,7 +46,7 @@ export async function getTaskMetadata(taskId: string): Promise<TaskMetadata> {
 async function writeTaskMetadata(taskId: string, metadata: TaskMetadata): Promise<void> {
 	const taskDir = await ensureTaskDirectoryExists(taskId)
 	const filePath = path.join(taskDir, GlobalFileNames.taskMetadata)
-	await fs.writeFile(filePath, JSON.stringify(metadata, null, 2))
+	await atomicWriteFile(filePath, JSON.stringify(metadata, null, 2))
 }
 
 // Persists task metadata for a task.
@@ -79,15 +90,17 @@ export async function readTaskSettingsFromStorage(taskId: string): Promise<Parti
 // Merges and persists per-task settings into the task's settings.json.
 export async function writeTaskSettingsToStorage(taskId: string, settings: Partial<Settings>) {
 	try {
-		const taskDirectoryFilePath = await ensureTaskDirectoryExists(taskId)
-		const settingsFilePath = path.join(taskDirectoryFilePath, "settings.json")
-		let existingSettings = {}
-		if (await fileExistsAtPath(settingsFilePath)) {
-			const existingSettingsContent = await fs.readFile(settingsFilePath, "utf8")
-			existingSettings = JSON.parse(existingSettingsContent)
-		}
-		const updatedSettings = { ...existingSettings, ...settings }
-		await fs.writeFile(settingsFilePath, JSON.stringify(updatedSettings, null, 2))
+		await getTaskSettingsLock(taskId).withLock(async () => {
+			const taskDirectoryFilePath = await ensureTaskDirectoryExists(taskId)
+			const settingsFilePath = path.join(taskDirectoryFilePath, "settings.json")
+			let existingSettings = {}
+			if (await fileExistsAtPath(settingsFilePath)) {
+				const existingSettingsContent = await fs.readFile(settingsFilePath, "utf8")
+				existingSettings = JSON.parse(existingSettingsContent)
+			}
+			const updatedSettings = { ...existingSettings, ...settings }
+			await atomicWriteFile(settingsFilePath, JSON.stringify(updatedSettings, null, 2))
+		})
 	} catch (error) {
 		Logger.error("[Disk] Failed to write task settings:", error)
 		throw error

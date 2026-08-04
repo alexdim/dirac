@@ -229,10 +229,7 @@ const PROVIDER_REGISTRY: Record<
 		}
 		const apiKey = cfg.openAiCompatibleCustomApiKey || openAiApiKey
 		if (apiKey) {
-			const maskedKey = `${apiKey.slice(0, 4)}****${apiKey.slice(-4)}`
-			Logger.info(
-				`Using OpenAI API key: ${maskedKey} (from ${cfg.openAiCompatibleCustomApiKey ? "custom key" : "standard key"})`,
-			)
+			Logger.info(`Using OpenAI API key (from ${cfg.openAiCompatibleCustomApiKey ? "custom key" : "standard key"})`)
 		}
 		if (openAiBaseUrl?.replace(/\/+$/, "").endsWith("/responses")) {
 			const normalizedBaseUrl = openAiBaseUrl.replace(/\/responses\/?$/, "")

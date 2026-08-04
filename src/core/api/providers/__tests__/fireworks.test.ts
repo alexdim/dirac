@@ -57,4 +57,47 @@ describe("FireworksHandler", () => {
 			},
 		])
 	})
+
+	it("should emit each tool call delta once", async () => {
+		const handler = new FireworksHandler({
+			fireworksApiKey: "test-api-key",
+			fireworksModelId: "accounts/fireworks/models/llama-v3p1-8b-instruct",
+		})
+		const fakeClient = {
+			chat: {
+				completions: {
+					create: sinon.stub().resolves(
+						createAsyncIterable([
+							{
+								choices: [
+									{
+										delta: {
+											tool_calls: [
+												{
+													index: 0,
+													id: "call_1",
+													type: "function",
+													function: { name: "read_file", arguments: "{}" },
+												},
+											],
+										},
+									},
+								],
+							},
+						]),
+					),
+				},
+			},
+		}
+		sinon.stub(handler as any, "ensureClient").returns(fakeClient as any)
+
+		const chunks: any[] = []
+		for await (const chunk of handler.createMessage("system", [{ role: "user", content: "hi" }])) {
+			chunks.push(chunk)
+		}
+
+		chunks.length.should.equal(1)
+		chunks[0].type.should.equal("tool_calls")
+		chunks[0].tool_call.call_id.should.equal("call_1")
+	})
 })

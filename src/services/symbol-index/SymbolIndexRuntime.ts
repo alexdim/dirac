@@ -171,7 +171,7 @@ export class SymbolIndexRuntime {
 			try {
 				await this.requestReconciliationSafely("periodic repair")
 			} finally {
-				SymbolIndexTelemetry.logSummary("periodic")
+				// SymbolIndexTelemetry.logSummary("periodic")
 				if (!this.disposed) this.schedulePeriodicReconciliation()
 			}
 		}, SymbolIndexRuntime.RECONCILIATION_INTERVAL_MS * jitter)

@@ -2,8 +2,7 @@ import { setTimeout as setTimeoutPromise } from "node:timers/promises"
 import { Controller } from "@core/controller"
 import { BrowserActionResult } from "@shared/ExtensionMessage"
 import pWaitFor from "p-wait-for"
-// @ts-expect-error
-import type { LoggerMessage, ScreenshotOptions } from "puppeteer-core"
+import type { ConsoleMessage, ScreenshotOptions } from "puppeteer-core"
 import { Page, TimeoutError } from "puppeteer-core"
 import { StateManager } from "@/core/storage/StateManager"
 import { telemetryService } from "@/services/telemetry"
@@ -87,7 +86,7 @@ export class BrowserSession {
 		const logs: string[] = []
 		let lastLogTs = Date.now()
 
-		const LoggerListener = (msg: LoggerMessage) => {
+		const consoleListener = (msg: ConsoleMessage) => {
 			if (msg.type() === "log") {
 				logs.push(msg.text())
 			} else {
@@ -101,7 +100,7 @@ export class BrowserSession {
 			lastLogTs = Date.now()
 		}
 
-		page.on("Logger", LoggerListener)
+		page.on("console", consoleListener)
 		page.on("pageerror", errorListener)
 
 		const isRemote = this.connection.getIsConnectedToRemote()
@@ -123,43 +122,45 @@ export class BrowserSession {
 			}
 		}
 
-		// Wait for console inactivity, with a timeout
-		await pWaitFor(() => Date.now() - lastLogTs >= 500, {
-			timeout: 3_000,
-			interval: 100,
-		}).catch(() => {})
+		try {
+			// Wait for console inactivity, with a timeout
+			await pWaitFor(() => Date.now() - lastLogTs >= 500, {
+				timeout: 3_000,
+				interval: 100,
+			}).catch(() => {})
 
-		const options: ScreenshotOptions = { encoding: "base64" }
-		const screenshotType = this.useWebp ? "webp" : "png"
-		let screenshotBase64 = await page.screenshot({ ...options, type: screenshotType })
-		let screenshot = `data:image/${screenshotType};base64,${screenshotBase64}`
+			const options: ScreenshotOptions = { encoding: "base64" }
+			const screenshotType = this.useWebp ? "webp" : "png"
+			let screenshotBase64 = await page.screenshot({ ...options, type: screenshotType })
+			let screenshot = `data:image/${screenshotType};base64,${screenshotBase64}`
 
-		if (!screenshotBase64) {
-			// retry screenshot as png regardless of initial type
-			Logger.info(`${screenshotType} screenshot failed, trying png`)
-			screenshotBase64 = await page.screenshot({ ...options, type: "png" })
-			screenshot = `data:image/png;base64,${screenshotBase64}`
-		}
-
-		if (!screenshotBase64) {
-			if (ulid) {
-				telemetryService.captureBrowserError(ulid, "screenshot_error", "Failed to take screenshot", {
-					isRemote,
-					action: this.connection.getLastAction(),
-				})
+			if (!screenshotBase64) {
+				// retry screenshot as png regardless of initial type
+				Logger.info(`${screenshotType} screenshot failed, trying png`)
+				screenshotBase64 = await page.screenshot({ ...options, type: "png" })
+				screenshot = `data:image/png;base64,${screenshotBase64}`
 			}
-			throw new Error("Failed to take screenshot.")
-		}
 
-		// page.removeAllListeners() crashes the page; just remove our listeners
-		page.off("Logger", LoggerListener)
-		page.off("pageerror", errorListener)
+			if (!screenshotBase64) {
+				if (ulid) {
+					telemetryService.captureBrowserError(ulid, "screenshot_error", "Failed to take screenshot", {
+						isRemote,
+						action: this.connection.getLastAction(),
+					})
+				}
+				throw new Error("Failed to take screenshot.")
+			}
 
-		return {
-			screenshot,
-			logs: logs.join("\n"),
-			currentUrl: page.url(),
-			currentMousePosition: this.currentMousePosition,
+			return {
+				screenshot,
+				logs: logs.join("\n"),
+				currentUrl: page.url(),
+				currentMousePosition: this.currentMousePosition,
+			}
+		} finally {
+			// page.removeAllListeners() crashes the page; just remove our listeners
+			page.off("console", consoleListener)
+			page.off("pageerror", errorListener)
 		}
 	}
 
@@ -217,22 +218,24 @@ export class BrowserSession {
 			}
 			page.on("request", requestListener)
 
-			await page.mouse.click(x, y)
-			this.currentMousePosition = coordinate
+			try {
+				await page.mouse.click(x, y)
+				this.currentMousePosition = coordinate
 
-			await setTimeoutPromise(100)
+				await setTimeoutPromise(100)
 
-			if (hasNetworkActivity) {
-				await page
-					.waitForNavigation({
-						waitUntil: ["domcontentloaded", "networkidle2"],
-						timeout: 7000,
-					})
-					.catch(() => {})
-				await this.waitTillHTMLStable(page)
+				if (hasNetworkActivity) {
+					await page
+						.waitForNavigation({
+							waitUntil: ["domcontentloaded", "networkidle2"],
+							timeout: 7000,
+						})
+						.catch(() => {})
+					await this.waitTillHTMLStable(page)
+				}
+			} finally {
+				page.off("request", requestListener)
 			}
-
-			page.off("request", requestListener)
 		})
 	}
 

@@ -7,7 +7,7 @@ import { Logger } from "@/shared/services/Logger"
 import { getCwd, getDesktopDir } from "@/utils/path"
 import type { StateManager } from "../../storage/StateManager"
 import { Task } from "../../task"
-import { tryAcquireTaskLockWithRetry } from "../../task/TaskLockUtils"
+import { releaseTaskLock, tryAcquireTaskLockWithRetry } from "../../task/TaskLockUtils"
 import { detectWorkspaceRoots } from "../../workspace/detection"
 import { setupWorkspaceManager } from "../../workspace/setup"
 import type { WorkspaceRootManager } from "../../workspace/WorkspaceRootManager"
@@ -137,6 +137,11 @@ export class TaskController {
 		await this._taskRunPromise
 	}
 
+	private trackTaskRun(run: Promise<void>): void {
+		this._taskRunPromise = run
+		void run.catch((error) => Logger.error("Task run failed", error))
+	}
+
 	async initTask(
 		task?: string,
 		images?: string[],
@@ -204,42 +209,49 @@ export class TaskController {
 			Logger.debug(`[Task ${taskId}] Task lock skipped (VS Code)`)
 		}
 
-		await this.deps.stateManager.loadTaskSettings(taskId)
-		if (taskSettings) {
-			this.deps.stateManager.setTaskSettingsBatch(taskId, taskSettings)
+		try {
+			await this.deps.stateManager.loadTaskSettings(taskId)
+			if (taskSettings) {
+				this.deps.stateManager.setTaskSettingsBatch(taskId, taskSettings)
+			}
+
+			this._task = new Task({
+				controller,
+				updateTaskHistory: (historyItem) => this.deps.updateTaskHistory(historyItem),
+				postStateToWebview: () => this.deps.postStateToWebview(),
+				reinitExistingTaskFromId: (taskId) => this.reinitExistingTaskFromId(taskId, this.currentInitializationOptions),
+				cancelTask: () => this.cancelTask(),
+				shellIntegrationTimeout,
+				terminalReuseEnabled: terminalReuseEnabled ?? true,
+				terminalOutputLineLimit: terminalOutputLineLimit ?? 500,
+				defaultTerminalProfile: defaultTerminalProfile ?? "default",
+				vscodeTerminalExecutionMode,
+				cwd,
+				stateManager: this.deps.stateManager,
+				workspaceManager: this._workspaceManager,
+				task,
+				images,
+				files,
+				historyItem,
+				taskId,
+				conversationUlid,
+				taskLockAcquired,
+				pinnedContext: initializationOptions?.pinnedContext,
+				onContextCompacted: initializationOptions?.onContextCompacted,
+				switchToActMode: initializationOptions?.switchToActMode,
+				enqueuePreRequestSteeringMessages: async () => initializationOptions?.enqueueSteeringMessages?.(this._task!),
+			})
+		} catch (error) {
+			if (taskLockAcquired) {
+				await releaseTaskLock(taskId)
+			}
+			throw error
 		}
 
-		this._task = new Task({
-			controller,
-			updateTaskHistory: (historyItem) => this.deps.updateTaskHistory(historyItem),
-			postStateToWebview: () => this.deps.postStateToWebview(),
-			reinitExistingTaskFromId: (taskId) => this.reinitExistingTaskFromId(taskId, this.currentInitializationOptions),
-			cancelTask: () => this.cancelTask(),
-			shellIntegrationTimeout,
-			terminalReuseEnabled: terminalReuseEnabled ?? true,
-			terminalOutputLineLimit: terminalOutputLineLimit ?? 500,
-			defaultTerminalProfile: defaultTerminalProfile ?? "default",
-			vscodeTerminalExecutionMode,
-			cwd,
-			stateManager: this.deps.stateManager,
-			workspaceManager: this._workspaceManager,
-			task,
-			images,
-			files,
-			historyItem,
-			taskId,
-			conversationUlid,
-			taskLockAcquired,
-			pinnedContext: initializationOptions?.pinnedContext,
-			onContextCompacted: initializationOptions?.onContextCompacted,
-			switchToActMode: initializationOptions?.switchToActMode,
-			enqueuePreRequestSteeringMessages: async () => initializationOptions?.enqueueSteeringMessages?.(this._task!),
-		})
-
 		if (historyItem) {
-			this._taskRunPromise = this.runTaskWithReplacement(this._task, this._task.resumeTaskFromHistory())
+			this.trackTaskRun(this.runTaskWithReplacement(this._task, this._task.resumeTaskFromHistory()))
 		} else if (task || images || files) {
-			this._taskRunPromise = this.runTaskWithReplacement(this._task, this._task.startTask(task, images, files))
+			this.trackTaskRun(this.runTaskWithReplacement(this._task, this._task.startTask(task, images, files)))
 		} else {
 			this._taskRunPromise = undefined
 		}
@@ -272,6 +284,7 @@ export class TaskController {
 		if (!this._task) {
 			return
 		}
+		const task = this._task
 
 		this.cancelInProgress = true
 
@@ -279,35 +292,35 @@ export class TaskController {
 			this.updateBackgroundCommandState(false)
 
 			try {
-				await this._task.abortTask()
+				await task.abortTask()
 			} catch (error) {
 				Logger.error("Failed to abort task", error)
 			}
+			if (this._task !== task) return
 
 			await pWaitFor(
 				() =>
-					this._task === undefined ||
-					this._task.taskState.isApiRequestActive === false ||
-					this._task.taskState.didFinishAbortingStream ||
-					this._task.taskState.isWaitingForFirstChunk,
+					task.taskState.isApiRequestActive === false ||
+					task.taskState.didFinishAbortingStream ||
+					task.taskState.isWaitingForFirstChunk,
 				{
 					timeout: 3_000,
 				},
 			).catch(() => {
 				Logger.error("Failed to abort task")
 			})
+			if (this._task !== task) return
 
-			if (this._task) {
-				this._task.taskState.abandoned = true
-			}
+			task.taskState.abandoned = true
 
 			let historyItem: HistoryItem | undefined
 			try {
-				const result = await this.deps.getTaskWithId(this._task!.taskId)
+				const result = await this.deps.getTaskWithId(task.taskId)
 				historyItem = result.historyItem
 			} catch (error) {
 				Logger.log(`[Controller.cancelTask] Task not found in history: ${error}`)
 			}
+			if (this._task !== task) return
 
 			if (historyItem) {
 				await this.initTask(
@@ -349,10 +362,13 @@ export class TaskController {
 	}
 
 	async clearTask() {
-		if (this._task) {
+		const task = this._task
+		if (task) {
 			await this.deps.clearTaskSettings()
 		}
-		await this._task?.abortTask()
-		this._task = undefined
+		await task?.abortTask()
+		if (this._task === task) {
+			this._task = undefined
+		}
 	}
 }

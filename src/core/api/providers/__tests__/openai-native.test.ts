@@ -285,4 +285,52 @@ describe("OpenAiNativeHandler persisted reasoning", () => {
 		params.input.should.have.length(2)
 	})
 
+	it("rejects malformed Chat Completions tool deltas", async () => {
+		const handler = new OpenAiNativeHandler({ openAiNativeApiKey: "test-api-key" })
+		sinon.stub(handler, "getModel").returns({
+			id: "gpt-5.6-terra",
+			info: { supportsStreaming: true, supportsTools: true },
+		} as any)
+		sinon.stub(handler as any, "ensureClient").returns({
+			chat: {
+				completions: {
+					create: sinon.stub().resolves(
+						createAsyncIterable([{ choices: [{ delta: { tool_calls: { malformed: true } } }] }]),
+					),
+				},
+			},
+		})
+
+		await drain((handler as any).createCompletionStream("system", [{ role: "user", content: "hello" }])).should.be
+			.rejectedWith(TypeError)
+	})
+
+	it("aborts a streaming Chat Completions request", async () => {
+		let requestSignal: AbortSignal | undefined
+		const create = sinon.stub().callsFake((_body: unknown, options: { signal: AbortSignal }) => {
+			requestSignal = options.signal
+			return new Promise((_resolve, reject) => {
+				options.signal.addEventListener(
+					"abort",
+					() => reject(Object.assign(new Error("aborted"), { name: "AbortError" })),
+					{ once: true },
+				)
+			})
+		})
+		const handler = new OpenAiNativeHandler({ openAiNativeApiKey: "test-api-key" })
+		sinon.stub(handler, "getModel").returns({
+			id: "gpt-5.6-terra",
+			info: { supportsStreaming: true, supportsTools: true },
+		} as any)
+		sinon.stub(handler as any, "ensureClient").returns({ chat: { completions: { create } } })
+
+		const nextPromise = (handler as any).createCompletionStream("system", [{ role: "user", content: "hello" }]).next()
+		await new Promise<void>((resolve) => setImmediate(resolve))
+		if (!requestSignal) throw new Error("OpenAI Native request did not start")
+
+		requestSignal.aborted.should.equal(false)
+		handler.abort()
+		requestSignal.aborted.should.equal(true)
+		await nextPromise.should.be.rejectedWith("aborted")
+	})
 })

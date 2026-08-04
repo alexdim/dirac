@@ -234,6 +234,28 @@ describe("Retry Decorator", () => {
 			}
 		})
 
+		it("does not retry after the stream has yielded output", async () => {
+			let callCount = 0
+			class TestClass {
+				@withRetry({ maxRetries: 3, baseDelay: 10 })
+				async *failAfterOutput() {
+					callCount++
+					yield "partial output"
+					const error: any = new Error("late rate limit")
+					error.status = 429
+					throw error
+				}
+			}
+
+			const values: string[] = []
+			await (async () => {
+				for await (const value of new TestClass().failAfterOutput()) values.push(value)
+			})().should.be.rejectedWith("late rate limit")
+
+			callCount.should.equal(1)
+			values.should.deepEqual(["partial output"])
+		})
+
 		it("does not retry when the handler disables retries", async () => {
 			let callCount = 0
 			const onRetryAttempt = sinon.spy()

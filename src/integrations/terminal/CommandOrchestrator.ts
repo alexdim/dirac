@@ -59,6 +59,7 @@ export async function orchestrateCommandExecution(
 	let handedOffToBackground = false
 	let outputListenerAttached = true
 	let processListenersCleaned = false
+	let commandTimeout: ReturnType<typeof setTimeout> | undefined
 
 	const onLine = (line: string) => {
 		if (fileLogError) return
@@ -126,7 +127,7 @@ export async function orchestrateCommandExecution(
 	try {
 		if (timeoutSeconds) {
 			const timeoutPromise = new Promise<never>((_, reject) => {
-				setTimeout(() => reject(new Error("COMMAND_TIMEOUT")), timeoutSeconds * 1000)
+				commandTimeout = setTimeout(() => reject(new Error("COMMAND_TIMEOUT")), timeoutSeconds * 1000)
 			})
 
 			try {
@@ -223,6 +224,7 @@ export async function orchestrateCommandExecution(
 
 		return buildResult(input)
 	} finally {
+		if (commandTimeout) clearTimeout(commandTimeout)
 		if (!handedOffToBackground) detachOutputListener()
 		cleanupProcessListeners()
 		if (!handedOffToBackground && fileState.isWritingToFile && fileState.writer) {

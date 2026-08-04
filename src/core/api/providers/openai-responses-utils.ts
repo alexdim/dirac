@@ -35,7 +35,7 @@ export async function* yieldUsage(info: ModelInfo, usage: any, id?: string): Asy
 	const reasoningTokens = usage.output_tokens_details?.reasoning_tokens || 0
 	const totalTokens = usage.total_tokens || 0
 
-	const totalCost = calculateApiCostOpenAI(info, inputTokens, outputTokens + reasoningTokens, cacheWriteTokens, cacheReadTokens)
+	const totalCost = calculateApiCostOpenAI(info, inputTokens, outputTokens, cacheWriteTokens, cacheReadTokens)
 
 	const nonCachedInputTokens = Math.max(0, inputTokens - cacheReadTokens - cacheWriteTokens)
 
@@ -135,19 +135,19 @@ export async function* parseSseResponse(body: ReadableStream<Uint8Array>): Async
 				if (line.startsWith("data: ")) {
 					const data = line.slice(6).trim()
 					if (data === "[DONE]") {
-						continue
+						return
 					}
 
-					try {
-						yield JSON.parse(data)
-					} catch (e) {
-						// Ignore parse errors for partial lines
-					}
+					yield JSON.parse(data)
 				}
 			}
 		}
 	} finally {
-		reader.releaseLock()
+		try {
+			await reader.cancel()
+		} finally {
+			reader.releaseLock()
+		}
 	}
 }
 export interface ProcessResponsesEventsOptions {
@@ -155,12 +155,19 @@ export interface ProcessResponsesEventsOptions {
 	onResponseCompleted?: (response: { id?: string }) => void
 }
 
+interface FunctionCallStreamState {
+	call_id?: string
+	name?: string
+	id?: string
+	didEmitArgumentContent?: boolean
+}
+
 export async function* processResponsesEvents(
 	stream: AsyncIterable<OpenAI.Responses.ResponseStreamEvent>,
 	modelInfo: ModelInfo,
 	options: ProcessResponsesEventsOptions = {},
 ): AsyncGenerator<any> {
-	const functionCallByItemId = new Map<string, { call_id?: string; name?: string; id?: string }>()
+	const functionCallByItemId = new Map<string, FunctionCallStreamState>()
 
 	for await (const chunk of stream) {
 		if ((chunk as { type?: string }).type === "codex.rate_limits") {
@@ -173,7 +180,7 @@ export async function* processResponsesEvents(
 // Dispatches a single Responses API stream event to the appropriate handler.
 async function* processResponseEvent(
 	chunk: any,
-	functionCallByItemId: Map<string, { call_id?: string; name?: string; id?: string }>,
+	functionCallByItemId: Map<string, FunctionCallStreamState>,
 	modelInfo: ModelInfo,
 	options: ProcessResponsesEventsOptions,
 ): AsyncGenerator<any> {
@@ -230,10 +237,15 @@ async function* processResponseEvent(
 // Handles response.output_item.added: function_call, reasoning (redacted), web_search_call.
 function* handleOutputItemAdded(
 	item: any,
-	functionCallByItemId: Map<string, { call_id?: string; name?: string; id?: string }>,
+	functionCallByItemId: Map<string, FunctionCallStreamState>,
 ): Generator<any> {
 	if (item.type === "function_call" && item.id) {
-		functionCallByItemId.set(item.id, { call_id: item.call_id, name: item.name, id: item.id })
+		functionCallByItemId.set(item.id, {
+			call_id: item.call_id,
+			name: item.name,
+			id: item.id,
+			didEmitArgumentContent: Boolean(item.arguments),
+		})
 		yield {
 			id: item.id,
 			type: "tool_calls",
@@ -251,14 +263,17 @@ function* handleOutputItemAdded(
 // Handles response.output_item.done: function_call (final), reasoning (summary).
 function* handleOutputItemDone(
 	item: any,
-	functionCallByItemId: Map<string, { call_id?: string; name?: string; id?: string }>,
+	functionCallByItemId: Map<string, FunctionCallStreamState>,
 ): Generator<any> {
 	if (item.type === "function_call") {
-		if (item.id) functionCallByItemId.set(item.id, { call_id: item.call_id, name: item.name, id: item.id })
-		yield {
-			type: "tool_calls",
-			id: item.id || item.call_id,
-			tool_call: { call_id: item.call_id, function: { id: item.id, name: item.name, arguments: item.arguments } },
+		const pendingCall = item.id ? functionCallByItemId.get(item.id) : undefined
+		if (!pendingCall || (!pendingCall.didEmitArgumentContent && item.arguments)) {
+			yield {
+				type: "tool_calls",
+				id: item.id || item.call_id,
+				tool_call: { call_id: item.call_id, function: { id: item.id, name: item.name, arguments: item.arguments } },
+			}
+			if (pendingCall) pendingCall.didEmitArgumentContent = true
 		}
 	}
 	if (item.type === "reasoning") {
@@ -269,9 +284,10 @@ function* handleOutputItemDone(
 // Handles streaming function call argument deltas.
 function* handleFunctionCallArgumentsDelta(
 	chunk: any,
-	functionCallByItemId: Map<string, { call_id?: string; name?: string; id?: string }>,
+	functionCallByItemId: Map<string, FunctionCallStreamState>,
 ): Generator<any> {
 	const pendingCall = functionCallByItemId.get(chunk.item_id)
+	if (pendingCall && chunk.delta) pendingCall.didEmitArgumentContent = true
 	const functionId = pendingCall?.id || chunk.item_id
 	yield {
 		id: functionId,
@@ -286,10 +302,12 @@ function* handleFunctionCallArgumentsDelta(
 // Handles completed function call arguments.
 function* handleFunctionCallArgumentsDone(
 	chunk: any,
-	functionCallByItemId: Map<string, { call_id?: string; name?: string; id?: string }>,
+	functionCallByItemId: Map<string, FunctionCallStreamState>,
 ): Generator<any> {
 	if (!chunk.item_id || !chunk.name || !chunk.arguments) return
 	const pendingCall = functionCallByItemId.get(chunk.item_id)
+	if (pendingCall?.didEmitArgumentContent) return
+	if (pendingCall) pendingCall.didEmitArgumentContent = true
 	const functionId = pendingCall?.id || chunk.item_id
 	yield {
 		id: functionId,

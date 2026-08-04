@@ -91,6 +91,44 @@ describe("LiteLlmHandler", () => {
 		}
 	}
 
+	it("should emit tool call deltas without requiring text content", async () => {
+		initializeHandler("openai/gpt-5")
+		mockModelFetch({
+			model_name: "openai/gpt-5",
+			litellm_params: { model: "openai/gpt-5" },
+			model_info: { input_cost_per_token: 0, output_cost_per_token: 0 },
+		})
+		fakeClient.chat.completions.create.resolves(
+			createAsyncIterable([
+				{
+					choices: [
+						{
+							delta: {
+								tool_calls: [
+									{
+										index: 0,
+										id: "call_1",
+										type: "function",
+										function: { name: "read_file", arguments: "{}" },
+									},
+								],
+							},
+						},
+					],
+				},
+			]),
+		)
+
+		const chunks: any[] = []
+		for await (const chunk of handler.createMessage("system", [{ role: "user", content: "hi" }])) {
+			chunks.push(chunk)
+		}
+
+		chunks.length.should.equal(1)
+		chunks[0].type.should.equal("tool_calls")
+		chunks[0].tool_call.call_id.should.equal("call_1")
+	})
+
 	describe("prompt cache", () => {
 		const setModelData = (model: string, supportsPromptCaching: boolean) => {
 			mockModelFetch({

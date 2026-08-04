@@ -1,7 +1,7 @@
 import "should"
 import { expectLoggerErrors } from "@/test/loggerGuard"
 import { DiracAskResponse } from "@shared/WebviewMessage"
-import { TaskStatus } from "@shared/ExtensionMessage"
+import { CardStatus, DiracMessageType, TaskStatus } from "@shared/ExtensionMessage"
 import pWaitFor from "p-wait-for"
 import sinon from "sinon"
 import { LifecycleManager } from "../LifecycleManager"
@@ -326,6 +326,10 @@ describe("LifecycleManager", () => {
 			deps.taskState.abort.should.equal(true)
 		})
 
+		it("aborts the active provider request immediately", async () => {
+			await manager.abortTask()
+			sinon.assert.calledOnce(deps.api.abort)
+		})
 
 		it("transitions to CANCELLED after cleanup", async () => {
 			await manager.abortTask()
@@ -360,12 +364,56 @@ describe("LifecycleManager", () => {
 			sinon.assert.calledOnce(deps.commandExecutor.cancelBackgroundCommand)
 		})
 
-		it("disposes terminal, browser, ignore controller, and file context tracker", async () => {
+		it("disposes task-scoped resources", async () => {
 			await manager.abortTask()
 			sinon.assert.calledOnce(deps.terminalManager.disposeAll)
 			sinon.assert.calledOnce(deps.urlContentFetcher.closeBrowser)
+			sinon.assert.calledOnce(deps.commandPermissionController.dispose)
 			sinon.assert.calledOnce(deps.diracIgnoreController.dispose)
 			sinon.assert.calledOnce(deps.fileContextTracker.dispose)
+		})
+
+		it("waits for asynchronous task-scoped resource disposal", async () => {
+			let resolveCloseBrowser!: () => void
+			deps.urlContentFetcher.closeBrowser.returns(
+				new Promise<void>((resolve) => {
+					resolveCloseBrowser = resolve
+				}),
+			)
+			let didFinishAbort = false
+
+			const abortPromise = manager.abortTask().then(() => {
+				didFinishAbort = true
+			})
+			await pWaitFor(() => deps.urlContentFetcher.closeBrowser.called)
+			didFinishAbort.should.equal(false)
+
+			resolveCloseBrowser()
+			await abortPromise
+			didFinishAbort.should.equal(true)
+		})
+
+		it("finishes abort cleanup when the provider abort hook throws", async () => {
+			deps.api.abort.throws(new Error("provider abort failed"))
+
+			await manager.abortTask().should.be.rejectedWith("provider abort failed")
+
+			sinon.assert.calledOnce(deps.urlContentFetcher.closeBrowser)
+			sinon.assert.calledOnce(deps.browserSession.dispose)
+			deps.taskState.status.should.equal(TaskStatus.CANCELLED)
+		})
+
+		it("attempts every task-scoped cleanup when one rejects", async () => {
+			deps.urlContentFetcher.closeBrowser.rejects(new Error("browser close failed"))
+
+			await manager.abortTask().should.be.rejectedWith("browser close failed")
+
+			sinon.assert.calledOnce(deps.browserSession.dispose)
+			sinon.assert.calledOnce(deps.commandPermissionController.dispose)
+			sinon.assert.calledOnce(deps.diracIgnoreController.dispose)
+			sinon.assert.calledOnce(deps.fileContextTracker.dispose)
+			sinon.assert.calledOnce(deps.diffViewProvider.revertChanges)
+			deps.taskState.status.should.equal(TaskStatus.CANCELLED)
 		})
 
 		it("reverts diff view changes", async () => {
@@ -413,6 +461,37 @@ describe("LifecycleManager", () => {
 			await manager.abortTask()
 			sinon.assert.calledOnce(deps.messageStateHandler.saveDiracMessagesAndUpdateHistory)
 		})
+
+		it("persists retry-card cancellation through the message state API", async () => {
+			deps.messageStateHandler.setDiracMessages([
+				{
+					content: {
+						type: DiracMessageType.CARD,
+						card: {
+							header: "API Error (Retrying)",
+							body: "API Error (attempt 2/3). Retrying in 2s...",
+							status: CardStatus.PENDING,
+						},
+					},
+				},
+			])
+
+			await manager.abortTask()
+
+			sinon.assert.calledOnce(deps.messageStateHandler.updateDiracMessage)
+			const update = deps.messageStateHandler.updateDiracMessage.firstCall.args[1]
+			update.content.card.header.should.equal("API Error (Cancelled)")
+			update.content.card.status.should.equal(CardStatus.CANCELLED)
+		})
+
+		it("runs the abort lifecycle once and preserves the later persistence barrier", async () => {
+			await manager.abortTask()
+			await manager.abortTask()
+
+			sinon.assert.calledOnce(deps.hookManager.shouldRunTaskCancelHook)
+			sinon.assert.calledOnce(deps.terminalManager.disposeAll)
+			sinon.assert.calledOnce(deps.messageStateHandler.flushPendingWrites)
+		})
 	})
 })
 
@@ -452,9 +531,10 @@ function createMockDeps(): any {
 			}),
 			updateDiracMessage: sinon.stub(),
 			saveDiracMessagesAndUpdateHistory: sinon.stub(),
+			flushPendingWrites: sinon.stub().resolves(),
 		},
 		stateManager: { getGlobalSettingsKey: sinon.stub().returns(false), getApiConfiguration: sinon.stub().returns({}) } as any,
-		api: { getModel: () => ({ id: "test", info: {} }) } as any,
+		api: { getModel: () => ({ id: "test", info: {} }), abort: sinon.stub() } as any,
 		taskId: "task-1",
 		ulid: "ulid-1",
 		taskMessenger: { upsertText: sinon.stub().resolves(), createCheckpoint: sinon.stub().resolves() } as any,
@@ -475,7 +555,7 @@ function createMockDeps(): any {
 			hasActiveBackgroundCommand: sinon.stub().returns(false),
 			cancelBackgroundCommand: sinon.stub().resolves(),
 		} as any,
-		commandPermissionController: { initialize: sinon.stub().resolves() } as any,
+		commandPermissionController: { initialize: sinon.stub().resolves(), dispose: sinon.stub().resolves() } as any,
 		cwd: "/test",
 		hookManager: {
 			setActiveHookExecution: sinon.stub(),

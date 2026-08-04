@@ -169,6 +169,49 @@ describe("GithubCopilotHandler", () => {
 			chunks.should.deepEqual([{ type: "text", text: "done" }])
 		})
 
+		it("should stop and cancel a stream when the [DONE] sentinel arrives", async () => {
+			const encoder = new TextEncoder()
+			let cancelled = false
+			const body = new ReadableStream<Uint8Array>({
+				start(controller) {
+					controller.enqueue(encoder.encode(sse({ choices: [{ delta: { content: "done" } }] }, "[DONE]")))
+				},
+				cancel() {
+					cancelled = true
+				},
+			})
+			const handler = setupOpenAi(body)
+			const chunks: any[] = []
+
+			for await (const chunk of handler.createMessage("sys", [{ role: "user", content: "hi" }])) {
+				chunks.push(chunk)
+			}
+
+			chunks.should.deepEqual([{ type: "text", text: "done" }])
+			cancelled.should.equal(true)
+		})
+
+		it("should release the stream reader when cancellation fails", async () => {
+			const encoder = new TextEncoder()
+			const body = new ReadableStream<Uint8Array>({
+				start(controller) {
+					controller.enqueue(encoder.encode(sse("[DONE]")))
+				},
+				cancel() {
+					return Promise.reject(new Error("cancel failed"))
+				},
+			})
+			const handler = setupOpenAi(body)
+
+			await handler
+				.createMessage("sys", [{ role: "user", content: "hi" }])
+				.next()
+				.should.be.rejectedWith("cancel failed")
+
+			const reader = body.getReader()
+			reader.releaseLock()
+		})
+
 		it("should ignore malformed JSON lines without throwing", async () => {
 			const handler = setupOpenAi(makeStream(["data: {broken json\n", sse({ choices: [{ delta: { content: "ok" } }] })]))
 			const chunks: any[] = []

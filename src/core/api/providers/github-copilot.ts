@@ -181,7 +181,7 @@ export class GithubCopilotHandler implements ApiHandler {
 					const trimmed = line.trim()
 					if (!trimmed || !trimmed.startsWith("data: ")) continue
 					const data = trimmed.slice(6)
-					if (data === "[DONE]") continue
+					if (data === "[DONE]") return
 
 					try {
 						const json = JSON.parse(data)
@@ -195,7 +195,11 @@ export class GithubCopilotHandler implements ApiHandler {
 				}
 			}
 		} finally {
-			reader.releaseLock()
+			try {
+				await reader.cancel()
+			} finally {
+				reader.releaseLock()
+			}
 		}
 	}
 

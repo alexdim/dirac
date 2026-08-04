@@ -78,10 +78,6 @@ export class FireworksHandler implements ApiHandler {
 				yield* toolCallProcessor.processToolCallDeltas(delta.tool_calls)
 			}
 
-			if (delta?.tool_calls) {
-				yield* toolCallProcessor.processToolCallDeltas(delta.tool_calls)
-			}
-
 			if (delta?.content && !reasoning) {
 				yield {
 					type: "text",

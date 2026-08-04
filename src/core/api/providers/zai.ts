@@ -17,7 +17,6 @@ import { withRetry } from "../retry"
 import { convertToOpenAiMessages } from "../transform/openai-format"
 import { ApiStream } from "../transform/stream"
 import { getOpenAIToolParams, ToolCallProcessor } from "../transform/tool-call-processor"
-import { Logger } from "@/shared/services/Logger"
 
 interface ZAiHandlerOptions extends CommonApiHandlerOptions {
 	zaiApiLine?: string
@@ -29,6 +28,7 @@ interface ZAiHandlerOptions extends CommonApiHandlerOptions {
 export class ZAiHandler implements ApiHandler {
 	private options: ZAiHandlerOptions
 	private client: OpenAI | undefined
+	private abortController: AbortController | undefined
 	constructor(options: ZAiHandlerOptions) {
 		this.options = options
 	}
@@ -76,8 +76,24 @@ export class ZAiHandler implements ApiHandler {
 		}
 	}
 
-	@withRetry()
 	async *createMessage(systemPrompt: string, messages: DiracStorageMessage[], tools?: OpenAITool[]): ApiStream {
+		const abortController = new AbortController()
+		this.abortController = abortController
+		try {
+			yield* this.createMessageWithRetry(systemPrompt, messages, tools, abortController.signal)
+		} finally {
+			if (this.abortController === abortController) this.abortController = undefined
+		}
+	}
+
+	@withRetry()
+	private async *createMessageWithRetry(
+		systemPrompt: string,
+		messages: DiracStorageMessage[],
+		tools: OpenAITool[] | undefined,
+		signal: AbortSignal,
+	): ApiStream {
+		signal.throwIfAborted()
 		const client = this.ensureClient()
 		const model = this.getModel()
 		const openAiMessages: OpenAI.Chat.ChatCompletionMessageParam[] = [
@@ -87,29 +103,31 @@ export class ZAiHandler implements ApiHandler {
 
 		const thinkingBudgetTokens = this.options.thinkingBudgetTokens || 0
 
-		const stream = (await client.chat.completions.create({
-			model: model.id,
-			max_tokens: model.info.maxTokens,
-			messages: openAiMessages,
-			temperature: 0,
-			stream: true,
-			stream_options: { include_usage: true },
-			...(thinkingBudgetTokens > 0
-				? {
-						thinking: {
-							type: "enabled",
-						},
-					}
-				: {}),
-			tool_stream: true,
-			...getOpenAIToolParams(tools),
-		} as any)) as unknown as AsyncIterable<OpenAI.Chat.ChatCompletionChunk>
+		const stream = (await client.chat.completions.create(
+			{
+				model: model.id,
+				max_tokens: model.info.maxTokens,
+				messages: openAiMessages,
+				temperature: 0,
+				stream: true,
+				stream_options: { include_usage: true },
+				...(thinkingBudgetTokens > 0
+					? {
+							thinking: {
+								type: "enabled",
+							},
+						}
+					: {}),
+				tool_stream: true,
+				...getOpenAIToolParams(tools),
+			} as any,
+			{ signal },
+		)) as unknown as AsyncIterable<OpenAI.Chat.ChatCompletionChunk>
 
 		const toolCallProcessor = new ToolCallProcessor()
 
 		for await (const chunk of stream) {
 			const delta = chunk.choices?.[0]?.delta
-			Logger.info("ZAI chunk", delta)
 			if (delta?.content) {
 				yield {
 					type: "text",
@@ -129,15 +147,20 @@ export class ZAiHandler implements ApiHandler {
 			}
 
 			if (chunk.usage) {
+				const cacheReadTokens = chunk.usage.prompt_tokens_details?.cached_tokens || 0
 				yield {
 					type: "usage",
-					inputTokens: chunk.usage.prompt_tokens || 0,
+					inputTokens: Math.max(0, (chunk.usage.prompt_tokens || 0) - cacheReadTokens),
 					outputTokens: chunk.usage.completion_tokens || 0,
-					cacheReadTokens: chunk.usage.prompt_tokens_details?.cached_tokens || 0,
+					cacheReadTokens,
 					cacheWriteTokens: 0,
 					reasoningTokens: (chunk.usage as any).completion_tokens_details?.reasoning_tokens || 0,
 				}
 			}
 		}
+	}
+
+	abort(): void {
+		this.abortController?.abort()
 	}
 }

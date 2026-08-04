@@ -201,15 +201,18 @@ export class OpenAiNativeHandler implements ApiHandler {
 		const reasoningEffort =
 			includeReasoning && requestedEffort !== "none" ? (requestedEffort as ChatCompletionReasoningEffort) : undefined
 
-		const stream = await client.chat.completions.create({
-			model: model.id,
-			messages: [{ role: systemRole, content: systemPrompt }, ...convertToOpenAiMessages(messages, "openai-native")],
-			stream: true,
-			stream_options: { include_usage: true },
-			reasoning_effort: reasoningEffort,
-			...(model.info.temperature !== undefined ? { temperature: model.info.temperature } : {}),
-			...(includeTools ? getOpenAIToolParams(tools, this.shouldEnableParallelToolCalling()) : {}),
-		})
+		const stream = await client.chat.completions.create(
+			{
+				model: model.id,
+				messages: [{ role: systemRole, content: systemPrompt }, ...convertToOpenAiMessages(messages, "openai-native")],
+				stream: true,
+				stream_options: { include_usage: true },
+				reasoning_effort: reasoningEffort,
+				...(model.info.temperature !== undefined ? { temperature: model.info.temperature } : {}),
+				...(includeTools ? getOpenAIToolParams(tools, this.shouldEnableParallelToolCalling()) : {}),
+			},
+			{ signal: this.abortController.signal },
+		)
 
 		for await (const chunk of stream) {
 			const delta = chunk.choices?.[0]?.delta
@@ -221,11 +224,7 @@ export class OpenAiNativeHandler implements ApiHandler {
 			}
 
 			if (delta?.tool_calls) {
-				try {
-					yield* toolCallProcessor.processToolCallDeltas(delta.tool_calls)
-				} catch (error) {
-					Logger.error("Error processing tool call delta:", error, delta.tool_calls)
-				}
+				yield* toolCallProcessor.processToolCallDeltas(delta.tool_calls)
 			}
 
 			if (chunk.usage) {

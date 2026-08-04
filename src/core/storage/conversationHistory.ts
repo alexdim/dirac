@@ -62,6 +62,7 @@ export async function getSavedDiracMessages(taskId: string): Promise<DiracMessag
 	const oldPath = path.join(await ensureTaskDirectoryExists(taskId), "claude_messages.json")
 	if (await fileExistsAtPath(oldPath)) {
 		const data = JSON.parse(await fs.readFile(oldPath, "utf8"))
+		await atomicWriteFile(filePath, JSON.stringify(data))
 		await fs.unlink(oldPath) // remove old file
 		return data
 	}

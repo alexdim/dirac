@@ -143,6 +143,40 @@ describe("MinimaxHandler", () => {
 			})
 		}
 
+		it("removes internal message and block metadata before sending", async () => {
+			const create = sinon.stub().resolves(fakeStream([]))
+			const h = new MinimaxHandler({ minimaxApiKey: "k" })
+			sinon.stub(h as any, "ensureClient").returns({ messages: { create } })
+			const messages = [
+				{
+					role: "assistant",
+					id: "internal-response-id",
+					ts: 123,
+					modelInfo: { providerId: "minimax", modelId: "model", mode: "act" },
+					metrics: { cost: 1 },
+					content: [
+						{
+							type: "tool_use",
+							id: "tool-1",
+							name: "read_file",
+							input: { path: "a" },
+							call_id: "internal-call-id",
+							isComplete: true,
+						},
+					],
+				},
+			] as any
+
+			await collect(h.createMessage("sys", messages))
+
+			create.firstCall.args[0].messages.should.deepEqual([
+				{
+					role: "assistant",
+					content: [{ type: "tool_use", id: "tool-1", name: "read_file", input: { path: "a" } }],
+				},
+			])
+		})
+
 		it("emits usage chunk on message_start with cache tokens", async () => {
 			const h = new MinimaxHandler({ minimaxApiKey: "k" })
 			stubStream(h, [

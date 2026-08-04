@@ -44,7 +44,6 @@ export async function sendStateUpdate(state: ExtensionState, sequenceNumber: num
 
 	const sizeBytes = Buffer.byteLength(stateJson, "utf8")
 	recordStateSizeTelemetry(sizeBytes)
-	Logger.debug(`[StatePublication] sequence=${sequenceNumber} subscribers=${activeStateSubscriptions.size} bytes=${sizeBytes}`)
 
 	const promises = Array.from(activeStateSubscriptions).map(async (responseStream) => {
 		try {

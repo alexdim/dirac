@@ -35,6 +35,7 @@ export class VertexHandler implements ApiHandler {
 	private geminiHandler: GeminiHandler | undefined
 	private clientAnthropic: AnthropicVertex | undefined
 	private options: VertexHandlerOptions
+	private abortController: AbortController | undefined
 
 	constructor(options: VertexHandlerOptions) {
 		this.options = options
@@ -83,8 +84,25 @@ export class VertexHandler implements ApiHandler {
 		return this.clientAnthropic
 	}
 
-	@withRetry()
 	async *createMessage(systemPrompt: string, messages: DiracStorageMessage[], tools?: DiracTool[]): ApiStream {
+		const abortController = new AbortController()
+		this.abortController = abortController
+
+		try {
+			yield* this.createMessageWithSignal(systemPrompt, messages, tools, abortController.signal)
+		} finally {
+			if (this.abortController === abortController) this.abortController = undefined
+		}
+	}
+
+	@withRetry()
+	private async *createMessageWithSignal(
+		systemPrompt: string,
+		messages: DiracStorageMessage[],
+		tools: DiracTool[] | undefined,
+		signal: AbortSignal,
+	): ApiStream {
+		signal.throwIfAborted()
 		const model = this.getModel()
 		const modelId = model.id
 
@@ -107,39 +125,43 @@ export class VertexHandler implements ApiHandler {
 		const nativeToolsOn = (tools?.length ?? 0) > 0
 
 		const anthropicMessages = sanitizeAnthropicMessages(messages, model.info.supportsPromptCache ?? false)
+		const request = {
+			model: modelId,
+			max_tokens: model.info.maxTokens || 8192,
+			thinking: reasoningOn
+				? useAdaptive
+					? { type: "adaptive", display: "summarized" }
+					: { type: "enabled", budget_tokens: budget_tokens }
+				: undefined,
+			...(reasoningOn && useAdaptive
+				? { output_config: { effort: (this.options.reasoningEffort as AnthropicEffort) || "high" } }
+				: {}),
+			temperature: reasoningOn ? undefined : (model.info.temperature ?? undefined),
+			system: [
+				{
+					text: systemPrompt,
+					type: "text",
+					cache_control: model.info.supportsPromptCache ? { type: "ephemeral" } : undefined,
+				},
+			],
+			messages: anthropicMessages,
+			stream: true,
+			tools: nativeToolsOn ? (tools as AnthropicTool[]) : undefined,
+			tool_choice: nativeToolsOn && !reasoningOn ? { type: "any" } : undefined,
+		} as BetaMessageCreateParamsStreaming
 
-		const stream = await clientAnthropic.beta.messages.create(
-			{
-				model: modelId,
-				max_tokens: model.info.maxTokens || 8192,
-				thinking: reasoningOn
-					? useAdaptive
-						? { type: "adaptive", display: "summarized" }
-						: { type: "enabled", budget_tokens: budget_tokens }
-					: undefined,
-				...(reasoningOn && useAdaptive
-					? { output_config: { effort: (this.options.reasoningEffort as AnthropicEffort) || "high" } }
-					: {}),
-				temperature: reasoningOn ? undefined : (model.info.temperature ?? undefined),
-				system: [
-					{
-						text: systemPrompt,
-						type: "text",
-						cache_control: model.info.supportsPromptCache ? { type: "ephemeral" } : undefined,
-					},
-				],
-				messages: anthropicMessages,
-				stream: true,
-				tools: nativeToolsOn ? (tools as AnthropicTool[]) : undefined,
-				tool_choice: nativeToolsOn && !reasoningOn ? { type: "any" } : undefined,
-			} as BetaMessageCreateParamsStreaming,
-		)
+		const stream = await clientAnthropic.beta.messages.create(request, { signal })
 
 		const lastStartedToolCall = { id: "", name: "", arguments: "" }
 
 		for await (const chunk of stream) {
 			yield* this.parseVertexChunk(chunk, lastStartedToolCall)
 		}
+	}
+
+	abort(): void {
+		this.abortController?.abort()
+		this.geminiHandler?.abort()
 	}
 
 	// Parses a single Anthropic stream chunk into Dirac ApiStreamChunk(s).

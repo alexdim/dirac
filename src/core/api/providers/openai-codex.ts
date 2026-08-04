@@ -513,6 +513,7 @@ export class OpenAiCodexHandler implements ApiHandler {
 		codexHeaders: Record<string, string>,
 	): ApiStream {
 		// Try using OpenAI SDK first
+		let didEmitSdkOutput = false
 		try {
 			const client =
 				this.client ??
@@ -534,14 +535,18 @@ export class OpenAiCodexHandler implements ApiHandler {
 				throw new Error("OpenAI SDK did not return an AsyncIterable")
 			}
 
-			yield* processResponsesEvents(stream, model.info, {
+			for await (const chunk of processResponsesEvents(stream, model.info, {
 				onRateLimits: (event) => openAiCodexUsageService.applyRateLimitEvent(event),
-			})
+			})) {
+				didEmitSdkOutput = true
+				yield chunk
+			}
 		} catch (_sdkErr) {
 			if (_sdkErr instanceof Error && "headers" in _sdkErr && _sdkErr.headers instanceof Headers) {
 				openAiCodexUsageService.applyResponseHeaders(_sdkErr.headers)
 			}
 			if (this.options.disableRetries) throw _sdkErr
+			if (didEmitSdkOutput) throw _sdkErr
 			// Server-side errors (429/overloaded/5xx) won't be helped by manual fetch — re-throw
 			// so the error propagates to handleApiRequestError() which surfaces it to the user.
 			if (_sdkErr instanceof Error) {
