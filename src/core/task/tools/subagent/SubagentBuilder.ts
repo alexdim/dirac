@@ -31,6 +31,10 @@ You may use any tool at your disposal to accomplish the task. You may create and
 Call respond with operation "complete" when finished or if the task is not making progress. Focus on actionable information and relevant file paths.
 `
 
+export const SUBAGENT_PROGRESS_INSTRUCTION = `
+During the task, use respond with operation "progress" for timely trajectory updates at important points, such as a key finding, decision, blocker, or change in approach. Keep each update to one or two lines and skip routine or verbose status reports.
+`
+
 export class SubagentBuilder {
 	private readonly agentConfig: AgentConfig = {}
 	private readonly allowedTools: string[]
@@ -70,7 +74,7 @@ export class SubagentBuilder {
 	buildSystemPrompt(generatedSystemPrompt: string): string {
 		const configuredSystemPrompt = this.agentConfig?.systemPrompt?.trim()
 		const systemPrompt = configuredSystemPrompt || generatedSystemPrompt
-		return `${systemPrompt}${this.buildAgentIdentitySystemPrefix()}${this.options.systemSuffix ?? SUBAGENT_SYSTEM_SUFFIX}`
+		return `${systemPrompt}${this.buildAgentIdentitySystemPrefix()}${this.options.systemSuffix ?? SUBAGENT_SYSTEM_SUFFIX}${SUBAGENT_PROGRESS_INSTRUCTION}`
 	}
 
 	private resolveAllowedTools(configuredTools?: string[]): string[] {
@@ -81,7 +85,13 @@ export class SubagentBuilder {
 			const operation = LEGACY_RESPONSE_TOOLS[tool as keyof typeof LEGACY_RESPONSE_TOOLS]
 			return operation ? `${RESPOND_TOOL_NAME}:${operation}` : tool
 		})
-		return Array.from(new Set([...migrated, `${RESPOND_TOOL_NAME}:${ResponseOperation.COMPLETE}`]))
+		return Array.from(
+			new Set([
+				...migrated,
+				`${RESPOND_TOOL_NAME}:${ResponseOperation.PROGRESS}`,
+				`${RESPOND_TOOL_NAME}:${ResponseOperation.COMPLETE}`,
+			]),
+		)
 	}
 
 	private buildAgentIdentitySystemPrefix(): string {

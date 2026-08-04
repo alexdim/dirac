@@ -6,7 +6,12 @@ import sinon from "sinon"
 import { DiracDefaultTool } from "@/shared/tools"
 import { RESPOND_TOOL_NAME, ResponseOperation } from "@shared/responseTool"
 import { AgentConfigLoader } from "../AgentConfigLoader"
-import { SUBAGENT_DEFAULT_ALLOWED_TOOLS, SUBAGENT_SYSTEM_SUFFIX, SubagentBuilder } from "../SubagentBuilder"
+import {
+	SUBAGENT_DEFAULT_ALLOWED_TOOLS,
+	SUBAGENT_PROGRESS_INSTRUCTION,
+	SUBAGENT_SYSTEM_SUFFIX,
+	SubagentBuilder,
+} from "../SubagentBuilder"
 
 function createTaskConfig(mode: "act" | "plan", provider: string): TaskConfig {
 	return {
@@ -37,12 +42,12 @@ describe("SubagentBuilder", () => {
 			getCachedConfig: (subagentName?: string) =>
 				subagentName === "cached-agent"
 					? {
-							name: "cached-agent",
-							description: "cached description",
-							tools: [DiracDefaultTool.LIST_FILES],
-							modelId: "gpt-5",
-							systemPrompt: "cached system prompt",
-						}
+						name: "cached-agent",
+						description: "cached description",
+						tools: [DiracDefaultTool.LIST_FILES],
+						modelId: "gpt-5",
+						systemPrompt: "cached system prompt",
+					}
 					: undefined,
 		} as unknown as AgentConfigLoader)
 
@@ -60,6 +65,7 @@ describe("SubagentBuilder", () => {
 
 		assert.deepEqual(builder.getAllowedTools(), [
 			DiracDefaultTool.LIST_FILES,
+			`${RESPOND_TOOL_NAME}:${ResponseOperation.PROGRESS}`,
 			`${RESPOND_TOOL_NAME}:${ResponseOperation.COMPLETE}`,
 		])
 		const prompt = builder.buildSystemPrompt("generated system prompt")
@@ -68,6 +74,8 @@ describe("SubagentBuilder", () => {
 		assert.match(prompt, /Description: cached description/)
 		assert.match(prompt, /cached system prompt/)
 		assert.match(prompt, new RegExp(SUBAGENT_SYSTEM_SUFFIX.trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&")))
+		assert.match(prompt, /respond with operation "progress"/)
+		assert.match(prompt, /one or two lines/)
 	})
 
 	it("uses defaults when no cached config is provided", () => {
@@ -80,7 +88,7 @@ describe("SubagentBuilder", () => {
 
 		assert.deepEqual(builder.getAllowedTools(), SUBAGENT_DEFAULT_ALLOWED_TOOLS)
 		const prompt = builder.buildSystemPrompt("generated prompt")
-		assert.equal(prompt, `generated prompt${SUBAGENT_SYSTEM_SUFFIX}`)
+		assert.equal(prompt, `generated prompt${SUBAGENT_SYSTEM_SUFFIX}${SUBAGENT_PROGRESS_INSTRUCTION}`)
 	})
 
 	it("applies plan-mode openrouter model override fields", () => {
@@ -88,12 +96,12 @@ describe("SubagentBuilder", () => {
 			getCachedConfig: (subagentName?: string) =>
 				subagentName === "openrouter-agent"
 					? {
-							name: "openrouter-agent",
-							description: "openrouter plan agent",
-							tools: [DiracDefaultTool.FILE_READ],
-							modelId: "openrouter/custom-model",
-							systemPrompt: "plan system",
-						}
+						name: "openrouter-agent",
+						description: "openrouter plan agent",
+						tools: [DiracDefaultTool.FILE_READ],
+						modelId: "openrouter/custom-model",
+						systemPrompt: "plan system",
+					}
 					: undefined,
 		} as unknown as AgentConfigLoader)
 
@@ -127,10 +135,13 @@ describe("SubagentBuilder", () => {
 			systemSuffix: "\n\n# Custom Builder Mode",
 		})
 
-		assert.deepEqual(builder.getAllowedTools(), [`${RESPOND_TOOL_NAME}:${ResponseOperation.COMPLETE}`])
+		assert.deepEqual(builder.getAllowedTools(), [
+			`${RESPOND_TOOL_NAME}:${ResponseOperation.PROGRESS}`,
+			`${RESPOND_TOOL_NAME}:${ResponseOperation.COMPLETE}`,
+		])
 		assert.equal(
 			builder.buildSystemPrompt("generated prompt"),
-			"configured system# Agent Profile\nName: configured-agent\nDescription: configured description\n\n\n\n# Custom Builder Mode",
+			`configured system# Agent Profile\nName: configured-agent\nDescription: configured description\n\n\n\n# Custom Builder Mode${SUBAGENT_PROGRESS_INSTRUCTION}`,
 		)
 	})
 })
