@@ -3,16 +3,32 @@ import { accessSync, constants } from "node:fs"
 import os from "node:os"
 import path from "node:path"
 import { rgPath } from "@vscode/ripgrep"
+import { resolveLogDirectory } from "@/shared/services/file-logger"
 
-const data = process.env.DIRAC_DATA_DIR ?? path.join(os.homedir(), ".dirac", "data")
-
-const log = process.env.DIRAC_LOG_DIR ?? path.join(data, "logs")
+const defaultDiracDir = process.env.DIRAC_DIR ?? path.join(os.homedir(), ".dirac")
+const defaultData = process.env.DIRAC_DATA_DIR ?? path.join(defaultDiracDir, "data")
+const defaultLog = resolveLogDirectory(defaultData)
 
 export const DIRAC_CLI_DIR = {
-	data,
-	log,
-	cliLog: path.join(log, "dirac-cli.log"),
-	acpLog: path.join(log, "dirac-acp.log"),
+	data: defaultData,
+	log: defaultLog,
+	cliLog: path.join(defaultLog, "dirac-cli.log"),
+	acpLog: path.join(defaultLog, "dirac-acp.log"),
+}
+
+/** Apply the resolved storage root before creating CLI or ACP file loggers. */
+export function configureCliLogDirectory(dataDir: string): void {
+	const resolvedData = process.env.DIRAC_DATA_DIR ?? dataDir
+	const logDir = resolveLogDirectory(resolvedData)
+	DIRAC_CLI_DIR.data = resolvedData
+	DIRAC_CLI_DIR.log = logDir
+	DIRAC_CLI_DIR.cliLog = path.join(logDir, "dirac-cli.log")
+	DIRAC_CLI_DIR.acpLog = path.join(logDir, "dirac-acp.log")
+}
+
+export function configureCliLogDirectoryFromDiracHome(diracDir?: string): void {
+	const resolvedDiracDir = diracDir || process.env.DIRAC_DIR || path.join(os.homedir(), ".dirac")
+	configureCliLogDirectory(path.join(resolvedDiracDir, "data"))
 }
 
 /**

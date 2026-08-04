@@ -1,10 +1,5 @@
 import { shutdownEvent } from "../vscode-shim"
-import {
-	activeContext,
-	isShuttingDown,
-	setIsShuttingDown,
-	setShutdownExitCode,
-} from "./state"
+import { activeContext, isShuttingDown, setIsShuttingDown, setShutdownExitCode } from "./state"
 import { disposeCliContext, drainOutput } from "./cleanup"
 
 export async function captureUnhandledException(reason: Error, context: string) {
@@ -44,14 +39,22 @@ export async function onUnhandledException(reason: unknown, context: string) {
 	restoreConsole()
 	console.error(finalError)
 
-	setTimeout(() => process.exit(1), EXIT_TIMEOUT_MS)
-
-	captureUnhandledException(finalError, context).finally(() => {
+	const forcedExit = setTimeout(() => process.exit(1), EXIT_TIMEOUT_MS)
+	try {
+		await captureUnhandledException(finalError, context)
+		const { disposeCliLogging } = await import("../init")
+		await disposeCliLogging()
+		const { disposeAcpFileLogger } = await import("./acp-file-logger")
+		await disposeAcpFileLogger()
+	} catch (error) {
+		console.error("Failed to flush CLI diagnostics during shutdown:", error)
+	} finally {
+		clearTimeout(forcedExit)
 		process.exit(1)
-	})
+	}
 }
 
-export function setupSignalHandlers() {
+export function setupSignalHandlers(): () => void {
 	const shutdown = async (signal: NodeJS.Signals, exitCode: number) => {
 		const { printWarning } = await import("./display")
 		if (isShuttingDown) {
@@ -94,8 +97,10 @@ export function setupSignalHandlers() {
 		process.exit(exitCode)
 	}
 
-	process.on("SIGINT", () => void shutdown("SIGINT", 130))
-	process.on("SIGTERM", () => void shutdown("SIGTERM", 143))
+	const onSigint = () => void shutdown("SIGINT", 130)
+	const onSigterm = () => void shutdown("SIGTERM", 143)
+	process.on("SIGINT", onSigint)
+	process.on("SIGTERM", onSigterm)
 
 	process.on("unhandledRejection", async (reason: unknown) => {
 		await onUnhandledException(reason, "unhandledRejection")
@@ -104,4 +109,9 @@ export function setupSignalHandlers() {
 	process.on("uncaughtException", (reason: unknown) => {
 		onUnhandledException(reason, "uncaughtException")
 	})
+
+	return () => {
+		process.off("SIGINT", onSigint)
+		process.off("SIGTERM", onSigterm)
+	}
 }

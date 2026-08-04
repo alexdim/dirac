@@ -15,7 +15,8 @@
 
 import { AgentSideConnection } from "@agentclientprotocol/sdk";
 import { Logger } from "@/shared/services/Logger";
-import { initAcpFileLogger } from "../utils/acp-file-logger.js";
+import { disposeAcpFileLogger, initAcpFileLogger } from "../utils/acp-file-logger.js";
+import { configureCliLogDirectoryFromDiracHome } from "../utils/path.js";
 import { AcpAgent } from "./AcpAgent.js";
 import { listenForDetachedAcp } from "./detachedServer.js";
 import {
@@ -111,18 +112,21 @@ export interface AcpModeOptions {
  */
 export async function runAcpMode(options: AcpModeOptions = {}): Promise<void> {
   redirectConsoleToStderr();
+  configureCliLogDirectoryFromDiracHome(options.config);
   initAcpFileLogger();
 
   // Opt-in debug tap: mirror all Logger output to stderr when DIRAC_ACP_DEBUG is set.
-  // In ACP mode stdout is reserved for JSON-RPC, so internal logs otherwise go to an
-  // in-memory output channel and are invisible. This makes them visible on stderr
-  // (captured by the probe's stderr log) for diagnosing the ACP integration.
-  if (process.env.DIRAC_ACP_DEBUG) {
-    Logger.subscribe((msg) => originalConsole.error(`[LOG] ${msg}`));
-  }
+  const unsubscribeDebugLogger = process.env.DIRAC_ACP_DEBUG
+    ? Logger.subscribe((msg) => originalConsole.error(`[LOG] ${msg}`))
+    : undefined;
 
   if (options.listen) {
-    await runDetachedAcpMode(options);
+    try {
+      await runDetachedAcpMode(options, unsubscribeDebugLogger);
+    } catch (error) {
+      await disposeAcpModeLogging(unsubscribeDebugLogger);
+      throw error;
+    }
     return;
   }
 
@@ -131,22 +135,27 @@ export async function runAcpMode(options: AcpModeOptions = {}): Promise<void> {
   const stream = createResilientNdJsonStream(outputStream, inputStream);
   let agent: AcpAgent | null = null;
 
-  new AgentSideConnection((conn) => {
-    agent = new AcpAgent(conn, {
-      debug: Boolean(options.verbose),
-      diracDir: options.config,
-      cwd: options.cwd,
-      provider: options.provider,
-      model: options.model,
-      mode: options.mode,
-      autoApprove: options.autoApprove,
-      yolo: options.yolo,
-      thinkingBudgetTokens: options.thinkingBudgetTokens,
-      reasoningEffort: options.reasoningEffort,
-      hooksDir: options.hooksDir,
-    });
-    return agent;
-  }, stream);
+  try {
+    new AgentSideConnection((conn) => {
+      agent = new AcpAgent(conn, {
+        debug: Boolean(options.verbose),
+        diracDir: options.config,
+        cwd: options.cwd,
+        provider: options.provider,
+        model: options.model,
+        mode: options.mode,
+        autoApprove: options.autoApprove,
+        yolo: options.yolo,
+        thinkingBudgetTokens: options.thinkingBudgetTokens,
+        reasoningEffort: options.reasoningEffort,
+        hooksDir: options.hooksDir,
+      });
+      return agent;
+    }, stream);
+  } catch (error) {
+    await disposeAcpModeLogging(unsubscribeDebugLogger);
+    throw error;
+  }
 
   let isShuttingDown = false;
   const shutdown = async () => {
@@ -157,9 +166,10 @@ export async function runAcpMode(options: AcpModeOptions = {}): Promise<void> {
     isShuttingDown = true;
     try {
       await agent?.shutdown();
-      restoreConsole();
     } catch (error) {
       Logger.error("[ACP] Error during shutdown:", error);
+    } finally {
+      await disposeAcpModeLogging(unsubscribeDebugLogger);
     }
 
     process.exit(0);
@@ -185,7 +195,10 @@ export async function runAcpMode(options: AcpModeOptions = {}): Promise<void> {
   Logger.info("[ACP] Process is now listening for ACP requests on stdin");
 }
 
-async function runDetachedAcpMode(options: AcpModeOptions): Promise<void> {
+async function runDetachedAcpMode(
+  options: AcpModeOptions,
+  unsubscribeDebugLogger: (() => void) | undefined,
+): Promise<void> {
   const server = await listenForDetachedAcp({
     debug: Boolean(options.verbose),
     diracDir: options.config,
@@ -208,12 +221,18 @@ async function runDetachedAcpMode(options: AcpModeOptions): Promise<void> {
     isShuttingDown = true;
     try {
       await server.close();
-      restoreConsole();
     } finally {
+      await disposeAcpModeLogging(unsubscribeDebugLogger);
       process.exit(0);
     }
   };
   process.on("SIGINT", shutdown);
   process.on("SIGTERM", shutdown);
   Logger.info(`[ACP] Detached process is listening on ${options.listen}`);
+}
+
+async function disposeAcpModeLogging(unsubscribeDebugLogger: (() => void) | undefined): Promise<void> {
+  unsubscribeDebugLogger?.();
+  await disposeAcpFileLogger();
+  restoreConsole();
 }

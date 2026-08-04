@@ -23,7 +23,7 @@ let globalLockManager: SqliteLockManager | undefined
 
 async function main() {
 	log("\n\n\nStarting dirac-core service...\n\n\n")
-	log(`Environment variables: ${JSON.stringify(process.env)}`)
+	log(`Runtime: node ${process.version} on ${process.platform}/${process.arch}`)
 
 	// Parse command line arguments
 	const args = parseArgs()
@@ -62,7 +62,7 @@ async function main() {
 		setupHostProvider(extensionContext, EXTENSION_DIR, DATA_DIR)
 
 		// Create shared file-backed storage
-		const storageContext = createStorageContext()
+		const storageContext = createStorageContext({ diracDir: args.config })
 		const webviewProvider = await initialize(storageContext)
 
 		// Enable the localhost HTTP server that handles auth redirects.
@@ -226,7 +226,7 @@ async function shutdownGracefully(lockManager?: SqliteLockManager) {
 		// Step 3: Tear down services
 		log("Tearing down services...")
 		try {
-			tearDown()
+			await tearDown()
 			log("Services torn down successfully")
 		} catch (error) {
 			log(`Warning: Failed to tear down services: ${error}`)

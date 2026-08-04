@@ -689,7 +689,7 @@ async function openDiracSidebarForTaskUri(): Promise<void> {
 // This method is called when your extension is deactivated
 export async function deactivate() {
 	// Dispose Non-VSCode-specific services
-	tearDown()
+	await tearDown()
 
 	// VSCode-specific services
 	disposeVscodeCommentReviewController()

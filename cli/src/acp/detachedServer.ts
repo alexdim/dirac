@@ -135,10 +135,13 @@ export async function listenForDetachedAcp(
 				permissionOwner = undefined;
 				pending.resolve({ outcome: { outcome: "cancelled" } });
 			}
-			await new Promise<void>((resolve, reject) =>
-				server.close((error) => (error ? reject(error) : resolve())),
-			);
-			await agent.shutdown();
+			try {
+				await new Promise<void>((resolve, reject) =>
+					server.close((error) => (error ? reject(error) : resolve())),
+				);
+			} finally {
+				await agent.shutdown();
+			}
 		},
 	};
 }

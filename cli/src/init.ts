@@ -2,6 +2,22 @@ import { version as CLI_VERSION } from "../package.json"
 import type { CliContext, InitOptions } from "./types"
 import { setActiveContext } from "./utils/state"
 
+let unsubscribeCliLogger: (() => void) | undefined
+let unsubscribeVerboseLogger: (() => void) | undefined
+
+export async function disposeCliLogging(): Promise<void> {
+	unsubscribeCliLogger?.()
+	unsubscribeCliLogger = undefined
+	unsubscribeVerboseLogger?.()
+	unsubscribeVerboseLogger = undefined
+
+	const { disposeCliOutputLoggers } = await import("./vscode-shim")
+	await disposeCliOutputLoggers()
+
+	const { DiracTempManager } = await import("@/services/temp")
+	DiracTempManager.stopPeriodicCleanup()
+}
+
 /**
  * Initialize all CLI infrastructure and return context needed for commands
  */
@@ -19,7 +35,7 @@ export async function initializeCli(options: InitOptions): Promise<CliContext> {
 	const { CliCommentReviewController } = await import("./controllers/CliCommentReviewController")
 	const { StandaloneTerminalManager } = await import("@/integrations/terminal/standalone/StandaloneTerminalManager")
 	const { createCliHostBridgeProvider } = await import("./controllers")
-	const { getCliBinaryPath, DIRAC_CLI_DIR } = await import("./utils/path")
+	const { configureCliLogDirectory, getCliBinaryPath, DIRAC_CLI_DIR } = await import("./utils/path")
 	const { StateManager } = await import("@/core/storage/StateManager")
 	const { initCoreServices } = await import("./initCoreServices")
 	const { telemetryService } = await import("@/services/telemetry")
@@ -31,17 +47,21 @@ export async function initializeCli(options: InitOptions): Promise<CliContext> {
 		diracDir: options.config,
 		workspaceDir: workspacePath,
 	})
+	configureCliLogDirectory(storageContext.dataDir)
+	await disposeCliLogging()
+	const { DiracTempManager } = await import("@/services/temp")
+	DiracTempManager.startPeriodicCleanup()
 
 	// Set up output channel and Logger early so DiracEndpoint.initialize logs are captured
 	const outputChannel = window.createOutputChannel("Dirac CLI")
 	const logToChannel = (message: string) => outputChannel.appendLine(message)
 
 	// Configure the shared Logging class early to capture all initialization logs
-	Logger.subscribe(logToChannel)
+	unsubscribeCliLogger = Logger.subscribe(logToChannel)
+	Logger.setVerbose(Boolean(options.verbose))
 	if (options.verbose) {
-		Logger.setVerbose(true)
 		// Also mirror Logger output to stderr so it's visible in CLI output
-		Logger.subscribe((msg) => process.stderr.write(`[dirac] ${msg}\n`))
+		unsubscribeVerboseLogger = Logger.subscribe((msg) => process.stderr.write(`[dirac] ${msg}\n`))
 	}
 
 	// HostProvider must be initialized before StateManager (initCoreServices →

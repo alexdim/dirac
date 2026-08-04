@@ -6,7 +6,7 @@ import { exit } from "node:process"
 import { Command, Option } from "commander"
 import { version as CLI_VERSION } from "../package.json"
 import { suppressConsoleUnlessVerbose } from "./utils/console"
-import { CLI_LOG_FILE } from "./vscode-shim"
+import { getCliLogFilePath } from "./vscode-shim"
 import { setupSignalHandlers } from "./utils/errors"
 import { parseTimeoutSeconds } from "./utils/task-timeout"
 import { parsePositiveInteger, parseReasoningEffort, parseThinkingBudget } from "./utils/command-parsers"
@@ -16,7 +16,7 @@ import { parsePositiveInteger, parseReasoningEffort, parseThinkingBudget } from 
 suppressConsoleUnlessVerbose()
 
 // Setup signal handlers for graceful shutdown
-setupSignalHandlers()
+const releaseCliSignalOwnership = setupSignalHandlers()
 
 // Re-export for backward compatibility and testing
 export { captureUnhandledException } from "./utils/errors"
@@ -149,9 +149,12 @@ const devCommand = program.command("dev").description("Developer tools and utili
 devCommand
 	.command("log")
 	.description("Open the log file")
-	.action(async () => {
+	.option("--config <path>", "Path to Dirac configuration directory")
+	.action(async (options) => {
+		const { configureCliLogDirectoryFromDiracHome } = await import("./utils/path")
 		const { openExternal } = await import("@/utils/env")
-		await openExternal(CLI_LOG_FILE)
+		configureCliLogDirectoryFromDiracHome(options.config)
+		await openExternal(getCliLogFilePath())
 	})
 
 // Interactive mode (default when no command given)
@@ -203,6 +206,7 @@ program
 
 		// Check for ACP mode first - this takes precedence over everything else
 		if (options.acp || options.listen) {
+			releaseCliSignalOwnership()
 			const { runAcpMode } = await import("./acp/index.js")
 			await runAcpMode({
 				config: options.config,
