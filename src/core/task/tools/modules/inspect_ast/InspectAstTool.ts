@@ -47,7 +47,6 @@ export const inspect_ast_spec: DiracToolSpec = {
 			enum: ["outline", "implementation", "definitions", "references", "occurrences"],
 			instruction:
 				"Choose by input and result: outline takes source-file paths (no symbols) and returns structural declarations without implementation bodies; implementation takes source-file paths plus symbols and returns complete named definitions; definitions, references, and occurrences take file or directory scopes plus symbols and return exact indexed definition locations, reference locations, or both, respectively.",
-			usage: '"implementation"',
 		},
 		{
 			name: "paths",
@@ -55,7 +54,6 @@ export const inspect_ast_spec: DiracToolSpec = {
 			type: "array",
 			items: { type: "string" },
 			instruction: "Source files for outline or implementation; file or directory scopes for symbol lookups.",
-			usage: '["src/core/service.ts", "src/shared"]',
 		},
 		{
 			name: "symbols",
@@ -64,14 +62,12 @@ export const inspect_ast_spec: DiracToolSpec = {
 			items: { type: "string" },
 			instruction:
 				"Required except for outline. Use exact qualified or unqualified names; qualify ambiguous symbols, for example UserService.load.",
-			usage: '["UserService.load", "User"]',
 		},
 		{
 			name: "include_anchors",
 			required: false,
 			type: "boolean",
 			instruction: `When true, exact source lines are emitted as standalone complete ANCHOR${getDelimiter()}CONTENT coordinates required by edit_file. Outline provides declaration-line coordinates; implementation provides complete definition lines; symbol-location operations provide the containing source line. Default false.`,
-			usage: "true",
 		},
 	],
 }

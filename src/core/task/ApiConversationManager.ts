@@ -406,8 +406,6 @@ export class ApiConversationManager {
 			if (pinnedContext) parsedUserContent.splice(1, 0, { type: "text", text: pinnedContext })
 		}
 
-		this.dependencies.taskState.didSwitchToActMode = false // Reset after use
-
 		if (isDirectResponse) {
 			return {
 				userContent: directResponseText ? [{ type: "text", text: directResponseText }] : parsedUserContent,
@@ -498,6 +496,9 @@ export class ApiConversationManager {
 			content: userContent,
 			ts: Date.now(),
 		})
+		if (!params.shouldCompact && params.mode === "act") {
+			this.dependencies.taskState.didSwitchToActMode = false
+		}
 		await params.afterUserContentPersisted?.()
 
 		return { userContent, lastApiReqIndex, directResponseText, didConsumeUserContent: true }

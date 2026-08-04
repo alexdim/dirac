@@ -20,19 +20,10 @@ export const browser_action_spec: DiracToolSpec = {
 		{
 			name: "action",
 			required: true,
-			instruction: `The action to perform. The available actions are: 
-	* launch: Launch a new Puppeteer-controlled browser instance at the specified URL. This **must always be the first action**. 
-		- Use with the \`url\` parameter to provide the URL. 
-		- Ensure the URL is valid and includes the appropriate protocol (e.g. http://localhost:3000/page, file:///path/to/file.html, etc.) 
-	* click: Click at a specific x,y coordinate. 
-		- Use with the \`coordinate\` parameter to specify the location. 
-		- Always click in the center of an element (icon, button, link, etc.) based on coordinates derived from a screenshot. 
-	* type: Type a string of text on the keyboard. You might use this after clicking on a text field to input text. 
-		- Use with the \`text\` parameter to provide the string to type. 
-	* scroll_down: Scroll down the page by one page height. 
-	* scroll_up: Scroll up the page by one page height. 
-	* close: Close the Puppeteer-controlled browser instance. This **must always be the final browser action**. 
-	    - Example: 'scroll_up'`,
+			type: "string",
+			enum: ["launch", "click", "type", "scroll_down", "scroll_up", "close"],
+			instruction:
+				"Action to perform: launch requires url; click requires coordinate; type requires text; scroll_down and scroll_up scroll one page; close ends the browser session.",
 		},
 		{
 			name: "url",

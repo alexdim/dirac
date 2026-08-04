@@ -7,7 +7,15 @@
       "properties": {
         "action": {
           "type": "STRING",
-          "description": "The action to perform. The available actions are: \n\t* launch: Launch a new Puppeteer-controlled browser instance at the specified URL. This **must always be the first action**. \n\t\t- Use with the `url` parameter to provide the URL. \n\t\t- Ensure the URL is valid and includes the appropriate protocol (e.g. http://localhost:3000/page, file:///path/to/file.html, etc.) \n\t* click: Click at a specific x,y coordinate. \n\t\t- Use with the `coordinate` parameter to specify the location. \n\t\t- Always click in the center of an element (icon, button, link, etc.) based on coordinates derived from a screenshot. \n\t* type: Type a string of text on the keyboard. You might use this after clicking on a text field to input text. \n\t\t- Use with the `text` parameter to provide the string to type. \n\t* scroll_down: Scroll down the page by one page height. \n\t* scroll_up: Scroll up the page by one page height. \n\t* close: Close the Puppeteer-controlled browser instance. This **must always be the final browser action**. \n\t    - Example: 'scroll_up'"
+          "enum": [
+            "launch",
+            "click",
+            "type",
+            "scroll_down",
+            "scroll_up",
+            "close"
+          ],
+          "description": "Action to perform: launch requires url; click requires coordinate; type requires text; scroll_down and scroll_up scroll one page; close ends the browser session."
         },
         "url": {
           "type": "STRING",
@@ -176,7 +184,7 @@
   },
   {
     "name": "execute_command",
-    "description": "Executes CLI commands or scripts. Use 'commands' for simple sequences of shell operations, can also be a single command. Use 'script' for complex multi-line logic, data processing, or when a high-level language like Python or Node.js is more efficient than shell scripting. Default language is bash'script' are also very useful for combinatorial problems such as looping over 'swap and try' patternScripts have full access to the file system and current environment, be careful. In multi-root workspaces, use the @workspace:command syntax for standard commands. Leverage the full power of the environment's interpreters (bash, python, node, etc.) to accomplish tasks with minimal round-trips.NOTE: provide exactly one of the {commands,script}",
+    "description": "Executes CLI commands or scripts. Provide exactly one of `commands` or `script`. Use `commands` for simple command sequences and `script` for complex multi-line logic or data processing. Scripts have full access to the filesystem and environment. In multi-root workspaces, prefix commands with `@workspace:`.",
     "parameters": {
       "type": "OBJECT",
       "properties": {
@@ -474,7 +482,7 @@
   },
   {
     "name": "use_skill",
-    "description": "Load and activate a skill by name. Skills provide specialized instructions for specific tasks. Use this tool ONCE when a user's request matches one of the available skill descriptions shown in the SKILLS section of your system prompt. After activation, follow the skill's instructions directly - do not call use_skill again.",
+    "description": "Load and activate a skill by name. Skills provide specialized instructions for specific tasks. Reusing an active skill reloads its instructions without duplicating activation.",
     "parameters": {
       "type": "OBJECT",
       "properties": {

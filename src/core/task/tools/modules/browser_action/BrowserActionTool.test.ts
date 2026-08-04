@@ -1,6 +1,7 @@
+import assert from "node:assert/strict"
 import { describe, it } from "mocha"
 import "should"
-import { BrowserActionTool } from "./BrowserActionTool"
+import { browser_action_spec, BrowserActionTool } from "./BrowserActionTool"
 
 describe("BrowserActionTool", () => {
 	it("strips the data URL prefix and preserves the screenshot media type", async () => {
@@ -24,4 +25,12 @@ describe("BrowserActionTool", () => {
 			},
 		})
 	})
+
+	it("constrains actions with an enum", () => {
+		const action = browser_action_spec.parameters?.find((parameter) => parameter.name === "action")
+
+		assert.ok(action)
+		assert.deepEqual(action.enum, ["launch", "click", "type", "scroll_down", "scroll_up", "close"])
+	})
+
 })
