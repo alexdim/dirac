@@ -26,6 +26,8 @@ EXTENSION_ID="dirac-run.dirac"
 NPM_PACKAGE="dirac-cli"
 STATE_ROOT=".scratch-release"
 MUTATED_FILES=(package.json package-lock.json cli/package.json cli/dirac.rb)
+# The publisher may need an uncommitted repair to resume a failed release; do not include it in the release metadata commit.
+RESUME_ALLOWED_FILES=("${MUTATED_FILES[@]}" scripts/publish.sh)
 
 MODE=""
 BUMP_TYPE=""
@@ -295,14 +297,14 @@ function assert_clean_worktree() {
     [ -z "$(git status --porcelain)" ] || die "Working tree is dirty. Commit or stash changes before starting a release."
 }
 
-function assert_only_release_files_changed() {
-    local status path allowed managed
+function assert_only_release_or_publisher_files_changed() {
+    local status path allowed allowed_file
     while IFS= read -r status; do
         [ -n "$status" ] || continue
         path="${status:3}"
         allowed=false
-        for managed in "${MUTATED_FILES[@]}"; do
-            if [ "$path" = "$managed" ]; then
+        for allowed_file in "${RESUME_ALLOWED_FILES[@]}"; do
+            if [ "$path" = "$allowed_file" ]; then
                 allowed=true
                 break
             fi
@@ -467,7 +469,7 @@ function assert_build_checkout() {
     local expected_ref="${RELEASE_COMMIT:-$BASE_COMMIT}"
     [ "$(git rev-parse HEAD)" = "$expected_ref" ] \
         || die "An artifact is missing, but HEAD is not the release source ${expected_ref}. Restore that release checkout and rerun --resume."
-    assert_only_release_files_changed
+    assert_only_release_or_publisher_files_changed
 }
 
 function ensure_vsix() {
@@ -502,7 +504,7 @@ function ensure_npm_tarball() {
         log_step "Building CLI npm package locally..."
         rm -f "$NPM_TARBALL"
         npm run compile-standalone-npm
-        npm pack dist-standalone --pack-destination "$STATE_DIR"
+        npm pack ./dist-standalone --pack-destination "$STATE_DIR"
         [ -f "$NPM_TARBALL" ] || die "Expected CLI package was not created: $NPM_TARBALL"
         actual_sha=$(sha256_file "$NPM_TARBALL")
         if [ -n "$expected_sha" ] && [ "$actual_sha" != "$expected_sha" ]; then
@@ -541,7 +543,7 @@ function ensure_release_commit() {
         die "HEAD moved since ${RELEASE_TAG} preparation began. Resume from the release checkout instead."
     fi
 
-    assert_only_release_files_changed
+    assert_only_release_or_publisher_files_changed
     git add "${MUTATED_FILES[@]}"
     git diff --cached --quiet && die "No release metadata changes are available to commit."
     log_step "Committing release metadata..."
