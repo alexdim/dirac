@@ -496,9 +496,6 @@ export class SubagentRunner {
 
 		const logPrefix = `[SubagentRunner:${this.subagentName || "unnamed"}]`
 		const instrumentedOnProgress = (update: SubagentProgressUpdate) => {
-			if (update.latestToolCall) {
-				Logger.debug(`${logPrefix} Tool: ${update.latestToolCall}`)
-			}
 			if (
 				update.status === SubagentExecutionStatus.COMPLETED ||
 				update.status === SubagentExecutionStatus.FAILED ||

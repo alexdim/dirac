@@ -148,12 +148,10 @@ export class OpenAiCodexHandler implements ApiHandler {
 			return
 		}
 		this.websocketContinuationAnchor = { responseId, requestConfiguration }
-		Logger.log("[OpenAI Codex persisted reasoning] websocket response completed anchor_recorded=true")
 	}
 
 	private clearWebsocketContinuationAnchor(reason: string): void {
 		this.websocketContinuationAnchor = undefined
-		Logger.log(`[OpenAI Codex persisted reasoning] websocket anchor cleared reason=${reason}`)
 	}
 
 	constructor(options: OpenAiCodexHandlerOptions) {
@@ -284,9 +282,6 @@ export class OpenAiCodexHandler implements ApiHandler {
 			usePersistedReasoning,
 		})
 		const functionCallOutputs = input.filter((item: any) => item.type === "function_call_output").length
-		Logger.log(
-			`[OpenAI Codex persisted reasoning] request=${converted.previousResponseId ? "continuation" : "full_context"} anchor_available=${this.websocketContinuationAnchor !== undefined} anchor_eligible=${canContinue} request_config=${requestConfiguration.slice(0, 12)} input_items=${input.length} function_call_outputs=${functionCallOutputs}`,
-		)
 
 		let accessToken = await openAiCodexOAuthManager.getAccessToken()
 		if (!accessToken) {
