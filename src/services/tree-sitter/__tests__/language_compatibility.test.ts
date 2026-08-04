@@ -127,8 +127,9 @@ function implementationBlocks(value: string): ImplementationExpectation[] {
 				/^\n(?:\[(?:Function|Implementation) Hash: [a-f0-9]+\]|Implementation hash: [a-f0-9]+)\n(?:Implementation:\n)?/i,
 				"",
 			)
-			.replace(/^Context:\n/, "")
-			.replace(/^Implementation:\n/m, "")
+			.replace(/^\n/, "")
+			.replace(/^context:\n/i, "")
+			.replace(/^implementation:\n/im, "")
 			.replace(/\n\n(?:---|====================)\n\n$/, "")
 			.trimEnd()
 		if (/^\n?(?:Symbol not found|Ambiguous symbol|Unsupported file|Access denied|Parse error):/i.test(body)) return []
@@ -153,6 +154,11 @@ function occurrenceRows(value: string): OccurrenceExpectation[] {
 	const rows: OccurrenceExpectation[] = []
 	for (const line of stripHashes(value).replace(/\r\n/g, "\n").split("\n")) {
 		const current = line.match(/^  \[(definition|reference)\] line \d+:\d+ ?(.*)$/)
+		const compact = line.match(/^  (definition|reference) \d+:\d+ ?(.*)$/)
+		if (compact) {
+			rows.push({ kind: compact[1] as OccurrenceExpectation["kind"], source: compact[2] })
+			continue
+		}
 		if (current) {
 			rows.push({ kind: current[1] as OccurrenceExpectation["kind"], source: current[2] })
 			continue
@@ -165,23 +171,24 @@ function occurrenceRows(value: string): OccurrenceExpectation[] {
 
 function outlineLineIsPreserved(expectedLine: string, actualLines: string[]): boolean {
 	const expectedCalls = expectedLine.match(/^│(\s*)# Calls: \[(.*)\]$/)
-	if (!expectedCalls) return actualLines.includes(expectedLine)
+	if (!expectedCalls) return actualLines.includes(expectedLine.slice(1))
+	const expectedIndentation = expectedCalls[1].slice(0, -4)
 	const expectedCallNames = expectedCalls[2].split(", ")
 	return actualLines.some((actualLine) => {
-		const actualCalls = actualLine.match(/^│(\s*)# Calls: \[(.*)\]$/)
-		if (!actualCalls || actualCalls[1] !== expectedCalls[1]) return false
+		const actualCalls = actualLine.match(/^(\s*)calls: (.*)$/)
+		if (!actualCalls || actualCalls[1] !== expectedIndentation) return false
 		const actualCallNames = new Set(actualCalls[2].split(", "))
 		return expectedCallNames.every((call) => actualCallNames.has(call))
 	})
 }
 
 function isMissingImplementationExpectation(value: string): boolean {
-	return /None of the requested functions|Symbol not found/i.test(value) && implementationBlocks(value).length === 0
+	return /None of the requested functions|Symbol not found|no implementation found/i.test(value) && implementationBlocks(value).length === 0
 }
 
 function isMissingOccurrenceExpectation(value: string): boolean {
 	return (
-		/No (?:references or definitions|definitions or references)(?: were)? found|No (?:definitions|references) found|Symbol not found|Ambiguous symbol|Unsupported file/i.test(
+		/No (?:definitions and references|references or definitions|definitions or references)(?: were)? found|No (?:definitions|references)(?: were)? found|Symbol not found|Ambiguous symbol|Unsupported file|is excluded from the symbol index/i.test(
 			value,
 		) && occurrenceRows(value).length === 0
 	)
@@ -235,7 +242,7 @@ async function assertImplementationSnapshot(
 		if (actualBlocks.length === 0)
 			assert.match(
 				actual,
-				/Symbol not found|Status: FAILURE|No .*found/i,
+				/symbol not found|no .*found/i,
 				`${context}: a missing symbol must be reported explicitly`,
 			)
 		else assert.doesNotMatch(actual, /Symbol not found|Ambiguous symbol/i, `${context}: improved lookup returned a failure`)
@@ -269,7 +276,7 @@ async function assertOccurrenceSnapshot(
 	if (isMissingOccurrenceExpectation(expectedText)) {
 		const actualRows = occurrenceRows(actual)
 		if (actualRows.length === 0) {
-			assert.match(actual, /Symbol not found|No (?:definitions and references|references or definitions|definitions or references)(?: were)? found|No (?:definitions|references)(?: were)? found|Ambiguous|Unsupported file/i, `${context}: a valid empty lookup must be reported explicitly\n${actual}`)
+			assert.match(actual, /Symbol not found|No (?:definitions and references|references or definitions|definitions or references)(?: were)? found|No (?:definitions|references)(?: were)? found|Ambiguous|Unsupported file|is excluded from the symbol index/i, `${context}: a valid empty lookup must be reported explicitly\n${actual}`)
 		}
 		else if (operation !== "occurrences") {
 			const expectedKind = operation === "definitions" ? "definition" : "reference"
@@ -291,7 +298,9 @@ async function assertOccurrenceSnapshot(
 		for (const candidate of candidates) actualRows.push(...occurrenceRows(await readQualified(candidate)))
 	}
 	const referenceOwnershipIsExplicitlyAmbiguous = /References for .* are ambiguous/i.test(actual)
-	const targetSymbol = actual.match(/^--- ([^\n]+) in /m)?.[1]?.split(".").pop()
+	const targetSymbol = (
+		actual.match(/References for ([^\s]+) are ambiguous/i)?.[1] ?? actual.match(/^--- ([^\n]+) in /m)?.[1]
+	)?.split(".").pop()
 	for (const expectedRow of expectedRows) {
 		if (actualRows.some((row) => row.source === expectedRow.source)) continue
 		assert.equal(operation, "occurrences", `${context}: occurrence disappeared: ${expectedRow.source}\n${actual}`)
@@ -567,7 +576,8 @@ describe("Source AST language compatibility", () => {
 				const actual = await executeInspection(languageDirectory, "outline", language.ext)
 				const expected = await expectedSnapshot(path.join(FIXTURES_DIR, language.name, "outline.txt"), actual)
 				const actualLines = stripHashes(actual).replace(/\r\n/g, "\n").split("\n")
-				for (const line of stripHashes(expected).replace(/\r\n/g, "\n").split("\n")) {
+				const expectedLines = stripHashes(expected).replace(/\r\n/g, "\n").split("\n")
+				for (const line of expectedLines) {
 					if (!line.startsWith("│")) continue
 					assert.ok(outlineLineIsPreserved(line, actualLines), `${language.name}: outline declaration disappeared: ${line}\n${actual}`)
 				}

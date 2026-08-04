@@ -1,5 +1,4 @@
 sample.php::PhpClass
-[Implementation Hash: 65f2b0e8]
 /**
  * PhpClass is a sample class.
  */

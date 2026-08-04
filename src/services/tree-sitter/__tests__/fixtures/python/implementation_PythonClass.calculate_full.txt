@@ -1,7 +1,7 @@
 sample.py::PythonClass.calculate
-[Implementation Hash: 2c33192c]
+context:
 class PythonClass:
-
+implementation:
 def calculate(self, a: int, b: int) -> int:
         """
         A method with parameters.

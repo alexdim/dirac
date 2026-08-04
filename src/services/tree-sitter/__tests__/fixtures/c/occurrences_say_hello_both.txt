@@ -1,7 +1,4 @@
---- say_hello in sample.c ---
-sample.c:
-  [definition] line 5:6 void say_hello(const char* name) {
-  [reference] line 5:6 void say_hello(const char* name) {
-  [reference] line 13:5     say_hello("World");
-
-Lookup kind: definitions and references.
+sample.c
+  definition 5:6 void say_hello(const char* name) {
+  reference 5:6 void say_hello(const char* name) {
+  reference 13:5     say_hello("World");

@@ -1,6 +1,3 @@
---- getName in sample.cpp ---
-sample.cpp:
-  [reference] line 17:17     std::string getName() const {
-  [reference] line 61:22     std::cout << obj.getName() << std::endl;
-
-Lookup kind: references.
+sample.cpp
+  reference 17:17     std::string getName() const {
+  reference 61:22     std::cout << obj.getName() << std::endl;

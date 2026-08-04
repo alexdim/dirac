@@ -1,5 +1,4 @@
 sample.ts::outerFunction.innerFunction
-[Function Hash: 2e53f92a]
 /**
 	 * Inner function.
 	 */

@@ -1,5 +1,4 @@
 sample.rs::outer_rust
-[Implementation Hash: 4af8a635]
 /// A top-level function.
 pub fn outer_rust() {
     /// Nested function in Rust.

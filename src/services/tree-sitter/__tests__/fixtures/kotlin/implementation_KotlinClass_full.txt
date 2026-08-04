@@ -1,5 +1,4 @@
 sample.kt::KotlinClass
-[Implementation Hash: 99b51c44]
 class KotlinClass(var name: String) {
 
     /**

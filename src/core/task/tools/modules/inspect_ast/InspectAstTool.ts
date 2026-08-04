@@ -144,9 +144,6 @@ export class InspectAstTool implements IDiracTool<InspectAstArgs, string> {
 		const text = observabilityFailures.length > 0
 			? `${execution.formatted.text}\n\nObservability warning: inspection succeeded, but ${observabilityFailures.join(" ")}`
 			: execution.formatted.text
-		if (execution.formatted.summary.successCount === 0 && execution.formatted.summary.failureCount > 0) {
-			return formatResponse.toolError(text)
-		}
 		return text
 	}
 

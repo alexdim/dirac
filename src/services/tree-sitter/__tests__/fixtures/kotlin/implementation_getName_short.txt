@@ -1,5 +1,4 @@
 sample.kt::KotlinClass.getName
-[Implementation Hash: 96ec8232]
 /**
      * getName returns the name.
      */

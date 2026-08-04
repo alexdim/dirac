@@ -1,5 +1,4 @@
 sample.zig::main
-[Implementation Hash: dcac5a33]
 pub fn main() !void {
     const p = Point.init(3, 4);
     const d = helper(p.x);

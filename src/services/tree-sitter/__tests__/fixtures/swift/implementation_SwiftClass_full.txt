@@ -1,5 +1,4 @@
 sample.swift::SwiftClass
-[Implementation Hash: da258ab8]
 /// SwiftClass is a sample class.
 class SwiftClass {
     var name: String

@@ -1,5 +1,4 @@
 sample.py::top_level_func
-[Implementation Hash: 0061cf06]
 def top_level_func(x: int):
     """
     A top-level function in Python.

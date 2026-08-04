@@ -1,5 +1,4 @@
 sample.swift::SwiftClass.getName
-[Implementation Hash: 9dd70c59]
 /// getName returns the name.
     func getName() -> String {
         return self.name

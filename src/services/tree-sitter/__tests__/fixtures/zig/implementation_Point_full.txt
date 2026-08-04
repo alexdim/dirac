@@ -1,5 +1,4 @@
 sample.zig::Point
-[Implementation Hash: a0fa3d83]
 pub const Point = struct {
     x: i32,
     y: i32,

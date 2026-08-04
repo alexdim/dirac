@@ -1,5 +1,4 @@
 sample.cs::SampleNamespace.CSharpClass
-[Implementation Hash: 35a3d2d6]
 public class CSharpClass
     {
         public string Name { get; set; }

@@ -1,5 +1,4 @@
 sample.cpp::CppClass.getName
-[Implementation Hash: 0da1120b]
 /**
      * An inline method.
      */

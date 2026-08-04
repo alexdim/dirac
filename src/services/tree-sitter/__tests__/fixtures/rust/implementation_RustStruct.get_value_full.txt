@@ -1,5 +1,1 @@
-The tool execution failed with the following error:
-<error>
-sample.rs::RustStruct.get_value
-Symbol not found: Symbol not found: RustStruct.get_value in sample.rs.
-</error>
+RustStruct.get_value: no implementation found in sample.rs

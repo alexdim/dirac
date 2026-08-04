@@ -1,7 +1,1 @@
-The tool execution failed with the following error:
-<error>
---- getName in sample.ts ---
-Ambiguous symbol: Ambiguous symbol 'getName' in sample.ts: MyInterface.getName at line 6, MyClass.getName at line 18. Use a dot-qualified symbol.
-
-Lookup kind: definitions.
-</error>
+sample.ts: Ambiguous symbol 'getName' in sample.ts: MyInterface.getName at line 6, MyClass.getName at line 18. Use a dot-qualified symbol.

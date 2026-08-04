@@ -1,5 +1,4 @@
 sample.ts::outerFunction
-[Function Hash: 107feba5]
 /**
  * A nested scenario.
  */

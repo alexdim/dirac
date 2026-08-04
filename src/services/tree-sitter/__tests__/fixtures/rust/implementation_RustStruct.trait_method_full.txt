@@ -1,5 +1,1 @@
-The tool execution failed with the following error:
-<error>
-sample.rs::RustStruct.trait_method
-Symbol not found: Symbol not found: RustStruct.trait_method in sample.rs.
-</error>
+RustStruct.trait_method: no implementation found in sample.rs

@@ -1,7 +1,7 @@
 sample.py::ComplexDecorators.multiple_decorators
-[Implementation Hash: f79d784b]
+context:
 class ComplexDecorators:
-
+implementation:
 @property
     @staticmethod
     def multiple_decorators():

@@ -1,5 +1,2 @@
---- inner_func in sample.py ---
-sample.py:
-  [definition] line 35:9     def inner_func(y):
-
-Lookup kind: definitions.
+sample.py
+  definition 35:9     def inner_func(y):

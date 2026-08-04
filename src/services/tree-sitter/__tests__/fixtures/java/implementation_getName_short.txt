@@ -1,7 +1,7 @@
 sample.java::JavaClass.getName
-[Implementation Hash: 59622565]
+context:
 public class JavaClass {
-
+implementation:
 /**
      * getName returns the name.
      */

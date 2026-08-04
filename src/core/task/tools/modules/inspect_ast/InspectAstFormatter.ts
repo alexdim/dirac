@@ -12,7 +12,8 @@ import type {
 	InspectAstOutlineGroup,
 	InspectAstResultGroup,
 } from "./InspectAstResultReducer"
-import type { InspectAstOperation } from "./InspectAstValidator"
+
+const RESULT_SEPARATOR = "\n\n---\n\n"
 
 export interface ImplementationCacheRecord {
 	contentHash: string
@@ -43,14 +44,9 @@ function formatLine(line: SourceLine, includeAnchors: boolean): string {
 }
 
 function describeDefinition(definition: SourceDefinition, line: SourceLine | undefined, includeAnchors: boolean): string {
-	if (includeAnchors && line?.anchor) {
-		const result = ["Declaration:", formatLine(line, true)]
-		if (definition.calls.length > 0) result.push(`Calls: [${definition.calls.join(", ")}]`)
-		return result.join("\n")
-	}
-	const declaration = line ? line.text : definition.declarationText
-	const calls = definition.calls.length > 0 ? `\n│${definition.indentation}    # Calls: [${definition.calls.join(", ")}]` : ""
-	return `│${declaration}${calls}`
+	const declaration = line ? formatLine(line, includeAnchors) : definition.declarationText
+	if (definition.calls.length === 0) return declaration
+	return `${declaration}\n${definition.indentation}calls: ${definition.calls.join(", ")}`
 }
 
 function summaryFromGroups(groups: InspectAstResultGroup[]): InspectAstSummary {
@@ -65,30 +61,23 @@ function summaryFromGroups(groups: InspectAstResultGroup[]): InspectAstSummary {
 	}
 }
 
-/** Formats reduced AST result groups into a compact, deterministic model-facing document. */
+/** Formats reduced AST result groups into concise model-facing source output. */
 export class InspectAstFormatter {
 	public formatOutline(groups: InspectAstOutlineGroup[], includeAnchors: boolean): FormattedInspectAstResult {
 		const sections = groups.map((group) => {
-			const definitions = group.file?.definitions ?? []
-			const lines = [
-				`Path: ${group.path}`,
-				`Status: ${group.status.toUpperCase()}`,
-				`Definitions: ${definitions.length}`,
-			]
 			if (group.status === "failure") {
-				lines.push(`Reason: ${group.reason}`)
-				this.appendIssues(lines, "Issues", group.issues)
-				return lines.join("\n")
+				return this.formatFailure(group.path, "no definitions found", [], group.issues)
 			}
 
 			const sourceLines = new Map(group.file!.lines.map((line) => [line.lineNumber, line]))
-			const body = definitions.map((definition) =>
+			const definitions = group.file!.definitions.map((definition) =>
 				describeDefinition(definition, sourceLines.get(definition.declarationLine + 1), includeAnchors),
-			).join("\n|----\n")
-			lines.push("", "|----", body, "|----")
+			)
+			const lines = [group.path, ...definitions]
+			this.appendIssueMessages(lines, group.issues)
 			return lines.join("\n")
 		})
-		return this.document("outline", groups, sections, includeAnchors, { hitCount: 0, missCount: 0 })
+		return this.document(groups, sections, { hitCount: 0, missCount: 0 })
 	}
 
 	public formatImplementations(
@@ -99,31 +88,19 @@ export class InspectAstFormatter {
 	): FormattedInspectAstResult {
 		const cacheStats: InspectAstCacheStats = { hitCount: 0, missCount: 0 }
 		const sections = groups.map((group) => {
-			const lines = [
-				`Symbol: ${group.symbol}`,
-				`Status: ${group.status.toUpperCase()}`,
-				`Matches: ${group.matches.length}`,
-			]
 			if (group.status === "failure") {
-				lines.push(`Reason: ${group.reason}`, `Searched paths: ${group.searchedPaths.join(", ")}`)
-				this.appendIssues(lines, "Issues", group.issues)
-				return lines.join("\n")
+				return this.formatFailure(group.symbol, "no implementation found", group.searchedPaths, group.issues)
 			}
 
-			for (let index = 0; index < group.matches.length; index++) {
-				lines.push("", this.formatImplementationMatch(
-					group.matches[index],
-					index,
-					group.matches.length,
-					includeAnchors,
-					cache,
-					cacheStats,
-				))
-			}
-			this.appendIssues(lines, "Warnings", group.issues)
+			const matches = group.matches.map((match) =>
+				this.formatImplementationMatch(match, includeAnchors, cache, cacheStats),
+			)
+			const lines = [matches.join(RESULT_SEPARATOR)]
+			if (group.issues.length > 0) lines.push("")
+			this.appendIssueMessages(lines, group.issues)
 			return lines.join("\n")
 		})
-		return this.document("implementation", groups, sections, includeAnchors, cacheStats)
+		return this.document(groups, sections, cacheStats)
 	}
 
 	public formatOccurrences(
@@ -131,30 +108,25 @@ export class InspectAstFormatter {
 		operation: InspectAstOccurrenceGroup["operation"],
 		includeAnchors: boolean,
 	): FormattedInspectAstResult {
+		const includeSymbol = groups.length > 1
 		const sections = groups.map((group) => {
-			const definitionCount = group.occurrences.filter((occurrence) => occurrence.kind === "definition").length
-			const referenceCount = group.occurrences.length - definitionCount
-			const lines = [
-				`Symbol: ${group.symbol}`,
-				`Status: ${group.status.toUpperCase()}`,
-				this.occurrenceCountLine(operation, group.occurrences.length, definitionCount, referenceCount),
-			]
 			if (group.status === "failure") {
-				lines.push(`Reason: ${group.reason}`, `Searched paths: ${group.searchedPaths.join(", ")}`)
-				this.appendIssues(lines, "Issues", group.issues)
-				return lines.join("\n")
+				return this.formatFailure(group.symbol, this.missingOccurrenceMessage(operation), group.searchedPaths, group.issues)
 			}
 
-			const groupedOccurrences = new Map<string, SourceOccurrence[]>()
+			const occurrencesByPath = new Map<string, SourceOccurrence[]>()
 			for (const occurrence of group.occurrences) {
-				const occurrences = groupedOccurrences.get(occurrence.displayPath) ?? []
+				const occurrences = occurrencesByPath.get(occurrence.displayPath) ?? []
 				occurrences.push(occurrence)
-				groupedOccurrences.set(occurrence.displayPath, occurrences)
+				occurrencesByPath.set(occurrence.displayPath, occurrences)
 			}
-			for (const [path, occurrences] of groupedOccurrences) {
-				lines.push("", `${path}:`)
+
+			const lines = includeSymbol ? [group.symbol] : []
+			for (const [path, occurrences] of occurrencesByPath) {
+				if (lines.length > 0) lines.push("")
+				lines.push(path)
 				for (const occurrence of occurrences) {
-					const location = `  [${occurrence.kind}] line ${occurrence.startLine + 1}:${occurrence.startColumn + 1}`
+					const location = `  ${occurrence.kind} ${occurrence.startLine + 1}:${occurrence.startColumn + 1}`
 					if (includeAnchors && occurrence.anchor) {
 						lines.push(location, `${occurrence.anchor}${getDelimiter()}${occurrence.sourceLine ?? ""}`)
 					} else {
@@ -162,24 +134,21 @@ export class InspectAstFormatter {
 					}
 				}
 			}
-			this.appendIssues(lines, "Warnings", group.issues)
+			this.appendIssueMessages(lines, group.issues)
 			return lines.join("\n")
 		})
-		return this.document(operation, groups, sections, includeAnchors, { hitCount: 0, missCount: 0 })
+		return this.document(groups, sections, { hitCount: 0, missCount: 0 })
 	}
 
 	private formatImplementationMatch(
 		target: AstImplementationTargetResult,
-		index: number,
-		total: number,
 		includeAnchors: boolean,
 		cache: Record<string, ImplementationCacheRecord | string>,
 		cacheStats: InspectAstCacheStats,
 	): string {
 		const definition = target.definition!
 		const contentHash = target.contentHash!
-		const displayName = `${target.path}::${definition.qualifiedName}`
-		const header = `--- MATCH ${index + 1}/${total}: ${displayName}`
+		const header = `${target.path}::${definition.qualifiedName}`
 		const normalizedPath = (target.absolutePath ?? target.path).replace(/\\/g, "/")
 		const cacheKey = `${normalizedPath}::${target.symbol}#plain`
 		const cached = includeAnchors ? undefined : cache[cacheKey]
@@ -189,54 +158,42 @@ export class InspectAstFormatter {
 
 		if (!includeAnchors && contentMatches) {
 			cacheStats.hitCount++
-			return `${header}\nImplementation hash: ${contentHash}\nNo changes have been made to this implementation since the previous inspection.`
+			return `${header}\nunchanged`
 		}
 
 		cacheStats.missCount++
 		if (!includeAnchors) cache[cacheKey] = { contentHash }
 		const context = (target.contextLines ?? []).map((line) => formatLine(line, includeAnchors)).join("\n")
 		const implementation = (target.lines ?? []).map((line) => formatLine(line, includeAnchors)).join("\n")
-		const sections = [header, `Implementation hash: ${contentHash}`]
-		if (context) sections.push("Context:", context)
-		sections.push("Implementation:", implementation)
-		return sections.join("\n")
+		if (!context) return `${header}\n${implementation}`
+		return `${header}\ncontext:\n${context}\nimplementation:\n${implementation}`
 	}
 
-	private occurrenceCountLine(
-		operation: InspectAstOccurrenceGroup["operation"],
-		total: number,
-		definitions: number,
-		references: number,
-	): string {
-		if (operation === "definitions") return `Definitions: ${total}`
-		if (operation === "references") return `References: ${total}`
-		return `Occurrences: ${total} | Definitions: ${definitions} | References: ${references}`
+	private missingOccurrenceMessage(operation: InspectAstOccurrenceGroup["operation"]): string {
+		if (operation === "definitions") return "no definitions found"
+		if (operation === "references") return "no references found"
+		return "no definitions or references found"
 	}
 
-	private appendIssues(lines: string[], heading: "Issues" | "Warnings", issues: InspectAstIssue[]): void {
+	private formatFailure(subject: string, message: string, paths: string[], issues: InspectAstIssue[]): string {
+		if (issues.length > 0) return issues.map((issue) => `${issue.path}: ${issue.message}`).join("\n")
+		const location = paths.length > 0 ? ` in ${paths.join(", ")}` : ""
+		return `${subject}: ${message}${location}`
+	}
+
+	private appendIssueMessages(lines: string[], issues: InspectAstIssue[]): void {
 		if (issues.length === 0) return
-		lines.push("", `${heading}:`)
-		for (const issue of issues) {
-			lines.push(`- ${issue.path} [${issue.status.toUpperCase()}]: ${issue.message}`)
-		}
+		for (const issue of issues) lines.push(`${issue.path}: ${issue.message}`)
 	}
 
 	private document(
-		operation: InspectAstOperation,
 		groups: InspectAstResultGroup[],
 		sections: string[],
-		includeAnchors: boolean,
 		cacheStats: InspectAstCacheStats,
 	): FormattedInspectAstResult {
-		const summary = summaryFromGroups(groups)
-		const envelope = [
-			`INSPECT_AST ${operation}`,
-			`Results: ${summary.resultCount} | Success: ${summary.successCount} | Failure: ${summary.failureCount} | Anchors: ${includeAnchors ? "yes" : "no"}`,
-		].join("\n")
-		const body = sections.map((section, index) => `===== RESULT ${index + 1}/${sections.length} =====\n${section}`)
 		return {
-			text: `${envelope}\n\n${body.join("\n\n")}`,
-			summary,
+			text: sections.join(RESULT_SEPARATOR),
+			summary: summaryFromGroups(groups),
 			cacheStats,
 		}
 	}

@@ -1,5 +1,4 @@
 sample.rs::rust_main
-[Implementation Hash: dfaf8033]
 pub fn rust_main() {
     let instance = RustStruct::new(42);
     println!("Value: {}", instance.get_value());

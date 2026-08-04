@@ -1,4 +1,4 @@
-sample.ts:
-  (shadowed) const shadowed = "global"
-  (shadowed) 	const shadowed = "local"
-  (shadowed) 	console.log(shadowed)
+sample.ts
+  reference 80:7 const shadowed = "global"
+  reference 82:8 	const shadowed = "local"
+  reference 83:14 	console.log(shadowed)

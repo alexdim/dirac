@@ -1,9 +1,6 @@
---- GoStruct in sample.go ---
-sample.go:
-  [definition] line 8:6 type GoStruct struct {
-  [reference] line 8:6 type GoStruct struct {
-  [reference] line 13:32 func NewGoStruct(name string) *GoStruct {
-  [reference] line 14:10 	return &GoStruct{Name: name}
-  [reference] line 18:10 func (s *GoStruct) GetName() string {
-
-Lookup kind: definitions and references.
+sample.go
+  definition 8:6 type GoStruct struct {
+  reference 8:6 type GoStruct struct {
+  reference 13:32 func NewGoStruct(name string) *GoStruct {
+  reference 14:10 	return &GoStruct{Name: name}
+  reference 18:10 func (s *GoStruct) GetName() string {

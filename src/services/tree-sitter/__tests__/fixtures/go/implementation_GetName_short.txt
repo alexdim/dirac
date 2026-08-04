@@ -1,5 +1,4 @@
 sample.go::GetName
-[Implementation Hash: 14454b9b]
 // GetName is a method on GoStruct.
 func (s *GoStruct) GetName() string {
 	return s.Name

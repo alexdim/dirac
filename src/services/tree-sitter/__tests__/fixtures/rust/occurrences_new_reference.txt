@@ -1,6 +1,3 @@
---- new in sample.rs ---
-sample.rs:
-  [reference] line 8:12     pub fn new(value: i32) -> Self {
-  [reference] line 52:32     let instance = RustStruct::new(42);
-
-Lookup kind: references.
+sample.rs
+  reference 8:12     pub fn new(value: i32) -> Self {
+  reference 52:32     let instance = RustStruct::new(42);
