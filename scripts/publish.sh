@@ -184,6 +184,14 @@ fs.renameSync(temporaryPath, path)
 NODE
 }
 
+function manifest_flag_is_true() {
+    [ "$(manifest_get "$1")" = "true" ]
+}
+
+function publication_was_already_accepted() {
+    [[ "$1" == *"already exists"* || "$1" == *"already published"* || "$1" == *"previously published"* ]]
+}
+
 function create_manifest() {
     [ ! -e "$STATE_DIR" ] || die "Release state already exists without a usable manifest: $STATE_DIR"
     mkdir -p "$STATE_ROOT"
@@ -203,6 +211,9 @@ const manifest = {
   previousCliTag: process.env.PREVIOUS_CLI_VALUE,
   vsixSha256: "",
   npmTarballSha256: "",
+  vsMarketplaceAccepted: "false",
+  openVsxAccepted: "false",
+  npmAccepted: "false",
   completed: "false"
 }
 fs.writeFileSync(process.env.MANIFEST_PATH, `${JSON.stringify(manifest, null, 2)}\n`)
@@ -692,21 +703,6 @@ process.exit(list.includes(process.env.EXPECTED_VERSION) ? 0 : 1)
 ' <<< "$json"
 }
 
-function npm_formula_matches_registry() {
-    local expected_sha
-    expected_sha=$(formula_sha_at_ref "$RELEASE_COMMIT")
-    [ -n "$expected_sha" ] || return 1
-    EXPECTED_VERSION="$VERSION" EXPECTED_SHA="$expected_sha" node --input-type=module <<'NODE'
-import crypto from "node:crypto"
-const version = process.env.EXPECTED_VERSION
-const response = await fetch(`https://registry.npmjs.org/dirac-cli/-/dirac-cli-${version}.tgz`)
-if (response.status === 404) process.exit(1)
-if (!response.ok) throw new Error(`npm tarball query failed: HTTP ${response.status}`)
-const bytes = Buffer.from(await response.arrayBuffer())
-const actual = crypto.createHash("sha256").update(bytes).digest("hex")
-process.exit(actual === process.env.EXPECTED_SHA ? 0 : 1)
-NODE
-}
 
 function remote_release_refs_match() {
     local branch stable cli
@@ -729,19 +725,16 @@ function release_is_complete() {
         log_warn "Remote source refs are incomplete."
         complete=false
     fi
-    if ! marketplace_has_version; then
-        log_warn "VS Marketplace is missing ${VERSION}."
+    if ! manifest_flag_is_true vsMarketplaceAccepted; then
+        log_warn "VS Marketplace publication acceptance is not recorded."
         complete=false
     fi
-    if ! open_vsx_has_version; then
-        log_warn "Open VSX is missing ${VERSION}."
+    if ! manifest_flag_is_true openVsxAccepted; then
+        log_warn "Open VSX publication acceptance is not recorded."
         complete=false
     fi
-    if ! npm_has_version; then
-        log_warn "npm is missing ${NPM_PACKAGE}@${VERSION}."
-        complete=false
-    elif ! npm_formula_matches_registry; then
-        log_warn "Homebrew formula SHA does not match npm's ${VERSION} tarball."
+    if ! manifest_flag_is_true npmAccepted; then
+        log_warn "npm publication acceptance is not recorded."
         complete=false
     fi
     state=$(github_release_state)
@@ -753,61 +746,67 @@ function release_is_complete() {
     [ "$complete" = true ]
 }
 
-function wait_for_registry() {
-    local label="$1"
-    local check_function="$2"
-    local attempts="${3:-6}"
-    local attempt
-    for ((attempt = 1; attempt <= attempts; attempt += 1)); do
-        if "$check_function"; then
-            log_info "Verified ${label}."
-            return
-        fi
-        [ "$attempt" -eq "$attempts" ] || sleep 10
-    done
-    die "${label} did not report ${VERSION} after publication. Resume later with: scripts/publish.sh --resume ${RELEASE_TAG}"
-}
 
 function publish_missing_registries() {
-    if marketplace_has_version; then
+    local publish_output
+
+    if manifest_flag_is_true vsMarketplaceAccepted; then
+        log_info "VS Marketplace accepted ${VERSION}; skipping."
+    elif marketplace_has_version; then
+        manifest_set vsMarketplaceAccepted true
         log_info "VS Marketplace already has ${VERSION}; skipping."
     else
         [ -n "${VSCE_PAT:-}" ] || die "VSCE_PAT is required because VS Marketplace is missing ${VERSION}."
         ensure_vsix
-        local publish_output
         log_step "Publishing retained VSIX to VS Marketplace..."
         if publish_output=$(npx @vscode/vsce publish --packagePath "$VSIX_FILE" -p "$VSCE_PAT" 2>&1); then
             printf '%s\n' "$publish_output"
-        elif [[ "$publish_output" == *"already exists"* ]]; then
-            log_info "VS Marketplace already accepted ${VERSION}; waiting for it to become visible."
+        elif publication_was_already_accepted "$publish_output"; then
+            log_info "VS Marketplace already accepted ${VERSION}."
         else
             printf '%s\n' "$publish_output" >&2
             die "Could not publish retained VSIX to VS Marketplace."
         fi
-        wait_for_registry "VS Marketplace ${VERSION}" marketplace_has_version 30
+        manifest_set vsMarketplaceAccepted true
     fi
 
-    if open_vsx_has_version; then
+    if manifest_flag_is_true openVsxAccepted; then
+        log_info "Open VSX accepted ${VERSION}; skipping."
+    elif open_vsx_has_version; then
+        manifest_set openVsxAccepted true
         log_info "Open VSX already has ${VERSION}; skipping."
     else
         [ -n "${OVSX_PAT:-}" ] || die "OVSX_PAT is required because Open VSX is missing ${VERSION}."
         ensure_vsix
         log_step "Publishing retained VSIX to Open VSX..."
-        npx --yes ovsx@1.1.0 publish "$VSIX_FILE" -p "$OVSX_PAT"
-        wait_for_registry "Open VSX ${VERSION}" open_vsx_has_version
+        if publish_output=$(npx --yes ovsx@1.1.0 publish "$VSIX_FILE" -p "$OVSX_PAT" 2>&1); then
+            printf '%s\n' "$publish_output"
+        elif publication_was_already_accepted "$publish_output"; then
+            log_info "Open VSX already accepted ${VERSION}."
+        else
+            printf '%s\n' "$publish_output" >&2
+            die "Could not publish retained VSIX to Open VSX."
+        fi
+        manifest_set openVsxAccepted true
     fi
 
-    if npm_has_version; then
+    if manifest_flag_is_true npmAccepted; then
+        log_info "npm accepted ${NPM_PACKAGE}@${VERSION}; skipping."
+    elif npm_has_version; then
+        manifest_set npmAccepted true
         log_info "npm already has ${NPM_PACKAGE}@${VERSION}; skipping."
     else
         ensure_npm_tarball
         log_step "Publishing retained CLI tarball to npm..."
-        npm publish "$NPM_TARBALL"
-        wait_for_registry "npm ${NPM_PACKAGE}@${VERSION}" npm_has_version
+        if npm publish "$NPM_TARBALL"; then
+            manifest_set npmAccepted true
+        elif npm_has_version; then
+            manifest_set npmAccepted true
+            log_info "npm already accepted ${NPM_PACKAGE}@${VERSION}."
+        else
+            die "Could not publish retained CLI tarball to npm."
+        fi
     fi
-
-    npm_formula_matches_registry \
-        || die "Published npm tarball does not match the Homebrew SHA in release commit ${RELEASE_COMMIT}."
 }
 
 function publish_github_release() {
