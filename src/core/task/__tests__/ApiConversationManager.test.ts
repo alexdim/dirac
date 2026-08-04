@@ -48,6 +48,77 @@ describe("ApiConversationManager steering delivery", () => {
 		assert.equal(result.didConsumeUserContent, true)
 	})
 
+	it("consumes the Act-mode switch marker after preparing a normal request", async () => {
+		const taskState = new TaskState()
+		taskState.didSwitchToActMode = true
+		const manager = new ApiConversationManager({
+			taskState,
+			stateManager: { getGlobalSettingsKey: sinon.stub() },
+			runUserPromptSubmitHook: sinon.stub().resolves({}),
+			loadContext: sinon.stub().callsFake(async (content: any[]) => [content, "", false, [], false, undefined]),
+			taskMessenger: { upsertApiStatus: sinon.stub().resolves(), createCard: sinon.stub() },
+			messageStateHandler: {
+				addToApiConversationHistory: sinon.stub().resolves(),
+				getDiracMessages: sinon.stub().returns([]),
+				updateDiracMessage: sinon.stub().resolves(),
+			},
+			postStateToWebview: sinon.stub().resolves(),
+			taskInitializationStartTime: performance.now(),
+			ulid: "task-ulid",
+			taskId: "task-id",
+		} as any)
+
+		await manager.prepareApiRequest({
+			userContent: [],
+			includeFileDetails: false,
+			useCompactPrompt: false,
+			previousApiReqIndex: 0,
+			isFirstRequest: false,
+			providerId: "provider",
+			modelId: "model",
+			mode: "act",
+		})
+
+		assert.equal(taskState.didSwitchToActMode, false)
+	})
+
+	it("retains the Act-mode switch marker when request preparation fails before persistence", async () => {
+		const taskState = new TaskState()
+		taskState.didSwitchToActMode = true
+		const manager = new ApiConversationManager({
+			taskState,
+			stateManager: { getGlobalSettingsKey: sinon.stub() },
+			runUserPromptSubmitHook: sinon.stub().resolves({}),
+			loadContext: sinon.stub().callsFake(async (content: any[]) => [content, "", false, [], false, undefined]),
+			taskMessenger: { upsertApiStatus: sinon.stub().rejects(new Error("status failed")), createCard: sinon.stub() },
+			messageStateHandler: {
+				addToApiConversationHistory: sinon.stub().resolves(),
+				getDiracMessages: sinon.stub().returns([]),
+				updateDiracMessage: sinon.stub().resolves(),
+			},
+			postStateToWebview: sinon.stub().resolves(),
+			taskInitializationStartTime: performance.now(),
+			ulid: "task-ulid",
+			taskId: "task-id",
+		} as any)
+
+		await assert.rejects(
+			manager.prepareApiRequest({
+				userContent: [],
+				includeFileDetails: false,
+				useCompactPrompt: false,
+				previousApiReqIndex: 0,
+				isFirstRequest: false,
+				providerId: "provider",
+				modelId: "model",
+				mode: "act",
+			}),
+			/status failed/,
+		)
+
+		assert.equal(taskState.didSwitchToActMode, true)
+	})
+
 	it("runs the persistence callback immediately after the user message is stored", async () => {
 		const events: string[] = []
 		const dependencies: any = {

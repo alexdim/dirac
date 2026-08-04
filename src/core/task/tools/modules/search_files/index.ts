@@ -44,25 +44,21 @@ export const search_files_spec: DiracToolSpec = {
 			type: "array",
 			items: { type: "string" },
 			instruction: "The paths of the files or directories to search in.",
-			usage: '["src/core", "src/services"]',
 		},
 		{
 			name: "regex",
 			required: true,
 			instruction: "The regular expression pattern to search for (Rust regex syntax).",
-			usage: "Regex pattern here",
 		},
 		{
 			name: "file_pattern",
 			required: false,
 			instruction: "Glob pattern to filter files (e.g., '*.ts').",
-			usage: "*.ts",
 		},
 		{
 			name: "context_lines",
 			required: false,
 			instruction: "Optional number of context lines to show before and after each match (0-10, default 0).",
-			usage: "2",
 		},
 		{
 			name: "include_anchors",
@@ -70,7 +66,6 @@ export const search_files_spec: DiracToolSpec = {
 			type: "boolean",
 			instruction:
 				`Optional. When true, each current matched/context source line is emitted as a standalone complete ANCHOR${getDelimiter()}CONTENT coordinate required by edit_file; headers and separators remain unanchored. If a file changes during search, anchored results for it are omitted and must be searched again. Default false.`,
-			usage: "true",
 		},
 	],
 }

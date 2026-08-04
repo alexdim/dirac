@@ -49,21 +49,18 @@ export const read_file_spec: DiracToolSpec = {
 			type: "array",
 			items: { type: "string" },
 			instruction: "An array of relative paths to the source files.",
-			usage: '["src/utils/math.ts", "src/utils/string.ts"]',
 		},
 		{
 			name: "start_line",
 			required: false,
 			type: "integer",
 			instruction: "Optional. If not supplied, output will start from line 1.",
-			usage: "10",
 		},
 		{
 			name: "end_line",
 			required: false,
 			type: "integer",
 			instruction: "Optional. If not supplied, the output will go until the last line",
-			usage: "50",
 		},
 		{
 			name: "include_anchors",
@@ -71,7 +68,6 @@ export const read_file_spec: DiracToolSpec = {
 			type: "boolean",
 			instruction:
 				`Optional. For editable text/source files, true reads the raw file and returns each selected source line as a standalone complete ANCHOR${getDelimiter()}CONTENT coordinate required by edit_file. Plain output, extracted rich-file text, and images cannot be used by edit_file. Default false.`,
-			usage: "true",
 		},
 	],
 }

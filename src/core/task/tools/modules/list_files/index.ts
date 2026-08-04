@@ -24,13 +24,11 @@ export const list_files_spec: DiracToolSpec = {
 			items: { type: "string" },
 			instruction:
 				"The paths of the directory to list contents for (relative to the current working directory {{CWD}}){{MULTI_ROOT_HINT}}",
-			usage: '["src/components", "src/utils"]',
 		},
 		{
 			name: "recursive",
 			required: false,
 			instruction: "Whether to list files recursively. Use true for recursive listing, false or omit for top-level only.",
-			usage: "true or false (optional)",
 			type: "boolean",
 		},
 	],

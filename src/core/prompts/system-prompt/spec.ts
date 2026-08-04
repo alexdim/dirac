@@ -107,10 +107,6 @@ export function toolSpecFunctionDefinition(tool: DiracToolSpec, context: SystemP
 				}
 			}
 
-			if (param.usage) {
-				paramSchema.description += ` Example: ${param.usage}`
-			}
-
 			properties[param.name] = strict ? processSchema(paramSchema, !param.required) : paramSchema
 		}
 	}
@@ -211,10 +207,6 @@ export function toolSpecInputSchema(tool: DiracToolSpec, context: SystemPromptCo
 				}
 			}
 
-			// Add usage example as part of description if available
-			// if (param.usage) {
-			// 	paramSchema.description += ` Example: ${param.usage}`
-			// }
 
 			properties[param.name] = paramSchema
 		}

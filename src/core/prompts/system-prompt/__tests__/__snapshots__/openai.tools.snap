@@ -10,7 +10,15 @@
         "properties": {
           "action": {
             "type": "string",
-            "description": "The action to perform. The available actions are: \n\t* launch: Launch a new Puppeteer-controlled browser instance at the specified URL. This **must always be the first action**. \n\t\t- Use with the `url` parameter to provide the URL. \n\t\t- Ensure the URL is valid and includes the appropriate protocol (e.g. http://localhost:3000/page, file:///path/to/file.html, etc.) \n\t* click: Click at a specific x,y coordinate. \n\t\t- Use with the `coordinate` parameter to specify the location. \n\t\t- Always click in the center of an element (icon, button, link, etc.) based on coordinates derived from a screenshot. \n\t* type: Type a string of text on the keyboard. You might use this after clicking on a text field to input text. \n\t\t- Use with the `text` parameter to provide the string to type. \n\t* scroll_down: Scroll down the page by one page height. \n\t* scroll_up: Scroll up the page by one page height. \n\t* close: Close the Puppeteer-controlled browser instance. This **must always be the final browser action**. \n\t    - Example: 'scroll_up'"
+            "description": "Action to perform: launch requires url; click requires coordinate; type requires text; scroll_down and scroll_up scroll one page; close ends the browser session.",
+            "enum": [
+              "launch",
+              "click",
+              "type",
+              "scroll_down",
+              "scroll_up",
+              "close"
+            ]
           },
           "url": {
             "type": "string",
@@ -62,7 +70,7 @@
         "properties": {
           "paths": {
             "type": "array",
-            "description": "An array of relative paths to the files to scan. Example: [\"src/utils/math.ts\", \"src/utils/string.ts\"]",
+            "description": "An array of relative paths to the files to scan.",
             "items": {
               "type": "string"
             }
@@ -204,7 +212,7 @@
     "function": {
       "name": "execute_command",
       "strict": false,
-      "description": "Executes CLI commands or scripts. Use 'commands' for simple sequences of shell operations, can also be a single command. Use 'script' for complex multi-line logic, data processing, or when a high-level language like Python or Node.js is more efficient than shell scripting. Default language is bash'script' are also very useful for combinatorial problems such as looping over 'swap and try' patternScripts have full access to the file system and current environment, be careful. In multi-root workspaces, use the @workspace:command syntax for standard commands. Leverage the full power of the environment's interpreters (bash, python, node, etc.) to accomplish tasks with minimal round-trips.NOTE: provide exactly one of the {commands,script}",
+      "description": "Executes CLI commands or scripts. Provide exactly one of `commands` or `script`. Use `commands` for simple command sequences and `script` for complex multi-line logic or data processing. Scripts have full access to the filesystem and environment. In multi-root workspaces, prefix commands with `@workspace:`.",
       "parameters": {
         "type": "object",
         "properties": {
@@ -240,7 +248,7 @@
         "properties": {
           "operation": {
             "type": "string",
-            "description": "Choose by input and result: outline takes source-file paths (no symbols) and returns structural declarations without implementation bodies; implementation takes source-file paths plus symbols and returns complete named definitions; definitions, references, and occurrences take file or directory scopes plus symbols and return exact indexed definition locations, reference locations, or both, respectively. Example: \"implementation\"",
+            "description": "Choose by input and result: outline takes source-file paths (no symbols) and returns structural declarations without implementation bodies; implementation takes source-file paths plus symbols and returns complete named definitions; definitions, references, and occurrences take file or directory scopes plus symbols and return exact indexed definition locations, reference locations, or both, respectively.",
             "enum": [
               "outline",
               "implementation",
@@ -251,21 +259,21 @@
           },
           "paths": {
             "type": "array",
-            "description": "Source files for outline or implementation; file or directory scopes for symbol lookups. Example: [\"src/core/service.ts\", \"src/shared\"]",
+            "description": "Source files for outline or implementation; file or directory scopes for symbol lookups.",
             "items": {
               "type": "string"
             }
           },
           "symbols": {
             "type": "array",
-            "description": "Required except for outline. Use exact qualified or unqualified names; qualify ambiguous symbols, for example UserService.load. Example: [\"UserService.load\", \"User\"]",
+            "description": "Required except for outline. Use exact qualified or unqualified names; qualify ambiguous symbols, for example UserService.load.",
             "items": {
               "type": "string"
             }
           },
           "include_anchors": {
             "type": "boolean",
-            "description": "When true, exact source lines are emitted as standalone complete ANCHOR§CONTENT coordinates required by edit_file. Outline provides declaration-line coordinates; implementation provides complete definition lines; symbol-location operations provide the containing source line. Default false. Example: true"
+            "description": "When true, exact source lines are emitted as standalone complete ANCHOR§CONTENT coordinates required by edit_file. Outline provides declaration-line coordinates; implementation provides complete definition lines; symbol-location operations provide the containing source line. Default false."
           }
         },
         "required": [
@@ -287,14 +295,14 @@
         "properties": {
           "paths": {
             "type": "array",
-            "description": "The paths of the directory to list contents for (relative to the current working directory /test/project) Example: [\"src/components\", \"src/utils\"]",
+            "description": "The paths of the directory to list contents for (relative to the current working directory /test/project)",
             "items": {
               "type": "string"
             }
           },
           "recursive": {
             "type": "boolean",
-            "description": "Whether to list files recursively. Use true for recursive listing, false or omit for top-level only. Example: true or false (optional)"
+            "description": "Whether to list files recursively. Use true for recursive listing, false or omit for top-level only."
           }
         },
         "required": [
@@ -336,22 +344,22 @@
         "properties": {
           "paths": {
             "type": "array",
-            "description": "An array of relative paths to the source files. Example: [\"src/utils/math.ts\", \"src/utils/string.ts\"]",
+            "description": "An array of relative paths to the source files.",
             "items": {
               "type": "string"
             }
           },
           "start_line": {
             "type": "integer",
-            "description": "Optional. If not supplied, output will start from line 1. Example: 10"
+            "description": "Optional. If not supplied, output will start from line 1."
           },
           "end_line": {
             "type": "integer",
-            "description": "Optional. If not supplied, the output will go until the last line Example: 50"
+            "description": "Optional. If not supplied, the output will go until the last line"
           },
           "include_anchors": {
             "type": "boolean",
-            "description": "Optional. For editable text/source files, true reads the raw file and returns each selected source line as a standalone complete ANCHOR§CONTENT coordinate required by edit_file. Plain output, extracted rich-file text, and images cannot be used by edit_file. Default false. Example: true"
+            "description": "Optional. For editable text/source files, true reads the raw file and returns each selected source line as a standalone complete ANCHOR§CONTENT coordinate required by edit_file. Plain output, extracted rich-file text, and images cannot be used by edit_file. Default false."
           }
         },
         "required": [
@@ -413,26 +421,26 @@
         "properties": {
           "paths": {
             "type": "array",
-            "description": "The paths of the files or directories to search in. Example: [\"src/core\", \"src/services\"]",
+            "description": "The paths of the files or directories to search in.",
             "items": {
               "type": "string"
             }
           },
           "regex": {
             "type": "string",
-            "description": "The regular expression pattern to search for (Rust regex syntax). Example: Regex pattern here"
+            "description": "The regular expression pattern to search for (Rust regex syntax)."
           },
           "file_pattern": {
             "type": "string",
-            "description": "Glob pattern to filter files (e.g., '*.ts'). Example: *.ts"
+            "description": "Glob pattern to filter files (e.g., '*.ts')."
           },
           "context_lines": {
             "type": "string",
-            "description": "Optional number of context lines to show before and after each match (0-10, default 0). Example: 2"
+            "description": "Optional number of context lines to show before and after each match (0-10, default 0)."
           },
           "include_anchors": {
             "type": "boolean",
-            "description": "Optional. When true, each current matched/context source line is emitted as a standalone complete ANCHOR§CONTENT coordinate required by edit_file; headers and separators remain unanchored. If a file changes during search, anchored results for it are omitted and must be searched again. Default false. Example: true"
+            "description": "Optional. When true, each current matched/context source line is emitted as a standalone complete ANCHOR§CONTENT coordinate required by edit_file; headers and separators remain unanchored. If a file changes during search, anchored results for it are omitted and must be searched again. Default false."
           }
         },
         "required": [
@@ -542,7 +550,7 @@
     "function": {
       "name": "use_skill",
       "strict": false,
-      "description": "Load and activate a skill by name. Skills provide specialized instructions for specific tasks. Use this tool ONCE when a user's request matches one of the available skill descriptions shown in the SKILLS section of your system prompt. After activation, follow the skill's instructions directly - do not call use_skill again.",
+      "description": "Load and activate a skill by name. Skills provide specialized instructions for specific tasks. Reusing an active skill reloads its instructions without duplicating activation.",
       "parameters": {
         "type": "object",
         "properties": {

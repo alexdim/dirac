@@ -20,7 +20,6 @@ export const diagnostics_scan_spec: DiracToolSpec = {
 			type: "array",
 			items: { type: "string" },
 			instruction: "An array of relative paths to the files to scan.",
-			usage: '["src/utils/math.ts", "src/utils/string.ts"]',
 		},
 	],
 }
@@ -53,10 +52,10 @@ export class DiagnosticsScanTool implements IDiracTool<DiagnosticsScanArgs, stri
 		const isSubagent = env.config.isSubagentExecution
 		const card = !isSubagent
 			? await env.ui.createCard({
-					header: `Scanning ${relPaths.length} file(s) for diagnostics`,
-					icon: DiracIcon.DIAGNOSTICS,
-					collapsed: true,
-				})
+				header: `Scanning ${relPaths.length} file(s) for diagnostics`,
+				icon: DiracIcon.DIAGNOSTICS,
+				collapsed: true,
+			})
 			: undefined
 
 		try {

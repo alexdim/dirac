@@ -8,7 +8,6 @@ export interface DiracToolSpecParameter<TContext = any> {
 	name: string
 	required: boolean
 	instruction: string | ((context: TContext) => string)
-	usage?: string
 	dependencies?: DiracDefaultTool[]
 	description?: string
 	contextRequirements?: (context: TContext) => boolean

@@ -144,10 +144,10 @@ export class EnvironmentManager {
 			details += `\nPLAN MODE\n${formatResponse.planModeInstructions()}`
 		} else {
 			details += "\nACT MODE"
-			details += `\n${getEditingFilesInstructions()}\n`
+			if (this.taskState.didSwitchToActMode) {
+				details += `\n${getEditingFilesInstructions()}\n`
+			}
 		}
-
-		details += "\nReminder: always batch tool calls whenever possible.\n"
 
 		return `<environment_details>\n${details.trim()}\n</environment_details>`
 	}
