@@ -79,6 +79,59 @@ describe("GeminiHandler", () => {
 		requestArgs.config.should.have.property("maxOutputTokens", 32_768)
 	})
 
+	it("aborts a stalled generation request", async () => {
+		const handler = new GeminiHandler({ geminiApiKey: "test-api-key" })
+		let requestSignal: AbortSignal | undefined
+		const generateContentStream = sinon.stub().callsFake((request: any) => {
+			requestSignal = request.config.abortSignal
+			return new Promise((_resolve, reject) => {
+				requestSignal?.addEventListener("abort", () => reject(new Error("Gemini request aborted")), { once: true })
+			})
+		})
+		sinon.stub(handler as any, "ensureClient").returns({ models: { generateContentStream } } as any)
+
+		const pendingChunk = handler
+			.createMessage("system", [{ role: "user", content: "hi" }] as any)
+			[Symbol.asyncIterator]()
+			.next()
+
+		sinon.assert.calledOnce(generateContentStream)
+		handler.abort()
+
+		expect(requestSignal).not.to.be.undefined
+		requestSignal!.aborted.should.equal(true)
+		await pendingChunk.should.be.rejectedWith("Gemini request aborted")
+		expect((handler as any).abortController).to.be.undefined
+	})
+
+	it("does not start another request when aborted during a retry delay", async () => {
+		const clock = sinon.useFakeTimers()
+		let notifyRetryStarted!: () => void
+		const retryStarted = new Promise<void>((resolve) => {
+			notifyRetryStarted = resolve
+		})
+		const handler = new GeminiHandler({
+			geminiApiKey: "test-api-key",
+			onRetryAttempt: () => notifyRetryStarted(),
+		})
+		const rateLimitError = Object.assign(new Error("rate limited"), { status: 429 })
+		const generateContentStream = sinon.stub().rejects(rateLimitError)
+		sinon.stub(handler as any, "ensureClient").returns({ models: { generateContentStream } } as any)
+
+		const pendingChunk = handler
+			.createMessage("system", [{ role: "user", content: "hi" }] as any)
+			[Symbol.asyncIterator]()
+			.next()
+		const rejectedChunk = pendingChunk.should.be.rejected()
+		await retryStarted
+
+		handler.abort()
+		await clock.tickAsync(2_000)
+		await rejectedChunk
+
+		sinon.assert.calledOnce(generateContentStream)
+	})
+
 	it("should emit unique tool call IDs when multiple function calls share one responseId", async () => {
 		const handler = new GeminiHandler({
 			geminiApiKey: "test-api-key",

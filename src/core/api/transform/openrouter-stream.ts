@@ -39,6 +39,7 @@ export async function createOpenRouterStream(
 	routing?: OpenRouterRoutingOptions,
 	tools?: Array<ChatCompletionTool>,
 	enableParallelToolCalling?: boolean,
+	signal?: AbortSignal,
 ) {
 	const openAiMessages: OpenAI.Chat.ChatCompletionMessageParam[] = [
 		buildOpenRouterSystemMessage(systemPrompt, model.info.supportsPromptCache),
@@ -80,7 +81,7 @@ export async function createOpenRouterStream(
 	}
 
 	// The OpenAI SDK does not type OpenRouter's provider and reasoning extensions.
-	return client.chat.completions.create(requestPayload as any) as unknown as Promise<
+	return client.chat.completions.create(requestPayload as any, { signal }) as unknown as Promise<
 		AsyncIterable<OpenAI.Chat.ChatCompletionChunk>
 	>
 }

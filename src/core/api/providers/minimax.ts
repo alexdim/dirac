@@ -8,6 +8,7 @@ import { fetch } from "@/shared/net"
 import { DiracTool } from "@/shared/tools"
 import { ApiHandler, CommonApiHandlerOptions } from "../index"
 import { withRetry } from "../retry"
+import { sanitizeAnthropicMessages } from "../transform/anthropic-format"
 import { ApiStream } from "../transform/stream"
 
 interface MinimaxHandlerOptions extends CommonApiHandlerOptions {
@@ -20,6 +21,7 @@ interface MinimaxHandlerOptions extends CommonApiHandlerOptions {
 export class MinimaxHandler implements ApiHandler {
 	private options: MinimaxHandlerOptions
 	private client: Anthropic | undefined
+	private abortController: AbortController | undefined
 
 	constructor(options: MinimaxHandlerOptions) {
 		this.options = options
@@ -48,8 +50,24 @@ export class MinimaxHandler implements ApiHandler {
 		return this.client
 	}
 
-	@withRetry()
 	async *createMessage(systemPrompt: string, messages: DiracStorageMessage[], tools?: DiracTool[]): ApiStream {
+		const abortController = new AbortController()
+		this.abortController = abortController
+		try {
+			yield* this.createMessageWithRetry(systemPrompt, messages, tools, abortController.signal)
+		} finally {
+			if (this.abortController === abortController) this.abortController = undefined
+		}
+	}
+
+	@withRetry()
+	private async *createMessageWithRetry(
+		systemPrompt: string,
+		messages: DiracStorageMessage[],
+		tools: DiracTool[] | undefined,
+		signal: AbortSignal,
+	): ApiStream {
+		signal.throwIfAborted()
 		const client = this.ensureClient()
 		const model = this.getModel()
 
@@ -60,25 +78,32 @@ export class MinimaxHandler implements ApiHandler {
 		const reasoningOn = (model.info.supportsReasoning ?? false) && budget_tokens !== 0
 
 		// MiniMax M2 uses Anthropic API format
-		const stream: AnthropicStream<Anthropic.RawMessageStreamEvent> = await client.messages.create({
-			model: model.id,
-			max_tokens: model.info.maxTokens || 8192,
-			system: [{ text: systemPrompt, type: "text" }],
-			messages,
-			stream: true,
-			tools: nativeToolsOn ? (tools as AnthropicTool[]) : undefined,
-			thinking: reasoningOn ? { type: "enabled", budget_tokens: budget_tokens } : undefined,
-			// "Thinking isn't compatible with temperature, top_p, or top_k modifications"
-			temperature: reasoningOn ? undefined : 1.0, // MiniMax recommends 1.0, range is (0.0, 1.0]
-			// NOTE: Forcing tool use when tools are provided will result in error when thinking is also enabled.
-			tool_choice: nativeToolsOn && !reasoningOn ? { type: "any" } : undefined,
-		})
+		const stream: AnthropicStream<Anthropic.RawMessageStreamEvent> = await client.messages.create(
+			{
+				model: model.id,
+				max_tokens: model.info.maxTokens || 8192,
+				system: [{ text: systemPrompt, type: "text" }],
+				messages: sanitizeAnthropicMessages(messages, false),
+				stream: true,
+				tools: nativeToolsOn ? (tools as AnthropicTool[]) : undefined,
+				thinking: reasoningOn ? { type: "enabled", budget_tokens: budget_tokens } : undefined,
+				// "Thinking isn't compatible with temperature, top_p, or top_k modifications"
+				temperature: reasoningOn ? undefined : 1.0, // MiniMax recommends 1.0, range is (0.0, 1.0]
+				// NOTE: Forcing tool use when tools are provided will result in error when thinking is also enabled.
+				tool_choice: nativeToolsOn && !reasoningOn ? { type: "any" } : undefined,
+			},
+			{ signal },
+		)
 
 		const lastStartedToolCall = { id: "", name: "", arguments: "" }
 
 		for await (const chunk of stream) {
 			yield* handleStreamChunk(chunk, lastStartedToolCall)
 		}
+	}
+
+	abort(): void {
+		this.abortController?.abort()
 	}
 
 	getModel(): { id: MinimaxModelId; info: ModelInfo } {

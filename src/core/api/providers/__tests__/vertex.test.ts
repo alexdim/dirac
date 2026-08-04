@@ -102,9 +102,75 @@ describe("VertexHandler", () => {
 				"gemini boom",
 			)
 		})
+
+		it("should delegate abort to the Gemini handler", () => {
+			const handler = new VertexHandler({ vertexProjectId: "proj", vertexRegion: "us-east1" })
+			const abort = sinon.stub()
+			;(handler as any).geminiHandler = { abort }
+
+			handler.abort()
+
+			sinon.assert.calledOnce(abort)
+		})
 	})
 
 	describe("createMessage - Anthropic stream parsing", () => {
+		it("should abort a stalled Claude request", async () => {
+			const handler = new VertexHandler({ vertexProjectId: "proj", vertexRegion: "us-east1" })
+			stubClaudeModel(handler, "claude-sonnet-4-6")
+			let requestSignal: AbortSignal | undefined
+			const createStub = sinon.stub().callsFake((_params: unknown, options: { signal: AbortSignal }) => {
+				requestSignal = options.signal
+				return new Promise((_resolve, reject) => {
+					requestSignal?.addEventListener("abort", () => reject(new Error("Vertex request aborted")), { once: true })
+				})
+			})
+			sinon.stub(handler as any, "ensureAnthropicClient").returns({ beta: { messages: { create: createStub } } })
+
+			const pendingChunk = handler
+				.createMessage("system", [{ role: "user", content: "hi" }])
+				[Symbol.asyncIterator]()
+				.next()
+
+			sinon.assert.calledOnce(createStub)
+			handler.abort()
+
+			expect(requestSignal).not.to.be.undefined
+			requestSignal!.aborted.should.equal(true)
+			await pendingChunk.should.be.rejectedWith("Vertex request aborted")
+			expect((handler as any).abortController).to.be.undefined
+		})
+
+		it("should not start another Claude request when aborted during a retry delay", async () => {
+			const clock = sinon.useFakeTimers()
+			let notifyRetryStarted!: () => void
+			const retryStarted = new Promise<void>((resolve) => {
+				notifyRetryStarted = resolve
+			})
+			const handler = new VertexHandler({
+				vertexProjectId: "proj",
+				vertexRegion: "us-east1",
+				onRetryAttempt: () => notifyRetryStarted(),
+			})
+			stubClaudeModel(handler, "claude-sonnet-4-6")
+			const rateLimitError = Object.assign(new Error("rate limited"), { status: 429 })
+			const createStub = sinon.stub().rejects(rateLimitError)
+			sinon.stub(handler as any, "ensureAnthropicClient").returns({ beta: { messages: { create: createStub } } })
+
+			const pendingChunk = handler
+				.createMessage("system", [{ role: "user", content: "hi" }])
+				[Symbol.asyncIterator]()
+				.next()
+			const rejectedChunk = pendingChunk.should.be.rejected()
+			await retryStarted
+
+			handler.abort()
+			await clock.tickAsync(1_000)
+			await rejectedChunk
+
+			sinon.assert.calledOnce(createStub)
+		})
+
 		it("should emit a usage chunk from message_start with cache tokens", async () => {
 			const handler = new VertexHandler({ vertexProjectId: "proj", vertexRegion: "us-east1" })
 			stubClaudeModel(handler, "claude-sonnet-4-6")
@@ -404,7 +470,8 @@ describe("VertexHandler", () => {
 
 			const [params, options] = createStub.firstCall.args
 			params.model.should.equal("claude-sonnet-4-6")
-			expect(options).to.be.undefined
+			expect(options.signal.aborted).to.equal(false)
+			expect(options).not.to.have.property("headers")
 		})
 	})
 

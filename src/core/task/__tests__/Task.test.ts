@@ -329,6 +329,19 @@ describe("Task (original)", () => {
 		r.should.be.a.Boolean()
 	})
 
+	it("ignores a card response when no card is waiting", async () => {
+		const taskState = { lastWaitingCardId: undefined } as any
+		const task = {
+			taskState,
+			withStateLock: async (callback: () => Promise<void>) => callback(),
+		}
+
+		await Task.prototype.submitCardResponse.call(task as any, "stale-card", DiracAskResponse.MESSAGE, "late reply")
+
+		assert.equal(taskState.askResponse, undefined)
+		assert.equal(taskState.askResponseText, undefined)
+	})
+
 	it("markToolsDirty does not throw", () => {
 		const mockCtx = createMockContext()
 		const t = new Task({

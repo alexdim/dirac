@@ -14,11 +14,10 @@ export class DocumentOperationManager {
 			return true
 		}
 		try {
-			await pTimeout(editor.document.save(), {
+			return await pTimeout(editor.document.save(), {
 				milliseconds: 10_000,
 				message: "Failed to save document in VS Code within 10 seconds",
 			})
-			return true
 		} catch (error) {
 			Logger.warn(`DocumentOperationManager: failed to save document: ${error}`)
 			return false
@@ -48,12 +47,18 @@ export class DocumentOperationManager {
 		const edit = new vscode.WorkspaceEdit()
 		const range = new vscode.Range(0, 0, document.lineCount, 0)
 		edit.replace(uri, range, content)
-		await vscode.workspace.applyEdit(edit)
+		const applied = await vscode.workspace.applyEdit(edit)
+		if (!applied) {
+			throw new Error(`Failed to apply edit in VS Code: ${absolutePath}`)
+		}
 
-		await pTimeout(document.save(), {
+		const saved = await pTimeout(document.save(), {
 			milliseconds: 10_000,
 			message: "Failed to save document in VS Code within 10 seconds",
 		})
+		if (!saved) {
+			throw new Error(`Failed to save document in VS Code: ${absolutePath}`)
+		}
 
 		return this.computeResults(content, document)
 	}
@@ -86,15 +91,21 @@ export class DocumentOperationManager {
 			edit.replace(uri, range, file.content)
 		}
 
-		await vscode.workspace.applyEdit(edit)
+		const applied = await vscode.workspace.applyEdit(edit)
+		if (!applied) {
+			throw new Error("Failed to apply batch edit in VS Code")
+		}
 
 		await Promise.all(
-			documents.map((doc) =>
-				pTimeout(doc.save(), {
+			documents.map(async (doc) => {
+				const saved = await pTimeout(doc.save(), {
 					milliseconds: 10_000,
 					message: `Failed to save document ${doc.uri.fsPath} in VS Code within 10 seconds`,
-				}),
-			),
+				})
+				if (!saved) {
+					throw new Error(`Failed to save document ${doc.uri.fsPath} in VS Code`)
+				}
+			}),
 		)
 
 		const cwd = await (await import("@utils/path")).getCwd()

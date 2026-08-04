@@ -156,9 +156,19 @@ export class BrowserConnectionManager {
 				shell: false,
 			})
 			chromeProcess.unref()
+			let rejectSpawn!: (error: Error) => void
+			const spawnError = new Promise<never>((_resolve, reject) => {
+				rejectSpawn = reject
+			})
+			const onSpawnError = (error: Error) => rejectSpawn(error)
+			chromeProcess.once("error", onSpawnError)
 
 			// Give Chrome a moment to start
-			await new Promise((resolve) => setTimeout(resolve, 1000))
+			try {
+				await Promise.race([new Promise((resolve) => setTimeout(resolve, 1000)), spawnError])
+			} finally {
+				chromeProcess.off("error", onSpawnError)
+			}
 
 			const isRunning = await isPortOpen("localhost", DEBUG_PORT, 2000)
 			if (!isRunning) {
@@ -263,11 +273,19 @@ export class BrowserConnectionManager {
 		if (browserWSEndpoint && Date.now() - this.lastConnectionAttempt < 3600000) {
 			try {
 				Logger.info(`Attempting to connect using cached WebSocket endpoint: ${browserWSEndpoint}`)
-				this.browser = await connect({
+				const browser = await connect({
 					browserWSEndpoint,
 					defaultViewport: getViewport(),
 				})
-				this.page = await this.browser?.newPage()
+				let page: Page
+				try {
+					page = await browser.newPage()
+				} catch (error) {
+					await browser.disconnect()
+					throw error
+				}
+				this.browser = browser
+				this.page = page
 				this.isConnectedToRemote = true
 				return
 			} catch (error) {
@@ -306,11 +324,19 @@ export class BrowserConnectionManager {
 				this.cachedWebSocketEndpoint = browserWSEndpoint
 				this.lastConnectionAttempt = Date.now()
 
-				this.browser = await connect({
+				const browser = await connect({
 					browserWSEndpoint,
 					defaultViewport: getViewport(),
 				})
-				this.page = await this.browser?.newPage()
+				let page: Page
+				try {
+					page = await browser.newPage()
+				} catch (error) {
+					await browser.disconnect()
+					throw error
+				}
+				this.browser = browser
+				this.page = page
 				this.isConnectedToRemote = true
 				return
 			} catch (error) {

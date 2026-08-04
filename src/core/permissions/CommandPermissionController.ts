@@ -60,8 +60,10 @@ export class CommandPermissionController {
 			atomic: true,
 		})
 
-		this.fileWatcher.on("all", (event) => {
-			this.loadConfig()
+		this.fileWatcher.on("all", (_event) => {
+			void this.loadConfig().catch((error) => {
+				Logger.error("Failed to reload command permissions:", error)
+			})
 		})
 	}
 

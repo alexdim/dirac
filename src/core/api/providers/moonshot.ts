@@ -5,8 +5,8 @@ import { DiracStorageMessage } from "@/shared/messages/content"
 import { createOpenAIClient } from "@/shared/net"
 import { ApiHandler, CommonApiHandlerOptions } from "../index"
 import { withRetry } from "../retry"
-import { addReasoningContent } from "../transform/r1-format"
 import { convertToOpenAiMessages } from "../transform/openai-format"
+import { addReasoningContent } from "../transform/r1-format"
 import { ApiStream } from "../transform/stream"
 import { getOpenAIToolParams, ToolCallProcessor } from "../transform/tool-call-processor"
 
@@ -23,8 +23,9 @@ interface MoonshotUsage extends OpenAI.CompletionUsage {
 
 export class MoonshotHandler implements ApiHandler {
 	private client: OpenAI | undefined
+	private abortController: AbortController | undefined
 
-	constructor(private readonly options: MoonshotHandlerOptions) { }
+	constructor(private readonly options: MoonshotHandlerOptions) {}
 
 	private ensureClient(): OpenAI {
 		if (!this.client) {
@@ -44,8 +45,24 @@ export class MoonshotHandler implements ApiHandler {
 		return this.client
 	}
 
-	@withRetry()
 	async *createMessage(systemPrompt: string, messages: DiracStorageMessage[], tools?: OpenAITool[]): ApiStream {
+		const abortController = new AbortController()
+		this.abortController = abortController
+		try {
+			yield* this.createMessageWithRetry(systemPrompt, messages, tools, abortController.signal)
+		} finally {
+			if (this.abortController === abortController) this.abortController = undefined
+		}
+	}
+
+	@withRetry()
+	private async *createMessageWithRetry(
+		systemPrompt: string,
+		messages: DiracStorageMessage[],
+		tools: OpenAITool[] | undefined,
+		signal: AbortSignal,
+	): ApiStream {
+		signal.throwIfAborted()
 		const client = this.ensureClient()
 		const model = this.getModel()
 
@@ -65,7 +82,9 @@ export class MoonshotHandler implements ApiHandler {
 				? { max_completion_tokens: model.info.maxTokens, reasoning_effort: "max" }
 				: { max_tokens: model.info.maxTokens, temperature: model.info.temperature }),
 		}
-		const stream = await client.chat.completions.create(request as OpenAI.Chat.ChatCompletionCreateParamsStreaming)
+		const stream = await client.chat.completions.create(request as OpenAI.Chat.ChatCompletionCreateParamsStreaming, {
+			signal,
+		})
 
 		const toolCallProcessor = new ToolCallProcessor()
 
@@ -100,6 +119,10 @@ export class MoonshotHandler implements ApiHandler {
 				}
 			}
 		}
+	}
+
+	abort(): void {
+		this.abortController?.abort()
 	}
 
 	getModel(): { id: MoonshotModelId; info: ModelInfo } {

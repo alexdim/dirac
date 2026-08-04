@@ -171,8 +171,7 @@ describe("LiteLlmHandler (characterization)", () => {
 			chunks.should.deepEqual([{ type: "reasoning", reasoning: "thinking..." }])
 		})
 
-		// Characterizes a source bug: tool_calls are only processed when delta.content is truthy.
-		it("emits tool_calls chunks only when delta also carries content", async () => {
+		it("emits tool_calls chunks with or without text content", async () => {
 			const createStub = sinon.stub().resolves(
 				createAsyncIterable([
 					{
@@ -206,13 +205,15 @@ describe("LiteLlmHandler (characterization)", () => {
 
 			const chunks = await collect(handler.createMessage("sys", [{ role: "user", content: "hi" }]))
 
-			// First chunk (tool_calls without content) is silently dropped.
-			chunks.should.have.length(2)
+			chunks.should.have.length(3)
 			chunks[0].type.should.equal("tool_calls")
-			chunks[0].tool_call.call_id.should.equal("call_2")
-			chunks[0].tool_call.function.name.should.equal("write_file")
-			chunks[1].type.should.equal("text")
-			chunks[1].text.should.equal("x")
+			chunks[0].tool_call.call_id.should.equal("call_1")
+			chunks[0].tool_call.function.name.should.equal("read_file")
+			chunks[1].type.should.equal("tool_calls")
+			chunks[1].tool_call.call_id.should.equal("call_2")
+			chunks[1].tool_call.function.name.should.equal("write_file")
+			chunks[2].type.should.equal("text")
+			chunks[2].text.should.equal("x")
 		})
 
 		it("passes drop_params and stream_options to the client", async () => {

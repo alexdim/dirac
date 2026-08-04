@@ -1162,7 +1162,7 @@ export class Task {
 		value?: string,
 	) {
 		await this.withStateLock(async () => {
-			if (cardId && this.taskState.lastWaitingCardId && this.taskState.lastWaitingCardId !== cardId) {
+			if (cardId && this.taskState.lastWaitingCardId !== cardId) {
 				Logger.warn(`[Task] Received response for card ${cardId}, but waiting for ${this.taskState.lastWaitingCardId}`)
 				return
 			}
@@ -1273,7 +1273,9 @@ export class Task {
 	}
 
 	async abortTask() {
-		this.taskState.status = TaskStatus.CANCELLING
+		if (this.taskState.status !== TaskStatus.CANCELLED) {
+			this.taskState.status = TaskStatus.CANCELLING
+		}
 
 		return this.lifecycleManager.abortTask()
 	}
@@ -2187,10 +2189,6 @@ export class Task {
 					await this.diffViewProvider.revertChanges()
 				}
 
-				const diracMessages = this.messageStateHandler.getDiracMessages()
-				diracMessages.forEach((msg) => {
-					Logger.log("updating partial message", msg)
-				})
 				this.taskState.isApiRequestActive = false
 				this.taskState.activeVoiceStreamId = undefined
 				await finalizeApiReqMsg(cancelReason, streamingFailedMessage)

@@ -105,6 +105,10 @@ export function getSettingsFromEnv(): Partial<Settings> {
 		}
 	}
 
+	if (process.env.MINIMAX_CN_API_KEY) {
+		settings.minimaxApiLine = "china"
+	}
+
 	return settings
 }
 

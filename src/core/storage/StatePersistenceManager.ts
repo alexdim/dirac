@@ -142,17 +142,33 @@ export class StatePersistenceManager {
 			return
 		}
 
-		await Promise.all([
-			this.persistGlobalStateBatch(this.pendingGlobalState),
-			this.persistSecretsBatch(this.pendingSecrets),
-			this.persistWorkspaceStateBatch(this.pendingWorkspaceState),
-			this.persistTaskStateBatch(this.pendingTaskState),
-		])
+		const pendingGlobalState = this.pendingGlobalState
+		const pendingSecrets = this.pendingSecrets
+		const pendingWorkspaceState = this.pendingWorkspaceState
+		const pendingTaskState = this.pendingTaskState
+		this.pendingGlobalState = new Set()
+		this.pendingSecrets = new Set()
+		this.pendingWorkspaceState = new Set()
+		this.pendingTaskState = new Map()
 
-		this.pendingGlobalState.clear()
-		this.pendingSecrets.clear()
-		this.pendingWorkspaceState.clear()
-		this.pendingTaskState.clear()
+		try {
+			await Promise.all([
+				this.persistGlobalStateBatch(pendingGlobalState),
+				this.persistSecretsBatch(pendingSecrets),
+				this.persistWorkspaceStateBatch(pendingWorkspaceState),
+				this.persistTaskStateBatch(pendingTaskState),
+			])
+		} catch (error) {
+			for (const key of pendingGlobalState) this.pendingGlobalState.add(key)
+			for (const key of pendingSecrets) this.pendingSecrets.add(key)
+			for (const key of pendingWorkspaceState) this.pendingWorkspaceState.add(key)
+			for (const [taskId, keys] of pendingTaskState) {
+				const queuedKeys = this.pendingTaskState.get(taskId) ?? new Set<SettingsKey>()
+				for (const key of keys) queuedKeys.add(key)
+				this.pendingTaskState.set(taskId, queuedKeys)
+			}
+			throw error
+		}
 	}
 
 	async flushPendingState(): Promise<void> {

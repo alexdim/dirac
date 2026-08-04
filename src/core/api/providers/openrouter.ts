@@ -33,6 +33,7 @@ const dynamicModelInfoDefaults: ModelInfo = { supportsPromptCache: false }
 export class OpenRouterHandler implements ApiHandler {
 	private options: OpenRouterHandlerOptions
 	private client: OpenAI | undefined
+	private abortController?: AbortController
 	lastGenerationId?: string
 
 	constructor(options: OpenRouterHandlerOptions) {
@@ -61,8 +62,25 @@ export class OpenRouterHandler implements ApiHandler {
 		return this.client
 	}
 
-	@withRetry()
 	async *createMessage(systemPrompt: string, messages: DiracStorageMessage[], tools?: OpenAITool[]): ApiStream {
+		const abortController = new AbortController()
+		this.abortController = abortController
+
+		try {
+			yield* this.createMessageWithSignal(systemPrompt, messages, tools, abortController.signal)
+		} finally {
+			if (this.abortController === abortController) this.abortController = undefined
+		}
+	}
+
+	@withRetry()
+	private async *createMessageWithSignal(
+		systemPrompt: string,
+		messages: DiracStorageMessage[],
+		tools: OpenAITool[] | undefined,
+		signal: AbortSignal,
+	): ApiStream {
+		signal.throwIfAborted()
 		const client = this.ensureClient()
 		this.lastGenerationId = undefined
 
@@ -91,6 +109,7 @@ export class OpenRouterHandler implements ApiHandler {
 			},
 			tools,
 			this.options.enableParallelToolCalling,
+			signal,
 		)
 
 		let didLogResponseMetadata = false
@@ -185,19 +204,20 @@ export class OpenRouterHandler implements ApiHandler {
 
 		// Fallback to generation endpoint if usage chunk not returned
 		if (!didOutputUsage) {
-			const apiStreamUsage = await this.getApiStreamUsage()
+			const apiStreamUsage = await this.getApiStreamUsage(signal)
 			if (apiStreamUsage) {
 				yield apiStreamUsage
 			}
 		}
 	}
 
-	async getApiStreamUsage(): Promise<ApiStreamUsageChunk | undefined> {
+	async getApiStreamUsage(signal?: AbortSignal): Promise<ApiStreamUsageChunk | undefined> {
 		if (this.lastGenerationId) {
-			await setTimeoutPromise(500) // FIXME: necessary delay to ensure generation endpoint is ready
 			try {
-				const generationIterator = this.fetchGenerationDetails(this.lastGenerationId)
+				await setTimeoutPromise(500, undefined, { signal }) // FIXME: necessary delay to ensure generation endpoint is ready
+				const generationIterator = this.fetchGenerationDetails(this.lastGenerationId, signal)
 				const generation = (await generationIterator.next()).value
+				if (signal?.aborted) return undefined
 				// Logger.log("OpenRouter generation details:", generation)
 				return formatOpenAiCompatibleUsage(
 					{
@@ -212,6 +232,7 @@ export class OpenRouterHandler implements ApiHandler {
 					this.getModel().info,
 				)
 			} catch (error) {
+				if (signal?.aborted) return undefined
 				// ignore if fails
 				Logger.error("Error fetching OpenRouter generation details:", error)
 			}
@@ -220,7 +241,7 @@ export class OpenRouterHandler implements ApiHandler {
 	}
 
 	@withRetry({ maxRetries: 4, baseDelay: 250, maxDelay: 1000, retryAllErrors: true })
-	async *fetchGenerationDetails(genId: string) {
+	async *fetchGenerationDetails(genId: string, signal?: AbortSignal) {
 		// Logger.log("Fetching generation details for:", genId)
 		try {
 			const response = await axios.get(`https://openrouter.ai/api/v1/generation?id=${genId}`, {
@@ -228,6 +249,7 @@ export class OpenRouterHandler implements ApiHandler {
 					Authorization: `Bearer ${this.options.openRouterApiKey}`,
 				},
 				timeout: 15_000, // this request hangs sometimes
+				signal,
 				...getAxiosSettings(),
 			})
 			const generation = response.data?.data
@@ -240,10 +262,15 @@ export class OpenRouterHandler implements ApiHandler {
 			)
 			yield generation
 		} catch (error) {
+			if (signal?.aborted) return
 			// ignore if fails
 			Logger.error("Error fetching OpenRouter generation details:", error)
 			throw error
 		}
+	}
+
+	abort(): void {
+		this.abortController?.abort()
 	}
 
 	getModel(): { id: string; info: ModelInfo } {

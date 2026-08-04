@@ -5,6 +5,7 @@
  */
 import { beforeEach, describe, it } from "mocha"
 import "should"
+import { EventEmitter } from "node:events"
 import type { BrowserSettings } from "@shared/BrowserSettings"
 import { DEFAULT_BROWSER_SETTINGS } from "@shared/BrowserSettings"
 import { BrowserConnectionInfo, BrowserSession } from "../BrowserSession"
@@ -42,7 +43,73 @@ describe("BrowserSession", () => {
 
 	describe("executePageAction", () => {
 		it("throws when no page is launched", async () => {
-			await session.executePageAction(async () => { }).should.be.rejectedWith(/Browser is not launched/)
+			await session.executePageAction(async () => {}).should.be.rejectedWith(/Browser is not launched/)
+		})
+
+		it("captures console messages emitted during the action", async () => {
+			const page = Object.assign(new EventEmitter(), {
+				screenshot: async () => "c2NyZWVuc2hvdA==",
+				url: () => "https://example.com",
+			})
+			;(session as any).connection = {
+				getPage: () => page,
+				getIsConnectedToRemote: () => false,
+				getUlid: () => undefined,
+				getLastAction: () => "test",
+			}
+
+			const result = await session.executePageAction(async () => {
+				page.emit("console", {
+					type: () => "warn",
+					text: () => "browser warning",
+				})
+			})
+
+			should(result.logs).equal("[warn] browser warning")
+		})
+
+		it("removes page listeners when screenshot capture fails", async () => {
+			const page = Object.assign(new EventEmitter(), {
+				screenshot: async () => {
+					throw new Error("screenshot failed")
+				},
+			})
+			;(session as any).connection = {
+				getPage: () => page,
+				getIsConnectedToRemote: () => false,
+				getUlid: () => undefined,
+				getLastAction: () => "test",
+			}
+
+			await session.executePageAction(async () => {}).should.be.rejectedWith("screenshot failed")
+
+			page.listenerCount("console").should.equal(0)
+			page.listenerCount("pageerror").should.equal(0)
+		})
+	})
+
+	describe("click", () => {
+		it("removes its request listener when the click fails", async () => {
+			const page = Object.assign(new EventEmitter(), {
+				mouse: {
+					click: async () => {
+						throw new Error("click failed")
+					},
+				},
+				screenshot: async () => "c2NyZWVuc2hvdA==",
+				url: () => "https://example.com",
+			})
+			;(session as any).connection = {
+				getPage: () => page,
+				getIsConnectedToRemote: () => false,
+				getUlid: () => undefined,
+				getLastAction: () => "click",
+				trackAction: () => {},
+			}
+
+			await session.click("1,2")
+
+			page.listenerCount("request").should.equal(0)
 		})
 	})
 

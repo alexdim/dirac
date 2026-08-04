@@ -3,6 +3,7 @@
  */
 import { describe, it } from "mocha"
 import "should"
+import sinon from "sinon"
 import {
 	type ApiConfiguration,
 	openAiModelInfoSaneDefaults,
@@ -10,6 +11,7 @@ import {
 } from "@shared/api"
 import { buildApiHandler, createRegistryHandler, validateApiConfiguration } from "../index"
 import { TEST_MODEL_IDS } from "@test/fixtures/model-ids"
+import { Logger } from "@shared/services/Logger"
 
 describe("Provider Registry", () => {
 	const allKnownProviders = [
@@ -345,6 +347,26 @@ describe("Provider Registry", () => {
 		)
 
 		handler.getModel().id.should.equal("task-owned-model")
+	})
+
+	it("does not write OpenAI-compatible API key material to logs", () => {
+		const log = sinon.stub(Logger, "info")
+		try {
+			buildApiHandler(
+				{
+					planModeApiProvider: "openai",
+					planModeOpenAiModelId: "custom-model",
+					openAiCompatibleCustomApiKey: "secret",
+				},
+				"plan",
+			)
+
+			const output = log.args.flat().join(" ")
+			output.should.not.containEql("secret")
+			output.should.not.containEql("secr")
+		} finally {
+			log.restore()
+		}
 	})
 
 	it("does not reuse profile metadata for a task-owned OpenAI model", () => {

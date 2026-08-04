@@ -4,7 +4,9 @@ import "should"
 import fs from "fs/promises"
 import os from "os"
 import path from "path"
+import sinon from "sinon"
 import { expectLoggerErrors } from "@/test/loggerGuard"
+import { Logger } from "@/shared/services/Logger"
 import { CommandPermissionController } from "./CommandPermissionController"
 import { COMMAND_PERMISSIONS_ENV_VAR } from "./types"
 
@@ -12,7 +14,7 @@ function createWatcherFactory() {
 	return () => {
 		const watcher = {
 			on: () => watcher,
-			close: async () => { },
+			close: async () => {},
 		}
 		return watcher as any
 	}
@@ -68,13 +70,38 @@ describe("CommandPermissionController", () => {
 				await controller.addRule(allowRule)
 				await controller.addRule(denyRule)
 
-					; (await controller.listRules()).should.deepEqual([allowRule, denyRule])
+				;(await controller.listRules()).should.deepEqual([allowRule, denyRule])
 				await controller.deleteRule(allowRule)
-					; (await controller.listRules()).should.deepEqual([denyRule])
+				;(await controller.listRules()).should.deepEqual([denyRule])
 				await controller.dispose()
 			} finally {
 				await fs.rm(workspaceRoot, { recursive: true, force: true })
 			}
+		})
+	})
+
+	describe("Configuration watcher", () => {
+		it("observes asynchronous reload failures", async () => {
+			let reload!: () => void
+			const watcher = {
+				on: (_event: string, listener: () => void) => {
+					reload = listener
+					return watcher
+				},
+				close: async () => {},
+			}
+			const controller = new CommandPermissionController(() => watcher as any)
+			await controller.initialize(path.join(os.tmpdir(), "missing-permissions-workspace"))
+			const failure = new Error("reload failed")
+			sinon.stub(controller as any, "loadConfig").rejects(failure)
+			const logger = sinon.stub(Logger, "error")
+
+			reload()
+			await Promise.resolve()
+
+			sinon.assert.calledOnceWithExactly(logger, "Failed to reload command permissions:", failure)
+			await controller.dispose()
+			logger.restore()
 		})
 	})
 

@@ -130,6 +130,18 @@ describe("getSettingsFromEnv - OpenAI settings", () => {
 	})
 })
 
+describe("getSettingsFromEnv - MiniMax settings", () => {
+	it("routes a China API key to the China API line", () => {
+		process.env.MINIMAX_CN_API_KEY = "cn-key"
+
+		const settings = getSettingsFromEnv()
+		const secrets = getSecretsFromEnv()
+
+		expect(settings.minimaxApiLine).to.equal("china")
+		expect(secrets.minimaxApiKey).to.equal("cn-key")
+	})
+})
+
 describe("getSecretsFromEnv - OpenAI secrets", () => {
 	it("maps OPENAI_COMPATIBLE_CUSTOM_KEY to openAiCompatibleCustomApiKey", () => {
 		process.env.OPENAI_COMPATIBLE_CUSTOM_KEY = "sk-custom-key"

@@ -31,6 +31,8 @@ import { LifecycleManagerDependencies } from "./types/lifecycle-manager"
 import { buildUserFeedbackContent } from "./utils/buildUserFeedbackContent"
 
 export class LifecycleManager {
+	private abortPromise?: Promise<void>
+
 	constructor(private dependencies: LifecycleManagerDependencies) { }
 
 	setApi(api: LifecycleManagerDependencies["api"]): void {
@@ -480,9 +482,26 @@ export class LifecycleManager {
 	}
 
 	public async abortTask() {
+		if (this.abortPromise) {
+			try {
+				await this.abortPromise
+			} finally {
+				await this.dependencies.messageStateHandler.flushPendingWrites()
+			}
+			return
+		}
+
+		this.abortPromise = this.performAbortTask()
+		await this.abortPromise
+	}
+
+	private async performAbortTask() {
 		this.dependencies.taskState.abort = true
+		const abortFailures: unknown[] = []
+		let cleanupFailures: unknown[] = []
 
 		try {
+			this.dependencies.api.abort?.()
 			const shouldRunTaskCancelHook = await this.dependencies.hookManager.shouldRunTaskCancelHook()
 
 			const activeHook = await this.dependencies.hookManager.getActiveHookExecution()
@@ -533,17 +552,25 @@ export class LifecycleManager {
 			// Update any stale auto-retry cards whose delay was still in progress.
 			// Without this, the "Retrying in" body persists because the task loop
 			// never reached the post-delay abort check.
-			for (const msg of this.dependencies.messageStateHandler.getDiracMessages()) {
+			for (const [index, msg] of this.dependencies.messageStateHandler.getDiracMessages().entries()) {
 				if (
 					msg.content.type === DiracMessageType.CARD &&
 					msg.content.card.header === "API Error (Retrying)" &&
 					(msg.content.card.status === CardStatus.PENDING || msg.content.card.status === CardStatus.ERROR)
 				) {
-					msg.content.card.header = "API Error (Cancelled)"
 					const attempt = msg.content.card.body?.match(/attempt (\d+\/\d+)/)?.[1] ?? "?/?"
-					msg.content.card.body = "API Error (attempt " + attempt + "). Cancelled."
-					msg.content.card.status = CardStatus.CANCELLED
-					msg.content.card.endTime = Date.now()
+					await this.dependencies.messageStateHandler.updateDiracMessage(index, {
+						content: {
+							type: DiracMessageType.CARD,
+							card: {
+								...msg.content.card,
+								header: "API Error (Cancelled)",
+								body: "API Error (attempt " + attempt + "). Cancelled.",
+								status: CardStatus.CANCELLED,
+								endTime: Date.now(),
+							},
+						},
+					})
 				}
 			}
 			try {
@@ -561,14 +588,11 @@ export class LifecycleManager {
 			}
 			this.dependencies.taskState.taskScopedToolIds = []
 
-			this.dependencies.terminalManager.disposeAll()
-			this.dependencies.urlContentFetcher.closeBrowser()
-			await this.dependencies.browserSession.dispose()
-			this.dependencies.diracIgnoreController.dispose()
-			this.dependencies.fileContextTracker.dispose()
-			await this.dependencies.diffViewProvider.revertChanges()
-			AnchorStateManager.reset(this.dependencies.ulid)
+		} catch (error) {
+			abortFailures.push(error)
 		} finally {
+			cleanupFailures = await this.disposeTaskResources()
+
 			if (this.dependencies.taskState.taskLockAcquired) {
 				try {
 					await releaseTaskLock(this.dependencies.taskId)
@@ -591,5 +615,35 @@ export class LifecycleManager {
 				Logger.error("Failed to post final state after abort", error)
 			}
 		}
+
+		const failures = [...abortFailures, ...cleanupFailures]
+		if (failures.length === 1) {
+			throw failures[0]
+		}
+		if (failures.length > 1) {
+			throw new AggregateError(failures, "Task abort failed")
+		}
+	}
+
+	private async disposeTaskResources(): Promise<unknown[]> {
+		const failures: unknown[] = []
+		const attempt = async (dispose: () => void | Promise<void>) => {
+			try {
+				await dispose()
+			} catch (error) {
+				failures.push(error)
+			}
+		}
+
+		await attempt(() => this.dependencies.terminalManager.disposeAll())
+		await attempt(() => this.dependencies.urlContentFetcher.closeBrowser())
+		await attempt(() => this.dependencies.browserSession.dispose())
+		await attempt(() => this.dependencies.commandPermissionController.dispose())
+		await attempt(() => this.dependencies.diracIgnoreController.dispose())
+		await attempt(() => this.dependencies.fileContextTracker.dispose())
+		await attempt(() => this.dependencies.diffViewProvider.revertChanges())
+		await attempt(() => AnchorStateManager.reset(this.dependencies.ulid))
+
+		return failures
 	}
 }

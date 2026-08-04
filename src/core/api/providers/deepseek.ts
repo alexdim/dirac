@@ -1,5 +1,5 @@
 import { DeepSeekModelId, deepSeekDefaultModelId, deepSeekModels, ModelInfo } from "@shared/api"
-import { formatOpenAiCompatibleUsage } from "../transform/openai-usage"
+import { normalizeOpenaiReasoningEffort } from "@shared/storage/types"
 import OpenAI from "openai"
 import type { ChatCompletionTool as OpenAITool } from "openai/resources/chat/completions"
 import { buildExternalBasicHeaders } from "@/services/EnvUtils"
@@ -8,8 +8,8 @@ import { fetch } from "@/shared/net"
 import { ApiHandler, CommonApiHandlerOptions } from "../"
 import { withRetry } from "../retry"
 import { convertToOpenAiMessages } from "../transform/openai-format"
+import { formatOpenAiCompatibleUsage } from "../transform/openai-usage"
 import { addReasoningContent } from "../transform/r1-format"
-import { normalizeOpenaiReasoningEffort } from "@shared/storage/types"
 import { ApiStream } from "../transform/stream"
 import { getOpenAIToolParams, ToolCallProcessor } from "../transform/tool-call-processor"
 
@@ -23,6 +23,7 @@ interface DeepSeekHandlerOptions extends CommonApiHandlerOptions {
 export class DeepSeekHandler implements ApiHandler {
 	private options: DeepSeekHandlerOptions
 	private client: OpenAI | undefined
+	private abortController: AbortController | undefined
 
 	constructor(options: DeepSeekHandlerOptions) {
 		this.options = options
@@ -52,8 +53,24 @@ export class DeepSeekHandler implements ApiHandler {
 		yield formatOpenAiCompatibleUsage(usage, info)
 	}
 
-	@withRetry()
 	async *createMessage(systemPrompt: string, messages: DiracStorageMessage[], tools?: OpenAITool[]): ApiStream {
+		const abortController = new AbortController()
+		this.abortController = abortController
+		try {
+			yield* this.createMessageWithRetry(systemPrompt, messages, tools, abortController.signal)
+		} finally {
+			if (this.abortController === abortController) this.abortController = undefined
+		}
+	}
+
+	@withRetry()
+	private async *createMessageWithRetry(
+		systemPrompt: string,
+		messages: DiracStorageMessage[],
+		tools: OpenAITool[] | undefined,
+		signal: AbortSignal,
+	): ApiStream {
+		signal.throwIfAborted()
 		const client = this.ensureClient()
 		const model = this.getModel()
 
@@ -101,29 +118,31 @@ export class DeepSeekHandler implements ApiHandler {
 			return tool
 		})
 
-		const stream = await client.chat.completions.create({
-			model: model.id,
-			max_completion_tokens: model.info.maxTokens,
-			messages: deepSeekMessages as any,
-			stream: true,
-			stream_options: { include_usage: true },
-			...(supportsReasoning && !isR1
-				? {
-						// @ts-ignore
-						extra_body: {
-							thinking: {
-								type: isThinkingEnabled ? "enabled" : "disabled",
-								...(isThinkingEnabled && this.options.thinkingBudgetTokens
-									? { budget_tokens: this.options.thinkingBudgetTokens }
-									: {}),
+		const stream = await client.chat.completions.create(
+			{
+				model: model.id,
+				max_completion_tokens: model.info.maxTokens,
+				messages: deepSeekMessages as any,
+				stream: true,
+				stream_options: { include_usage: true },
+				...(supportsReasoning && !isR1
+					? {
+							extra_body: {
+								thinking: {
+									type: isThinkingEnabled ? "enabled" : "disabled",
+									...(isThinkingEnabled && this.options.thinkingBudgetTokens
+										? { budget_tokens: this.options.thinkingBudgetTokens }
+										: {}),
+								},
 							},
-						},
-						...(isThinkingEnabled ? { reasoning_effort: requestedEffort } : {}),
-					}
-				: {}),
-			...(useReasoningFormat ? {} : { temperature: 0 }),
-			...getOpenAIToolParams(deepSeekTools),
-		})
+							...(isThinkingEnabled ? { reasoning_effort: requestedEffort } : {}),
+						}
+					: {}),
+				...(useReasoningFormat ? {} : { temperature: 0 }),
+				...getOpenAIToolParams(deepSeekTools),
+			},
+			{ signal },
+		)
 
 		const toolCallProcessor = new ToolCallProcessor()
 
@@ -151,6 +170,10 @@ export class DeepSeekHandler implements ApiHandler {
 				yield* this.yieldUsage(model.info, chunk.usage)
 			}
 		}
+	}
+
+	abort(): void {
+		this.abortController?.abort()
 	}
 
 	getModel(): { id: DeepSeekModelId; info: ModelInfo } {

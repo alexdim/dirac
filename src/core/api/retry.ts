@@ -35,8 +35,12 @@ export function withRetry(options: RetryOptions = {}) {
 
 		descriptor.value = async function* (...args: any[]) {
 			for (let attempt = 0; attempt < maxRetries; attempt++) {
+				let didYield = false
 				try {
-					yield* originalMethod.apply(this, args)
+					for await (const chunk of originalMethod.apply(this, args)) {
+						didYield = true
+						yield chunk
+					}
 					return
 				} catch (error: any) {
 					const handlerInstance = this as {
@@ -48,7 +52,7 @@ export function withRetry(options: RetryOptions = {}) {
 					const isRateLimit = isRateLimited(error?.status) || error instanceof RetriableError
 					const isLastAttempt = attempt === maxRetries - 1
 
-					if (handlerInstance.options?.disableRetries || (!isRateLimit && !retryAllErrors) || isLastAttempt) {
+					if (didYield || handlerInstance.options?.disableRetries || (!isRateLimit && !retryAllErrors) || isLastAttempt) {
 						throw error
 					}
 

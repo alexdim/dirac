@@ -1,6 +1,7 @@
 import assert from "node:assert/strict"
 import { EventEmitter } from "events"
 import { describe, it } from "mocha"
+import * as sinon from "sinon"
 import { orchestrateCommandExecution } from "./CommandOrchestrator"
 import type {
 	CommandExecutorCallbacks,
@@ -127,5 +128,28 @@ describe("CommandOrchestrator exit status messaging", () => {
 		assert.equal(result.completed, true)
 		assert.equal(result.exitCode, 0)
 		assert.match(result.result as string, /^Command executed successfully \(exit code 0\)\./)
+	})
+})
+
+describe("CommandOrchestrator timeout cleanup", () => {
+	it("clears the timeout timer when the command finishes first", async () => {
+		const clock = sinon.useFakeTimers()
+		try {
+			const process = new FakeTerminalProcess()
+			const orchestrationPromise = orchestrateCommandExecution(
+				process.asResultPromise(),
+				createTerminalManager(),
+				createCallbacks(),
+				{ command: "echo ok", timeoutSeconds: 300 },
+			)
+
+			process.complete({ exitCode: 0, signal: null })
+			await clock.tickAsync(50)
+			await orchestrationPromise
+
+			assert.equal(clock.countTimers(), 0)
+		} finally {
+			clock.restore()
+		}
 	})
 })

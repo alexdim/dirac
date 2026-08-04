@@ -356,6 +356,37 @@ describe("OpenAiCodexHandler persisted reasoning", () => {
 		manualRequestStub.callCount.should.equal(0)
 	})
 
+	it("does not start a manual HTTP request after SDK output was emitted", async () => {
+		const handler = createHandler()
+		const sdkFailure = new Error("SDK stream failed")
+		async function* sdkStream() {
+			yield { type: "response.output_text.delta", item_id: "message-1", delta: "partial" }
+			throw sdkFailure
+		}
+		const withResponse = sinon.stub().resolves({ data: sdkStream(), response: { headers: new Headers() } })
+		;(handler as any).client = { responses: { create: sinon.stub().returns({ withResponse }) } }
+		const manualRequestStub = sinon.stub(handler as any, "makeCodexRequest").callsFake(async function* () {})
+		const chunks: any[] = []
+		let caughtError: unknown
+
+		try {
+			for await (const chunk of (handler as any).createResponseStreamHttp(
+				{},
+				handler.getModel(),
+				"test-access-token",
+				{},
+			)) {
+				chunks.push(chunk)
+			}
+		} catch (error) {
+			caughtError = error
+		}
+
+		chunks.should.deepEqual([{ id: "message-1", type: "text", text: "partial" }])
+		expect(caughtError).to.equal(sdkFailure)
+		manualRequestStub.callCount.should.equal(0)
+	})
+
 	it("reconnects with full context after an HTTP fallback and resumes continuation", async () => {
 		expectLoggerErrors()
 		const handler = createHandler()

@@ -30,6 +30,7 @@ interface OpenAiHandlerOptions extends CommonApiHandlerOptions {
 export class OpenAiHandler implements ApiHandler {
 	private options: OpenAiHandlerOptions
 	private client: OpenAI | undefined
+	private abortController?: AbortController
 
 	constructor(options: OpenAiHandlerOptions) {
 		this.options = options
@@ -107,8 +108,25 @@ export class OpenAiHandler implements ApiHandler {
 		return this.client
 	}
 
-	@withRetry()
 	async *createMessage(systemPrompt: string, messages: DiracStorageMessage[], tools?: ChatCompletionTool[]): ApiStream {
+		const abortController = new AbortController()
+		this.abortController = abortController
+
+		try {
+			yield* this.createMessageWithSignal(systemPrompt, messages, tools, abortController.signal)
+		} finally {
+			if (this.abortController === abortController) this.abortController = undefined
+		}
+	}
+
+	@withRetry()
+	private async *createMessageWithSignal(
+		systemPrompt: string,
+		messages: DiracStorageMessage[],
+		tools: ChatCompletionTool[] | undefined,
+		signal: AbortSignal,
+	): ApiStream {
+		signal.throwIfAborted()
 		const client = this.ensureClient()
 
 		// Add web_search tool for OpenAI
@@ -179,16 +197,19 @@ export class OpenAiHandler implements ApiHandler {
 			temperature = undefined // does not support temperature
 		}
 
-		const stream = await client.chat.completions.create({
-			model: modelId,
-			messages: openAiMessages,
-			temperature,
-			max_tokens: maxTokens,
-			reasoning_effort: reasoningEffort,
-			stream: true,
-			stream_options: { include_usage: true },
-			...getOpenAIToolParams(finalTools, this.shouldEnableParallelToolCalling()),
-		})
+		const stream = await client.chat.completions.create(
+			{
+				model: modelId,
+				messages: openAiMessages,
+				temperature,
+				max_tokens: maxTokens,
+				reasoning_effort: reasoningEffort,
+				stream: true,
+				stream_options: { include_usage: true },
+				...getOpenAIToolParams(finalTools, this.shouldEnableParallelToolCalling()),
+			},
+			{ signal },
+		)
 
 		const toolCallProcessor = new ToolCallProcessor()
 		let stopReason: string | undefined
@@ -224,6 +245,10 @@ export class OpenAiHandler implements ApiHandler {
 				}
 			}
 		}
+	}
+
+	abort(): void {
+		this.abortController?.abort()
 	}
 
 	getModel(): { id: string; info: ModelInfo } {

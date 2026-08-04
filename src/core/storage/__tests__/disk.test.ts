@@ -824,6 +824,20 @@ describe("disk - core read/write/mkdir operations", () => {
 			sandbox.stub(fs, "writeFile").rejects(new Error("disk full"))
 			await saveDiracMessages(taskId, [{ ask: "test" } as any])
 		})
+
+		it("persists legacy UI messages before deleting their old file", async () => {
+			const taskId = `dirac-legacy-${Date.now()}`
+			const taskDir = await ensureTaskDirectoryExists(taskId)
+			const oldPath = path.join(taskDir, "claude_messages.json")
+			const newPath = path.join(taskDir, "ui_messages.json")
+			await fs.writeFile(oldPath, JSON.stringify([{ ask: "legacy" }]))
+
+			const messages = await getSavedDiracMessages(taskId)
+
+			messages.should.have.length(1)
+			JSON.parse(await fs.readFile(newPath, "utf8")).should.deepEqual(messages)
+			await fs.access(oldPath).should.be.rejected()
+		})
 	})
 
 	describe("task metadata read/write", () => {
@@ -885,6 +899,26 @@ describe("disk - core read/write/mkdir operations", () => {
 			sandbox.stub(fs, "writeFile").rejects(new Error("disk full"))
 			await saveTaskMetadata(taskId, { files_in_context: [], model_usage: [], environment_history: [] })
 		})
+
+		it("leaves the previous metadata intact when replacement fails", async () => {
+			expectLoggerErrors()
+			const taskId = `meta-atomic-${Date.now()}`
+			await saveTaskMetadata(taskId, {
+				files_in_context: [{ path: "/original.ts", lines: 10 }],
+				model_usage: [],
+				environment_history: [],
+			} as any)
+			sandbox.stub(fs, "rename").rejects(new Error("rename failed"))
+
+			await saveTaskMetadata(taskId, {
+				files_in_context: [{ path: "/replacement.ts", lines: 20 }],
+				model_usage: [],
+				environment_history: [],
+			} as any)
+
+			const metadata = await getTaskMetadata(taskId)
+			metadata.files_in_context![0].path.should.equal("/original.ts")
+		})
 	})
 
 	describe("task settings read/write", () => {
@@ -908,6 +942,55 @@ describe("disk - core read/write/mkdir operations", () => {
 			const result: any = await readTaskSettingsFromStorage(taskId)
 			result.maxTokens.should.equal(100)
 			result.anotherKey.should.equal("val")
+		})
+
+		it("leaves the previous settings intact when replacement fails", async () => {
+			expectLoggerErrors()
+			const taskId = `settings-atomic-${Date.now()}`
+			await writeTaskSettingsToStorage(taskId, { maxTokens: 100 } as any)
+			sandbox.stub(fs, "rename").rejects(new Error("rename failed"))
+
+			await writeTaskSettingsToStorage(taskId, { maxTokens: 200 } as any).should.be.rejectedWith("rename failed")
+
+			const result: any = await readTaskSettingsFromStorage(taskId)
+			result.maxTokens.should.equal(100)
+		})
+
+		it("serializes concurrent settings merges without losing fields", async () => {
+			const taskId = `settings-concurrent-${Date.now()}`
+			await writeTaskSettingsToStorage(taskId, { initialKey: true } as any)
+			const originalRename = fs.rename.bind(fs)
+			let releaseFirstRename!: () => void
+			let firstRenameStarted!: () => void
+			const firstRenameGate = new Promise<void>((resolve) => {
+				releaseFirstRename = resolve
+			})
+			const firstRenameStartedGate = new Promise<void>((resolve) => {
+				firstRenameStarted = resolve
+			})
+			let renameCalls = 0
+			sandbox.stub(fs, "rename").callsFake(async (oldPath, newPath) => {
+				renameCalls++
+				if (renameCalls === 1) {
+					firstRenameStarted()
+					await firstRenameGate
+				}
+				await originalRename(oldPath, newPath)
+			})
+
+			const firstWrite = writeTaskSettingsToStorage(taskId, { firstKey: "first" } as any)
+			await firstRenameStartedGate
+			const secondWrite = writeTaskSettingsToStorage(taskId, { secondKey: "second" } as any)
+			await new Promise((resolve) => setTimeout(resolve, 20))
+			const renameCallsBeforeFirstCommit = renameCalls
+			releaseFirstRename()
+			await Promise.all([firstWrite, secondWrite])
+
+			renameCallsBeforeFirstCommit.should.equal(1)
+			const result: any = await readTaskSettingsFromStorage(taskId)
+			result.initialKey.should.equal(true)
+			result.firstKey.should.equal("first")
+			result.secondKey.should.equal("second")
 		})
 
 		it("readTaskSettingsFromStorage throws on read error", async () => {

@@ -80,6 +80,7 @@ function getGeminiMaxOutputTokens(modelId: string, modelMaxTokens?: number): num
 export class GeminiHandler implements ApiHandler {
 	private options: GeminiHandlerOptions
 	private client: GoogleGenAI | undefined
+	private abortController: AbortController | undefined
 
 	constructor(options: GeminiHandlerOptions) {
 		// Store the options
@@ -144,12 +145,28 @@ export class GeminiHandler implements ApiHandler {
 	 * @param messages The conversation history to include in the message
 	 * @returns An async generator that yields chunks of the response with accurate immediate costs
 	 */
+	async *createMessage(systemPrompt: string, messages: DiracStorageMessage[], tools?: GoogleTool[]): ApiStream {
+		const abortController = new AbortController()
+		this.abortController = abortController
+
+		try {
+			yield* this.createMessageWithSignal(systemPrompt, messages, tools, abortController.signal)
+		} finally {
+			if (this.abortController === abortController) this.abortController = undefined
+		}
+	}
+
 	@withRetry({
 		maxRetries: 4,
 		baseDelay: 2000,
 		maxDelay: 15000,
 	})
-	async *createMessage(systemPrompt: string, messages: DiracStorageMessage[], tools?: GoogleTool[]): ApiStream {
+	private async *createMessageWithSignal(
+		systemPrompt: string,
+		messages: DiracStorageMessage[],
+		tools: GoogleTool[] | undefined,
+		signal: AbortSignal,
+	): ApiStream {
 		const client = this.ensureClient()
 		const { id: modelId, info } = this.getModel()
 		const contents = convertAnthropicMessagesToGemini(messages)
@@ -242,7 +259,10 @@ export class GeminiHandler implements ApiHandler {
 			tools: requestConfig.tools?.map((t: any) => (t.functionDeclarations ? "tools" : Object.keys(t)[0])),
 		})
 
+		requestConfig.abortSignal = signal
+
 		try {
+			signal.throwIfAborted()
 			const result = await client.models.generateContentStream({
 				model: modelId,
 				contents: contents,
@@ -390,6 +410,10 @@ export class GeminiHandler implements ApiHandler {
 				Logger.warn("GeminiHandler: ulid not available for telemetry in createMessage.")
 			}
 		}
+	}
+
+	abort(): void {
+		this.abortController?.abort()
 	}
 
 	// Parses a single Gemini response part (text, thought, or function call) into Dirac chunk(s).

@@ -224,10 +224,7 @@ export class BrowserActionTool implements IDiracTool {
 
 		const blocks: Array<DiracTextContentBlock | DiracImageContentBlock> = [{ type: "text", text: responseText }]
 		if (result.screenshot) {
-			blocks.push({
-				type: "image",
-				source: { type: "base64", media_type: "image/webp", data: result.screenshot },
-			})
+			blocks.push(...formatResponse.imageBlocks([result.screenshot]))
 		}
 		return blocks
 	}

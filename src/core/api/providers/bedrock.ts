@@ -53,6 +53,7 @@ export interface BedrockMessageConfig {
 	modelId: string
 	model: { id: string; info: ModelInfo }
 	tools?: DiracTool[]
+	abortSignal?: AbortSignal
 }
 
 // Extend AWS SDK types to include additionalModelResponseFields
@@ -142,7 +143,7 @@ interface CachePointContentBlock {
 
 // Define provider options type based on AWS SDK patterns
 interface ProviderChainOptions {
-	clientConfig?: { userAgentAppId?: string }
+	clientConfig?: { userAgentAppId?: string; region?: string }
 	ignoreCache?: boolean
 	profile?: string
 }
@@ -335,13 +336,30 @@ class BedrockStreamParser {
 // https://docs.anthropic.com/en/api/claude-on-amazon-bedrock
 export class AwsBedrockHandler implements ApiHandler {
 	private options: AwsBedrockHandlerOptions
+	private abortController?: AbortController
 
 	constructor(options: AwsBedrockHandlerOptions) {
 		this.options = options
 	}
 
-	@withRetry({ maxRetries: 4 })
 	async *createMessage(systemPrompt: string, messages: DiracStorageMessage[], tools?: DiracTool[]): ApiStream {
+		const abortController = new AbortController()
+		this.abortController = abortController
+		try {
+			yield* this.createMessageWithSignal(systemPrompt, messages, tools, abortController.signal)
+		} finally {
+			if (this.abortController === abortController) this.abortController = undefined
+		}
+	}
+
+	@withRetry({ maxRetries: 4 })
+	private async *createMessageWithSignal(
+		systemPrompt: string,
+		messages: DiracStorageMessage[],
+		tools: DiracTool[] | undefined,
+		signal: AbortSignal,
+	): ApiStream {
+		signal.throwIfAborted()
 		// cross region inference requires prefixing the model id with the region
 		const modelId = await this.getModelId()
 
@@ -353,7 +371,7 @@ export class AwsBedrockHandler implements ApiHandler {
 		const baseModelId =
 			(this.options.awsBedrockCustomSelected ? this.options.awsBedrockCustomModelBaseId : modelId) || modelId
 
-		const baseConfig = { systemPrompt, messages, modelId, model, tools }
+		const baseConfig = { systemPrompt, messages, modelId, model, tools, abortSignal: signal }
 
 		// Check if this is an Amazon Nova model
 		if (baseModelId.includes("amazon.nova")) {
@@ -380,6 +398,10 @@ export class AwsBedrockHandler implements ApiHandler {
 
 		// Default: Use Anthropic Converse API for all Anthropic models
 		yield* this.createAnthropicMessage(baseConfig)
+	}
+
+	abort(): void {
+		this.abortController?.abort()
 	}
 
 	getModel(): { id: string; info: ModelInfo } {
@@ -447,6 +469,15 @@ export class AwsBedrockHandler implements ApiHandler {
 		const useProfile =
 			(this.options.awsAuthentication === undefined && this.options.awsUseProfile) ||
 			this.options.awsAuthentication === "profile"
+		if (!useProfile && this.options.awsAccessKey && this.options.awsSecretKey) {
+			return {
+				accessKeyId: this.options.awsAccessKey,
+				secretAccessKey: this.options.awsSecretKey,
+				sessionToken: this.options.awsSessionToken,
+			}
+		}
+
+		providerOptions.clientConfig!.region = this.getRegion()
 		if (useProfile) {
 			// For profile-based auth, always use ignoreCache to detect credential file changes
 			// This solves the AWS Identity Manager issue where credential files change externally
@@ -456,22 +487,7 @@ export class AwsBedrockHandler implements ApiHandler {
 			}
 		}
 
-		// Create AWS credentials by executing an AWS provider chain
-		const providerChain = fromNodeProviderChain(providerOptions)
-		return await AwsBedrockHandler.withTempEnv(
-			() => {
-				AwsBedrockHandler.setEnv("AWS_REGION", this.options.awsRegion)
-				if (useProfile) {
-					AwsBedrockHandler.setEnv("AWS_PROFILE", this.options.awsProfile)
-				} else {
-					delete process.env["AWS_PROFILE"]
-					AwsBedrockHandler.setEnv("AWS_ACCESS_KEY_ID", this.options.awsAccessKey)
-					AwsBedrockHandler.setEnv("AWS_SECRET_ACCESS_KEY", this.options.awsSecretKey)
-					AwsBedrockHandler.setEnv("AWS_SESSION_TOKEN", this.options.awsSessionToken)
-				}
-			},
-			() => providerChain(),
-		)
+		return await fromNodeProviderChain(providerOptions)()
 	}
 
 	/**
@@ -542,93 +558,89 @@ export class AwsBedrockHandler implements ApiHandler {
 		return this.getModel().id
 	}
 
-	private static async withTempEnv<R>(updateEnv: () => void, fn: () => Promise<R>): Promise<R> {
-		const previousEnv = Object.assign({}, process.env)
-
-		try {
-			updateEnv()
-			return await fn()
-		} finally {
-			// Restore the previous environment
-			// First clear any new variables that might have been added
-			for (const key in process.env) {
-				if (!(key in previousEnv)) {
-					delete process.env[key]
-				}
-			}
-			// Then restore all previous values
-			for (const key in previousEnv) {
-				process.env[key] = previousEnv[key]
-			}
-		}
-	}
-
-	private static setEnv(key: string, value: string | undefined) {
-		if (key !== "" && value !== undefined) {
-			process.env[key] = value
-		}
-	}
-
 	/**
 	 * Creates a message using the Deepseek R1 model through AWS Bedrock.
 	 * DeepSeek R1 uses InvokeModelWithResponseStream (not the Converse API)
 	 * and does not support native tool calling, so tools are intentionally unused.
 	 */
 	private async *createDeepseekMessage(config: BedrockMessageConfig): ApiStream {
-		const { systemPrompt, messages, modelId, model } = config
+		const { systemPrompt, messages, modelId, model, abortSignal } = config
 		// Get Bedrock client with proper credentials
 		const client = await this.getBedrockClient()
+		try {
+			// Format prompt for DeepSeek R1 according to documentation
+			const formattedPrompt = this.formatDeepseekR1Prompt(systemPrompt, messages)
 
-		// Format prompt for DeepSeek R1 according to documentation
-		const formattedPrompt = this.formatDeepseekR1Prompt(systemPrompt, messages)
+			// Prepare the request based on DeepSeek R1's expected format
+			const command = new InvokeModelWithResponseStreamCommand({
+				modelId: modelId,
+				contentType: "application/json",
+				accept: "application/json",
+				body: JSON.stringify({
+					prompt: formattedPrompt,
+					max_tokens: model.info.maxTokens || 8000,
+					temperature: model.info.temperature ?? 0,
+				}),
+			})
 
-		// Prepare the request based on DeepSeek R1's expected format
-		const command = new InvokeModelWithResponseStreamCommand({
-			modelId: modelId,
-			contentType: "application/json",
-			accept: "application/json",
-			body: JSON.stringify({
-				prompt: formattedPrompt,
-				max_tokens: model.info.maxTokens || 8000,
-				temperature: model.info.temperature ?? 0,
-			}),
-		})
+			// Track token usage
+			const inputTokenEstimate = this.estimateInputTokens(systemPrompt, messages)
+			let outputTokens = 0
+			let isFirstChunk = true
+			let accumulatedTokens = 0
+			const TOKEN_REPORT_THRESHOLD = 100 // Report usage after accumulating this many tokens
 
-		// Track token usage
-		const inputTokenEstimate = this.estimateInputTokens(systemPrompt, messages)
-		let outputTokens = 0
-		let isFirstChunk = true
-		let accumulatedTokens = 0
-		const TOKEN_REPORT_THRESHOLD = 100 // Report usage after accumulating this many tokens
+			// Execute the streaming request
+			const response = await client.send(command, { abortSignal })
 
-		// Execute the streaming request
-		const response = await client.send(command)
+			if (response.body) {
+				for await (const chunk of response.body) {
+					if (chunk.chunk?.bytes) {
+						try {
+							// Parse the response chunk
+							const decodedChunk = new TextDecoder().decode(chunk.chunk.bytes)
+							const parsedChunk = JSON.parse(decodedChunk)
 
-		if (response.body) {
-			for await (const chunk of response.body) {
-				if (chunk.chunk?.bytes) {
-					try {
-						// Parse the response chunk
-						const decodedChunk = new TextDecoder().decode(chunk.chunk.bytes)
-						const parsedChunk = JSON.parse(decodedChunk)
-
-						// Report usage on first chunk
-						if (isFirstChunk) {
-							isFirstChunk = false
-							const totalCost = calculateApiCostOpenAI(model.info, inputTokenEstimate, 0, 0, 0)
-							yield {
-								type: "usage",
-								inputTokens: inputTokenEstimate,
-								outputTokens: 0,
-								totalCost: totalCost,
+							// Report usage on first chunk
+							if (isFirstChunk) {
+								isFirstChunk = false
+								const totalCost = calculateApiCostOpenAI(model.info, inputTokenEstimate, 0, 0, 0)
+								yield {
+									type: "usage",
+									inputTokens: inputTokenEstimate,
+									outputTokens: 0,
+									totalCost: totalCost,
+								}
 							}
-						}
 
-						// Handle DeepSeek R1 response format
-						if (parsedChunk.choices && parsedChunk.choices.length > 0) {
-							// For non-streaming response (full response)
-							const text = parsedChunk.choices[0].text
-							if (text) {
+							// Handle DeepSeek R1 response format
+							if (parsedChunk.choices && parsedChunk.choices.length > 0) {
+								// For non-streaming response (full response)
+								const text = parsedChunk.choices[0].text
+								if (text) {
+									const chunkTokens = this.estimateTokenCount(text)
+									outputTokens += chunkTokens
+									accumulatedTokens += chunkTokens
+
+									yield {
+										type: "text",
+										text: text,
+									}
+
+									if (accumulatedTokens >= TOKEN_REPORT_THRESHOLD) {
+										const totalCost = calculateApiCostOpenAI(model.info, 0, accumulatedTokens, 0, 0)
+										yield {
+											type: "usage",
+											inputTokens: 0,
+											outputTokens: accumulatedTokens,
+											totalCost: totalCost,
+										}
+										accumulatedTokens = 0
+									}
+								}
+							} else if (parsedChunk.delta?.text) {
+								// For streaming response (delta updates)
+								const text = parsedChunk.delta.text
 								const chunkTokens = this.estimateTokenCount(text)
 								outputTokens += chunkTokens
 								accumulatedTokens += chunkTokens
@@ -637,7 +649,7 @@ export class AwsBedrockHandler implements ApiHandler {
 									type: "text",
 									text: text,
 								}
-
+								// Report aggregated token usage only when threshold is reached
 								if (accumulatedTokens >= TOKEN_REPORT_THRESHOLD) {
 									const totalCost = calculateApiCostOpenAI(model.info, 0, accumulatedTokens, 0, 0)
 									yield {
@@ -649,59 +661,39 @@ export class AwsBedrockHandler implements ApiHandler {
 									accumulatedTokens = 0
 								}
 							}
-						} else if (parsedChunk.delta?.text) {
-							// For streaming response (delta updates)
-							const text = parsedChunk.delta.text
-							const chunkTokens = this.estimateTokenCount(text)
-							outputTokens += chunkTokens
-							accumulatedTokens += chunkTokens
-
+						} catch (error) {
+							Logger.error("Error parsing Deepseek response chunk:", error)
+							// Propagate the error by yielding a text response with error information
 							yield {
 								type: "text",
-								text: text,
+								text: `[ERROR] Failed to parse Deepseek response: ${error instanceof Error ? error.message : String(error)}`,
 							}
-							// Report aggregated token usage only when threshold is reached
-							if (accumulatedTokens >= TOKEN_REPORT_THRESHOLD) {
-								const totalCost = calculateApiCostOpenAI(model.info, 0, accumulatedTokens, 0, 0)
-								yield {
-									type: "usage",
-									inputTokens: 0,
-									outputTokens: accumulatedTokens,
-									totalCost: totalCost,
-								}
-								accumulatedTokens = 0
-							}
-						}
-					} catch (error) {
-						Logger.error("Error parsing Deepseek response chunk:", error)
-						// Propagate the error by yielding a text response with error information
-						yield {
-							type: "text",
-							text: `[ERROR] Failed to parse Deepseek response: ${error instanceof Error ? error.message : String(error)}`,
 						}
 					}
 				}
-			}
 
-			// Report any remaining accumulated tokens at the end of the stream
-			if (accumulatedTokens > 0) {
-				const totalCost = calculateApiCostOpenAI(model.info, 0, accumulatedTokens, 0, 0)
+				// Report any remaining accumulated tokens at the end of the stream
+				if (accumulatedTokens > 0) {
+					const totalCost = calculateApiCostOpenAI(model.info, 0, accumulatedTokens, 0, 0)
+					yield {
+						type: "usage",
+						inputTokens: 0,
+						outputTokens: accumulatedTokens,
+						totalCost: totalCost,
+					}
+				}
+
+				// Add final total cost calculation that includes both input and output tokens
+				const finalTotalCost = calculateApiCostOpenAI(model.info, inputTokenEstimate, outputTokens, 0, 0)
 				yield {
 					type: "usage",
-					inputTokens: 0,
-					outputTokens: accumulatedTokens,
-					totalCost: totalCost,
+					inputTokens: inputTokenEstimate,
+					outputTokens: outputTokens,
+					totalCost: finalTotalCost,
 				}
 			}
-
-			// Add final total cost calculation that includes both input and output tokens
-			const finalTotalCost = calculateApiCostOpenAI(model.info, inputTokenEstimate, outputTokens, 0, 0)
-			yield {
-				type: "usage",
-				inputTokens: inputTokenEstimate,
-				outputTokens: outputTokens,
-				totalCost: finalTotalCost,
-			}
+		} finally {
+			client.destroy()
 		}
 	}
 
@@ -801,14 +793,22 @@ export class AwsBedrockHandler implements ApiHandler {
 	 * Executes a Converse API stream command and handles the response
 	 * Common implementation for both Anthropic and Nova models
 	 */
-	private async *executeConverseStream(command: ConverseStreamCommand, modelInfo: ModelInfo): ApiStream {
+	private async *executeConverseStream(
+		command: ConverseStreamCommand,
+		modelInfo: ModelInfo,
+		abortSignal?: AbortSignal,
+	): ApiStream {
 		const client = await this.getBedrockClient()
-		const response = await client.send(command)
-		if (!response.stream) return
+		try {
+			const response = await client.send(command, { abortSignal })
+			if (!response.stream) return
 
-		const parser = new BedrockStreamParser()
-		for await (const chunk of response.stream) {
-			yield* parser.parseChunk(chunk, modelInfo)
+			const parser = new BedrockStreamParser()
+			for await (const chunk of response.stream) {
+				yield* parser.parseChunk(chunk, modelInfo)
+			}
+		} finally {
+			client.destroy()
 		}
 	}
 
@@ -892,13 +892,13 @@ export class AwsBedrockHandler implements ApiHandler {
 				}),
 				...(reasoningOn &&
 					useAdaptive && {
-					output_config: { effort: this.options.reasoningEffort || "high" },
-				}),
+						output_config: { effort: this.options.reasoningEffort || "high" },
+					}),
 			},
 		})
 
 		// Execute the streaming request using unified handler
-		yield* this.executeConverseStream(command, model.info)
+		yield* this.executeConverseStream(command, model.info, config.abortSignal)
 	}
 
 	/**
@@ -1118,7 +1118,7 @@ export class AwsBedrockHandler implements ApiHandler {
 		})
 
 		// Execute the streaming request using unified handler
-		yield* this.executeConverseStream(command, model.info)
+		yield* this.executeConverseStream(command, model.info, config.abortSignal)
 	}
 
 	/**
@@ -1159,7 +1159,7 @@ export class AwsBedrockHandler implements ApiHandler {
 
 		try {
 			const inputTokenEstimate = this.estimateInputTokens(systemPrompt, messages)
-			const response = await client.send(command)
+			const response = await client.send(command, { abortSignal: config.abortSignal })
 			const { fullText, reasoningText } = this.extractNonStreamingContent(response)
 
 			const outputTokens = response.usage
@@ -1190,6 +1190,8 @@ export class AwsBedrockHandler implements ApiHandler {
 		} catch (error) {
 			Logger.error(`Error with ${label} model via Converse API:`, error)
 			yield { type: "text", text: `[ERROR] ${this.formatConverseError(error, label)}` }
+		} finally {
+			client.destroy()
 		}
 	}
 
