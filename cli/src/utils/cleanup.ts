@@ -26,6 +26,8 @@ export async function disposeCliContext(ctx: CliContext | null): Promise<void> {
 		const { disposeClipboardImages } = await import("./clipboard-image")
 		disposeClipboardImages()
 		await disposeTelemetryServices()
+		const { disposeCliLogging } = await import("../init")
+		await disposeCliLogging()
 		return
 	}
 
@@ -53,7 +55,12 @@ async function disposeInitializedContext(ctx: CliContext): Promise<void> {
 		disposeClipboardImages()
 		await disposeTelemetryServices()
 	} finally {
-		setActiveContext(null)
+		try {
+			const { disposeCliLogging } = await import("../init")
+			await disposeCliLogging()
+		} finally {
+			setActiveContext(null)
+		}
 	}
 }
 

@@ -24,7 +24,22 @@ import { syncWorker } from "./shared/services/worker/sync"
 import { getBlobStoreSettingsFromEnv } from "./shared/services/worker/worker"
 import { getLatestAnnouncementId } from "./utils/announcements"
 import { arePathsEqual } from "./utils/path"
-import { initFileLogger } from "@shared/services/file-logger"
+import { createRotatingFileLogger, resolveLogDirectory, type RotatingFileLogger } from "@shared/services/file-logger"
+
+let persistentFileLogger: RotatingFileLogger | undefined
+let unsubscribeHostLogger: (() => void) | undefined
+let unsubscribeFileLogger: (() => void) | undefined
+
+async function disposePersistentLogging(): Promise<void> {
+	unsubscribeHostLogger?.()
+	unsubscribeHostLogger = undefined
+	unsubscribeFileLogger?.()
+	unsubscribeFileLogger = undefined
+
+	const logger = persistentFileLogger
+	persistentFileLogger = undefined
+	if (logger) await logger.dispose()
+}
 
 /**
  * Performs intialization for Dirac that is common to all platforms.
@@ -34,10 +49,22 @@ import { initFileLogger } from "@shared/services/file-logger"
  * @throws DiracConfigurationError if endpoints.json exists but is invalid
  */
 export async function initialize(storageContext: StorageContext): Promise<DiracWebviewProvider> {
-	// Configure the shared Logging class to use HostProvider's output channels and debug logger
-	Logger.subscribe((msg: string) => HostProvider.get().logToChannel(msg)) // File system logging
-	Logger.subscribe(initFileLogger()) // Disk file logging at ~/.dirac/data/logs/
+	await disposePersistentLogging()
+	try {
+		unsubscribeHostLogger = Logger.subscribe((msg: string) => HostProvider.get().logToChannel(msg))
+		persistentFileLogger = createRotatingFileLogger({
+			logDir: resolveLogDirectory(storageContext.dataDir),
+			fileName: "dirac-ext.log",
+		})
+		unsubscribeFileLogger = Logger.subscribe(persistentFileLogger.write)
+		return await initializeServices(storageContext)
+	} catch (error) {
+		await disposePersistentLogging()
+		throw error
+	}
+}
 
+async function initializeServices(storageContext: StorageContext): Promise<DiracWebviewProvider> {
 	// Initialize DiracEndpoint configuration (reads bundled and ~/.dirac/endpoints.json if present)
 	// This must be done before any other code that calls DiracEnv.config()
 	// Throws DiracConfigurationError if config file exists but is invalid
@@ -174,6 +201,14 @@ async function checkWorktreeAutoOpen(stateManager: StateManager): Promise<void> 
  * Performs cleanup when Dirac is deactivated that is common to all platforms.
  */
 export async function tearDown(): Promise<void> {
+	try {
+		await tearDownServices()
+	} finally {
+		await disposePersistentLogging()
+	}
+}
+
+async function tearDownServices(): Promise<void> {
 	AgentConfigLoader.getInstance()?.dispose()
 	// Legacy telemetry removed
 	telemetryService.dispose()

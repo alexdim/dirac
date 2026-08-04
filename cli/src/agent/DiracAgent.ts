@@ -43,6 +43,7 @@ import { openAiCodexOAuthManager } from "@/integrations/openai-codex/oauth"
 import { openAiCodexUsageService } from "@/integrations/openai-codex/OpenAiCodexUsageService"
 import { StandaloneTerminalManager } from "@/integrations/terminal/index.js"
 import { Logger } from "@/shared/services/Logger.js"
+import { DiracTempManager } from "@/services/temp/DiracTempManager.js"
 import type { Settings } from "@/shared/storage/state-keys"
 import { createWorktree, deleteWorktree, getGitRootPath } from "@/utils/git-worktree"
 import { version as AGENT_VERSION } from "../../package.json"
@@ -166,8 +167,12 @@ function worktreeProvisioningRequest(params: acp.NewSessionRequest): WorktreePro
  */
 export class DiracAgent implements acp.Agent {
 	async shutdown() {
-		for (const sessionId of [...this.sessions.keys()]) {
-			await this.releaseSessionResources(sessionId, true)
+		try {
+			for (const sessionId of [...this.sessions.keys()]) {
+				await this.releaseSessionResources(sessionId, true)
+			}
+		} finally {
+			DiracTempManager.stopPeriodicCleanup()
 		}
 	}
 
@@ -1063,6 +1068,7 @@ export class DiracAgent implements acp.Agent {
 			diracDir: this.options.diracDir,
 			workspaceDir: this.options.cwd,
 		})
+		DiracTempManager.startPeriodicCleanup()
 		this.clientCapabilities = params.clientCapabilities
 		this.initializeHostProvider(this.clientCapabilities, connection)
 		// Shared with initializeCli — see initCoreServices for why both modes

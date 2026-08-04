@@ -4,16 +4,14 @@ import React from "react"
 import { ErrorService } from "@/services/error"
 import { StaticRobotFrame } from "./AsciiMotionCli"
 import { DIRAC_CLI_DIR } from "../utils/path"
-import { appendFileSync, mkdirSync } from "node:fs"
+import { writeLogEntrySync } from "@/shared/services/file-logger"
 
 function writeErrorToLog(error: Error, errorInfo: React.ErrorInfo) {
 	try {
 		const logDir = DIRAC_CLI_DIR.log
 
-		mkdirSync(logDir, { recursive: true })
-		const logPath = `${logDir}/crash.log`
 		const entry = `\n--- ${new Date().toISOString()} ---\n${error.stack || error.message}\nComponent Stack:\n${errorInfo.componentStack || "(none)"}\n`
-		appendFileSync(logPath, entry)
+		writeLogEntrySync({ logDir, fileName: "crash.log" }, entry)
 	} catch {
 		// Best effort
 	}

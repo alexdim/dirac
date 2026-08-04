@@ -2,7 +2,7 @@
  * DiracTempManager - Manages temporary files for Dirac with automatic cleanup.
  *
  * Simple approach:
- * - Uses a "dirac" subdirectory inside the system temp dir (falls back to system temp if creation fails)
+ * - Uses a dedicated "dirac" subdirectory inside the system temp directory
  * - Cleans up files older than 50 hours on extension activation
  * - Enforces 2GB total size cap to prevent disk bloat
  * - Cross-platform (macOS, Windows, Linux)
@@ -17,6 +17,7 @@ import { Logger } from "@/shared/services/Logger"
 const MAX_TOTAL_SIZE_BYTES = 2 * 1024 * 1024 * 1024 // 2GB
 const MAX_FILE_AGE_MS = 50 * 60 * 60 * 1000 // 50 hours
 const CLEANUP_INTERVAL_MS = 24 * 60 * 60 * 1000 // 24 hours
+const OWNED_TEMP_FILE_PATTERN = /^(?:large-output|background)-\d+-[a-z0-9]+\.log$/
 
 interface TempFileInfo {
 	path: string
@@ -32,27 +33,13 @@ class DiracTempManagerImpl {
 	private cleanupIntervalId: NodeJS.Timeout | null = null
 
 	constructor() {
-		// Uses system temp directory with a dedicated "dirac" subdirectory when possible:
-		// macOS: /var/folders/xx/.../T/dirac
-		// Windows: C:\Users\{user}\AppData\Local\Temp\dirac
-		// Linux: /tmp/dirac
-		const baseTempDir = os.tmpdir()
-		const diracTempDir = path.join(baseTempDir, "dirac")
-
-		try {
-			fs.mkdirSync(diracTempDir, { recursive: true })
-			this.tempDir = diracTempDir
-		} catch {
-			this.tempDir = baseTempDir
-		}
+		// Never fall back to scanning the raw system temp directory: cleanup owns only this subdirectory.
+		this.tempDir = path.join(os.tmpdir(), "dirac")
+		fs.mkdirSync(this.tempDir, { recursive: true })
 	}
 
 	private ensureTempDirExists(): void {
-		try {
-			fs.mkdirSync(this.tempDir, { recursive: true })
-		} catch {
-			// If creation fails, we fall back to whatever tempDir currently is.
-		}
+		fs.mkdirSync(this.tempDir, { recursive: true })
 	}
 
 	/**
@@ -100,6 +87,7 @@ class DiracTempManagerImpl {
 
 			const fileInfos: TempFileInfo[] = []
 			for (const file of files) {
+				if (!OWNED_TEMP_FILE_PATTERN.test(file)) continue
 				const filePath = path.join(this.tempDir, file)
 				try {
 					const stats = await fs.promises.stat(filePath)

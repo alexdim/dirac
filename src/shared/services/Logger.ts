@@ -27,8 +27,9 @@ export class Logger {
 	/**
 	 * Register a callback to receive log output messages.
 	 */
-	static subscribe(outputFn: (msg: string) => void) {
+	static subscribe(outputFn: (msg: string) => void): () => void {
 		Logger.subscribers.add(outputFn)
+		return () => Logger.subscribers.delete(outputFn)
 	}
 
 	static error(message: string, ...args: any[]) {
@@ -81,6 +82,6 @@ export class Logger {
 			}
 			const errorSuffix = error?.message ? ` ${error.message}${error.stack ? `\n${error.stack}` : ""}` : ""
 			Logger.output(`${level} ${fullMessage}${errorSuffix}`.trimEnd())
-		} catch { }
+		} catch {}
 	}
 }

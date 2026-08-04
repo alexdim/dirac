@@ -5,13 +5,16 @@
 
 import { existsSync, readFileSync } from "node:fs"
 import pino, { type Logger } from "pino"
+import { createRotatingFileLogger, type RotatingFileLogger } from "@/shared/services/file-logger"
 import { printError, printInfo, printWarning } from "./utils/display"
 import { DIRAC_CLI_DIR } from "./utils/path"
 
 export { URI } from "vscode-uri"
 export { DiracFileStorage } from "@/shared/storage"
 
-export const CLI_LOG_FILE = DIRAC_CLI_DIR.cliLog
+export function getCliLogFilePath(): string {
+	return DIRAC_CLI_DIR.cliLog
+}
 
 /**
  * Safely read and parse a JSON file, returning a default value on failure
@@ -99,16 +102,28 @@ export enum EndOfLine {
 	CRLF = 2,
 }
 
-const outputChannelLoggers = new Map<string, Logger>()
+interface OutputChannelLogger {
+	logger: Logger
+	fileLogger: RotatingFileLogger
+}
 
-function getOutputChannelLogger(channelName: string): Logger {
-	let logger = outputChannelLoggers.get(channelName)
-	if (!logger) {
-		const transport = pino.destination({ dest: CLI_LOG_FILE, mkdir: true })
-		logger = pino({ timestamp: pino.stdTimeFunctions.isoTime }, transport)
-		outputChannelLoggers.set(channelName, logger)
+let outputChannelLogger: OutputChannelLogger | undefined
+
+function getOutputChannelLogger(_channelName: string): Logger {
+	if (!outputChannelLogger) {
+		const fileLogger = createRotatingFileLogger({ logDir: DIRAC_CLI_DIR.log, fileName: "dirac-cli.log" })
+		outputChannelLogger = {
+			logger: pino({ timestamp: pino.stdTimeFunctions.isoTime }, fileLogger),
+			fileLogger,
+		}
 	}
-	return logger
+	return outputChannelLogger.logger
+}
+
+export async function disposeCliOutputLoggers(): Promise<void> {
+	const fileLogger = outputChannelLogger?.fileLogger
+	outputChannelLogger = undefined
+	if (fileLogger) await fileLogger.dispose()
 }
 
 export class Position {
