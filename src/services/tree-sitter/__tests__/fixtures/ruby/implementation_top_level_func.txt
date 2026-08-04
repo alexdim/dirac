@@ -1,5 +1,4 @@
 sample.rb::top_level_func
-[Implementation Hash: cced7f27]
 # top_level_func is a top-level function.
 def top_level_func(x)
   obj = RubyClass.new("example")

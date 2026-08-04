@@ -1,32 +1,18 @@
---- sample.py ---
-|----
-│class PythonClass:
-|----
-│    def __init__(self, name: str):
-|----
-│    def get_name(self) -> str:
-|----
-│    def calculate(self, a: int, b: int) -> int:
-|----
-│def top_level_func(x: int):
-│    # Calls: [PythonClass]
-|----
-│def outer_func(x):
-│    # Calls: [NestedClass, inner_func]
-|----
-│    def inner_func(y):
-|----
-│    class NestedClass:
-│        # Calls: [inner_func]
-|----
-│        def nested_method(self):
-│            # Calls: [inner_func]
-|----
-│class ComplexDecorators:
-|----
-│    def multiple_decorators():
-|----
-│    def with_comment(cls):
-|----
-│def shadowing_func():
-|----
+sample.py
+class PythonClass:
+    def __init__(self, name: str):
+    def get_name(self) -> str:
+    def calculate(self, a: int, b: int) -> int:
+def top_level_func(x: int):
+calls: PythonClass
+def outer_func(x):
+calls: NestedClass, inner_func
+    def inner_func(y):
+    class NestedClass:
+    calls: inner_func
+        def nested_method(self):
+        calls: inner_func
+class ComplexDecorators:
+    def multiple_decorators():
+    def with_comment(cls):
+def shadowing_func():

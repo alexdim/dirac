@@ -1,5 +1,4 @@
 sample.java::JavaClass
-[Implementation Hash: 9562eb14]
 /**
  * JavaClass is a sample class.
  */

@@ -1,5 +1,1 @@
-The tool execution failed with the following error:
-<error>
-sample.php::nonExistentFunction
-Symbol not found: Symbol not found: nonExistentFunction in sample.php.
-</error>
+nonExistentFunction: no implementation found in sample.php

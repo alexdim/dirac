@@ -1,5 +1,4 @@
 sample.go::GoStruct
-[Implementation Hash: c66b8558]
 GoStruct struct {
 	Name string
 }

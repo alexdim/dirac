@@ -1,7 +1,7 @@
 sample.ts::DecoratedClass.methodWithDecorators
-[Function Hash: 7fc676bf]
+context:
 class DecoratedClass {
-...
+implementation:
 @decorator
 	@decorator
 	methodWithDecorators() {

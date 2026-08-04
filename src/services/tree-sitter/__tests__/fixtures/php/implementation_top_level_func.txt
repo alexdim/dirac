@@ -1,5 +1,4 @@
 sample.php::top_level_func
-[Implementation Hash: 504747e8]
 /**
  * top_level_func is a top-level function.
  */

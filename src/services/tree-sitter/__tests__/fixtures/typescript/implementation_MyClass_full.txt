@@ -1,5 +1,4 @@
 sample.ts::MyClass
-[Implementation Hash: b053e7d2]
 /**
  * This is a sample class implementing an interface.
  */

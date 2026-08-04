@@ -1,5 +1,4 @@
 sample.kt::topLevelFunc
-[Implementation Hash: 6e73ffb9]
 /**
  * topLevelFunc is a top-level function.
  */

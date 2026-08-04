@@ -131,7 +131,7 @@ describe("InspectAstTool", () => {
 
 		const output = await new InspectAstTool().processCall({ operation: "outline", paths: ["src/a.ts"] }, env)
 		assert.match(output, /function main/)
-		assert.match(output, /===== RESULT 1\/1 =====/)
+		assert.doesNotMatch(output, /RESULT|Status:/)
 		assert.equal(cards.length, 1)
 		assert.deepEqual(cards[0].rawInput, {
 			tool: "inspect_ast",
@@ -186,9 +186,10 @@ describe("InspectAstTool", () => {
 			symbols: ["A.run", "B.load"],
 		}, env)
 
-		assert.equal(output.match(/===== RESULT \d\/2 =====/g)?.length, 2)
-		assert.match(output, /Symbol: A\.run\nStatus: SUCCESS\nMatches: 2/)
-		assert.match(output, /Symbol: B\.load\nStatus: FAILURE\nMatches: 0/)
+		assert.equal(
+			output,
+			"src/a.ts::A.run\nrun() {}\n\n---\n\nsrc/b.ts::A.run\nrun() {}\n\n---\n\nB.load: no implementation found in src/a.ts, src/b.ts",
+		)
 		assert.equal(cards.length, 2)
 		assert.deepEqual(cards[0].rawInput.paths, ["src/a.ts", "src/b.ts"])
 		assert.equal(cards[0].rawInput.symbol, "A.run")
@@ -241,7 +242,7 @@ describe("InspectAstTool", () => {
 			assert.equal(cards[0].initialHeader, `Finding ${operation} for load in src`)
 			assert.equal(
 				cards[0].updates[0].header,
-				`Found ${operation} for load in src/services/UserService.ts (+1 more)`,
+				`Found ${operation} for load in src/controllers/UserController.ts (+1 more)`,
 			)
 		}
 	})
@@ -322,6 +323,18 @@ describe("InspectAstTool", () => {
 		const { env, cards } = createEnvironment({ subagent: true })
 		await new InspectAstTool().processCall({ operation: "outline", paths: "src/a.ts" }, env)
 		assert.equal(cards.length, 0)
+	})
+
+	it("returns valid empty inspections without an execution-error wrapper", async () => {
+		const { env } = createEnvironment({ implementationResult: { targets: [] } })
+		const output = await new InspectAstTool().processCall({
+			operation: "implementation",
+			paths: ["src/a.ts"],
+			symbols: ["missing"],
+		}, env)
+
+		assert.equal(output, "src/a.ts: The source-AST backend returned no result for this path and symbol.")
+		assert.doesNotMatch(output, /tool execution failed|<error>/)
 	})
 
 	it("increments mistakes only for malformed calls", async () => {

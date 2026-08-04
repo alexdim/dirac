@@ -1,7 +1,7 @@
 sample.ts::MyClass.getName
-[Function Hash: 98b0419f]
+context:
 class MyClass implements MyInterface {
-...
+implementation:
 /**
 	 * Gets the name.
 	 */

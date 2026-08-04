@@ -1,5 +1,4 @@
 sample.cpp::CppClass
-[Implementation Hash: 5e68a09d]
 /**
  * A sample class in C++.
  */

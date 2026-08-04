@@ -1,5 +1,4 @@
 sample.rb::RubyClass.get_name
-[Implementation Hash: ff4b7936]
 # get_name returns the name.
   def get_name
     @name

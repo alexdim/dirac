@@ -1,5 +1,4 @@
 sample.cpp::CppClass.calculate
-[Implementation Hash: 569f5ba9]
 /**
  * Method implementation outside the class.
  */

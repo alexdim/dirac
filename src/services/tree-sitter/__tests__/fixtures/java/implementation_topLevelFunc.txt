@@ -1,7 +1,7 @@
 sample.java::Main.topLevelFunc
-[Implementation Hash: acf75a86]
+context:
 class Main {
-
+implementation:
 public static int topLevelFunc(int x) {
         JavaClass obj = new JavaClass("top-level");
         return obj.calculate(x, 10);

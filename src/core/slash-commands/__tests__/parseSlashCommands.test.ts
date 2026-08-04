@@ -126,13 +126,13 @@ describe("parseSlashCommands", () => {
 
 		it("detects slash commands inside <feedback> tags", async () => {
 			const text = "<feedback>/smol</feedback>"
-			const result = await parse(text)
+			const result = await parse(text, { conversationCondensationAvailable: true })
 			expect(result.directAction).to.deep.equal({ type: "condenseConversation" })
 		})
 
 		it("detects slash commands inside <answer> tags", async () => {
 			const text = "<answer>/compact</answer>"
-			const result = await parse(text)
+			const result = await parse(text, { conversationCondensationAvailable: true })
 			expect(result.directAction).to.deep.equal({ type: "condenseConversation" })
 		})
 
@@ -372,7 +372,7 @@ describe("parseSlashCommands", () => {
 
 		it("skips a tag with no slash command and processes a later tag that has one", async () => {
 			const text = "<task>no command here</task> <feedback>/smol</feedback>"
-			const result = await parse(text)
+			const result = await parse(text, { conversationCondensationAvailable: true })
 			expect(result.directAction).to.deep.equal({ type: "condenseConversation" })
 		})
 	})

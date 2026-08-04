@@ -34,11 +34,7 @@ describe("InspectAstFormatter", () => {
 		}
 		const groups = reducer.reduceOutline(["src/UserService.ts"], result)
 		const formatted = new InspectAstFormatter().formatOutline(groups, true)
-		assert.match(formatted.text, /^INSPECT_AST outline\nResults: 1 \| Success: 1 \| Failure: 0 \| Anchors: yes/)
-		assert.match(formatted.text, /===== RESULT 1\/1 =====/)
-		assert.match(formatted.text, /Apple§\tload\(\) \{/)
-		assert.match(formatted.text, /^Apple§\tload\(\) \{$/m)
-		assert.match(formatted.text, /Calls: \[fetchUser\]/)
+		assert.equal(formatted.text, "src/UserService.ts\nApple§\tload() {\n\tcalls: fetchUser")
 		assert.equal(formatted.summary.successCount, 1)
 	})
 
@@ -65,13 +61,13 @@ describe("InspectAstFormatter", () => {
 		assert.equal(repeatedAnchored.cacheStats.missCount, 1)
 		assert.equal(repeatedAnchored.cacheStats.hitCount, 0)
 		assert.match(repeatedAnchored.text, /^Apple§load\(\) \{\}$/m)
-		assert.doesNotMatch(repeatedAnchored.text, /No changes have been made/)
+		assert.doesNotMatch(repeatedAnchored.text, /^unchanged$/m)
 
 		const firstPlain = formatter.formatImplementations(groups, false, cache, () => null)
 		const repeatedPlain = formatter.formatImplementations(groups, false, cache, () => null)
 		assert.equal(firstPlain.cacheStats.missCount, 1)
 		assert.equal(repeatedPlain.cacheStats.hitCount, 1)
-		assert.match(repeatedPlain.text, /No changes have been made/)
+		assert.match(repeatedPlain.text, /^unchanged$/m)
 	})
 
 	it("keeps occurrence issues inside the successful symbol block", () => {
@@ -99,8 +95,9 @@ describe("InspectAstFormatter", () => {
 		}
 		const groups = reducer.reduceOccurrences("occurrences", ["src"], ["load"], result)
 		const formatted = new InspectAstFormatter().formatOccurrences(groups, "occurrences", false)
-		assert.match(formatted.text, /Symbol: load\nStatus: SUCCESS/)
-		assert.match(formatted.text, /Warnings:/)
+		assert.match(formatted.text, /^src\/UserService\.ts$/m)
+		assert.match(formatted.text, /^  definition 2:2 load\(\) \{\}$/m)
+		assert.doesNotMatch(formatted.text, /Status:|Warnings:/)
 		assert.match(formatted.text, /Unable to read one indexed file/)
 		assert.equal(formatted.summary.successCount, 1)
 		assert.equal(formatted.summary.issueCount, 1)

@@ -1,5 +1,4 @@
 sample.php::PhpClass.getName
-[Implementation Hash: 8fe05ab2]
 /**
      * getName returns the name.
      */

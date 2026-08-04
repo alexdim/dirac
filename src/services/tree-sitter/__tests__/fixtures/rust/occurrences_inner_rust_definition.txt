@@ -1,5 +1,2 @@
---- inner_rust in sample.rs ---
-sample.rs:
-  [definition] line 27:8     fn inner_rust(a: i32) -> i32 {
-
-Lookup kind: definitions.
+sample.rs
+  definition 27:8     fn inner_rust(a: i32) -> i32 {

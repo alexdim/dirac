@@ -1,5 +1,4 @@
 sample.cpp::MyNamespace.NamespaceClass
-[Implementation Hash: 7d2cb2e2]
 /**
      * A class within a namespace.
      */

@@ -1,7 +1,4 @@
---- PhpClass in sample.php ---
-sample.php:
-  [definition] line 8:7 class PhpClass
-  [reference] line 8:7 class PhpClass
-  [reference] line 36:16     $obj = new PhpClass("example");
-
-Lookup kind: definitions and references.
+sample.php
+  definition 8:7 class PhpClass
+  reference 8:7 class PhpClass
+  reference 36:16     $obj = new PhpClass("example");

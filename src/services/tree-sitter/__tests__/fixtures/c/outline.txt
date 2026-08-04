@@ -1,10 +1,6 @@
---- sample.c ---
-|----
-│void say_hello(const char* name) {
-|----
-│int top_level_func(int x) {
-│    # Calls: [say_hello]
-|----
-│int main() {
-│    # Calls: [top_level_func]
-|----
+sample.c
+void say_hello(const char* name) {
+int top_level_func(int x) {
+calls: say_hello
+int main() {
+calls: top_level_func

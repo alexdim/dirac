@@ -1,5 +1,1 @@
-The tool execution failed with the following error:
-<error>
-sample.go::GoStruct.GetName
-Symbol not found: Symbol not found: GoStruct.GetName in sample.go.
-</error>
+GoStruct.GetName: no implementation found in sample.go

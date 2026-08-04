@@ -1,5 +1,4 @@
 sample.cpp::cpp_main
-[Implementation Hash: 19e3bd99]
 /**
  * A top-level function.
  */

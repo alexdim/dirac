@@ -1,5 +1,4 @@
 sample.py::PythonClass
-[Implementation Hash: 054d4bc4]
 class PythonClass:
     """
     A sample class in Python.

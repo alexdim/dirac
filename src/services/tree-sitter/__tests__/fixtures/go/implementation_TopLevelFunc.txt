@@ -1,5 +1,4 @@
 sample.go::TopLevelFunc
-[Implementation Hash: 1259303a]
 // TopLevelFunc is a top-level function.
 func TopLevelFunc(x int) int {
 	obj := NewGoStruct("example")

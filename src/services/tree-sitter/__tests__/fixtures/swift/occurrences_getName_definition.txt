@@ -1,5 +1,2 @@
---- getName in sample.swift ---
-sample.swift:
-  [definition] line 12:10     func getName() -> String {
-
-Lookup kind: definitions.
+sample.swift
+  definition 12:10     func getName() -> String {

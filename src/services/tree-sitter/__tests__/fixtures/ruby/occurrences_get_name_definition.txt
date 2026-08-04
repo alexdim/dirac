@@ -1,5 +1,2 @@
---- get_name in sample.rb ---
-sample.rb:
-  [definition] line 10:7   def get_name
-
-Lookup kind: definitions.
+sample.rb
+  definition 10:7   def get_name

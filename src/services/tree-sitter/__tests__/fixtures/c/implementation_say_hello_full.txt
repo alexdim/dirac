@@ -1,5 +1,4 @@
 sample.c::say_hello
-[Implementation Hash: dd118113]
 // say_hello function implementation.
 void say_hello(const char* name) {
     printf("Hello, %s!\n", name);

@@ -1,2 +1,2 @@
-sample.ts:
-  (innerFunction) 	function innerFunction(y: number) {
+sample.ts
+  definition 48:11 	function innerFunction(y: number) {
