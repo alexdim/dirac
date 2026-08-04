@@ -628,6 +628,61 @@ describe("SubagentRunner", () => {
 		assert.match(result.error || "", /context length exceeded/i)
 	})
 
+	it("compacts and retries a statusless Codex context-window error", async () => {
+		const requestConversationLengths: number[] = []
+		const createMessage = sinon.stub().callsFake(async function* (_systemPrompt: string, conversation: unknown[]) {
+			requestConversationLengths.push(conversation.length)
+			const callNumber = requestConversationLengths.length
+
+			if (callNumber <= 2) {
+				yield {
+					type: "tool_calls",
+					tool_call: {
+						function: {
+							id: `toolu_subagent_context_${callNumber}`,
+							name: DiracDefaultTool.LIST_FILES,
+							arguments: JSON.stringify({ path: ".", recursive: false }),
+						},
+					},
+				}
+				return
+			}
+
+			if (callNumber === 3) {
+				throw new Error(
+					"Codex API stream error: Your input exceeds the context window of this model. Please adjust your input and try again.",
+				)
+			}
+
+			yield {
+				type: "tool_calls",
+				tool_call: {
+					function: {
+						id: "toolu_subagent_context_complete",
+						name: DiracDefaultTool.RESPOND,
+						arguments: JSON.stringify({ operation: ResponseOperation.COMPLETE, text: "done" }),
+					},
+				},
+			}
+		})
+
+		const promptRegistry = PromptRegistry.getInstance()
+		sinon.stub(promptRegistry, "get").callsFake(async () => {
+			promptRegistry.nativeTools = [{ name: "list_files" } as any]
+			return "system prompt"
+		})
+		sinon.stub(skills, "getOrDiscoverSkills").resolves([])
+		stubApiHandler(createMessage)
+		initializeHostProvider()
+
+		const runner = new SubagentRunner(createTaskConfigWithListFilesSnapshot())
+		const result = await runner.run("Inspect the repository", () => {})
+
+		assert.equal(result.status, "completed")
+		assert.equal(result.result, "done")
+		assert.deepEqual(requestConversationLengths, [1, 3, 5, 3])
+	})
+
 	it("uses the configured task api handler for subagent requests", async () => {
 		const createMessage = sinon.stub().callsFake(async function* () {
 			yield {

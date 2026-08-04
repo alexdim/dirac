@@ -21,6 +21,22 @@ describe("checkContextWindowExceededError", () => {
 		expect(checkContextWindowExceededError(error)).to.equal(true)
 	})
 
+	it("detects the statusless Codex context-window stream error", () => {
+		const error = new Error(
+			"Codex API stream error: Your input exceeds the context window of this model. Please adjust your input and try again.",
+		)
+
+		expect(checkContextWindowExceededError(error)).to.equal(true)
+	})
+
+	it("detects a top-level Responses API context error code", () => {
+		const error = Object.assign(new Error("Codex API stream error: Request failed"), {
+			code: "context_length_exceeded",
+		})
+
+		expect(checkContextWindowExceededError(error)).to.equal(true)
+	})
+
 	it("does not classify unrelated 400 errors as context window failures", () => {
 		const error = new Error("OpenRouter API Error 400: Invalid API key")
 

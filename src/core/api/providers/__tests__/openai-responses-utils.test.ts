@@ -244,6 +244,36 @@ describe("processResponsesEvents", () => {
 	})
 
 
+	it("preserves structured metadata from error events", async () => {
+		async function* stream() {
+			yield {
+				type: "error",
+				message: "Your input exceeds the context window of this model.",
+				code: "context_length_exceeded",
+				status: 400,
+				param: "input",
+			}
+		}
+
+		let caughtError: any
+		try {
+			for await (const _chunk of processResponsesEvents(stream() as any, {} as any)) {
+				// Error events do not produce output chunks.
+			}
+		} catch (error) {
+			caughtError = error
+		}
+
+		expect(caughtError).to.be.instanceOf(Error)
+		expect(caughtError.message).to.equal(
+			"Codex API stream error: Your input exceeds the context window of this model.",
+		)
+		expect(caughtError.code).to.equal("context_length_exceeded")
+		expect(caughtError.status).to.equal(400)
+		expect(caughtError.details).to.deep.equal({ param: "input" })
+	})
+
+
 	it("reports completed response IDs to the caller", async () => {
 		async function* stream() {
 			yield { type: "response.completed", response: { id: "resp_123" } }

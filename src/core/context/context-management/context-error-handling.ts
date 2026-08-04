@@ -2,6 +2,7 @@ import { APIError } from "openai"
 
 export function checkContextWindowExceededError(error: unknown): boolean {
 	return (
+		checkIsOpenAIResponsesContextWindowError(error) ||
 		checkIsOpenAIContextWindowError(error) ||
 		checkIsOpenRouterContextWindowError(error) ||
 		checkIsAnthropicContextWindowError(error) ||
@@ -9,6 +10,29 @@ export function checkContextWindowExceededError(error: unknown): boolean {
 		checkIsBedrockContextWindowError(error) ||
 		checkIsVercelContextWindowError(error)
 	)
+}
+
+function checkIsOpenAIResponsesContextWindowError(error: any): boolean {
+	try {
+		const codes = [
+			error?.code,
+			error?.error?.code,
+			error?.error?.error?.code,
+			error?.details?.code,
+			error?.cause?.code,
+		]
+		const contextErrorCodes = new Set(["context_length_exceeded", "context_window_exceeded", "input_too_long"])
+		if (codes.some((code) => contextErrorCodes.has(String(code).toLowerCase()))) {
+			return true
+		}
+
+		const messages = [error?.message, error?.error?.message, error?.error?.error?.message]
+			.filter((message) => message != null)
+			.map((message) => String(message))
+		return messages.some((message) => /your input exceeds the context window of this model/i.test(message))
+	} catch {
+		return false
+	}
 }
 
 function checkIsOpenRouterContextWindowError(error: any): boolean {
