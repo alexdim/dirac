@@ -229,7 +229,18 @@ async function* processResponseEvent(
 			break
 		case "error": {
 			const errMsg = chunk.message || chunk.error?.message || "Unknown API error"
-			throw new Error(`Codex API stream error: ${errMsg}`)
+			const error: Error & {
+				code?: string
+				status?: number | string
+				details?: { param?: string }
+			} = new Error(`Codex API stream error: ${errMsg}`)
+			const code = chunk.code ?? chunk.error?.code
+			const status = chunk.status ?? chunk.status_code ?? chunk.error?.status ?? chunk.error?.status_code
+			const param = chunk.param ?? chunk.error?.param ?? chunk.error?.details?.param
+			if (typeof code === "string") error.code = code
+			if (typeof status === "number" || typeof status === "string") error.status = status
+			if (typeof param === "string") error.details = { param }
+			throw error
 		}
 	}
 }
