@@ -664,11 +664,11 @@ function marketplace_has_version() {
     local json
     json=$(npx @vscode/vsce show "$EXTENSION_ID" --json) \
         || die "Could not query VS Marketplace."
-    MARKETPLACE_JSON="$json" EXPECTED_VERSION="$VERSION" node <<'NODE'
-const extension = JSON.parse(process.env.MARKETPLACE_JSON)
+    EXPECTED_VERSION="$VERSION" node -e '
+const extension = JSON.parse(require("node:fs").readFileSync(0, "utf8"))
 const expected = process.env.EXPECTED_VERSION
 process.exit((extension.versions || []).some(version => version.version === expected) ? 0 : 1)
-NODE
+' <<< "$json"
 }
 
 function open_vsx_has_version() {
@@ -685,11 +685,11 @@ NODE
 function npm_has_version() {
     local json
     json=$(npm view "$NPM_PACKAGE" versions --json) || die "Could not query npm."
-    NPM_VERSIONS_JSON="$json" EXPECTED_VERSION="$VERSION" node <<'NODE'
-const versions = JSON.parse(process.env.NPM_VERSIONS_JSON)
+    EXPECTED_VERSION="$VERSION" node -e '
+const versions = JSON.parse(require("node:fs").readFileSync(0, "utf8"))
 const list = Array.isArray(versions) ? versions : [versions]
 process.exit(list.includes(process.env.EXPECTED_VERSION) ? 0 : 1)
-NODE
+' <<< "$json"
 }
 
 function npm_formula_matches_registry() {
@@ -756,13 +756,14 @@ function release_is_complete() {
 function wait_for_registry() {
     local label="$1"
     local check_function="$2"
+    local attempts="${3:-6}"
     local attempt
-    for attempt in 1 2 3 4 5 6; do
+    for ((attempt = 1; attempt <= attempts; attempt += 1)); do
         if "$check_function"; then
             log_info "Verified ${label}."
             return
         fi
-        [ "$attempt" -eq 6 ] || sleep 10
+        [ "$attempt" -eq "$attempts" ] || sleep 10
     done
     die "${label} did not report ${VERSION} after publication. Resume later with: scripts/publish.sh --resume ${RELEASE_TAG}"
 }
@@ -773,9 +774,17 @@ function publish_missing_registries() {
     else
         [ -n "${VSCE_PAT:-}" ] || die "VSCE_PAT is required because VS Marketplace is missing ${VERSION}."
         ensure_vsix
+        local publish_output
         log_step "Publishing retained VSIX to VS Marketplace..."
-        npx @vscode/vsce publish --packagePath "$VSIX_FILE" -p "$VSCE_PAT"
-        wait_for_registry "VS Marketplace ${VERSION}" marketplace_has_version
+        if publish_output=$(npx @vscode/vsce publish --packagePath "$VSIX_FILE" -p "$VSCE_PAT" 2>&1); then
+            printf '%s\n' "$publish_output"
+        elif [[ "$publish_output" == *"already exists"* ]]; then
+            log_info "VS Marketplace already accepted ${VERSION}; waiting for it to become visible."
+        else
+            printf '%s\n' "$publish_output" >&2
+            die "Could not publish retained VSIX to VS Marketplace."
+        fi
+        wait_for_registry "VS Marketplace ${VERSION}" marketplace_has_version 30
     fi
 
     if open_vsx_has_version; then
