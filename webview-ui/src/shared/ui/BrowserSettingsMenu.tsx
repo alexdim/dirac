@@ -1,6 +1,7 @@
 import { EmptyRequest } from "@shared/proto/dirac/common"
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
 import { useEffect, useRef, useState } from "react"
+import { useAppStore } from "@/app/store/appStore"
 import { useSettingsStore } from "@/features/settings/store/settingsStore"
 import { BrowserServiceClient } from "@/shared/api/grpc-client"
 
@@ -11,7 +12,8 @@ interface ConnectionInfo {
 }
 
 export const BrowserSettingsMenu = () => {
-	const { browserSettings, navigateToSettings } = useSettingsStore()
+	const browserSettings = useSettingsStore((state) => state.browserSettings)
+	const navigateToSettings = useAppStore((state) => state.navigateToSettings)
 	const containerRef = useRef<HTMLDivElement>(null)
 	const [showInfoPopover, setShowInfoPopover] = useState(false)
 	const [connectionInfo, setConnectionInfo] = useState<ConnectionInfo>({

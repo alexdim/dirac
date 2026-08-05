@@ -3,10 +3,12 @@ import { useMemo } from "react"
 import { TaskServiceClient } from "@/shared/api/grpc-client"
 import { Button } from "@/shared/ui/button"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/shared/ui/tooltip"
-import { useSettingsStore } from "../../features/settings/store/settingsStore"
+import { useAppStore } from "@/app/store/appStore"
 
 export const Navbar = () => {
-	const { navigateToHistory, navigateToSettings, navigateToChat } = useSettingsStore()
+	const navigateToHistory = useAppStore((state) => state.navigateToHistory)
+	const navigateToSettings = useAppStore((state) => state.navigateToSettings)
+	const navigateToChat = useAppStore((state) => state.navigateToChat)
 
 	const SETTINGS_TABS = useMemo(
 		() => [
