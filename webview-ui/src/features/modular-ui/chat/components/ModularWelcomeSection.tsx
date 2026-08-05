@@ -4,6 +4,7 @@ import type { Worktree } from "@shared/proto/dirac/worktree"
 import { TrackWorktreeViewOpenedRequest } from "@shared/proto/dirac/worktree"
 import { GitBranch } from "lucide-react"
 import React, { useCallback, useEffect, useMemo, useRef, useState, memo } from "react"
+import { useAppStore } from "@/app/store/appStore"
 import { useDiracAuth } from "@/context/DiracAuthContext"
 import HistoryPreview from "./HistoryPreview"
 import { useApiConfigurationHandlers } from "@/features/settings/components/utils/useApiConfigurationHandlers"
@@ -59,15 +60,10 @@ const ModularWelcomeSection: React.FC<ModularWelcomeSectionProps> = ({
 	}, [])
 
 	const { diracUser } = useDiracAuth()
-	const {
-		openRouterModels,
-		navigateToSettings,
-		navigateToSettingsModelPicker,
-		navigateToWorktrees,
-		worktreesEnabled,
-		banners,
-		welcomeBanners,
-	} = useSettingsStore()
+	const { openRouterModels, worktreesEnabled, banners, welcomeBanners } = useSettingsStore()
+	const navigateToSettings = useAppStore((state) => state.navigateToSettings)
+	const navigateToSettingsModelPicker = useAppStore((state) => state.navigateToSettingsModelPicker)
+	const navigateToWorktrees = useAppStore((state) => state.navigateToWorktrees)
 	const { handleFieldsChange } = useApiConfigurationHandlers()
 
 	// Show modal when there's a new announcement and we haven't shown it this session.

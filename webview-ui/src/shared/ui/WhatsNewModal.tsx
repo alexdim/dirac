@@ -5,6 +5,7 @@ import GitHubIcon from "@/assets/GitHubIcon"
 import LinkedInIcon from "@/assets/LinkedInIcon"
 import RedditIcon from "@/assets/RedditIcon"
 import XIcon from "@/assets/XIcon"
+import { useAppStore } from "@/app/store/appStore"
 import { useSettingsStore } from "@/features/settings/store/settingsStore"
 import { Dialog, DialogContent } from "@/shared/ui/dialog"
 import WhatsNewItems from "@/shared/ui/WhatsNewItems"
@@ -19,7 +20,8 @@ interface WhatsNewModalProps {
 }
 
 export const WhatsNewModal: React.FC<WhatsNewModalProps> = ({ open, onClose, version, welcomeBanners, onBannerAction }) => {
-	const { openRouterModels, navigateToSettingsModelPicker } = useSettingsStore()
+	const openRouterModels = useSettingsStore((state) => state.openRouterModels)
+	const navigateToSettingsModelPicker = useAppStore((state) => state.navigateToSettingsModelPicker)
 	const { handleFieldsChange } = useApiConfigurationHandlers()
 
 	const navigateToModelPicker = useCallback(

@@ -1,6 +1,7 @@
 import { DiracApiReqInfo, DiracMessage, DiracMessageType, Mode } from "@shared/ExtensionMessage"
 import { ChevronDownIcon, ChevronRightIcon } from "lucide-react"
 import React, { useCallback, useMemo } from "react"
+import { useAppStore } from "@/app/store/appStore"
 import { useTaskStore } from "@/entities/task/store/taskStore"
 import { getModeSpecificFields, normalizeApiConfiguration } from "@/features/settings/components/utils/providerUtils"
 import { useSettingsStore } from "@/features/settings/store/settingsStore"
@@ -42,12 +43,12 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({ task, totalCost, cacheHitRate, 
 	const {
 		apiConfiguration,
 		checkpointManagerErrorMessage,
-		navigateToSettings,
 		mode,
 		expandTaskHeader: isTaskExpanded,
 		setExpandTaskHeader: setIsTaskExpanded,
 		environment,
 	} = useSettingsStore()
+	const navigateToSettings = useAppStore((state) => state.navigateToSettings)
 	const currentTaskItem = useTaskStore((state) => state.currentTaskItem)
 
 	const { selectedModelInfo } = normalizeApiConfiguration(apiConfiguration, mode as Mode)
@@ -179,13 +180,13 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({ task, totalCost, cacheHitRate, 
 							(task.content.type === DiracMessageType.MARKDOWN &&
 								task.content.files &&
 								task.content.files.length > 0)) && (
-							<div className="px-1">
-								<Thumbnails
-									files={(task.content.type === DiracMessageType.MARKDOWN ? task.content.files : []) ?? []}
-									images={(task.content.type === DiracMessageType.MARKDOWN ? task.content.images : []) ?? []}
-								/>
-							</div>
-						)}
+								<div className="px-1">
+									<Thumbnails
+										files={(task.content.type === DiracMessageType.MARKDOWN ? task.content.files : []) ?? []}
+										images={(task.content.type === DiracMessageType.MARKDOWN ? task.content.images : []) ?? []}
+									/>
+								</div>
+							)}
 
 						<div className="border-t border-foreground/5 pt-2">
 							<ContextWindow lastApiReqInfo={lastApiReqInfo} onSendMessage={onSendMessage} />

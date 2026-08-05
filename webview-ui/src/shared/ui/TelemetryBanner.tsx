@@ -1,6 +1,6 @@
 import { TelemetrySettingEnum, TelemetrySettingRequest } from "@shared/proto/dirac/state"
 import { useCallback } from "react"
-import { useSettingsStore } from "@/features/settings/store/settingsStore"
+import { useAppStore } from "@/app/store/appStore"
 import { StateServiceClient } from "@/shared/api/grpc-client"
 
 const telemetryRequest = TelemetrySettingRequest.create({
@@ -8,7 +8,7 @@ const telemetryRequest = TelemetrySettingRequest.create({
 })
 
 export const TelemetryBanner: React.FC = () => {
-	const { navigateToSettings } = useSettingsStore()
+	const navigateToSettings = useAppStore((state) => state.navigateToSettings)
 
 	const handleClose = useCallback(() => {
 		StateServiceClient.updateTelemetrySetting(telemetryRequest).catch(console.error)

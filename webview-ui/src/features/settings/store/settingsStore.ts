@@ -156,11 +156,6 @@ interface SettingsState {
 	welcomeBanners: any[]
 
 	// Navigation Actions
-	navigateToSettings: (section?: string) => void
-	navigateToSettingsModelPicker: (options: { targetSection?: string }) => void
-	navigateToHistory: () => void
-	navigateToChat: () => void
-	navigateToWorktrees: () => void
 	onRelinquishControl: (callback: () => void) => () => void
 
 	// Actions
@@ -450,11 +445,6 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
 	dismissedBanners: [],
 	banners: [],
 	welcomeBanners: [],
-	navigateToSettings: () => { },
-	navigateToSettingsModelPicker: () => { },
-	navigateToHistory: () => { },
-	navigateToChat: () => { },
-	navigateToWorktrees: () => { },
 	onRelinquishControl: () => () => { },
 	setDiracMessages: (messages) => set({ diracMessages: messages }),
 	setTaskHistory: (history) => set({ taskHistory: history }),
