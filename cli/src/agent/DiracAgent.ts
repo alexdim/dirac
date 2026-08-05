@@ -63,6 +63,7 @@ import {
 	getSessionUpdates,
 	recordClientAnnotation,
 	recordSessionUpdate,
+	SEQUENCE_META_KEY,
 } from "../acp/acp-session-updates.js"
 import {
 	deleteSessionWorktree,
@@ -448,7 +449,11 @@ export class DiracAgent implements acp.Agent {
 			return
 		}
 
-		recordClientAnnotation(sessionId, annotation as Record<string, unknown>)
+		try {
+			recordClientAnnotation(sessionId, annotation as Record<string, unknown>)
+		} catch (error) {
+			Logger.error("[DiracAgent] ACP journal persistence failed for client annotation:", error)
+		}
 	}
 
 
@@ -615,6 +620,13 @@ export class DiracAgent implements acp.Agent {
 
 	/** Config mutations are serialized independently from prompt lifecycle state. */
 	private readonly configuringSessions: Set<string> = new Set()
+
+	/**
+	 * Highest persisted journal sequence per session for this process, used to
+	 * synthesize a monotonic sequence when journal persistence fails so the live
+	 * ACP emit can continue without crashing the session.
+	 */
+	private readonly lastJournalSequence = new Map<string, number>()
 
 	/**
 	 * In-flight prompt resolvers, keyed by session id. {@link cancel} uses these
@@ -2125,13 +2137,47 @@ export class DiracAgent implements acp.Agent {
 
 	private async emitSessionUpdate(sessionId: string, update: acp.SessionUpdate): Promise<void> {
 		const emitter = this.emitterForSession(sessionId)
-		const persistedUpdate = recordSessionUpdate(sessionId, update)
+		const persistedUpdate = this.persistSessionUpdate(sessionId, update)
 
 		try {
 			emitter.emit(persistedUpdate.sessionUpdate, persistedUpdate)
 		} catch (error) {
 			Logger.debug("[DiracAgent] Error emitting session update:", error)
 			emitter.emit("error", error instanceof Error ? error : new Error(String(error)))
+		}
+	}
+
+	/**
+	 * Persist a session update, falling back to an ephemeral, in-process sequence
+	 * when the journal cannot be written. A persistence failure must not take down
+	 * the live ACP session, so the caller can still emit the update to the client.
+	 *
+	 * NOTE: the fallback sequence is a best-effort degradation, not durable
+	 * ordering. It is only seeded from a successful write, so when persistence
+	 * fails from the very first call (e.g. an already over-cap journal) it starts
+	 * at 1 and counts up in memory — colliding with the sequence numbers already
+	 * persisted in the journal, and resetting on process restart. Acceptable as an
+	 * immediate unblock; Step 2 (append-only journal) removes this entirely.
+	 */
+	private persistSessionUpdate(sessionId: string, update: acp.SessionUpdate): ReturnType<typeof recordSessionUpdate> {
+		try {
+			const persisted = recordSessionUpdate(sessionId, update)
+			const sequence = persisted._meta?.[SEQUENCE_META_KEY]
+			if (typeof sequence === "number") {
+				this.lastJournalSequence.set(sessionId, sequence)
+			}
+			return persisted
+		} catch (error) {
+			Logger.error("[DiracAgent] ACP journal persistence failed; emitting session update ephemerally:", error)
+			const sequence = (this.lastJournalSequence.get(sessionId) ?? 0) + 1
+			this.lastJournalSequence.set(sessionId, sequence)
+			return {
+				...update,
+				_meta: {
+					...(update as acp.SessionUpdate & { _meta?: Record<string, unknown> })._meta,
+					[SEQUENCE_META_KEY]: sequence,
+				},
+			}
 		}
 	}
 
