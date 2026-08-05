@@ -75,8 +75,8 @@ export const getLocalWindsurfRules = async (cwd: string, toggles: DiracRulesTogg
 						windsurfRulesFileInstructions = formatResponse.windsurfRulesLocalFileInstructions(cwd, ruleFileContent)
 					}
 				}
-			} catch {
-				Logger.error(`Failed to read .windsurfrules file at ${windsurfRulesFilePath}`)
+			} catch (error) {
+				Logger.error(`Failed to read .windsurfrules file at ${windsurfRulesFilePath}:`, error)
 			}
 		}
 	}
@@ -101,8 +101,8 @@ export const getLocalCursorRules = async (cwd: string, toggles: DiracRulesToggle
 						cursorRulesFileInstructions = formatResponse.cursorRulesLocalFileInstructions(cwd, ruleFileContent)
 					}
 				}
-			} catch {
-				Logger.error(`Failed to read .cursorrules file at ${cursorRulesFilePath}`)
+			} catch (error) {
+				Logger.error(`Failed to read .cursorrules file at ${cursorRulesFilePath}:`, error)
 			}
 		}
 	}
@@ -119,8 +119,8 @@ export const getLocalCursorRules = async (cwd: string, toggles: DiracRulesToggle
 				if (rulesFilesTotalContent) {
 					cursorRulesDirInstructions = formatResponse.cursorRulesLocalDirectoryInstructions(cwd, rulesFilesTotalContent)
 				}
-			} catch {
-				Logger.error(`Failed to read .cursor/rules directory at ${cursorRulesDirPath}`)
+			} catch (error) {
+				Logger.error(`Failed to read .cursor/rules directory at ${cursorRulesDirPath}:`, error)
 			}
 		}
 	}

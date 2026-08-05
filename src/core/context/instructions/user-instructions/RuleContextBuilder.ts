@@ -1,5 +1,6 @@
-import { HostProvider } from "@/hosts/host-provider"
 import { DiracMessage } from "@shared/ExtensionMessage"
+import { HostProvider } from "@/hosts/host-provider"
+import { Logger } from "@/shared/services/Logger"
 import { extractPathLikeStrings, RuleEvaluationContext, toWorkspaceRelativePosixPath } from "./rule-conditionals"
 
 type WorkspaceRoot = { path: string }
@@ -88,8 +89,9 @@ export class RuleContextBuilder {
 				) {
 					candidates.push(tool.path)
 				}
-			} catch {
-				// ignore parse errors
+			} catch (error) {
+				// Intentional: malformed tool card bodies are not fatal.
+				Logger.debug("Failed to parse tool card body for rule context:", error)
 			}
 		}
 
@@ -111,8 +113,9 @@ export class RuleContextBuilder {
 				if (tool.path) {
 					candidates.push(tool.path)
 				}
-			} catch {
-				// ignore parse errors
+			} catch (error) {
+				// Intentional: malformed tool card bodies are not fatal.
+				Logger.debug("Failed to parse tool card body for rule context:", error)
 			}
 		}
 
