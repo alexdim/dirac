@@ -7,7 +7,7 @@ import { DIRAC_CLI_DIR } from "../utils/path.js"
 const LEGACY_SESSION_UPDATES_FILE = path.join(DIRAC_CLI_DIR.data, "acp-session-updates.json")
 const SESSION_UPDATES_DIRECTORY = path.join(DIRAC_CLI_DIR.data, "acp-session-updates")
 const MIGRATION_LOCK_DIRECTORY = path.join(DIRAC_CLI_DIR.data, "acp-session-updates.migration.lock")
-const SEQUENCE_META_KEY = "dev.dirac/seq"
+export const SEQUENCE_META_KEY = "dev.dirac/seq"
 const JOURNAL_VERSION = 1
 const DEFAULT_MAX_JOURNAL_BYTES = 32 * 1024 * 1024
 const LOCK_WAIT_TIMEOUT_MS = 15_000
