@@ -253,7 +253,9 @@ export class AcpAgent implements acp.Agent {
 
 	private scheduleSessionSetupUpdates(sessionId: string): void {
 		setImmediate(() => {
-			void this.ensureSessionSetupUpdates(sessionId)
+			this.ensureSessionSetupUpdates(sessionId).catch((error) =>
+				Logger.error("[AcpAgent] session setup update error:", error),
+			)
 		})
 	}
 
