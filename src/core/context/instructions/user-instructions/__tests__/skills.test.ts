@@ -503,5 +503,22 @@ description: Test
 
 			expect(content!.instructions).to.equal("Instructions with whitespace")
 		})
+
+		it("logs and returns null when the skill file cannot be read", async () => {
+			const errorLog = sandbox.stub(Logger, "error")
+			const skillMdPath = path.join(GLOBAL_SKILLS_DIR, "broken-skill", "SKILL.md")
+			readFileStub.withArgs(skillMdPath, "utf-8").rejects(new Error("forced read failure"))
+
+			const skill: import("@shared/skills").SkillMetadata = {
+				name: "broken-skill",
+				description: "A broken skill",
+				path: skillMdPath,
+				source: "global",
+			}
+			const content = await getSkillContent("broken-skill", [skill])
+
+			expect(content).to.be.null
+			expect(errorLog.calledOnce).to.be.true
+		})
 	})
 })

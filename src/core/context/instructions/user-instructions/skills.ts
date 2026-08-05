@@ -1,10 +1,10 @@
 import { getSkillsDirectoriesForScan } from "@core/storage/disk"
 import type { SkillContent, SkillMetadata } from "@shared/skills"
+import { parseYamlFrontmatter } from "@utils/frontmatter"
 import { fileExistsAtPath, isDirectory } from "@utils/fs"
 import * as fs from "fs/promises"
 import * as path from "path"
 import { Logger } from "@/shared/services/Logger"
-import { parseYamlFrontmatter } from "@utils/frontmatter"
 
 /**
  * Built-in skills that ship with the product.
@@ -344,7 +344,8 @@ export async function getSkillContent(skillName: string, availableSkills: SkillM
 			...skill,
 			instructions: body.trim(),
 		}
-	} catch {
+	} catch (error) {
+		Logger.error(`Failed to load skill ${skillName} from ${skill.path}:`, error)
 		return null
 	}
 }

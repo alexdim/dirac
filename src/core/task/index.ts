@@ -1373,7 +1373,7 @@ export class Task {
 			}
 			// Ensure the artifact dir is git-ignored so debug dumps don't get committed.
 			const gitignorePath = path.join(writeDir, ".gitignore")
-			await fs.writeFile(gitignorePath, "*\n!.gitignore\n", "utf8").catch(() => { })
+			await fs.writeFile(gitignorePath, "*\n!.gitignore\n", "utf8").catch(() => {})
 
 			const debugPath = path.join(writeDir, `task-${this.taskId}-debug.md`)
 
@@ -1579,6 +1579,11 @@ export class Task {
 		if (activatedConditionalRules.length > 0) {
 			await this.taskMessenger.upsertText(JSON.stringify({ rules: activatedConditionalRules }))
 		}
+		// Surface rule-file load failures so silently-dropped rules are visible to the user.
+		const ruleLoadErrors = [...(globalRules.errors ?? []), ...(localRules.errors ?? [])]
+		if (ruleLoadErrors.length > 0) {
+			await this.taskMessenger.upsertText(JSON.stringify({ ruleLoadErrors }))
+		}
 		const toolSnapshot = await this.toolExecutor.getSnapshotForRequest(promptContext)
 		const { systemPrompt } = await getSystemPrompt(promptContext, toolSnapshot)
 		this.toolExecutor.activateSnapshot(toolSnapshot)
@@ -1620,7 +1625,7 @@ export class Task {
 		if (!useAutoCondense) {
 			const lastMessage =
 				contextManagementMetadata.truncatedConversationHistory[
-				contextManagementMetadata.truncatedConversationHistory.length - 1
+					contextManagementMetadata.truncatedConversationHistory.length - 1
 				]
 			if (lastMessage && lastMessage.role === "user") {
 				const notice = formatResponse.contextTruncationNotice()
@@ -2046,7 +2051,9 @@ export class Task {
 		if (providerId && model.id) {
 			try {
 				await this.modelContextTracker.recordModelUsage(providerId, model.id, mode)
-			} catch { }
+			} catch (error) {
+				Logger.error("Failed to record model usage:", error)
+			}
 		}
 
 		const modelInfo: DiracMessageModelInfo = {
@@ -2202,9 +2209,10 @@ export class Task {
 							type: "text",
 							text:
 								assistantMessage +
-								`\n\n[${cancelReason === "streaming_failed"
-									? "Response interrupted by API Error"
-									: "Response interrupted by user"
+								`\n\n[${
+									cancelReason === "streaming_failed"
+										? "Response interrupted by API Error"
+										: "Response interrupted by user"
 								}]`,
 						},
 					],
