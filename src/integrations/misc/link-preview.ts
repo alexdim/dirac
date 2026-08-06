@@ -3,6 +3,19 @@ import ogs from "open-graph-scraper"
 import { fetch, getAxiosSettings } from "@/shared/net"
 import { Logger } from "@/shared/services/Logger"
 
+const BROWSER_USER_AGENT = "Mozilla/5.0 (compatible; VSCodeExtension/1.0; +https://dirac.run)"
+const OPEN_GRAPH_BASE_OPTIONS = {
+	timeout: 5000,
+	headers: {
+		"user-agent": BROWSER_USER_AGENT,
+	},
+	onlyGetOpenGraphInfo: false, // Get all metadata, not just Open Graph
+	fetchOptions: {
+		redirect: "follow", // Follow redirects
+	} as any,
+	fetch, // Use configured fetch with proxy support
+}
+
 export interface OpenGraphData {
 	title?: string
 	description?: string
@@ -20,16 +33,8 @@ export interface OpenGraphData {
 export async function fetchOpenGraphData(url: string): Promise<OpenGraphData> {
 	try {
 		const options = {
-			url: url,
-			timeout: 5000,
-			headers: {
-				"user-agent": "Mozilla/5.0 (compatible; VSCodeExtension/1.0; +https://dirac.run)",
-			},
-			onlyGetOpenGraphInfo: false, // Get all metadata, not just Open Graph
-			fetchOptions: {
-				redirect: "follow", // Follow redirects
-			} as any,
-			fetch, // Use configured fetch with proxy support
+			url,
+			...OPEN_GRAPH_BASE_OPTIONS,
 		}
 
 		const { result } = await ogs(options)
@@ -94,7 +99,7 @@ export async function detectImageUrl(url: string): Promise<boolean> {
 	try {
 		const response = await axios.head(url, {
 			headers: {
-				"User-Agent": "Mozilla/5.0 (compatible; VSCodeExtension/1.0; +https://dirac.run)",
+				"User-Agent": BROWSER_USER_AGENT,
 			},
 			timeout: 3000,
 			...getAxiosSettings(),
