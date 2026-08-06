@@ -6,6 +6,7 @@ import { ShowMessageType } from "@shared/proto/host/window"
 import { fileExistsAtPath } from "@utils/fs"
 import * as path from "path"
 import { ulid } from "ulid"
+import { getErrorMessage } from "@/shared/errors"
 import { Logger } from "@/shared/services/Logger"
 
 interface TaskReconstructionResult {
@@ -65,7 +66,7 @@ export async function reconstructTaskHistory(showNotifications = true): Promise<
 
 		return result
 	} catch (error) {
-		const errorMessage = error instanceof Error ? error.message : String(error)
+		const errorMessage = getErrorMessage(error)
 		if (showNotifications) {
 			HostProvider.window.showMessage({
 				type: ShowMessageType.ERROR,
@@ -117,7 +118,7 @@ async function performTaskHistoryReconstruction(): Promise<TaskReconstructionRes
 			}
 		} catch (error) {
 			result.skippedTasks++
-			const errorMsg = error instanceof Error ? error.message : String(error)
+			const errorMsg = getErrorMessage(error)
 			result.errors.push(`Task ${taskId}: ${errorMsg}`)
 		}
 	}

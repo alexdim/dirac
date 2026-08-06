@@ -1,6 +1,7 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import fs from "fs/promises"
 import * as path from "path"
+import { getErrorMessage } from "@/shared/errors"
 import { extractImageContent } from "./extract-images"
 import { callTextExtractionFunctions } from "./extract-text"
 
@@ -46,7 +47,7 @@ export async function extractFileContent(absolutePath: string, modelSupportsImag
 			text: textContent,
 		}
 	} catch (error) {
-		const errorMessage = error instanceof Error ? error.message : "Unknown error"
+		const errorMessage = getErrorMessage(error, "Unknown error")
 		throw new Error(`Error reading file: ${errorMessage}`)
 	}
 }

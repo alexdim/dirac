@@ -5,6 +5,7 @@ import { showSystemNotification } from "@integrations/notifications"
 import { DiracIcon } from "@shared/icons"
 import { telemetryService } from "@/services/telemetry"
 import { CardStatus } from "@/shared/ExtensionMessage"
+import { getErrorMessage } from "@/shared/errors"
 import { DiracDefaultTool, DiracToolSpec } from "@/shared/tools"
 import { IDiracTool } from "../../interfaces/IDiracTool"
 import {
@@ -71,7 +72,7 @@ export class NewTaskTool implements IDiracTool {
 				utilityModelIdentity = generatedHandoff.modelIdentity
 			} catch (error) {
 				if (signal.aborted) throw error
-				const message = error instanceof Error ? error.message : String(error)
+				const message = getErrorMessage(error)
 				env.logging.warn("Utility task handoff generation failed", error)
 				return formatResponse.toolError(`Utility task-handoff generation failed: ${message}`)
 			}

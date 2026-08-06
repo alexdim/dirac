@@ -1,6 +1,7 @@
 import * as fs from "node:fs/promises"
 import * as path from "node:path"
 import { SymbolIndexService, type SymbolLocation } from "@services/symbol-index/SymbolIndexService"
+import { getErrorMessage } from "@/shared/errors"
 import type { SourceDefinitionCatalog } from "./SourceDefinitionCatalog"
 import type {
 	AstOccurrenceRequest,
@@ -412,7 +413,7 @@ export class SourceOccurrenceResolver {
 	}
 
 	private errorMessage(error: unknown): string {
-		return error instanceof Error ? error.message : String(error)
+		return getErrorMessage(error)
 	}
 
 	private locationKey(location: SymbolLocation): string {

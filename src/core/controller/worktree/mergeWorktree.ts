@@ -3,6 +3,7 @@ import { listWorktrees } from "@utils/git-worktree"
 import { getWorkspacePath } from "@utils/path"
 import simpleGit from "simple-git"
 import { telemetryService } from "@/services/telemetry"
+import { getErrorMessage } from "@/shared/errors"
 import { Controller } from ".."
 
 const result = (success: boolean, message: string, extra: Partial<MergeWorktreeResult> = {}): MergeWorktreeResult =>
@@ -52,14 +53,14 @@ export async function mergeWorktree(_controller: Controller, request: MergeWorkt
 				return result(false, `Merge conflict detected. ${conflicts.length} file(s) have conflicts.`, extra)
 			}
 			telemetryService.captureWorktreeMergeAttempted(false, false, deleteAfterMerge)
-			return result(false, `Merge failed: ${error instanceof Error ? error.message : String(error)}`, branchInfo)
+			return result(false, `Merge failed: ${getErrorMessage(error)}`, branchInfo)
 		}
 		// Delete worktree if requested
 		if (deleteAfterMerge) {
 			try {
 				await git.raw(["worktree", "remove", worktreePath, "--force"])
 			} catch (error) {
-				const msg = `failed to delete worktree: ${error instanceof Error ? error.message : String(error)}`
+				const msg = `failed to delete worktree: ${getErrorMessage(error)}`
 				return result(true, `Merged '${sourceBranch}' into '${targetBranch}' successfully, but ${msg}`, branchInfo)
 			}
 			await git.deleteLocalBranch(sourceBranch).catch(() => {})
@@ -70,6 +71,6 @@ export async function mergeWorktree(_controller: Controller, request: MergeWorkt
 			: `Successfully merged '${sourceBranch}' into '${targetBranch}'`
 		return result(true, message, branchInfo)
 	} catch (error) {
-		return result(false, `Unexpected error: ${error instanceof Error ? error.message : String(error)}`)
+		return result(false, `Unexpected error: ${getErrorMessage(error)}`)
 	}
 }

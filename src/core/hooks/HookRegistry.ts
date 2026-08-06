@@ -1,5 +1,6 @@
 import fs from "fs/promises"
 import path from "path"
+import { getErrorMessage } from "@/shared/errors"
 import { getAllHooksDirs } from "../storage/disk"
 import type { Hooks } from "./hook-factory"
 
@@ -80,9 +81,7 @@ export class HookRegistry {
 	private static handleHookDiscoveryError(error: unknown, hookName: HookName, candidate: string): void {
 		if (!isExpectedHookError(error)) {
 			throw new Error(
-				`Unexpected error while searching for hook '${hookName}' at '${candidate}': ${
-					error instanceof Error ? error.message : String(error)
-				}`,
+				`Unexpected error while searching for hook '${hookName}' at '${candidate}': ${getErrorMessage(error)}`,
 			)
 		}
 	}

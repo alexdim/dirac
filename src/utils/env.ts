@@ -1,6 +1,7 @@
 import { EmptyRequest, StringRequest } from "@shared/proto/dirac/common"
 import { ShowMessageType } from "@shared/proto/host/window"
 import { HostProvider } from "@/hosts/host-provider"
+import { getErrorMessage } from "@/shared/errors"
 import { Logger } from "@/shared/services/Logger"
 
 /**
@@ -13,7 +14,7 @@ export async function writeTextToClipboard(text: string): Promise<void> {
 	try {
 		await HostProvider.env.clipboardWriteText(StringRequest.create({ value: text }))
 	} catch (error) {
-		const errorMessage = error instanceof Error ? error.message : String(error)
+		const errorMessage = getErrorMessage(error)
 		throw new Error(`Failed to write to clipboard: ${errorMessage}`)
 	}
 }
@@ -28,7 +29,7 @@ export async function readTextFromClipboard(): Promise<string> {
 		const response = await HostProvider.env.clipboardReadText(EmptyRequest.create({}))
 		return response.value
 	} catch (error) {
-		const errorMessage = error instanceof Error ? error.message : String(error)
+		const errorMessage = getErrorMessage(error)
 		throw new Error(`Failed to read from clipboard: ${errorMessage}`)
 	}
 }

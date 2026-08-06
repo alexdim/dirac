@@ -1,4 +1,5 @@
 import * as yaml from "js-yaml"
+import { getErrorMessage } from "@/shared/errors"
 
 export type FrontmatterParseResult = {
 	data: Record<string, unknown>
@@ -47,7 +48,7 @@ export function parseYamlFrontmatter(markdown: string): FrontmatterParseResult {
 		const data = (yaml.load(yamlContent, { schema: yaml.JSON_SCHEMA }) as Record<string, unknown>) || {}
 		return { data, body, hadFrontmatter: true }
 	} catch (error) {
-		const message = error instanceof Error ? error.message : String(error)
+		const message = getErrorMessage(error)
 		return { data: {}, body: markdown, hadFrontmatter: true, parseError: message }
 	}
 }

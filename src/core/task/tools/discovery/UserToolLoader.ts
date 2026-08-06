@@ -2,10 +2,11 @@ import * as crypto from "crypto"
 import * as fs from "fs/promises"
 import * as os from "os"
 import * as path from "path"
-import { pathToFileURL } from "url"
 import * as ts from "typescript"
-import type { DiracToolSpec } from "@/shared/tools"
+import { pathToFileURL } from "url"
+import { getErrorMessage } from "@/shared/errors"
 import { Logger } from "@/shared/services/Logger"
+import type { DiracToolSpec } from "@/shared/tools"
 import type { IDiracTool } from "../interfaces/IDiracTool"
 import { CONFIGURABLE_TOOL_EXPOSURE, type DiscoveredTool, type ToolSource } from "./DiscoveredTool"
 
@@ -82,7 +83,7 @@ export class UserToolLoader {
 				},
 			}
 		} catch (error) {
-			const message = error instanceof Error ? error.message : String(error)
+			const message = getErrorMessage(error)
 			Logger.warn(`[UserToolLoader] Skipping invalid user tool at '${toolDir}'.`, error)
 			return { error: message }
 		}

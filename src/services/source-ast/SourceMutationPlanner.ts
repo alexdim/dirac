@@ -1,4 +1,5 @@
 import * as fs from "node:fs/promises"
+import { getErrorMessage } from "@/shared/errors"
 import type { SourceDefinitionCatalog } from "./SourceDefinitionCatalog"
 import type { SourceOccurrenceResolver } from "./SourceOccurrenceResolver"
 import type {
@@ -327,6 +328,6 @@ export class SourceMutationPlanner {
 	}
 
 	private errorMessage(error: unknown): string {
-		return error instanceof Error ? error.message : String(error)
+		return getErrorMessage(error)
 	}
 }

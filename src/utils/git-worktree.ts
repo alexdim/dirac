@@ -1,5 +1,6 @@
 import * as path from "path"
 import simpleGit from "simple-git"
+import { getErrorMessage } from "@/shared/errors"
 import { Logger } from "@/shared/services/Logger"
 import { copyWorktreeIncludeFiles } from "./worktree-include"
 
@@ -150,7 +151,7 @@ export async function listWorktrees(cwd: string): Promise<{ worktrees: Worktree[
 		return {
 			worktrees: [],
 			isGitRepo: true,
-			error: `Failed to list worktrees: ${error instanceof Error ? error.message : String(error)}`,
+			error: `Failed to list worktrees: ${getErrorMessage(error)}`,
 		}
 	}
 }
@@ -226,7 +227,7 @@ export async function createWorktree(
 	} catch (error) {
 		return {
 			success: false,
-			message: `Failed to create worktree: ${error instanceof Error ? error.message : String(error)}`,
+			message: `Failed to create worktree: ${getErrorMessage(error)}`,
 		}
 	}
 }
@@ -258,7 +259,7 @@ export async function deleteWorktree(cwd: string, path: string, force = false): 
 	} catch (error) {
 		return {
 			success: false,
-			message: `Failed to remove worktree: ${error instanceof Error ? error.message : String(error)}`,
+			message: `Failed to remove worktree: ${getErrorMessage(error)}`,
 		}
 	}
 }

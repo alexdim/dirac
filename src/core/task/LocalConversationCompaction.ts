@@ -21,6 +21,7 @@ import { CardStatus } from "@shared/ExtensionMessage"
 import { DiracIcon } from "@shared/icons"
 import { Logger } from "@shared/services/Logger"
 import { stripHashes } from "@shared/utils/line-hashing"
+import { getErrorMessage } from "@/shared/errors"
 import type { MessageStateHandler } from "./message-state"
 import type { TaskMessenger } from "./TaskMessenger"
 import type { TaskState } from "./TaskState"
@@ -271,7 +272,7 @@ export class LocalConversationCompaction {
 	}
 
 	private buildFailureBody(error: unknown): string {
-		const message = error instanceof Error ? error.message : String(error)
+		const message = getErrorMessage(error)
 		return `Utility-model conversation condensation failed. Fix or change the configured Utility model, then retry.\n\n${message}`
 	}
 

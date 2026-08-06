@@ -1,6 +1,7 @@
-import { DiagnosticFormatter } from "../../utils/DiagnosticFormatter"
 import type { SourceAstFailure, SourceMutationPlan } from "@services/source-ast/types"
 import type { CardDiff } from "@shared/ExtensionMessage"
+import { getErrorMessage } from "@/shared/errors"
+import { DiagnosticFormatter } from "../../utils/DiagnosticFormatter"
 import type { AstEditApplyResult, AstEditFileApplyResult } from "./AstEditApplier"
 import type { EditAstArgs } from "./EditAstValidator"
 
@@ -84,7 +85,7 @@ export class AstEditFormatter {
 	}
 
 	public formatFailure(error: unknown): string {
-		return `AST edit failed: ${error instanceof Error ? error.message : String(error)}`
+		return `AST edit failed: ${getErrorMessage(error)}`
 	}
 
 	private formatFileResult(result: AstEditFileApplyResult): string {

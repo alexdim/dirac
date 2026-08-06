@@ -2,6 +2,7 @@ import { CreateWorktreeIncludeRequest, WorktreeResult } from "@shared/proto/dira
 import { getWorkspacePath } from "@utils/path"
 import * as fs from "fs/promises"
 import * as path from "path"
+import { getErrorMessage } from "@/shared/errors"
 import { Controller } from ".."
 
 /**
@@ -33,7 +34,7 @@ export async function createWorktreeInclude(
 	} catch (error) {
 		return WorktreeResult.create({
 			success: false,
-			message: `Failed to create .worktreeinclude: ${error instanceof Error ? error.message : String(error)}`,
+			message: `Failed to create .worktreeinclude: ${getErrorMessage(error)}`,
 		})
 	}
 }

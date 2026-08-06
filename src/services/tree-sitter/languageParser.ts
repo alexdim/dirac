@@ -1,7 +1,8 @@
 import * as fs from "fs"
 import * as path from "path"
-import { Parser, Language, Query } from "web-tree-sitter"
+import { Language, Parser, Query } from "web-tree-sitter"
 import { SymbolIndexTelemetry } from "@/services/symbol-index/SymbolIndexTelemetry"
+import { getErrorMessage } from "@/shared/errors"
 import {
 	cppQuery,
 	cQuery,
@@ -47,7 +48,7 @@ async function loadLanguage(langName: string): Promise<Language> {
 			SymbolIndexTelemetry.recordGrammarLoad()
 			return language
 		} catch (error) {
-			const message = error instanceof Error ? error.message : String(error)
+			const message = getErrorMessage(error)
 			errors.push(`${wasmPath}: ${message}`)
 		}
 	}

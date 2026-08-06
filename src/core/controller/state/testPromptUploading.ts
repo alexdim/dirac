@@ -1,5 +1,6 @@
 import { EmptyRequest } from "@shared/proto/dirac/common"
 import { TestConnectionResult } from "@shared/proto/dirac/state"
+import { getErrorMessage } from "@/shared/errors"
 import { Logger } from "@/shared/services/Logger"
 import { blobStorage } from "@/shared/storage/DiracBlobStorage"
 import { Controller } from ".."
@@ -33,7 +34,7 @@ export async function testPromptUploading(_controller: Controller, _: EmptyReque
 			message: "Test file uploaded and verified successfully.",
 		})
 	} catch (error) {
-		const errorMessage = error instanceof Error ? error.message : String(error)
+		const errorMessage = getErrorMessage(error)
 		Logger.error("[TEST_PROMPT_UPLOADING] Failed to test blob storage:", error)
 
 		return TestConnectionResult.create({

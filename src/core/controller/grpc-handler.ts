@@ -3,6 +3,7 @@ import { serviceHandlers } from "@generated/hosts/vscode/protobus-services"
 import { GrpcRecorderBuilder } from "@/core/controller/grpc-recorder/grpc-recorder.builder"
 import { GrpcRequestRegistry } from "@/core/controller/grpc-request-registry"
 import { ExtensionMessage } from "@/shared/ExtensionMessage"
+import { getErrorMessage } from "@/shared/errors"
 import { Logger } from "@/shared/services/Logger"
 import { GrpcCancel, GrpcRequest } from "@/shared/WebviewMessage"
 
@@ -96,7 +97,7 @@ async function handleUnaryRequest(
 		await postMessageToWebview({
 			type: "grpc_response",
 			grpc_response: {
-				error: error instanceof Error ? error.message : String(error),
+				error: getErrorMessage(error),
 				request_id: request.request_id,
 				is_streaming: false,
 			},
@@ -143,7 +144,7 @@ async function handleStreamingRequest(
 		await postMessageToWebview({
 			type: "grpc_response",
 			grpc_response: {
-				error: error instanceof Error ? error.message : String(error),
+				error: getErrorMessage(error),
 				request_id: request.request_id,
 				is_streaming: false,
 			},
