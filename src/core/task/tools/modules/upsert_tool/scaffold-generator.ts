@@ -48,7 +48,7 @@ import { create } from "./tool.ts"
 import * as fs from "fs/promises"
 import * as nodePath from "path"
 import { fileURLToPath } from "url"
-import { execSync } from "child_process"
+import { spawnSync } from "child_process"
 
 const noOp = async () => {}
 const noOpObj = async () => ({})
@@ -70,8 +70,10 @@ const env = {
   system: {
     executeCommand: async (cmd: string) => {
       try {
-        const output = execSync(cmd, { encoding: "utf8", timeout: 30000 })
-        return { userRejected: false, output, completed: true, exitCode: 0, signal: null }
+        const [file, ...args] = cmd.split(/s+/)
+        const result = spawnSync(file, args, { encoding: "utf8", timeout: 30000 })
+        if (result.error) throw result.error
+        return { userRejected: false, output: result.stdout || "", completed: true, exitCode: typeof result.status === "number" ? result.status : 1, signal: result.signal }
       } catch (e: any) {
         return {
           userRejected: false,

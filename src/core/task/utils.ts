@@ -1,10 +1,8 @@
 import { ApiHandler } from "@core/api"
-import { execSync } from "child_process"
+import { spawnSync } from "child_process"
 import { showSystemNotification } from "@/integrations/notifications"
 import { DiracApiReqCancelReason, DiracApiReqInfo, DiracMessageType } from "@/shared/ExtensionMessage"
-
-import { calculateApiCostAnthropic } from "@/utils/cost"
-import { calculateApiCostOpenAI, calculateApiCostQwen } from "@/utils/cost"
+import { calculateApiCostAnthropic, calculateApiCostOpenAI, calculateApiCostQwen } from "@/utils/cost"
 import { MessageStateHandler } from "./message-state"
 
 export const showNotificationForApproval = (message: string, notificationsEnabled: boolean) => {
@@ -178,15 +176,17 @@ export async function detectAvailableCliTools(): Promise<string[]> {
 
 	for (const command of CLI_TOOLS) {
 		try {
-			// Use execSync to check if the command exists
-			execSync(`${checkCommand} ${command}`, {
+			// Use spawnSync to check if the command exists (arg array — no shell interpolation)
+			const result = spawnSync(checkCommand, [command], {
 				stdio: "ignore", // Don't output to console
 				timeout: 1000, // 1 second timeout to avoid hanging
 			})
-			availableCommands.push(command)
-		} catch (error) {
+			if (result.status !== 0) continue
+		} catch {
 			// Command not found, skip it
+			continue
 		}
+		availableCommands.push(command)
 	}
 
 	return availableCommands
