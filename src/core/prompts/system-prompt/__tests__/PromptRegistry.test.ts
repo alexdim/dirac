@@ -2,7 +2,7 @@ import { expect } from "chai"
 import { PromptRegistry } from "../registry/PromptRegistry"
 import type { SystemPromptContext } from "../types"
 import type { ToolRequestSnapshot } from "@core/task/tools/runtime/ToolSnapshot"
-import { mockProviderInfo } from "./integration.test"
+import { mockProviderInfo } from "./test-helpers"
 
 function emptyToolSnapshot(): ToolRequestSnapshot {
 	return {
