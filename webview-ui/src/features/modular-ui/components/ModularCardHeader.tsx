@@ -46,8 +46,9 @@ export const ModularCardHeader: React.FC<ModularCardHeaderProps> = ({
 
 	return (
 		<div
+			data-terminal={isTerminal}
 			className={cn(
-				"flex min-w-0 items-center gap-1.5 text-base leading-5",
+				"modular-card-header flex min-w-0 items-center gap-1.5 text-base leading-5",
 				isCollapsed ? "px-1.5 py-1" : "px-2.5 py-1.5",
 				isTerminal && "opacity-70",
 			)}>

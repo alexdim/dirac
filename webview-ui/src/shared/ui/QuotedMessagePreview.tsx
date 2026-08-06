@@ -73,7 +73,7 @@ const QuotedMessagePreview: React.FC<QuotedMessagePreviewProps> = ({ text, onDis
 	const _cardClassName = `reply-card ${isFocused ? "reply-card--focused" : ""}`
 
 	return (
-		<PreviewContainer>
+		<PreviewContainer className="dirac-quote-preview">
 			{/* Removed Label */}
 			<ContentRow>
 				<ReplyIcon className="codicon codicon-reply" />

@@ -22,7 +22,7 @@ const ViewHeader = ({ title, onDone, showEnvironmentSuffix, environment }: ViewH
 	const titleColor = getEnvironmentColor(environment)
 
 	return (
-		<div className="mb-2 flex items-center justify-between border-b border-border-panel px-4 py-3">
+		<div className="dirac-view-header mb-2 flex items-center justify-between border-b border-border-panel px-4 py-3">
 			<div>
 				<h3 className="m-0 text-md font-medium tracking-tight" style={{ color: titleColor }}>
 					{title}

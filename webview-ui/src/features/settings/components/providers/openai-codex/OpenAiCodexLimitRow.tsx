@@ -17,9 +17,14 @@ export function OpenAiCodexLimitRow({ label, window, now, compact = false }: Ope
 		<div className="space-y-1.5 py-2">
 			<div className="flex items-baseline justify-between gap-3 text-xs">
 				<span className="min-w-0 truncate font-medium text-(--vscode-foreground)">{label}</span>
-				<span className="shrink-0 tabular-nums text-(--vscode-foreground)">{remainingLabel}</span>
+				<span className="shrink-0 tabular-nums text-[var(--dirac-limit-remaining)]">{remainingLabel}</span>
 			</div>
-			<Progress aria-label={`${label}: ${remainingLabel}`} className="h-1.5 bg-code-foreground/15" value={remaining} />
+			<Progress
+				aria-label={`${label}: ${remainingLabel}`}
+				className="h-1.5 bg-[var(--dirac-limit-track)]"
+				indicatorClassName="bg-[var(--dirac-limit-remaining)]"
+				value={remaining}
+			/>
 			<p className="m-0 text-[11px] leading-4 text-(--vscode-descriptionForeground)">
 				{formatOpenAiCodexReset(window.resetsAt, now)}
 			</p>

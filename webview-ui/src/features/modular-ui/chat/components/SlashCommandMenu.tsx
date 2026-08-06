@@ -125,7 +125,7 @@ const SlashCommandMenu: React.FC<SlashCommandMenuProps> = ({
 			<div
 				aria-activedescendant={filteredCommands.length > 0 ? `slash-command-menu-item-${selectedIndex}` : undefined}
 				aria-label="Slash commands"
-				className="bg-(--vscode-dropdown-background) border border-(--vscode-editorGroup-border) rounded-[3px] shadow-[0_4px_10px_rgba(0,0,0,0.25)] flex flex-col overflow-y-auto max-h-[min(200px,calc(50vh))] overscroll-contain"
+				className="modular-command-menu bg-(--vscode-dropdown-background) border border-(--vscode-editorGroup-border) rounded-[3px] shadow-[0_4px_10px_rgba(0,0,0,0.25)] flex flex-col overflow-y-auto max-h-[min(200px,calc(50vh))] overscroll-contain"
 				ref={menuRef}
 				role="listbox">
 				{filteredCommands.length > 0 ? (

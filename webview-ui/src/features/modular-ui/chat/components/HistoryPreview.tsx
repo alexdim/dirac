@@ -31,7 +31,7 @@ const HistoryPreview = ({ showHistoryView }: HistoryPreviewProps) => {
 			<style>
 				{`
 					.history-preview-item {
-						background-color: color-mix(in srgb, var(--vscode-toolbar-hoverBackground) 65%, transparent);
+						background-color: var(--dirac-surface-raised);
 						border-radius: 4px;
 						position: relative;
 						overflow: hidden;
@@ -43,7 +43,7 @@ const HistoryPreview = ({ showHistoryView }: HistoryPreviewProps) => {
 						gap: 12px;
 					}
 					.history-preview-item:hover {
-						background-color: color-mix(in srgb, var(--vscode-toolbar-hoverBackground) 100%, transparent);
+						background-color: var(--dirac-surface-hover);
 						pointer-events: auto;
 					}
 					.history-task-content {
@@ -76,12 +76,13 @@ const HistoryPreview = ({ showHistoryView }: HistoryPreviewProps) => {
 						white-space: nowrap;
 					}
 					.history-cost-chip {
-						background-color: var(--vscode-badge-background);
-						color: var(--vscode-badge-foreground);
+						background-color: color-mix(in srgb, var(--vscode-badge-background) 42%, transparent);
+						border: 1px solid color-mix(in srgb, var(--vscode-badge-foreground) 22%, transparent);
+						color: var(--vscode-foreground);
 						padding: 2px 8px;
 						border-radius: 12px;
 						font-size: 0.85em;
-						font-weight: 500;
+						font-weight: 600;
 						white-space: nowrap;
 					}
 					.history-view-all-btn {
@@ -145,15 +146,8 @@ const HistoryPreview = ({ showHistoryView }: HistoryPreviewProps) => {
 			<div className="px-4">
 				<div className="flex justify-center py-3 pb-5">
 					<div className="flex flex-col items-center gap-2">
-						<div className="relative">
-							<div className="absolute -inset-6 rounded-[40%_60%_55%_45%/60%_40%_55%_45%] bg-[radial-gradient(ellipse_at_40%_30%,rgba(150,99,241,0.18)_0%,rgba(150,99,241,0.08)_40%,transparent_70%)] blur-sm animate-glow-pulse pointer-events-none" />
-							<div
-								className="absolute -inset-4 rounded-[55%_45%_40%_60%/45%_55%_60%_40%] bg-[radial-gradient(ellipse_at_60%_70%,rgba(139,92,246,0.12)_0%,rgba(150,99,241,0.05)_50%,transparent_75%)] blur-md animate-glow-pulse pointer-events-none"
-								style={{ animationDelay: "2s" }}
-							/>
-							<DiracLogoVariable />
-						</div>
-						<div className="text-[0.9em] text-(--vscode-textLink-foreground) italic text-center max-w-[80%] leading-[1.4]">
+						<DiracLogoVariable />
+						<div className="text-[0.9em] text-(--vscode-descriptionForeground) italic text-center max-w-[80%] leading-[1.4]">
 							"{quote}"
 						</div>
 					</div>

@@ -239,7 +239,7 @@ Please help me resolve these merge conflicts, then complete the merge, and delet
 	}, [mergeResult, mergeWorktree, closeMergeModal, onDone])
 
 	return (
-		<div className="fixed inset-0 flex flex-col overflow-hidden">
+		<div className="worktrees-page fixed inset-0 flex flex-col overflow-hidden">
 			<ViewHeader environment={environment} onDone={onDone} title="Worktrees" />
 
 			{/* Scrollable Content */}
@@ -253,7 +253,7 @@ Please help me resolve these merge conflicts, then complete the merge, and delet
 				{/* .worktreeinclude status */}
 				{isGitRepo && !isMultiRoot && !isSubfolder && (
 					<div
-						className="p-3 rounded-md"
+						className="worktree-helper p-3 rounded-md"
 						style={{
 							border: "1px solid var(--vscode-widget-border)",
 							backgroundColor: "var(--vscode-list-hoverBackground)",
@@ -349,7 +349,7 @@ Please help me resolve these merge conflicts, then complete the merge, and delet
 						<div className="mt-4 flex flex-col gap-2">
 							{worktrees.map((worktree) => (
 								<div
-									className={`p-4 rounded border ${
+									className={`worktree-card p-4 rounded border ${
 										worktree.isCurrent
 											? "border-[var(--vscode-focusBorder)] bg-[var(--vscode-list-activeSelectionBackground)]"
 											: "border-[var(--vscode-panel-border)]"

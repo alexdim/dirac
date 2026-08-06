@@ -8,7 +8,7 @@ type SectionHeaderProps = HTMLAttributes<HTMLDivElement> & {
 
 export const SectionHeader = ({ description, children, className, ...props }: SectionHeaderProps) => {
 	return (
-		<div className={cn("px-4 py-3 text-foreground", className)} {...props}>
+		<div className={cn("settings-section-header px-4 py-3 text-foreground", className)} {...props}>
 			<h2 className="m-0 text-md font-medium tracking-tight">{children}</h2>
 			{description && <p className="text-description text-sm mt-2 mb-0">{description}</p>}
 		</div>

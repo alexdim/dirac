@@ -226,7 +226,7 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 				<TabList
 					aria-label="Settings sections"
 					aria-orientation="vertical"
-					className="shrink-0 flex flex-col overflow-y-auto border-r border-sidebar-background"
+					className="settings-tab-list shrink-0 flex flex-col overflow-y-auto border-r border-sidebar-background"
 					onValueChange={(value) => setActiveTab(resolveTab(value))}
 					value={activeTab}>
 					{visibleTabs.map((tab) => (
@@ -234,7 +234,7 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 							aria-controls={`settings-panel-${tab.id}`}
 							aria-label={tab.tooltipText}
 							className={cn(
-								"whitespace-nowrap overflow-hidden h-12 box-border flex items-center border-l-2 border-transparent text-foreground opacity-70 bg-transparent hover:bg-list-hover px-4 cursor-pointer gap-2",
+								"settings-tab-trigger whitespace-nowrap overflow-hidden h-12 box-border flex items-center border-l-2 border-transparent text-foreground opacity-70 bg-transparent hover:bg-list-hover px-4 cursor-pointer gap-2",
 								activeTab === tab.id && "opacity-100 border-l-foreground bg-selection",
 							)}
 							data-testid={`tab-${tab.id}`}

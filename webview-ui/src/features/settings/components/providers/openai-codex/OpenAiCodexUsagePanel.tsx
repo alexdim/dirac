@@ -53,7 +53,7 @@ export function OpenAiCodexUsagePanel({
 	}, [displayedWindows, now, onRefresh])
 
 	return (
-		<section className="rounded-md border border-(--vscode-panel-border) p-3">
+		<section className="openai-codex-usage rounded-md border border-(--vscode-panel-border) p-3">
 			<div className="flex items-start justify-between gap-3">
 				<div>
 					<h3 className="m-0 text-sm font-medium text-(--vscode-foreground)">Subscription usage</h3>

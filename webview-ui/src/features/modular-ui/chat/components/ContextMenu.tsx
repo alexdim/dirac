@@ -209,7 +209,7 @@ const ContextMenu: React.FC<ContextMenuProps> = ({
 				aria-label="Context mentions"
 				ref={menuRef}
 				role="listbox"
-				className="bg-(--vscode-dropdown-background) border border-(--vscode-editorGroup-border) rounded-[3px] shadow-[0_4px_10px_rgba(0,0,0,0.25)] z-1000 flex flex-col max-h-[200px] overflow-y-auto overscroll-contain">
+				className="modular-command-menu bg-(--vscode-dropdown-background) border border-(--vscode-editorGroup-border) rounded-[3px] shadow-[0_4px_10px_rgba(0,0,0,0.25)] z-1000 flex flex-col max-h-[200px] overflow-y-auto overscroll-contain">
 				{showDelayedLoading && searchQuery && (
 					<div className="px-3 py-2 flex items-center gap-2 opacity-70">
 						<i className="codicon codicon-loading codicon-modifier-spin text-[14px]" />

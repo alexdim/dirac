@@ -1,6 +1,13 @@
 @layer base {
-	textarea:focus {
-		@apply outline-[1.5px] outline-ring/50;
+
+	button:focus-visible,
+	[role="button"]:focus-visible,
+	a:focus-visible,
+	input:focus-visible,
+	textarea:focus-visible,
+	[role="tab"]:focus-visible {
+		outline: 2px solid var(--dirac-focus);
+		outline-offset: 2px;
 	}
 
 	vscode-button::part(control):focus {
@@ -37,6 +44,7 @@ body {
 }
 
 @media (prefers-reduced-motion: reduce) {
+
 	*,
 	*::before,
 	*::after {
@@ -217,6 +225,7 @@ vscode-dropdown::part(listbox) {
 
 /* Pulse animation for running command indicator */
 @keyframes pulse {
+
 	0%,
 	100% {
 		opacity: 1;
@@ -283,4 +292,436 @@ vscode-dropdown::part(listbox) {
 		100% 0,
 		0 100%,
 		0 0;
+}
+
+/*
+ * Visual foundation
+ *
+ * Purely presentational selectors: the component tree, transport, handlers,
+ * state transitions, focus ownership, and virtualized measurements stay intact.
+ * Every color continues to originate in the active VS Code theme.
+ */
+:root {
+	--dirac-surface: color-mix(in srgb, var(--vscode-sideBar-background) 96%, var(--vscode-editor-background));
+	--dirac-surface-raised: color-mix(in srgb, var(--vscode-editor-background) 72%, var(--vscode-sideBar-background));
+	--dirac-surface-hover: color-mix(in srgb, var(--vscode-toolbar-hoverBackground) 60%, transparent);
+	--dirac-surface-selected: color-mix(in srgb, var(--vscode-list-activeSelectionBackground) 26%, var(--vscode-sideBar-background));
+	--dirac-border-subtle: color-mix(in srgb, var(--vscode-panel-border) 50%, transparent);
+	--dirac-border-strong: color-mix(in srgb, var(--vscode-focusBorder) 42%, transparent);
+	--dirac-text-muted: var(--vscode-descriptionForeground);
+	--dirac-focus: color-mix(in srgb, var(--vscode-focusBorder) 80%, var(--vscode-foreground));
+	--dirac-shadow-sm: 0 1px 2px color-mix(in srgb, var(--vscode-widget-shadow) 16%, transparent);
+	--dirac-shadow-md: 0 8px 24px color-mix(in srgb, var(--vscode-widget-shadow) 22%, transparent);
+	--dirac-radius-md: 7px;
+	--dirac-positive: var(--vscode-testing-iconPassed, var(--vscode-charts-green));
+	--dirac-warning: var(--vscode-editorWarning-foreground, var(--vscode-charts-yellow));
+	--dirac-danger: var(--vscode-errorForeground);
+	--dirac-info: color-mix(in srgb, var(--vscode-textLink-foreground) 64%, var(--vscode-foreground));
+	--dirac-limit-track: color-mix(in srgb, var(--vscode-foreground) 16%, transparent);
+	--dirac-limit-remaining: #bd7840;
+}
+
+button,
+[role="button"],
+input,
+textarea,
+select,
+vscode-button,
+vscode-text-field,
+vscode-dropdown,
+vscode-checkbox {
+	-webkit-tap-highlight-color: transparent;
+}
+
+
+/* Shared page and panel language */
+#root {
+	background: var(--dirac-surface);
+}
+
+#dirac-navbar-container {
+	margin: 8px 12px 2px auto !important;
+	gap: 4px;
+	padding: 3px;
+	border: 1px solid var(--dirac-border-subtle);
+	border-radius: 8px;
+	background: color-mix(in srgb, var(--vscode-editor-background) 54%, transparent);
+	box-shadow: var(--dirac-shadow-sm);
+}
+
+#dirac-navbar-container button {
+	min-width: 28px;
+	border-radius: 5px;
+}
+
+#dirac-navbar-container button:hover {
+	background: var(--dirac-surface-hover);
+}
+
+/* Consistent VS Code Toolkit controls without changing their web components. */
+vscode-button::part(control) {
+	border-radius: 6px;
+	font-weight: 600;
+	transition:
+		background-color 120ms ease,
+		border-color 120ms ease,
+		box-shadow 120ms ease;
+}
+
+vscode-text-field::part(control),
+vscode-dropdown::part(control) {
+	border-radius: 6px;
+}
+
+/* Full-screen secondary views share an intentional reading frame. */
+.fixed.inset-0.flex.flex-col.overflow-hidden {
+	background: var(--dirac-surface);
+}
+
+/* History, settings, worktrees, rules, and configuration surfaces. */
+.history-item {
+	margin-inline: 8px;
+	border: 1px solid transparent;
+	border-radius: 7px;
+	transition:
+		background-color 120ms ease,
+		border-color 120ms ease,
+		box-shadow 120ms ease;
+}
+
+.history-item:hover,
+.history-item:focus-within {
+	border-color: var(--dirac-border-subtle);
+	background: var(--dirac-surface-hover);
+	box-shadow: var(--dirac-shadow-sm);
+}
+
+.history-item-highlight,
+.settings-target-highlight {
+	border-radius: 3px;
+	background: color-mix(in srgb, var(--vscode-editor-findMatchHighlightBackground) 82%, transparent);
+	box-shadow: 0 0 0 1px color-mix(in srgb, var(--vscode-focusBorder) 35%, transparent);
+}
+
+.history-preview-item {
+	border: 1px solid var(--dirac-border-subtle);
+	border-radius: 7px;
+	transition:
+		background-color 120ms ease,
+		border-color 120ms ease,
+		transform 120ms ease,
+		box-shadow 120ms ease;
+}
+
+.history-preview-item:hover {
+	border-color: var(--dirac-border-strong);
+	box-shadow: var(--dirac-shadow-sm);
+	transform: translateY(-1px);
+}
+
+.history-preview-item:focus-within {
+	border-color: var(--dirac-focus);
+}
+
+/* Shared dialog treatment; local class names and modal state logic remain unchanged. */
+.fixed.inset-0.bg-black\/50.flex.items-center.justify-center.z-50 {
+	background: color-mix(in srgb, var(--vscode-editor-background) 62%, transparent);
+	backdrop-filter: blur(2px);
+}
+
+.fixed.inset-0.bg-black\/50.flex.items-center.justify-center.z-50>div {
+	box-shadow: var(--dirac-shadow-md);
+}
+
+/* Inline settings sections and rows get a consistent, low-noise scan rhythm. */
+[class*="settings"] h2,
+[class*="settings"] h3,
+[class*="settings"] h4 {
+	letter-spacing: -0.01em;
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.history-preview-item {
+		transform: none !important;
+	}
+}
+
+/*
+ * Component presentation layer
+ *
+ * Class names below are stable visual hooks only. They intentionally do not
+ * touch display, position, dimensions, or timing for virtualized chat rows.
+ */
+.modular-chat-shell {
+	background: var(--dirac-surface);
+}
+
+/* Plan mode stays visually quiet; the active mode is conveyed by the existing mode control. */
+.bg-grid-plan {
+	background-image: none;
+}
+
+.modular-chat-transcript {
+	background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--vscode-panel-border) 15%, transparent), transparent);
+}
+
+.modular-chat-row {
+	border-radius: 7px;
+	transition: background-color 120ms ease;
+}
+
+.modular-chat-row:hover {
+	background: color-mix(in srgb, var(--vscode-toolbar-hoverBackground) 42%, transparent);
+}
+
+.modular-message {
+	border-color: var(--dirac-border-subtle) !important;
+	box-shadow: var(--dirac-shadow-sm);
+}
+
+.modular-message-assistant {
+	background: color-mix(in srgb, var(--vscode-editor-background) 42%, transparent) !important;
+}
+
+.modular-message-user {
+	border-color: color-mix(in srgb, var(--vscode-focusBorder) 45%, transparent) !important;
+	background: color-mix(in srgb, var(--vscode-focusBorder) 11%, transparent) !important;
+}
+
+.modular-card.border {
+	border-color: var(--dirac-border-subtle) !important;
+	background: var(--dirac-surface-raised) !important;
+	box-shadow: var(--dirac-shadow-sm) !important;
+}
+
+.modular-card-header {
+	background: color-mix(in srgb, var(--vscode-toolbar-hoverBackground) 34%, transparent);
+}
+
+.modular-card-header[data-terminal="true"] {
+	background: transparent;
+}
+
+.modular-card-actions {
+	background: color-mix(in srgb, var(--vscode-toolbar-hoverBackground) 34%, transparent) !important;
+	border-color: var(--dirac-border-subtle) !important;
+}
+
+.modular-task-header {
+	background: var(--dirac-surface-raised);
+	border-color: var(--dirac-border-strong);
+	box-shadow: var(--dirac-shadow-sm);
+}
+
+.modular-composer {
+	border-color: var(--dirac-border-subtle) !important;
+	background: var(--dirac-surface-raised) !important;
+	box-shadow: var(--dirac-shadow-sm);
+}
+
+.modular-composer:focus-within {
+	border-color: var(--vscode-focusBorder) !important;
+}
+
+.modular-composer-toolbar {
+	border-top: 1px solid var(--dirac-border-subtle);
+	background: color-mix(in srgb, var(--vscode-toolbar-hoverBackground) 26%, transparent);
+}
+
+.modular-command-menu {
+	border-color: var(--dirac-border-strong) !important;
+	border-radius: 8px !important;
+	box-shadow: var(--dirac-shadow-md) !important;
+}
+
+.modular-auto-approve {
+	border-bottom: 1px solid var(--dirac-border-subtle);
+	background: color-mix(in srgb, var(--vscode-toolbar-hoverBackground) 24%, transparent);
+}
+
+.history-preview-item {
+	background-color: var(--dirac-surface-raised) !important;
+}
+
+.history-preview-item:hover {
+	background-color: var(--dirac-surface-hover) !important;
+}
+
+.worktree-card {
+	border-radius: var(--dirac-radius-md);
+	box-shadow: var(--dirac-shadow-sm);
+}
+
+.settings-tab-list {
+	width: clamp(184px, 22vw, 264px);
+	background: color-mix(in srgb, var(--vscode-editor-background) 22%, transparent);
+	border-color: var(--dirac-border-subtle) !important;
+}
+
+.settings-tab-trigger {
+	border-radius: 0 6px 6px 0;
+	transition: background-color 120ms ease, color 120ms ease, border-color 120ms ease;
+}
+
+.settings-tab-trigger:hover {
+	background: var(--dirac-surface-hover) !important;
+}
+
+.settings-tab-trigger[data-state="active"],
+.settings-tab-trigger[aria-selected="true"] {
+	background: var(--dirac-surface-raised) !important;
+	box-shadow: inset 2px 0 0 var(--dirac-focus);
+}
+
+.settings-section-header {
+	border-bottom: 1px solid var(--dirac-border-subtle);
+	background: linear-gradient(90deg, color-mix(in srgb, var(--vscode-toolbar-hoverBackground) 36%, transparent), transparent);
+}
+
+
+.openai-codex-account,
+.openai-codex-usage {
+	border-color: var(--dirac-border-subtle) !important;
+	background: color-mix(in srgb, var(--vscode-editor-background) 18%, transparent);
+	box-shadow: none;
+}
+
+.rule-row {
+	border: 1px solid var(--dirac-border-subtle);
+	border-radius: var(--dirac-radius-md);
+	box-shadow: var(--dirac-shadow-sm);
+}
+
+@media (prefers-contrast: more) {
+
+	.modular-message,
+	.modular-card,
+	.modular-task-header,
+	.modular-composer,
+	.worktree-card,
+	.rule-row {
+		border-color: var(--vscode-contrastBorder, var(--vscode-focusBorder)) !important;
+	}
+}
+
+
+/* Shared primitive refinements. These selectors only style existing controls and preserve their DOM, state, and event contracts. */
+.dirac-view-header {
+	background: linear-gradient(90deg, color-mix(in srgb, var(--vscode-editor-background) 52%, transparent), transparent);
+	box-shadow: inset 0 -1px 0 var(--dirac-border-subtle);
+}
+
+.dirac-tab {
+	background: var(--dirac-surface);
+}
+
+[data-slot="select-trigger"],
+[data-slot="item"] {
+	border-color: var(--dirac-border-subtle);
+}
+
+[data-slot="select-trigger"]:hover,
+[data-slot="item"][data-variant="select"]:hover {
+	border-color: var(--dirac-border-strong);
+	background: var(--dirac-surface-hover);
+}
+
+[data-slot="select-content"],
+[data-slot="popover-content"],
+[data-slot="hover-card-content"],
+[data-slot="tooltip-content"] {
+	border-color: var(--dirac-border-subtle);
+	border-radius: var(--dirac-radius-md);
+	box-shadow: var(--dirac-shadow-md);
+}
+
+[data-slot="select-item"] {
+	border-radius: 4px;
+}
+
+[data-slot="select-item"][data-highlighted],
+[data-slot="select-item"]:focus {
+	background: var(--dirac-surface-selected);
+	color: var(--vscode-list-activeSelectionForeground);
+}
+
+.dirac-dialog-overlay,
+.dirac-alert-backdrop {
+	background: color-mix(in srgb, var(--vscode-editor-background) 68%, transparent) !important;
+	backdrop-filter: blur(2px);
+}
+
+.dirac-dialog-content,
+.dirac-alert-content {
+	border-color: var(--dirac-border-subtle) !important;
+	background: var(--dirac-surface-raised) !important;
+	border-radius: 9px !important;
+	box-shadow: var(--dirac-shadow-md) !important;
+}
+
+vscode-checkbox::part(control),
+vscode-radio-group::part(control) {
+	border-radius: 4px;
+}
+
+vscode-text-field::part(control):focus-within,
+vscode-dropdown::part(control):focus-within {
+	border-color: var(--dirac-focus);
+}
+
+.rule-row,
+.hook-row,
+.rule-create-row {
+	background: var(--dirac-surface-raised);
+}
+
+.rule-row:hover,
+.hook-row:hover,
+.rule-create-row:hover {
+	border-color: var(--dirac-border-strong);
+}
+
+.history-bulk-actions {
+	background: linear-gradient(180deg, color-mix(in srgb, var(--vscode-editor-background) 35%, transparent), transparent);
+}
+
+.worktrees-page .worktree-helper {
+	border: 1px solid var(--dirac-border-subtle) !important;
+	background: color-mix(in srgb, var(--vscode-toolbar-hoverBackground) 48%, transparent) !important;
+	border-radius: var(--dirac-radius-md);
+}
+
+.dirac-banner {
+	border: 1px solid var(--dirac-border-subtle);
+	border-radius: var(--dirac-radius-md);
+	background: var(--dirac-surface-raised);
+	box-shadow: var(--dirac-shadow-sm);
+}
+
+.dirac-browser-popover {
+	border-color: var(--dirac-border-subtle) !important;
+	background: var(--dirac-surface-raised) !important;
+	box-shadow: var(--dirac-shadow-md) !important;
+}
+
+.dirac-quote-preview {
+	box-shadow: var(--dirac-shadow-sm);
+}
+
+.dirac-thumbnails img,
+.dirac-thumbnails>div>div {
+	box-shadow: 0 1px 2px color-mix(in srgb, var(--vscode-widget-shadow) 28%, transparent);
+}
+
+@media (prefers-contrast: more) {
+
+	[data-slot="select-trigger"],
+	[data-slot="select-content"],
+	[data-slot="popover-content"],
+	[data-slot="hover-card-content"],
+	[data-slot="tooltip-content"],
+	.dirac-dialog-content,
+	.dirac-alert-content {
+		border-color: var(--vscode-contrastBorder, var(--dirac-focus)) !important;
+	}
 }

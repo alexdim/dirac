@@ -24,7 +24,7 @@ export const CardActions: React.FC<CardActionsProps> = ({ card, isActive, onActi
 	return (
 		<div
 			className={cn(
-				"p-2 bg-foreground/[0.03] border-t flex flex-col gap-2",
+				"modular-card-actions p-2 bg-foreground/[0.03] border-t flex flex-col gap-2",
 				requireApproval ? "border-warning/20" : "border-foreground/10",
 			)}>
 			{requireApproval && <div className="flex items-center gap-1.5 text-xs text-warning font-medium">Action required</div>}

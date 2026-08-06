@@ -161,7 +161,7 @@ const NewRuleRow: React.FC<NewRuleRowProps> = ({ isGlobal, ruleType, existingHoo
 				ref={componentRef}>
 				<div
 					className={cn(
-						"flex items-center px-2 py-4 rounded bg-input-background transition-all duration-300 ease-in-out h-5",
+						"rule-create-row flex items-center px-2 py-4 rounded bg-input-background transition-all duration-300 ease-in-out h-5",
 						{
 							"shadow-sm": isExpanded,
 						},
