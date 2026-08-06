@@ -27,6 +27,8 @@ import { withRetry } from "../retry"
 import { convertToR1Format } from "../transform/r1-format"
 import type { ApiStream } from "../transform/stream"
 
+const BEDROCK_USER_AGENT_APP_ID = `dirac#${ExtensionRegistryInfo.version}`
+
 export interface AwsBedrockHandlerOptions extends CommonApiHandlerOptions {
 	apiModelId?: string
 	awsAccessKey?: string
@@ -463,7 +465,7 @@ export class AwsBedrockHandler implements ApiHandler {
 		const providerOptions: ProviderChainOptions = {
 			clientConfig: {
 				// set the inner sts client userAgentAppId
-				userAgentAppId: `dirac#${ExtensionRegistryInfo.version}`,
+				userAgentAppId: BEDROCK_USER_AGENT_APP_ID,
 			},
 		}
 		const useProfile =
@@ -523,7 +525,7 @@ export class AwsBedrockHandler implements ApiHandler {
 		// AWS SDK uses a different architecture than fetch-based SDKs.
 		// To add proxy support, we need to provide a custom requestHandler.
 		return new BedrockRuntimeClient({
-			userAgentAppId: `dirac#${ExtensionRegistryInfo.version}`,
+			userAgentAppId: BEDROCK_USER_AGENT_APP_ID,
 			region: this.getRegion(),
 			...auth,
 			...(this.options.awsBedrockEndpoint && { endpoint: this.options.awsBedrockEndpoint }),
