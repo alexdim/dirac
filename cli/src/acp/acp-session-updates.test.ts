@@ -16,7 +16,23 @@ function setupDataDirectory(): string {
 
 function journalFilePath(dataDirectory: string, sessionId: string): string {
 	const digest = crypto.createHash("sha256").update(sessionId).digest("hex")
+	return path.join(dataDirectory, "acp-session-updates", `${digest}.jsonl`)
+}
+
+function legacyIsolatedJournalPath(dataDirectory: string, sessionId: string): string {
+	const digest = crypto.createHash("sha256").update(sessionId).digest("hex")
 	return path.join(dataDirectory, "acp-session-updates", `${digest}.json`)
+}
+
+function isWellFormedJournal(filePath: string): boolean {
+	const contents = fs.readFileSync(filePath, "utf8")
+	const lines = contents.split("\n")
+	if (lines[lines.length - 1] !== "") return false
+	for (const line of lines) {
+		if (line === "") continue
+		JSON.parse(line)
+	}
+	return true
 }
 
 async function workerBundle(): Promise<string> {
@@ -35,7 +51,13 @@ async function workerBundle(): Promise<string> {
 	return workerPath
 }
 
-function spawnWriter(workerPath: string, dataDirectory: string, sessionId: string, writerId: number, count: number): Promise<void> {
+function spawnWriter(
+	workerPath: string,
+	dataDirectory: string,
+	sessionId: string,
+	writerId: number,
+	count: number,
+): Promise<void> {
 	return new Promise((resolve, reject) => {
 		const source = `
 			const { recordSessionUpdate } = require(${JSON.stringify(workerPath)});
@@ -107,9 +129,10 @@ describe("ACP session update journal", () => {
 			{ kind: "client_annotation", sequenceNumber: 3, annotation },
 			{ kind: "session_update", sequenceNumber: 4, update: second },
 		])
+		expect(isWellFormedJournal(journalFilePath(process.env.DIRAC_DATA_DIR!, "session-1"))).toBe(true)
 	})
 
-	it("keeps committed JSON valid and retains updates written by separate processes", async () => {
+	it("keeps committed JSONL valid and retains updates written by separate processes", async () => {
 		const dataDirectory = process.env.DIRAC_DATA_DIR!
 		const sessionId = "concurrent-session"
 		const writerPath = await workerBundle()
@@ -121,8 +144,7 @@ describe("ACP session update journal", () => {
 		const reader = (async () => {
 			while (!readerStopped) {
 				try {
-					const contents = fs.readFileSync(committedPath, "utf8")
-					JSON.parse(contents)
+					isWellFormedJournal(committedPath)
 				} catch (error) {
 					if ((error as NodeJS.ErrnoException).code !== "ENOENT") {
 						readerError = error
@@ -158,37 +180,96 @@ describe("ACP session update journal", () => {
 				expect(texts).toContain(`writer-${writerId}-${index}`)
 			}
 		}
-		expect(() => JSON.parse(fs.readFileSync(committedPath, "utf8"))).not.toThrow()
+		expect(() => isWellFormedJournal(committedPath)).not.toThrow()
 	})
 
-	it("preserves the prior committed journal when replacement is interrupted", async () => {
+	it("ignores a torn trailing line from an interrupted append and keeps committed entries", async () => {
 		const dataDirectory = process.env.DIRAC_DATA_DIR!
-		const sessionId = "interrupted-session"
+		const sessionId = "torn-session"
 		const journal = await import("./acp-session-updates.js")
 		journal.recordSessionUpdate(sessionId, {
 			sessionUpdate: "agent_message_chunk",
-			content: { type: "text", text: "committed" },
+			content: { type: "text", text: "committed-1" },
+		} as any)
+		journal.recordSessionUpdate(sessionId, {
+			sessionUpdate: "agent_message_chunk",
+			content: { type: "text", text: "committed-2" },
 		} as any)
 		const committedPath = journalFilePath(dataDirectory, sessionId)
-		const before = fs.readFileSync(committedPath)
+		fs.appendFileSync(committedPath, '{"kind":"session_update","sequenceNumber":3,"update":{"content":"torn')
+
+		expect(journal.getSessionUpdates(sessionId).map((entry) => entry.sequenceNumber)).toEqual([1, 2])
+	})
+
+	it("tolerates a failed compaction rewrite without losing the appended update", async () => {
+		const dataDirectory = process.env.DIRAC_DATA_DIR!
+		const sessionId = "compaction-session"
+		process.env.DIRAC_ACP_SESSION_UPDATES_MAX_BYTES = "600"
+		const journal = await import("./acp-session-updates.js")
+		for (let index = 0; index < 3; index += 1) {
+			journal.recordSessionUpdate(sessionId, {
+				sessionUpdate: "agent_message_chunk",
+				content: { type: "text", text: `u-${index}` },
+			} as any)
+		}
+		const committedPath = journalFilePath(dataDirectory, sessionId)
 
 		const rename = vi.spyOn(fs, "renameSync").mockImplementationOnce(() => {
-			throw new Error("simulated interruption before rename")
+			throw new Error("simulated interruption during compaction")
 		})
 		expect(() =>
 			journal.recordSessionUpdate(sessionId, {
 				sessionUpdate: "agent_message_chunk",
-				content: { type: "text", text: "uncommitted" },
+				content: { type: "text", text: "m".repeat(2_000) },
 			} as any),
-		).toThrow("simulated interruption before rename")
+		).not.toThrow()
 		rename.mockRestore()
 
-		expect(fs.readFileSync(committedPath)).toEqual(before)
-		expect(JSON.parse(before.toString("utf8"))).toMatchObject({ sessionId })
+		const updates = journal.getSessionUpdates(sessionId)
+		expect(updates).toHaveLength(4)
+		expect(updates.at(-1)?.sequenceNumber).toBe(4)
+		expect(() => isWellFormedJournal(committedPath)).not.toThrow()
 		expect(fs.readdirSync(path.dirname(committedPath)).filter((entry) => entry.endsWith(".tmp"))).toEqual([])
 	})
 
-	it("reports malformed legacy data and never overwrites it", async () => {
+	it("migrates a legacy per-session JSON journal into JSONL and archives the original", async () => {
+		const dataDirectory = process.env.DIRAC_DATA_DIR!
+		const sessionId = "legacy-isolated-session"
+		const legacyPath = legacyIsolatedJournalPath(dataDirectory, sessionId)
+		fs.mkdirSync(path.dirname(legacyPath), { recursive: true })
+		fs.writeFileSync(
+			legacyPath,
+			JSON.stringify({
+				version: 1,
+				sessionId,
+				updates: [
+					{
+						kind: "session_update",
+						sequenceNumber: 1,
+						update: {
+							sessionUpdate: "agent_message_chunk",
+							content: { type: "text", text: "legacy" },
+							_meta: { "dev.dirac/seq": 1 },
+						},
+					},
+				],
+			}),
+		)
+		const journal = await import("./acp-session-updates.js")
+
+		expect(journal.getSessionUpdates(sessionId)).toHaveLength(1)
+		expect(fs.existsSync(legacyPath)).toBe(false)
+		expect(isWellFormedJournal(journalFilePath(dataDirectory, sessionId))).toBe(true)
+		expect(
+			fs
+				.readdirSync(path.dirname(legacyPath))
+				.some((entry) =>
+					entry.startsWith(`${crypto.createHash("sha256").update(sessionId).digest("hex")}.json.migrated`),
+				),
+		).toBe(true)
+	})
+
+	it("reports malformed legacy flat data and never overwrites it", async () => {
 		const dataDirectory = process.env.DIRAC_DATA_DIR!
 		const legacyPath = path.join(dataDirectory, "acp-session-updates.json")
 		const malformed = '{"session-1":[{"kind":"session_update","update":{"content":"unterminated'
@@ -204,8 +285,7 @@ describe("ACP session update journal", () => {
 		expect(fs.readFileSync(legacyPath, "utf8")).toBe(malformed)
 	})
 
-
-	it("recovers a complete legacy map with trailing corruption and archives the original bytes", async () => {
+	it("recovers a complete legacy flat map with trailing corruption and archives the original bytes", async () => {
 		const dataDirectory = process.env.DIRAC_DATA_DIR!
 		const legacyPath = path.join(dataDirectory, "acp-session-updates.json")
 		const sessionId = "recoverable-session"
@@ -253,17 +333,10 @@ describe("ACP session update journal", () => {
 			.filter((entry) => entry.startsWith("acp-session-updates.json.recovery-"))
 		expect(recoveryFiles).toHaveLength(1)
 		expect(fs.readFileSync(path.join(dataDirectory, recoveryFiles[0]), "utf8")).toBe(legacyContents)
-		expect(JSON.parse(fs.readFileSync(journalFilePath(dataDirectory, sessionId), "utf8"))).toMatchObject({
-			version: 1,
-			sessionId,
-			updates: [
-				{ kind: "session_update", sequenceNumber: 1 },
-				{ kind: "client_annotation", sequenceNumber: 3 },
-			],
-		})
+		expect(journal.getSessionUpdates(sessionId).map((entry) => entry.sequenceNumber)).toEqual([1, 3])
 	})
 
-	it("migrates valid legacy data into an isolated session journal", async () => {
+	it("migrates valid legacy flat data into an isolated JSONL journal", async () => {
 		const dataDirectory = process.env.DIRAC_DATA_DIR!
 		const legacyPath = path.join(dataDirectory, "acp-session-updates.json")
 		fs.writeFileSync(
@@ -285,13 +358,10 @@ describe("ACP session update journal", () => {
 		const journal = await import("./acp-session-updates.js")
 		expect(journal.getSessionUpdates("session-1")).toHaveLength(1)
 		expect(fs.existsSync(legacyPath)).toBe(false)
-		expect(JSON.parse(fs.readFileSync(journalFilePath(dataDirectory, "session-1"), "utf8"))).toMatchObject({
-			version: 1,
-			sessionId: "session-1",
-		})
+		expect(isWellFormedJournal(journalFilePath(dataDirectory, "session-1"))).toBe(true)
 	})
 
-	it("preserves a newer isolated journal when a stale legacy file reappears", async () => {
+	it("keeps the isolated journal when a stale legacy flat file reappears", async () => {
 		const dataDirectory = process.env.DIRAC_DATA_DIR!
 		const sessionId = "mixed-version-session"
 		const legacyPath = path.join(dataDirectory, "acp-session-updates.json")
@@ -313,54 +383,280 @@ describe("ACP session update journal", () => {
 		expect(fs.existsSync(legacyPath)).toBe(false)
 	})
 
-	it("reports conflicting legacy and isolated histories without overwriting either", async () => {
-		const dataDirectory = process.env.DIRAC_DATA_DIR!
-		const sessionId = "conflicting-session"
-		const legacyPath = path.join(dataDirectory, "acp-session-updates.json")
-		const journal = await import("./acp-session-updates.js")
-		journal.recordSessionUpdate(sessionId, {
-			sessionUpdate: "agent_message_chunk",
-			content: { type: "text", text: "isolated" },
-		} as any)
-		const isolatedPath = journalFilePath(dataDirectory, sessionId)
-		const isolatedBefore = fs.readFileSync(isolatedPath)
-		const conflictingUpdate = {
-			kind: "session_update",
-			sequenceNumber: 1,
-			update: {
-				sessionUpdate: "agent_message_chunk",
-				content: { type: "text", text: "legacy" },
-				_meta: { "dev.dirac/seq": 1 },
-			},
-		}
-		const legacyContents = JSON.stringify({ [sessionId]: [conflictingUpdate] })
-		fs.writeFileSync(legacyPath, legacyContents)
-
-		expect(() => journal.getSessionUpdates(sessionId)).toThrow("Conflicting ACP session update histories")
-		expect(fs.readFileSync(isolatedPath)).toEqual(isolatedBefore)
-		expect(fs.readFileSync(legacyPath, "utf8")).toBe(legacyContents)
-	})
-
-
-	it("enforces a per-session size limit without changing the prior valid state", async () => {
+	it("sheds oldest entries instead of failing once the journal exceeds its budget", async () => {
 		const dataDirectory = process.env.DIRAC_DATA_DIR!
 		const sessionId = "bounded-session"
 		process.env.DIRAC_ACP_SESSION_UPDATES_MAX_BYTES = "600"
 		const journal = await import("./acp-session-updates.js")
-		journal.recordSessionUpdate(sessionId, {
-			sessionUpdate: "agent_message_chunk",
-			content: { type: "text", text: "small" },
-		} as any)
+		for (let index = 0; index < 3; index += 1) {
+			journal.recordSessionUpdate(sessionId, {
+				sessionUpdate: "agent_message_chunk",
+				content: { type: "text", text: `small-${index}` },
+			} as any)
+		}
 		const committedPath = journalFilePath(dataDirectory, sessionId)
-		const before = fs.readFileSync(committedPath)
 
 		expect(() =>
 			journal.recordSessionUpdate(sessionId, {
 				sessionUpdate: "agent_message_chunk",
 				content: { type: "text", text: "x".repeat(2_000) },
 			} as any),
-		).toThrow("exceeding the 600-byte limit")
-		expect(fs.readFileSync(committedPath)).toEqual(before)
-		expect(() => JSON.parse(before.toString("utf8"))).not.toThrow()
+		).not.toThrow()
+
+		const updates = journal.getSessionUpdates(sessionId)
+		expect(updates).toHaveLength(1)
+		expect(updates[0].sequenceNumber).toBe(4)
+		expect(() => isWellFormedJournal(committedPath)).not.toThrow()
+	})
+
+	it("keeps a single entry whole even when it alone exceeds the budget", async () => {
+		const dataDirectory = process.env.DIRAC_DATA_DIR!
+		const sessionId = "single-overshoot-session"
+		process.env.DIRAC_ACP_SESSION_UPDATES_MAX_BYTES = "100"
+		const journal = await import("./acp-session-updates.js")
+
+		expect(() =>
+			journal.recordSessionUpdate(sessionId, {
+				sessionUpdate: "agent_message_chunk",
+				content: { type: "text", text: "x".repeat(2_000) },
+			} as any),
+		).not.toThrow()
+		expect(journal.getSessionUpdates(sessionId)).toHaveLength(1)
+	})
+
+	it("derives the next sequence from the journal tail when the file exceeds the read window", async () => {
+		const dataDirectory = process.env.DIRAC_DATA_DIR!
+		const sessionId = "tail-session"
+		const filePath = journalFilePath(dataDirectory, sessionId)
+		fs.mkdirSync(path.dirname(filePath), { recursive: true })
+		const padding = "p".repeat(80)
+		let contents = ""
+		for (let sequenceNumber = 1; sequenceNumber <= 2_000; sequenceNumber += 1) {
+			contents +=
+				JSON.stringify({
+					kind: "session_update",
+					sequenceNumber,
+					update: {
+						sessionUpdate: "agent_message_chunk",
+						content: { type: "text", text: `${padding}-${sequenceNumber}` },
+					},
+				}) + "\n"
+		}
+		fs.writeFileSync(filePath, contents)
+		expect(fs.statSync(filePath).size).toBeGreaterThan(64 * 1024)
+
+		const journal = await import("./acp-session-updates.js")
+		const next = journal.recordSessionUpdate(sessionId, {
+			sessionUpdate: "agent_message_chunk",
+			content: { type: "text", text: "after-tail" },
+		} as any)
+		expect(next._meta).toEqual({ "dev.dirac/seq": 2_001 })
+		expect(journal.getSessionUpdates(sessionId)).toHaveLength(2_001)
+	})
+
+	it("discovers the sequence across a torn tail in an oversized journal", async () => {
+		const dataDirectory = process.env.DIRAC_DATA_DIR!
+		const sessionId = "tail-torn-session"
+		const filePath = journalFilePath(dataDirectory, sessionId)
+		fs.mkdirSync(path.dirname(filePath), { recursive: true })
+		const padding = "p".repeat(80)
+		let contents = ""
+		for (let sequenceNumber = 1; sequenceNumber <= 2_000; sequenceNumber += 1) {
+			contents +=
+				JSON.stringify({
+					kind: "session_update",
+					sequenceNumber,
+					update: {
+						sessionUpdate: "agent_message_chunk",
+						content: { type: "text", text: `${padding}-${sequenceNumber}` },
+					},
+				}) + "\n"
+		}
+		contents += '{"kind":"session_update","sequenceNumber":2001,"update":{"torn'
+		fs.writeFileSync(filePath, contents)
+		expect(fs.statSync(filePath).size).toBeGreaterThan(64 * 1024)
+
+		const journal = await import("./acp-session-updates.js")
+		const next = journal.recordSessionUpdate(sessionId, {
+			sessionUpdate: "agent_message_chunk",
+			content: { type: "text", text: "after-torn" },
+		} as any)
+		expect(next._meta).toEqual({ "dev.dirac/seq": 2_001 })
+	})
+
+	it("reports corruption in the middle of a JSONL journal", async () => {
+		const dataDirectory = process.env.DIRAC_DATA_DIR!
+		const sessionId = "corrupt-middle-session"
+		const filePath = journalFilePath(dataDirectory, sessionId)
+		fs.mkdirSync(path.dirname(filePath), { recursive: true })
+		fs.writeFileSync(
+			filePath,
+			[
+				JSON.stringify({
+					kind: "session_update",
+					sequenceNumber: 1,
+					update: { sessionUpdate: "current_mode_update" },
+				}),
+				'{"broken":',
+				JSON.stringify({
+					kind: "session_update",
+					sequenceNumber: 3,
+					update: { sessionUpdate: "current_mode_update" },
+				}),
+			].join("\n") + "\n",
+		)
+
+		const journal = await import("./acp-session-updates.js")
+		expect(() => journal.getSessionUpdates(sessionId)).toThrow(/Malformed ACP session update journal/)
+	})
+
+	it("rejects a journal row with a non-monotonic sequence number", async () => {
+		const dataDirectory = process.env.DIRAC_DATA_DIR!
+		const sessionId = "nonmonotonic-session"
+		const filePath = journalFilePath(dataDirectory, sessionId)
+		fs.mkdirSync(path.dirname(filePath), { recursive: true })
+		fs.writeFileSync(
+			filePath,
+			[
+				JSON.stringify({
+					kind: "session_update",
+					sequenceNumber: 1,
+					update: { sessionUpdate: "current_mode_update" },
+				}),
+				JSON.stringify({
+					kind: "session_update",
+					sequenceNumber: 1,
+					update: { sessionUpdate: "current_mode_update" },
+				}),
+			].join("\n") + "\n",
+		)
+
+		const journal = await import("./acp-session-updates.js")
+		expect(() => journal.getSessionUpdates(sessionId)).toThrow(/non-monotonic sequenceNumber/)
+	})
+
+	it("continues the sequence after a trailing journal row larger than the read window", async () => {
+		const dataDirectory = process.env.DIRAC_DATA_DIR!
+		const sessionId = "huge-row-session"
+		const filePath = journalFilePath(dataDirectory, sessionId)
+		fs.mkdirSync(path.dirname(filePath), { recursive: true })
+		const huge = "h".repeat(300 * 1024)
+		fs.writeFileSync(
+			filePath,
+			[
+				JSON.stringify({
+					kind: "session_update",
+					sequenceNumber: 1,
+					update: {
+						sessionUpdate: "agent_message_chunk",
+						content: { type: "text", text: "prior" },
+					},
+				}),
+				JSON.stringify({
+					kind: "session_update",
+					sequenceNumber: 2,
+					update: {
+						sessionUpdate: "agent_message_chunk",
+						content: { type: "text", text: huge },
+					},
+				}),
+			].join("\n") + "\n",
+		)
+		expect(fs.statSync(filePath).size).toBeGreaterThan(64 * 1024)
+
+		const journal = await import("./acp-session-updates.js")
+		const next = journal.recordSessionUpdate(sessionId, {
+			sessionUpdate: "current_mode_update",
+		} as any)
+		expect(next._meta).toEqual({ "dev.dirac/seq": 3 })
+	})
+
+	it("archives a corrupt legacy per-session JSON instead of retrying it on every write", async () => {
+		const dataDirectory = process.env.DIRAC_DATA_DIR!
+		const sessionId = "corrupt-legacy-session"
+		const legacyPath = legacyIsolatedJournalPath(dataDirectory, sessionId)
+		fs.mkdirSync(path.dirname(legacyPath), { recursive: true })
+		fs.writeFileSync(
+			legacyPath,
+			'{"version":1,"updates":[{"kind":"session_update","update":{"content":"untermina',
+		)
+		const journal = await import("./acp-session-updates.js")
+
+		expect(() =>
+			journal.recordSessionUpdate(sessionId, {
+				sessionUpdate: "current_mode_update",
+			} as any),
+		).not.toThrow()
+		expect(() =>
+			journal.recordSessionUpdate(sessionId, {
+				sessionUpdate: "current_mode_update",
+			} as any),
+		).not.toThrow()
+		expect(fs.existsSync(legacyPath)).toBe(false)
+		expect(journal.getSessionUpdates(sessionId).length).toBeGreaterThan(0)
+	})
+
+	it("returns an empty journal for a session that has never been written", async () => {
+		const journal = await import("./acp-session-updates.js")
+		expect(journal.getSessionUpdates("never-accessed")).toEqual([])
+	})
+
+	it("keeps the JSONL journal and archives a legacy per-session JSON when both exist", async () => {
+		const dataDirectory = process.env.DIRAC_DATA_DIR!
+		const sessionId = "both-formats-session"
+		const journal = await import("./acp-session-updates.js")
+		journal.recordSessionUpdate(sessionId, {
+			sessionUpdate: "current_mode_update",
+		} as any)
+		const jsonlPath = journalFilePath(dataDirectory, sessionId)
+		const jsonlBefore = fs.readFileSync(jsonlPath)
+		const legacyPath = legacyIsolatedJournalPath(dataDirectory, sessionId)
+		fs.mkdirSync(path.dirname(legacyPath), { recursive: true })
+		fs.writeFileSync(
+			legacyPath,
+			JSON.stringify({
+				version: 1,
+				sessionId,
+				updates: [
+					{
+						kind: "session_update",
+						sequenceNumber: 1,
+						update: { sessionUpdate: "current_mode_update" },
+					},
+				],
+			}),
+		)
+
+		expect(journal.getSessionUpdates(sessionId).map((entry) => entry.sequenceNumber)).toEqual([1])
+		expect(fs.readFileSync(jsonlPath)).toEqual(jsonlBefore)
+		expect(fs.existsSync(legacyPath)).toBe(false)
+	})
+
+	it("deletes both the JSONL journal and any stale legacy per-session JSON", async () => {
+		const dataDirectory = process.env.DIRAC_DATA_DIR!
+		const sessionId = "delete-session"
+		const journal = await import("./acp-session-updates.js")
+		journal.recordSessionUpdate(sessionId, {
+			sessionUpdate: "current_mode_update",
+		} as any)
+		const filePath = journalFilePath(dataDirectory, sessionId)
+		const legacyPath = legacyIsolatedJournalPath(dataDirectory, sessionId)
+		fs.mkdirSync(path.dirname(legacyPath), { recursive: true })
+		fs.writeFileSync(legacyPath, JSON.stringify({ version: 1, sessionId, updates: [] }))
+		expect(fs.existsSync(filePath)).toBe(true)
+
+		journal.deleteSessionUpdates(sessionId)
+		expect(fs.existsSync(filePath)).toBe(false)
+		expect(fs.existsSync(legacyPath)).toBe(false)
+	})
+
+	it("rejects a non-positive DIRAC_ACP_SESSION_UPDATES_MAX_BYTES", async () => {
+		process.env.DIRAC_ACP_SESSION_UPDATES_MAX_BYTES = "abc"
+		const journal = await import("./acp-session-updates.js")
+		expect(() =>
+			journal.recordSessionUpdate("bad-env-session", {
+				sessionUpdate: "current_mode_update",
+			} as any),
+		).toThrow(/DIRAC_ACP_SESSION_UPDATES_MAX_BYTES must be a positive integer/)
 	})
 })
