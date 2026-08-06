@@ -1,4 +1,5 @@
 import { DiracMessage } from "@shared/ExtensionMessage"
+import type { DiracStorageMessage } from "@/shared/messages/content"
 import { HostProvider } from "@/hosts/host-provider"
 import { Logger } from "@/shared/services/Logger"
 import { extractPathLikeStrings, RuleEvaluationContext, toWorkspaceRelativePosixPath } from "./rule-conditionals"
@@ -14,8 +15,8 @@ type MessageStateHandlerLike = {
 	updateDiracMessage(index: number, updates: Partial<DiracMessage>): Promise<void>
 	findMessageIndexById(id: string): number
 	saveDiracMessagesAndUpdateHistory(): Promise<void>
-	overwriteApiConversationHistory(history: any[]): Promise<void>
-	getApiConversationHistory(): any[]
+	overwriteApiConversationHistory(history: DiracStorageMessage[]): Promise<void>
+	getApiConversationHistory(): DiracStorageMessage[]
 }
 
 export type RuleContextBuilderDeps = {
