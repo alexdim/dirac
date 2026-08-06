@@ -56,7 +56,7 @@ const Thumbnails = ({ images, files, style, setImages, setFiles, onHeightChange,
 
 	return (
 		<div
-			className={cn("flex flex-wrap", className)}
+			className={cn("dirac-thumbnails flex flex-wrap", className)}
 			ref={containerRef}
 			style={{
 				gap: 5,

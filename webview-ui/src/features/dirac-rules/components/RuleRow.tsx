@@ -133,7 +133,7 @@ const RuleRow: React.FC<{
 
 	return (
 		<div className="mb-2.5">
-			<div className="flex items-center px-2 py-4 rounded bg-text-block-background max-h-4">
+			<div className="rule-row flex items-center px-2 py-4 rounded bg-text-block-background max-h-4">
 				<span className="flex-1 overflow-hidden break-all whitespace-normal flex items-center mr-1" title={rulePath}>
 					{getRuleTypeIcon() && <span className="mr-1.5">{getRuleTypeIcon()}</span>}
 					<span className="ph-no-capture">{finalDisplayName}</span>

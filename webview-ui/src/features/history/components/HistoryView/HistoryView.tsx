@@ -353,10 +353,10 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 	})()
 
 	return (
-		<div className="fixed inset-0 flex w-full flex-col overflow-hidden">
+		<div className="history-page fixed inset-0 flex w-full flex-col overflow-hidden">
 			<ViewHeader environment={environment} onDone={onDone} title="History" />
 
-			<div className="flex flex-col gap-3 px-3">
+			<div className="history-filters flex flex-col gap-3 px-3">
 				<div className="flex items-center justify-between gap-1">
 					<VSCodeTextField
 						aria-label="Search task history"
@@ -435,7 +435,7 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 
 			<div className="m-0 min-h-0 w-full flex-grow py-2">{historyList}</div>
 
-			<div className="border-t border-t-border-panel p-2.5">
+			<div className="history-bulk-actions border-t border-t-border-panel p-2.5">
 				<div className="mb-2.5 flex gap-2.5">
 					<Button
 						className="flex-1"

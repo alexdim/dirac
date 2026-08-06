@@ -80,7 +80,7 @@ export const MessagesArea: React.FC<MessagesAreaProps> = ({
 	)
 
 	return (
-		<div className="relative flex h-full min-h-0 flex-col overflow-hidden">
+		<div className="modular-chat-transcript relative flex h-full min-h-0 flex-col overflow-hidden">
 			<Virtuoso
 				aria-label="Conversation messages"
 				atBottomStateChange={handleAtBottomStateChange}

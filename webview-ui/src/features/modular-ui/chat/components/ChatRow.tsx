@@ -5,7 +5,7 @@ import { ChatRowProps } from "../types/chatRowTypes"
 const ChatRow = memo(
 	(props: ChatRowProps) => {
 		return (
-			<div className="group relative px-3 pt-1 transition-colors duration-150 hover:bg-foreground/[0.025]">
+			<div className="modular-chat-row group relative px-3 pt-1 transition-colors duration-150 hover:bg-foreground/[0.025]">
 				<MessageRenderer {...props} />
 			</div>
 		)

@@ -23,7 +23,7 @@ export function AlertDialog({ open, onOpenChange, children }: AlertDialogProps) 
 
 	return (
 		<div
-			className={`fixed inset-0 bg-black/50 flex items-center justify-center`}
+			className="dirac-alert-backdrop fixed inset-0 flex items-center justify-center bg-black/50"
 			onClick={handleBackdropClick}
 			style={{ zIndex: OPENROUTER_MODEL_PICKER_Z_INDEX + 50 }}>
 			{children}

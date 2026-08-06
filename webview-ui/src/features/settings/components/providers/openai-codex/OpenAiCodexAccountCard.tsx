@@ -25,7 +25,7 @@ export function OpenAiCodexAccountCard({
 
 	if (!isAuthenticated) {
 		return (
-			<section className="rounded-md border border-(--vscode-panel-border) p-3">
+			<section className="openai-codex-account rounded-md border border-(--vscode-panel-border) p-3">
 				<h3 className="m-0 text-sm font-medium text-(--vscode-foreground)">ChatGPT subscription</h3>
 				<p className="mb-3 mt-1 text-xs leading-5 text-(--vscode-descriptionForeground)">
 					Use your ChatGPT subscription to run Codex models. No API key is required.
@@ -51,7 +51,7 @@ export function OpenAiCodexAccountCard({
 	}
 
 	return (
-		<section className="rounded-md border border-(--vscode-panel-border) p-3">
+		<section className="openai-codex-account rounded-md border border-(--vscode-panel-border) p-3">
 			<div className="flex min-w-0 items-start justify-between gap-3">
 				<div className="min-w-0">
 					<div className="flex flex-wrap items-center gap-2">

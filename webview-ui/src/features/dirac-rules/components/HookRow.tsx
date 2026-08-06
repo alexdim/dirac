@@ -50,7 +50,7 @@ const HookRow: React.FC<HookRowProps> = ({
 
 	return (
 		<div className="mb-2.5">
-			<div className="flex items-center px-2 py-4 rounded bg-text-block-background max-h-4">
+			<div className="hook-row flex items-center px-2 py-4 rounded bg-text-block-background max-h-4">
 				<span className="flex-1 overflow-hidden break-all whitespace-normal flex items-center mr-1">
 					<span className="ph-no-capture">{hookName}</span>
 				</span>

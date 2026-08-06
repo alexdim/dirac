@@ -157,7 +157,7 @@ export const BannerCarousel: React.FC<BannerCarouselProps> = ({ banners }) => {
 			onMouseLeave={() => setIsPaused(false)}
 			role="region">
 			{/* Card container */}
-			<div className="relative bg-muted rounded-sm">
+			<div className="dirac-banner relative bg-muted rounded-sm">
 				{/* Dismiss button - shows on each card that has onDismiss defined */}
 				{showDismissButton && (
 					<Button

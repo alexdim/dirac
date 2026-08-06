@@ -99,7 +99,7 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({ task, totalCost, cacheHitRate, 
 			/>
 			<div
 				className={cn(
-					"relative overflow-hidden rounded-md flex flex-col gap-1.5 z-10 py-2.5 px-3 hover:opacity-100 bg-(--vscode-toolbar-hoverBackground)/40 transition-all duration-200 ease-in-out",
+					"modular-task-header relative overflow-hidden rounded-md flex flex-col gap-1.5 z-10 py-2.5 px-3 hover:opacity-100 bg-(--vscode-toolbar-hoverBackground)/40 transition-all duration-200 ease-in-out",
 					{
 						"opacity-100 border-1": isTaskExpanded,
 						"hover:bg-toolbar-hover border-1": !isTaskExpanded,

@@ -61,7 +61,7 @@ export const InputPrimitive = forwardRef<HTMLTextAreaElement, InputPrimitiveProp
 				minRows={minRows}
 				data-testid={dataTestId}
 				className={cn(
-					"w-full box-border bg-transparent text-(--vscode-input-foreground) rounded-(--radius-input) resize-none overflow-x-hidden overflow-y-scroll scrollbar-none vscode-editor-font focus:outline-none",
+					"w-full box-border bg-transparent text-(--vscode-input-foreground) rounded-(--radius-input) resize-none overflow-x-hidden overflow-y-scroll scrollbar-none vscode-editor-font focus:outline-none focus-visible:outline-none",
 					className,
 				)}
 				style={style as any}

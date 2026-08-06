@@ -200,8 +200,8 @@ export const ModularChatView: React.FC<ChatViewProps> = ({ isHidden, showAnnounc
 
 	return (
 		<ChatLayout isHidden={isHidden}>
-			<div className="flex flex-col flex-1 overflow-hidden relative">
-				<div className={cn("flex flex-col flex-1 overflow-hidden", mode === "plan" ? "bg-grid-plan" : "")}>
+			<div className="modular-chat-shell flex flex-col flex-1 overflow-hidden relative">
+				<div className={cn("modular-chat-shell flex flex-col flex-1 overflow-hidden", mode === "plan" ? "bg-grid-plan" : "")}>
 					{showNavbar && <Navbar />}
 					<div className="flex-1 flex flex-col overflow-hidden relative">
 						{sections.map((section) => (

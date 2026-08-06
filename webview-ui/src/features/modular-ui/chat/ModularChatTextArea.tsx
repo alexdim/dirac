@@ -183,13 +183,7 @@ export const ModularChatTextArea: React.FC<ModularChatTextAreaProps> = ({
 
 	return (
 		<div className={cn("relative flex flex-col w-full", className)} onDrop={handleDrop}>
-			<div
-				className={cn(
-					"relative rounded-(--radius-input) transition-all duration-200",
-					context.isFocused
-						? "border border-(--vscode-focusBorder) bg-(--vscode-input-background) shadow-[0_0_6px_1px_var(--color-glow-act)]"
-						: "border border-(--vscode-input-border) bg-(--vscode-input-background) hover:border-[color-mix(in_srgb,var(--vscode-input-border)_80%,transparent)]",
-				)}>
+			<div className="modular-composer relative rounded-(--radius-input) transition-all duration-200">
 				{/* Highlight Layer */}
 				<div className="absolute inset-0 pointer-events-none whitespace-pre-wrap break-words p-[10px_32px_10px_12px] vscode-editor-font text-transparent">
 					{decorators.map((d) => (
@@ -252,7 +246,7 @@ export const ModularChatTextArea: React.FC<ModularChatTextAreaProps> = ({
 			))}
 
 			{/* Actions (Toolbar) */}
-			<div className="flex items-center gap-1 px-2 py-1.5">
+			<div className="modular-composer-toolbar flex items-center gap-1 px-2 py-1.5">
 				{decorators.map((d) => (
 					<React.Fragment key={`action-${d.id}`}>{d.renderAction?.(context)}</React.Fragment>
 				))}
