@@ -19,6 +19,7 @@ import {
 } from "@shared/api"
 import { calculateApiCostOpenAI, calculateApiCostQwen } from "@utils/cost"
 import { ExtensionRegistryInfo } from "@/registry"
+import { getErrorMessage } from "@/shared/errors"
 import type { DiracStorageMessage } from "@/shared/messages/content"
 import { Logger } from "@/shared/services/Logger"
 import type { DiracTool } from "@/shared/tools"
@@ -666,7 +667,7 @@ export class AwsBedrockHandler implements ApiHandler {
 							// Propagate the error by yielding a text response with error information
 							yield {
 								type: "text",
-								text: `[ERROR] Failed to parse Deepseek response: ${error instanceof Error ? error.message : String(error)}`,
+								text: `[ERROR] Failed to parse Deepseek response: ${getErrorMessage(error)}`,
 							}
 						}
 					}
@@ -1046,7 +1047,7 @@ export class AwsBedrockHandler implements ApiHandler {
 			// Return a text content indicating the error instead of null
 			// This ensures users are aware of the issue
 			return {
-				text: `[ERROR: Failed to process image - ${error instanceof Error ? error.message : "Unknown error"}]`,
+				text: `[ERROR: Failed to process image - ${getErrorMessage(error, "Unknown error")}]`,
 			}
 		}
 	}

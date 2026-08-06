@@ -2,6 +2,7 @@ import { discoverChromeInstances } from "@services/browser/BrowserDiscovery"
 import { BrowserSession } from "@services/browser/BrowserSession"
 import { BrowserConnection } from "@shared/proto/dirac/browser"
 import { StringRequest } from "@shared/proto/dirac/common"
+import { getErrorMessage } from "@/shared/errors"
 import { Controller } from "../index"
 
 /**
@@ -37,7 +38,7 @@ export async function testBrowserConnection(controller: Controller, request: Str
 			} catch (error) {
 				return BrowserConnection.create({
 					success: false,
-					message: `Error during auto-discovery: ${error instanceof Error ? error.message : String(error)}`,
+					message: `Error during auto-discovery: ${getErrorMessage(error)}`,
 					endpoint: "",
 				})
 			}
@@ -53,7 +54,7 @@ export async function testBrowserConnection(controller: Controller, request: Str
 	} catch (error) {
 		return BrowserConnection.create({
 			success: false,
-			message: `Error testing connection: ${error instanceof Error ? error.message : String(error)}`,
+			message: `Error testing connection: ${getErrorMessage(error)}`,
 			endpoint: "",
 		})
 	}

@@ -1,6 +1,7 @@
 import { CheckoutBranchRequest, WorktreeResult } from "@shared/proto/dirac/worktree"
 import { getWorkspacePath } from "@utils/path"
 import simpleGit from "simple-git"
+import { getErrorMessage } from "@/shared/errors"
 import { Controller } from ".."
 
 /**
@@ -36,7 +37,7 @@ export async function checkoutBranch(_controller: Controller, request: CheckoutB
 			message: `Switched to branch '${branch}'`,
 		})
 	} catch (error) {
-		const errorMessage = error instanceof Error ? error.message : String(error)
+		const errorMessage = getErrorMessage(error)
 		return WorktreeResult.create({
 			success: false,
 			message: `Failed to checkout branch: ${errorMessage}`,

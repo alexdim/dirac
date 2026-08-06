@@ -2,6 +2,7 @@ import { access, constants, mkdir } from "fs/promises"
 import os from "os"
 import * as path from "path"
 import { HostProvider } from "@/hosts/host-provider"
+import { getErrorMessage } from "@/shared/errors"
 import { getCwd, getDesktopDir } from "@/utils/path"
 
 /**
@@ -47,7 +48,7 @@ export async function validateWorkspacePath(workspacePath: string): Promise<void
 		await access(workspacePath, constants.R_OK)
 	} catch (error) {
 		throw new Error(
-			`Cannot access workspace directory. Please ensure VS Code has permission to access your workspace. Error: ${error instanceof Error ? error.message : String(error)}`,
+			`Cannot access workspace directory. Please ensure VS Code has permission to access your workspace. Error: ${getErrorMessage(error)}`,
 		)
 	}
 

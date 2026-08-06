@@ -1,10 +1,11 @@
+import { formatResponse } from "@core/formatResponse"
+import { getErrorMessage } from "@/shared/errors"
+import { DiracIcon } from "@/shared/icons"
+import { CardStatus } from "../../../../../shared/ExtensionMessage"
+import { DiracDefaultTool, DiracToolSpec } from "../../../../../shared/tools"
 import { IDiracTool } from "../../interfaces/IDiracTool"
 import { IToolEnvironment } from "../../interfaces/IToolEnvironment"
-import { DiracIcon } from "@/shared/icons"
 import { SurfaceType } from "../../interfaces/SurfaceType"
-import { DiracToolSpec, DiracDefaultTool } from "../../../../../shared/tools"
-import { formatResponse } from "@core/formatResponse"
-import { CardStatus } from "../../../../../shared/ExtensionMessage"
 
 export interface ListFilesArgs {
 	paths: string[]
@@ -117,7 +118,7 @@ export class ListFilesTool implements IDiracTool<ListFilesArgs, string> {
 				totalFilesFound += fileInfos.length
 			} catch (error) {
 				hasError = true
-				const errorMessage = error instanceof Error ? error.message : String(error)
+				const errorMessage = getErrorMessage(error)
 				results.push(`Error listing files in ${relPath}: ${errorMessage}`)
 				env.orchestration.setTaskState(
 					"consecutiveMistakeCount",

@@ -1,13 +1,14 @@
+import { applyApiConfigurationTransaction } from "@core/controller/models/apiConfigurationTransaction"
+import type { StateManager } from "@core/storage/StateManager"
 import type { ApiProvider } from "@shared/api"
+import { ShowMessageType } from "@shared/proto/host/window"
 import axios from "axios"
 import open from "open"
-import { applyApiConfigurationTransaction } from "@core/controller/models/apiConfigurationTransaction"
 import { HostProvider } from "@/hosts/host-provider"
-import { ShowMessageType } from "@shared/proto/host/window"
-import { getAxiosSettings } from "@/shared/net"
 import { githubCopilotAuthManager } from "@/integrations/github-copilot/auth"
+import { getErrorMessage } from "@/shared/errors"
+import { getAxiosSettings } from "@/shared/net"
 import { Logger } from "@/shared/services/Logger"
-import type { StateManager } from "@core/storage/StateManager"
 
 export interface AuthControllerDependencies {
 	stateManager: StateManager
@@ -76,7 +77,7 @@ export class AuthController {
 			Logger.error("GitHub Copilot login failed:", error)
 			HostProvider.window.showMessage({
 				type: ShowMessageType.ERROR,
-				message: `GitHub Copilot login failed: ${error instanceof Error ? error.message : String(error)}`,
+				message: `GitHub Copilot login failed: ${getErrorMessage(error)}`,
 			})
 		}
 	}

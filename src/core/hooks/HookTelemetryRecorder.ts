@@ -1,3 +1,4 @@
+import { getErrorMessage } from "@/shared/errors"
 import { telemetryService } from "../../services/telemetry"
 import type { HookOutput } from "../../shared/proto/dirac/hooks"
 import type { HookExecutionError } from "./HookError"
@@ -124,7 +125,7 @@ export class HookTelemetryRecorder {
 				durationMs,
 				exitCode: exitCode ?? 1,
 				errorType: "execution",
-				errorMessage: error instanceof Error ? error.message : String(error),
+				errorMessage: getErrorMessage(error),
 			},
 			"HookFactory.exec.catch.execution",
 		)

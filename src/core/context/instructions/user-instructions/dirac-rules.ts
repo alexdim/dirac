@@ -14,6 +14,7 @@ import { parseYamlFrontmatter } from "@utils/frontmatter"
 import { fileExistsAtPath, isDirectory, readDirectory } from "@utils/fs"
 import fs from "fs/promises"
 import path from "path"
+import { getErrorMessage } from "@/shared/errors"
 import { Logger } from "@/shared/services/Logger"
 import { evaluateRuleConditionals, type RuleEvaluationContext } from "./rule-conditionals"
 
@@ -49,7 +50,7 @@ export const getGlobalDiracRules = async (
 					errors.push(...rulesFilesTotal.errors)
 				}
 			} catch (error) {
-				const message = `Failed to read .diracrules directory at ${globalDiracRulesFilePath}: ${error instanceof Error ? error.message : String(error)}`
+				const message = `Failed to read .diracrules directory at ${globalDiracRulesFilePath}: ${getErrorMessage(error)}`
 				Logger.error(message, error)
 				errors.push(message)
 			}
@@ -120,7 +121,7 @@ export const getLocalDiracRules = async (
 					errors.push(...rulesFilesTotal.errors)
 				}
 			} catch (error) {
-				const message = `Failed to read .diracrules directory at ${diracRulesFilePath}: ${error instanceof Error ? error.message : String(error)}`
+				const message = `Failed to read .diracrules directory at ${diracRulesFilePath}: ${getErrorMessage(error)}`
 				Logger.error(message, error)
 				errors.push(message)
 			}
@@ -154,7 +155,7 @@ export const getLocalDiracRules = async (
 					}
 				}
 			} catch (error) {
-				const message = `Failed to read .diracrules file at ${diracRulesFilePath}: ${error instanceof Error ? error.message : String(error)}`
+				const message = `Failed to read .diracrules file at ${diracRulesFilePath}: ${getErrorMessage(error)}`
 				Logger.error(message, error)
 				errors.push(message)
 			}

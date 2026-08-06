@@ -1,4 +1,5 @@
 import { EmptyRequest, String as StringMessage } from "@shared/proto/dirac/common"
+import { getErrorMessage } from "@/shared/errors"
 import { BrowserSession } from "../../../services/browser/BrowserSession"
 import { Controller } from "../index"
 
@@ -19,6 +20,6 @@ export async function relaunchChromeDebugMode(controller: Controller, _: EmptyRe
 		// Here we just return a message as a placeholder
 		return { value: "Chrome relaunch initiated" }
 	} catch (error) {
-		throw new Error(`Error relaunching Chrome: ${error instanceof Error ? error.message : globalThis.String(error)}`)
+		throw new Error(`Error relaunching Chrome: ${getErrorMessage(error)}`)
 	}
 }

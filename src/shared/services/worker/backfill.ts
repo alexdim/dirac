@@ -8,6 +8,7 @@
 
 import * as fs from "fs/promises"
 import { GlobalFileNames, getSavedApiConversationHistory, getTaskHistoryStateFilePath } from "@/core/storage/disk"
+import { getErrorMessage } from "@/shared/errors"
 import { Logger } from "@/shared/services/Logger"
 import { syncWorker } from "./sync"
 
@@ -107,7 +108,7 @@ export async function backfillTask(taskId: string): Promise<BackfillTaskResult> 
 
 		result.success = result.filesQueued.length > 0
 	} catch (err) {
-		result.error = err instanceof Error ? err.message : String(err)
+		result.error = getErrorMessage(err)
 	}
 
 	return result

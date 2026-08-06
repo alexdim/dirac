@@ -6,6 +6,7 @@ import path from "path"
 import simpleGit from "simple-git"
 import { HostProvider } from "@/hosts/host-provider"
 import { hashWorkingDir } from "@/integrations/checkpoints/CheckpointUtils"
+import { getErrorMessage } from "@/shared/errors"
 import { Logger } from "@/shared/services/Logger"
 import { Controller } from ".."
 
@@ -66,7 +67,7 @@ export async function deleteWorktree(_controller: Controller, request: DeleteWor
 		Logger.error(`Error deleting worktree: ${JSON.stringify(error)}`)
 		return WorktreeResult.create({
 			success: false,
-			message: error instanceof Error ? error.message : String(error),
+			message: getErrorMessage(error),
 		})
 	}
 }

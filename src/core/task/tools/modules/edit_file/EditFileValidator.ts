@@ -1,3 +1,4 @@
+import { getErrorMessage } from "@/shared/errors"
 import type { IToolEnvironment } from "../../interfaces/IToolEnvironment"
 import type { Edit, FileEdit } from "./types"
 
@@ -9,7 +10,7 @@ export class EditFileValidator {
 			try {
 				files = JSON.parse(files)
 			} catch (error) {
-				return this.fail(env, `The 'files' parameter contains invalid JSON: ${error instanceof Error ? error.message : String(error)}`)
+				return this.fail(env, `The 'files' parameter contains invalid JSON: ${getErrorMessage(error)}`)
 			}
 		}
 		if (!Array.isArray(files) || files.length === 0) {

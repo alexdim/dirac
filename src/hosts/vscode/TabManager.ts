@@ -1,5 +1,6 @@
 import * as path from "path"
 import * as vscode from "vscode"
+import { getErrorMessage } from "@/shared/errors"
 import { Logger } from "@/shared/services/Logger"
 import { arePathsEqual } from "@/utils/path"
 import { DIFF_VIEW_URI_SCHEME } from "./diff-view-constants"
@@ -14,7 +15,7 @@ export class TabManager {
 			try {
 				vscode.window.tabGroups.close(tab)
 			} catch (error) {
-				Logger.warn("TabManager: tab close failed:", error instanceof Error ? error.message : String(error))
+				Logger.warn("TabManager: tab close failed:", getErrorMessage(error))
 			}
 		}
 	}

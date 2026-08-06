@@ -2,6 +2,7 @@ import { DeleteAllTaskHistoryCount } from "@shared/proto/dirac/task"
 import fs from "fs/promises"
 import path from "path"
 import { HostProvider } from "@/hosts/host-provider"
+import { getErrorMessage } from "@/shared/errors"
 import { ShowMessageRequest, ShowMessageType } from "@/shared/proto/host/window"
 import { Logger } from "@/shared/services/Logger"
 import { fileExistsAtPath } from "../../../utils/fs"
@@ -103,7 +104,7 @@ export async function deleteAllTaskHistory(controller: Controller): Promise<Dele
 		} catch (error) {
 			HostProvider.window.showMessage({
 				type: ShowMessageType.ERROR,
-				message: `Encountered error while deleting task history, there may be some files left behind. Error: ${error instanceof Error ? error.message : String(error)}`,
+				message: `Encountered error while deleting task history, there may be some files left behind. Error: ${getErrorMessage(error)}`,
 			})
 		}
 
