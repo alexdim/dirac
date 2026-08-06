@@ -1,6 +1,7 @@
 import { HostProvider } from "@hosts/host-provider"
 import { ShowMessageType } from "@shared/proto/host/window"
 import { openExternal } from "@utils/env"
+import { Logger } from "@/shared/services/Logger"
 
 /**
  * Detects potential AI-generated code omissions in the given file content.
@@ -56,6 +57,9 @@ export function showOmissionWarning(originalFileContent: string, newFileContent:
 						"https://github.com/dirac-run/dirac/wiki/Troubleshooting-%E2%80%90-Dirac-Deleting-Code-with-%22Rest-of-Code-Here%22-Comments",
 					)
 				}
+			})
+			.catch((error) => {
+				Logger.error("Failed to show omission warning message:", error)
 			})
 	}
 }

@@ -167,6 +167,9 @@ export async function openUrlInBrowser(url: string): Promise<void> {
 						writeTextToClipboard(url)
 					}
 				})
+				.catch((error) => {
+					Logger.error("Failed to show URL open fallback message:", error)
+				})
 		}
 	}
 }
