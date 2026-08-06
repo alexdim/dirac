@@ -28,6 +28,7 @@ import type { ToolRequestSnapshot } from "@core/task/tools/runtime/ToolSnapshot"
 import { ToolDiscoveryService } from "@core/task/tools/discovery/ToolDiscoveryService"
 import { DiracToolSet } from "../registry/DiracToolSet"
 import { toolSpecFunctionDeclarations, toolSpecInputSchema } from "../spec"
+import { mockProviderInfo } from "./test-helpers"
 
 // ============================================================================
 // Configuration
@@ -135,12 +136,6 @@ async function assertJsonSnapshot(name: string, actual: unknown): Promise<void> 
 // ============================================================================
 // Test Context Helpers
 // ============================================================================
-
-export const mockProviderInfo = {
-	providerId: "test",
-	model: { id: "fast", info: { supportsPromptCache: false } },
-	mode: "act" as const,
-}
 
 const makeProviderInfo = (providerId: string, modelId: string) => ({
 	providerId,
