@@ -114,9 +114,13 @@ export class Controller {
 		checkCliInstallation(this)
 
 		// Initialize workspace manager in background
-		this.ensureWorkspaceManager().then(() => {
-			this.postStateToWebview()
-		})
+		this.ensureWorkspaceManager()
+			.then(() => {
+				this.postStateToWebview()
+			})
+			.catch((error) => {
+				Logger.error("Failed to initialize workspace manager:", error)
+			})
 	}
 
 	/*
