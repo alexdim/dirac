@@ -1475,7 +1475,7 @@ export class Task {
 			this.cwd,
 		)
 
-		const evaluationContext = await RuleContextBuilder.buildEvaluationContext({
+		const evaluationContext = await new RuleContextBuilder().buildEvaluationContext({
 			cwd: this.cwd,
 			messageStateHandler: this.messageStateHandler,
 			workspaceManager: this.workspaceManager,
