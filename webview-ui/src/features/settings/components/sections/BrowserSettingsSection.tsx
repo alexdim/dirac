@@ -390,7 +390,7 @@ const CheckIcon = styled.i`
 const Spinner = styled.div`
 	width: 14px;
 	height: 14px;
-	border: 2px solid rgba(255, 255, 255, 0.3);
+	border: 2px solid color-mix(in srgb, var(--vscode-foreground) 30%, transparent);
 	border-radius: 50%;
 	border-top-color: var(--vscode-progressBar-background);
 	animation: spin 1s ease-in-out infinite;

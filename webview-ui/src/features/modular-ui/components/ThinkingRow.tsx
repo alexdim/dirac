@@ -91,7 +91,7 @@ export const ThinkingRow = memo(
 					<div
 						className={cn(
 							"flex items-center gap-1.5 px-1.5 py-1 -ml-0.5 rounded-sm transition-colors duration-150 select-none",
-							onToggle ? "cursor-pointer hover:bg-white/5" : "cursor-default",
+							onToggle ? "cursor-pointer hover:bg-foreground/5" : "cursor-default",
 						)}
 						role="button"
 						tabIndex={0}
@@ -106,7 +106,7 @@ export const ThinkingRow = memo(
 						<span className="flex-shrink-0">
 							<Lightbulb
 								className={cn("size-3 transition-[color,filter,opacity] duration-700 ease-out", {
-									"text-amber-300/80 animate-bulb-glow": isStreaming,
+									"text-warning/80 animate-bulb-glow": isStreaming,
 									"text-description/25": !isStreaming,
 								})}
 							/>

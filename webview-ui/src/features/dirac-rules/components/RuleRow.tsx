@@ -56,9 +56,9 @@ const RuleRow: React.FC<{
 						width="16"
 						xmlns="http://www.w3.org/2000/svg">
 						<g fill="none" stroke="currentColor" strokeWidth="1.2">
-							<path d="M12 4L5 8l7 4 7-4-7-4z" fill="rgba(255,255,255,0.2)" />
-							<path d="M5 8v8l7 4v-8L5 8z" fill="rgba(255,255,255,0.1)" />
-							<path d="M19 8v8l-7 4v-8l7-4z" fill="rgba(255,255,255,0.15)" />
+							<path d="M12 4L5 8l7 4 7-4-7-4z" fill="currentColor" opacity="0.2" />
+							<path d="M5 8v8l7 4v-8L5 8z" fill="currentColor" opacity="0.1" />
+							<path d="M19 8v8l-7 4v-8l7-4z" fill="currentColor" opacity="0.15" />
 							<line x1="5" x2="12" y1="8" y2="12" />
 							<line x1="12" x2="19" y1="12" y2="8" />
 							<line x1="12" x2="12" y1="12" y2="20" />

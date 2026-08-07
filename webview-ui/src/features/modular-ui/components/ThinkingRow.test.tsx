@@ -22,7 +22,7 @@ describe("ThinkingRow", () => {
 		// Lightbulb should reflect streaming state
 		const bulb = title.closest('[role="button"]')?.querySelector("svg")
 		expect(bulb).toBeTruthy()
-		expect(bulb).toHaveClass("text-amber-300/80", "animate-bulb-glow")
+		expect(bulb).toHaveClass("text-warning/80", "animate-bulb-glow")
 		expect(screen.getByText("Inspecting files...")).toBeInTheDocument()
 	})
 
