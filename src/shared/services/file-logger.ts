@@ -364,17 +364,29 @@ function removeObsoleteLegacyLogs(logDir: string): void {
 }
 
 function encodeBoundedRecord(message: string): Buffer {
-	const record = message.endsWith("\n") ? message : `${message}\n`
+	const timestampPrefix = `${new Date().toISOString()} `
+	const formattedMessage = prefixRecordLines(message, timestampPrefix)
+	const record = formattedMessage.endsWith("\n") ? formattedMessage : `${formattedMessage}\n`
 	const recordBuffer = Buffer.from(record, "utf8")
 	if (recordBuffer.byteLength <= LOG_MAX_FILE_SIZE_BYTES) return recordBuffer
 
-	const marker = Buffer.from(`\n...[log record truncated from ${recordBuffer.byteLength} bytes]...\n`, "utf8")
-	const contentBudget = LOG_MAX_FILE_SIZE_BYTES - marker.byteLength
-	const headBudget = Math.floor(contentBudget / 2)
-	const tailBudget = contentBudget - headBudget
-	const headEnd = safeUtf8End(recordBuffer, headBudget)
-	const tailStart = safeUtf8Start(recordBuffer, recordBuffer.byteLength - tailBudget)
-	return Buffer.concat([recordBuffer.subarray(0, headEnd), marker, recordBuffer.subarray(tailStart)])
+	const marker = Buffer.from(
+		`${timestampPrefix}...[log record truncated from ${recordBuffer.byteLength} bytes]...\n`,
+		"utf8",
+	)
+	const headBudget = LOG_MAX_FILE_SIZE_BYTES - marker.byteLength - 1
+	const head = recordBuffer.subarray(0, safeUtf8End(recordBuffer, headBudget))
+	const separator = head.at(-1) === 0x0a ? Buffer.alloc(0) : Buffer.from("\n")
+	return Buffer.concat([head, separator, marker])
+}
+
+function prefixRecordLines(message: string, timestampPrefix: string): string {
+	const hasTrailingLineBreak = /(?:\r\n|\r|\n)$/.test(message)
+	const lines = message.split(/\r\n|\r|\n/)
+	if (hasTrailingLineBreak) lines.pop()
+
+	const formattedLines = lines.map((line) => `${timestampPrefix}${line}`)
+	return `${formattedLines.join("\n")}${hasTrailingLineBreak ? "\n" : ""}`
 }
 
 function safeUtf8End(content: Buffer, proposedEnd: number): number {
