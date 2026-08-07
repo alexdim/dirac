@@ -10,6 +10,7 @@ import { formatResponse } from "@core/formatResponse"
 import { ensureRulesDirectoryExists, GlobalFileNames } from "@core/storage/disk"
 import { StateManager } from "@core/storage/StateManager"
 import { DiracRulesToggles } from "@shared/dirac-rules"
+import type { GlobalInstructionsFile } from "@shared/remote-config/schema"
 import { parseYamlFrontmatter } from "@utils/frontmatter"
 import { fileExistsAtPath, isDirectory, readDirectory } from "@utils/fs"
 import fs from "fs/promises"
@@ -63,7 +64,7 @@ export const getGlobalDiracRules = async (
 
 	// 2. Append remote config rules
 	const stateManager = StateManager.get()
-	const remoteRules: any[] = []
+	const remoteRules: GlobalInstructionsFile[] = []
 	const remoteToggles = stateManager.getGlobalStateKey("remoteRulesToggles") || {}
 	const remoteResult = getRemoteRulesTotalContentWithMetadata(remoteRules, remoteToggles, {
 		evaluationContext: opts?.evaluationContext,
