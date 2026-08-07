@@ -6,6 +6,7 @@ import { getErrorMessage } from "@/shared/errors"
 import { ShowMessageType } from "@/shared/proto/host/window"
 import { Logger } from "@/shared/services/Logger"
 import { MessageStateHandler } from "../../core/task/message-state"
+import type { CreateCheckpointTracker } from "./CheckpointRestoreHandler"
 import type { CheckpointStorageManager } from "./CheckpointStorageManager"
 
 interface CheckpointDiffConfig {
@@ -14,6 +15,7 @@ interface CheckpointDiffConfig {
 }
 interface CheckpointDiffServices {
 	readonly messageStateHandler: MessageStateHandler
+	readonly createCheckpointTracker: CreateCheckpointTracker
 }
 
 /**
@@ -75,8 +77,10 @@ export class CheckpointDiffPresenter {
 			if (!this.storage.getTracker() && this.config.enableCheckpoints && !this.storage.getErrorMessage()) {
 				try {
 					const workspacePath = await this.storage.getWorkspacePath()
-					const tracker = await import("@integrations/checkpoints/CheckpointTracker").then((m) =>
-						m.default.create(this.config.taskId, this.config.enableCheckpoints, workspacePath),
+					const tracker = await this.services.createCheckpointTracker(
+						this.config.taskId,
+						this.config.enableCheckpoints,
+						workspacePath,
 					)
 					this.storage.setTracker(tracker)
 					this.services.messageStateHandler.setCheckpointTracker(tracker)
