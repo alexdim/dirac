@@ -2,7 +2,6 @@ import fs from "fs/promises"
 import { isBinaryFile } from "isbinaryfile"
 import * as path from "path"
 import type { SimpleGit } from "simple-git"
-import { Logger } from "@/shared/services/Logger"
 
 export interface DiffEntry {
 	relativePath: string
@@ -76,6 +75,9 @@ export class DiffContentProvider {
 	constructor(
 		private cwd: string,
 		private taskId: string,
+		private getDefaultExclusions: (lfsPatterns?: string[]) => string[],
+		private getLfsPatterns: (workspacePath: string) => Promise<string[]>,
+		private captureCheckpointUsage: (ulid: string, action: string, durationMs?: number) => void,
 	) {}
 
 	/** Strips "HEAD " prefix from commit hashes for backward compatibility. */
@@ -93,17 +95,12 @@ export class DiffContentProvider {
 		await git.add(["."])
 		const diffSummary = await git.diffSummary([diffRange])
 
-		const { getDefaultExclusions, getLfsPatterns } = await import("./CheckpointExclusions")
-		const lfsPatterns = await getLfsPatterns(this.cwd)
-		const exclusions = getDefaultExclusions(lfsPatterns)
+		const lfsPatterns = await this.getLfsPatterns(this.cwd)
+		const exclusions = this.getDefaultExclusions(lfsPatterns)
 
 		const captureTelemetry = () => {
 			const durationMs = Math.round(performance.now() - startTime)
-			import("@/services/telemetry")
-				.then(({ telemetryService }) =>
-					telemetryService.captureCheckpointUsage(this.taskId, "diff_generated", durationMs),
-				)
-				.catch(() => Logger.debug("[DiffContentProvider] Telemetry service not available"))
+			this.captureCheckpointUsage(this.taskId, "diff_generated", durationMs)
 		}
 
 		return { cleanLhs, cleanRhs, diffSummary, exclusions, captureTelemetry }
