@@ -12,15 +12,24 @@ import { MessageStateHandler } from "../../core/task/message-state"
 import { TaskMessenger } from "../../core/task/TaskMessenger"
 import { TaskState } from "../../core/task/TaskState"
 import type { CheckpointStorageManager } from "./CheckpointStorageManager"
+import type CheckpointTracker from "./CheckpointTracker"
 
 interface CheckpointRestoreConfig {
 	readonly enableCheckpoints: boolean
 	readonly taskId: string
 }
+
+/** Factory for creating a `CheckpointTracker` for a task/workspace. */
+export type CreateCheckpointTracker = (
+	taskId: string,
+	enableCheckpoints: boolean,
+	workspacePath: string,
+) => Promise<CheckpointTracker | undefined>
 interface CheckpointRestoreServices {
 	readonly messageStateHandler: MessageStateHandler
 	readonly fileContextTracker: FileContextTracker
 	readonly taskState: TaskState
+	readonly createCheckpointTracker: CreateCheckpointTracker
 }
 interface CheckpointRestoreCallbacks {
 	readonly cancelTask: () => Promise<void>
@@ -104,8 +113,10 @@ export class CheckpointRestoreHandler {
 					if (!this.storage.getTracker() && !this.storage.getErrorMessage()) {
 						try {
 							const workspacePath = await this.storage.getWorkspacePath()
-							const tracker = await import("@integrations/checkpoints/CheckpointTracker").then((m) =>
-								m.default.create(this.config.taskId, this.config.enableCheckpoints, workspacePath),
+							const tracker = await this.services.createCheckpointTracker(
+								this.config.taskId,
+								this.config.enableCheckpoints,
+								workspacePath,
 							)
 							this.storage.setTracker(tracker)
 							this.services.messageStateHandler.setCheckpointTracker(tracker)

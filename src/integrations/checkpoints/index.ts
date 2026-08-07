@@ -11,9 +11,12 @@ import { MessageStateHandler } from "../../core/task/message-state"
 import { TaskMessenger } from "../../core/task/TaskMessenger"
 import { TaskState } from "../../core/task/TaskState"
 import { CheckpointDiffPresenter } from "./CheckpointDiffPresenter"
-import { CheckpointRestoreHandler } from "./CheckpointRestoreHandler"
+import { CheckpointRestoreHandler, type CreateCheckpointTracker } from "./CheckpointRestoreHandler"
 import { CheckpointStorageManager } from "./CheckpointStorageManager"
 import { ICheckpointManager } from "./types"
+
+const createCheckpointTracker: CreateCheckpointTracker = (taskId, enableCheckpoints, workspacePath) =>
+	CheckpointTracker.create(taskId, enableCheckpoints, workspacePath)
 
 type UpdateTaskHistoryFunction = (historyItem: HistoryItem) => Promise<HistoryItem[]>
 
@@ -99,6 +102,7 @@ export class TaskCheckpointManager implements ICheckpointManager {
 				messageStateHandler: services.messageStateHandler,
 				fileContextTracker: services.fileContextTracker,
 				taskState: services.taskState,
+				createCheckpointTracker,
 			},
 			{
 				cancelTask: callbacks.cancelTask,
@@ -111,7 +115,10 @@ export class TaskCheckpointManager implements ICheckpointManager {
 
 		this.diffPresenter = new CheckpointDiffPresenter(
 			{ taskId: task.taskId, enableCheckpoints: config.enableCheckpoints },
-			{ messageStateHandler: services.messageStateHandler },
+			{
+				messageStateHandler: services.messageStateHandler,
+				createCheckpointTracker,
+			},
 			this.storage,
 		)
 	}
