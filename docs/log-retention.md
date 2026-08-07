@@ -20,12 +20,15 @@ Each family uses the same bounded layout:
 - Maximum retained size per family: approximately 10 MiB
 - Files older than 14 days are removed during initialization or the next write
 - A single record larger than 2 MiB is truncated with an explicit marker
+- Every newly written physical line begins with an ISO-8601 UTC timestamp; multi-line records receive the prefix on every line.
 
 The active file always contains the newest records. Archive age increases with the numeric suffix, so `.4.log` is the oldest retained archive.
 
 ## Legacy migration
 
 The first IDE, CLI, or ACP process using a log directory after this policy is introduced performs a versioned migration before opening its writer.
+
+Legacy records are retained unchanged because their original timestamps cannot be inferred.
 
 Migration is deliberately lossy:
 

@@ -10,6 +10,7 @@ import {
 	LOG_MAX_FILE_SIZE_BYTES,
 	prepareLogDirectory,
 	resolveLogDirectory,
+	writeLogEntrySync,
 } from "../file-logger"
 
 const temporaryDirectories: string[] = []
@@ -58,6 +59,32 @@ describe("persistent file logger", () => {
 				.includes("record-0-"),
 		)
 	})
+	it("prefixes every physical line in asynchronous records with an ISO UTC timestamp", async () => {
+		const logDir = createTemporaryDirectory()
+		const logger = createRotatingFileLogger({ logDir, fileName: "dirac-ext.log" })
+
+		logger.write("INFO first line\n  at stack frame\n\nINFO final line")
+		await logger.dispose()
+
+		const lines = fs.readFileSync(path.join(logDir, "dirac-ext.log"), "utf8").trimEnd().split("\n")
+		const timestampPattern = /^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z) /
+		const timestamps = lines.map((line) => line.match(timestampPattern)?.[1])
+		assert.ok(timestamps.every(Boolean))
+		assert.equal(new Set(timestamps).size, 1)
+		assert.deepEqual(
+			lines.map((line) => line.replace(timestampPattern, "")),
+			["INFO first line", "  at stack frame", "", "INFO final line"],
+		)
+	})
+
+	it("prefixes every physical line in synchronous records with an ISO UTC timestamp", () => {
+		const logDir = createTemporaryDirectory()
+		writeLogEntrySync({ logDir, fileName: "crash.log" }, "fatal error\n  at crash frame")
+
+		const lines = fs.readFileSync(path.join(logDir, "crash.log"), "utf8").trimEnd().split("\n")
+		const timestampPattern = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z /
+		assert.ok(lines.every((line) => timestampPattern.test(line)))
+	})
 
 	it("truncates an oversized UTF-8 record within the file limit", async () => {
 		const logDir = createTemporaryDirectory()
@@ -69,6 +96,10 @@ describe("persistent file logger", () => {
 		const activePath = path.join(logDir, "dirac-cli.log")
 		assert.ok(fs.statSync(activePath).size <= LOG_MAX_FILE_SIZE_BYTES)
 		assert.match(fs.readFileSync(activePath, "utf8"), /log record truncated from/)
+
+		const timestampPattern = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z /
+		const lines = fs.readFileSync(activePath, "utf8").trimEnd().split("\n")
+		assert.ok(lines.every((line) => timestampPattern.test(line)))
 	})
 
 	it("lossily divides oversized legacy logs and removes obsolete names", () => {
