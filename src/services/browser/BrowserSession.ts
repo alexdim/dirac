@@ -1,5 +1,5 @@
 import { setTimeout as setTimeoutPromise } from "node:timers/promises"
-import { Controller } from "@core/controller"
+import type { Controller } from "@core/controller"
 import { BrowserActionResult } from "@shared/ExtensionMessage"
 import pWaitFor from "p-wait-for"
 import type { ConsoleMessage, ScreenshotOptions } from "puppeteer-core"
