@@ -1,4 +1,7 @@
 import { strict as assert } from "node:assert"
+import fs from "node:fs/promises"
+import os from "node:os"
+import path from "node:path"
 import { expectLoggerErrors } from "@/test/loggerGuard"
 import * as coreApi from "@core/api"
 import * as skills from "@core/context/instructions/user-instructions/skills"
@@ -20,6 +23,7 @@ import { DiracAskResponse } from "@shared/WebviewMessage"
 import { SubagentExecutionStatus } from "@shared/ExtensionMessage"
 import { SubagentTrajectoryEventType } from "@shared/subagents"
 import { SubagentToolExecutor } from "../SubagentToolExecutor"
+import { SubagentRunRecorder } from "../SubagentRunRecorder"
 
 function initializeHostProvider() {
 	HostProvider.reset()
@@ -70,7 +74,7 @@ function createTaskConfig(): TaskConfig {
 					supportsPromptCache: true,
 				},
 			}),
-			createMessage: sinon.stub().callsFake(async function* () {}),
+			createMessage: sinon.stub().callsFake(async function* () { }),
 		},
 		services: {
 			stateManager: {
@@ -207,7 +211,7 @@ describe("SubagentRunner", () => {
 		createMessage.onSecondCall().callsFake(async function* (_systemPrompt: string, conversation: unknown[]) {
 			const assistantMessage = conversation[1] as {
 				role: string
-				content: Array<{ type?: string; [key: string]: unknown }>
+				content: Array<{ type?: string;[key: string]: unknown }>
 			}
 			assert.equal(assistantMessage.role, "assistant")
 
@@ -216,7 +220,7 @@ describe("SubagentRunner", () => {
 			assert.equal(toolUse.id, "toolu_subagent_1")
 			assert.equal(toolUse.name, DiracDefaultTool.LIST_FILES)
 
-			const userMessage = conversation[2] as { role: string; content: Array<{ type?: string; [key: string]: unknown }> }
+			const userMessage = conversation[2] as { role: string; content: Array<{ type?: string;[key: string]: unknown }> }
 			assert.equal(userMessage.role, "user")
 			const toolResult = userMessage.content.find((block) => block.type === "tool_result")
 			assert.ok(toolResult)
@@ -243,7 +247,19 @@ describe("SubagentRunner", () => {
 		stubApiHandler(createMessage)
 		initializeHostProvider()
 
-		const runner = new SubagentRunner(createTaskConfigWithListFilesSnapshot())
+		const taskDirectory = await fs.mkdtemp(path.join(os.tmpdir(), "dirac-subagent-transcript-"))
+		const recorder = await SubagentRunRecorder.create({
+			taskId: "task-1",
+			agent: { id: 1, name: "Transcript Agent" },
+			taskTitle: "Record tool activity",
+			prompt: "List files",
+			timeoutSeconds: 600,
+			includeHistory: false,
+			taskDirectory,
+			runId: "transcript",
+		})
+
+		const runner = new SubagentRunner(createTaskConfigWithListFilesSnapshot(), "subagent", { recorder })
 		const updates: any[] = []
 		const result = await runner.run("List files", (update) => {
 			updates.push(update)
@@ -260,6 +276,13 @@ describe("SubagentRunner", () => {
 			),
 		)
 		assert.ok(updates.some((update) => update.trajectoryEvent?.type === SubagentTrajectoryEventType.TOOL_RESULT))
+		await recorder.flush()
+		const transcript = await fs.readFile(recorder.getPaths().transcriptPath, "utf8")
+		assert.match(transcript, /tool_call/)
+		assert.match(transcript, /toolu_subagent_1/)
+		assert.match(transcript, /tool_result/)
+		assert.match(transcript, /event \d+ · terminal/)
+		await fs.rm(taskDirectory, { recursive: true, force: true })
 	})
 
 	it("syncs activated skills to the parent before a completed tool turn returns", async () => {
@@ -289,7 +312,7 @@ describe("SubagentRunner", () => {
 		initializeHostProvider()
 		const config = createTaskConfigWithListFilesSnapshot()
 
-		const result = await new SubagentRunner(config).run("Search", () => {})
+		const result = await new SubagentRunner(config).run("Search", () => { })
 
 		assert.equal(result.status, SubagentExecutionStatus.COMPLETED)
 		assert.deepEqual(config.taskState.activeSkillIds, ["web-search"])
@@ -375,7 +398,7 @@ describe("SubagentRunner", () => {
 			const runner = new SubagentRunner(createTaskConfigWithListFilesSnapshot())
 			const resultPromise = runner.run("List files", (update) => {
 				if (!update.trajectoryEvent) return
-				return new Promise<void>(() => {})
+				return new Promise<void>(() => { })
 			})
 			await clock.tickAsync(0)
 			await clock.tickAsync(1_000)
@@ -438,7 +461,7 @@ describe("SubagentRunner", () => {
 			return false
 		})
 
-		const result = await runner.run("List files", () => {})
+		const result = await runner.run("List files", () => { })
 
 		assert.equal(result.status, "completed")
 		assert.equal(result.result, "done")
@@ -463,7 +486,7 @@ describe("SubagentRunner", () => {
 		createMessage.onSecondCall().callsFake(async function* (_systemPrompt: string, conversation: unknown[]) {
 			const lastMessage = conversation[conversation.length - 1] as {
 				role: string
-				content: Array<{ type?: string; [key: string]: unknown }>
+				content: Array<{ type?: string;[key: string]: unknown }>
 			}
 
 			assert.equal(lastMessage.role, "user")
@@ -495,7 +518,7 @@ describe("SubagentRunner", () => {
 		initializeHostProvider()
 
 		const runner = new SubagentRunner(createTaskConfigWithListFilesSnapshot())
-		const result = await runner.run("List files", () => {})
+		const result = await runner.run("List files", () => { })
 
 		assert.equal(result.status, "completed")
 		assert.equal(result.result, "done")
@@ -551,7 +574,7 @@ describe("SubagentRunner", () => {
 		initializeHostProvider()
 
 		const runner = new SubagentRunner(createTaskConfigWithListFilesSnapshot())
-		const result = await runner.run("List files", () => {})
+		const result = await runner.run("List files", () => { })
 
 		assert.equal(result.status, "completed")
 		assert.equal(result.result, "done")
@@ -591,7 +614,7 @@ describe("SubagentRunner", () => {
 
 		const clock = sinon.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "setInterval", "clearInterval", "Date"] })
 		const runner = new SubagentRunner(createTaskConfigWithListFilesSnapshot())
-		const runPromise = runner.run("List files", () => {})
+		const runPromise = runner.run("List files", () => { })
 		await clock.runAllAsync()
 		const result = await runPromise
 		clock.restore()
@@ -607,7 +630,7 @@ describe("SubagentRunner", () => {
 		createMessage.onFirstCall().callsFake(async function* () {
 			yield* []
 			const contextError = new Error("context length exceeded")
-			;(contextError as Error & { status: number }).status = 400
+				; (contextError as Error & { status: number }).status = 400
 			throw contextError
 		})
 
@@ -621,7 +644,7 @@ describe("SubagentRunner", () => {
 		initializeHostProvider()
 
 		const runner = new SubagentRunner(createTaskConfigWithListFilesSnapshot())
-		const result = await runner.run("Huge prompt", () => {})
+		const result = await runner.run("Huge prompt", () => { })
 
 		assert.equal(result.status, "failed")
 		assert.equal(createMessage.callCount, 1)
@@ -676,7 +699,7 @@ describe("SubagentRunner", () => {
 		initializeHostProvider()
 
 		const runner = new SubagentRunner(createTaskConfigWithListFilesSnapshot())
-		const result = await runner.run("Inspect the repository", () => {})
+		const result = await runner.run("Inspect the repository", () => { })
 
 		assert.equal(result.status, "completed")
 		assert.equal(result.result, "done")
@@ -707,7 +730,7 @@ describe("SubagentRunner", () => {
 		initializeHostProvider()
 
 		const runner = new SubagentRunner(createTaskConfigWithListFilesSnapshot())
-		const result = await runner.run("List files", () => {})
+		const result = await runner.run("List files", () => { })
 
 		assert.equal(result.status, "completed")
 		assert.equal(createMessage.callCount, 1)
@@ -746,7 +769,7 @@ describe("SubagentRunner", () => {
 		initializeHostProvider()
 
 		const runner = new SubagentRunner(createTaskConfigWithListFilesSnapshot())
-		const result = await runner.run("Run task", () => {})
+		const result = await runner.run("Run task", () => { })
 
 		assert.equal(result.status, "completed")
 		assert.equal(createMessage.callCount, 1)
@@ -785,7 +808,7 @@ describe("SubagentRunner", () => {
 		initializeHostProvider()
 
 		const runner = new SubagentRunner(createTaskConfigWithListFilesSnapshot())
-		const result = await runner.run("Run task", () => {})
+		const result = await runner.run("Run task", () => { })
 
 		assert.equal(result.status, "completed")
 		assert.equal(createMessage.callCount, 1)
@@ -824,7 +847,7 @@ describe("SubagentRunner", () => {
 		initializeHostProvider()
 
 		const runner = new SubagentRunner(createTaskConfigWithListFilesSnapshot())
-		const result = await runner.run("Run task", () => {})
+		const result = await runner.run("Run task", () => { })
 
 		assert.equal(result.status, "completed")
 		assert.equal(createMessage.callCount, 1)
@@ -890,7 +913,7 @@ describe("SubagentRunner", () => {
 		initializeHostProvider()
 
 		const runner = new SubagentRunner(createTaskConfigWithListFilesSnapshot())
-		const result = await runner.run("List files", () => {})
+		const result = await runner.run("List files", () => { })
 
 		assert.equal(result.status, "completed")
 		assert.equal(result.result, "done")
@@ -899,7 +922,7 @@ describe("SubagentRunner", () => {
 
 	it("returns after the wrap-up deadline when the API stream ignores abort", async () => {
 		const createMessage = sinon.stub().callsFake(async function* () {
-			await new Promise<void>(() => {})
+			await new Promise<void>(() => { })
 		})
 		const promptRegistry = PromptRegistry.getInstance()
 		sinon.stub(promptRegistry, "get").resolves("system prompt")
@@ -1038,7 +1061,7 @@ describe("SubagentRunner", () => {
 
 	it("returns cancelled when the parent task is cancelled even if the API stream never settles", async () => {
 		const createMessage = sinon.stub().callsFake(async function* () {
-			await new Promise<void>(() => {})
+			await new Promise<void>(() => { })
 		})
 		const promptRegistry = PromptRegistry.getInstance()
 		sinon.stub(promptRegistry, "get").resolves("system prompt")
@@ -1050,7 +1073,7 @@ describe("SubagentRunner", () => {
 		try {
 			const config = createTaskConfigWithListFilesSnapshot()
 			const runner = new SubagentRunner(config)
-			const runPromise = runner.run("Never settles", () => {})
+			const runPromise = runner.run("Never settles", () => { })
 			await clock.tickAsync(0)
 			config.taskState.abort = true
 			await clock.tickAsync(50)
@@ -1063,4 +1086,54 @@ describe("SubagentRunner", () => {
 			clock.restore()
 		}
 	})
+
+	it("records first-chunk liveness warnings without waiting for the overall timeout", async () => {
+		const createMessage = sinon.stub().callsFake(async function* () {
+			await new Promise<void>(() => { })
+		})
+		const promptRegistry = PromptRegistry.getInstance()
+		sinon.stub(promptRegistry, "get").resolves("system prompt")
+		sinon.stub(skills, "getOrDiscoverSkills").resolves([])
+		stubApiHandler(createMessage)
+		initializeHostProvider()
+
+		const taskDirectory = await fs.mkdtemp(path.join(os.tmpdir(), "dirac-subagent-liveness-"))
+		const recorder = await SubagentRunRecorder.create({
+			taskId: "task-liveness",
+			agent: { id: 1, name: "Liveness Agent" },
+			taskTitle: "Observe first chunk",
+			prompt: "Wait for the first provider chunk",
+			timeoutSeconds: 600,
+			includeHistory: false,
+			taskDirectory,
+			runId: "liveness",
+		})
+		const clock = sinon.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "setInterval", "clearInterval", "Date"] })
+		try {
+			const config = createTaskConfigWithListFilesSnapshot()
+			const updates: any[] = []
+			const runPromise = new SubagentRunner(config, "subagent", { recorder }).run("Wait", (update) => {
+				updates.push(update)
+			})
+			await clock.tickAsync(0)
+			await clock.tickAsync(30_000)
+
+			assert.ok(updates.some((update) => update.phase === "awaiting_first_provider_chunk"))
+			assert.ok(updates.some((update) => update.isStalled === true))
+			config.taskState.abort = true
+			await clock.tickAsync(50)
+			const result = await runPromise
+			await recorder.flush()
+
+			assert.equal(result.status, SubagentExecutionStatus.CANCELLED)
+			const diagnostics = await fs.readFile(recorder.getPaths().diagnosticsPath, "utf8")
+			assert.match(diagnostics, /awaiting_first_provider_chunk/)
+			assert.match(diagnostics, /liveness_warning/)
+			assert.match(diagnostics, /inactiveForMs/)
+		} finally {
+			clock.restore()
+			await fs.rm(taskDirectory, { recursive: true, force: true })
+		}
+	})
+
 })

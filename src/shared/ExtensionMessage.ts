@@ -302,6 +302,12 @@ export interface SubagentStatusItem {
 	result?: string
 	error?: string
 	isWrappingUp?: boolean
+	phase?: string
+	phaseStartedAt?: number
+	lastActivityAt?: number
+	isStalled?: boolean
+	transcriptPath?: string
+	diagnosticsPath?: string
 }
 
 export type BrowserActionResult = {

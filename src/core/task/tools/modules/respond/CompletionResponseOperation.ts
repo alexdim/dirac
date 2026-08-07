@@ -203,6 +203,7 @@ Otherwise, respond with "VERIFICATION: FAILED" followed by all the details on wh
 		const runResult = await env.orchestration.runSubagent(subagentPrompt, {
 			subagentName: "verifier",
 			agentIdentity: identity,
+			taskTitle,
 			onUpdate: (update) => {
 				if (update.trajectoryEvent === undefined && update.status === undefined) return
 				const status = recordSubagentProgress(trajectory, update)

@@ -522,10 +522,18 @@ export class UseSubagentsTool implements IDiracTool {
 					includeHistory: request.includeHistory,
 					subagentName,
 					agentIdentity: { id: entry.index, name: entry.name },
+					taskTitle: request.taskTitle,
 					onUpdate: (update) => {
 						if (runSettled) return
 						const current = entries[index]
 						const trajectoryChanged = update.trajectoryEvent !== undefined || update.status !== undefined
+						const runtimeChanged =
+							update.phase !== undefined ||
+							update.phaseStartedAt !== undefined ||
+							update.lastActivityAt !== undefined ||
+							update.isStalled !== undefined ||
+							update.transcriptPath !== undefined ||
+							update.diagnosticsPath !== undefined
 						const status = trajectoryChanged ? recordSubagentProgress(trajectory, update) : current.status
 
 						if (update.status) current.status = update.status
@@ -533,6 +541,12 @@ export class UseSubagentsTool implements IDiracTool {
 						if (update.error !== undefined) current.error = update.error
 						if (update.latestToolCall !== undefined) current.latestToolCall = update.latestToolCall
 						if (update.isWrappingUp) current.isWrappingUp = true
+						if (update.phase !== undefined) current.phase = update.phase
+						if (update.phaseStartedAt !== undefined) current.phaseStartedAt = update.phaseStartedAt
+						if (update.lastActivityAt !== undefined) current.lastActivityAt = update.lastActivityAt
+						if (update.isStalled !== undefined) current.isStalled = update.isStalled
+						if (update.transcriptPath !== undefined) current.transcriptPath = update.transcriptPath
+						if (update.diagnosticsPath !== undefined) current.diagnosticsPath = update.diagnosticsPath
 						if (update.stats) {
 							current.toolCalls = update.stats.toolCalls
 							current.inputTokens = update.stats.inputTokens
@@ -545,10 +559,10 @@ export class UseSubagentsTool implements IDiracTool {
 							current.contextUsagePercentage = update.stats.contextUsagePercentage
 						}
 
-						if (update.stats !== undefined || update.status !== undefined || update.isWrappingUp) {
+						if (update.stats !== undefined || update.status !== undefined || update.isWrappingUp || runtimeChanged) {
 							emitRunningStatus(isTerminalSubagentStatus(status) || update.isWrappingUp === true)
 						}
-						if (!subagentCard || (!trajectoryChanged && !update.isWrappingUp) || isTerminalSubagentStatus(status))
+						if (!subagentCard || (!trajectoryChanged && !update.isWrappingUp && !runtimeChanged) || isTerminalSubagentStatus(status))
 							return
 
 						const cardUpdate = {
@@ -557,14 +571,14 @@ export class UseSubagentsTool implements IDiracTool {
 								: `${current.name}: ${current.taskTitle}`,
 							status: subagentCardStatus(status),
 							body: stripHashes(
-								formatSubagentTrajectory({
+								`${this.formatSubagentLiveState(current)}\n\n${formatSubagentTrajectory({
 									id: current.index,
 									name: current.name,
 									taskTitle: current.taskTitle,
 									prompt: current.prompt,
 									status,
 									trajectory,
-								}),
+								})}`,
 							),
 							rawOutput: createSubagentCardOutput(status, trajectory),
 						}
@@ -733,10 +747,29 @@ export class UseSubagentsTool implements IDiracTool {
 			.filter((line): line is string => line !== undefined)
 			.join("\n")
 	}
+	private formatSubagentLiveState(item: SubagentStatusItem): string {
+		const phase = item.phase ?? "waiting to start"
+		const phaseElapsedSeconds = item.phaseStartedAt ? Math.max(0, Math.floor((Date.now() - item.phaseStartedAt) / 1000)) : 0
+		const idleSeconds = item.lastActivityAt ? Math.max(0, Math.floor((Date.now() - item.lastActivityAt) / 1000)) : 0
+		const activity = item.isStalled ? "⚠ stalled" : "active"
+		const artifactPaths = [
+			item.transcriptPath ? `transcript: \`${item.transcriptPath}\`` : undefined,
+			item.diagnosticsPath ? `diagnostics: \`${item.diagnosticsPath}\`` : undefined,
+		]
+			.filter((value): value is string => value !== undefined)
+			.join(" · ")
+		return [
+			`**Runtime:** ${activity} · phase \`${phase}\` for ${phaseElapsedSeconds}s · idle ${idleSeconds}s`,
+			artifactPaths ? `**Artifacts:** ${artifactPaths}` : undefined,
+		]
+			.filter((value): value is string => value !== undefined)
+			.join("\n")
+	}
+
 	private formatSubagentStatusMarkdown(payload: any): string {
 		let md = `### Subagent Status (${payload.completed}/${payload.total})\n\n`
-		md += `| Agent | Status | Prompt | Tokens (In/Out) | Cost |\n`
-		md += `|-------|--------|--------|-----------------|------|\n`
+		md += `| Agent | Status | Live state | Prompt | Tokens (In/Out) | Cost |\n`
+		md += `|-------|--------|------------|--------|-----------------|------|\n`
 		payload.items.forEach((item: SubagentStatusItem) => {
 			const displayStatus = item.isWrappingUp && !isTerminalSubagentStatus(item.status) ? "wrapping up" : item.status
 			const statusIcon =
@@ -749,9 +782,25 @@ export class UseSubagentsTool implements IDiracTool {
 							: "⏳"
 			const tokens = `${item.inputTokens.toLocaleString()} / ${item.outputTokens.toLocaleString()}`
 			const cost = `$${item.totalCost.toFixed(4)}`
-			md += `| ${item.name}: ${item.taskTitle} | ${statusIcon} ${displayStatus} | ${item.prompt} | ${tokens} | ${cost} |\n`
+			const phase = item.phase ?? "waiting"
+			const idleSeconds = item.lastActivityAt ? Math.max(0, Math.floor((Date.now() - item.lastActivityAt) / 1000)) : 0
+			const liveState = item.isStalled ? `⚠ stalled: ${phase}` : `${phase} · idle ${idleSeconds}s`
+			md += `| ${item.name}: ${item.taskTitle} | ${statusIcon} ${displayStatus} | ${liveState} | ${item.prompt} | ${tokens} | ${cost} |\n`
 		})
-		md += `\n**Total Cost:** $${payload.items.reduce((acc: number, i: SubagentStatusItem) => acc + i.totalCost, 0).toFixed(4)}`
+		const artifactLinks = payload.items
+			.map((item: SubagentStatusItem) => {
+				if (!item.transcriptPath && !item.diagnosticsPath) return undefined
+				const paths = [
+					item.transcriptPath ? `transcript: \`${item.transcriptPath}\`` : undefined,
+					item.diagnosticsPath ? `diagnostics: \`${item.diagnosticsPath}\`` : undefined,
+				]
+					.filter((value): value is string => value !== undefined)
+					.join(" · ")
+				return `- **${item.name}** — ${paths}`
+			})
+			.filter((value: string | undefined): value is string => value !== undefined)
+		if (artifactLinks.length > 0) md += `\n\n**Run artifacts**\n${artifactLinks.join("\n")}`
+		md += `\n\n**Total Cost:** $${payload.items.reduce((acc: number, i: SubagentStatusItem) => acc + i.totalCost, 0).toFixed(4)}`
 		return md
 	}
 }

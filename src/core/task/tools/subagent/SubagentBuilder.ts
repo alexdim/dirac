@@ -4,6 +4,7 @@ import { ApiProvider } from "@/shared/api"
 import { getProviderModelIdKey } from "@/shared/storage/provider-keys"
 import type { TaskConfig } from "../types/TaskConfig"
 import type { SubagentIdentity } from "@shared/subagents"
+import type { SubagentRunRecorder } from "./SubagentRunRecorder"
 import type { AgentBaseConfig } from "./AgentConfigLoader"
 import { AgentConfigLoader } from "./AgentConfigLoader"
 import { LEGACY_RESPONSE_TOOLS, RESPOND_TOOL_NAME, ResponseOperation } from "@shared/responseTool"
@@ -14,6 +15,7 @@ export interface SubagentBuilderOptions {
 	allowedTools?: string[]
 	systemSuffix?: string
 	agentIdentity?: SubagentIdentity
+	recorder?: SubagentRunRecorder
 }
 
 export const SUBAGENT_DEFAULT_ALLOWED_TOOLS: string[] = [

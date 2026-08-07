@@ -138,6 +138,7 @@ async function runBuilderSubagentAttempt(
 	const result = await env.orchestration.runSubagent(prompt, {
 		subagentName: `tool_builder:${request.name}:attempt_${attempt}`,
 		agentIdentity: identity,
+		taskTitle,
 		timeout: SUBAGENT_TIMEOUT_SECONDS,
 		allowedTools: BUILDER_ALLOWED_TOOLS,
 		systemSuffix: TOOL_BUILDER_SYSTEM_SUFFIX,

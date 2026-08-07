@@ -2,17 +2,35 @@ import type { Hooks } from "@core/hooks/hook-factory"
 import { getHookModelContext } from "@core/hooks/hook-model-context"
 import { activateTaskSkill } from "@core/task/activateTaskSkill"
 import type { DiracMessage } from "@shared/ExtensionMessage"
+import { Logger } from "@shared/services/Logger"
 import type { IOrchestrationTrait } from "../../interfaces/IToolEnvironment"
 import { SubagentRunner } from "../../subagent/SubagentRunner"
+import { SubagentRunRecorder } from "../../subagent/SubagentRunRecorder"
 import type { TaskConfig } from "../../types/TaskConfig"
 // Builds the orchestration trait — subagent execution, hooks, mode switching, state management.
 export function buildOrchestrationTrait(config: TaskConfig): IOrchestrationTrait {
 	return {
 		runSubagent: async (prompt, options) => {
+			const agentIdentity = options?.agentIdentity ?? { id: 1, name: options?.subagentName ?? "subagent" }
+			let recorder: SubagentRunRecorder | undefined
+			try {
+				recorder = await SubagentRunRecorder.create({
+					taskId: config.taskId,
+					agent: agentIdentity,
+					taskTitle: options?.taskTitle ?? "Subagent task",
+					prompt,
+					timeoutSeconds: options?.timeout ?? 600,
+					includeHistory: options?.includeHistory === true,
+					modelId: config.api.getModel().id,
+				})
+			} catch (error) {
+				Logger.error("[OrchestrationTraitBuilder] failed to initialize subagent recorder", error)
+			}
 			const runner = new SubagentRunner(config, options?.subagentName, {
 				allowedTools: options?.allowedTools,
 				systemSuffix: options?.systemSuffix,
-				agentIdentity: options?.agentIdentity,
+				agentIdentity,
+				recorder,
 			})
 			return await runner.run(
 				prompt,

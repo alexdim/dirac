@@ -28,8 +28,8 @@ interface RecordedCard {
 function createRecordedCardEnvironment(
 	runSubagent: (_prompt: string, options: any) => Promise<any>,
 	shouldFailUpdate: (params: any) => boolean = () => false,
-	beforeCardUpdate: (params: any, patch: any) => Promise<void> = async () => {},
-	beforeCreateCard: (params: any) => Promise<void> = async () => {},
+	beforeCardUpdate: (params: any, patch: any) => Promise<void> = async () => { },
+	beforeCreateCard: (params: any) => Promise<void> = async () => { },
 ): {
 	env: IToolEnvironment
 	cards: RecordedCard[]
@@ -45,7 +45,7 @@ function createRecordedCardEnvironment(
 		orchestration: {
 			getHistory: () => [],
 			getTaskState: () => 0,
-			setTaskState: () => {},
+			setTaskState: () => { },
 			runSubagent,
 		},
 		ui: {
@@ -76,7 +76,7 @@ function createRecordedCardEnvironment(
 		},
 		logging: {
 			warn: (...args: unknown[]) => warnings.push(args),
-			debug: () => {},
+			debug: () => { },
 		},
 	} as unknown as IToolEnvironment
 	return { env, cards, warnings, telemetryMetadata }
@@ -210,7 +210,7 @@ describe("UseSubagentsTool", () => {
 				async (params, patch) => {
 					if (params.header === "Run Subagents") return
 					if (patch.rawOutput?.status === SubagentExecutionStatus.RUNNING) {
-						await new Promise<void>(() => {})
+						await new Promise<void>(() => { })
 					}
 				},
 			)
@@ -277,9 +277,9 @@ describe("UseSubagentsTool", () => {
 			const { env, warnings } = createRecordedCardEnvironment(
 				async () => ({ status: SubagentExecutionStatus.COMPLETED, result: "done", stats: EMPTY_STATS }),
 				() => false,
-				async () => {},
+				async () => { },
 				async (params) => {
-					if (params.header === "Run Subagents") await new Promise<void>(() => {})
+					if (params.header === "Run Subagents") await new Promise<void>(() => { })
 				},
 			)
 
@@ -304,9 +304,9 @@ describe("UseSubagentsTool", () => {
 			const { env, warnings } = createRecordedCardEnvironment(
 				async () => ({ status: SubagentExecutionStatus.COMPLETED, result: "done", stats: EMPTY_STATS }),
 				() => false,
-				async () => {},
+				async () => { },
 				async (params) => {
-					if (params.header !== "Run Subagents") await new Promise<void>(() => {})
+					if (params.header !== "Run Subagents") await new Promise<void>(() => { })
 				},
 			)
 
@@ -379,7 +379,7 @@ describe("UseSubagentsTool", () => {
 				return { status: SubagentExecutionStatus.COMPLETED, result: `${prompt} result`, stats: EMPTY_STATS }
 			},
 			() => false,
-			async () => {},
+			async () => { },
 			async (params) => {
 				if (params.rawInput?.prompt === "first prompt") await new Promise((resolve) => setTimeout(resolve, 15))
 			},
@@ -462,4 +462,34 @@ describe("UseSubagentsTool", () => {
 			/task_title must contain no more than 80 characters/,
 		)
 	})
+
+	it("forwards task titles and projects liveness artifacts into bounded cards", async () => {
+		let receivedOptions: any
+		const { env, cards } = createRecordedCardEnvironment(async (_prompt, options) => {
+			receivedOptions = options
+			await options.onUpdate({ status: SubagentExecutionStatus.RUNNING, stats: EMPTY_STATS })
+			await options.onUpdate({
+				phase: "awaiting_first_provider_chunk",
+				phaseStartedAt: 1_000,
+				lastActivityAt: 2_000,
+				isStalled: true,
+				transcriptPath: "/tmp/task/subagents/run/transcript.md",
+				diagnosticsPath: "/tmp/task/subagents/run/diagnostics.md",
+			})
+			return { status: SubagentExecutionStatus.COMPLETED, result: "done", stats: EMPTY_STATS }
+		})
+
+		await new UseSubagentsTool().processCall(
+			{ subagents: [{ task_title: "Observe provider liveness", prompt: "Wait for provider output" }] },
+			env,
+		)
+
+		const aggregateCard = cards.find((card) => card.params.header === "Run Subagents")
+		const agentCard = cards.find((card) => card.params.header !== "Run Subagents")
+		assert.equal(receivedOptions.taskTitle, "Observe provider liveness")
+		assert.ok(aggregateCard?.updates.some((update) => /⚠ stalled: awaiting_first_provider_chunk/.test(update.body)))
+		assert.ok(aggregateCard?.updates.some((update) => /transcript\.md/.test(update.body)))
+		assert.ok(agentCard?.updates.some((update) => /\*\*Runtime:\*\* ⚠ stalled/.test(update.body)))
+	})
+
 })
