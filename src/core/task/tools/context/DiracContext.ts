@@ -1,6 +1,9 @@
 import * as fs from "fs/promises"
 import * as path from "path"
 import * as os from "os"
+import { isDeepStrictEqual } from "node:util"
+import { randomUUID } from "node:crypto"
+import Mutex from "p-mutex"
 import { Logger } from "@shared/services/Logger"
 import { AnchorStateManager, PersistedAnchorState } from "@utils/AnchorStateManager"
 
@@ -12,6 +15,11 @@ const ANCHOR_STATE_KEY = "anchorState"
 export class DiracContext implements IDiracContext {
 	private taskData: Record<string, any> = {}
 	private taskPath: string
+	private loaded = false
+	private anchorStateLoaded = false
+	private mutationRevision = 0
+	private persistedRevision = 0
+	private stateMutex = new Mutex()
 
 	constructor(
 		private taskId: string,
@@ -22,19 +30,56 @@ export class DiracContext implements IDiracContext {
 		this.taskPath = path.join(diracHome, "data", "tasks", taskId, "tool_context.json")
 	}
 
-	public async load(): Promise<void> {
+	private async withStateLock<T>(fn: () => T | Promise<T>): Promise<T> {
+		return await this.stateMutex.withLock(fn)
+	}
+
+	private async loadTaskData(): Promise<void> {
+		if (this.loaded) return
 		this.taskData = await this.readJson(this.taskPath)
+		this.loaded = true
+	}
+
+	private ensureAnchorStateLoaded(): void {
+		if (this.anchorStateLoaded) return
 		const persistedAnchorState = this.taskData[ANCHOR_STATE_KEY] as PersistedAnchorState | undefined
 		AnchorStateManager.hydrate(this.conversationUlid, persistedAnchorState)
+		this.anchorStateLoaded = true
+	}
+
+	private markDirty(): void {
+		this.mutationRevision++
+	}
+
+	private async saveInternal(): Promise<void> {
+		if (!this.loaded || this.persistedRevision === this.mutationRevision) return
+		if (this.anchorStateLoaded) {
+			this.taskData[ANCHOR_STATE_KEY] = AnchorStateManager.exportState(this.conversationUlid)
+		}
+		const revision = this.mutationRevision
+		if (this.taskId.toLowerCase().includes("test")) return
+		await this.writeJson(this.taskPath, structuredClone(this.taskData))
+		this.persistedRevision = revision
+		await this.stateManager.flushPendingState()
+	}
+
+	public async load(): Promise<void> {
+		await this.withStateLock(() => this.loadTaskData())
+	}
+
+	public async ensureAnchorState(): Promise<void> {
+		await this.withStateLock(async () => {
+			await this.loadTaskData()
+			this.ensureAnchorStateLoaded()
+		})
+	}
+
+	public markAnchorStateDirty(): void {
+		this.markDirty()
 	}
 
 	public async save(): Promise<void> {
-		this.taskData[ANCHOR_STATE_KEY] = AnchorStateManager.exportState(this.conversationUlid)
-		if (this.taskId.toLowerCase().includes("test")) {
-			return
-		}
-		await this.writeJson(this.taskPath, this.taskData)
-		await this.stateManager.flushPendingState()
+		await this.withStateLock(() => this.saveInternal())
 	}
 
 	private async readJson(filePath: string): Promise<Record<string, any>> {
@@ -48,10 +93,10 @@ export class DiracContext implements IDiracContext {
 	}
 
 	private async writeJson(filePath: string, data: Record<string, any>): Promise<void> {
-		const temporaryPath = `${filePath}.${process.pid}.${Date.now()}.tmp`
+		const temporaryPath = `${filePath}.${process.pid}.${randomUUID()}.tmp`
 		try {
 			await fs.mkdir(path.dirname(filePath), { recursive: true })
-			await fs.writeFile(temporaryPath, JSON.stringify(data, null, 2), "utf-8")
+			await fs.writeFile(temporaryPath, JSON.stringify(data), "utf-8")
 			await fs.rename(temporaryPath, filePath)
 		} catch (error) {
 			await fs.rm(temporaryPath, { force: true })
@@ -60,10 +105,29 @@ export class DiracContext implements IDiracContext {
 		}
 	}
 
+	private async replaceTaskValue<T>(key: string, value: T): Promise<void> {
+		await this.loadTaskData()
+		if (isDeepStrictEqual(this.taskData[key], value)) return
+		this.taskData[key] = structuredClone(value)
+		this.markDirty()
+	}
+
 	public task = {
-		get: <T>(key: string): T | undefined => this.taskData[key],
-		set: <T>(key: string, value: T): void => {
-			this.taskData[key] = value
+		get: async <T>(key: string): Promise<T | undefined> =>
+			await this.withStateLock(async () => {
+				await this.loadTaskData()
+				const value = this.taskData[key] as T | undefined
+				return value === undefined ? undefined : structuredClone(value)
+			}),
+		set: async <T>(key: string, value: T): Promise<void> => {
+			await this.withStateLock(() => this.replaceTaskValue(key, value))
+		},
+		update: async <T>(key: string, updater: (value: T | undefined) => T): Promise<void> => {
+			await this.withStateLock(async () => {
+				await this.loadTaskData()
+				const value = this.taskData[key] as T | undefined
+				await this.replaceTaskValue(key, updater(value === undefined ? undefined : structuredClone(value)))
+			})
 		},
 	}
 
@@ -75,10 +139,15 @@ export class DiracContext implements IDiracContext {
 	}
 
 	public async resetTaskContext(): Promise<void> {
-		this.taskData = {
-			[ANCHOR_STATE_KEY]: AnchorStateManager.exportState(this.conversationUlid),
-		}
-		await this.save()
+		await this.withStateLock(async () => {
+			await this.loadTaskData()
+			this.ensureAnchorStateLoaded()
+			this.taskData = {
+				[ANCHOR_STATE_KEY]: AnchorStateManager.exportState(this.conversationUlid),
+			}
+			this.markDirty()
+			await this.saveInternal()
+		})
 	}
 
 	public global = {

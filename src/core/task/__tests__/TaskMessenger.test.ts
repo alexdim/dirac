@@ -16,6 +16,7 @@ function createMessenger() {
 		findMessageIndexById: sinon.stub().callsFake((id: string) => messages.findIndex((message) => message.id === id)),
 		getDiracMessages: sinon.stub().callsFake(() => messages),
 		updateDiracMessage: sinon.stub().resolves(),
+		flushPendingWrites: sinon.stub().resolves(),
 	}
 	const taskState: any = { waitingCardIds: [] }
 	const messenger = new TaskMessenger({
@@ -26,7 +27,7 @@ function createMessenger() {
 		taskId: "task-1",
 		getCurrentProviderInfo: sinon.stub(),
 	} as any)
-	return { messenger, messages, taskState }
+	return { messenger, messages, taskState, messageStateHandler }
 }
 
 describe("TaskMessenger text authorship", () => {
@@ -58,7 +59,7 @@ describe("TaskMessenger text authorship", () => {
 	})
 
 	it("collapses approval cards when they reach a final status", async () => {
-		const { messenger, messages } = createMessenger()
+		const { messenger, messages, messageStateHandler } = createMessenger()
 		const card = await messenger.createCard({
 			header: "Execute: git add .",
 			requireApproval: true,
@@ -69,10 +70,11 @@ describe("TaskMessenger text authorship", () => {
 
 		assert.equal(messages[0].content.card.status, CardStatus.CANCELLED)
 		assert.equal(messages[0].content.card.collapsed, true)
+		sinon.assert.calledOnce(messageStateHandler.flushPendingWrites)
 	})
 
 	it("accepts a chat message while awaiting card input and clears the wait", async () => {
-		const { messenger, messages, taskState } = createMessenger()
+		const { messenger, messages, taskState, messageStateHandler } = createMessenger()
 		const card = await messenger.createCard({
 			header: "Proposed Plan",
 			requireFeedback: true,
@@ -81,6 +83,7 @@ describe("TaskMessenger text authorship", () => {
 
 		const interaction = card.waitForInteraction()
 		await pWaitFor(() => taskState.status === TaskStatus.AWAITING_USER_INPUT)
+		sinon.assert.calledOnce(messageStateHandler.flushPendingWrites)
 		taskState.askResponse = DiracAskResponse.MESSAGE
 		taskState.askResponseText = "Revise step two"
 

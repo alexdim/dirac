@@ -116,6 +116,8 @@ export class EditFileTool implements IDiracTool<EditFileArgs> {
 		const files = this.validator.validateFiles(args, env)
 		if (typeof files === "string") return files
 
+		await env.context.ensureAnchorState()
+
 		const { preparedBatches, results, totalRequestedEdits, totalResolvedEdits, totalFailedEdits, cards } =
 			await this.batchPreparer.prepare(files, env)
 

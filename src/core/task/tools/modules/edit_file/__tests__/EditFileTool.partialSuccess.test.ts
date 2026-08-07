@@ -389,7 +389,7 @@ describe("EditFileTool.execute – partial success", () => {
 
 			AnchorStateManager.reset(config.ulid)
 			const reconstructedContext = new DiracContext(config.taskId, config.services.stateManager, config.ulid)
-			await reconstructedContext.load()
+			await reconstructedContext.ensureAnchorState()
 			config.context = reconstructedContext
 			assert.equal(AnchorStateManager.getDocumentFingerprint(filePath, config.ulid), emittedFingerprint)
 

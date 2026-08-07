@@ -115,9 +115,19 @@ export class AnchorStateManager {
 	 * Unchanged lines keep their visible IDs; new lines receive unused IDs.
 	 */
 	public static reconcile(absolutePath: string, currentLines: string[], taskId?: string): string[] {
+		return AnchorStateManager.reconcileWithChanges(absolutePath, currentLines, taskId).anchors
+	}
+
+	/** Reconciles anchors and reports whether the persisted task state changed. */
+	public static reconcileWithChanges(
+		absolutePath: string,
+		currentLines: string[],
+		taskId?: string,
+	): { anchors: string[]; changed: boolean } {
 		const state = AnchorStateManager.getTaskState(taskId)
 		const currentHashes = AnchorStateManager.computeHashes(currentLines)
 		let tracked = state.get(absolutePath)
+		const wasMostRecentDocument = Array.from(state.keys()).at(-1) === absolutePath
 
 		if (tracked && tracked.hashes.length === currentHashes.length) {
 			let identical = true
@@ -129,7 +139,7 @@ export class AnchorStateManager {
 			}
 			if (identical) {
 				AnchorStateManager.updateState(absolutePath, tracked, taskId)
-				return tracked.anchors
+				return { anchors: tracked.anchors, changed: !wasMostRecentDocument }
 			}
 		}
 
@@ -138,7 +148,7 @@ export class AnchorStateManager {
 			const pool = [...AnchorStateManager.getDictionary()]
 			for (let i = pool.length - 1; i > 0; i--) {
 				const j = Math.floor(Math.random() * (i + 1))
-				;[pool[i], pool[j]] = [pool[j], pool[i]]
+					;[pool[i], pool[j]] = [pool[j], pool[i]]
 			}
 
 			const anchors = currentLines.map(() => {
@@ -149,7 +159,7 @@ export class AnchorStateManager {
 
 			tracked = { hashes: currentHashes, anchors, usedWords, availablePool: pool }
 			AnchorStateManager.updateState(absolutePath, tracked, taskId)
-			return anchors
+			return { anchors, changed: true }
 		}
 
 		const changes = diff.diffArrays(Array.from(tracked.hashes), Array.from(currentHashes))
@@ -188,7 +198,7 @@ export class AnchorStateManager {
 
 		tracked = { hashes: currentHashes, anchors: newAnchors, usedWords: newUsedWords, availablePool: pool }
 		AnchorStateManager.updateState(absolutePath, tracked, taskId)
-		return newAnchors
+		return { anchors: newAnchors, changed: true }
 	}
 
 	private static updateState(absolutePath: string, document: TrackedDocument, taskId?: string): void {

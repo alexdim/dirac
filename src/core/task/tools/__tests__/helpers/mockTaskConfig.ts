@@ -24,10 +24,15 @@ export function createMockContext(): IDiracContext {
 	return {
 		load: async () => { },
 		save: async () => { },
+		ensureAnchorState: async () => { },
+		markAnchorStateDirty: () => { },
 		task: {
-			get: <T>(key: string): T | undefined => taskData[key] as T,
-			set: <T>(key: string, value: T): void => {
+			get: async <T>(key: string): Promise<T | undefined> => taskData[key] as T,
+			set: async <T>(key: string, value: T): Promise<void> => {
 				taskData[key] = value
+			},
+			update: async <T>(key: string, updater: (value: T | undefined) => T): Promise<void> => {
+				taskData[key] = updater(taskData[key] as T | undefined)
 			},
 		},
 		workspace: {

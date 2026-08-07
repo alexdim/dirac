@@ -74,7 +74,11 @@ export class SurfaceAdapter implements IToolEnvironment {
 		this.workspace = buildWorkspaceTrait(config)
 		this.sourceAst = buildSourceAstTrait(config)
 		this.anchors = {
-			reconcile: (absolutePath, lines) => AnchorStateManager.reconcile(absolutePath, lines, config.ulid),
+			reconcile: (absolutePath, lines) => {
+				const result = AnchorStateManager.reconcileWithChanges(absolutePath, lines, config.ulid)
+				if (result.changed) config.context.markAnchorStateDirty()
+				return result.anchors
+			},
 			getDocumentFingerprint: (absolutePath) =>
 				AnchorStateManager.getDocumentFingerprint(absolutePath, config.ulid),
 		}

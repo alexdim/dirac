@@ -28,7 +28,7 @@ export class TaskMessenger implements ITaskMessenger {
 	private activeVoiceStream?: ITextStreamHandle
 	private lastMessageId = 0
 
-	constructor(private dependencies: TaskMessengerDependencies) {}
+	constructor(private dependencies: TaskMessengerDependencies) { }
 
 	public setApi(api: ApiHandler) {
 		this.dependencies.api = api
@@ -220,6 +220,7 @@ export class TaskMessenger implements ITaskMessenger {
 						msg.content.card.do_not_auto_collapse = true
 					}
 					await this.dependencies.messageStateHandler.updateDiracMessage(index, msg)
+					await this.dependencies.messageStateHandler.flushPendingWrites()
 					await this.dependencies.postStateToWebview()
 				} else {
 					throw new Error(`Message with id ${id} is not a card message`)
@@ -247,6 +248,7 @@ export class TaskMessenger implements ITaskMessenger {
 						if (!this.dependencies.taskState.waitingCardIds.includes(id)) {
 							this.dependencies.taskState.waitingCardIds.push(id)
 						}
+						await this.dependencies.messageStateHandler.flushPendingWrites()
 						await this.dependencies.postStateToWebview()
 
 						const messageTs = msg.ts

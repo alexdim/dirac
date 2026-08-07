@@ -92,7 +92,10 @@ export class ReadFileTool implements IDiracTool<ReadFileArgs> {
 		const lineRange = this.parseLineRange(args.start_line, args.end_line)
 		const results: string[] = []
 		const contentBlocks: any[] = []
-		const fileHashes = env.context.task.get<Record<string, string | FullReadCacheRecord>>("fileHashes") || {}
+		const includeAnchors = args.include_anchors === true
+		if (includeAnchors) await env.context.ensureAnchorState()
+		const fileHashes = await env.context.task.get<Record<string, string | FullReadCacheRecord>>("fileHashes") || {}
+		const cacheUpdates: Record<string, string | FullReadCacheRecord> = {}
 		let anySucceeded = false
 
 		for (const relPath of paths) {
@@ -101,8 +104,9 @@ export class ReadFileTool implements IDiracTool<ReadFileArgs> {
 				paths.length > 1,
 				lineRange,
 				fileHashes,
+				cacheUpdates,
 				env,
-				args.include_anchors === true,
+				includeAnchors,
 			)
 			anySucceeded ||= success
 			results.push(result)
@@ -112,7 +116,12 @@ export class ReadFileTool implements IDiracTool<ReadFileArgs> {
 		}
 
 		this.updateTaskState(anySucceeded, env)
-		await env.context.task.set("fileHashes", fileHashes)
+		if (Object.keys(cacheUpdates).length > 0) {
+			await env.context.task.update<Record<string, string | FullReadCacheRecord>>("fileHashes", (current) => ({
+				...current,
+				...cacheUpdates,
+			}))
+		}
 
 		const finalResultText = results.join("\n\n")
 		if (contentBlocks.length > 0) {
@@ -127,6 +136,7 @@ export class ReadFileTool implements IDiracTool<ReadFileArgs> {
 		isMultiFile: boolean,
 		lineRange: LineRange | undefined,
 		fileHashes: Record<string, string | FullReadCacheRecord>,
+		cacheUpdates: Record<string, string | FullReadCacheRecord>,
 		env: IToolEnvironment,
 		includeAnchors: boolean,
 	): Promise<{ success: boolean; result: string; contentBlock?: any }> {
@@ -227,9 +237,11 @@ export class ReadFileTool implements IDiracTool<ReadFileArgs> {
 			}
 
 			if (selection.coversWholeFile) {
-				fileHashes[cacheKey] = includeAnchors
+				const cacheRecord = includeAnchors
 					? { contentHash: currentHash, anchorFingerprint }
 					: { contentHash: currentHash }
+				fileHashes[cacheKey] = cacheRecord
+				cacheUpdates[cacheKey] = cacheRecord
 			}
 			this.captureReadTelemetry(relPath, usedWorkspaceHint, env)
 			return { success: true, result }

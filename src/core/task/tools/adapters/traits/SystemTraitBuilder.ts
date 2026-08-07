@@ -25,6 +25,7 @@ export function buildSystemTrait(
 				contextLines: options?.contextLines,
 				excludeFilePatterns: options?.excludeFilePatterns,
 			})
+			if (options?.includeAnchors) await config.context.ensureAnchorState()
 			return await regexSearchFiles(
 				config.cwd,
 				directoryPath,
@@ -36,6 +37,7 @@ export function buildSystemTrait(
 				options?.excludeFilePatterns,
 				options?.debugLog,
 				options?.includeAnchors,
+				() => config.context.markAnchorStateDirty(),
 			)
 		},
 		getSystemInfo: async () => {
