@@ -120,8 +120,11 @@ export class ServiceRegistry {
  * @param serviceName The name of the service
  * @returns An object with register and handle functions
  */
-export function createServiceRegistry(serviceName: string) {
-	const registry = new ServiceRegistry(serviceName)
+export function createServiceRegistry(
+	serviceName: string,
+	createRegistry: (name: string) => ServiceRegistry = (name) => new ServiceRegistry(name),
+) {
+	const registry = createRegistry(serviceName)
 
 	return {
 		registerMethod: (methodName: string, handler: ServiceMethodHandler | StreamingMethodHandler, metadata?: MethodMetadata) =>
