@@ -581,6 +581,25 @@ vscode-dropdown::part(control) {
 	box-shadow: inset 2px 0 0 var(--dirac-focus);
 }
 
+.settings-tab-label {
+	display: block;
+}
+
+@media (max-width: 639px) {
+	.settings-tab-list {
+		width: 52px;
+	}
+
+	.settings-tab-trigger {
+		justify-content: center;
+		padding-inline: 0;
+	}
+
+	.settings-tab-label {
+		display: none;
+	}
+}
+
 .settings-section-header {
 	border-bottom: 1px solid var(--dirac-border-subtle);
 	background: linear-gradient(90deg, color-mix(in srgb, var(--vscode-toolbar-hoverBackground) 24%, transparent), transparent);

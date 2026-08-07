@@ -24,6 +24,8 @@
 	--grid-subtle: radial-gradient(circle, var(--vscode-editor-lineHighlightBorder) 1px, transparent 1px);
 
 	--color-dirac: #9663f1;
+	--color-dirac-foreground: var(--vscode-button-foreground);
+	--color-fg-dirac: var(--vscode-foreground);
 	--color-background: var(--vscode-sideBar-background);
 	--color-border: var(--vscode-focusBorder);
 	--color-border-panel: var(--vscode-panel-border);
@@ -33,18 +35,15 @@
 	--color-code: var(--vscode-editor-background);
 	--color-code-foreground: var(--vscode-editor-foreground);
 	--color-code-border: var(--vscode-editor-border);
-	--color-code-block-background: var(
-		--vscode-textCodeBlock-background,
-		--vscode-editor-background,
-		--vscode-sideBar-background,
-		rgb(30 30 30)
-	);
+	--color-code-block-background: var(--vscode-textCodeBlock-background,
+			var(--vscode-editor-background, var(--vscode-sideBar-background, rgb(30 30 30))));
 	--color-quote: var(--vscode-textBlockQuote-background);
 	--color-quote-foreground: var(--vscode-textBlockQuote-foreground);
 	--color-text-block-background: var(--vscode-textCodeBlock-background);
 	--color-editor-group-border: var(--vscode-editorGroup-border);
 	--color-editor-widget-border: var(--vscode-editorWidget-border, #cccccc);
 	--color-editor-warning-foreground: var(--vscode-editorWarning-foreground);
+	--color-warning-foreground: var(--vscode-editorWarning-foreground, var(--vscode-foreground));
 	--color-sidebar-background: var(--vscode-sideBar-background);
 	--color-sidebar-foreground: var(--vscode-sideBar-foreground);
 	--color-input-foreground: var(--vscode-input-foreground);
@@ -140,6 +139,7 @@
 	--animate-cursor-blink: cursorBlink 1s ease-in-out infinite;
 
 	@keyframes cursorBlink {
+
 		0%,
 		100% {
 			opacity: 1;
@@ -153,6 +153,7 @@
 	--animate-icon-pulse: iconPulse 1s ease-in-out infinite;
 
 	@keyframes iconPulse {
+
 		0%,
 		100% {
 			opacity: 0.5;
@@ -191,6 +192,7 @@
 
 	/* --- Custom Animations --- */
 	@keyframes glowPulse {
+
 		0%,
 		100% {
 			opacity: 0.3;
@@ -204,6 +206,7 @@
 	}
 
 	@keyframes float {
+
 		0%,
 		100% {
 			transform: translateY(0px);
@@ -215,6 +218,7 @@
 	}
 
 	@keyframes bulbGlow {
+
 		0%,
 		100% {
 			filter: drop-shadow(0 0 2px rgba(252, 211, 77, 0.3));
@@ -275,74 +279,41 @@
 
 :root {
 	--radius: 0.625rem;
-	--background: oklch(1 0 0);
-	--foreground: oklch(0.145 0 0);
-	--card: oklch(1 0 0);
-	--card-foreground: oklch(0.145 0 0);
-	--popover: oklch(1 0 0);
-	--popover-foreground: oklch(0.145 0 0);
-	--primary: oklch(0.205 0 0);
-	--primary-foreground: oklch(0.985 0 0);
-	--secondary: oklch(0.97 0 0);
-	--secondary-foreground: oklch(0.205 0 0);
-	--muted: oklch(0.97 0 0);
-	--muted-foreground: oklch(0.556 0 0);
-	--accent: oklch(0.97 0 0);
-	--accent-foreground: oklch(0.205 0 0);
-	--destructive: oklch(0.577 0.245 27.325);
-	--border: oklch(0.922 0 0);
-	--input: oklch(0.922 0 0);
-	--ring: oklch(0.708 0 0);
-	--chart-1: oklch(0.646 0.222 41.116);
-	--chart-2: oklch(0.6 0.118 184.704);
-	--chart-3: oklch(0.398 0.07 227.392);
-	--chart-4: oklch(0.828 0.189 84.429);
-	--chart-5: oklch(0.769 0.188 70.08);
-	--sidebar: oklch(0.985 0 0);
-	--sidebar-foreground: oklch(0.145 0 0);
-	--sidebar-primary: oklch(0.205 0 0);
-	--sidebar-primary-foreground: oklch(0.985 0 0);
-	--sidebar-accent: oklch(0.97 0 0);
-	--sidebar-accent-foreground: oklch(0.205 0 0);
-	--sidebar-border: oklch(0.922 0 0);
-	--sidebar-ring: oklch(0.708 0 0);
-}
-
-.dark {
-	--background: oklch(0.145 0 0);
-	--foreground: oklch(0.985 0 0);
-	--card: oklch(0.205 0 0);
-	--card-foreground: oklch(0.985 0 0);
-	--popover: oklch(0.205 0 0);
-	--popover-foreground: oklch(0.985 0 0);
-	--primary: oklch(0.922 0 0);
-	--primary-foreground: oklch(0.205 0 0);
-	--secondary: oklch(0.269 0 0);
-	--secondary-foreground: oklch(0.985 0 0);
-	--muted: oklch(0.269 0 0);
-	--muted-foreground: oklch(0.708 0 0);
-	--accent: oklch(0.269 0 0);
-	--accent-foreground: oklch(0.985 0 0);
-	--destructive: oklch(0.704 0.191 22.216);
-	--border: oklch(1 0 0 / 10%);
-	--input: oklch(1 0 0 / 15%);
-	--ring: oklch(0.556 0 0);
-	--chart-1: oklch(0.488 0.243 264.376);
-	--chart-2: oklch(0.696 0.17 162.48);
-	--chart-3: oklch(0.769 0.188 70.08);
-	--chart-4: oklch(0.627 0.265 303.9);
-	--chart-5: oklch(0.645 0.246 16.439);
-	--sidebar: oklch(0.205 0 0);
-	--sidebar-foreground: oklch(0.985 0 0);
-	--sidebar-primary: oklch(0.488 0.243 264.376);
-	--sidebar-primary-foreground: oklch(0.985 0 0);
-	--sidebar-accent: oklch(0.269 0 0);
-	--sidebar-accent-foreground: oklch(0.985 0 0);
-	--sidebar-border: oklch(1 0 0 / 10%);
-	--sidebar-ring: oklch(0.556 0 0);
+	--background: var(--vscode-sideBar-background);
+	--foreground: var(--vscode-foreground);
+	--card: var(--vscode-editor-background);
+	--card-foreground: var(--vscode-editor-foreground);
+	--popover: var(--vscode-menu-background);
+	--popover-foreground: var(--vscode-menu-foreground);
+	--primary: var(--vscode-button-background);
+	--primary-foreground: var(--vscode-button-foreground);
+	--secondary: var(--vscode-button-secondaryBackground);
+	--secondary-foreground: var(--vscode-button-secondaryForeground);
+	--muted: var(--vscode-toolbar-hoverBackground, var(--vscode-editor-background));
+	--muted-foreground: var(--vscode-descriptionForeground);
+	--accent: var(--vscode-list-hoverBackground, var(--vscode-toolbar-hoverBackground));
+	--accent-foreground: var(--vscode-foreground);
+	--destructive: var(--vscode-errorForeground);
+	--border: var(--vscode-panel-border);
+	--input: var(--vscode-input-border);
+	--ring: var(--vscode-focusBorder);
+	--chart-1: var(--vscode-textLink-foreground);
+	--chart-2: var(--vscode-charts-green);
+	--chart-3: var(--vscode-charts-blue);
+	--chart-4: var(--vscode-charts-yellow);
+	--chart-5: var(--vscode-errorForeground);
+	--sidebar: var(--vscode-sideBar-background);
+	--sidebar-foreground: var(--vscode-sideBar-foreground);
+	--sidebar-primary: var(--vscode-button-background);
+	--sidebar-primary-foreground: var(--vscode-button-foreground);
+	--sidebar-accent: var(--vscode-list-hoverBackground, var(--vscode-toolbar-hoverBackground));
+	--sidebar-accent-foreground: var(--vscode-foreground);
+	--sidebar-border: var(--vscode-panel-border);
+	--sidebar-ring: var(--vscode-focusBorder);
 }
 
 @layer utilities {
+
 	/**
 	 * Variant that becomes visible when focused
 	 * Useful for skip links and other keyboard navigation aids
@@ -359,6 +330,7 @@
 	}
 
 	@keyframes flash {
+
 		0%,
 		100% {
 			opacity: 1;
@@ -384,11 +356,11 @@
 			max-width: 100%;
 		}
 
-		pre > code .hljs-deletion {
+		pre>code .hljs-deletion {
 			@apply inline-block w-full;
 		}
 
-		pre > code .hljs-addition {
+		pre>code .hljs-addition {
 			@apply inline-block w-full;
 		}
 
@@ -413,8 +385,8 @@
 			@apply my-3 ml-5;
 		}
 
-		li > ul,
-		li > ol {
+		li>ul,
+		li>ol {
 			@apply my-1 ml-2;
 		}
 
@@ -453,7 +425,7 @@
 		}
 
 		/* Inline cursor container - adds blinking cursor after last child */
-		.inline-cursor-container > :last-child::after {
+		.inline-cursor-container> :last-child::after {
 			content: "";
 			@apply inline-block w-0.5 h-[1em] ml-0.5 bg-foreground align-text-bottom animate-cursor-blink;
 		}

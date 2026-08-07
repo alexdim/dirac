@@ -254,7 +254,7 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 							title={tab.tooltipText}
 							value={tab.id}>
 							<tab.icon aria-hidden="true" className="w-4 h-4" />
-							<span className="hidden sm:block">{tab.name}</span>
+							<span className="settings-tab-label">{tab.name}</span>
 						</TabTrigger>
 					))}
 				</TabList>
