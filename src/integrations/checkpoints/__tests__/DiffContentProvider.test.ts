@@ -1,6 +1,7 @@
 import { expect } from "chai"
 import type { SimpleGit } from "simple-git"
 import sinon from "sinon"
+import { getDefaultExclusions, getLfsPatterns } from "../CheckpointExclusions"
 import { DiffContentProvider } from "../CheckpointTracker"
 
 // Stubbed subset of SimpleGit used by DiffContentProvider — type-safe on method names, stubs on values
@@ -39,14 +40,14 @@ describe("DiffContentProvider", () => {
 
 	describe("computeDiffSet", () => {
 		it("should return empty array when no files in diff summary", async () => {
-			const provider = new DiffContentProvider("/mock/cwd", "task-123")
+			const provider = new DiffContentProvider("/mock/cwd", "task-123", getDefaultExclusions, getLfsPatterns, () => {})
 			const result = await provider.computeDiffSet(mockGit as unknown as SimpleGit, "abc123")
 			expect(result).to.deep.equal([])
 		})
 
 		it("should exclude files matching exclusion patterns (node_modules)", async () => {
 			gitDiffSummaryFiles = [{ file: "node_modules/pkg/index.js" }, { file: "src/app.ts" }]
-			const provider = new DiffContentProvider("/mock/cwd", "task-123")
+			const provider = new DiffContentProvider("/mock/cwd", "task-123", getDefaultExclusions, getLfsPatterns, () => {})
 			mockGit.show.resolves("old content")
 			const result = await provider.computeDiffSet(mockGit as unknown as SimpleGit, "abc123")
 
@@ -55,7 +56,7 @@ describe("DiffContentProvider", () => {
 
 		it("should include files with actual content differences", async () => {
 			gitDiffSummaryFiles = [{ file: "src/app.ts" }]
-			const provider = new DiffContentProvider("/mock/cwd", "task-123")
+			const provider = new DiffContentProvider("/mock/cwd", "task-123", getDefaultExclusions, getLfsPatterns, () => {})
 			mockGit.show.resolves("old content here")
 			const result = await provider.computeDiffSet(mockGit as unknown as SimpleGit, "abc123")
 
@@ -66,7 +67,7 @@ describe("DiffContentProvider", () => {
 		it("should handle deleted files gracefully (empty after content)", async () => {
 			gitDiffSummaryFiles = [{ file: "deleted.ts" }]
 			mockGit.show.resolves("content that existed")
-			const provider = new DiffContentProvider("/mock/cwd", "task-123")
+			const provider = new DiffContentProvider("/mock/cwd", "task-123", getDefaultExclusions, getLfsPatterns, () => {})
 
 			await assertNoThrow(() => provider.computeDiffSet(mockGit as unknown as SimpleGit, "abc123"))
 		})
@@ -74,7 +75,7 @@ describe("DiffContentProvider", () => {
 		it("should return diff entries with relativePath, absolutePath, before, after", async () => {
 			gitDiffSummaryFiles = [{ file: "src/app.ts" }]
 			mockGit.show.resolves("old content")
-			const provider = new DiffContentProvider("/mock/cwd", "task-123")
+			const provider = new DiffContentProvider("/mock/cwd", "task-123", getDefaultExclusions, getLfsPatterns, () => {})
 
 			await assertNoThrow(() => provider.computeDiffSet(mockGit as unknown as SimpleGit, "abc123"))
 		})
@@ -82,53 +83,53 @@ describe("DiffContentProvider", () => {
 
 	describe("computeDiffCount", () => {
 		it("should return 0 when no files in diff summary", async () => {
-			const provider = new DiffContentProvider("/mock/cwd", "task-123")
+			const provider = new DiffContentProvider("/mock/cwd", "task-123", getDefaultExclusions, getLfsPatterns, () => {})
 			const result = await provider.computeDiffCount(mockGit as unknown as SimpleGit, "abc123")
 			expect(result).to.equal(0)
 		})
 
 		it("should return count of files in diff summary", async () => {
 			gitDiffSummaryFiles = [{ file: "src/a.ts" }, { file: "src/b.ts" }, { file: "src/c.ts" }]
-			const provider = new DiffContentProvider("/mock/cwd", "task-123")
+			const provider = new DiffContentProvider("/mock/cwd", "task-123", getDefaultExclusions, getLfsPatterns, () => {})
 			const result = await provider.computeDiffCount(mockGit as unknown as SimpleGit, "abc123")
 			expect(result).to.equal(3)
 		})
 
 		it("should count only non-excluded files", async () => {
 			gitDiffSummaryFiles = [{ file: "node_modules/pkg/index.js" }, { file: "src/app.ts" }]
-			const provider = new DiffContentProvider("/mock/cwd", "task-123")
+			const provider = new DiffContentProvider("/mock/cwd", "task-123", getDefaultExclusions, getLfsPatterns, () => {})
 			const result = await provider.computeDiffCount(mockGit as unknown as SimpleGit, "abc123")
 			expect(result).to.equal(1)
 		})
 
 		it("should clean commit hashes before computing diff range", async () => {
 			gitDiffSummaryFiles = [{ file: "src/app.ts" }]
-			const provider = new DiffContentProvider("/mock/cwd", "task-123")
+			const provider = new DiffContentProvider("/mock/cwd", "task-123", getDefaultExclusions, getLfsPatterns, () => {})
 			await assertNoThrow(() => provider.computeDiffCount(mockGit as unknown as SimpleGit, "HEAD abc123"))
 		})
 
 		it("should handle rhsHash for commit-to-commit comparison", async () => {
 			gitDiffSummaryFiles = [{ file: "src/app.ts" }]
-			const provider = new DiffContentProvider("/mock/cwd", "task-123")
+			const provider = new DiffContentProvider("/mock/cwd", "task-123", getDefaultExclusions, getLfsPatterns, () => {})
 			await assertNoThrow(() => provider.computeDiffCount(mockGit as unknown as SimpleGit, "abc123", "def456"))
 		})
 	})
 
 	describe("cleanCommitHash", () => {
 		it("should strip HEAD prefix from commit hash", async () => {
-			const provider = new DiffContentProvider("/mock/cwd", "task-123")
+			const provider = new DiffContentProvider("/mock/cwd", "task-123", getDefaultExclusions, getLfsPatterns, () => {})
 			const result = provider.cleanCommitHash("HEAD abc123def")
 			expect(result).to.equal("abc123def")
 		})
 
 		it("should return hash unchanged if no HEAD prefix", async () => {
-			const provider = new DiffContentProvider("/mock/cwd", "task-123")
+			const provider = new DiffContentProvider("/mock/cwd", "task-123", getDefaultExclusions, getLfsPatterns, () => {})
 			const result = provider.cleanCommitHash("abc123def")
 			expect(result).to.equal("abc123def")
 		})
 
 		it("should handle empty string", async () => {
-			const provider = new DiffContentProvider("/mock/cwd", "task-123")
+			const provider = new DiffContentProvider("/mock/cwd", "task-123", getDefaultExclusions, getLfsPatterns, () => {})
 			const result = provider.cleanCommitHash("")
 			expect(result).to.equal("")
 		})
@@ -140,7 +141,7 @@ describe("DiffContentProvider", () => {
 		it("computeDiffSet and computeDiffCount call git.add with same args", async () => {
 			gitDiffSummaryFiles = [{ file: "src/a.ts" }, { file: "node_modules/pkg/index.js" }]
 			mockGit.show = sandbox.stub().resolves("content")
-			const provider = new DiffContentProvider("/mock/cwd", "task-123")
+			const provider = new DiffContentProvider("/mock/cwd", "task-123", getDefaultExclusions, getLfsPatterns, () => {})
 
 			await provider.computeDiffSet(mockGit as unknown as SimpleGit, "abc123")
 			await provider.computeDiffCount(mockGit as unknown as SimpleGit, "abc123")
@@ -154,7 +155,7 @@ describe("DiffContentProvider", () => {
 		it("computeDiffSet and computeDiffCount call diffSummary with same diff range", async () => {
 			gitDiffSummaryFiles = [{ file: "src/a.ts" }]
 			mockGit.show = sandbox.stub().resolves("content")
-			const provider = new DiffContentProvider("/mock/cwd", "task-123")
+			const provider = new DiffContentProvider("/mock/cwd", "task-123", getDefaultExclusions, getLfsPatterns, () => {})
 
 			await provider.computeDiffSet(mockGit as unknown as SimpleGit, "abc123", "def456")
 			await provider.computeDiffCount(mockGit as unknown as SimpleGit, "abc123", "def456")
@@ -178,7 +179,7 @@ describe("DiffContentProvider", () => {
 				.onCall(3)
 				.resolves("  const y = 1  ") // src/util.ts after (whitespace-only)
 
-			const provider = new DiffContentProvider("/mock/cwd", "task-123")
+			const provider = new DiffContentProvider("/mock/cwd", "task-123", getDefaultExclusions, getLfsPatterns, () => {})
 			const diffSet = await provider.computeDiffSet(mockGit as unknown as SimpleGit, "abc123", "def456")
 			const diffCount = await provider.computeDiffCount(mockGit as unknown as SimpleGit, "abc123", "def456")
 
