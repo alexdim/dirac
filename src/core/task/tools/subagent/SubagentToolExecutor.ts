@@ -4,12 +4,12 @@ import type { ToolRequestSnapshot } from "@core/task/tools/runtime/ToolSnapshot"
 import { DiracContent } from "@shared/messages/content"
 import { DiracDefaultTool } from "@shared/tools"
 import {
-	canonicalizeResponseToolCall,
-	responseOperationFromToolCall,
-	ResponseOperation,
-	ResponseParameter,
-	ResponseShapeError,
-	validateResponseShape,
+    canonicalizeResponseToolCall,
+    responseOperationFromToolCall,
+    ResponseOperation,
+    ResponseParameter,
+    ResponseShapeError,
+    validateResponseShape,
 } from "@shared/responseTool"
 import type { ResponseArguments } from "@shared/responseTool"
 import type { TaskState } from "../../TaskState"
@@ -19,12 +19,20 @@ import { SubagentExecutionStatus } from "@shared/ExtensionMessage"
 import { createSubagentTrajectoryEvent, SubagentTrajectoryEventType } from "@shared/subagents"
 import { formatToolCallPreview, pushSubagentToolResultBlock, serializeToolResult, toToolUseParams } from "./SubagentRunner"
 
+export interface SubagentToolExecutionObserver {
+	recordToolCall(call: SubagentToolCall): void
+	recordToolResult(call: SubagentToolCall, result: unknown): void
+	recordProgress(text: string): void
+	markActivity(action: string): void
+}
+
 // Executes finalized tool calls for a subagent turn, including intercepted completion, authorization, and dispatch.
 // Extracted from SubagentRunner.run() to reduce the 400-line method.
 export class SubagentToolExecutor {
 	constructor(
 		private createSubagentTaskConfig: (state: TaskState, coordinator: any) => TaskConfig,
 		private isAllowedTool: (toolName: string, requestSnapshot: ToolRequestSnapshot) => boolean,
+		private readonly observer?: SubagentToolExecutionObserver,
 	) {}
 
 	// Processes all tool calls for a turn. Returns a completed result for the complete response operation.
@@ -38,6 +46,9 @@ export class SubagentToolExecutor {
 	): Promise<{ completed?: { result: string; stats: any }; toolResultBlocks: DiracContent[] }> {
 		const toolResultBlocks: DiracContent[] = []
 		for (const call of finalizedToolCalls) {
+			this.observer?.recordToolCall(call)
+			this.observer?.markActivity(`processing tool call '${call.name}'`)
+			const recordToolResult = (result: unknown) => this.observer?.recordToolResult(call, result)
 			const toolCallBlock: ToolUse = {
 				type: "tool_use",
 				name: call.name,
@@ -50,7 +61,9 @@ export class SubagentToolExecutor {
 				canonicalizeResponseToolCall(toolCallBlock)
 			} catch (error) {
 				if (!(error instanceof ResponseShapeError)) throw error
-				pushSubagentToolResultBlock(toolResultBlocks, call, call.name, formatResponse.toolError(error.message))
+				const result = formatResponse.toolError(error.message)
+				recordToolResult(result)
+				pushSubagentToolResultBlock(toolResultBlocks, call, call.name, result)
 				continue
 			}
 			const toolName = toolCallBlock.name
@@ -62,14 +75,11 @@ export class SubagentToolExecutor {
 				trajectoryEvent: createSubagentTrajectoryEvent(SubagentTrajectoryEventType.TOOL, toolCallPreview),
 			})
 			if (responseOperation && !this.isResponseOperationAllowed(responseOperation, requestSnapshot)) {
-				pushSubagentToolResultBlock(
-					toolResultBlocks,
-					call,
-					toolName,
-					formatResponse.toolError(
-						`The '${responseOperation}' response operation is not available inside this subagent run.`,
-					),
+				const result = formatResponse.toolError(
+					`The '${responseOperation}' response operation is not available inside this subagent run.`,
 				)
+				recordToolResult(result)
+				pushSubagentToolResultBlock(toolResultBlocks, call, toolName, result)
 				continue
 			}
 			let responseArguments: ResponseArguments | undefined
@@ -78,11 +88,14 @@ export class SubagentToolExecutor {
 					responseArguments = validateResponseShape(toolCallParams)
 				} catch (error) {
 					if (!(error instanceof ResponseShapeError)) throw error
-					pushSubagentToolResultBlock(toolResultBlocks, call, toolName, formatResponse.toolError(error.message))
+					const result = formatResponse.toolError(error.message)
+					recordToolResult(result)
+					pushSubagentToolResultBlock(toolResultBlocks, call, toolName, result)
 					continue
 				}
 			}
 			if (responseOperation === ResponseOperation.PROGRESS) {
+				this.observer?.recordProgress(responseArguments!.text)
 				onProgress({
 					trajectoryEvent: createSubagentTrajectoryEvent(
 						SubagentTrajectoryEventType.MESSAGE,
@@ -93,6 +106,7 @@ export class SubagentToolExecutor {
 
 			if (responseOperation === ResponseOperation.COMPLETE) {
 				const completionResult = responseArguments!.text.trim()
+				recordToolResult({ operation: ResponseOperation.COMPLETE, result: completionResult })
 				stats.toolCalls += 1
 				onProgress({ stats: { ...stats } })
 				onProgress({ status: SubagentExecutionStatus.COMPLETED, result: completionResult, stats: { ...stats } })
@@ -103,6 +117,7 @@ export class SubagentToolExecutor {
 				const result = formatResponse.toolError(
 					'Research is no longer available because the deadline expired. Call respond with operation "complete" and your partial findings now.',
 				)
+				recordToolResult(result)
 				onProgress({
 					trajectoryEvent: createSubagentTrajectoryEvent(SubagentTrajectoryEventType.TOOL_RESULT, result),
 				})
@@ -110,18 +125,13 @@ export class SubagentToolExecutor {
 				continue
 			}
 
-			// Denied tool
 			if (!this.isAllowedTool(toolName, requestSnapshot)) {
-				pushSubagentToolResultBlock(
-					toolResultBlocks,
-					call,
-					toolName,
-					formatResponse.toolError(`Tool '${toolName}' is not available inside subagent runs.`),
-				)
+				const result = formatResponse.toolError(`Tool '${toolName}' is not available inside subagent runs.`)
+				recordToolResult(result)
+				pushSubagentToolResultBlock(toolResultBlocks, call, toolName, result)
 				continue
 			}
 
-			// Dispatch to coordinator
 			if (call.call_id) state.toolUseIdMap.set(call.call_id, call.toolUseId)
 			const subagentConfig = this.createSubagentTaskConfig(state, requestSnapshot.coordinator)
 			let toolResult: unknown
@@ -135,6 +145,8 @@ export class SubagentToolExecutor {
 				}
 			}
 
+			this.observer?.markActivity(`completed tool call '${toolName}'`)
+			recordToolResult(toolResult)
 			stats.toolCalls += 1
 			onProgress({ stats: { ...stats } })
 			const serializedToolResult = serializeToolResult(toolResult)

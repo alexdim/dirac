@@ -309,6 +309,7 @@ export interface IOrchestrationTrait {
 		prompt: string,
 		options?: {
 			subagentName?: string
+			taskTitle?: string
 			agentIdentity?: SubagentIdentity
 			timeout?: number
 			includeHistory?: boolean
