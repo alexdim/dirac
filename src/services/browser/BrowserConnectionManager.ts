@@ -1,4 +1,4 @@
-import { Controller } from "@core/controller"
+import type { Controller } from "@core/controller"
 import { BrowserActionResult } from "@shared/ExtensionMessage"
 import { fileExistsAtPath } from "@utils/fs"
 import axios from "axios"
