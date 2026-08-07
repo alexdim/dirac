@@ -1,6 +1,9 @@
 import { expect } from "chai"
 import { describe, it } from "mocha"
-import { MessageStateHandler } from "../core/task/message-state"
+import {
+	MessageStateHandler,
+	UI_MESSAGES_FLUSH_MAX_DELAY_MS,
+} from "../core/task/message-state"
 import { TaskState } from "../core/task/TaskState"
 import { DiracMessage, DiracMessageType } from "../shared/ExtensionMessage"
 import { setVscodeHostProviderMock } from "./host-provider-test-utils"
@@ -8,6 +11,7 @@ import { HostProvider } from "@/hosts/host-provider"
 import * as os from "os"
 import * as path from "path"
 import * as fs from "fs"
+import sinon from "sinon"
 
 /**
  * Unit tests for MessageStateHandler's mutex protection (RC-4)
@@ -310,5 +314,39 @@ describe("MessageStateHandler Mutex Protection", () => {
 			{ role: "user", content: [{ type: "text", text: "overwrite", isUserInput: true }] },
 		])
 		expect((handler.getApiConversationHistory()[0].content as any[])[0]).not.to.have.property("isUserInput")
+	})
+
+	it("bounds streaming UI snapshot flushes and preserves explicit flush boundaries", async () => {
+		let dateNow: sinon.SinonStub | undefined
+
+		const clock = sinon.useFakeTimers()
+		try {
+			const handler = createTestHandler()
+			const flushPendingWrites = sinon.spy(handler, "flushPendingWrites")
+			const message = createTestMessage("streaming")
+			await handler.addToDiracMessages(message)
+			const index = handler.findMessageIndexById(message.id)
+			dateNow = sinon.stub(Date, "now").returns(-10_000)
+
+			for (let elapsed = 0; elapsed < UI_MESSAGES_FLUSH_MAX_DELAY_MS; elapsed += 100) {
+				await handler.updateDiracMessage(index, {
+					content: { type: DiracMessageType.MARKDOWN, content: `chunk ${elapsed}` },
+				})
+				await clock.tickAsync(100)
+			}
+
+			expect(flushPendingWrites.callCount).to.equal(1)
+
+			await handler.updateDiracMessage(index, {
+				content: { type: DiracMessageType.MARKDOWN, content: "final chunk" },
+			})
+			await handler.flushPendingWrites()
+			expect(flushPendingWrites.callCount).to.equal(2)
+			await clock.tickAsync(UI_MESSAGES_FLUSH_MAX_DELAY_MS)
+			expect(flushPendingWrites.callCount).to.equal(2)
+		} finally {
+			dateNow?.restore()
+			clock.restore()
+		}
 	})
 })

@@ -67,8 +67,10 @@ function createEnvironment(options: {
 		config: { isSubagentExecution: options.subagent === true },
 		context: {
 			task: {
-				get: (key: string) => taskContext.get(key),
-				set: (key: string, value: unknown) => taskContext.set(key, value),
+				get: async (key: string) => taskContext.get(key),
+				set: async (key: string, value: unknown) => taskContext.set(key, value),
+				update: async <T>(key: string, updater: (value: T | undefined) => T) =>
+					taskContext.set(key, updater(taskContext.get(key) as T | undefined)),
 			},
 		},
 		orchestration: {

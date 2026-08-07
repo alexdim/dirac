@@ -1,6 +1,7 @@
 import { formatResponse } from "@core/formatResponse"
 import { TOOL_EXAMPLES } from "@core/tool-examples"
 import { getDelimiter } from "@utils/line-hashing"
+import { isDeepStrictEqual } from "node:util"
 import type {
 	AstImplementationResult,
 	AstOccurrenceResult,
@@ -172,18 +173,27 @@ export class InspectAstTool implements IDiracTool<InspectAstArgs, string> {
 			const groups = this.reducer.reduceImplementations(args.paths, args.symbols, result)
 			let cache: Record<string, ImplementationCacheRecord | string> = {}
 			try {
-				cache = env.context.task.get<Record<string, ImplementationCacheRecord | string>>(IMPLEMENTATION_CACHE_KEY) ?? {}
+				cache = await env.context.task.get<Record<string, ImplementationCacheRecord | string>>(IMPLEMENTATION_CACHE_KEY) ?? {}
 			} catch {
 				// Cache availability must not affect the source result.
 			}
+			const cacheBeforeFormatting = structuredClone(cache)
 			const formatted = this.formatter.formatImplementations(
 				groups,
 				args.includeAnchors,
 				cache,
 				(path) => env.sourceAst.getAnchorFingerprint(path),
 			)
+			const cacheUpdates = Object.fromEntries(
+				Object.entries(cache).filter(([key, value]) => !isDeepStrictEqual(cacheBeforeFormatting[key], value)),
+			)
 			try {
-				env.context.task.set(IMPLEMENTATION_CACHE_KEY, cache)
+				if (Object.keys(cacheUpdates).length > 0) {
+					await env.context.task.update<Record<string, ImplementationCacheRecord | string>>(
+						IMPLEMENTATION_CACHE_KEY,
+						(current) => ({ ...current, ...cacheUpdates }),
+					)
+				}
 			} catch {
 				// Cache persistence must not affect the source result.
 			}

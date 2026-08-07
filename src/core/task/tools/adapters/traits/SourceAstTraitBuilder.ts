@@ -5,6 +5,11 @@ import type { ISourceAstTrait } from "../../interfaces/IToolEnvironment"
 import type { TaskConfig } from "../../types/TaskConfig"
 
 export function buildSourceAstTrait(config: TaskConfig): ISourceAstTrait {
+	const reconcileAnchors = (absolutePath: string, lines: string[]): string[] => {
+		const result = AnchorStateManager.reconcileWithChanges(absolutePath, lines, config.ulid)
+		if (result.changed) config.context.markAnchorStateDirty()
+		return result.anchors
+	}
 	const service = new SourceAstService({
 		root: config.cwd,
 		resolvePath: async (requestedPath) => {
@@ -14,14 +19,23 @@ export function buildSourceAstTrait(config: TaskConfig): ISourceAstTrait {
 				: { absolutePath: resolved.absolutePath, displayPath: resolved.displayPath }
 		},
 		validateAccess: (absolutePath) => config.services.diracIgnoreController.validateAccess(absolutePath),
-		reconcileAnchors: (absolutePath, lines) => AnchorStateManager.reconcile(absolutePath, lines, config.ulid),
+		reconcileAnchors,
 		getAnchorFingerprint: (absolutePath) => AnchorStateManager.getDocumentFingerprint(absolutePath, config.ulid),
 	})
 
 	return {
-		outline: (request) => service.outline(request),
-		implementations: (request) => service.implementations(request),
-		occurrences: (request) => service.occurrences(request),
+		outline: async (request) => {
+			if (request.includeAnchors) await config.context.ensureAnchorState()
+			return service.outline(request)
+		},
+		implementations: async (request) => {
+			if (request.includeAnchors) await config.context.ensureAnchorState()
+			return service.implementations(request)
+		},
+		occurrences: async (request) => {
+			if (request.includeAnchors) await config.context.ensureAnchorState()
+			return service.occurrences(request)
+		},
 		planRename: (request) => service.planRename(request),
 		planReplacements: (request) => service.planReplacements(request),
 		getAnchorFingerprint: (path) => service.getAnchorFingerprint(path),

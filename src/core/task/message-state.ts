@@ -56,6 +56,9 @@ interface MessageStateHandlerParams {
 	checkpointManagerErrorMessage?: string
 }
 
+export const UI_MESSAGES_FLUSH_DEBOUNCE_MS = 250
+export const UI_MESSAGES_FLUSH_MAX_DELAY_MS = 2_000
+
 export class MessageStateHandler extends EventEmitter<MessageStateHandlerEvents> {
 	private workspaceRootPath?: string
 	private apiConversationHistory: DiracStorageMessage[] = []
@@ -74,11 +77,12 @@ export class MessageStateHandler extends EventEmitter<MessageStateHandlerEvents>
 	// This follows the same pattern as Task.stateMutex for consistency
 	private stateMutex = new Mutex()
 
-	// Dirty flags for deferred writes — coalesce per-tick mutations into a single disk write
+	// Dirty flags for deferred writes.
 	private diracMessagesDirty = false
 	private apiHistoryDirty = false
-	private flushScheduled = false
-
+	private uiFlushTimeout?: ReturnType<typeof setTimeout>
+	private uiFlushDeadline?: number
+	private apiHistoryFlushScheduled = false
 	constructor(params: MessageStateHandlerParams) {
 		super()
 		this.taskId = params.taskId
@@ -109,21 +113,36 @@ export class MessageStateHandler extends EventEmitter<MessageStateHandlerEvents>
 		return await this.stateMutex.withLock(fn)
 	}
 
-	/**
-	 * Schedule a microtask to flush dirty state to disk.
-	 * All mutations in the same tick are coalesced into a single write.
-	 */
-	private scheduleFlush(): void {
-		if (this.flushScheduled) return
-		this.flushScheduled = true
-		queueMicrotask(async () => {
-			this.flushScheduled = false
-			try {
-				await this.flushPendingWrites()
-			} catch (error) {
-				Logger.error("Failed to flush pending writes:", error)
-			}
+	/** Schedules a bounded UI snapshot flush without delaying live webview updates. */
+	private scheduleUiFlush(): void {
+		const now = performance.now()
+		this.uiFlushDeadline ??= now + UI_MESSAGES_FLUSH_MAX_DELAY_MS
+		const delay = Math.min(
+			UI_MESSAGES_FLUSH_DEBOUNCE_MS,
+			Math.max(0, this.uiFlushDeadline - now),
+		)
+		if (this.uiFlushTimeout) clearTimeout(this.uiFlushTimeout)
+		this.uiFlushTimeout = setTimeout(() => {
+			this.uiFlushTimeout = undefined
+			this.uiFlushDeadline = undefined
+			void this.flushPendingWrites().catch((error) => Logger.error("Failed to flush pending UI messages:", error))
+		}, delay)
+	}
+
+	/** Keeps API-history persistence at its existing same-turn cadence. */
+	private scheduleApiHistoryFlush(): void {
+		if (this.apiHistoryFlushScheduled) return
+		this.apiHistoryFlushScheduled = true
+		queueMicrotask(() => {
+			this.apiHistoryFlushScheduled = false
+			void this.flushPendingWrites().catch((error) => Logger.error("Failed to flush pending API history:", error))
 		})
+	}
+
+	private cancelScheduledUiFlush(): void {
+		if (this.uiFlushTimeout) clearTimeout(this.uiFlushTimeout)
+		this.uiFlushTimeout = undefined
+		this.uiFlushDeadline = undefined
 	}
 
 	/**
@@ -145,6 +164,7 @@ export class MessageStateHandler extends EventEmitter<MessageStateHandlerEvents>
 	 * Safe to call at any time — no-op if nothing is dirty.
 	 */
 	async flushPendingWrites(): Promise<void> {
+		this.cancelScheduledUiFlush()
 		await this.withStateLock(async () => {
 			await this.flushDirty()
 		})
@@ -292,7 +312,7 @@ export class MessageStateHandler extends EventEmitter<MessageStateHandlerEvents>
 			this.apiConversationHistory.push(removeUserInputMarkersFromMessage(message))
 			this.apiHistoryDirty = true
 		})
-		this.scheduleFlush()
+		this.scheduleApiHistoryFlush()
 	}
 
 	async appendToLastApiConversationUserMessage(contentBlock: DiracUserContent): Promise<DiracStorageMessage> {
@@ -310,7 +330,7 @@ export class MessageStateHandler extends EventEmitter<MessageStateHandlerEvents>
 			this.apiHistoryDirty = true
 			return lastMessage
 		})
-		this.scheduleFlush()
+		this.scheduleApiHistoryFlush()
 		return message
 	}
 
@@ -355,7 +375,7 @@ export class MessageStateHandler extends EventEmitter<MessageStateHandlerEvents>
 			})
 			this.diracMessagesDirty = true
 		})
-		this.scheduleFlush()
+		this.scheduleUiFlush()
 	}
 
 	/**
@@ -412,7 +432,7 @@ export class MessageStateHandler extends EventEmitter<MessageStateHandlerEvents>
 
 			this.diracMessagesDirty = true
 		})
-		this.scheduleFlush()
+		this.scheduleUiFlush()
 	}
 
 	/**
@@ -437,6 +457,6 @@ export class MessageStateHandler extends EventEmitter<MessageStateHandlerEvents>
 
 			this.diracMessagesDirty = true
 		})
-		this.scheduleFlush()
+		this.scheduleUiFlush()
 	}
 }

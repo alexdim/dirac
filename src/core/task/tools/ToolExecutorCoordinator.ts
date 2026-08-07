@@ -3,7 +3,6 @@ import { DiracDefaultTool } from "@/shared/tools"
 import { CardStatus } from "../../../shared/ExtensionMessage"
 import { SurfaceAdapter } from "./adapters/SurfaceAdapter"
 
-import { DiracContext } from "./context/DiracContext"
 import { IDiracTool } from "./interfaces/IDiracTool"
 import { SurfaceType } from "./interfaces/SurfaceType"
 import { AgentConfigLoader } from "./subagent/AgentConfigLoader"
@@ -22,7 +21,7 @@ interface PartialToolUseHandler extends IDiracTool {
  * Throws an error for unregistered tools.
  */
 export class ToolExecutorCoordinator {
-	constructor() {}
+	constructor() { }
 
 	private modularTools = new Map<string, IDiracTool>()
 
@@ -84,10 +83,7 @@ export class ToolExecutorCoordinator {
 		// 1. Initialize Tool Environment (Surface Adapter)
 		const env = new SurfaceAdapter({ ...config, toolUse: { name: block.name, params: block.params } }, block.name)
 
-		// 2. Load Context
-		await (env.context as DiracContext).load()
-
-		// 3. Filter (Surface Check)
+		// 2. Filter (Surface Check)
 		const supported = tool.supportedSurfaces()
 		const currentSurface: SurfaceType = config.vscodeTerminalExecutionMode === "vscodeTerminal" ? "ide" : "cli"
 
@@ -96,7 +92,7 @@ export class ToolExecutorCoordinator {
 			return `Tool '${block.name}' is not supported on the current surface (${currentSurface}).`
 		}
 
-		// 4. Pre-tool Hooks
+		// 3. Pre-tool Hooks
 		try {
 			const { ToolHookUtils } = await import("./utils/ToolHookUtils")
 			await ToolHookUtils.runPreToolUseIfEnabled(config, block)
@@ -108,7 +104,7 @@ export class ToolExecutorCoordinator {
 			throw error
 		}
 
-		// 5. Observability: "Calling..." (Removed redundant message)
+		// 4. Observability: "Calling..." (Removed redundant message)
 
 		let executionSuccess = false
 		let result: any
@@ -117,20 +113,20 @@ export class ToolExecutorCoordinator {
 		const initialMistakeCount = config.taskState.consecutiveMistakeCount
 		const unfinalizedCards: { id: string; status: CardStatus }[] = []
 		try {
-			// 6. Execute (Dispatcher)
+			// 5. Execute (Dispatcher)
 			result = await tool.processCall(block.params, env)
 			executionSuccess = true
 
-			// 7. Persist Context
-			await (env.context as DiracContext).save()
+			// 6. Persist Context
+			await env.context.save()
 
-			// 8. Observability: "Finished..." (Removed redundant message)
+			// 7. Observability: "Finished..." (Removed redundant message)
 
-			// 9. Update Mistake Count (Success)
+			// 8. Update Mistake Count (Success)
 			config.taskState.consecutiveMistakeCount =
 				config.taskState.consecutiveMistakeCount > initialMistakeCount ? initialMistakeCount + 1 : 0
 
-			// 10. Store Result
+			// 9. Store Result
 			response = result
 		} catch (error: any) {
 			executionSuccess = false
