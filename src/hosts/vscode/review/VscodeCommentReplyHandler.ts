@@ -1,7 +1,8 @@
 import * as vscode from "vscode"
 import { sendAddToInputEvent } from "@/core/controller/ui/subscribeToAddToInput"
-import { CommentThreadManager } from "./VscodeCommentThreadManager"
+import { getErrorMessage } from "@/shared/errors"
 import { Logger } from "@/shared/services/Logger"
+import { CommentThreadManager } from "./VscodeCommentThreadManager"
 
 export type OnReplyCallback = (
 	filePath: string,
@@ -61,7 +62,7 @@ export class CommentReplyHandler {
 				})
 				.catch((error) => {
 					const errorComment = this.threadManager.createComment(
-						`_Error getting response: ${error instanceof Error ? error.message : "Unknown error"}_`,
+						`_Error getting response: ${getErrorMessage(error, "Unknown error")}_`,
 					)
 					thread.comments = [...thread.comments.slice(0, -1), errorComment]
 				})

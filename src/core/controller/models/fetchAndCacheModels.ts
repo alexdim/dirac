@@ -5,6 +5,7 @@ import { ModelInfo } from "@shared/api"
 import { fileExistsAtPath } from "@utils/fs"
 import axios from "axios"
 import { StateManager } from "@/core/storage/StateManager"
+import { getErrorMessage } from "@/shared/errors"
 import { getAxiosSettings, isRateLimited } from "@/shared/net"
 import { Logger } from "@/shared/services/Logger"
 import type { Controller } from ".."
@@ -130,7 +131,7 @@ async function doFetchAndCacheModels(config: FetchAndCacheModelsConfig): Promise
 }
 
 function buildErrorMessage(error: any, label: string, detailed: boolean): string {
-	if (!detailed) return error instanceof Error ? error.message : "Unknown error occurred"
+	if (!detailed) return getErrorMessage(error, "Unknown error occurred")
 	if (axios.isAxiosError(error)) {
 		const status = error.response?.status ?? 0
 		if (status === 401) return `Invalid ${label} API key. Please check your API key in settings.`
@@ -139,7 +140,7 @@ function buildErrorMessage(error: any, label: string, detailed: boolean): string
 		if (error.code === "ECONNABORTED") return "Request timeout. Please check your internet connection."
 		return `API request failed: ${error.response?.status || error.code || "Unknown error"}`
 	}
-	return error instanceof Error ? error.message : "Unknown error occurred"
+	return getErrorMessage(error, "Unknown error occurred")
 }
 
 async function readCachedModels(cacheFilePath: string): Promise<Record<string, ModelInfo> | undefined> {

@@ -2,6 +2,7 @@ import * as protoLoader from "@grpc/proto-loader"
 import * as fs from "fs"
 import * as health from "grpc-health-check"
 import { StreamingCallbacks } from "@/hosts/host-provider-types"
+import { toError } from "@/shared/errors"
 
 const log = (...args: unknown[]) => {
 	const now = new Date()
@@ -42,7 +43,7 @@ async function asyncIteratorToCallbacks<T>(stream: AsyncIterable<T>, callbacks: 
 		// Stream completed successfully
 		callbacks.onComplete && callbacks.onComplete()
 	} catch (err) {
-		const error = err instanceof Error ? err : new Error(String(err))
+		const error = toError(err)
 		if (callbacks.onError) {
 			callbacks.onError(error)
 		} else {

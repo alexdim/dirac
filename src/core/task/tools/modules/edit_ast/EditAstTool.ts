@@ -3,13 +3,14 @@ import type { SourceMutationPlan } from "@services/source-ast/types"
 import { CardStatus, isFinalStatus } from "@shared/ExtensionMessage"
 import { DiracIcon } from "@shared/icons"
 import { DiracDefaultTool, type DiracToolSpec } from "@shared/tools"
+import { getErrorMessage } from "@/shared/errors"
 import type { IDiracTool } from "../../interfaces/IDiracTool"
 import type { ICardHandle, IToolEnvironment } from "../../interfaces/IToolEnvironment"
 import type { SurfaceType } from "../../interfaces/SurfaceType"
 import { AstEditApplier, type AstEditApplyResult } from "./AstEditApplier"
 import { AstEditApproval } from "./AstEditApproval"
 import { AstEditFormatter } from "./AstEditFormatter"
-import { EditAstValidator, type EditAstArgs } from "./EditAstValidator"
+import { type EditAstArgs, EditAstValidator } from "./EditAstValidator"
 
 export const edit_ast_spec: DiracToolSpec = {
 	id: DiracDefaultTool.EDIT_AST,
@@ -323,6 +324,6 @@ export class EditAstTool implements IDiracTool<EditAstArgs, string> {
 	}
 
 	private errorMessage(error: unknown): string {
-		return error instanceof Error ? error.message : String(error)
+		return getErrorMessage(error)
 	}
 }

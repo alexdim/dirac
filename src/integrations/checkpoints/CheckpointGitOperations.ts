@@ -5,6 +5,7 @@ import { globby } from "globby"
 import * as path from "path"
 import simpleGit, { type SimpleGit } from "simple-git"
 import { telemetryService } from "@/services/telemetry"
+import { getErrorMessage } from "@/shared/errors"
 import { Logger } from "@/shared/services/Logger"
 import { getLfsPatterns, writeExcludesFile } from "./CheckpointExclusions"
 
@@ -188,9 +189,7 @@ export class GitOperations {
 						error,
 					)
 					throw new Error(
-						`Failed to ${disable ? "disable" : "enable"} nested git repo ${gitPath}: ${
-							error instanceof Error ? error.message : String(error)
-						}`,
+						`Failed to ${disable ? "disable" : "enable"} nested git repo ${gitPath}: ${getErrorMessage(error)}`,
 					)
 				}
 			}),

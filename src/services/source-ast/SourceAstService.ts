@@ -217,7 +217,7 @@ export class SourceAstService {
 	}
 
 	private errorMessage(error: unknown): string {
-		return error instanceof Error ? error.message : String(error)
+		return getErrorMessage(error)
 	}
 }
 
@@ -232,3 +232,5 @@ export type {
 	AstReplacementRequest,
 	SourceMutationPlan,
 } from "./types"
+
+import { getErrorMessage } from "@/shared/errors"

@@ -2,9 +2,10 @@ import { ModelInfo, openAiModelInfoSaneDefaults } from "@shared/api"
 import { SELECTOR_SEPARATOR, stringifyVsCodeLmModelSelector } from "@shared/vsCodeSelectorUtils"
 import { calculateApiCostAnthropic } from "@utils/cost"
 import * as vscode from "vscode"
+import { getErrorMessage } from "@/shared/errors"
 import { DiracStorageMessage } from "@/shared/messages/content"
-import { DiracTool } from "@/shared/tools"
 import { Logger } from "@/shared/services/Logger"
+import { DiracTool } from "@/shared/tools"
 import { ApiHandler, CommonApiHandlerOptions, SingleCompletionHandler } from "../"
 import { withRetry } from "../retry"
 import { ApiStream } from "../transform/stream"
@@ -70,7 +71,7 @@ export class VsCodeLmHandler implements ApiHandler, SingleCompletionHandler {
 			this.dispose()
 
 			throw new Error(
-				`Dirac <Language Model API>: Failed to initialize handler: ${error instanceof Error ? error.message : "Unknown error"}`,
+				`Dirac <Language Model API>: Failed to initialize handler: ${getErrorMessage(error, "Unknown error")}`,
 			)
 		}
 	}
@@ -119,7 +120,7 @@ export class VsCodeLmHandler implements ApiHandler, SingleCompletionHandler {
 				countTokens: async () => 0,
 			}
 		} catch (error) {
-			const errorMessage = error instanceof Error ? error.message : "Unknown error"
+			const errorMessage = getErrorMessage(error, "Unknown error")
 			throw new Error(`Dirac <Language Model API>: Failed to select model: ${errorMessage}`)
 		}
 	}
@@ -205,7 +206,7 @@ export class VsCodeLmHandler implements ApiHandler, SingleCompletionHandler {
 				Logger.debug("Dirac <Language Model API>: Creating client with selector:", selector)
 				this.client = await this.createClient(selector)
 			} catch (error) {
-				const message = error instanceof Error ? error.message : "Unknown error"
+				const message = getErrorMessage(error, "Unknown error")
 				Logger.error("Dirac <Language Model API>: Client creation failed:", message)
 				throw new Error(`Dirac <Language Model API>: Failed to create client: ${message}`)
 			}

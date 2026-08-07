@@ -2,6 +2,7 @@ import { sendRelinquishControlEvent } from "@core/controller/ui/subscribeToRelin
 import { findLast } from "@shared/array"
 import { isTaskCompletionCard } from "@shared/cardIdentity"
 import { HostProvider } from "@/hosts/host-provider"
+import { getErrorMessage } from "@/shared/errors"
 import { ShowMessageType } from "@/shared/proto/host/window"
 import { Logger } from "@/shared/services/Logger"
 import { MessageStateHandler } from "../../core/task/message-state"
@@ -80,7 +81,7 @@ export class CheckpointDiffPresenter {
 					this.storage.setTracker(tracker)
 					this.services.messageStateHandler.setCheckpointTracker(tracker)
 				} catch (error) {
-					const errorMessage = error instanceof Error ? error.message : "Unknown error"
+					const errorMessage = getErrorMessage(error, "Unknown error")
 					Logger.error(
 						`[CheckpointDiffPresenter] Failed to initialize checkpoint tracker for task ${this.config.taskId}:`,
 						errorMessage,
@@ -151,7 +152,7 @@ export class CheckpointDiffPresenter {
 
 			relinquishButton()
 		} catch (error) {
-			const errorMessage = error instanceof Error ? error.message : "Unknown error"
+			const errorMessage = getErrorMessage(error, "Unknown error")
 			Logger.error(
 				`[CheckpointDiffPresenter] Failed to present multifile diff for task ${this.config.taskId}:`,
 				errorMessage,

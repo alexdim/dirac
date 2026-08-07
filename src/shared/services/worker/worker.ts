@@ -1,6 +1,6 @@
+import { getErrorMessage } from "@/shared/errors"
 import { Logger } from "@/shared/services/Logger"
 import { BlobStoreSettings, blobStorage } from "../../storage/DiracBlobStorage"
-
 import { SyncQueue, SyncQueueItem } from "./queue"
 
 export const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000
@@ -235,7 +235,7 @@ export class SyncWorker {
 					successCount++
 					this.emit({ type: WorkerEvent.WorkerItemSynced, item })
 				} catch (err) {
-					const errorMsg = err instanceof Error ? err.message : String(err)
+					const errorMsg = getErrorMessage(err)
 					this.queue.markFailed(item.taskId, item.key, errorMsg)
 					failCount++
 					this.emit({ type: WorkerEvent.WorkerItemFailed, item, error: errorMsg })

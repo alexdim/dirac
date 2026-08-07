@@ -5,6 +5,7 @@ import * as path from "path"
 import simpleGit from "simple-git"
 import type { FolderLockWithRetryResult } from "@/core/locks/types"
 import { telemetryService } from "@/services/telemetry"
+import { getErrorMessage } from "@/shared/errors"
 import { Logger } from "@/shared/services/Logger"
 import { GitOperations } from "./CheckpointGitOperations"
 import { releaseCheckpointLock, tryAcquireCheckpointLockWithRetry } from "./CheckpointLockUtils"
@@ -272,7 +273,7 @@ class CheckpointTracker {
 				taskId: this.taskId,
 				error,
 			})
-			throw new Error(`Failed to create checkpoint: ${error instanceof Error ? error.message : String(error)}`)
+			throw new Error(`Failed to create checkpoint: ${getErrorMessage(error)}`)
 		} finally {
 			if (lockAcquired) {
 				Logger.info("Releasing checkpoint folder lock")
