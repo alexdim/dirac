@@ -1,7 +1,7 @@
 import { isValidAutoCondenseContextLimit } from "@shared/context-management"
 import { useCallback, useRef } from "react"
 import { StateManager } from "@/core/storage/StateManager"
-import { getProviderModelIdKey, ProviderToApiKeyMap } from "@shared/storage"
+import { getProviderModelIdKey, ProviderToApiKeyMap, type UtilityModelUseCases } from "@shared/storage"
 import { openAiCodexOAuthManager } from "@/integrations/openai-codex/oauth"
 import { openAiCodexUsageService } from "@/integrations/openai-codex/OpenAiCodexUsageService"
 import { githubCopilotAuthManager } from "@/integrations/github-copilot/auth"
@@ -18,11 +18,25 @@ import { getNextSelectableSettingsIndex } from "../navigation"
 import type { AutoApprovalSettings } from "@shared/AutoApprovalSettings"
 import type { TelemetrySetting } from "@shared/TelemetrySetting"
 import type { OpenaiReasoningEffort } from "@shared/storage/types"
-import { createModelProviderSelection, type ApiProvider, type ModelInfo, type ModelProviderPreset, type ModelProviderSelection } from "@shared/api"
+import {
+	createModelProviderSelection,
+	type ApiProvider,
+	type ModelInfo,
+	type ModelProviderPreset,
+	type ModelProviderSelection,
+} from "@shared/api"
 import type { ObjectEditorState } from "../../ConfigViewComponents"
 import type { BedrockConfig } from "../../BedrockSetup"
 import type { ToolMetadata } from "@shared/ExtensionMessage"
 import { ToolRegistry } from "@/core/task/tools/registry/ToolRegistry"
+
+const utilityModelUseCaseSettings = {
+	utilityModelUseCondense: "condense",
+	utilityModelUseNewTask: "newTask",
+	utilityModelUseGenerateCommitMessage: "generateCommitMessage",
+} as const
+
+type UtilityModelUseCaseSetting = keyof typeof utilityModelUseCaseSettings
 
 interface UseSettingsActionsProps {
 	items: ListItem[]
@@ -49,8 +63,8 @@ interface UseSettingsActionsProps {
 	autoApproveSettings: AutoApprovalSettings
 	setAutoApproveSettings: (settings: AutoApprovalSettings) => void
 	features: Record<FeatureKey, boolean>
-	utilityModelEnabled: boolean
-	setUtilityModelEnabled: (value: boolean) => void
+	utilityModelUseCases: UtilityModelUseCases
+	setUtilityModelUseCases: (useCases: UtilityModelUseCases | ((previous: UtilityModelUseCases) => UtilityModelUseCases)) => void
 	setFeatures: (
 		features: Record<FeatureKey, boolean> | ((prev: Record<FeatureKey, boolean>) => Record<FeatureKey, boolean>),
 	) => void
@@ -118,8 +132,8 @@ export function useSettingsActions({
 	autoApproveSettings,
 	setAutoApproveSettings,
 	features,
-	utilityModelEnabled,
-	setUtilityModelEnabled,
+	utilityModelUseCases,
+	setUtilityModelUseCases,
 	setFeatures,
 	setLightTerminalTheme,
 	preferredLanguage,
@@ -289,18 +303,18 @@ export function useSettingsActions({
 		)
 			return
 
-		if (item.key === "utilityModelEnabled") {
-			const newValue = !utilityModelEnabled
-			setUtilityModelEnabled(newValue)
-			stateManager.setGlobalState("utilityModelEnabled", newValue)
+		const utilityModelUseCase = utilityModelUseCaseSettings[item.key as UtilityModelUseCaseSetting]
+		if (utilityModelUseCase) {
+			const newValue = !utilityModelUseCases[utilityModelUseCase]
+			setUtilityModelUseCases((previous) => ({ ...previous, [utilityModelUseCase]: newValue }))
+			stateManager.setGlobalState(item.key as UtilityModelUseCaseSetting, newValue)
 			await stateManager.flushPendingState()
 			await controller?.postStateToWebview()
 			return
 		}
 
-
 		if (item.type === SettingsItemType.ACTION) {
-			if (item.key === "utilityModelSelection" && utilityModelEnabled) {
+			if (item.key === "utilityModelSelection") {
 				setIsPickingUtilityModel(true)
 				return
 			}
@@ -494,8 +508,8 @@ export function useSettingsActions({
 		stateManager,
 		autoApproveSettings,
 		toggleFeature,
-		utilityModelEnabled,
-		setUtilityModelEnabled,
+		utilityModelUseCases,
+		setUtilityModelUseCases,
 		separateModels,
 		actReasoningEffort,
 		planReasoningEffort,

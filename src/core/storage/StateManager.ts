@@ -116,10 +116,35 @@ export class StateManager {
 
 			// Load all extension state from file-backed stores
 			const { globalState, secrets, workspaceState } = await StateManager.instance.persistence.readAllFromDisk()
+			const rawLegacyUtilityModelEnabled = storage.globalStateBackingStore.get<boolean>("utilityModelEnabled")
+			const rawUtilityModelUseCondense = storage.globalStateBackingStore.get<boolean>("utilityModelUseCondense")
+			const rawUtilityModelUseNewTask = storage.globalStateBackingStore.get<boolean>("utilityModelUseNewTask")
+			const rawUtilityModelUseGenerateCommitMessage = storage.globalStateBackingStore.get<boolean>(
+				"utilityModelUseGenerateCommitMessage",
+			)
 			const legacyModelIdUpdates = buildLegacySynthetic1mStateUpdates(globalState)
 			if (Object.keys(legacyModelIdUpdates).length > 0) {
 				await storage.globalStateBackingStore.setBatch(legacyModelIdUpdates)
 				Object.assign(globalState, legacyModelIdUpdates)
+			}
+
+			// Split the legacy Utility switch into independent use cases without changing an
+			// existing user's intent. Read directly from the backing store because the
+			// normalized state reader fills missing settings with their defaults.
+			const utilityUseCaseUpdates: Partial<
+				Pick<Settings, "utilityModelUseCondense" | "utilityModelUseNewTask" | "utilityModelUseGenerateCommitMessage">
+			> = {}
+			if (rawLegacyUtilityModelEnabled !== undefined) {
+				const enabled = rawLegacyUtilityModelEnabled === true
+				if (rawUtilityModelUseCondense === undefined) utilityUseCaseUpdates.utilityModelUseCondense = enabled
+				if (rawUtilityModelUseNewTask === undefined) utilityUseCaseUpdates.utilityModelUseNewTask = enabled
+				if (rawUtilityModelUseGenerateCommitMessage === undefined) {
+					utilityUseCaseUpdates.utilityModelUseGenerateCommitMessage = enabled
+				}
+			}
+			if (Object.keys(utilityUseCaseUpdates).length > 0) {
+				await storage.globalStateBackingStore.setBatch(utilityUseCaseUpdates)
+				Object.assign(globalState, utilityUseCaseUpdates)
 			}
 
 			// Populate the cache with all extension state and secrets fields
@@ -147,7 +172,6 @@ export class StateManager {
 	public static isInitialized(): boolean {
 		return StateManager.instance != null
 	}
-
 
 	public static get(): StateManager {
 		if (!StateManager.instance) {
@@ -190,9 +214,7 @@ export class StateManager {
 
 	setGlobalState<K extends keyof GlobalStateAndSettings>(key: K, value: GlobalStateAndSettings[K]): void {
 		if (!this.isInitialized) throw new Error(STATE_MANAGER_NOT_INITIALIZED)
-		const normalizedValue = isSettingsKey(key)
-			? this.normalizeLoadedSetting(key as SettingsKey, value as never)
-			: value
+		const normalizedValue = isSettingsKey(key) ? this.normalizeLoadedSetting(key as SettingsKey, value as never) : value
 		;(this.globalStateCache as Record<string, unknown>)[key] = normalizedValue
 		this.persistence.addPendingGlobalState(key)
 		this.notifyStateChange()
@@ -279,7 +301,7 @@ export class StateManager {
 	setWorkspaceState(key: string, value: unknown): void
 	setWorkspaceState(key: string, value: unknown): void {
 		if (!this.isInitialized) throw new Error(STATE_MANAGER_NOT_INITIALIZED)
-			;(this.workspaceStateCache as Record<string, unknown>)[key] = value
+		;(this.workspaceStateCache as Record<string, unknown>)[key] = value
 		this.persistence.addPendingWorkspaceState(key as LocalStateKey)
 	}
 

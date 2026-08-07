@@ -304,21 +304,24 @@ vscode-dropdown::part(listbox) {
 :root {
 	--dirac-surface: color-mix(in srgb, var(--vscode-sideBar-background) 96%, var(--vscode-editor-background));
 	--dirac-surface-raised: color-mix(in srgb, var(--vscode-editor-background) 72%, var(--vscode-sideBar-background));
-	--dirac-surface-hover: color-mix(in srgb, var(--vscode-toolbar-hoverBackground) 60%, transparent);
-	--dirac-surface-selected: color-mix(in srgb, var(--vscode-list-activeSelectionBackground) 26%, var(--vscode-sideBar-background));
+	--dirac-surface-hover: color-mix(in srgb, var(--vscode-toolbar-hoverBackground) 40%, transparent);
+	--dirac-surface-selected: color-mix(in srgb, var(--vscode-list-activeSelectionBackground) 20%, var(--vscode-sideBar-background));
 	--dirac-border-subtle: color-mix(in srgb, var(--vscode-panel-border) 50%, transparent);
-	--dirac-border-strong: color-mix(in srgb, var(--vscode-focusBorder) 42%, transparent);
+	--dirac-border-strong: color-mix(in srgb, var(--vscode-panel-border) 82%, transparent);
 	--dirac-text-muted: var(--vscode-descriptionForeground);
 	--dirac-focus: color-mix(in srgb, var(--vscode-focusBorder) 80%, var(--vscode-foreground));
 	--dirac-shadow-sm: 0 1px 2px color-mix(in srgb, var(--vscode-widget-shadow) 16%, transparent);
 	--dirac-shadow-md: 0 8px 24px color-mix(in srgb, var(--vscode-widget-shadow) 22%, transparent);
 	--dirac-radius-md: 7px;
-	--dirac-positive: var(--vscode-testing-iconPassed, var(--vscode-charts-green));
-	--dirac-warning: var(--vscode-editorWarning-foreground, var(--vscode-charts-yellow));
+	--dirac-positive: color-mix(in srgb, var(--vscode-testing-iconPassed, var(--vscode-charts-green)) 68%, var(--vscode-foreground));
+	--dirac-positive-border: color-mix(in srgb, var(--dirac-positive) 42%, transparent);
+	--dirac-positive-surface: color-mix(in srgb, var(--dirac-positive) 8%, transparent);
+	--dirac-positive-surface-hover: color-mix(in srgb, var(--dirac-positive) 14%, transparent);
+	--dirac-warning: color-mix(in srgb, var(--vscode-editorWarning-foreground, var(--vscode-charts-yellow)) 72%, var(--vscode-foreground));
 	--dirac-danger: var(--vscode-errorForeground);
 	--dirac-info: color-mix(in srgb, var(--vscode-textLink-foreground) 64%, var(--vscode-foreground));
-	--dirac-limit-track: color-mix(in srgb, var(--vscode-foreground) 16%, transparent);
-	--dirac-limit-remaining: #bd7840;
+	--dirac-limit-track: color-mix(in srgb, var(--vscode-foreground) 10%, transparent);
+	--dirac-limit-remaining: color-mix(in srgb, var(--vscode-charts-orange, #bd7840) 78%, var(--vscode-foreground));
 }
 
 button,
@@ -471,7 +474,7 @@ vscode-dropdown::part(control) {
 }
 
 .modular-chat-row:hover {
-	background: color-mix(in srgb, var(--vscode-toolbar-hoverBackground) 42%, transparent);
+	background: var(--dirac-surface-hover);
 }
 
 .modular-message {
@@ -484,8 +487,13 @@ vscode-dropdown::part(control) {
 }
 
 .modular-message-user {
-	border-color: color-mix(in srgb, var(--vscode-focusBorder) 45%, transparent) !important;
-	background: color-mix(in srgb, var(--vscode-focusBorder) 11%, transparent) !important;
+	border-color: color-mix(in srgb, var(--vscode-focusBorder) 28%, transparent) !important;
+	background: color-mix(in srgb, var(--vscode-focusBorder) 7%, transparent) !important;
+}
+
+
+.modular-completion {
+	border-color: var(--dirac-positive-border);
 }
 
 .modular-card.border {
@@ -495,7 +503,7 @@ vscode-dropdown::part(control) {
 }
 
 .modular-card-header {
-	background: color-mix(in srgb, var(--vscode-toolbar-hoverBackground) 34%, transparent);
+	background: color-mix(in srgb, var(--vscode-toolbar-hoverBackground) 22%, transparent);
 }
 
 .modular-card-header[data-terminal="true"] {
@@ -503,7 +511,7 @@ vscode-dropdown::part(control) {
 }
 
 .modular-card-actions {
-	background: color-mix(in srgb, var(--vscode-toolbar-hoverBackground) 34%, transparent) !important;
+	background: color-mix(in srgb, var(--vscode-toolbar-hoverBackground) 22%, transparent) !important;
 	border-color: var(--dirac-border-subtle) !important;
 }
 
@@ -525,7 +533,7 @@ vscode-dropdown::part(control) {
 
 .modular-composer-toolbar {
 	border-top: 1px solid var(--dirac-border-subtle);
-	background: color-mix(in srgb, var(--vscode-toolbar-hoverBackground) 26%, transparent);
+	background: color-mix(in srgb, var(--vscode-toolbar-hoverBackground) 18%, transparent);
 }
 
 .modular-command-menu {
@@ -536,7 +544,7 @@ vscode-dropdown::part(control) {
 
 .modular-auto-approve {
 	border-bottom: 1px solid var(--dirac-border-subtle);
-	background: color-mix(in srgb, var(--vscode-toolbar-hoverBackground) 24%, transparent);
+	background: color-mix(in srgb, var(--vscode-toolbar-hoverBackground) 16%, transparent);
 }
 
 .history-preview-item {
@@ -575,7 +583,7 @@ vscode-dropdown::part(control) {
 
 .settings-section-header {
 	border-bottom: 1px solid var(--dirac-border-subtle);
-	background: linear-gradient(90deg, color-mix(in srgb, var(--vscode-toolbar-hoverBackground) 36%, transparent), transparent);
+	background: linear-gradient(90deg, color-mix(in srgb, var(--vscode-toolbar-hoverBackground) 24%, transparent), transparent);
 }
 
 
@@ -607,7 +615,7 @@ vscode-dropdown::part(control) {
 
 /* Shared primitive refinements. These selectors only style existing controls and preserve their DOM, state, and event contracts. */
 .dirac-view-header {
-	background: linear-gradient(90deg, color-mix(in srgb, var(--vscode-editor-background) 52%, transparent), transparent);
+	background: linear-gradient(90deg, color-mix(in srgb, var(--vscode-editor-background) 36%, transparent), transparent);
 	box-shadow: inset 0 -1px 0 var(--dirac-border-subtle);
 }
 
@@ -682,12 +690,12 @@ vscode-dropdown::part(control):focus-within {
 }
 
 .history-bulk-actions {
-	background: linear-gradient(180deg, color-mix(in srgb, var(--vscode-editor-background) 35%, transparent), transparent);
+	background: linear-gradient(180deg, color-mix(in srgb, var(--vscode-editor-background) 26%, transparent), transparent);
 }
 
 .worktrees-page .worktree-helper {
 	border: 1px solid var(--dirac-border-subtle) !important;
-	background: color-mix(in srgb, var(--vscode-toolbar-hoverBackground) 48%, transparent) !important;
+	background: color-mix(in srgb, var(--vscode-toolbar-hoverBackground) 30%, transparent) !important;
 	border-radius: var(--dirac-radius-md);
 }
 
@@ -713,6 +721,55 @@ vscode-dropdown::part(control):focus-within {
 	box-shadow: 0 1px 2px color-mix(in srgb, var(--vscode-widget-shadow) 28%, transparent);
 }
 
+
+/* Brand flair stays contained to the idle-history welcome moment. */
+.dirac-logo-aura {
+	display: inline-flex;
+	isolation: isolate;
+	position: relative;
+}
+
+.dirac-logo-aura::before,
+.dirac-logo-aura::after {
+	animation: glowPulse 4s ease-in-out infinite;
+	background: radial-gradient(ellipse at 40% 30%,
+			color-mix(in srgb, var(--color-dirac, #9663f1) 18%, transparent) 0%,
+			color-mix(in srgb, var(--color-dirac, #9663f1) 8%, transparent) 40%,
+			transparent 70%);
+	border-radius: 40% 60% 55% 45% / 60% 40% 55% 45%;
+	content: "";
+	filter: blur(4px);
+	inset: -24px;
+	pointer-events: none;
+	position: absolute;
+	z-index: 0;
+}
+
+.dirac-logo-aura::after {
+	animation-delay: 2s;
+	background: radial-gradient(ellipse at 60% 70%,
+			color-mix(in srgb, var(--color-dirac, #9663f1) 12%, transparent) 0%,
+			color-mix(in srgb, var(--color-dirac, #9663f1) 5%, transparent) 50%,
+			transparent 75%);
+	border-radius: 55% 45% 40% 60% / 45% 55% 60% 40%;
+	filter: blur(8px);
+	inset: -16px;
+}
+
+.dirac-logo-aura>svg {
+	position: relative;
+	z-index: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+
+	.dirac-logo-aura::before,
+	.dirac-logo-aura::after {
+		animation: none;
+	}
+}
+
+
 @media (prefers-contrast: more) {
 
 	[data-slot="select-trigger"],
@@ -723,5 +780,11 @@ vscode-dropdown::part(control):focus-within {
 	.dirac-dialog-content,
 	.dirac-alert-content {
 		border-color: var(--vscode-contrastBorder, var(--dirac-focus)) !important;
+	}
+
+
+	.dirac-logo-aura::before,
+	.dirac-logo-aura::after {
+		display: none;
 	}
 }

@@ -65,6 +65,8 @@ export class LocalConversationCompaction {
 		return isUtilityTextCondensationAvailable(
 			{
 				utilityModelEnabled: this.dependencies.stateManager.getGlobalSettingsKey("utilityModelEnabled"),
+				utilityModelUseCondense: this.dependencies.stateManager.getGlobalSettingsKey("utilityModelUseCondense"),
+				utilityModelUseNewTask: this.dependencies.stateManager.getGlobalSettingsKey("utilityModelUseNewTask"),
 				utilityModelSelection: this.dependencies.stateManager.getGlobalSettingsKey("utilityModelSelection"),
 			},
 			CONVERSATION_CONTINUATION_TEMPLATE_ID,
@@ -76,6 +78,8 @@ export class LocalConversationCompaction {
 		const templates = createDefaultTextCondensationTemplateRegistry()
 		const settings = {
 			utilityModelEnabled: this.dependencies.stateManager.getGlobalSettingsKey("utilityModelEnabled"),
+			utilityModelUseCondense: this.dependencies.stateManager.getGlobalSettingsKey("utilityModelUseCondense"),
+			utilityModelUseNewTask: this.dependencies.stateManager.getGlobalSettingsKey("utilityModelUseNewTask"),
 			utilityModelSelection: this.dependencies.stateManager.getGlobalSettingsKey("utilityModelSelection"),
 		}
 		const selection = getConfiguredUtilityModelSelection(settings.utilityModelSelection)

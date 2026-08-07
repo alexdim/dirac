@@ -152,22 +152,16 @@ const InlineCodeWithFileCheck: React.FC<ComponentProps<"code"> & { [key: string]
 		/>
 	)
 
-	// Keep the code element identical before and after the asynchronous check.
-	// Only add a small adjacent control so surrounding text is not reflowed.
+	// Only add the file action after validation so ordinary inline code never reserves empty space.
 	return (
 		<span className="inline">
 			{codeElement}
-			{isPotentialFilePath && (
+			{isPotentialFilePath && isFilePath && (
 				<button
-					aria-label={isFilePath ? `Open ${filePath} in editor` : undefined}
-					className={cn(
-						"ml-0.5 inline-flex size-4 align-middle items-center justify-center rounded-sm bg-transparent p-0 text-preformat transition-opacity",
-						isFilePath ? "opacity-70 hover:opacity-100 focus-visible:opacity-100" : "invisible pointer-events-none",
-					)}
-					disabled={!isFilePath}
+					aria-label={`Open ${filePath} in editor`}
+					className="ml-0.5 inline-flex size-4 align-middle items-center justify-center rounded-sm bg-transparent p-0 text-preformat opacity-70 transition-opacity hover:opacity-100 focus-visible:opacity-100"
 					onClick={() => FileServiceClient.openFileRelativePath({ value: filePath })}
-					tabIndex={isFilePath ? 0 : -1}
-					title={isFilePath ? `Open ${filePath} in editor` : undefined}
+					title={`Open ${filePath} in editor`}
 					type="button">
 					<SquareArrowOutUpRightIcon className="size-3" />
 				</button>

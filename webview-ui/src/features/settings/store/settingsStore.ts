@@ -45,6 +45,9 @@ interface SettingsState {
 	modelProviderPresets: ModelProviderPreset[]
 	utilityModelEnabled: boolean
 	utilityModelSelection?: ModelProviderSelection
+	utilityModelUseCondense: boolean
+	utilityModelUseNewTask: boolean
+	utilityModelUseGenerateCommitMessage: boolean
 	navigateToAccount: () => void
 	setShowWelcome: (show: boolean) => void
 	availableTerminalProfiles: any[]
@@ -256,6 +259,9 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
 	modelProviderPresets: [],
 	utilityModelEnabled: false,
 	utilityModelSelection: undefined,
+	utilityModelUseCondense: true,
+	utilityModelUseNewTask: true,
+	utilityModelUseGenerateCommitMessage: true,
 	navigateToAccount: () => { },
 	setShowWelcome: () => { },
 	availableTerminalProfiles: [],

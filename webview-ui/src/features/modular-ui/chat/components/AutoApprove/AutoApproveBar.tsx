@@ -64,7 +64,7 @@ const AutoApproveBar = ({ style }: AutoApproveBarProps) => {
 
 	const borderColor = `color-mix(in srgb, ${getAsVar(VSC_TITLEBAR_INACTIVE_FOREGROUND)} 20%, transparent)`
 	const borderGradient = `linear-gradient(to bottom, ${borderColor} 0%, transparent 50%)`
-	const bgGradient = `linear-gradient(to bottom, color-mix(in srgb, var(--vscode-sideBar-background) 96%, white) 0%, transparent 80%)`
+	const bgGradient = `linear-gradient(to bottom, color-mix(in srgb, var(--vscode-toolbar-hoverBackground) 18%, transparent) 0%, transparent 80%)`
 
 	return (
 		<div

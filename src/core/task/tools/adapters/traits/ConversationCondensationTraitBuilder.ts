@@ -25,6 +25,8 @@ export function buildConversationCondensationTrait(config: TaskConfig): IConvers
 			isUtilityTextCondensationAvailable(
 				{
 					utilityModelEnabled: config.services.stateManager.getGlobalSettingsKey("utilityModelEnabled"),
+					utilityModelUseCondense: config.services.stateManager.getGlobalSettingsKey("utilityModelUseCondense"),
+					utilityModelUseNewTask: config.services.stateManager.getGlobalSettingsKey("utilityModelUseNewTask"),
 					utilityModelSelection: config.services.stateManager.getGlobalSettingsKey("utilityModelSelection"),
 				},
 				template,
@@ -33,6 +35,8 @@ export function buildConversationCondensationTrait(config: TaskConfig): IConvers
 		condenseConversation: async (template, options) => {
 			const settings = {
 				utilityModelEnabled: config.services.stateManager.getGlobalSettingsKey("utilityModelEnabled"),
+				utilityModelUseCondense: config.services.stateManager.getGlobalSettingsKey("utilityModelUseCondense"),
+				utilityModelUseNewTask: config.services.stateManager.getGlobalSettingsKey("utilityModelUseNewTask"),
 				utilityModelSelection: config.services.stateManager.getGlobalSettingsKey("utilityModelSelection"),
 			}
 			const selection = getConfiguredUtilityModelSelection(settings.utilityModelSelection)

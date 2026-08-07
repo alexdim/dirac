@@ -8,6 +8,7 @@ import {
 	Puzzle,
 	ShieldCheck,
 	SlidersHorizontal,
+	Sparkles,
 	SquareMousePointer,
 	SquareTerminal,
 	Wrench,
@@ -23,6 +24,7 @@ import ViewHeader from "@/shared/ui/ViewHeader"
 import SectionHeader from "../SectionHeader"
 import AboutSection from "../sections/AboutSection"
 import ApiConfigurationSection from "../sections/ApiConfigurationSection"
+import UtilityModelSection from "../sections/UtilityModelSection"
 import BrowserSettingsSection from "../sections/BrowserSettingsSection"
 import DebugSection from "../sections/DebugSection"
 import FeatureSettingsSection from "../sections/FeatureSettingsSection"
@@ -36,6 +38,7 @@ const IS_DEV = process.env.IS_DEV
 // Tab definitions
 type SettingsTabID =
 	| "api-config"
+	| "utility-model"
 	| "user-approved-commands"
 	| "features"
 	| "tools"
@@ -60,6 +63,13 @@ export const SETTINGS_TABS: SettingsTab[] = [
 		tooltipText: "API Configuration",
 		headerText: "API Configuration",
 		icon: SlidersHorizontal,
+	},
+	{
+		id: "utility-model",
+		name: "Utility Model",
+		tooltipText: "Utility Model",
+		headerText: "Utility Model",
+		icon: Sparkles,
 	},
 	{
 		id: "user-approved-commands",
@@ -145,6 +155,7 @@ const renderSectionHeader = (tabId: string) => {
 
 const TAB_CONTENT_MAP: Record<SettingsTabID, React.FC<any>> = {
 	"api-config": ApiConfigurationSection,
+	"utility-model": UtilityModelSection,
 	"user-approved-commands": UserApprovedCommandsSection,
 	features: FeatureSettingsSection,
 	tools: ToolTogglePanel,

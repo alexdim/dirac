@@ -809,6 +809,8 @@ export class Task {
 				isUtilityTextCondensationAvailable(
 					{
 						utilityModelEnabled: this.stateManager.getGlobalSettingsKey("utilityModelEnabled"),
+						utilityModelUseCondense: this.stateManager.getGlobalSettingsKey("utilityModelUseCondense"),
+						utilityModelUseNewTask: this.stateManager.getGlobalSettingsKey("utilityModelUseNewTask"),
 						utilityModelSelection: this.stateManager.getGlobalSettingsKey("utilityModelSelection"),
 					},
 					template,
@@ -1536,6 +1538,8 @@ export class Task {
 		const taskHandoffCondensationAvailable = isUtilityTextCondensationAvailable(
 			{
 				utilityModelEnabled: this.stateManager.getGlobalSettingsKey("utilityModelEnabled"),
+				utilityModelUseCondense: this.stateManager.getGlobalSettingsKey("utilityModelUseCondense"),
+				utilityModelUseNewTask: this.stateManager.getGlobalSettingsKey("utilityModelUseNewTask"),
 				utilityModelSelection: this.stateManager.getGlobalSettingsKey("utilityModelSelection"),
 			},
 			TASK_HANDOFF_TEMPLATE_ID,

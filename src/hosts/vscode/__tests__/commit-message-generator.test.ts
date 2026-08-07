@@ -71,9 +71,13 @@ describe("createConfiguredCommitMessageStream", () => {
 
 	const messages: DiracStorageMessage[] = [{ role: "user", content: "commit prompt" }]
 
-	it("uses the existing Act-mode handler when the Utility model checkbox is disabled", () => {
+	it("uses the existing Act-mode handler when commit-message Utility use is disabled", () => {
+		const selection: ModelProviderSelection = { provider: "openai", modelId: "utility-model" }
 		const apiConfiguration: ApiConfiguration = { actModeApiProvider: "openai", actModeOpenAiModelId: "act-model" }
-		const controller = createController({ utilityModelEnabled: false }, apiConfiguration)
+		const controller = createController(
+			{ utilityModelUseGenerateCommitMessage: false, utilityModelSelection: selection },
+			apiConfiguration,
+		)
 		const expectedStream = emptyStream()
 		const createMessage = sinon.stub().returns(expectedStream)
 		const buildApiHandler = sinon.stub(api, "buildApiHandler").returns({ createMessage } as any)
@@ -91,7 +95,10 @@ describe("createConfiguredCommitMessageStream", () => {
 	it("uses the selected Utility model and forwards the unchanged prompt when enabled", () => {
 		const selection: ModelProviderSelection = { provider: "openai", modelId: "utility-model" }
 		const apiConfiguration: ApiConfiguration = { actModeApiProvider: "openai", actModeOpenAiModelId: "act-model" }
-		const controller = createController({ utilityModelEnabled: true, utilityModelSelection: selection }, apiConfiguration)
+		const controller = createController(
+			{ utilityModelUseGenerateCommitMessage: true, utilityModelSelection: selection },
+			apiConfiguration,
+		)
 		const expectedStream = emptyStream()
 		const run = sinon.stub().returns(expectedStream)
 		const createUtilityModelRunner = sinon
@@ -108,17 +115,34 @@ describe("createConfiguredCommitMessageStream", () => {
 		sinon.assert.notCalled(buildApiHandler)
 	})
 
-	it("fails clearly when the Utility model checkbox is enabled without a valid selection", () => {
+	it("falls back to the Act model when commit-message Utility use has no selection", () => {
 		const apiConfiguration: ApiConfiguration = { actModeApiProvider: "openai", actModeOpenAiModelId: "act-model" }
-		const controller = createController({ utilityModelEnabled: true }, apiConfiguration)
+		const controller = createController({ utilityModelUseGenerateCommitMessage: true }, apiConfiguration)
+		const expectedStream = emptyStream()
+		const createMessage = sinon.stub().returns(expectedStream)
 		const createUtilityModelRunner = sinon.stub(utilityModel, "createUtilityModelRunner")
-		const buildApiHandler = sinon.stub(api, "buildApiHandler")
+		const buildApiHandler = sinon.stub(api, "buildApiHandler").returns({ createMessage } as any)
 
-		assert.throws(
-			() => createConfiguredCommitMessageStream(controller, "system prompt", messages, new AbortController().signal),
-			/Utility model is enabled but no valid Utility model is configured/,
-		)
+		const stream = createConfiguredCommitMessageStream(controller, "system prompt", messages, new AbortController().signal)
+
+		assert.equal(stream, expectedStream)
 		sinon.assert.notCalled(createUtilityModelRunner)
-		sinon.assert.notCalled(buildApiHandler)
+		sinon.assert.calledOnceWithExactly(buildApiHandler, apiConfiguration, "act")
+	})
+
+	it("uses the legacy switch when the independent commit-message setting is absent", () => {
+		const selection: ModelProviderSelection = { provider: "openai", modelId: "utility-model" }
+		const apiConfiguration: ApiConfiguration = { actModeApiProvider: "openai", actModeOpenAiModelId: "act-model" }
+		const controller = createController({ utilityModelEnabled: true, utilityModelSelection: selection }, apiConfiguration)
+		const expectedStream = emptyStream()
+		const run = sinon.stub().returns(expectedStream)
+		const createUtilityModelRunner = sinon
+			.stub(utilityModel, "createUtilityModelRunner")
+			.returns({ run } as unknown as ReturnType<typeof utilityModel.createUtilityModelRunner>)
+
+		const stream = createConfiguredCommitMessageStream(controller, "system prompt", messages, new AbortController().signal)
+
+		assert.equal(stream, expectedStream)
+		sinon.assert.calledOnceWithExactly(createUtilityModelRunner, apiConfiguration, selection)
 	})
 })

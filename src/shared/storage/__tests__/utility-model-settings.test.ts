@@ -12,8 +12,10 @@ import {
 import { getDefaultValue } from "../state-keys"
 
 describe("Utility model settings", () => {
-	it("defaults to disabled without a persisted selection", () => {
-		expect(getDefaultValue("utilityModelEnabled")).to.equal(false)
+	it("defaults each Utility use case to enabled without a persisted selection", () => {
+		expect(getDefaultValue("utilityModelUseCondense")).to.equal(true)
+		expect(getDefaultValue("utilityModelUseNewTask")).to.equal(true)
+		expect(getDefaultValue("utilityModelUseGenerateCommitMessage")).to.equal(true)
 		expect(getDefaultValue("utilityModelSelection")).to.be.undefined
 	})
 
@@ -31,6 +33,9 @@ describe("Utility model settings", () => {
 		const encoded = Settings.encode(
 			Settings.create({
 				utilityModelEnabled: true,
+				utilityModelUseCondense: true,
+				utilityModelUseNewTask: false,
+				utilityModelUseGenerateCommitMessage: true,
 				utilityModelSelection: {
 					...selection,
 					provider: ProtoApiProvider.OPENAI,
@@ -40,6 +45,9 @@ describe("Utility model settings", () => {
 		const decoded = Settings.decode(encoded)
 
 		expect(decoded.utilityModelEnabled).to.equal(true)
+		expect(decoded.utilityModelUseCondense).to.equal(true)
+		expect(decoded.utilityModelUseNewTask).to.equal(false)
+		expect(decoded.utilityModelUseGenerateCommitMessage).to.equal(true)
 		expect(decoded.utilityModelSelection?.provider).to.equal(ProtoApiProvider.OPENAI)
 		expect(decoded.utilityModelSelection?.modelId).to.equal(selection.modelId)
 		expect(decoded.utilityModelSelection?.modelInfo?.contextWindow).to.equal(selection.modelInfo?.contextWindow)

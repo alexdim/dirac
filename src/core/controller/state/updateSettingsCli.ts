@@ -41,6 +41,9 @@ async function applyCliSettings(
 		defaultTerminalProfile,
 		utilityModelEnabled,
 		utilityModelSelection,
+		utilityModelUseCondense,
+		utilityModelUseNewTask,
+		utilityModelUseGenerateCommitMessage,
 		...simpleSettings
 	} = settings
 	// Batch update for simple pass-through fields
@@ -60,6 +63,12 @@ async function applyCliSettings(
 			convertProtoToModelProviderSelection(utilityModelSelection),
 		)
 	}
+	if (utilityModelUseCondense !== undefined)
+		controller.stateManager.setGlobalState("utilityModelUseCondense", utilityModelUseCondense)
+	if (utilityModelUseNewTask !== undefined)
+		controller.stateManager.setGlobalState("utilityModelUseNewTask", utilityModelUseNewTask)
+	if (utilityModelUseGenerateCommitMessage !== undefined)
+		controller.stateManager.setGlobalState("utilityModelUseGenerateCommitMessage", utilityModelUseGenerateCommitMessage)
 	// Telemetry setting
 	if (telemetrySetting) await controller.updateTelemetrySetting(telemetrySetting as TelemetrySetting)
 	// Settings with telemetry capture
@@ -98,6 +107,9 @@ export async function updateSettingsCli(controller: Controller, request: UpdateS
 		const {
 			utilityModelEnabled: _utilityModelEnabled,
 			utilityModelSelection: _utilityModelSelection,
+			utilityModelUseCondense: _utilityModelUseCondense,
+			utilityModelUseNewTask: _utilityModelUseNewTask,
+			utilityModelUseGenerateCommitMessage: _utilityModelUseGenerateCommitMessage,
 			...apiSettings
 		} = settings
 		Object.assign(candidateConfiguration, filterSimpleSettingsBatch(apiSettings))

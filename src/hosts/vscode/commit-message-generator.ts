@@ -176,15 +176,15 @@ export function createConfiguredCommitMessageStream(
 	signal: AbortSignal,
 ) {
 	const apiConfiguration = controller.stateManager.getApiConfiguration()
-	const utilityModelEnabled = controller.stateManager.getGlobalSettingsKey("utilityModelEnabled") === true
-
-	if (!utilityModelEnabled) {
-		return api.buildApiHandler(apiConfiguration, "act").createMessage(systemPrompt, messages)
-	}
-
 	const selection = getConfiguredUtilityModelSelection(controller.stateManager.getGlobalSettingsKey("utilityModelSelection"))
-	if (!selection) {
-		throw new Error("Utility model is enabled but no valid Utility model is configured")
+	const utilityModelUseCommitMessages = controller.stateManager.getGlobalSettingsKey("utilityModelUseGenerateCommitMessage")
+	const utilityModelEnabled =
+		utilityModelUseCommitMessages === undefined
+			? controller.stateManager.getGlobalSettingsKey("utilityModelEnabled") === true
+			: utilityModelUseCommitMessages === true
+
+	if (!utilityModelEnabled || !selection) {
+		return api.buildApiHandler(apiConfiguration, "act").createMessage(systemPrompt, messages)
 	}
 
 	return utilityModel.createUtilityModelRunner(apiConfiguration, selection).run({
