@@ -9,6 +9,7 @@ import { normalizeOpenaiReasoningEffort } from "@shared/storage/types"
 import OpenAI from "openai"
 import type { ChatCompletionReasoningEffort, ChatCompletionTool } from "openai/resources/chat/completions"
 import { featureFlagsService } from "@/services/feature-flags"
+import { getErrorMessage } from "@/shared/errors"
 import { DiracStorageMessage } from "@/shared/messages/content"
 import { createOpenAIClient } from "@/shared/net"
 import { ApiFormat } from "@/shared/proto/dirac/models"
@@ -16,11 +17,11 @@ import { FeatureFlag } from "@/shared/services/feature-flags/feature-flags"
 import { Logger } from "@/shared/services/Logger"
 import { isParallelToolCallingEnabled } from "@/utils/model-utils"
 import {
-	ApiHandler,
-	CommonApiHandlerOptions,
 	type ApiConversationCompactionRequest,
 	type ApiConversationCompactionResult,
 	type ApiConversationRequestOptions,
+	ApiHandler,
+	CommonApiHandlerOptions,
 } from "../"
 import { withRetry } from "../retry"
 import { convertToOpenAiMessages } from "../transform/openai-format"
@@ -92,7 +93,7 @@ export class OpenAiNativeHandler implements ApiHandler {
 					apiKey: this.options.openAiNativeApiKey,
 				})
 			} catch (error) {
-				throw new Error(`Error creating OpenAI client: ${error instanceof Error ? error.message : String(error)}`)
+				throw new Error(`Error creating OpenAI client: ${getErrorMessage(error)}`)
 			}
 		}
 		return this.client

@@ -1,5 +1,6 @@
 import { exec } from "child_process"
 import { promisify } from "util"
+import { getErrorMessage } from "@/shared/errors"
 import { Logger } from "@/shared/services/Logger"
 
 const execAsync = promisify(exec)
@@ -146,7 +147,7 @@ export async function getCommitInfo(hash: string, cwd: string): Promise<string> 
 		return truncateOutput(output)
 	} catch (error) {
 		Logger.error("Error getting commit info:", error)
-		return `Failed to get commit info: ${error instanceof Error ? error.message : String(error)}`
+		return `Failed to get commit info: ${getErrorMessage(error)}`
 	}
 }
 
@@ -182,7 +183,7 @@ export async function getWorkingState(cwd: string): Promise<string> {
 		return truncateOutput(output)
 	} catch (error) {
 		Logger.error("Error getting working state:", error)
-		return `Failed to get working state: ${error instanceof Error ? error.message : String(error)}`
+		return `Failed to get working state: ${getErrorMessage(error)}`
 	}
 }
 

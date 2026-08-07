@@ -2,6 +2,7 @@ import { discoverChromeInstances } from "@services/browser/BrowserDiscovery"
 import { BrowserSession } from "@services/browser/BrowserSession"
 import { BrowserConnection } from "@shared/proto/dirac/browser"
 import { EmptyRequest } from "@shared/proto/dirac/common"
+import { getErrorMessage } from "@/shared/errors"
 import { Controller } from "../index"
 
 /**
@@ -37,7 +38,7 @@ export async function discoverBrowser(controller: Controller, _request: EmptyReq
 	} catch (error) {
 		return BrowserConnection.create({
 			success: false,
-			message: `Error discovering browser: ${error instanceof Error ? error.message : String(error)}`,
+			message: `Error discovering browser: ${getErrorMessage(error)}`,
 			endpoint: "",
 		})
 	}

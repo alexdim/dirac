@@ -18,6 +18,7 @@ import { isDev } from "@shared/config/environment"
 import type { ExtensionContext } from "vscode"
 import { HostProvider } from "@/hosts/host-provider"
 import { vscodeHostBridgeClient } from "@/hosts/vscode/hostbridge/client/host-grpc-client"
+import { toError } from "@/shared/errors"
 import { createStorageContext } from "@/shared/storage/storage-context"
 import { readTextFromClipboard, writeTextToClipboard } from "@/utils/env"
 import { initialize, tearDown } from "./common"
@@ -600,7 +601,7 @@ async function setupHostProvider(context: ExtensionContext, globalStorageFsPath:
 	outputChannel.appendLine("[Dirac] Setting up VS Code host...")
 
 	const ripgrep = await resolveWorkingRipgrepBinary(context.extensionUri.fsPath).catch((error: unknown) => {
-		const resolutionError = error instanceof Error ? error : new Error(String(error))
+		const resolutionError = toError(error)
 		Logger.warn(`[Dirac] ${resolutionError.message}`)
 		outputChannel.appendLine(`[Dirac] ${resolutionError.message}`)
 		return resolutionError

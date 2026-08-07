@@ -16,6 +16,7 @@
 
 import { DiracTempManager } from "@services/temp"
 import * as fs from "fs"
+import { getErrorMessage } from "@/shared/errors"
 import { BACKGROUND_COMMAND_TIMEOUT_MS } from "../constants"
 import type { BackgroundCommand, TerminalInfo, TerminalProcessResultPromise } from "../types"
 import { StandaloneTerminalProcess } from "./StandaloneTerminalProcess"
@@ -192,7 +193,7 @@ export class TerminalProcessManager {
 			backgroundLoggingReady = true
 			if (handoffError) {
 				backgroundCommand.status = "error"
-				logStream.write(`\n[LOG_HANDOFF_ERROR] ${handoffError instanceof Error ? handoffError.message : String(handoffError)}\n`)
+				logStream.write(`\n[LOG_HANDOFF_ERROR] ${getErrorMessage(handoffError)}\n`)
 				requestFinalization()
 			}
 			for (const line of pendingLines) logStream.write(`${line}\n`)

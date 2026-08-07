@@ -1,6 +1,7 @@
 import { describe, it } from "mocha"
 import sinon from "sinon"
 import "should"
+import { getErrorMessage } from "@/shared/errors"
 import { retryWithBackoff } from "./retry"
 
 describe("retryWithBackoff", () => {
@@ -76,7 +77,7 @@ describe("retryWithBackoff", () => {
 				shouldRetry,
 			})
 		} catch (error) {
-			errorMessage = error instanceof Error ? error.message : String(error)
+			errorMessage = getErrorMessage(error)
 		}
 
 		operation.callCount.should.equal(1)
@@ -102,7 +103,7 @@ describe("retryWithBackoff", () => {
 				},
 			)
 		} catch (error) {
-			errorMessage = error instanceof Error ? error.message : String(error)
+			errorMessage = getErrorMessage(error)
 		}
 
 		attempt.should.equal(3)

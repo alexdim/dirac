@@ -1,5 +1,6 @@
-import { DiagnosticSeverity, type FileDiagnostics } from "@shared/proto/index.dirac"
 import type { SourceFileChange, SourceMutationPlan } from "@services/source-ast/types"
+import { DiagnosticSeverity, type FileDiagnostics } from "@shared/proto/index.dirac"
+import { getErrorMessage } from "@/shared/errors"
 import type { IToolEnvironment, SaveResult } from "../../interfaces/IToolEnvironment"
 
 export type AstEditDiagnosticsStatus = "not_run" | "clean" | "problems" | "failed"
@@ -123,6 +124,6 @@ export class AstEditApplier {
 	}
 
 	private errorMessage(error: unknown): string {
-		return error instanceof Error ? error.message : String(error)
+		return getErrorMessage(error)
 	}
 }

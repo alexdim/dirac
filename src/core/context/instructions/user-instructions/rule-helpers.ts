@@ -6,6 +6,7 @@ import { parseYamlFrontmatter } from "@utils/frontmatter"
 import { fileExistsAtPath, isDirectory, readDirectory } from "@utils/fs"
 import fs from "fs/promises"
 import * as path from "path"
+import { getErrorMessage } from "@/shared/errors"
 import { Logger } from "@/shared/services/Logger"
 import { evaluateRuleConditionals, RuleEvaluationContext } from "./rule-conditionals"
 
@@ -227,7 +228,7 @@ export const getRuleFilesTotalContentWithMetadata = async (
 
 				return { contentPart: `${ruleFilePathRelative}\n${body.trim()}`, activatedRule }
 			} catch (error) {
-				const message = `Failed to load rule file ${ruleFilePathRelative}: ${error instanceof Error ? error.message : String(error)}`
+				const message = `Failed to load rule file ${ruleFilePathRelative}: ${getErrorMessage(error)}`
 				Logger.error(message, error)
 				return { contentPart: null, activatedRule: null, error: message }
 			}
@@ -284,7 +285,7 @@ export function getRemoteRulesTotalContentWithMetadata(
 			if (combinedContent) combinedContent += "\n\n"
 			combinedContent += `${rule.name}\n${body.trim()}`
 		} catch (error) {
-			const message = `Failed to load remote rule ${rule.name}: ${error instanceof Error ? error.message : String(error)}`
+			const message = `Failed to load remote rule ${rule.name}: ${getErrorMessage(error)}`
 			Logger.error(message, error)
 			errors.push(message)
 		}
@@ -467,7 +468,7 @@ export async function deleteRuleFile(
 			message: `File "${fileName}" deleted successfully`,
 		}
 	} catch (error) {
-		const errorMessage = error instanceof Error ? error.message : String(error)
+		const errorMessage = getErrorMessage(error)
 		Logger.error(`Error deleting file: ${errorMessage}`, error)
 		return {
 			success: false,

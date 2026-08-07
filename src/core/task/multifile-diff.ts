@@ -2,9 +2,10 @@ import { HostProvider } from "@/hosts/host-provider"
 import CheckpointTracker from "@/integrations/checkpoints/CheckpointTracker"
 import { findLast } from "@/shared/array"
 import { isTaskCompletionCard } from "@/shared/cardIdentity"
+import { DiracMessageType } from "@/shared/ExtensionMessage"
+import { getErrorMessage } from "@/shared/errors"
 import { ShowMessageType } from "@/shared/proto/index.host"
 import { Logger } from "@/shared/services/Logger"
-import { DiracMessageType } from "@/shared/ExtensionMessage"
 import { MessageStateHandler } from "./message-state"
 
 export async function showChangedFilesDiff(
@@ -81,7 +82,7 @@ async function getChangedFiles(
 		}
 		return changedFiles
 	} catch (error) {
-		const errorMessage = error instanceof Error ? error.message : "Unknown error"
+		const errorMessage = getErrorMessage(error, "Unknown error")
 		HostProvider.window.showMessage({
 			type: ShowMessageType.ERROR,
 			message: "Failed to retrieve diff set: " + errorMessage,

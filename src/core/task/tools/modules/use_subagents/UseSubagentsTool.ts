@@ -1,29 +1,29 @@
-import { IDiracTool } from "../../interfaces/IDiracTool"
-import { ICardHandle, IToolEnvironment } from "../../interfaces/IToolEnvironment"
-import { DiracToolSpec, DiracDefaultTool } from "@/shared/tools"
-import { stripHashes } from "../../../../../shared/utils/line-hashing"
 import { formatResponse } from "@core/formatResponse"
-import { AgentConfigLoader } from "../../subagent/AgentConfigLoader"
-import { waitForPresentationOperation } from "../../subagent/PresentationDeadline"
-import { DEFAULT_SUBAGENT_TIMEOUT_SECONDS, resolveSubagentTimeoutSeconds } from "../../subagent/SubagentExecutionPolicy"
-import { SubagentStatusItem } from "@shared/ExtensionMessage"
-import { excerpt } from "../../../utils/excerpt"
-import { CardStatus, SubagentExecutionStatus } from "@shared/ExtensionMessage"
-import { DiracIcon } from "@/shared/icons"
+import { CardStatus, SubagentExecutionStatus, SubagentStatusItem } from "@shared/ExtensionMessage"
 import {
-	appendSubagentTrajectoryEvent,
 	allocateSubagentIdentity,
+	appendSubagentTrajectoryEvent,
 	createSubagentCardInput,
 	createSubagentCardOutput,
 	formatSubagentTrajectory,
 	isTerminalSubagentStatus,
 	recordSubagentProgress,
-	subagentCardStatus,
-	SubagentTrajectoryEventType,
 	SUBAGENT_TASK_TITLE_MAX_CHARS,
 	SUBAGENT_TASK_TITLE_MAX_WORDS,
 	type SubagentTrajectoryEvent,
+	SubagentTrajectoryEventType,
+	subagentCardStatus,
 } from "@shared/subagents"
+import { toError } from "@/shared/errors"
+import { DiracIcon } from "@/shared/icons"
+import { DiracDefaultTool, DiracToolSpec } from "@/shared/tools"
+import { stripHashes } from "../../../../../shared/utils/line-hashing"
+import { excerpt } from "../../../utils/excerpt"
+import { IDiracTool } from "../../interfaces/IDiracTool"
+import { ICardHandle, IToolEnvironment } from "../../interfaces/IToolEnvironment"
+import { AgentConfigLoader } from "../../subagent/AgentConfigLoader"
+import { waitForPresentationOperation } from "../../subagent/PresentationDeadline"
+import { DEFAULT_SUBAGENT_TIMEOUT_SECONDS, resolveSubagentTimeoutSeconds } from "../../subagent/SubagentExecutionPolicy"
 
 interface SubagentRequest {
 	taskTitle: string
@@ -116,7 +116,7 @@ export class UseSubagentsTool implements IDiracTool {
 		let cardsCreated = 0
 		const taskId = env.config.ulid || "unknown"
 		const reportPresentationIssue = (context: PresentationIssueContext, error: unknown) => {
-			const normalizedError = error instanceof Error ? error : new Error(String(error))
+			const normalizedError = toError(error)
 			presentationIssues.push({ ...context, error: normalizedError })
 			const correlation = [
 				`task=${taskId}`,

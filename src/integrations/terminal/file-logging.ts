@@ -3,6 +3,7 @@
  */
 
 import { DiracTempManager } from "@services/temp"
+import { toError } from "@/shared/errors"
 import { MAX_BYTES_BEFORE_FILE, MAX_LINES_BEFORE_FILE, SUMMARY_BYTES_TO_KEEP, SUMMARY_LINES_TO_KEEP } from "./constants"
 
 export interface FileLogState {
@@ -39,7 +40,7 @@ class QueuedFileWriter {
 				await handle.appendFile(output, "utf8")
 			})
 			.catch((error) => {
-				this.firstError ??= error instanceof Error ? error : new Error(String(error))
+				this.firstError ??= toError(error)
 			})
 	}
 

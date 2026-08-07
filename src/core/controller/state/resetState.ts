@@ -2,6 +2,7 @@ import { Empty } from "@shared/proto/dirac/common"
 import { ResetStateRequest } from "@shared/proto/dirac/state"
 import { resetGlobalState, resetWorkspaceState } from "@/core/storage/utils/state-helpers"
 import { HostProvider } from "@/hosts/host-provider"
+import { getErrorMessage } from "@/shared/errors"
 import { ShowMessageType } from "@/shared/proto/host/window"
 import { Logger } from "@/shared/services/Logger"
 import { Controller } from ".."
@@ -47,7 +48,7 @@ export async function resetState(controller: Controller, request: ResetStateRequ
 		Logger.error("Error resetting state:", error)
 		HostProvider.window.showMessage({
 			type: ShowMessageType.ERROR,
-			message: `Failed to reset state: ${error instanceof Error ? error.message : String(error)}`,
+			message: `Failed to reset state: ${getErrorMessage(error)}`,
 		})
 		throw error
 	}

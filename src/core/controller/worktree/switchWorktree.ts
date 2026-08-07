@@ -1,5 +1,6 @@
 import { SwitchWorktreeRequest, WorktreeResult } from "@shared/proto/dirac/worktree"
 import { HostProvider } from "@/hosts/host-provider"
+import { getErrorMessage } from "@/shared/errors"
 import { Logger } from "@/shared/services/Logger"
 import { Controller } from ".."
 
@@ -40,7 +41,7 @@ export async function switchWorktree(controller: Controller, request: SwitchWork
 		Logger.error(`Error switching worktree: ${JSON.stringify(error)}`)
 		return WorktreeResult.create({
 			success: false,
-			message: error instanceof Error ? error.message : String(error),
+			message: getErrorMessage(error),
 		})
 	}
 }

@@ -1,6 +1,7 @@
 import { GrpcRequestRegistry } from "@core/controller/grpc-request-registry"
 import { hostServiceHandlers } from "@generated/hosts/vscode/hostbridge-grpc-service-config"
 import { StreamingCallbacks } from "@/hosts/host-provider-types"
+import { toError } from "@/shared/errors"
 import { Logger } from "@/shared/services/Logger"
 
 /**
@@ -54,7 +55,7 @@ export class GrpcHandler {
 			} catch (error) {
 				// If there's an error in the callback, call the onError callback
 				if (streamingCallbacks.onError) {
-					streamingCallbacks.onError(error instanceof Error ? error : new Error(String(error)))
+					streamingCallbacks.onError(toError(error))
 				} else {
 					Logger.error(`[gRPC] Streaming callback error (no onError handler) for ${service}.${method}:`, error)
 				}
@@ -80,7 +81,7 @@ export class GrpcHandler {
 			await this.handleStreamingRequest(service, method, request, requestId)
 		} catch (error) {
 			if (streamingCallbacks.onError) {
-				streamingCallbacks.onError(error instanceof Error ? error : new Error(String(error)))
+				streamingCallbacks.onError(toError(error))
 			}
 		}
 

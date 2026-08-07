@@ -1,5 +1,6 @@
 import axios from "axios"
 import * as net from "net"
+import { getErrorMessage } from "@/shared/errors"
 import { Logger } from "@/shared/services/Logger"
 
 /**
@@ -97,7 +98,7 @@ export async function testBrowserConnection(host: string): Promise<{ success: bo
 		Logger.error(`Failed to connect to remote browser: ${error}`)
 		return {
 			success: false,
-			message: `Failed to connect: ${error instanceof Error ? error.message : String(error)}`,
+			message: `Failed to connect: ${getErrorMessage(error)}`,
 		}
 	}
 }

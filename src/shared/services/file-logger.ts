@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto"
 import * as fs from "node:fs"
 import * as os from "node:os"
 import * as path from "node:path"
+import { toError } from "@/shared/errors"
 
 export const LOG_MAX_FILE_SIZE_BYTES = 2 * 1024 * 1024
 export const LOG_MAX_FILES = 5
@@ -141,7 +142,7 @@ class RotatingFileLoggerImpl implements RotatingFileLogger {
 			})
 		})
 		this.flushChain = this.flushChain.catch((error: unknown) => {
-			this.flushFailure = error instanceof Error ? error : new Error(String(error))
+			this.flushFailure = toError(error)
 			process.stderr.write(`Failed to write ${this.filePath}: ${this.flushFailure.message}\n`)
 		})
 	}
