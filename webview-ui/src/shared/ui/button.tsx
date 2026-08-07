@@ -8,11 +8,11 @@ const buttonVariants = cva(
 	{
 		variants: {
 			variant: {
-				default: "bg-button-background text-primary-foreground shadow-sm shadow-button-background/20 hover:bg-button-hover",
+				default: "bg-button-background text-primary-foreground shadow-sm hover:bg-button-hover",
 				secondary:
-					"bg-button-secondary-background text-button-secondary-foreground hover:bg-button-secondary-background-hover shadow-sm shadow-button-secondary-background/50",
-				error: "bg-error text-background hover:bg-error/90 shadow-sm shadow-error/50",
-				outline: "hover:bg-accent/10 border border-accent/20 shadow-sm shadow-accent/50",
+					"bg-button-secondary-background text-button-secondary-foreground shadow-sm hover:bg-button-secondary-background-hover",
+				error: "bg-error text-background shadow-sm hover:bg-error/90",
+				outline: "border border-accent/20 shadow-sm hover:bg-accent/10",
 				"outline-primary":
 					"!bg-transparent !border-[var(--vscode-button-background)] !border-[1px] !border-solid !text-[var(--vscode-button-background)] !hover:bg-[color-mix(in_srgb,var(--vscode-button-background)_15%,transparent)] !active:bg-[color-mix(in_srgb,var(--vscode-button-background)_25%,transparent)]",
 				ghost: "hover:bg-accent/10",
@@ -21,8 +21,8 @@ const buttonVariants = cva(
 				icon: "hover:opacity-80 p-0 m-0 border-0 cursor-pointer hover:shadow-none focus:ring-0 focus:ring-offset-0",
 				dirac: "bg-dirac border-foreground/20 text-dirac-foreground",
 				success:
-					"border-(--vscode-testing-iconPassed) bg-[color-mix(in_srgb,var(--vscode-testing-iconPassed)_16%,transparent)] text-(--vscode-testing-iconPassed) hover:bg-[color-mix(in_srgb,var(--vscode-testing-iconPassed)_26%,transparent)]",
-				danger: "border-error bg-error text-(--vscode-button-foreground) shadow-sm shadow-error/25 hover:bg-error/85",
+					"border-[var(--dirac-positive-border)] bg-[var(--dirac-positive-surface)] text-foreground hover:bg-[var(--dirac-positive-surface-hover)]",
+				danger: "border-error bg-error text-(--vscode-button-foreground) shadow-sm hover:bg-error/85",
 			},
 			size: {
 				default: "py-1.5 px-4 [&_svg]:size-3",

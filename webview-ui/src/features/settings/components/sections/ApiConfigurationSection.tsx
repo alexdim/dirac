@@ -7,7 +7,6 @@ import { useSettingsStore } from "@/features/settings/store/settingsStore"
 import { StateServiceClient } from "@/shared/api/grpc-client"
 import { TabButton } from "../../../../shared/ui/TabButton"
 import ApiOptions from "../ApiOptions"
-import UtilityModelSelection from "../UtilityModelSelection"
 import Section from "../Section"
 import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
 
@@ -58,9 +57,6 @@ const ApiConfigurationSection = ({ renderSectionHeader }: ApiConfigurationSectio
 					<ApiOptions currentMode={mode as Mode} showModelOptions={true} />
 				)}
 
-				<div className="mt-5 border-t border-(--vscode-panel-border) pt-4">
-					<UtilityModelSelection />
-				</div>
 				<div className="mb-[5px]">
 					<VSCodeCheckbox
 						checked={planActSeparateModelsSetting}

@@ -85,7 +85,7 @@ describe("StateManager", () => {
 		sandbox.restore()
 		try {
 			await fs.rm(tempDir, { recursive: true, force: true })
-		} catch { }
+		} catch {}
 		;(StateManager as any).instance = undefined
 	})
 
@@ -115,6 +115,71 @@ describe("StateManager", () => {
 	})
 
 	// ---------------------------------------------------------------
+	describe("utility model migration", () => {
+		async function setPersistedUtilitySetting(key: string, value: boolean): Promise<void> {
+			await storage.globalState.update(key, value)
+			storage.globalStateBackingStore.set(key, value)
+		}
+
+		it("keeps fresh installs on the independent use-case defaults", async () => {
+			const setBatch = sandbox.spy(storage.globalStateBackingStore, "setBatch")
+
+			const sm = await StateManager.initialize(storage)
+
+			sm.getGlobalSettingsKey("utilityModelUseCondense").should.equal(true)
+			sm.getGlobalSettingsKey("utilityModelUseNewTask").should.equal(true)
+			sm.getGlobalSettingsKey("utilityModelUseGenerateCommitMessage").should.equal(true)
+			sinon.assert.notCalled(setBatch)
+		})
+
+		it("migrates a legacy enabled setting to every missing use case", async () => {
+			await setPersistedUtilitySetting("utilityModelEnabled", true)
+
+			const sm = await StateManager.initialize(storage)
+
+			sm.getGlobalSettingsKey("utilityModelUseCondense").should.equal(true)
+			sm.getGlobalSettingsKey("utilityModelUseNewTask").should.equal(true)
+			sm.getGlobalSettingsKey("utilityModelUseGenerateCommitMessage").should.equal(true)
+		})
+
+		it("preserves a legacy opt-out for every missing use case", async () => {
+			await setPersistedUtilitySetting("utilityModelEnabled", false)
+
+			const sm = await StateManager.initialize(storage)
+
+			sm.getGlobalSettingsKey("utilityModelUseCondense").should.equal(false)
+			sm.getGlobalSettingsKey("utilityModelUseNewTask").should.equal(false)
+			sm.getGlobalSettingsKey("utilityModelUseGenerateCommitMessage").should.equal(false)
+		})
+
+		it("preserves explicit use cases while backfilling only missing settings", async () => {
+			await setPersistedUtilitySetting("utilityModelEnabled", true)
+			await setPersistedUtilitySetting("utilityModelUseCondense", false)
+
+			const sm = await StateManager.initialize(storage)
+
+			sm.getGlobalSettingsKey("utilityModelUseCondense").should.equal(false)
+			sm.getGlobalSettingsKey("utilityModelUseNewTask").should.equal(true)
+			sm.getGlobalSettingsKey("utilityModelUseGenerateCommitMessage").should.equal(true)
+		})
+
+		it("does not rewrite configurations with every independent use case persisted", async () => {
+			await setPersistedUtilitySetting("utilityModelEnabled", false)
+			await setPersistedUtilitySetting("utilityModelUseCondense", true)
+			await setPersistedUtilitySetting("utilityModelUseNewTask", false)
+			await setPersistedUtilitySetting("utilityModelUseGenerateCommitMessage", true)
+			const setBatch = sandbox.spy(storage.globalStateBackingStore, "setBatch")
+
+			const sm = await StateManager.initialize(storage)
+
+			sm.getGlobalSettingsKey("utilityModelUseCondense").should.equal(true)
+			sm.getGlobalSettingsKey("utilityModelUseNewTask").should.equal(false)
+			sm.getGlobalSettingsKey("utilityModelUseGenerateCommitMessage").should.equal(true)
+			sinon.assert.notCalled(setBatch)
+		})
+	})
+
+	// ---------------------------------------------------------------
 	describe("global state", () => {
 		let sm: StateManager
 
@@ -139,7 +204,7 @@ describe("StateManager", () => {
 
 		it("getGlobalSettingsKey returns undefined for unknown key", () => {
 			const v = sm.getGlobalSettingsKey("nonexistent" as any)
-				;(v === undefined).should.be.true()
+			;(v === undefined).should.be.true()
 		})
 	})
 
@@ -192,7 +257,7 @@ describe("StateManager", () => {
 
 		it("getSecretKey returns undefined for unknown key", () => {
 			const v = sm.getSecretKey("nonexistent" as any)
-				;(v === undefined).should.be.true()
+			;(v === undefined).should.be.true()
 		})
 	})
 
@@ -335,7 +400,7 @@ describe("StateManager", () => {
 			sm.setGlobalState("mode", "act")
 			await sm.reInitialize()
 			const v = sm.getGlobalSettingsKey("mode")
-				;(v === undefined).should.be.true()
+			;(v === undefined).should.be.true()
 		})
 	})
 })

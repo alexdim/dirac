@@ -47,6 +47,13 @@ type FieldDefinitions = Record<string, FieldDefinition<any>>
 
 export type ConfiguredAPIKeys = Partial<Record<ApiProvider, boolean>>
 
+/** Independently controls which sidecar operations may use the Utility model. */
+export interface UtilityModelUseCases {
+	condense: boolean
+	newTask: boolean
+	generateCommitMessage: boolean
+}
+
 const GLOBAL_STATE_FIELDS = {
 	diracVersion: { default: undefined as string | undefined },
 	"dirac.generatedMachineId": { default: undefined as string | undefined }, // Note, distinctId reads/writes this directly from/to StorageContext before StateManager is initialized.
@@ -208,7 +215,11 @@ const USER_SETTINGS_FIELDS = {
 	acpDisabledProviders: { default: {} as Record<string, string> },
 	acpProviderApiTypes: { default: {} as Record<string, string> },
 	modelProviderPresets: { default: [] as import("@shared/api").ModelProviderPreset[] },
+	// Retained only to migrate configurations written before Utility use cases were independent.
 	utilityModelEnabled: { default: false as boolean },
+	utilityModelUseCondense: { default: true as boolean },
+	utilityModelUseNewTask: { default: true as boolean },
+	utilityModelUseGenerateCommitMessage: { default: true as boolean },
 	utilityModelSelection: { default: undefined as ModelProviderSelection | undefined },
 	autoApprovalSettings: {
 		default: DEFAULT_AUTO_APPROVAL_SETTINGS as AutoApprovalSettings,

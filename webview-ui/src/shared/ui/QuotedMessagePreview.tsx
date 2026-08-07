@@ -17,8 +17,8 @@ const PreviewContainer = styled.div`
 // Removed Label component
 
 const ContentRow = styled.div`
-	/* Mix outer background with white to ensure a much lighter inner box */
-	background-color: color-mix(in srgb, var(--vscode-input-background) 70%, white 30%);
+	/* Keep the inner box close to the active theme surface. */
+	background-color: color-mix(in srgb, var(--vscode-input-background) 82%, var(--vscode-editor-background));
 	border-radius: 2px 2px 2px 2px; /* Round top corners, square bottom corners */
 	padding: 8px 10px 10px 8px; /* Reduced left padding */
 	display: flex;

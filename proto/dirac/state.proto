@@ -298,6 +298,9 @@ message Settings {
   optional bool utility_model_enabled = 205;
   optional ModelProviderSelection utility_model_selection = 206;
   repeated UserApprovedCommand user_approved_commands = 207;
+  optional bool utility_model_use_condense = 208;
+  optional bool utility_model_use_new_task = 209;
+  optional bool utility_model_use_generate_commit_message = 210;
 }
 
 message State {
@@ -436,6 +439,9 @@ message UpdateSettingsRequest {
   optional bool utility_model_enabled = 47;
   optional ModelProviderSelection utility_model_selection = 48;
   optional UserApprovedCommandsUpdate user_approved_commands = 49;
+  optional bool utility_model_use_condense = 50;
+  optional bool utility_model_use_new_task = 51;
+  optional bool utility_model_use_generate_commit_message = 52;
 }
 
 message UserApprovedCommandsUpdate {

@@ -99,6 +99,9 @@ function processTaskSettings(controller: Controller, taskId: string, settings: a
 		browserSettings,
 		utilityModelEnabled: _utilityModelEnabled,
 		utilityModelSelection: _utilityModelSelection,
+		utilityModelUseCondense: _utilityModelUseCondense,
+		utilityModelUseNewTask: _utilityModelUseNewTask,
+		utilityModelUseGenerateCommitMessage: _utilityModelUseGenerateCommitMessage,
 		...simpleSettings
 	} = settings
 	// Batch update for simple pass-through fields

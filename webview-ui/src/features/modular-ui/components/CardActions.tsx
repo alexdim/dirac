@@ -58,7 +58,7 @@ export const CardActions: React.FC<CardActionsProps> = ({ card, isActive, onActi
 						<Button
 							variant="success"
 							size="sm"
-							className="h-6 text-xs px-3 gap-1 ring-1 ring-success/30"
+							className="h-6 text-xs px-3 gap-1"
 							onClick={() => onAction?.(DiracAskResponse.APPROVE)}>
 							<CheckIcon className="size-3" />
 							Approve

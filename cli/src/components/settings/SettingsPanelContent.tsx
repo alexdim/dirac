@@ -3,7 +3,7 @@ import React, { useCallback, useMemo, useState } from "react"
 import { Text, useInput } from "ink"
 import { StateManager } from "@/core/storage/StateManager"
 import { buildApiHandler } from "@/core/api"
-import { getProviderModelIdKey, isSettingsKey } from "@shared/storage"
+import { getProviderModelIdKey, isSettingsKey, type UtilityModelUseCases } from "@shared/storage"
 import { DEFAULT_AUTO_APPROVAL_SETTINGS } from "@shared/AutoApprovalSettings"
 import { useStdinContext } from "../../context/StdinContext"
 import { shouldIgnoreTerminalInput } from "../../utils/input"
@@ -116,14 +116,16 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 		}
 		return initial as Record<FeatureKey, boolean>
 	})
-	const [utilityModelEnabled, setUtilityModelEnabled] = useState<boolean>(() =>
-		stateManager.getGlobalSettingsKey("utilityModelEnabled"),
-	)
+	const [utilityModelUseCases, setUtilityModelUseCases] = useState<UtilityModelUseCases>(() => ({
+		condense: stateManager.getGlobalSettingsKey("utilityModelUseCondense"),
+		newTask: stateManager.getGlobalSettingsKey("utilityModelUseNewTask"),
+		generateCommitMessage: stateManager.getGlobalSettingsKey("utilityModelUseGenerateCommitMessage"),
+	}))
 	const [utilityModelSelection, setUtilityModelSelection] = useState<ModelProviderSelection | undefined>(() =>
 		stateManager.getGlobalSettingsKey("utilityModelSelection"),
 	)
-	const [modelProviderPresets] = useState<ModelProviderPreset[]>(() =>
-		stateManager.getGlobalSettingsKey("modelProviderPresets") ?? [],
+	const [modelProviderPresets] = useState<ModelProviderPreset[]>(
+		() => stateManager.getGlobalSettingsKey("modelProviderPresets") ?? [],
 	)
 
 	const [lightTerminalTheme, setLightTerminalTheme] = useState<boolean>(() => {
@@ -252,7 +254,7 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 		planReasoningEffort,
 		autoApproveSettings,
 		features,
-		utilityModelEnabled,
+		utilityModelUseCases,
 		utilityModelSelection,
 		lightTerminalTheme,
 		preferredLanguage,
@@ -315,8 +317,8 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 		autoApproveSettings,
 		setAutoApproveSettings,
 		features,
-		utilityModelEnabled,
-		setUtilityModelEnabled,
+		utilityModelUseCases,
+		setUtilityModelUseCases,
 		setFeatures,
 		setLightTerminalTheme,
 		preferredLanguage,
@@ -664,7 +666,6 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 				/>
 			)
 		}
-
 
 		return <SettingsListView items={items} selectedIndex={selectedIndex} />
 	}

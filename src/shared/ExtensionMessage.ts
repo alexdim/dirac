@@ -57,6 +57,9 @@ export interface ExtensionState {
 	modelProviderPresets: ModelProviderPreset[]
 	utilityModelEnabled: boolean
 	utilityModelSelection?: ModelProviderSelection
+	utilityModelUseCondense: boolean
+	utilityModelUseNewTask: boolean
+	utilityModelUseGenerateCommitMessage: boolean
 	autoApprovalSettings: AutoApprovalSettings
 	userApprovedCommands: UserApprovedCommand[]
 	browserSettings: BrowserSettings
