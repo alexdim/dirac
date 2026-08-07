@@ -1,7 +1,7 @@
 import { expect } from "chai"
 import { PromptBuilder } from "../registry/PromptBuilder"
 import type { SystemPromptContext } from "../types"
-import { mockProviderInfo } from "./integration.test"
+import { mockProviderInfo } from "./test-helpers"
 
 describe("PromptBuilder", () => {
 	const mockContext: SystemPromptContext = {
