@@ -9,6 +9,7 @@ import { ChevronDownIcon, ChevronRightIcon, ExternalLinkIcon } from "lucide-reac
 import { DynamicIcon } from "lucide-react/dynamic"
 import { CARD_DECORATORS } from "../decorators"
 import { CardStatusIcon } from "./CardStatusIcon"
+import { SubagentAvatar } from "./SubagentAvatar"
 import { getStatusTextColorClass } from "../utils/cardUtils"
 import React, { useEffect, useMemo, useState } from "react"
 
@@ -29,7 +30,8 @@ export const ModularCardHeader: React.FC<ModularCardHeaderProps> = ({
 }) => {
 	const { header, icon, status } = card
 	const isTerminal = isFinalStatus(status)
-	const isSubagentCard = readSubagentCardData(card) !== undefined
+	const subagentData = readSubagentCardData(card)
+	const isSubagentCard = subagentData !== undefined
 	const [currentTime, setCurrentTime] = useState(() => Date.now())
 	const filePath = getCardFilePath(card)
 	const decorators = useMemo(() => CARD_DECORATORS.filter((decorator) => decorator.shouldApply(card)), [card])
@@ -59,6 +61,8 @@ export const ModularCardHeader: React.FC<ModularCardHeaderProps> = ({
 				onClick={onToggleCollapse}
 				title={isCollapsed ? `Expand ${header}` : `Collapse ${header}`}
 				type="button">
+				{subagentData && <SubagentAvatar agentId={subagentData.id} agentName={subagentData.name} />}
+
 				<span className="shrink-0 leading-none" aria-hidden="true">
 					{icon ? (
 						<DynamicIcon name={icon as any} className={cn(iconSizeClass, getStatusTextColorClass(status))} />
