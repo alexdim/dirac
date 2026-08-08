@@ -188,13 +188,11 @@ function convertAssistantTurnItems(content: DiracContent[], toolUseIdToCallId: M
 					item = { type: "reasoning", summary: [] }
 					assistantTurnItems.set(call_id, item)
 				}
+				const reasoning = item as Extract<ResponseTransformItem, { type: "reasoning" }>
 				if (hasSummaryContent) {
-					;(item as Extract<ResponseTransformItem, { type: "reasoning" }>).summary =
-						thinkingBlock.summary as ReasoningSummary[]
+					reasoning.summary = thinkingBlock.summary as ReasoningSummary[]
 				} else if (hasThinkingContent) {
-					;(item as Extract<ResponseTransformItem, { type: "reasoning" }>).summary = [
-						{ type: "summary_text", text: thinkingBlock.thinking },
-					]
+					reasoning.summary = [{ type: "summary_text", text: thinkingBlock.thinking }]
 				}
 				break
 			}
@@ -204,8 +202,9 @@ function convertAssistantTurnItems(content: DiracContent[], toolUseIdToCallId: M
 					item = { type: "reasoning", summary: [] }
 					assistantTurnItems.set(call_id, item)
 				}
+				const reasoning = item as Extract<ResponseTransformItem, { type: "reasoning" }>
 				if (redactedBlock.data) {
-					;(item as Extract<ResponseTransformItem, { type: "reasoning" }>).encrypted_content = redactedBlock.data
+					reasoning.encrypted_content = redactedBlock.data
 				}
 				break
 			}
@@ -255,8 +254,7 @@ function convertAssistantTurnItems(content: DiracContent[], toolUseIdToCallId: M
 	// Ensure strict pairing: every reasoning must be followed by a message or function_call
 	const finalized: ResponseTransformItem[] = []
 	for (let i = 0; i < sortedIds.length; i++) {
-		const item = assistantTurnItems.get(sortedIds[i])
-		if (!item) continue
+		const item = assistantTurnItems.get(sortedIds[i])!
 		finalized.push(item)
 		if (item.type === "reasoning") {
 			const nextItem = sortedIds[i + 1] ? assistantTurnItems.get(sortedIds[i + 1]) : null

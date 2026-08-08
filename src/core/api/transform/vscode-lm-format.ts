@@ -29,6 +29,9 @@ export function asObjectSafe(value: unknown): object {
 	}
 }
 
+type DiracTextImageBlockParam =
+	Anthropic.Messages.TextBlockParam | Anthropic.Messages.ImageBlockParam
+
 // Describes an unsupported image as a text placeholder for the VSCode LM API.
 function imagePlaceholder(source?: Anthropic.ImageBlockParam["source"]): string {
 	const type = source?.type || "Unknown source-type"
@@ -52,13 +55,13 @@ function convertToolResultContent(
 // Converts user-role array content: tool results first, then text/image parts.
 function convertVsCodeLmUserMessage(content: Anthropic.Messages.ContentBlockParam[]): vscode.LanguageModelChatMessage {
 	const { nonToolMessages, toolMessages } = content.reduce<{
-		nonToolMessages: (Anthropic.Messages.TextBlockParam | Anthropic.Messages.ImageBlockParam)[]
+		nonToolMessages: DiracTextImageBlockParam[]
 		toolMessages: Anthropic.Messages.ToolResultBlockParam[]
 	}>(
 		(acc, part) => {
-			if (part.type === "tool_result") acc.toolMessages.push(part as Anthropic.Messages.ToolResultBlockParam)
+			if (part.type === "tool_result") acc.toolMessages.push(part)
 			else if (part.type === "text" || part.type === "image") {
-				acc.nonToolMessages.push(part as Anthropic.Messages.TextBlockParam | Anthropic.Messages.ImageBlockParam)
+				acc.nonToolMessages.push(part)
 			}
 			return acc
 		},
@@ -78,13 +81,13 @@ function convertVsCodeLmUserMessage(content: Anthropic.Messages.ContentBlockPara
 // Converts assistant-role array content: tool calls first, then text/image parts.
 function convertVsCodeLmAssistantMessage(content: Anthropic.Messages.ContentBlockParam[]): vscode.LanguageModelChatMessage {
 	const { nonToolMessages, toolMessages } = content.reduce<{
-		nonToolMessages: (Anthropic.Messages.TextBlockParam | Anthropic.Messages.ImageBlockParam)[]
+		nonToolMessages: DiracTextImageBlockParam[]
 		toolMessages: Anthropic.Messages.ToolUseBlockParam[]
 	}>(
 		(acc, part) => {
-			if (part.type === "tool_use") acc.toolMessages.push(part as Anthropic.Messages.ToolUseBlockParam)
+			if (part.type === "tool_use") acc.toolMessages.push(part)
 			else if (part.type === "text" || part.type === "image") {
-				acc.nonToolMessages.push(part as Anthropic.Messages.TextBlockParam | Anthropic.Messages.ImageBlockParam)
+				acc.nonToolMessages.push(part)
 			}
 			return acc
 		},
