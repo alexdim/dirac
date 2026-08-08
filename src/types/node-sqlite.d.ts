@@ -1,3 +1,4 @@
+/* DELETE once @types/node ships node:sqlite types — a future types upgrade will collide with this declare module. */
 /**
  * Minimal type declarations for `node:sqlite` (available at runtime on the Node
  * version this project runs, but the bundled `@types/node` does not ship them).
