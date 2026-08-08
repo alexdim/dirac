@@ -254,6 +254,7 @@ function convertAssistantTurnItems(content: DiracContent[], toolUseIdToCallId: M
 	// Ensure strict pairing: every reasoning must be followed by a message or function_call
 	const finalized: ResponseTransformItem[] = []
 	for (let i = 0; i < sortedIds.length; i++) {
+		// sortedIds is built in lockstep with assistantTurnItems.set() above, so a miss is impossible.
 		const item = assistantTurnItems.get(sortedIds[i])!
 		finalized.push(item)
 		if (item.type === "reasoning") {
