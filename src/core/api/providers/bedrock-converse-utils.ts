@@ -34,3 +34,24 @@ export function formatConverseError(error: unknown, label: string): string {
 	}
 	return `Failed to process ${label} model request`
 }
+
+/** Prepares system messages with optional Converse caching support. */
+export function prepareSystemMessages(systemPrompt: string, enableCaching: boolean): any[] | undefined {
+	if (!systemPrompt) {
+		return undefined
+	}
+	if (enableCaching) {
+		return [{ text: systemPrompt }, { cachePoint: { type: "default" } }]
+	}
+	return [{ text: systemPrompt }]
+}
+
+/** Chunks text into 1000-char segments and yields as the given chunk type. */
+export function* chunkText(text: string, type: "text" | "reasoning"): Generator<any> {
+	if (!text) return
+	const chunkSize = 1000
+	for (let i = 0; i < text.length; i += chunkSize) {
+		const chunk = text.slice(i, Math.min(i + chunkSize, text.length))
+		yield type === "reasoning" ? { type: "reasoning", reasoning: chunk } : { type: "text", text: chunk }
+	}
+}
