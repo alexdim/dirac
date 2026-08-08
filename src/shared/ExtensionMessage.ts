@@ -3,7 +3,7 @@
 import { DiracAskResponse } from "./WebviewMessage"
 
 import { WorkspaceRoot } from "@shared/multi-root/types"
-import type { Environment } from "../config"
+import type { Environment } from "./config-types"
 import type { OpenAiCodexUsageSnapshot } from "./openai-codex-usage"
 import { AutoApprovalSettings } from "./AutoApprovalSettings"
 import { ApiConfiguration, ModelProviderPreset, ModelProviderSelection } from "./api"
