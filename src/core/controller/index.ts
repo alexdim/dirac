@@ -53,7 +53,7 @@ export class Controller {
 	}
 
 	set task(value: Task | undefined) {
-		this.taskController!.task = value
+		this.taskController.task = value
 	}
 
 	// Promise for the in-flight task run; created inside TaskController.initTask (from main).
