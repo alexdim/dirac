@@ -314,6 +314,20 @@
 
 @layer utilities {
 
+	.subagent-avatar {
+		color: color-mix(in srgb, var(--subagent-avatar-accent) 45%, var(--vscode-foreground));
+		border-color: color-mix(in srgb, var(--subagent-avatar-accent) 32%, var(--vscode-foreground));
+		background: color-mix(in srgb, var(--subagent-avatar-accent) 10%, transparent);
+	}
+
+	@media (forced-colors: active) {
+		.subagent-avatar {
+			color: CanvasText;
+			border-color: CanvasText;
+			background: Canvas;
+		}
+	}
+
 	/**
 	 * Variant that becomes visible when focused
 	 * Useful for skip links and other keyboard navigation aids

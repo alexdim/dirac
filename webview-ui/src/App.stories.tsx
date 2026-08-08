@@ -1,8 +1,9 @@
 import { HeroUIProvider } from "@heroui/react"
 import { DEFAULT_AUTO_APPROVAL_SETTINGS } from "@shared/AutoApprovalSettings"
 import { type ApiConfiguration, bedrockModels } from "@shared/api"
-import { DiracMessageType, CardStatus } from "@shared/ExtensionMessage"
+import { DiracMessageType, CardStatus, SubagentExecutionStatus } from "@shared/ExtensionMessage"
 import type { DiracMessage } from "@shared/ExtensionMessage"
+import { createSubagentCardInput, createSubagentCardOutput } from "@shared/subagents"
 import type { HistoryItem } from "@shared/HistoryItem"
 import type { Meta, StoryObj } from "@storybook/react-vite"
 import { useEffect, useMemo, useState } from "react"
@@ -174,6 +175,30 @@ const createCardMessage = (
 	...overrides,
 })
 
+const createSubagentCardMessage = (
+	minutesAgo: number,
+	agentId: number,
+	agentName: string,
+	taskTitle: string,
+	executionStatus: SubagentExecutionStatus,
+	cardStatus: CardStatus,
+): DiracMessage => ({
+	id: `subagent-message-${agentId}`,
+	ts: Date.now() - minutesAgo * 60000,
+	content: {
+		type: DiracMessageType.CARD,
+		card: {
+			id: `subagent-card-${agentId}`,
+			header: `${agentName}: ${taskTitle}`,
+			body: "",
+			status: cardStatus,
+			renderType: "markdown",
+			rawInput: createSubagentCardInput({ id: agentId, name: agentName }, `Complete ${taskTitle}`),
+			rawOutput: createSubagentCardOutput(executionStatus, []),
+		},
+	},
+})
+
 const createApiReqMessage = (minutesAgo: number, request: string, metrics: any = {}): DiracMessage => ({
 	id: Math.random().toString(36).substring(7),
 	ts: Date.now() - minutesAgo * 60000,
@@ -310,6 +335,46 @@ export const ActiveConversation: Story = {
 		docs: {
 			description: {
 				story: "An active conversation showing a typical interaction with Dirac, including task creation, tool usage, and AI responses.",
+			},
+		},
+	},
+}
+
+
+const createSubagentMessages = () => [
+	createMessage(5, DiracMessageType.MARKDOWN, "Investigate the API handler in parallel."),
+	createSubagentCardMessage(
+		4.7,
+		2,
+		"Feynman",
+		"Inspect API handler",
+		SubagentExecutionStatus.RUNNING,
+		CardStatus.RUNNING,
+	),
+	createSubagentCardMessage(
+		4.5,
+		34,
+		"Feynman Planck",
+		"Review API tests",
+		SubagentExecutionStatus.COMPLETED,
+		CardStatus.SUCCESS,
+	),
+	createSubagentCardMessage(
+		4.3,
+		35,
+		"Feynman Bohr",
+		"Check error handling",
+		SubagentExecutionStatus.FAILED,
+		CardStatus.ERROR,
+	),
+]
+
+export const SubagentCards: Story = {
+	decorators: [createStoryDecorator({ diracMessages: createSubagentMessages() })],
+	parameters: {
+		docs: {
+			description: {
+				story: "Individual subagent cards, including compound names that share an initial, in running, completed, and failed states.",
 			},
 		},
 	},
