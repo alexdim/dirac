@@ -18,7 +18,7 @@ import {
 	type ModelInfo,
 } from "@shared/api"
 import { calculateApiCostOpenAI, calculateApiCostQwen } from "@utils/cost"
-import { estimateTokenCount, extractNonStreamingContent, formatConverseError } from "./bedrock-converse-utils"
+import { estimateTokenCount, extractNonStreamingContent, formatConverseError, prepareSystemMessages, chunkText } from "./bedrock-converse-utils"
 import { BedrockStreamParser } from "./bedrock-stream-parser"
 import { ExtensionRegistryInfo } from "@/registry"
 import { getErrorMessage } from "@/shared/errors"
@@ -584,17 +584,6 @@ export class AwsBedrockHandler implements ApiHandler {
 	/**
 	 * Prepares system messages with optional caching support
 	 */
-	private prepareSystemMessages(systemPrompt: string, enableCaching: boolean): any[] | undefined {
-		if (!systemPrompt) {
-			return undefined
-		}
-
-		if (enableCaching) {
-			return [{ text: systemPrompt }, { cachePoint: { type: "default" } }]
-		}
-
-		return [{ text: systemPrompt }]
-	}
 
 	/**
 	 * Gets inference configuration for different model types
@@ -637,7 +626,7 @@ export class AwsBedrockHandler implements ApiHandler {
 			: formattedMessages
 
 		// Prepare system message with caching support
-		const systemMessages = this.prepareSystemMessages(systemPrompt, this.options.awsBedrockUsePromptCache || false)
+		const systemMessages = prepareSystemMessages(systemPrompt, this.options.awsBedrockUsePromptCache || false)
 
 		// Get thinking configuration
 		const budget_tokens = this.options.thinkingBudgetTokens || 0
@@ -874,7 +863,7 @@ export class AwsBedrockHandler implements ApiHandler {
 
 		// Prepare system message with caching support for Nova models that support it
 		const enableCaching = this.options.awsBedrockUsePromptCache && model.info.supportsPromptCache
-		const systemMessages = this.prepareSystemMessages(systemPrompt, enableCaching || false)
+		const systemMessages = prepareSystemMessages(systemPrompt, enableCaching || false)
 
 		// Prepare request for Nova model
 		const toolConfig = this.mapDiracToolsToBedrockToolConfig(tools)
@@ -945,8 +934,8 @@ export class AwsBedrockHandler implements ApiHandler {
 				}
 			}
 
-			yield* this.chunkText(reasoningText, "reasoning")
-			yield* this.chunkText(fullText, "text")
+			yield* chunkText(reasoningText, "reasoning")
+			yield* chunkText(fullText, "text")
 
 			if (!response.usage) {
 				yield {
@@ -967,14 +956,6 @@ export class AwsBedrockHandler implements ApiHandler {
 	// Extracts text and reasoning content from a non-streaming Converse response.
 
 	// Chunks text into 1000-char segments and yields as the given chunk type.
-	private *chunkText(text: string, type: "text" | "reasoning"): Generator<any> {
-		if (!text) return
-		const chunkSize = 1000
-		for (let i = 0; i < text.length; i += chunkSize) {
-			const chunk = text.slice(i, Math.min(i + chunkSize, text.length))
-			yield type === "reasoning" ? { type: "reasoning", reasoning: chunk } : { type: "text", text: chunk }
-		}
-	}
 
 	// Formats an error from the Converse API into a human-readable message.
 }
