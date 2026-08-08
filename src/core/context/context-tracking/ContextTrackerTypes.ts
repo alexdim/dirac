@@ -13,6 +13,12 @@ export interface ModelMetadataEntry {
 	model_id: string
 	model_provider_id: string
 	mode: string
+	// Token/cost metrics present in older persisted records; absent from new writes.
+	tokensIn?: number
+	tokensOut?: number
+	cacheWrites?: number
+	cacheReads?: number
+	totalCost?: number
 }
 
 export interface EnvironmentMetadataEntry {
