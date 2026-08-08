@@ -4,6 +4,7 @@ import { TestConnectionResult } from "@shared/proto/dirac/state"
 const REMOTE_CONFIG_OTEL_PROVIDER_ID = "remote-config-otel"
 
 import { telemetryService } from "@/services/telemetry"
+import { getErrorMessage } from "@/shared/errors"
 import { Logger } from "@/shared/services/Logger"
 import { Controller } from ".."
 
@@ -40,7 +41,7 @@ export async function testOtelConnection(_controller: Controller, _: EmptyReques
 			message: "Test log event sent successfully. Check your OTEL collector for the event.",
 		})
 	} catch (error) {
-		const errorMessage = error instanceof Error ? error.message : String(error)
+		const errorMessage = getErrorMessage(error)
 		Logger.error("[TEST_OTEL_CONNECTION] Failed to send test event:", error)
 
 		return TestConnectionResult.create({

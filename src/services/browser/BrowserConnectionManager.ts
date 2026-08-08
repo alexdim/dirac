@@ -1,4 +1,4 @@
-import { Controller } from "@core/controller"
+import type { Controller } from "@core/controller"
 import { BrowserActionResult } from "@shared/ExtensionMessage"
 import { fileExistsAtPath } from "@utils/fs"
 import axios from "axios"
@@ -9,6 +9,7 @@ import * as path from "path"
 import { Browser, connect, launch, Page } from "puppeteer-core"
 import { StateManager } from "@/core/storage/StateManager"
 import { telemetryService } from "@/services/telemetry"
+import { getErrorMessage } from "@/shared/errors"
 import { Logger } from "@/shared/services/Logger"
 import { discoverChromeInstances, isPortOpen, testBrowserConnection } from "./BrowserDiscovery"
 import { ensureChromiumExists } from "./utils"
@@ -177,7 +178,7 @@ export class BrowserConnectionManager {
 
 			return `Browser successfully launched with debug mode\nUsing: ${installation}`
 		} catch (error) {
-			throw new Error(`Failed to relaunch Chrome: ${error instanceof Error ? error.message : globalThis.String(error)}`)
+			throw new Error(`Failed to relaunch Chrome: ${getErrorMessage(error)}`)
 		}
 	}
 
@@ -207,15 +208,10 @@ export class BrowserConnectionManager {
 			} catch (error) {
 				Logger.error("Failed to launch remote browser, falling back to local mode:", error)
 				if (this.ulid) {
-					telemetryService.captureBrowserError(
-						this.ulid,
-						"remote_browser_launch_error",
-						error instanceof Error ? error.message : String(error),
-						{
-							isRemote: true,
-							remoteBrowserHost: browserSettings.remoteBrowserHost,
-						},
-					)
+					telemetryService.captureBrowserError(this.ulid, "remote_browser_launch_error", getErrorMessage(error), {
+						isRemote: true,
+						remoteBrowserHost: browserSettings.remoteBrowserHost,
+					})
 				}
 				await this.launchLocalBrowser()
 			}
@@ -291,15 +287,10 @@ export class BrowserConnectionManager {
 			} catch (error) {
 				Logger.log(`Failed to connect using cached endpoint: ${error}`)
 				if (this.ulid) {
-					telemetryService.captureBrowserError(
-						this.ulid,
-						"cached_endpoint_connection_error",
-						error instanceof Error ? error.message : String(error),
-						{
-							isRemote: true,
-							endpoint: browserWSEndpoint,
-						},
-					)
+					telemetryService.captureBrowserError(this.ulid, "cached_endpoint_connection_error", getErrorMessage(error), {
+						isRemote: true,
+						endpoint: browserWSEndpoint,
+					})
 				}
 				this.cachedWebSocketEndpoint = undefined
 				if (remoteBrowserHost) {
@@ -342,15 +333,10 @@ export class BrowserConnectionManager {
 			} catch (error) {
 				Logger.log(`Failed to connect to remote browser: ${error}`)
 				if (this.ulid) {
-					telemetryService.captureBrowserError(
-						this.ulid,
-						"remote_host_connection_error",
-						error instanceof Error ? error.message : String(error),
-						{
-							isRemote: true,
-							remoteBrowserHost,
-						},
-					)
+					telemetryService.captureBrowserError(this.ulid, "remote_host_connection_error", getErrorMessage(error), {
+						isRemote: true,
+						remoteBrowserHost,
+					})
 				}
 			}
 		}

@@ -1,4 +1,4 @@
-import { ApiHandlerModel, ApiProviderInfo } from "@core/api"
+import type { ApiHandlerModel, ApiProviderInfo } from "@core/api"
 import { AnthropicModelId, anthropicModels, getProviderForModel } from "@/shared/api"
 
 export { supportsReasoningEffortForModel } from "@shared/utils/reasoning-support"

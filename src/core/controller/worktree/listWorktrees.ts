@@ -3,6 +3,7 @@ import { WorktreeList } from "@shared/proto/dirac/worktree"
 import { getGitRootPath, listWorktrees as listWorktreesUtil } from "@utils/git-worktree"
 import { arePathsEqual, getWorkspacePath } from "@utils/path"
 import { HostProvider } from "@/hosts/host-provider"
+import { getErrorMessage } from "@/shared/errors"
 import { Logger } from "@/shared/services/Logger"
 import { Controller } from ".."
 
@@ -83,7 +84,7 @@ export async function listWorktrees(_controller: Controller, _request: EmptyRequ
 			isMultiRoot: false,
 			isSubfolder: false,
 			gitRootPath: "",
-			error: error instanceof Error ? error.message : String(error),
+			error: getErrorMessage(error),
 		})
 	}
 }

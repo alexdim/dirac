@@ -1,6 +1,7 @@
 import { GrpcRequestRegistry } from "@core/controller/grpc-request-registry"
 import { hostServiceHandlers } from "@generated/hosts/vscode/hostbridge-grpc-service-config"
 import { StreamingCallbacks } from "@/hosts/host-provider-types"
+import { toError } from "@/shared/errors"
 import { Logger } from "@/shared/services/Logger"
 
 /**
@@ -9,13 +10,13 @@ import { Logger } from "@/shared/services/Logger"
 export type StreamingResponseHandler = (response: any, isLast?: boolean, sequenceNumber?: number) => Promise<void>
 
 // Registry to track active gRPC requests and their cleanup functions
-const requestRegistry = new GrpcRequestRegistry()
+const appRequestRegistry = new GrpcRequestRegistry()
 
 /**
  * Handles gRPC requests for the host bridge.
  */
 export class GrpcHandler {
-	constructor() {}
+	constructor(private readonly requestRegistry: GrpcRequestRegistry = appRequestRegistry) {}
 
 	/**
 	 * Handle a gRPC request for the host bridge.
@@ -54,7 +55,7 @@ export class GrpcHandler {
 			} catch (error) {
 				// If there's an error in the callback, call the onError callback
 				if (streamingCallbacks.onError) {
-					streamingCallbacks.onError(error instanceof Error ? error : new Error(String(error)))
+					streamingCallbacks.onError(toError(error))
 				} else {
 					Logger.error(`[gRPC] Streaming callback error (no onError handler) for ${service}.${method}:`, error)
 				}
@@ -62,7 +63,7 @@ export class GrpcHandler {
 		}
 
 		// Register the response handler with the registry
-		requestRegistry.registerRequest(
+		this.requestRegistry.registerRequest(
 			requestId,
 			() => {
 				Logger.log(`[DEBUG] Cleaning up streaming request: ${requestId}`)
@@ -80,7 +81,7 @@ export class GrpcHandler {
 			await this.handleStreamingRequest(service, method, request, requestId)
 		} catch (error) {
 			if (streamingCallbacks.onError) {
-				streamingCallbacks.onError(error instanceof Error ? error : new Error(String(error)))
+				streamingCallbacks.onError(toError(error))
 			}
 		}
 
@@ -103,12 +104,12 @@ export class GrpcHandler {
 	 * @returns True if the request was found and cancelled, false otherwise
 	 */
 	public async cancelRequest(requestId: string): Promise<boolean> {
-		const requestInfo = requestRegistry.getRequestInfo(requestId)
+		const requestInfo = this.requestRegistry.getRequestInfo(requestId)
 		if (!requestInfo) {
 			return false
 		}
 
-		const cancelled = requestRegistry.cancelRequest(requestId)
+		const cancelled = this.requestRegistry.cancelRequest(requestId)
 		if (!cancelled) {
 			Logger.log(`[DEBUG] Request not found for cancellation: ${requestId}`)
 			return false
@@ -140,7 +141,7 @@ export class GrpcHandler {
 		}
 
 		// Get the registered response handler from the registry
-		const requestInfo = requestRegistry.getRequestInfo(requestId)
+		const requestInfo = this.requestRegistry.getRequestInfo(requestId)
 		if (!requestInfo || !requestInfo.responseStream) {
 			throw new Error(`No response handler registered for request: ${requestId}`)
 		}
@@ -181,5 +182,5 @@ export interface HostServiceHandlerConfig {
  * This allows other parts of the code to access the registry
  */
 export function getRequestRegistry(): GrpcRequestRegistry {
-	return requestRegistry
+	return appRequestRegistry
 }

@@ -10,25 +10,26 @@ import type {
 import { CardStatus } from "@shared/ExtensionMessage"
 import { DiracIcon } from "@shared/icons"
 import { DiracDefaultTool, type DiracToolSpec } from "@shared/tools"
+import { getErrorMessage } from "@/shared/errors"
 import type { IDiracTool } from "../../interfaces/IDiracTool"
 import type { ICardHandle, IToolEnvironment } from "../../interfaces/IToolEnvironment"
 import type { SurfaceType } from "../../interfaces/SurfaceType"
 import {
-	InspectAstFormatter,
 	type FormattedInspectAstResult,
 	type ImplementationCacheRecord,
+	InspectAstFormatter,
 } from "./InspectAstFormatter"
 import {
-	InspectAstResultReducer,
 	type InspectAstImplementationGroup,
 	type InspectAstOccurrenceGroup,
 	type InspectAstOutlineGroup,
 	type InspectAstResultGroup,
+	InspectAstResultReducer,
 } from "./InspectAstResultReducer"
 import {
-	InspectAstValidator,
 	type InspectAstArgs,
 	type InspectAstOperation,
+	InspectAstValidator,
 	type NormalizedInspectAstArgs,
 } from "./InspectAstValidator"
 
@@ -423,6 +424,6 @@ export class InspectAstTool implements IDiracTool<InspectAstArgs, string> {
 	}
 
 	private errorMessage(error: unknown): string {
-		return error instanceof Error ? error.message : String(error)
+		return getErrorMessage(error)
 	}
 }

@@ -5,6 +5,7 @@ import OpenAI from "openai"
 import { ChatCompletionReasoningEffort, ChatCompletionTool } from "openai/resources/chat/completions"
 import { MessageEvent as UndiciMessageEvent, WebSocket as UndiciWebSocket } from "undici"
 import { buildExternalBasicHeaders } from "@/services/EnvUtils"
+import { getErrorMessage } from "@/shared/errors"
 
 // ChatCompletionTool doesn't include web_search; define the shape we use
 interface WebSearchChatTool {
@@ -465,7 +466,7 @@ export class ResponsesWebsocketManager {
 				wake()
 			} catch (error) {
 				const parseError: Error & { code?: string } = new Error(
-					`Failed to parse websocket event: ${error instanceof Error ? error.message : String(error)}`,
+					`Failed to parse websocket event: ${getErrorMessage(error)}`,
 				)
 				parseError.code = "websocket_parse_error"
 				failure = parseError
@@ -545,7 +546,7 @@ export function shouldRetryWithFullContext(error: unknown, hadPreviousResponseId
 			? (error as { status: number }).status
 			: undefined
 
-	const message = error instanceof Error ? error.message : String(error)
+	const message = getErrorMessage(error)
 
 	if (errorCode === "previous_response_not_found" || message.includes("previous_response_not_found")) {
 		return true

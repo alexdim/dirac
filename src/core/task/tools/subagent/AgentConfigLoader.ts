@@ -1,12 +1,13 @@
-import { parseYamlFrontmatter } from "@utils/frontmatter"
+import { LEGACY_RESPONSE_TOOLS, RESPOND_TOOL_NAME } from "@shared/responseTool"
 import { Logger } from "@shared/services/Logger"
 import { setDynamicToolUseNames } from "@shared/tools"
+import { parseYamlFrontmatter } from "@utils/frontmatter"
 import chokidar, { type FSWatcher } from "chokidar"
 import fs from "fs/promises"
 import os from "os"
 import * as path from "path"
 import { z } from "zod"
-import { LEGACY_RESPONSE_TOOLS, RESPOND_TOOL_NAME } from "@shared/responseTool"
+import { toError } from "@/shared/errors"
 import { buildSubagentToolName } from "./SubagentToolName"
 
 /** Default Directory for agent configurations: ~/Documents/Dirac/Agents */
@@ -285,7 +286,7 @@ export class AgentConfigLoader {
 				}
 			})
 			.on("error", (error) => {
-				const watcherError = error instanceof Error ? error : new Error(String(error))
+				const watcherError = toError(error)
 				Logger.error("[AgentConfigLoader] Failed to watch agent configs directory", watcherError)
 				this.notify(this.cachedConfigs, watcherError)
 			})
@@ -309,7 +310,7 @@ export class AgentConfigLoader {
 			await this.load()
 			this.notify(this.cachedConfigs)
 		} catch (error) {
-			const parseError = error instanceof Error ? error : new Error(String(error))
+			const parseError = toError(error)
 			Logger.error("[AgentConfigLoader] Failed to reload agent configs", parseError)
 			this.notify(this.cachedConfigs, parseError)
 		}

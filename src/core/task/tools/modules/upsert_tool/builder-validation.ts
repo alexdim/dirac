@@ -1,5 +1,6 @@
 import * as fs from "fs/promises"
 import * as path from "path"
+import { getErrorMessage } from "@/shared/errors"
 import type { DiscoveredTool } from "../../discovery/DiscoveredTool"
 import { UserToolLoader } from "../../discovery/UserToolLoader"
 import type { IToolEnvironment } from "../../interfaces/IToolEnvironment"
@@ -95,5 +96,5 @@ function formatOutput(output: unknown): string {
 }
 
 function errorMessage(error: unknown): string {
-	return error instanceof Error ? error.message : String(error)
+	return getErrorMessage(error)
 }

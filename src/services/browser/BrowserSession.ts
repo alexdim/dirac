@@ -1,11 +1,12 @@
 import { setTimeout as setTimeoutPromise } from "node:timers/promises"
-import { Controller } from "@core/controller"
+import type { Controller } from "@core/controller"
 import { BrowserActionResult } from "@shared/ExtensionMessage"
 import pWaitFor from "p-wait-for"
 import type { ConsoleMessage, ScreenshotOptions } from "puppeteer-core"
 import { Page, TimeoutError } from "puppeteer-core"
 import { StateManager } from "@/core/storage/StateManager"
 import { telemetryService } from "@/services/telemetry"
+import { getErrorMessage } from "@/shared/errors"
 import { Logger } from "@/shared/services/Logger"
 import { BrowserConnectionInfo, BrowserConnectionManager } from "./BrowserConnectionManager"
 
@@ -109,7 +110,7 @@ export class BrowserSession {
 		try {
 			await action(page)
 		} catch (err) {
-			const errorMessage = err instanceof Error ? err.message : String(err)
+			const errorMessage = getErrorMessage(err)
 
 			if (!(err instanceof TimeoutError)) {
 				logs.push(`[Error] ${errorMessage}`)

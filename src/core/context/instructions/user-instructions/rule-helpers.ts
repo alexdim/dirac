@@ -2,11 +2,12 @@ import { ensureRulesDirectoryExists, ensureWorkflowsDirectoryExists, GlobalFileN
 import { StateManager } from "@core/storage/StateManager"
 import { DiracRulesToggles } from "@shared/dirac-rules"
 import { GlobalInstructionsFile } from "@shared/remote-config/schema"
+import { parseYamlFrontmatter } from "@utils/frontmatter"
 import { fileExistsAtPath, isDirectory, readDirectory } from "@utils/fs"
 import fs from "fs/promises"
 import * as path from "path"
+import { getErrorMessage } from "@/shared/errors"
 import { Logger } from "@/shared/services/Logger"
-import { parseYamlFrontmatter } from "@utils/frontmatter"
 import { evaluateRuleConditionals, RuleEvaluationContext } from "./rule-conditionals"
 
 /**
@@ -165,6 +166,7 @@ export const RULE_SOURCE_PREFIX = {
 export type RuleLoadResult = {
 	content: string
 	activatedConditionalRules: ActivatedConditionalRule[]
+	errors?: string[]
 }
 
 /**
@@ -174,6 +176,7 @@ export type RuleLoadResult = {
 export type RuleLoadResultWithInstructions = {
 	instructions?: string
 	activatedConditionalRules: ActivatedConditionalRule[]
+	errors?: string[]
 }
 
 export const getRuleFilesTotalContentWithMetadata = async (
@@ -188,6 +191,7 @@ export const getRuleFilesTotalContentWithMetadata = async (
 	type RuleLoadPart = {
 		contentPart: string | null
 		activatedRule: ActivatedConditionalRule | null
+		error?: string
 	}
 
 	const parts = await Promise.all(
@@ -195,35 +199,43 @@ export const getRuleFilesTotalContentWithMetadata = async (
 			const ruleFilePath = path.resolve(basePath, filePath)
 			const ruleFilePathRelative = path.relative(basePath, ruleFilePath)
 
-			if (ruleFilePath in toggles && toggles[ruleFilePath] === false) {
-				return { contentPart: null, activatedRule: null }
-			}
+			try {
+				if (ruleFilePath in toggles && toggles[ruleFilePath] === false) {
+					return { contentPart: null, activatedRule: null }
+				}
 
-			const raw = (await fs.readFile(ruleFilePath, "utf8")).trim()
-			if (!raw) {
-				return { contentPart: null, activatedRule: null }
-			}
-			const { data, body, hadFrontmatter, parseError } = parseYamlFrontmatter(raw)
-			// YAML parse errors are treated as fail-open.
-			// NOTE: We intentionally preserve the raw frontmatter fence/content here so the LLM can still
-			// see the author's intended scoping (e.g., `paths:`) and reason about it, even if it cannot be
-			// evaluated reliably due to invalid YAML.
-			if (hadFrontmatter && parseError) {
-				return { contentPart: `${ruleFilePathRelative}\n${raw}`, activatedRule: null }
-			}
+				const raw = (await fs.readFile(ruleFilePath, "utf8")).trim()
+				if (!raw) {
+					return { contentPart: null, activatedRule: null }
+				}
+				const { data, body, hadFrontmatter, parseError } = parseYamlFrontmatter(raw)
+				// YAML parse errors are treated as fail-open.
+				// NOTE: We intentionally preserve the raw frontmatter fence/content here so the LLM can still
+				// see the author's intended scoping (e.g., `paths:`) and reason about it, even if it cannot be
+				// evaluated reliably due to invalid YAML.
+				if (hadFrontmatter && parseError) {
+					return { contentPart: `${ruleFilePathRelative}\n${raw}`, activatedRule: null }
+				}
 
-			const { passed, matchedConditions } = evaluateRuleConditionals(data, evaluationContext)
-			if (!passed) {
-				return { contentPart: null, activatedRule: null }
-			}
-			const activatedRule =
-				hadFrontmatter && Object.keys(matchedConditions).length > 0
-					? { name: `${prefix}:${ruleFilePathRelative}`, matchedConditions }
-					: null
+				const { passed, matchedConditions } = evaluateRuleConditionals(data, evaluationContext)
+				if (!passed) {
+					return { contentPart: null, activatedRule: null }
+				}
+				const activatedRule =
+					hadFrontmatter && Object.keys(matchedConditions).length > 0
+						? { name: `${prefix}:${ruleFilePathRelative}`, matchedConditions }
+						: null
 
-			return { contentPart: `${ruleFilePathRelative}\n${body.trim()}`, activatedRule }
+				return { contentPart: `${ruleFilePathRelative}\n${body.trim()}`, activatedRule }
+			} catch (error) {
+				const message = `Failed to load rule file ${ruleFilePathRelative}: ${getErrorMessage(error)}`
+				Logger.error(message, error)
+				return { contentPart: null, activatedRule: null, error: message }
+			}
 		}),
 	)
+
+	const errors = parts.map((p) => p.error).filter((e): e is string => e !== undefined)
 
 	return {
 		content: parts
@@ -233,6 +245,7 @@ export const getRuleFilesTotalContentWithMetadata = async (
 		activatedConditionalRules: parts
 			.map((p) => p.activatedRule)
 			.filter((rule): rule is ActivatedConditionalRule => rule !== null),
+		errors: errors.length > 0 ? errors : undefined,
 	}
 }
 
@@ -243,35 +256,42 @@ export function getRemoteRulesTotalContentWithMetadata(
 ): RuleLoadResult {
 	const activatedConditionalRules: ActivatedConditionalRule[] = []
 	const evaluationContext = opts?.evaluationContext ?? {}
+	const errors: string[] = []
 	let combinedContent = ""
 
 	for (const rule of remoteRules) {
-		const isEnabled = rule.alwaysEnabled || remoteToggles[rule.name] !== false
-		if (!isEnabled) continue
+		try {
+			const isEnabled = rule.alwaysEnabled || remoteToggles[rule.name] !== false
+			if (!isEnabled) continue
 
-		const raw = (rule.contents || "").trim()
-		if (!raw) continue
+			const raw = (rule.contents || "").trim()
+			if (!raw) continue
 
-		const { data, body, hadFrontmatter, parseError } = parseYamlFrontmatter(raw)
-		if (hadFrontmatter && parseError) {
-			// Fail open: include entire raw contents
+			const { data, body, hadFrontmatter, parseError } = parseYamlFrontmatter(raw)
+			if (hadFrontmatter && parseError) {
+				// Fail open: include entire raw contents
+				if (combinedContent) combinedContent += "\n\n"
+				combinedContent += `${rule.name}\n${raw}`
+				continue
+			}
+
+			const { passed, matchedConditions } = evaluateRuleConditionals(data, evaluationContext)
+			if (!passed) continue
+
+			if (hadFrontmatter && Object.keys(matchedConditions).length > 0) {
+				activatedConditionalRules.push({ name: `${RULE_SOURCE_PREFIX.remote}:${rule.name}`, matchedConditions })
+			}
+
 			if (combinedContent) combinedContent += "\n\n"
-			combinedContent += `${rule.name}\n${raw}`
-			continue
+			combinedContent += `${rule.name}\n${body.trim()}`
+		} catch (error) {
+			const message = `Failed to load remote rule ${rule.name}: ${getErrorMessage(error)}`
+			Logger.error(message, error)
+			errors.push(message)
 		}
-
-		const { passed, matchedConditions } = evaluateRuleConditionals(data, evaluationContext)
-		if (!passed) continue
-
-		if (hadFrontmatter && Object.keys(matchedConditions).length > 0) {
-			activatedConditionalRules.push({ name: `${RULE_SOURCE_PREFIX.remote}:${rule.name}`, matchedConditions })
-		}
-
-		if (combinedContent) combinedContent += "\n\n"
-		combinedContent += `${rule.name}\n${body.trim()}`
 	}
 
-	return { content: combinedContent, activatedConditionalRules }
+	return { content: combinedContent, activatedConditionalRules, errors: errors.length > 0 ? errors : undefined }
 }
 
 /**
@@ -321,7 +341,8 @@ export async function ensureLocalDiracDirExists(diracrulePath: string, defaultRu
 		}
 		// exists and is a dir or doesn't exist, either of these cases we dont need to handle here
 		return false
-	} catch (_error) {
+	} catch (error) {
+		Logger.error(`Failed to ensure .diracrules directory exists at ${diracrulePath}:`, error)
 		return true
 	}
 }
@@ -376,7 +397,8 @@ export const createRuleFile = async (isGlobal: boolean, filename: string, cwd: s
 		await fs.writeFile(filePath, "", "utf8")
 
 		return { filePath, fileExists: false }
-	} catch (_error) {
+	} catch (error) {
+		Logger.error("Failed to create rule file:", error)
 		return { filePath: null, fileExists: false }
 	}
 }
@@ -446,7 +468,7 @@ export async function deleteRuleFile(
 			message: `File "${fileName}" deleted successfully`,
 		}
 	} catch (error) {
-		const errorMessage = error instanceof Error ? error.message : String(error)
+		const errorMessage = getErrorMessage(error)
 		Logger.error(`Error deleting file: ${errorMessage}`, error)
 		return {
 			success: false,

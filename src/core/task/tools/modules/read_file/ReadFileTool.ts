@@ -1,7 +1,8 @@
+import * as path from "node:path"
 import { formatResponse } from "@core/formatResponse"
 import { contentHash, formatLinesForModel, getDelimiter } from "@utils/line-hashing"
-import * as path from "node:path"
 import { CardStatus } from "@/shared/ExtensionMessage"
+import { getErrorMessage } from "@/shared/errors"
 import { DiracIcon } from "@/shared/icons"
 import { DiracDefaultTool, DiracToolSpec } from "@/shared/tools"
 import { IDiracTool } from "../../interfaces/IDiracTool"
@@ -246,7 +247,7 @@ export class ReadFileTool implements IDiracTool<ReadFileArgs> {
 			this.captureReadTelemetry(relPath, usedWorkspaceHint, env)
 			return { success: true, result }
 		} catch (error: any) {
-			const errorMessage = error instanceof Error ? error.message : String(error)
+			const errorMessage = getErrorMessage(error)
 			const normalizedMessage = errorMessage.startsWith("Error reading file:")
 				? errorMessage
 				: `Error reading file: ${errorMessage}`

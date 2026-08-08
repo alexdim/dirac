@@ -1,13 +1,14 @@
+import { getDelimiter } from "@utils/line-hashing"
+import * as fs from "fs/promises"
+import * as path from "path"
+import { getErrorMessage } from "@/shared/errors"
+import { DiracIcon } from "@/shared/icons"
+import { CardStatus } from "../../../../../shared/ExtensionMessage"
+import { DiracDefaultTool, DiracToolSpec } from "../../../../../shared/tools"
+import { WorkspacePathAdapter } from "../../../../workspace/WorkspacePathAdapter"
 import { IDiracTool } from "../../interfaces/IDiracTool"
 import { IToolEnvironment } from "../../interfaces/IToolEnvironment"
 import { SurfaceType } from "../../interfaces/SurfaceType"
-import { DiracToolSpec, DiracDefaultTool } from "../../../../../shared/tools"
-import { CardStatus } from "../../../../../shared/ExtensionMessage"
-import { DiracIcon } from "@/shared/icons"
-import { WorkspacePathAdapter } from "../../../../workspace/WorkspacePathAdapter"
-import * as fs from "fs/promises"
-import * as path from "path"
-import { getDelimiter } from "@utils/line-hashing"
 
 export interface SearchFilesArgs {
 	paths: string[]
@@ -160,7 +161,7 @@ export class SearchFilesTool implements IDiracTool<SearchFilesArgs, string> {
 
 			return finalResult
 		} catch (error) {
-			const errorMessage = error instanceof Error ? error.message : String(error)
+			const errorMessage = getErrorMessage(error)
 			if (card) {
 				await card.update({
 					status: CardStatus.ERROR,
@@ -281,7 +282,7 @@ export class SearchFilesTool implements IDiracTool<SearchFilesArgs, string> {
 					success: true,
 				}
 			} catch (error) {
-				const errorMessage = error instanceof Error ? error.message : String(error)
+				const errorMessage = getErrorMessage(error)
 				if (card) {
 					await card.appendBody(`❌ Search failed in ${workspaceName || absolutePath}: ${errorMessage}\n`)
 				}

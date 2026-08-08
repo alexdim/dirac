@@ -22,6 +22,11 @@ const MAX_EXAMPLE_PATHS = 5
 export class WorkspaceResolver {
 	private usageMap = new Map<string, UsageStats>()
 	private traceEnabled = process.env.MULTI_ROOT_TRACE === "true" || process.env.NODE_ENV === "development"
+	private readonly migrationReporter: MigrationReporter
+
+	constructor(migrationReporter: MigrationReporter = new MigrationReporter()) {
+		this.migrationReporter = migrationReporter
+	}
 
 	/**
 	 * Track usage statistics for a given context and path
@@ -198,8 +203,7 @@ export class WorkspaceResolver {
 	 * Currently this function is mainly called by the vscode debugger
 	 */
 	getMigrationReport(): string {
-		const reporter = new MigrationReporter()
-		return reporter.generateReport(this.usageMap, this.traceEnabled)
+		return this.migrationReporter.generateReport(this.usageMap, this.traceEnabled)
 	}
 
 	/**
@@ -250,8 +254,11 @@ export class WorkspaceResolver {
 	}
 }
 
-// Export singleton instance
-export const workspaceResolver = new WorkspaceResolver()
+// Export singleton instance (built via the factory so the construction path is single)
+export function createWorkspaceResolver(migrationReporter?: MigrationReporter): WorkspaceResolver {
+	return new WorkspaceResolver(migrationReporter)
+}
+export const workspaceResolver = createWorkspaceResolver()
 
 /**
  * Result type for multi-root workspace path resolution

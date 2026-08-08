@@ -18,10 +18,15 @@ import {
 } from "@core/context/instructions/user-instructions/external-rules"
 import { formatResponse } from "@core/formatResponse"
 import { DiracIgnoreController } from "@core/ignore/DiracIgnoreController"
+import { recordSuccessfulModelProviderPreset } from "@core/models/modelProviderPresets"
 import { CommandPermissionController } from "@core/permissions"
 import type { SystemPromptContext } from "@core/prompts/system-prompt"
 import { getSystemPrompt } from "@core/prompts/system-prompt"
+import type { SlashCommandDirectAction } from "@core/slash-commands"
+import { findSlashCommandInTags } from "@core/slash-commands/commandParser"
 import { ensureRulesDirectoryExists, ensureTaskDirectoryExists } from "@core/storage/disk"
+import { createDefaultTextCondensationTemplateRegistry, TASK_HANDOFF_TEMPLATE_ID } from "@core/text-condensation/templates"
+import { isUtilityTextCondensationAvailable } from "@core/text-condensation/UtilityTextCondensationAvailability"
 import { isMultiRootEnabled } from "@core/workspace/multi-root-utils"
 import { WorkspaceRootManager } from "@core/workspace/WorkspaceRootManager"
 import { HostProvider } from "@hosts/host-provider"
@@ -45,7 +50,6 @@ import { UrlContentFetcher } from "@services/browser/UrlContentFetcher"
 import { DiracError, DiracErrorType, ErrorService } from "@services/error"
 import { featureFlagsService } from "@services/feature-flags"
 import { telemetryService } from "@services/telemetry"
-import { recordSuccessfulModelProviderPreset } from "@core/models/modelProviderPresets"
 import { ApiConfiguration } from "@shared/api"
 import { findLastIndex } from "@shared/array"
 import { DiracClient } from "@shared/dirac"
@@ -82,6 +86,7 @@ import Mutex from "p-mutex"
 import pWaitFor from "p-wait-for"
 import * as path from "path"
 import { ulid } from "ulid"
+import { getErrorMessage } from "@/shared/errors"
 import { filterSkillsByProviderCapabilities, SkillMetadata } from "@/shared/skills"
 import { getAvailableCores } from "@/utils/os"
 import { detectBestShell } from "@/utils/shell-detection"
@@ -90,32 +95,28 @@ import { getOrDiscoverSkills } from "../context/instructions/user-instructions/s
 import { Controller } from "../controller"
 import { StateManager } from "../storage/StateManager"
 import { ApiConversationManager } from "./ApiConversationManager"
-import { activateTaskSkill } from "./activateTaskSkill"
-import { LocalConversationCompaction } from "./LocalConversationCompaction"
-import type { SlashCommandDirectAction } from "@core/slash-commands"
-import { findSlashCommandInTags } from "@core/slash-commands/commandParser"
 import { AssistantStreamManager } from "./AssistantStreamManager"
+import { activateTaskSkill } from "./activateTaskSkill"
 import { ContextLoader } from "./ContextLoader"
-import { createDefaultTextCondensationTemplateRegistry, TASK_HANDOFF_TEMPLATE_ID } from "@core/text-condensation/templates"
-import { isUtilityTextCondensationAvailable } from "@core/text-condensation/UtilityTextCondensationAvailability"
 import { EnvironmentManager } from "./EnvironmentManager"
 import { HookManager } from "./HookManager"
 import { LifecycleManager } from "./LifecycleManager"
+import { LocalConversationCompaction } from "./LocalConversationCompaction"
 import { MessageStateHandler } from "./message-state"
 import { ResponseProcessor } from "./ResponseProcessor"
 import { StreamChunkCoordinator } from "./StreamChunkCoordinator"
 import { StreamingMetricsManager } from "./StreamingMetricsManager"
 import { StreamResponseHandler } from "./StreamResponseHandler"
-import { TaskMessenger } from "./TaskMessenger"
-import { TaskState } from "./TaskState"
 import {
 	collectDeliveredSteeringMessageIds,
 	formatSteeringMessages,
 	restoreQueuedSteeringMessages,
-	SteeringDeliveryState,
 	type SteeringClaim,
+	SteeringDeliveryState,
 	type SteeringMessage,
 } from "./steering"
+import { TaskMessenger } from "./TaskMessenger"
+import { TaskState } from "./TaskState"
 import { ToolExecutor } from "./ToolExecutor"
 import { DiracContext } from "./tools/context/DiracContext"
 import type { ToolSnapshotDirtyReason } from "./tools/runtime/ToolSnapshot"
@@ -665,7 +666,7 @@ export class Task {
 			} catch (error) {
 				Logger.error("Failed to initialize checkpoint manager:", error)
 				if (this.stateManager.getGlobalSettingsKey("enableCheckpointsSetting")) {
-					const errorMessage = error instanceof Error ? error.message : "Unknown error"
+					const errorMessage = getErrorMessage(error, "Unknown error")
 					HostProvider.window.showMessage({
 						type: ShowMessageType.ERROR,
 						message: `Failed to initialize checkpoint manager: ${errorMessage}`,
@@ -1375,7 +1376,7 @@ export class Task {
 			}
 			// Ensure the artifact dir is git-ignored so debug dumps don't get committed.
 			const gitignorePath = path.join(writeDir, ".gitignore")
-			await fs.writeFile(gitignorePath, "*\n!.gitignore\n", "utf8").catch(() => { })
+			await fs.writeFile(gitignorePath, "*\n!.gitignore\n", "utf8").catch(() => {})
 
 			const debugPath = path.join(writeDir, `task-${this.taskId}-debug.md`)
 
@@ -1476,7 +1477,7 @@ export class Task {
 			this.cwd,
 		)
 
-		const evaluationContext = await RuleContextBuilder.buildEvaluationContext({
+		const evaluationContext = await new RuleContextBuilder().buildEvaluationContext({
 			cwd: this.cwd,
 			messageStateHandler: this.messageStateHandler,
 			workspaceManager: this.workspaceManager,
@@ -1583,6 +1584,11 @@ export class Task {
 		if (activatedConditionalRules.length > 0) {
 			await this.taskMessenger.upsertText(JSON.stringify({ rules: activatedConditionalRules }))
 		}
+		// Surface rule-file load failures so silently-dropped rules are visible to the user.
+		const ruleLoadErrors = [...(globalRules.errors ?? []), ...(localRules.errors ?? [])]
+		if (ruleLoadErrors.length > 0) {
+			await this.taskMessenger.upsertText(JSON.stringify({ ruleLoadErrors }))
+		}
 		const toolSnapshot = await this.toolExecutor.getSnapshotForRequest(promptContext)
 		const { systemPrompt } = await getSystemPrompt(promptContext, toolSnapshot)
 		this.toolExecutor.activateSnapshot(toolSnapshot)
@@ -1624,7 +1630,7 @@ export class Task {
 		if (!useAutoCondense) {
 			const lastMessage =
 				contextManagementMetadata.truncatedConversationHistory[
-				contextManagementMetadata.truncatedConversationHistory.length - 1
+					contextManagementMetadata.truncatedConversationHistory.length - 1
 				]
 			if (lastMessage && lastMessage.role === "user") {
 				const notice = formatResponse.contextTruncationNotice()
@@ -2050,7 +2056,9 @@ export class Task {
 		if (providerId && model.id) {
 			try {
 				await this.modelContextTracker.recordModelUsage(providerId, model.id, mode)
-			} catch { }
+			} catch (error) {
+				Logger.error("Failed to record model usage:", error)
+			}
 		}
 
 		const modelInfo: DiracMessageModelInfo = {
@@ -2206,9 +2214,10 @@ export class Task {
 							type: "text",
 							text:
 								assistantMessage +
-								`\n\n[${cancelReason === "streaming_failed"
-									? "Response interrupted by API Error"
-									: "Response interrupted by user"
+								`\n\n[${
+									cancelReason === "streaming_failed"
+										? "Response interrupted by API Error"
+										: "Response interrupted by user"
 								}]`,
 						},
 					],

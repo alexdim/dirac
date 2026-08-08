@@ -53,7 +53,7 @@ export class Controller {
 	}
 
 	set task(value: Task | undefined) {
-		this.taskController!.task = value
+		this.taskController.task = value
 	}
 
 	// Promise for the in-flight task run; created inside TaskController.initTask (from main).
@@ -114,9 +114,13 @@ export class Controller {
 		checkCliInstallation(this)
 
 		// Initialize workspace manager in background
-		this.ensureWorkspaceManager().then(() => {
-			this.postStateToWebview()
-		})
+		this.ensureWorkspaceManager()
+			.then(() => {
+				this.postStateToWebview()
+			})
+			.catch((error) => {
+				Logger.error("Failed to initialize workspace manager:", error)
+			})
 	}
 
 	/*

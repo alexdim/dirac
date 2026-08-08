@@ -4,6 +4,7 @@ import { DiracEnv } from "@/config"
 import { Controller } from "@/core/controller"
 import { StateManager } from "@/core/storage/StateManager"
 import { HostInfo } from "@/registry"
+import { getErrorMessage } from "@/shared/errors"
 import { FeatureFlag } from "@/shared/services/feature-flags/feature-flags"
 import { Logger } from "@/shared/services/Logger"
 import { buildBasicDiracHeaders } from "../EnvUtils"
@@ -283,8 +284,7 @@ export class RemoteBannerService {
 			})
 		} catch (error) {
 			Logger.log(
-				`[RemoteBannerService] Error parsing provider rules for banner ${banner.id}: ` +
-					`${error instanceof Error ? error.message : String(error)}`,
+				`[RemoteBannerService] Error parsing provider rules for banner ${banner.id}: ` + `${getErrorMessage(error)}`,
 			)
 			return true // Fail open
 		}

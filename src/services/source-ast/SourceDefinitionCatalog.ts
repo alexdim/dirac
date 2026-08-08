@@ -1,7 +1,8 @@
 import * as fs from "node:fs/promises"
 import * as path from "node:path"
-import type { Node as SyntaxNode, Parser, Query, Tree } from "web-tree-sitter"
 import { loadRequiredLanguageParsers } from "@services/tree-sitter/languageParser"
+import type { Parser, Query, Node as SyntaxNode, Tree } from "web-tree-sitter"
+import { getErrorMessage } from "@/shared/errors"
 import { SymbolContextResolver } from "./SymbolContextResolver"
 import type {
 	SourceDefinition,
@@ -360,6 +361,6 @@ export class SourceDefinitionCatalog {
 	}
 
 	private errorMessage(error: unknown): string {
-		return error instanceof Error ? error.message : String(error)
+		return getErrorMessage(error)
 	}
 }

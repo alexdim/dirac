@@ -1,5 +1,6 @@
 import { execa } from "execa"
 import { platform } from "os"
+import { getErrorMessage } from "@/shared/errors"
 import { Logger } from "@/shared/services/Logger"
 
 interface NotificationOptions {
@@ -66,7 +67,7 @@ async function showLinuxNotification(options: NotificationOptions): Promise<void
 		await execa("notify-send", [title, fullMessage])
 	} catch (error) {
 		// Only log if it's not a D-Bus error which is common in headless environments
-		const errorMessage = error instanceof Error ? error.message : String(error)
+		const errorMessage = getErrorMessage(error)
 		if (!errorMessage.includes("Cannot autolaunch D-Bus")) {
 			throw new Error(`Failed to show Linux notification: ${error}`)
 		}

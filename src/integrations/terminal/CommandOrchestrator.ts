@@ -6,6 +6,7 @@
  */
 
 import { setTimeout as setTimeoutPromise } from "node:timers/promises"
+import { toError } from "@/shared/errors"
 import { Logger } from "@/shared/services/Logger"
 import { type BuildResultInput, buildResult } from "./buildResult"
 import {
@@ -94,7 +95,7 @@ export async function orchestrateCommandExecution(
 				outputLines.push(line)
 			}
 		} catch (error) {
-			fileLogError = error instanceof Error ? error : new Error(String(error))
+			fileLogError = toError(error)
 		}
 	}
 	process.on("line", onLine)

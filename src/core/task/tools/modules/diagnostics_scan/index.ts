@@ -1,11 +1,12 @@
+import { getErrorMessage } from "@/shared/errors"
+import { DiracIcon } from "@/shared/icons"
+import { DiagnosticSeverity, FileDiagnostics } from "@/shared/proto/index.dirac"
+import { arePathsEqual } from "@/utils/path"
+import { CardStatus } from "../../../../../shared/ExtensionMessage"
+import { DiracDefaultTool, DiracToolSpec } from "../../../../../shared/tools"
 import { IDiracTool } from "../../interfaces/IDiracTool"
 import { IToolEnvironment } from "../../interfaces/IToolEnvironment"
 import { SurfaceType } from "../../interfaces/SurfaceType"
-import { DiracToolSpec, DiracDefaultTool } from "../../../../../shared/tools"
-import { CardStatus } from "../../../../../shared/ExtensionMessage"
-import { DiracIcon } from "@/shared/icons"
-import { arePathsEqual } from "@/utils/path"
-import { DiagnosticSeverity, FileDiagnostics } from "@/shared/proto/index.dirac"
 import { DiagnosticFormatter } from "../../utils/DiagnosticFormatter"
 
 export const diagnostics_scan_spec: DiracToolSpec = {
@@ -70,7 +71,7 @@ export class DiagnosticsScanTool implements IDiracTool<DiagnosticsScanArgs, stri
 							absolutePath,
 							displayPath,
 							content: "",
-							error: error instanceof Error ? error.message : String(error),
+							error: getErrorMessage(error),
 						}
 					}
 				}),
@@ -137,7 +138,7 @@ export class DiagnosticsScanTool implements IDiracTool<DiagnosticsScanArgs, stri
 
 			return finalResult
 		} catch (error) {
-			const errorMessage = error instanceof Error ? error.message : String(error)
+			const errorMessage = getErrorMessage(error)
 			if (card) {
 				await card.update({
 					status: CardStatus.ERROR,

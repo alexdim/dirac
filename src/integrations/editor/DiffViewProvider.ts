@@ -37,7 +37,7 @@ export abstract class DiffViewProvider {
 
 		if (fileExists) {
 			await HostProvider.workspace.saveOpenDocumentIfDirty({
-				filePath: this.absolutePath!,
+				filePath: this.absolutePath,
 			})
 		}
 

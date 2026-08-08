@@ -1,6 +1,7 @@
 import { WorkspaceRootManager } from "@core/workspace/WorkspaceRootManager"
 import CheckpointTracker from "@integrations/checkpoints/CheckpointTracker"
 import pTimeout from "p-timeout"
+import { getErrorMessage } from "@/shared/errors"
 import { Logger } from "@/shared/services/Logger"
 import { MessageStateHandler } from "../../core/task/message-state"
 import { TaskState } from "../../core/task/TaskState"
@@ -107,7 +108,7 @@ export class CheckpointStorageManager {
 			this.checkpointTracker = tracker
 			return tracker
 		} catch (error) {
-			const errorMessage = error instanceof Error ? error.message : "Unknown error"
+			const errorMessage = getErrorMessage(error, "Unknown error")
 			Logger.error("Failed to initialize checkpoint tracker:", errorMessage)
 
 			if (errorMessage.includes("Checkpoints taking too long to initialize")) {
@@ -155,7 +156,7 @@ export class CheckpointStorageManager {
 			}
 			return await this.checkpointTracker.commit()
 		} catch (error) {
-			const errorMessage = error instanceof Error ? error.message : "Unknown error"
+			const errorMessage = getErrorMessage(error, "Unknown error")
 			Logger.error(
 				`[CheckpointStorageManager] Failed to create checkpoint commit for task ${this.config.taskId}:`,
 				errorMessage,
@@ -201,7 +202,7 @@ export class CheckpointStorageManager {
 				)
 				this.services.messageStateHandler.setCheckpointTracker(this.checkpointTracker)
 			} catch (error) {
-				const errorMessage = error instanceof Error ? error.message : "Unknown error"
+				const errorMessage = getErrorMessage(error, "Unknown error")
 				Logger.error(
 					`[CheckpointStorageManager] Failed to initialize checkpoint tracker for task ${this.config.taskId}:`,
 					errorMessage,

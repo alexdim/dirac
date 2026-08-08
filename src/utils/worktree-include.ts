@@ -3,6 +3,7 @@ import * as fs from "fs/promises"
 import ignore from "ignore"
 import * as path from "path"
 import { promisify } from "util"
+import { getErrorMessage } from "@/shared/errors"
 
 const execAsync = promisify(exec)
 
@@ -201,7 +202,7 @@ export async function copyWorktreeIncludeFiles(
 			const files = await getAllFiles(sourcePath, sourcePath)
 			copiedCount += files.length
 		} catch (error) {
-			errors.push(`Failed to copy directory ${dir}: ${error instanceof Error ? error.message : String(error)}`)
+			errors.push(`Failed to copy directory ${dir}: ${getErrorMessage(error)}`)
 		}
 	}
 
