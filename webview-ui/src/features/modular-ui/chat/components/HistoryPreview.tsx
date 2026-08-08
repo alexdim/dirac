@@ -147,7 +147,7 @@ const HistoryPreview = ({ showHistoryView }: HistoryPreviewProps) => {
 				<div className="flex justify-center py-3 pb-5">
 					<div className="flex flex-col items-center gap-2">
 						<div className="dirac-logo-aura">
-							<DiracLogoVariable />
+							<DiracLogoVariable transparentBackground />
 						</div>
 						<div className="text-[0.9em] text-(--vscode-descriptionForeground) italic text-center max-w-[80%] leading-[1.4]">
 							"{quote}"
