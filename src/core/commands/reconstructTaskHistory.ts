@@ -1,4 +1,5 @@
 import { getSavedDiracMessages, getTaskMetadata, readTaskHistoryFromState, writeTaskHistoryToState } from "@core/storage/disk"
+import type { TaskMetadata } from "@core/context/context-tracking/ContextTrackerTypes"
 import { HostProvider } from "@hosts/host-provider"
 import { DiracMessage, DiracMessageType } from "@shared/ExtensionMessage"
 import { HistoryItem } from "@shared/HistoryItem"
@@ -213,7 +214,7 @@ interface TaskInfo {
 	conversationHistoryDeletedRange?: [number, number]
 }
 
-function extractTaskInformation(diracMessages: DiracMessage[], metadata: any): TaskInfo {
+function extractTaskInformation(diracMessages: DiracMessage[], metadata: TaskMetadata): TaskInfo {
 	// Find the first user message (task description)
 	const firstUserMessage = diracMessages.find(
 		(msg) => msg.content.type === DiracMessageType.MARKDOWN && !msg.content.isReasoning && msg.content.content,
