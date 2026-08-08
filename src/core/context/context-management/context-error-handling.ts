@@ -1,5 +1,15 @@
 import { APIError } from "openai"
 
+/** Narrow an unknown value to a plain object so deeply-nested provider shapes can be probed. */
+function isRecord(value: unknown): value is Record<string, unknown> {
+	return value !== null && typeof value === "object" && !Array.isArray(value)
+}
+
+/** Narrow an optional value to a plain object, for probing nested error nodes. */
+function narrow(value: unknown): Record<string, unknown> | undefined {
+	return isRecord(value) ? value : undefined
+}
+
 export function checkContextWindowExceededError(error: unknown): boolean {
 	return (
 		checkIsOpenAIResponsesContextWindowError(error) ||
@@ -12,21 +22,23 @@ export function checkContextWindowExceededError(error: unknown): boolean {
 	)
 }
 
-function checkIsOpenAIResponsesContextWindowError(error: any): boolean {
+function checkIsOpenAIResponsesContextWindowError(error: unknown): boolean {
 	try {
+		const root = narrow(error)
+		if (!root) return false
 		const codes = [
-			error?.code,
-			error?.error?.code,
-			error?.error?.error?.code,
-			error?.details?.code,
-			error?.cause?.code,
+			root.code,
+			narrow(root.error)?.code,
+			narrow(narrow(root.error)?.error)?.code,
+			narrow(root.details)?.code,
+			narrow(root.cause)?.code,
 		]
 		const contextErrorCodes = new Set(["context_length_exceeded", "context_window_exceeded", "input_too_long"])
 		if (codes.some((code) => contextErrorCodes.has(String(code).toLowerCase()))) {
 			return true
 		}
 
-		const messages = [error?.message, error?.error?.message, error?.error?.error?.message]
+		const messages = [root.message, narrow(root.error)?.message, narrow(narrow(root.error)?.error)?.message]
 			.filter((message) => message != null)
 			.map((message) => String(message))
 		return messages.some((message) => /your input exceeds the context window of this model/i.test(message))
@@ -35,14 +47,16 @@ function checkIsOpenAIResponsesContextWindowError(error: any): boolean {
 	}
 }
 
-function checkIsOpenRouterContextWindowError(error: any): boolean {
+function checkIsOpenRouterContextWindowError(error: unknown): boolean {
 	try {
+		const root = narrow(error)
+		if (!root) return false
 		// OpenRouter errors can reach us in two shapes:
 		// 1) Direct chunk.error path wrapped as Error with status/code attached.
 		// 2) Mid-stream finish_reason="error" path where JSON is stringified into message.
 		// So we check structured status first, then JSON-encoded status/code in message text.
-		const status = error?.status ?? error?.code ?? error?.error?.status ?? error?.response?.status
-		const message: string = String(error?.message || error?.error?.message || "")
+		const status = root.status ?? root.code ?? narrow(root.error)?.status ?? narrow(root.response)?.status
+		const message: string = String(root.message || narrow(root.error)?.message || "")
 
 		// Handle JSON-encoded errors where status/code is embedded in the message string.
 		const statusFromMessage = message.match(/"code":\s*(\d+)/)?.[1] ?? message.match(/"status":\s*(\d+)/)?.[1]
@@ -80,18 +94,22 @@ function checkIsOpenAIContextWindowError(error: unknown): boolean {
 	}
 }
 
-function checkIsAnthropicContextWindowError(response: any): boolean {
+function checkIsAnthropicContextWindowError(response: unknown): boolean {
 	try {
-		return response?.error?.error?.type === "invalid_request_error"
+		const root = narrow(response)
+		if (!root) return false
+		return narrow(narrow(root.error)?.error)?.type === "invalid_request_error"
 	} catch {
 		return false
 	}
 }
 
-function checkIsCerebrasContextWindowError(response: any): boolean {
+function checkIsCerebrasContextWindowError(response: unknown): boolean {
 	try {
-		const status = response?.status ?? response?.code ?? response?.error?.status ?? response?.response?.status
-		const message: string = String(response?.message || response?.error?.message || "")
+		const root = narrow(response)
+		if (!root) return false
+		const status = root.status ?? root.code ?? narrow(root.error)?.status ?? narrow(root.response)?.status
+		const message: string = String(root.message || narrow(root.error)?.message || "")
 
 		return String(status) === "400" && message.includes("Please reduce the length of the messages or completion")
 	} catch {
@@ -99,18 +117,20 @@ function checkIsCerebrasContextWindowError(response: any): boolean {
 	}
 }
 
-function checkIsBedrockContextWindowError(error: any): boolean {
+function checkIsBedrockContextWindowError(error: unknown): boolean {
 	try {
+		const root = narrow(error)
+		if (!root) return false
 		// Bedrock returns ValidationException for context window errors
-		const errorType = error?.name ?? error?.error?.type ?? error?.__type
-		const errorCode = error?.code ?? error?.error?.code ?? error?.$metadata?.httpStatusCode
+		const errorType = root.name ?? narrow(root.error)?.type ?? root.__type
+		const errorCode = root.code ?? narrow(root.error)?.code ?? narrow(root.$metadata)?.httpStatusCode
 
 		// Handle nested error structures (e.g., through Vercel AI SDK)
-		const nestedError = error?.error?.param
-		const nestedErrorCode = nestedError?.statusCode ?? error?.details?.code
+		const nestedError = narrow(narrow(root.error)?.param)
+		const nestedErrorCode = nestedError?.statusCode ?? narrow(root.details)?.code
 		const nestedMessage = nestedError?.message ?? nestedError?.error
 
-		const message: string = String(error?.message || error?.error?.message || nestedMessage || "")
+		const message: string = String(root.message || narrow(root.error)?.message || nestedMessage || "")
 
 		// Check for ValidationException with HTTP 400
 		const isValidationException =
@@ -118,7 +138,7 @@ function checkIsBedrockContextWindowError(error: any): boolean {
 			errorType === "AI_APICallError" ||
 			String(errorCode) === "400" ||
 			String(nestedErrorCode) === "400" ||
-			error?.code === "stream_initialization_failed"
+			root.code === "stream_initialization_failed"
 
 		if (!isValidationException) {
 			return false
@@ -141,23 +161,27 @@ function checkIsBedrockContextWindowError(error: any): boolean {
 	}
 }
 
-export function checkIsVercelContextWindowError(error: any): boolean {
+export function checkIsVercelContextWindowError(error: unknown): boolean {
 	try {
-		const status = error?.status ?? error?.error?.param?.statusCode ?? error?.statusCode
+		const root = narrow(error)
+		if (!root) return false
+		const param = narrow(narrow(root.error)?.param)
+		const value = narrow(narrow(root.error)?.value)
+		const status = root.status ?? param?.statusCode ?? root.statusCode
 
 		// Check for explicit context_length_exceeded code (OpenAI streaming errors)
-		const errorCode = error?.error?.error?.code
+		const errorCode = narrow(narrow(root.error)?.error)?.code
 		if (errorCode === "context_length_exceeded") {
 			return true
 		}
 
-		const messages: string[] = [
-			error?.message,
-			error?.error?.message,
-			error?.error?.param?.message,
-			error?.error?.param?.error,
-			error?.error?.error?.message,
-			error?.error?.value?.error_message, // Alibaba Qwen validation errors
+		const messages = [
+			root.message,
+			narrow(root.error)?.message,
+			param?.message,
+			param?.error,
+			narrow(narrow(root.error)?.error)?.message,
+			value?.error_message, // Alibaba Qwen validation errors
 		].filter((msg) => msg != null)
 
 		if (messages.length === 0) {
@@ -166,7 +190,7 @@ export function checkIsVercelContextWindowError(error: any): boolean {
 
 		// Must be a 400 error OR have 400 embedded in error_message (Alibaba Qwen case)
 		const hasValidStatus = String(status) === "400"
-		const errorMessage = error?.error?.value?.error_message
+		const errorMessage = value?.error_message
 		const has400InMessage =
 			errorMessage &&
 			typeof errorMessage === "string" &&
