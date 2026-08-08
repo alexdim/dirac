@@ -129,10 +129,10 @@ function convertUserMessage(
 }
 
 // Collects reasoning_details from text blocks and tool_use blocks matching a tool ID.
-function collectReasoningDetails(nonToolMessages: DiracContent[], toolMessages: DiracAssistantToolUseBlock[]): any[] {
-	const reasoningDetails: any[] = []
-	const isTextBlock = (part: any): part is DiracTextContentBlock => part.type === "text"
-	const isThinkingBlock = (part: any): part is DiracAssistantThinkingBlock => part.type === "thinking"
+function collectReasoningDetails(nonToolMessages: DiracContent[], toolMessages: DiracAssistantToolUseBlock[]): ReasoningDetail[] {
+	const reasoningDetails: ReasoningDetail[] = []
+	const isTextBlock = (part: DiracContent): part is DiracTextContentBlock => part.type === "text"
+	const isThinkingBlock = (part: DiracContent): part is DiracAssistantThinkingBlock => part.type === "thinking"
 
 	for (const part of nonToolMessages) {
 		if (isTextBlock(part) && part.reasoning_details) {
@@ -146,7 +146,7 @@ function collectReasoningDetails(nonToolMessages: DiracContent[], toolMessages: 
 		const toolId = toolMessage.id
 		if (!toolDetails) continue
 		if (Array.isArray(toolDetails)) {
-			const validDetails = toolDetails.filter((detail: any) => detail?.id === toolId)
+			const validDetails = toolDetails.filter((detail: unknown) => (detail as ReasoningDetail)?.id === toolId) as ReasoningDetail[]
 			if (validDetails.length > 0) reasoningDetails.push(...validDetails)
 		} else if ((toolDetails as ReasoningDetail | undefined)?.id === toolId) {
 			reasoningDetails.push(toolDetails)
@@ -390,10 +390,12 @@ export function convertToAnthropicMessage(completion: OpenAI.Chat.Completions.Ch
 	}
 	try {
 		if (openAiMessage?.tool_calls?.length) {
-			const functionCalls = openAiMessage.tool_calls.filter((tc: any) => tc?.type === "function" && tc.function)
+			const functionCalls = openAiMessage.tool_calls.filter(
+				(tc): tc is OpenAI.Chat.ChatCompletionMessageFunctionToolCall => tc?.type === "function" && tc.function != null,
+			)
 			if (functionCalls.length > 0) {
 				anthropicMessage.content.push(
-					...functionCalls.map((toolCall: any): Anthropic.ToolUseBlock => {
+					...functionCalls.map((toolCall: OpenAI.Chat.ChatCompletionMessageFunctionToolCall): Anthropic.ToolUseBlock => {
 						let parsedInput = {}
 						try {
 							parsedInput = JSON.parse(toolCall.function?.arguments || "{}")
