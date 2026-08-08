@@ -1,3 +1,4 @@
+import { getErrorMessage } from "@/shared/errors"
 import { CommandPermissionController } from "../permissions/CommandPermissionController"
 import { ToolPermissionRule } from "../permissions/types"
 
@@ -40,7 +41,7 @@ export async function handlePermissionsCommand(
 		}
 	} catch (error) {
 		return {
-			processedText: `Failed to update permissions: ${error instanceof Error ? error.message : String(error)}`,
+			processedText: `Failed to update permissions: ${getErrorMessage(error)}`,
 			success: false,
 		}
 	}

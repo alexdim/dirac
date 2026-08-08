@@ -1,16 +1,23 @@
 import { discoverChromeInstances } from "@services/browser/BrowserDiscovery"
 import { BrowserSession } from "@services/browser/BrowserSession"
+import type { StateManager } from "@/core/storage/StateManager"
 import { BrowserConnection } from "@shared/proto/dirac/browser"
 import { EmptyRequest } from "@shared/proto/dirac/common"
+import { getErrorMessage } from "@/shared/errors"
 import { Controller } from "../index"
 
 /**
  * Discover Chrome instances
  * @param controller The controller instance
  * @param request The request message
+ * @param createBrowserSession Factory for creating a browser session (injectable)
  * @returns The browser connection result
  */
-export async function discoverBrowser(controller: Controller, _request: EmptyRequest): Promise<BrowserConnection> {
+export async function discoverBrowser(
+	controller: Controller,
+	_request: EmptyRequest,
+	createBrowserSession: (stateManager: StateManager) => BrowserSession = (stateManager) => new BrowserSession(stateManager),
+): Promise<BrowserConnection> {
 	try {
 		const discoveredHost = await discoverChromeInstances()
 
@@ -19,7 +26,7 @@ export async function discoverBrowser(controller: Controller, _request: EmptyReq
 			// This way we don't override the user's preference
 
 			// Test the connection to get the endpoint
-			const browserSession = new BrowserSession(controller.stateManager)
+			const browserSession = createBrowserSession(controller.stateManager)
 			const result = await browserSession.testConnection(discoveredHost)
 
 			return BrowserConnection.create({
@@ -37,7 +44,7 @@ export async function discoverBrowser(controller: Controller, _request: EmptyReq
 	} catch (error) {
 		return BrowserConnection.create({
 			success: false,
-			message: `Error discovering browser: ${error instanceof Error ? error.message : String(error)}`,
+			message: `Error discovering browser: ${getErrorMessage(error)}`,
 			endpoint: "",
 		})
 	}

@@ -1,6 +1,7 @@
 import { stripOpenRouterPreset } from "@shared/api"
 import { normalizeLegacySynthetic1mModelId } from "@shared/storage/legacy-model-id-migration"
 import axios from "axios"
+import { getErrorMessage } from "@/shared/errors"
 import { getAxiosSettings } from "@/shared/net"
 
 export interface OpenRouterEndpoint {
@@ -172,7 +173,7 @@ function parseEndpointPricingValue(price: string): string {
 }
 
 function formatEndpointFetchError(error: unknown): string {
-	if (!axios.isAxiosError(error)) return error instanceof Error ? error.message : String(error)
+	if (!axios.isAxiosError(error)) return getErrorMessage(error)
 	if (error.code === "ECONNABORTED") return "OpenRouter endpoint metadata timed out"
 	const status = error.response?.status
 	if (status === 404) return "Endpoint metadata is unavailable for this custom model or preset"

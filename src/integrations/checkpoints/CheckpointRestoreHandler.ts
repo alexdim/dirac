@@ -5,6 +5,7 @@ import { DiracMessage } from "@shared/ExtensionMessage"
 import { getApiMetrics } from "@shared/getApiMetrics"
 import { DiracCheckpointRestore } from "@shared/WebviewMessage"
 import { HostProvider } from "@/hosts/host-provider"
+import { getErrorMessage } from "@/shared/errors"
 import { ShowMessageType } from "@/shared/proto/host/window"
 import { Logger } from "@/shared/services/Logger"
 import { FileContextTracker } from "../../core/context/context-tracking/FileContextTracker"
@@ -12,15 +13,24 @@ import { MessageStateHandler } from "../../core/task/message-state"
 import { TaskMessenger } from "../../core/task/TaskMessenger"
 import { TaskState } from "../../core/task/TaskState"
 import type { CheckpointStorageManager } from "./CheckpointStorageManager"
+import type CheckpointTracker from "./CheckpointTracker"
 
 interface CheckpointRestoreConfig {
 	readonly enableCheckpoints: boolean
 	readonly taskId: string
 }
+
+/** Factory for creating a `CheckpointTracker` for a task/workspace. */
+export type CreateCheckpointTracker = (
+	taskId: string,
+	enableCheckpoints: boolean,
+	workspacePath: string,
+) => Promise<CheckpointTracker | undefined>
 interface CheckpointRestoreServices {
 	readonly messageStateHandler: MessageStateHandler
 	readonly fileContextTracker: FileContextTracker
 	readonly taskState: TaskState
+	readonly createCheckpointTracker: CreateCheckpointTracker
 }
 interface CheckpointRestoreCallbacks {
 	readonly cancelTask: () => Promise<void>
@@ -104,13 +114,15 @@ export class CheckpointRestoreHandler {
 					if (!this.storage.getTracker() && !this.storage.getErrorMessage()) {
 						try {
 							const workspacePath = await this.storage.getWorkspacePath()
-							const tracker = await import("@integrations/checkpoints/CheckpointTracker").then((m) =>
-								m.default.create(this.config.taskId, this.config.enableCheckpoints, workspacePath),
+							const tracker = await this.services.createCheckpointTracker(
+								this.config.taskId,
+								this.config.enableCheckpoints,
+								workspacePath,
 							)
 							this.storage.setTracker(tracker)
 							this.services.messageStateHandler.setCheckpointTracker(tracker)
 						} catch (error) {
-							const errorMessage = error instanceof Error ? error.message : "Unknown error"
+							const errorMessage = getErrorMessage(error, "Unknown error")
 							Logger.error(
 								`[CheckpointRestoreHandler] Failed to initialize checkpoint tracker for task ${this.config.taskId}:`,
 								errorMessage,
@@ -125,7 +137,7 @@ export class CheckpointRestoreHandler {
 						try {
 							await this.storage.getTracker()?.resetHead(message.lastCheckpointHash)
 						} catch (error) {
-							const errorMessage = error instanceof Error ? error.message : "Unknown error"
+							const errorMessage = getErrorMessage(error, "Unknown error")
 							Logger.error(
 								`[CheckpointRestoreHandler] Failed to restore checkpoint for task ${this.config.taskId}:`,
 								errorMessage,
@@ -140,7 +152,7 @@ export class CheckpointRestoreHandler {
 						try {
 							await this.storage.getTracker()?.resetHead(lastMessageWithHash.lastCheckpointHash)
 						} catch (error) {
-							const errorMessage = error instanceof Error ? error.message : "Unknown error"
+							const errorMessage = getErrorMessage(error, "Unknown error")
 							Logger.error(
 								`[CheckpointRestoreHandler] Failed to restore offset checkpoint for task ${this.config.taskId}:`,
 								errorMessage,
@@ -159,7 +171,7 @@ export class CheckpointRestoreHandler {
 						try {
 							await this.storage.getTracker()?.resetHead(lastMessageWithHash.lastCheckpointHash)
 						} catch (error) {
-							const errorMessage = error instanceof Error ? error.message : "Unknown error"
+							const errorMessage = getErrorMessage(error, "Unknown error")
 							Logger.error(
 								`[CheckpointRestoreHandler] Failed to restore fallback checkpoint for task ${this.config.taskId}:`,
 								errorMessage,
@@ -199,7 +211,7 @@ export class CheckpointRestoreHandler {
 
 			return checkpointManagerStateUpdate
 		} catch (error) {
-			const errorMessage = error instanceof Error ? error.message : "Unknown error"
+			const errorMessage = getErrorMessage(error, "Unknown error")
 			Logger.error(`[CheckpointRestoreHandler] Failed to restore checkpoint for task ${this.config.taskId}:`, errorMessage)
 			sendRelinquishControlEvent()
 			return { checkpointManagerErrorMessage: errorMessage }

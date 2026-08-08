@@ -1,6 +1,7 @@
 import * as fs from "fs/promises"
 import * as os from "os"
 import * as path from "path"
+import { getErrorMessage } from "@/shared/errors"
 import { Environment, type EnvironmentConfig } from "./shared/config-types"
 import { Logger } from "./shared/services/Logger"
 
@@ -158,7 +159,7 @@ class DiracEndpoint {
 				data = JSON.parse(fileContent)
 			} catch (parseError) {
 				throw new DiracConfigurationError(
-					`Invalid JSON in bundled endpoints configuration file (${bundledPath}): ${parseError instanceof Error ? parseError.message : String(parseError)}`,
+					`Invalid JSON in bundled endpoints configuration file (${bundledPath}): ${getErrorMessage(parseError)}`,
 				)
 			}
 
@@ -191,7 +192,7 @@ class DiracEndpoint {
 				data = JSON.parse(fileContent)
 			} catch (parseError) {
 				throw new DiracConfigurationError(
-					`Invalid JSON in user endpoints configuration file (${userPath}): ${parseError instanceof Error ? parseError.message : String(parseError)}`,
+					`Invalid JSON in user endpoints configuration file (${userPath}): ${getErrorMessage(parseError)}`,
 				)
 			}
 
@@ -201,7 +202,7 @@ class DiracEndpoint {
 				throw error
 			}
 			throw new DiracConfigurationError(
-				`Failed to read user endpoints configuration file (${userPath}): ${error instanceof Error ? error.message : String(error)}`,
+				`Failed to read user endpoints configuration file (${userPath}): ${getErrorMessage(error)}`,
 			)
 		}
 	}

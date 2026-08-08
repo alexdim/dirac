@@ -1,5 +1,7 @@
-import { HostProvider } from "@/hosts/host-provider"
 import { DiracMessage } from "@shared/ExtensionMessage"
+import { HostProvider } from "@/hosts/host-provider"
+import type { DiracStorageMessage } from "@/shared/messages/content"
+import { Logger } from "@/shared/services/Logger"
 import { extractPathLikeStrings, RuleEvaluationContext, toWorkspaceRelativePosixPath } from "./rule-conditionals"
 
 type WorkspaceRoot = { path: string }
@@ -13,8 +15,8 @@ type MessageStateHandlerLike = {
 	updateDiracMessage(index: number, updates: Partial<DiracMessage>): Promise<void>
 	findMessageIndexById(id: string): number
 	saveDiracMessagesAndUpdateHistory(): Promise<void>
-	overwriteApiConversationHistory(history: any[]): Promise<void>
-	getApiConversationHistory(): any[]
+	overwriteApiConversationHistory(history: DiracStorageMessage[]): Promise<void>
+	getApiConversationHistory(): DiracStorageMessage[]
 }
 
 export type RuleContextBuilderDeps = {
@@ -39,15 +41,15 @@ export class RuleContextBuilder {
 	 * Maximum number of path candidates to consider for rule activation.
 	 * This cap prevents performance degradation in long-running tasks with many file operations.
 	 */
-	static readonly MAX_RULE_PATH_CANDIDATES = 100
+	readonly MAX_RULE_PATH_CANDIDATES = 100
 
-	static async buildEvaluationContext(deps: RuleContextBuilderDeps): Promise<RuleEvaluationContext> {
+	async buildEvaluationContext(deps: RuleContextBuilderDeps): Promise<RuleEvaluationContext> {
 		return {
-			paths: await RuleContextBuilder.getRulePathContext(deps),
+			paths: await this.getRulePathContext(deps),
 		}
 	}
 
-	private static async getRulePathContext(deps: RuleContextBuilderDeps): Promise<string[]> {
+	private async getRulePathContext(deps: RuleContextBuilderDeps): Promise<string[]> {
 		const candidates: string[] = []
 		const diracMessages = deps.messageStateHandler.getDiracMessages()
 
@@ -88,8 +90,9 @@ export class RuleContextBuilder {
 				) {
 					candidates.push(tool.path)
 				}
-			} catch {
-				// ignore parse errors
+			} catch (error) {
+				// Intentional: malformed tool card bodies are not fatal.
+				Logger.debug("Failed to parse tool card body for rule context:", error)
 			}
 		}
 
@@ -111,8 +114,9 @@ export class RuleContextBuilder {
 				if (tool.path) {
 					candidates.push(tool.path)
 				}
-			} catch {
-				// ignore parse errors
+			} catch (error) {
+				// Intentional: malformed tool card bodies are not fatal.
+				Logger.debug("Failed to parse tool card body for rule context:", error)
 			}
 		}
 
@@ -125,7 +129,7 @@ export class RuleContextBuilder {
 			if (seen.has(posix)) continue
 			seen.add(posix)
 			normalized.push(posix)
-			if (normalized.length >= RuleContextBuilder.MAX_RULE_PATH_CANDIDATES) break
+			if (normalized.length >= this.MAX_RULE_PATH_CANDIDATES) break
 		}
 		return normalized.sort()
 	}

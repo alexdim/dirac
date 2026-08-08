@@ -1,6 +1,7 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import fs from "fs/promises"
 import sizeOf from "image-size"
+import { getErrorMessage } from "@/shared/errors"
 import { getMimeType } from "./process-files"
 
 /**
@@ -47,7 +48,7 @@ export async function extractImageContent(
 
 		return { success: true, imageBlock }
 	} catch (error) {
-		const errorMessage = error instanceof Error ? error.message : "Unknown error"
+		const errorMessage = getErrorMessage(error, "Unknown error")
 		return { success: false, error: `Error reading image: ${errorMessage}` }
 	}
 }

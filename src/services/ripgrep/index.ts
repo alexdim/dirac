@@ -5,6 +5,7 @@ import * as childProcess from "child_process"
 import * as fs from "fs/promises"
 import * as path from "path"
 import * as readline from "readline"
+import { getErrorMessage } from "@/shared/errors"
 import { Logger } from "@/shared/services/Logger"
 import { getBinaryLocation } from "@/utils/fs"
 
@@ -200,10 +201,10 @@ export async function regexSearchFiles(
 	} catch (error) {
 		await debugLog?.({
 			info: "regexSearchFiles execRipgrep error",
-			errorMessage: error instanceof Error ? error.message : String(error),
+			errorMessage: getErrorMessage(error),
 			stack: error instanceof Error ? error.stack : undefined,
 		})
-		const causeMessage = error instanceof Error ? error.message : String(error)
+		const causeMessage = getErrorMessage(error)
 		throw new Error(`Error calling ripgrep: ${causeMessage}`, { cause: error })
 	}
 	const outputDetails = {
@@ -242,7 +243,7 @@ export async function regexSearchFiles(
 				void debugLog?.({
 					info: "regexSearchFiles parse line error",
 					linePreview: line.substring(0, 300),
-					errorMessage: error instanceof Error ? error.message : String(error),
+					errorMessage: getErrorMessage(error),
 				})
 			}
 		}

@@ -19,6 +19,7 @@ import {
 } from "@shared/api"
 import { calculateApiCostOpenAI, calculateApiCostQwen } from "@utils/cost"
 import { ExtensionRegistryInfo } from "@/registry"
+import { getErrorMessage } from "@/shared/errors"
 import type { DiracStorageMessage } from "@/shared/messages/content"
 import { Logger } from "@/shared/services/Logger"
 import type { DiracTool } from "@/shared/tools"
@@ -26,6 +27,8 @@ import type { ApiHandler, CommonApiHandlerOptions } from "../"
 import { withRetry } from "../retry"
 import { convertToR1Format } from "../transform/r1-format"
 import type { ApiStream } from "../transform/stream"
+
+const BEDROCK_USER_AGENT_APP_ID = `dirac#${ExtensionRegistryInfo.version}`
 
 export interface AwsBedrockHandlerOptions extends CommonApiHandlerOptions {
 	apiModelId?: string
@@ -463,7 +466,7 @@ export class AwsBedrockHandler implements ApiHandler {
 		const providerOptions: ProviderChainOptions = {
 			clientConfig: {
 				// set the inner sts client userAgentAppId
-				userAgentAppId: `dirac#${ExtensionRegistryInfo.version}`,
+				userAgentAppId: BEDROCK_USER_AGENT_APP_ID,
 			},
 		}
 		const useProfile =
@@ -523,7 +526,7 @@ export class AwsBedrockHandler implements ApiHandler {
 		// AWS SDK uses a different architecture than fetch-based SDKs.
 		// To add proxy support, we need to provide a custom requestHandler.
 		return new BedrockRuntimeClient({
-			userAgentAppId: `dirac#${ExtensionRegistryInfo.version}`,
+			userAgentAppId: BEDROCK_USER_AGENT_APP_ID,
 			region: this.getRegion(),
 			...auth,
 			...(this.options.awsBedrockEndpoint && { endpoint: this.options.awsBedrockEndpoint }),
@@ -666,7 +669,7 @@ export class AwsBedrockHandler implements ApiHandler {
 							// Propagate the error by yielding a text response with error information
 							yield {
 								type: "text",
-								text: `[ERROR] Failed to parse Deepseek response: ${error instanceof Error ? error.message : String(error)}`,
+								text: `[ERROR] Failed to parse Deepseek response: ${getErrorMessage(error)}`,
 							}
 						}
 					}
@@ -1046,7 +1049,7 @@ export class AwsBedrockHandler implements ApiHandler {
 			// Return a text content indicating the error instead of null
 			// This ensures users are aware of the issue
 			return {
-				text: `[ERROR: Failed to process image - ${error instanceof Error ? error.message : "Unknown error"}]`,
+				text: `[ERROR: Failed to process image - ${getErrorMessage(error, "Unknown error")}]`,
 			}
 		}
 	}

@@ -1,3 +1,4 @@
+import { getErrorMessage, toError } from "@/shared/errors"
 export interface RetryWithBackoffOptions {
 	maxAttempts?: number
 	baseDelayMs?: number
@@ -57,11 +58,7 @@ export async function retryWithBackoff<T>(operation: () => Promise<T>, options: 
 		}
 	}
 
-	throw new Error(
-		`${operationName} failed after ${maxAttempts} attempts: ${
-			lastError instanceof Error ? lastError.message : String(lastError)
-		}`,
-	)
+	throw new Error(`${operationName} failed after ${maxAttempts} attempts: ${getErrorMessage(lastError)}`)
 }
 
 /**
@@ -82,7 +79,7 @@ export async function retryOperation<T>(maxRetries: number, timeoutPerAttempt: n
 			const result = await Promise.race([operation(), timeoutPromise])
 			return result // Success - return result
 		} catch (error) {
-			lastError = error instanceof Error ? error : new Error(String(error))
+			lastError = toError(error)
 
 			if (attempt < maxRetries) {
 				// Brief delay before retry

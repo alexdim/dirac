@@ -5,6 +5,7 @@
  * Enable with: TEL_DEBUG_DIAGNOSTICS=true or IS_DEV=true
  */
 
+import { getErrorMessage } from "@/shared/errors"
 import { Logger } from "@/shared/services/Logger"
 
 /**
@@ -44,7 +45,7 @@ export function wrapMetricsExporterWithDiagnostics(exporter: any, protocol: stri
 		} catch (error) {
 			const elapsed = Date.now() - startTime
 			Logger.error(
-				`[OTEL METRICS] Export #${exportCount} EXCEPTION - elapsed=${elapsed}ms error="${error instanceof Error ? error.message : String(error)}"`,
+				`[OTEL METRICS] Export #${exportCount} EXCEPTION - elapsed=${elapsed}ms error="${getErrorMessage(error)}"`,
 			)
 			throw error
 		}
@@ -87,9 +88,7 @@ export function wrapLogsExporterWithDiagnostics(exporter: any, protocol: string,
 			originalExport(logs, wrappedCallback)
 		} catch (error) {
 			const elapsed = Date.now() - startTime
-			Logger.error(
-				`[OTEL LOGS] Export #${exportCount} EXCEPTION - elapsed=${elapsed}ms error="${error instanceof Error ? error.message : String(error)}"`,
-			)
+			Logger.error(`[OTEL LOGS] Export #${exportCount} EXCEPTION - elapsed=${elapsed}ms error="${getErrorMessage(error)}"`)
 			throw error
 		}
 	}

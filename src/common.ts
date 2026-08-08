@@ -1,7 +1,9 @@
 import { DiracWebviewProvider } from "./core/webview"
 import "./utils/path" // necessary to have access to String.prototype.toPosix
 
+import { createRotatingFileLogger, type RotatingFileLogger, resolveLogDirectory } from "@shared/services/file-logger"
 import { HostProvider } from "@/hosts/host-provider"
+import { getErrorMessage } from "@/shared/errors"
 import { Logger } from "@/shared/services/Logger"
 import type { StorageContext } from "@/shared/storage/storage-context"
 import { FileContextTracker } from "./core/context/context-tracking/FileContextTracker"
@@ -20,11 +22,9 @@ import { DiracTempManager } from "./services/temp"
 import { cleanupTestMode } from "./services/test/TestMode"
 import { ShowMessageType } from "./shared/proto/host/window"
 import { syncWorker } from "./shared/services/worker/sync"
-
 import { getBlobStoreSettingsFromEnv } from "./shared/services/worker/worker"
 import { getLatestAnnouncementId } from "./utils/announcements"
 import { arePathsEqual } from "./utils/path"
-import { createRotatingFileLogger, resolveLogDirectory, type RotatingFileLogger } from "@shared/services/file-logger"
 
 let persistentFileLogger: RotatingFileLogger | undefined
 let unsubscribeHostLogger: (() => void) | undefined
@@ -159,7 +159,7 @@ async function showVersionUpdateAnnouncement(stateManager: StateManager) {
 			await stateManager.setGlobalState("diracVersion", currentVersion)
 		}
 	} catch (error) {
-		const errorMessage = error instanceof Error ? error.message : String(error)
+		const errorMessage = getErrorMessage(error)
 		Logger.error(`Error during post-update actions: ${errorMessage}, Stack trace: ${error.stack}`)
 	}
 }

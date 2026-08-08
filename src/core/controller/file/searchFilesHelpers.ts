@@ -5,6 +5,7 @@ import { FileSearchRequest, FileSearchResults, FileSearchType } from "@shared/pr
 import { getWorkspacePath } from "@utils/path"
 import * as path from "path"
 import { HostProvider } from "@/hosts/host-provider"
+import { getErrorMessage } from "@/shared/errors"
 import { Logger } from "@/shared/services/Logger"
 import { Controller } from ".."
 
@@ -69,7 +70,7 @@ export const captureResultTelemetry = (request: FileSearchRequest, count: number
 // Logs error and captures failure telemetry, returning an empty result set
 export async function handleSearchError(request: FileSearchRequest, error: unknown): Promise<FileSearchResults> {
 	Logger.error("Error in searchFiles:", error)
-	const msg = error instanceof Error ? error.message : String(error)
+	const msg = getErrorMessage(error)
 	const type = error instanceof Error && error.message.includes("permission") ? "permission_denied" : "unknown"
 	await telemetryService.captureMentionFailed(request.selectedType === FileSearchType.FILE ? "file" : "folder", type, msg)
 	return { results: [], mentionsRequestId: request.mentionsRequestId }

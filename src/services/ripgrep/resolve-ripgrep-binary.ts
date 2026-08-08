@@ -1,6 +1,7 @@
 import { execFile } from "node:child_process"
 import path from "node:path"
 import { promisify } from "node:util"
+import { getErrorMessage } from "@/shared/errors"
 import { Logger } from "@/shared/services/Logger"
 
 const execFileAsync = promisify(execFile)
@@ -50,7 +51,7 @@ async function validateRipgrepBinary(binaryPath: string, source: string): Promis
 		})
 		return true
 	} catch (error) {
-		const reason = error instanceof Error ? error.message : String(error)
+		const reason = getErrorMessage(error)
 		Logger.warn(`[Dirac] ${source} rg failed validation at ${binaryPath}: ${reason}`)
 		return false
 	}

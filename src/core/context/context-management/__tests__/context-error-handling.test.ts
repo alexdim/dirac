@@ -1,4 +1,5 @@
 import { expect } from "chai"
+import { APIError } from "openai"
 import { checkContextWindowExceededError } from "../context-error-handling"
 
 describe("checkContextWindowExceededError", () => {
@@ -84,6 +85,49 @@ describe("checkContextWindowExceededError", () => {
 	// Vercel: explicit context_length_exceeded code short-circuits regardless of status.
 	it("detects Vercel context_length_exceeded code without status", () => {
 		const error = { error: { error: { code: "context_length_exceeded" } } }
+		expect(checkContextWindowExceededError(error)).to.equal(true)
+	})
+
+	// OpenAI SDK APIError path (code 400 + context-length message).
+	it("detects an OpenAI APIError with code 400 and a context message", () => {
+		const error = new APIError(
+			400,
+			{ code: "400", message: "This model's maximum context length is 204800 tokens." },
+			undefined,
+			undefined,
+		)
+		expect(checkContextWindowExceededError(error)).to.equal(true)
+	})
+
+	it("does not classify a non-context OpenAI APIError", () => {
+		const error = new APIError(400, { code: "400", message: "Invalid API key" }, undefined, undefined)
+		expect(checkContextWindowExceededError(error)).to.equal(false)
+	})
+
+	// Anthropic: invalid_request_error type.
+	it("detects an Anthropic invalid_request_error context error", () => {
+		const error = { error: { error: { type: "invalid_request_error" } } }
+		expect(checkContextWindowExceededError(error)).to.equal(true)
+	})
+
+	it("rejects an Anthropic non-invalid_request_error", () => {
+		const error = { error: { error: { type: "overloaded_error" } } }
+		expect(checkContextWindowExceededError(error)).to.equal(false)
+	})
+
+	// Bedrock: ValidationException / stream_initialization_failed.
+	it("detects a Bedrock ValidationException context error", () => {
+		const error = Object.assign(new Error("maximum tokens exceeds model limit"), { name: "ValidationException" })
+		expect(checkContextWindowExceededError(error)).to.equal(true)
+	})
+
+	it("rejects a Bedrock ValidationException without a context message", () => {
+		const error = Object.assign(new Error("malformed input"), { name: "ValidationException" })
+		expect(checkContextWindowExceededError(error)).to.equal(false)
+	})
+
+	it("detects a Bedrock stream_initialization_failed with a context message", () => {
+		const error = { code: "stream_initialization_failed", message: "maximum tokens exceeds model limit" }
 		expect(checkContextWindowExceededError(error)).to.equal(true)
 	})
 })

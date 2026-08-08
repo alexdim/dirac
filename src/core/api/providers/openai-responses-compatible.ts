@@ -1,15 +1,16 @@
-import OpenAI from "openai"
 import { ModelInfo, openAiModelInfoSaneDefaults } from "@shared/api"
+import OpenAI from "openai"
+import { ChatCompletionTool } from "openai/resources/chat/completions"
+import { getErrorMessage } from "@/shared/errors"
 import { DiracStorageMessage } from "@/shared/messages/content"
 import { createOpenAIClient } from "@/shared/net"
+import { isParallelToolCallingEnabled } from "@/utils/model-utils"
 import { ApiHandler, CommonApiHandlerOptions } from "../"
 import { withRetry } from "../retry"
 import { convertToOpenAIResponsesInput } from "../transform/openai-response-format"
 import { ApiStream } from "../transform/stream"
 import { buildResponseCreateParams, mapResponseTools, processResponsesEvents } from "./openai-responses-utils"
-import { ChatCompletionTool } from "openai/resources/chat/completions"
 
-import { isParallelToolCallingEnabled } from "@/utils/model-utils"
 interface OpenAiResponsesCompatibleHandlerOptions extends CommonApiHandlerOptions {
 	openAiApiKey?: string
 	openAiBaseUrl?: string
@@ -42,7 +43,7 @@ export class OpenAiResponsesCompatibleHandler implements ApiHandler {
 					baseURL: this.options.openAiBaseUrl,
 				})
 			} catch (error) {
-				throw new Error(`Error creating OpenAI client: ${error instanceof Error ? error.message : String(error)}`)
+				throw new Error(`Error creating OpenAI client: ${getErrorMessage(error)}`)
 			}
 		}
 		return this.client

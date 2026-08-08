@@ -1,12 +1,13 @@
 import * as api from "@core/api"
-import { getConfiguredUtilityModelSelection } from "@core/utility-model/UtilityModelSelection"
 import * as utilityModel from "@core/utility-model/UtilityModelRunner"
+import { getConfiguredUtilityModelSelection } from "@core/utility-model/UtilityModelSelection"
 import * as path from "path"
 import * as vscode from "vscode"
 import { Controller } from "@/core/controller"
 import { HostProvider } from "@/hosts/host-provider"
-import { ShowMessageType } from "@/shared/proto/host/window"
+import { getErrorMessage } from "@/shared/errors"
 import type { DiracStorageMessage } from "@/shared/messages/content"
+import { ShowMessageType } from "@/shared/proto/host/window"
 import { Logger } from "@/shared/services/Logger"
 import { getGitDiff } from "@/utils/git"
 
@@ -66,7 +67,7 @@ export async function generateCommitMsg(controller: Controller, scm?: vscode.Sou
 
 		await orchestrateWorkspaceCommitMsgGeneration(controller, git.repositories)
 	} catch (error) {
-		const errorMessage = error instanceof Error ? error.message : String(error)
+		const errorMessage = getErrorMessage(error)
 		HostProvider.window.showMessage({
 			type: ShowMessageType.ERROR,
 			message: `[Commit Generation Failed] ${errorMessage}`,
@@ -240,7 +241,7 @@ async function performCommitMsgGeneration(controller: Controller, gitDiff: strin
 	} catch (error) {
 		if (requestAbortController?.signal.aborted || error instanceof utilityModel.UtilityModelCancelledError) return
 
-		const errorMessage = error instanceof Error ? error.message : String(error)
+		const errorMessage = getErrorMessage(error)
 		HostProvider.window.showMessage({
 			type: ShowMessageType.ERROR,
 			message: `Failed to generate commit message: ${errorMessage}`,

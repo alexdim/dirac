@@ -10,11 +10,13 @@ import { formatResponse } from "@core/formatResponse"
 import { ensureRulesDirectoryExists, GlobalFileNames } from "@core/storage/disk"
 import { StateManager } from "@core/storage/StateManager"
 import { DiracRulesToggles } from "@shared/dirac-rules"
+import type { GlobalInstructionsFile } from "@shared/remote-config/schema"
+import { parseYamlFrontmatter } from "@utils/frontmatter"
 import { fileExistsAtPath, isDirectory, readDirectory } from "@utils/fs"
 import fs from "fs/promises"
 import path from "path"
+import { getErrorMessage } from "@/shared/errors"
 import { Logger } from "@/shared/services/Logger"
-import { parseYamlFrontmatter } from "@utils/frontmatter"
 import { evaluateRuleConditionals, type RuleEvaluationContext } from "./rule-conditionals"
 
 export const getGlobalDiracRules = async (
@@ -24,6 +26,7 @@ export const getGlobalDiracRules = async (
 ): Promise<RuleLoadResultWithInstructions> => {
 	let combinedContent = ""
 	const activatedConditionalRules: ActivatedConditionalRule[] = []
+	const errors: string[] = []
 
 	// 1. Get file-based rules
 	if (await fileExistsAtPath(globalDiracRulesFilePath)) {
@@ -44,17 +47,24 @@ export const getGlobalDiracRules = async (
 					combinedContent = rulesFilesTotal.content
 					activatedConditionalRules.push(...rulesFilesTotal.activatedConditionalRules)
 				}
-			} catch {
-				Logger.error(`Failed to read .diracrules directory at ${globalDiracRulesFilePath}`)
+				if (rulesFilesTotal.errors) {
+					errors.push(...rulesFilesTotal.errors)
+				}
+			} catch (error) {
+				const message = `Failed to read .diracrules directory at ${globalDiracRulesFilePath}: ${getErrorMessage(error)}`
+				Logger.error(message, error)
+				errors.push(message)
 			}
 		} else {
-			Logger.error(`${globalDiracRulesFilePath} is not a directory`)
+			const message = `${globalDiracRulesFilePath} is not a directory`
+			Logger.error(message)
+			errors.push(message)
 		}
 	}
 
 	// 2. Append remote config rules
 	const stateManager = StateManager.get()
-	const remoteRules: any[] = []
+	const remoteRules: GlobalInstructionsFile[] = []
 	const remoteToggles = stateManager.getGlobalStateKey("remoteRulesToggles") || {}
 	const remoteResult = getRemoteRulesTotalContentWithMetadata(remoteRules, remoteToggles, {
 		evaluationContext: opts?.evaluationContext,
@@ -64,15 +74,19 @@ export const getGlobalDiracRules = async (
 		combinedContent += remoteResult.content
 		activatedConditionalRules.push(...remoteResult.activatedConditionalRules)
 	}
+	if (remoteResult.errors) {
+		errors.push(...remoteResult.errors)
+	}
 
 	// 3. Return formatted instructions
 	if (!combinedContent) {
-		return { instructions: undefined, activatedConditionalRules: [] }
+		return { instructions: undefined, activatedConditionalRules: [], errors: errors.length > 0 ? errors : undefined }
 	}
 
 	return {
 		instructions: formatResponse.diracRulesGlobalDirectoryInstructions(globalDiracRulesFilePath, combinedContent),
 		activatedConditionalRules,
+		errors: errors.length > 0 ? errors : undefined,
 	}
 }
 
@@ -85,6 +99,7 @@ export const getLocalDiracRules = async (
 
 	let instructions: string | undefined
 	const activatedConditionalRules: ActivatedConditionalRule[] = []
+	const errors: string[] = []
 
 	if (await fileExistsAtPath(diracRulesFilePath)) {
 		if (await isDirectory(diracRulesFilePath)) {
@@ -103,8 +118,13 @@ export const getLocalDiracRules = async (
 					instructions = formatResponse.diracRulesLocalDirectoryInstructions(cwd, rulesFilesTotal.content)
 					activatedConditionalRules.push(...rulesFilesTotal.activatedConditionalRules)
 				}
-			} catch {
-				Logger.error(`Failed to read .diracrules directory at ${diracRulesFilePath}`)
+				if (rulesFilesTotal.errors) {
+					errors.push(...rulesFilesTotal.errors)
+				}
+			} catch (error) {
+				const message = `Failed to read .diracrules directory at ${diracRulesFilePath}: ${getErrorMessage(error)}`
+				Logger.error(message, error)
+				errors.push(message)
 			}
 		} else {
 			try {
@@ -135,13 +155,15 @@ export const getLocalDiracRules = async (
 						}
 					}
 				}
-			} catch {
-				Logger.error(`Failed to read .diracrules file at ${diracRulesFilePath}`)
+			} catch (error) {
+				const message = `Failed to read .diracrules file at ${diracRulesFilePath}: ${getErrorMessage(error)}`
+				Logger.error(message, error)
+				errors.push(message)
 			}
 		}
 	}
 
-	return { instructions, activatedConditionalRules }
+	return { instructions, activatedConditionalRules, errors: errors.length > 0 ? errors : undefined }
 }
 
 export async function refreshDiracRulesToggles(

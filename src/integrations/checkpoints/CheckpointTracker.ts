@@ -5,10 +5,12 @@ import * as path from "path"
 import simpleGit from "simple-git"
 import type { FolderLockWithRetryResult } from "@/core/locks/types"
 import { telemetryService } from "@/services/telemetry"
+import { getErrorMessage } from "@/shared/errors"
 import { Logger } from "@/shared/services/Logger"
 import { GitOperations } from "./CheckpointGitOperations"
+import { getDefaultExclusions, getLfsPatterns } from "./CheckpointExclusions"
 import { releaseCheckpointLock, tryAcquireCheckpointLockWithRetry } from "./CheckpointLockUtils"
-import { getShadowGitPath, hashWorkingDir } from "./CheckpointUtils"
+import { getShadowGitPath, hashWorkingDir, validateWorkspacePath } from "./CheckpointUtils"
 
 /**
  * Normalizes whitespace for diff comparison. Collapses all runs of whitespace
@@ -155,7 +157,6 @@ class CheckpointTracker {
 
 			// Validate and normalize workspace paths - for now, we just use the first valid path
 			const pathsToValidate = Array.isArray(workspacePaths) ? workspacePaths : [workspacePaths]
-			const { validateWorkspacePath } = await import("./CheckpointUtils")
 
 			for (const workspacePath of pathsToValidate) {
 				if (!workspacePath) {
@@ -272,7 +273,7 @@ class CheckpointTracker {
 				taskId: this.taskId,
 				error,
 			})
-			throw new Error(`Failed to create checkpoint: ${error instanceof Error ? error.message : String(error)}`)
+			throw new Error(`Failed to create checkpoint: ${getErrorMessage(error)}`)
 		} finally {
 			if (lockAcquired) {
 				Logger.info("Releasing checkpoint folder lock")
@@ -414,8 +415,6 @@ class CheckpointTracker {
 		Logger.info(`Diff range: ${diffRange}`)
 		const diffSummary = await git.diffSummary([diffRange])
 
-		const { getDefaultExclusions } = await import("./CheckpointExclusions")
-		const { getLfsPatterns } = await import("./CheckpointExclusions")
 		const lfsPatterns = await getLfsPatterns(this.cwd)
 		const exclusions = getDefaultExclusions(lfsPatterns)
 

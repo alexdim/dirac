@@ -1,7 +1,7 @@
+import { formatResponse } from "@core/formatResponse"
 import { executeHook } from "@core/hooks/hook-executor"
 import { getHookModelContext } from "@core/hooks/hook-model-context"
 import { getHooksEnabledSafe } from "@core/hooks/hooks-utils"
-import { formatResponse } from "@core/formatResponse"
 import {
 	ensureTaskDirectoryExists,
 	getSavedApiConversationHistory,
@@ -26,6 +26,7 @@ import { DiracAskResponse } from "@shared/WebviewMessage"
 import { AnchorStateManager } from "@utils/AnchorStateManager"
 import pWaitFor from "p-wait-for"
 import { CardStatus, DiracMessageType, TaskStatus } from "@/shared/ExtensionMessage"
+import { getErrorMessage } from "@/shared/errors"
 import { releaseTaskLock } from "./TaskLockUtils"
 import { LifecycleManagerDependencies } from "./types/lifecycle-manager"
 import { buildUserFeedbackContent } from "./utils/buildUserFeedbackContent"
@@ -52,7 +53,7 @@ export class LifecycleManager {
 		try {
 			await ensureCheckpointInitialized({ checkpointManager: this.dependencies.checkpointManager })
 		} catch (error) {
-			const errorMessage = error instanceof Error ? error.message : "Unknown error"
+			const errorMessage = getErrorMessage(error, "Unknown error")
 			Logger.error("Failed to initialize checkpoint manager:", errorMessage)
 			this.dependencies.taskState.checkpointManagerErrorMessage = errorMessage // will be displayed right away since we saveDiracMessages next which posts state to webview
 			HostProvider.window.showMessage({

@@ -26,6 +26,7 @@ import { showChangedFilesDiff } from "@core/task/multifile-diff"
 import { WorkspaceRootManager } from "@core/workspace"
 import { telemetryService } from "@services/telemetry"
 import { HostProvider } from "@/hosts/host-provider"
+import { getErrorMessage } from "@/shared/errors"
 import { ShowMessageType } from "@/shared/proto/host/window"
 import { Logger } from "@/shared/services/Logger"
 import CheckpointTracker from "./CheckpointTracker"
@@ -298,7 +299,7 @@ export class MultiRootCheckpointManager implements ICheckpointManager {
 
 			await showChangedFilesDiff(this.messageStateHandler, tracker, messageId, seeNewChangesSinceLastTaskCompletion)
 		} catch (error) {
-			const errorMessage = error instanceof Error ? error.message : "Unknown error"
+			const errorMessage = getErrorMessage(error, "Unknown error")
 			Logger.error("[MultiRootCheckpointManager] Failed to present multifile diff:", errorMessage)
 			HostProvider.window.showMessage({
 				type: ShowMessageType.ERROR,

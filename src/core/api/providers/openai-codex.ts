@@ -16,6 +16,7 @@ import { openAiCodexUsageService } from "@/integrations/openai-codex/OpenAiCodex
 import { openAiCodexOAuthManager } from "@/integrations/openai-codex/oauth"
 import { buildExternalBasicHeaders } from "@/services/EnvUtils"
 import { featureFlagsService } from "@/services/feature-flags"
+import { getErrorMessage } from "@/shared/errors"
 import { DiracStorageMessage } from "@/shared/messages/content"
 import { fetch } from "@/shared/net"
 import { ApiFormat } from "@/shared/proto/dirac/models"
@@ -220,7 +221,7 @@ export class OpenAiCodexHandler implements ApiHandler {
 					this.closeResponsesWebsocket()
 					return { input: output }
 				} catch (error) {
-					const message = error instanceof Error ? error.message : String(error)
+					const message = getErrorMessage(error)
 					const isAuthFailure = /unauthorized|invalid token|not authenticated|authentication|401/i.test(message)
 					if (!this.options.disableRetries && attempt === 0 && isAuthFailure) {
 						const refreshed = await openAiCodexOAuthManager.forceRefreshAccessToken()
@@ -306,7 +307,7 @@ export class OpenAiCodexHandler implements ApiHandler {
 				}
 				return
 			} catch (error) {
-				const message = error instanceof Error ? error.message : String(error)
+				const message = getErrorMessage(error)
 				const isAuthFailure = /unauthorized|invalid token|not authenticated|authentication|401/i.test(message)
 				if (!this.options.disableRetries && attempt === 0 && isAuthFailure && !didEmitRequestOutput) {
 					const refreshed = await openAiCodexOAuthManager.forceRefreshAccessToken()

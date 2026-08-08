@@ -6,14 +6,18 @@ import { findLast, findLastIndex } from "@shared/array"
 import { isTaskCompletionCard } from "@shared/cardIdentity"
 import { HistoryItem } from "@shared/HistoryItem"
 import { DiracCheckpointRestore } from "@shared/WebviewMessage"
+import { getErrorMessage } from "@/shared/errors"
 import { Logger } from "@/shared/services/Logger"
 import { MessageStateHandler } from "../../core/task/message-state"
 import { TaskMessenger } from "../../core/task/TaskMessenger"
 import { TaskState } from "../../core/task/TaskState"
 import { CheckpointDiffPresenter } from "./CheckpointDiffPresenter"
-import { CheckpointRestoreHandler } from "./CheckpointRestoreHandler"
+import { CheckpointRestoreHandler, type CreateCheckpointTracker } from "./CheckpointRestoreHandler"
 import { CheckpointStorageManager } from "./CheckpointStorageManager"
 import { ICheckpointManager } from "./types"
+
+const createCheckpointTracker: CreateCheckpointTracker = (taskId, enableCheckpoints, workspacePath) =>
+	CheckpointTracker.create(taskId, enableCheckpoints, workspacePath)
 
 type UpdateTaskHistoryFunction = (historyItem: HistoryItem) => Promise<HistoryItem[]>
 
@@ -99,6 +103,7 @@ export class TaskCheckpointManager implements ICheckpointManager {
 				messageStateHandler: services.messageStateHandler,
 				fileContextTracker: services.fileContextTracker,
 				taskState: services.taskState,
+				createCheckpointTracker,
 			},
 			{
 				cancelTask: callbacks.cancelTask,
@@ -111,7 +116,10 @@ export class TaskCheckpointManager implements ICheckpointManager {
 
 		this.diffPresenter = new CheckpointDiffPresenter(
 			{ taskId: task.taskId, enableCheckpoints: config.enableCheckpoints },
-			{ messageStateHandler: services.messageStateHandler },
+			{
+				messageStateHandler: services.messageStateHandler,
+				createCheckpointTracker,
+			},
 			this.storage,
 		)
 	}
@@ -203,7 +211,7 @@ export class TaskCheckpointManager implements ICheckpointManager {
 				}
 			}
 		} catch (error) {
-			const errorMessage = error instanceof Error ? error.message : "Unknown error"
+			const errorMessage = getErrorMessage(error, "Unknown error")
 			Logger.error(`[TaskCheckpointManager] Failed to save checkpoint for task ${this.task.taskId}:`, errorMessage)
 		}
 	}
@@ -260,7 +268,7 @@ export class TaskCheckpointManager implements ICheckpointManager {
 					this.storage.setTracker(tracker)
 					this.services.messageStateHandler.setCheckpointTracker(tracker)
 				} catch (error) {
-					const errorMessage = error instanceof Error ? error.message : "Unknown error"
+					const errorMessage = getErrorMessage(error, "Unknown error")
 					Logger.error(
 						`[TaskCheckpointManager] Failed to initialize checkpoint tracker for task ${this.task.taskId}:`,
 						errorMessage,
@@ -293,7 +301,7 @@ export class TaskCheckpointManager implements ICheckpointManager {
 			const changedFilesCount = (await this.storage.getTracker()?.getDiffCount(previousCheckpointHash, hash)) || 0
 			return changedFilesCount > 0
 		} catch (error) {
-			const errorMessage = error instanceof Error ? error.message : "Unknown error"
+			const errorMessage = getErrorMessage(error, "Unknown error")
 			Logger.error(`[TaskCheckpointManager] Failed to check for new changes in task ${this.task.taskId}:`, errorMessage)
 			return false
 		}

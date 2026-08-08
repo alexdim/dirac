@@ -1,12 +1,13 @@
 import { formatResponse } from "@core/formatResponse"
 import type { SourceMutationPlan } from "@services/source-ast/types"
-import { CardStatus, type CardDiff } from "@shared/ExtensionMessage"
+import { type CardDiff, CardStatus } from "@shared/ExtensionMessage"
 import { DiracIcon } from "@shared/icons"
 import { DiracDefaultTool } from "@shared/tools"
 import { DiracAskResponse } from "@shared/WebviewMessage"
+import { getErrorMessage } from "@/shared/errors"
 import type { ICardHandle, IToolEnvironment } from "../../interfaces/IToolEnvironment"
-import type { EditAstArgs } from "./EditAstValidator"
 import type { AstEditFormatter } from "./AstEditFormatter"
+import type { EditAstArgs } from "./EditAstValidator"
 
 export interface AstEditApprovalResult {
 	approved: boolean
@@ -224,6 +225,6 @@ export class AstEditApproval {
 	}
 
 	private errorMessage(error: unknown): string {
-		return error instanceof Error ? error.message : String(error)
+		return getErrorMessage(error)
 	}
 }

@@ -1,22 +1,23 @@
-import * as fs from "fs/promises"
-import * as path from "path"
-import { IDiracTool } from "../../interfaces/IDiracTool"
-import { IToolEnvironment } from "../../interfaces/IToolEnvironment"
-import { DiracToolSpec } from "@/shared/tools"
-import { UserToolLoader } from "../../discovery/UserToolLoader"
-import { ToolRegistry } from "../../registry/ToolRegistry"
-import { Logger } from "@/shared/services/Logger"
 import { CardStatus } from "@shared/ExtensionMessage"
 import { allocateSubagentIdentity, type SubagentIdentity } from "@shared/subagents"
+import * as fs from "fs/promises"
+import * as path from "path"
+import { getErrorMessage } from "@/shared/errors"
+import { Logger } from "@/shared/services/Logger"
+import { DiracToolSpec } from "@/shared/tools"
+import { UserToolLoader } from "../../discovery/UserToolLoader"
+import { IDiracTool } from "../../interfaces/IDiracTool"
+import { IToolEnvironment } from "../../interfaces/IToolEnvironment"
+import { ToolRegistry } from "../../registry/ToolRegistry"
+import { validateStagedTool } from "./builder-validation"
 import {
+	buildManifest,
+	resolveTaskToolDir,
 	ToolScope,
 	upsert_tool_spec,
-	resolveTaskToolDir,
-	buildManifest,
 } from "./constants"
-import { buildToolWithRepairs } from "./subagent-builder"
 import { buildScaffoldedToolSource, writeTestHarness } from "./scaffold-generator"
-import { validateStagedTool } from "./builder-validation"
+import { buildToolWithRepairs } from "./subagent-builder"
 import {
 	commitToolPromotion,
 	createToolStagingDirectory,
@@ -122,7 +123,7 @@ export class UpsertTool implements IDiracTool {
 			const tool = prepared[index]
 			const buildResult = buildResults[index]
 			const buildError = buildResult.status === "rejected"
-				? buildResult.reason instanceof Error ? buildResult.reason.message : String(buildResult.reason)
+				? getErrorMessage(buildResult.reason)
 				: buildResult.value
 
 			if (buildError) {
@@ -183,7 +184,7 @@ async function prepareTool(
 		if (stagingDir) {
 			await discardStagedTool(stagingDir)
 		}
-		const message = error instanceof Error ? error.message : String(error)
+		const message = getErrorMessage(error)
 		await updateProgress(`[${name}] Failed`, `preparation: ${message}`, CardStatus.ERROR)
 		return `preparation failed: ${message}`
 	}
@@ -224,7 +225,7 @@ async function promoteAndActivateTool(
 			throw new Error("loaded but failed to replace the registry entry because of a tool conflict")
 		}
 	} catch (error) {
-		const failure = error instanceof Error ? error.message : String(error)
+		const failure = getErrorMessage(error)
 		if (!promotion) {
 			await discardStagedTool(prepared.stagingDir)
 			return failure
@@ -235,7 +236,7 @@ async function promoteAndActivateTool(
 			await updateProgress(`[${prepared.name}] Rolled back`, "previous tool restored", CardStatus.ERROR)
 			return failure
 		} catch (rollbackError) {
-			const rollbackFailure = rollbackError instanceof Error ? rollbackError.message : String(rollbackError)
+			const rollbackFailure = getErrorMessage(rollbackError)
 			return `${failure}; rollback also failed: ${rollbackFailure}`
 		}
 	}

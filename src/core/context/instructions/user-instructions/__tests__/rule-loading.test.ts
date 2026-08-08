@@ -2,6 +2,8 @@ import { expect } from "chai"
 import fs from "fs/promises"
 import os from "os"
 import path from "path"
+import * as sinon from "sinon"
+import { Logger } from "@/shared/services/Logger"
 import { getRuleFilesTotalContentWithMetadata } from "../rule-helpers"
 
 describe("rule loading with paths frontmatter", () => {
@@ -111,6 +113,43 @@ describe("rule loading with paths frontmatter", () => {
 
 			expect(res.activatedConditionalRules.map((r) => r.name)).to.deep.equal(files.map((f) => `global:${f}`))
 		} finally {
+			await fs.rm(tmp, { recursive: true, force: true })
+		}
+	})
+
+	it("logs and skips a single rule file that fails to read while keeping the rest", async () => {
+		const tmp = await fs.mkdtemp(path.join(os.tmpdir(), "dirac-rules-test-"))
+		const errorLog = sinon.stub(Logger, "error")
+		const readFileStub = sinon.stub(fs, "readFile")
+		try {
+			const rulesDir = path.join(tmp, ".diracrules")
+			await fs.mkdir(rulesDir, { recursive: true })
+			await fs.writeFile(path.join(rulesDir, "good.md"), "Always on")
+			await fs.writeFile(path.join(rulesDir, "bad.md"), "Bad content")
+
+			const badFile = path.join(rulesDir, "bad.md")
+			readFileStub.withArgs(badFile, "utf8").rejects(new Error("forced read failure"))
+			readFileStub.callThrough()
+
+			const files = ["good.md", "bad.md"]
+			const toggles: Record<string, boolean> = {
+				[path.join(rulesDir, "good.md")]: true,
+				[badFile]: true,
+			}
+
+			const res = await getRuleFilesTotalContentWithMetadata(files, rulesDir, toggles, {
+				evaluationContext: { paths: ["src/index.ts"] },
+			})
+
+			expect(res.content).to.contain("good.md")
+			expect(res.content).to.contain("Always on")
+			expect(res.content).to.not.contain("Bad content")
+			expect(res.errors).to.have.lengthOf(1)
+			expect(res.errors![0]).to.include("bad.md")
+			expect(errorLog.calledOnce).to.be.true
+		} finally {
+			errorLog.restore()
+			readFileStub.restore()
 			await fs.rm(tmp, { recursive: true, force: true })
 		}
 	})

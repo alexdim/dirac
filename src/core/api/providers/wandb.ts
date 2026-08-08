@@ -1,6 +1,7 @@
 import { type ModelInfo, type WandbModelId, wandbDefaultModelId, wandbModels } from "@shared/api"
 import OpenAI from "openai"
 import type { ChatCompletionTool as OpenAITool } from "openai/resources/chat/completions"
+import { getErrorMessage } from "@/shared/errors"
 import { DiracStorageMessage } from "@/shared/messages/content"
 import { createOpenAIClient } from "@/shared/net"
 import { ApiHandler, CommonApiHandlerOptions } from "../index"
@@ -30,7 +31,7 @@ export class WandbHandler implements ApiHandler {
 					apiKey: this.options.wandbApiKey,
 				})
 			} catch (error) {
-				throw new Error(`Error creating W&B Inference client: ${error instanceof Error ? error.message : String(error)}`)
+				throw new Error(`Error creating W&B Inference client: ${getErrorMessage(error)}`)
 			}
 		}
 		return this.client

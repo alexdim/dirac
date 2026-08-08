@@ -10,6 +10,7 @@ import * as path from "path"
 import * as sinon from "sinon"
 import { Logger } from "@/shared/services/Logger"
 import { WorkspaceResolver } from "../WorkspaceResolver"
+import type { MigrationReporter } from "../MigrationReporter"
 
 describe("WorkspaceResolver", () => {
 	let resolver: WorkspaceResolver
@@ -26,6 +27,13 @@ describe("WorkspaceResolver", () => {
 		loggerStub.restore()
 		process.env.MULTI_ROOT_TRACE = originalEnv
 		resolver.clearUsageStats()
+	})
+
+	it("uses the injected MigrationReporter for migration reports", () => {
+		const generateReport = sinon.stub().returns("injected report")
+		const resolverWithReporter = new WorkspaceResolver({ generateReport } as unknown as MigrationReporter)
+		expect(resolverWithReporter.getMigrationReport()).to.equal("injected report")
+		expect(generateReport.calledOnce).to.equal(true)
 	})
 
 	describe("resolveWorkspacePath - Single Root Mode", () => {
