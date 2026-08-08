@@ -169,6 +169,8 @@ export enum LanguageModelChatMessageRole {
 	Assistant = 2,
 }
 
+// Keep LM shapes in sync with cli/src/vscode-shim.ts (see FU-5 - they may not be
+// consolidated until the ts-node alias-resolution bug is fixed).
 export interface LanguageModelChatSelector {
 	vendor?: string
 	family?: string

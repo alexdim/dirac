@@ -357,6 +357,8 @@ export const shutdownEvent = new EventEmitter<void>()
 // Language Model API members (used by vscode-lm provider + transform tests)
 // ============================================================================
 
+// Keep LM shapes in sync with src/test/vscode-mock.ts (see FU-5 - they may not be
+// consolidated until the ts-node alias-resolution bug is fixed).
 export interface LanguageModelChatSelector {
 	vendor?: string
 	family?: string
