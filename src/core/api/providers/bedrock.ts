@@ -18,6 +18,7 @@ import {
 	type ModelInfo,
 } from "@shared/api"
 import { calculateApiCostOpenAI, calculateApiCostQwen } from "@utils/cost"
+import { estimateTokenCount, extractNonStreamingContent, formatConverseError } from "./bedrock-converse-utils"
 import { ExtensionRegistryInfo } from "@/registry"
 import { getErrorMessage } from "@/shared/errors"
 import type { DiracStorageMessage } from "@/shared/messages/content"
@@ -621,7 +622,7 @@ export class AwsBedrockHandler implements ApiHandler {
 								// For non-streaming response (full response)
 								const text = parsedChunk.choices[0].text
 								if (text) {
-									const chunkTokens = this.estimateTokenCount(text)
+									const chunkTokens = estimateTokenCount(text)
 									outputTokens += chunkTokens
 									accumulatedTokens += chunkTokens
 
@@ -644,7 +645,7 @@ export class AwsBedrockHandler implements ApiHandler {
 							} else if (parsedChunk.delta?.text) {
 								// For streaming response (delta updates)
 								const text = parsedChunk.delta.text
-								const chunkTokens = this.estimateTokenCount(text)
+								const chunkTokens = estimateTokenCount(text)
 								outputTokens += chunkTokens
 								accumulatedTokens += chunkTokens
 
@@ -751,10 +752,6 @@ export class AwsBedrockHandler implements ApiHandler {
 	/**
 	 * Estimates token count for a text string
 	 */
-	private estimateTokenCount(text: string): number {
-		// Approximate 4 characters per token
-		return Math.ceil(text.length / 4)
-	}
 
 	/**
 	 * Converts Dirac's tool definitions (Anthropic format with `input_schema`) to the
@@ -1163,11 +1160,11 @@ export class AwsBedrockHandler implements ApiHandler {
 		try {
 			const inputTokenEstimate = this.estimateInputTokens(systemPrompt, messages)
 			const response = await client.send(command, { abortSignal: config.abortSignal })
-			const { fullText, reasoningText } = this.extractNonStreamingContent(response)
+			const { fullText, reasoningText } = extractNonStreamingContent(response)
 
 			const outputTokens = response.usage
-				? response.usage.outputTokens || this.estimateTokenCount(fullText + reasoningText)
-				: this.estimateTokenCount(fullText + reasoningText)
+				? response.usage.outputTokens || estimateTokenCount(fullText + reasoningText)
+				: estimateTokenCount(fullText + reasoningText)
 
 			if (response.usage) {
 				const actualInputTokens = response.usage.inputTokens || inputTokenEstimate
@@ -1192,29 +1189,13 @@ export class AwsBedrockHandler implements ApiHandler {
 			}
 		} catch (error) {
 			Logger.error(`Error with ${label} model via Converse API:`, error)
-			yield { type: "text", text: `[ERROR] ${this.formatConverseError(error, label)}` }
+			yield { type: "text", text: `[ERROR] ${formatConverseError(error, label)}` }
 		} finally {
 			client.destroy()
 		}
 	}
 
 	// Extracts text and reasoning content from a non-streaming Converse response.
-	private extractNonStreamingContent(response: any): { fullText: string; reasoningText: string } {
-		let fullText = ""
-		let reasoningText = ""
-		if (!response.output?.message?.content) return { fullText, reasoningText }
-		for (const block of response.output.message.content) {
-			if ("reasoningContent" in block && block.reasoningContent) {
-				const reasoning = block.reasoningContent
-				if ("reasoningText" in reasoning && reasoning.reasoningText && "text" in reasoning.reasoningText) {
-					reasoningText += reasoning.reasoningText.text
-				}
-			} else if ("text" in block && block.text) {
-				fullText += block.text
-			}
-		}
-		return { fullText, reasoningText }
-	}
 
 	// Chunks text into 1000-char segments and yields as the given chunk type.
 	private *chunkText(text: string, type: "text" | "reasoning"): Generator<any> {
@@ -1227,11 +1208,4 @@ export class AwsBedrockHandler implements ApiHandler {
 	}
 
 	// Formats an error from the Converse API into a human-readable message.
-	private formatConverseError(error: unknown, label: string): string {
-		if (error instanceof Error) {
-			const named = error as Error & { name?: string }
-			return named.name ? `${named.name}: ${error.message}` : error.message
-		}
-		return `Failed to process ${label} model request`
-	}
 }
