@@ -87,6 +87,7 @@ describe("SubagentBuilder", () => {
 		const builder = new SubagentBuilder(createTaskConfig("act", "anthropic"))
 
 		assert.deepEqual(builder.getAllowedTools(), SUBAGENT_DEFAULT_ALLOWED_TOOLS)
+		assert.equal(builder.getAllowedTools().includes(DiracDefaultTool.NEW_TASK), false)
 		const prompt = builder.buildSystemPrompt("generated prompt")
 		assert.equal(prompt, `generated prompt${SUBAGENT_SYSTEM_SUFFIX}${SUBAGENT_PROGRESS_INSTRUCTION}`)
 	})

@@ -21,7 +21,10 @@ export interface SubagentBuilderOptions {
 export const SUBAGENT_DEFAULT_ALLOWED_TOOLS: string[] = [
 	...Object.values(DiracDefaultTool).filter(
 		(tool) =>
-			tool !== DiracDefaultTool.USE_SUBAGENTS && tool !== DiracDefaultTool.CONDENSE && tool !== DiracDefaultTool.RESPOND,
+			tool !== DiracDefaultTool.USE_SUBAGENTS &&
+			tool !== DiracDefaultTool.NEW_TASK &&
+			tool !== DiracDefaultTool.CONDENSE &&
+			tool !== DiracDefaultTool.RESPOND,
 	),
 	`${RESPOND_TOOL_NAME}:${ResponseOperation.PROGRESS}`,
 	`${RESPOND_TOOL_NAME}:${ResponseOperation.COMPLETE}`,
