@@ -23,7 +23,6 @@ import { CommandPermissionController } from "@core/permissions"
 import type { SystemPromptContext } from "@core/prompts/system-prompt"
 import { getSystemPrompt } from "@core/prompts/system-prompt"
 import type { SlashCommandDirectAction } from "@core/slash-commands"
-import { findSlashCommandInTags } from "@core/slash-commands/commandParser"
 import { ensureRulesDirectoryExists, ensureTaskDirectoryExists } from "@core/storage/disk"
 import { createDefaultTextCondensationTemplateRegistry, TASK_HANDOFF_TEMPLATE_ID } from "@core/text-condensation/templates"
 import { isUtilityTextCondensationAvailable } from "@core/text-condensation/UtilityTextCondensationAvailability"
@@ -55,15 +54,7 @@ import { ApiConfiguration } from "@shared/api"
 import { findLastIndex } from "@shared/array"
 import { DiracClient } from "@shared/dirac"
 import { getExtensionSourceDir } from "@shared/dirac/constants"
-import {
-	CardStatus,
-	DiracApiReqCancelReason,
-	DiracMessage,
-	DiracMessageContent,
-	DiracMessageType,
-	SteeringTranscriptStatus,
-	TaskStatus,
-} from "@shared/ExtensionMessage"
+import { CardStatus, DiracApiReqCancelReason, DiracMessageContent, DiracMessageType, TaskStatus } from "@shared/ExtensionMessage"
 import { HistoryItem } from "@shared/HistoryItem"
 import { DEFAULT_LANGUAGE_SETTINGS, getLanguageKey, LanguageDisplay } from "@shared/Languages"
 import {
@@ -108,16 +99,22 @@ import { ResponseProcessor } from "./ResponseProcessor"
 import { StreamChunkCoordinator } from "./StreamChunkCoordinator"
 import { StreamingMetricsManager } from "./StreamingMetricsManager"
 import { StreamResponseHandler } from "./StreamResponseHandler"
-import {
-	collectDeliveredSteeringMessageIds,
-	formatSteeringMessages,
-	restoreQueuedSteeringMessages,
-	type SteeringClaim,
-	SteeringDeliveryState,
-	type SteeringMessage,
-} from "./steering"
+import { type SteeringClaim } from "./steering"
 import { TaskMessenger } from "./TaskMessenger"
 import { TaskState } from "./TaskState"
+import {
+	appendQueuedSteeringToNextApiRequest,
+	appendQueuedSteeringToUserContent,
+	canAcceptSteeringMessage,
+	claimSteeringMessages,
+	commitAttemptCompletion,
+	commitSteeringClaim,
+	enqueueSteeringMessage,
+	restoreQueuedSteeringFromTranscript,
+	rollbackSteeringClaim,
+	settleConsumedSteeringClaim,
+	type TaskSteeringContext,
+} from "./TaskSteering"
 import { ToolExecutor } from "./ToolExecutor"
 import { DiracContext } from "./tools/context/DiracContext"
 import type { ToolSnapshotDirtyReason } from "./tools/runtime/ToolSnapshot"
@@ -175,227 +172,50 @@ export class Task {
 		return await this.stateMutex.withLock(fn)
 	}
 
+	private get steeringContext(): TaskSteeringContext {
+		return {
+			taskState: this.taskState,
+			messageStateHandler: this.messageStateHandler,
+			taskMessenger: this.taskMessenger,
+			postStateToWebview: () => this.postStateToWebview(),
+			withStateLock: (fn) => this.withStateLock(fn),
+		}
+	}
+
 	public canAcceptSteeringMessage(): boolean {
-		if (this.taskState.completionCommitted) return false
-		if (this.taskState.abort || this.taskState.pendingTaskReplacement) return false
-		if (this.taskState.waitingCardIds.length > 0) return false
-		return ![TaskStatus.IDLE, TaskStatus.COMPLETED, TaskStatus.CANCELLED, TaskStatus.CANCELLING].includes(
-			this.taskState.status,
-		)
+		return canAcceptSteeringMessage(this.steeringContext)
 	}
 
 	public async enqueueSteeringMessage(text: string): Promise<string> {
-		const normalizedText = text.trim()
-		if (!normalizedText) throw new Error("Steering guidance cannot be empty")
-
-		const steeringMessage = await this.withStateLock(async (): Promise<SteeringMessage> => {
-			if (!this.canAcceptSteeringMessage()) {
-				throw new Error(`Task cannot accept steering while ${this.taskState.status}`)
-			}
-
-			const createdAt = Date.now()
-			const transcriptMessageId = this.taskMessenger.generateId()
-			const message: SteeringMessage = {
-				id: ulid(),
-				text: normalizedText,
-				createdAt,
-				transcriptMessageId,
-				deliveryState: SteeringDeliveryState.QUEUED,
-			}
-			const transcriptMessage: DiracMessage = {
-				id: transcriptMessageId,
-				ts: createdAt,
-				content: {
-					type: DiracMessageType.MARKDOWN,
-					content: normalizedText,
-					role: "user",
-					steering: { status: SteeringTranscriptStatus.QUEUED },
-				},
-			}
-			await this.messageStateHandler.addToDiracMessages(transcriptMessage)
-			this.taskState.steeringMessages.push(message)
-			return message
-		})
-
-		await this.postStateToWebview()
-		return steeringMessage.transcriptMessageId
+		return enqueueSteeringMessage(this.steeringContext, text)
 	}
 
 	private async claimSteeringMessages(): Promise<SteeringClaim | undefined> {
-		return this.withStateLock(() => {
-			const messages = this.taskState.steeringMessages.filter(
-				(message) => message.deliveryState === SteeringDeliveryState.QUEUED,
-			)
-			if (messages.length === 0) return undefined
-
-			const claimId = ulid()
-			for (const message of messages) {
-				message.deliveryState = SteeringDeliveryState.CLAIMED
-				message.claimId = claimId
-			}
-			return { id: claimId, messages: messages.map((message) => ({ ...message })) }
-		})
+		return claimSteeringMessages(this.steeringContext)
 	}
 
 	private async commitSteeringClaim(claimId: string): Promise<void> {
-		const claimedMessages = await this.withStateLock(() => {
-			const messages = this.taskState.steeringMessages.filter(
-				(message) => message.deliveryState === SteeringDeliveryState.CLAIMED && message.claimId === claimId,
-			)
-			for (const message of messages) {
-				message.deliveryState = SteeringDeliveryState.SENT
-				message.claimId = undefined
-			}
-			return messages.map((message) => ({ ...message }))
-		})
-
-		const transcriptMessages = claimedMessages.map((message) => {
-			const index = this.messageStateHandler.findMessageIndexById(message.transcriptMessageId)
-			if (index === -1) throw new Error(`Steering transcript message not found: ${message.transcriptMessageId}`)
-			const transcriptMessage = this.messageStateHandler.getDiracMessages()[index]
-			if (transcriptMessage.content.type !== DiracMessageType.MARKDOWN) {
-				throw new Error(`Steering transcript message is not markdown: ${message.transcriptMessageId}`)
-			}
-			return { index, content: transcriptMessage.content }
-		})
-
-		for (const transcript of transcriptMessages) {
-			await this.messageStateHandler.updateDiracMessage(transcript.index, {
-				content: {
-					...transcript.content,
-					steering: { status: SteeringTranscriptStatus.SENT },
-				},
-			})
-		}
-		await this.messageStateHandler.saveDiracMessagesAndUpdateHistory()
-		await this.postStateToWebview()
+		return commitSteeringClaim(this.steeringContext, claimId)
 	}
 
 	private async settleConsumedSteeringClaim(claim: SteeringClaim): Promise<void> {
-		let receiptError: unknown
-		try {
-			await this.messageStateHandler.recordDeliveredSteeringMessageIds(
-				claim.messages.map((message) => message.transcriptMessageId),
-			)
-		} catch (error) {
-			receiptError = error
-		}
-
-		try {
-			await this.commitSteeringClaim(claim.id)
-		} catch (commitError) {
-			if (receiptError) {
-				throw new AggregateError([receiptError, commitError], "Failed to persist consumed steering delivery")
-			}
-			throw commitError
-		}
-		if (receiptError) throw receiptError
+		return settleConsumedSteeringClaim(this.steeringContext, claim)
 	}
 
 	private async rollbackSteeringClaim(claimId: string): Promise<void> {
-		await this.withStateLock(() => {
-			for (const message of this.taskState.steeringMessages) {
-				if (message.deliveryState !== SteeringDeliveryState.CLAIMED || message.claimId !== claimId) continue
-				message.deliveryState = SteeringDeliveryState.QUEUED
-				message.claimId = undefined
-			}
-		})
-	}
-
-	private isSlashCommandSteeringMessage(message: Pick<SteeringMessage, "text">): boolean {
-		return findSlashCommandInTags(formatSteeringMessages([message])) !== null
-	}
-
-	private async releaseSteeringClaimSuffix(claim: SteeringClaim, retainedCount: number): Promise<SteeringClaim> {
-		const retainedMessages = claim.messages.slice(0, retainedCount)
-		const retainedMessageIds = new Set(retainedMessages.map((message) => message.id))
-		await this.withStateLock(() => {
-			for (const message of this.taskState.steeringMessages) {
-				if (message.deliveryState !== SteeringDeliveryState.CLAIMED || message.claimId !== claim.id) continue
-				if (retainedMessageIds.has(message.id)) continue
-				message.deliveryState = SteeringDeliveryState.QUEUED
-				message.claimId = undefined
-			}
-		})
-		return { ...claim, messages: retainedMessages }
+		return rollbackSteeringClaim(this.steeringContext, claimId)
 	}
 
 	private async appendQueuedSteeringToUserContent(userContent: DiracContent[]): Promise<SteeringClaim | undefined> {
-		const steeringClaim = await this.claimSteeringMessages()
-		if (!steeringClaim) return undefined
-		const commandIndex = steeringClaim.messages.findIndex((message) => this.isSlashCommandSteeringMessage(message))
-		if (commandIndex === -1) {
-			userContent.push({
-				type: "text",
-				text: formatSteeringMessages(steeringClaim.messages),
-				isUserInput: true,
-				steeringMessageIds: steeringClaim.messages.map((message) => message.transcriptMessageId),
-			})
-			return steeringClaim
-		}
-
-		const retainedCount = commandIndex === 0 ? 1 : commandIndex
-		const requestClaim = await this.releaseSteeringClaimSuffix(steeringClaim, retainedCount)
-		userContent.push({
-			type: "text",
-			text: formatSteeringMessages(requestClaim.messages),
-			isUserInput: true,
-			steeringMessageIds: requestClaim.messages.map((message) => message.transcriptMessageId),
-		})
-		return requestClaim
+		return appendQueuedSteeringToUserContent(this.steeringContext, userContent)
 	}
 
 	private async appendQueuedSteeringToNextApiRequest(outboundHistory: DiracStorageMessage[]): Promise<void> {
-		const steeringClaim = await this.claimSteeringMessages()
-		if (!steeringClaim) return
-		if (steeringClaim.messages.some((message) => this.isSlashCommandSteeringMessage(message))) {
-			await this.rollbackSteeringClaim(steeringClaim.id)
-			return
-		}
-
-		const messageIds = steeringClaim.messages.map((message) => message.transcriptMessageId)
-		const steeringBlock: DiracTextContentBlock = {
-			type: "text",
-			text: formatSteeringMessages(steeringClaim.messages),
-			steeringMessageIds: messageIds,
-		}
-		const outboundUserMessage = outboundHistory.at(-1)
-		if (!outboundUserMessage || outboundUserMessage.role !== "user") {
-			await this.rollbackSteeringClaim(steeringClaim.id)
-			throw new Error("Cannot steer a model request without a final user message")
-		}
-
-		let userMessagePersisted = false
-		try {
-			const persistedUserMessage = await this.messageStateHandler.appendToLastApiConversationUserMessage(steeringBlock)
-			userMessagePersisted = true
-			if (outboundUserMessage !== persistedUserMessage) {
-				if (typeof outboundUserMessage.content === "string") {
-					outboundUserMessage.content = [{ type: "text", text: outboundUserMessage.content }, steeringBlock]
-				} else {
-					outboundUserMessage.content.push(steeringBlock)
-				}
-			}
-			await this.settleConsumedSteeringClaim(steeringClaim)
-		} catch (error) {
-			if (!userMessagePersisted) await this.rollbackSteeringClaim(steeringClaim.id)
-			throw error
-		}
+		return appendQueuedSteeringToNextApiRequest(this.steeringContext, outboundHistory)
 	}
 
 	private async commitAttemptCompletion(): Promise<boolean> {
-		return this.withStateLock(() => {
-			const hasQueuedSteering = this.taskState.steeringMessages.some(
-				(message) => message.deliveryState === SteeringDeliveryState.QUEUED,
-			)
-			if (hasQueuedSteering) {
-				this.taskState.didAttemptCompletion = false
-				return false
-			}
-			this.taskState.completionCommitted = true
-			this.taskState.didAttemptCompletion = true
-			return true
-		})
+		return commitAttemptCompletion(this.steeringContext)
 	}
 
 	public async setActiveHookExecution(hookExecution: NonNullable<typeof this.taskState.activeHookExecution>): Promise<void> {
@@ -1221,14 +1041,7 @@ export class Task {
 	}
 
 	public restoreQueuedSteeringFromTranscript(): void {
-		const deliveredMessageIds = collectDeliveredSteeringMessageIds(this.messageStateHandler.getApiConversationHistory())
-		for (const messageId of this.messageStateHandler.getApiConversationProviderState().deliveredSteeringMessageIds ?? []) {
-			deliveredMessageIds.add(messageId)
-		}
-		this.taskState.steeringMessages = restoreQueuedSteeringMessages(
-			this.messageStateHandler.getDiracMessages(),
-			deliveredMessageIds,
-		)
+		restoreQueuedSteeringFromTranscript(this.steeringContext)
 	}
 
 	public async resumeTaskFromHistory() {
@@ -2121,19 +1934,19 @@ export class Task {
 				afterUserContentPersisted: async () => {
 					steeringClaimConsumed = true
 					if (!steeringClaim) return
-					await this.settleConsumedSteeringClaim(steeringClaim)
+					await settleConsumedSteeringClaim(this.steeringContext, steeringClaim)
 				},
 			})
 			if (steeringClaim && !steeringClaimConsumed) {
 				if (apiRequestData.didConsumeUserContent) {
 					steeringClaimConsumed = true
-					await this.settleConsumedSteeringClaim(steeringClaim)
+					await settleConsumedSteeringClaim(this.steeringContext, steeringClaim)
 				} else {
-					await this.rollbackSteeringClaim(steeringClaim.id)
+					await rollbackSteeringClaim(this.steeringContext, steeringClaim.id)
 				}
 			}
 		} catch (error) {
-			if (steeringClaim && !steeringClaimConsumed) await this.rollbackSteeringClaim(steeringClaim.id)
+			if (steeringClaim && !steeringClaimConsumed) await rollbackSteeringClaim(this.steeringContext, steeringClaim.id)
 			throw error
 		}
 		userContent = apiRequestData.userContent
