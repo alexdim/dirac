@@ -23,7 +23,9 @@ describe("parseThinkingBudget", () => {
 
 	describe("parseReasoningEffort", () => {
 		it("accepts exported reasoning efforts case-insensitively", () => {
+			expect(parseReasoningEffort("MINIMAL")).toBe("minimal")
 			expect(parseReasoningEffort("XHIGH")).toBe("xhigh")
+			expect(parseReasoningEffort("MAX")).toBe("max")
 		})
 
 		it("rejects unknown reasoning efforts", () => {

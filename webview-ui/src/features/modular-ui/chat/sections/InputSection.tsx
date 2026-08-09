@@ -1,4 +1,8 @@
-import { isOpenaiReasoningEffort, OPENAI_REASONING_EFFORT_OPTIONS, type OpenaiReasoningEffort } from "@shared/ExtensionMessage"
+import {
+	DEFAULT_OPENAI_REASONING_EFFORT,
+	isOpenaiReasoningEffort,
+	OPENAI_REASONING_EFFORT_OPTIONS
+} from "@shared/ExtensionMessage"
 import { StringRequest } from "@shared/proto/dirac/common"
 import React, { useState } from "react"
 import { useAppStore } from "@/app/store/appStore"
@@ -44,17 +48,10 @@ const InputSectionContent: React.FC<{ context: ChatViewContext }> = ({ context }
 	const supportsReasoningEffort = supportsReasoningEffortForModelId(selectedModelInfo.selectedModelId, selectedModelInfo)
 	const configuredReasoningEffort =
 		selectedModelInfo.mode === "plan" ? apiConfiguration?.planModeReasoningEffort : apiConfiguration?.actModeReasoningEffort
-	const modelReasoningEfforts = Array.isArray(selectedModelInfo.reasoningEffortOptions)
-		? selectedModelInfo.reasoningEffortOptions.filter(isOpenaiReasoningEffort)
-		: []
-	const reasoningEffortOptions: readonly OpenaiReasoningEffort[] =
-		modelReasoningEfforts.length > 0 ? modelReasoningEfforts : OPENAI_REASONING_EFFORT_OPTIONS
-	const reasoningEffort =
-		isOpenaiReasoningEffort(configuredReasoningEffort) && reasoningEffortOptions.includes(configuredReasoningEffort)
-			? configuredReasoningEffort
-			: reasoningEffortOptions.includes("medium")
-				? "medium"
-				: reasoningEffortOptions[0]
+	const reasoningEffortOptions = OPENAI_REASONING_EFFORT_OPTIONS
+	const reasoningEffort = isOpenaiReasoningEffort(configuredReasoningEffort)
+		? configuredReasoningEffort
+		: DEFAULT_OPENAI_REASONING_EFFORT
 
 	return (
 		<>

@@ -1,4 +1,5 @@
 import { ModelInfo, XAIModelId, xaiDefaultModelId, xaiModels } from "@shared/api"
+import { normalizeOpenaiReasoningEffort } from "@shared/storage/types"
 import { shouldSkipReasoningForModel } from "@utils/model-utils"
 import OpenAI from "openai"
 import type { ChatCompletionTool as OpenAITool } from "openai/resources/chat/completions"
@@ -46,14 +47,11 @@ export class XAIHandler implements ApiHandler {
 	async *createMessage(systemPrompt: string, messages: DiracStorageMessage[], tools?: OpenAITool[]): ApiStream {
 		const client = this.ensureClient()
 		const modelId = this.getModel().id
-		// ensure reasoning effort is either "low" or "high" for grok-3-mini
-		let reasoningEffort: ChatCompletionReasoningEffort | undefined
-		if (modelId.includes("3-mini")) {
-			let reasoningEffort = this.options.reasoningEffort
-			if (reasoningEffort && !["low", "high"].includes(reasoningEffort)) {
-				reasoningEffort = undefined
-			}
-		}
+		const requestedEffort = normalizeOpenaiReasoningEffort(this.options.reasoningEffort)
+		const reasoningEffort: ChatCompletionReasoningEffort | undefined =
+			requestedEffort === "none" || (modelId.includes("3-mini") && !["low", "high"].includes(requestedEffort))
+				? undefined
+				: requestedEffort
 		const stream = await client.chat.completions.create({
 			model: modelId,
 			max_completion_tokens: this.getModel().info.maxTokens,

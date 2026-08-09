@@ -24,6 +24,7 @@ import { CardStatus, DiracMessageType, TaskStatus } from "@shared/ExtensionMessa
 import { CLI_ONLY_COMMANDS, VSCODE_ONLY_COMMANDS } from "@shared/slashCommands"
 import { getSettingsFromEnv } from "@shared/storage/env-config"
 import { getProviderModelIdKey, getProviderModelInfoKey } from "@shared/storage/provider-keys"
+import { isOpenaiReasoningEffort, OPENAI_REASONING_EFFORT_OPTIONS } from "@shared/storage/types"
 import { DiracAskResponse } from "@shared/WebviewMessage"
 import pWaitFor from "p-wait-for"
 import simpleGit from "simple-git"
@@ -668,8 +669,11 @@ export class DiracAgent implements acp.Agent {
 		if (thinkingBudgetTokens !== undefined && (!Number.isFinite(thinkingBudgetTokens) || thinkingBudgetTokens < 0)) {
 			throw RequestError.invalidParams(undefined, `Invalid --thinking value: ${thinkingBudgetTokens}`)
 		}
-		if (reasoningEffort !== undefined && !["none", "low", "medium", "high", "xhigh"].includes(reasoningEffort)) {
-			throw RequestError.invalidParams(undefined, `Invalid --reasoning-effort value: ${reasoningEffort}`)
+		if (reasoningEffort !== undefined && !isOpenaiReasoningEffort(reasoningEffort)) {
+			throw RequestError.invalidParams(
+				undefined,
+				`Invalid --reasoning-effort value: ${reasoningEffort}. Expected one of: ${OPENAI_REASONING_EFFORT_OPTIONS.join(", ")}`,
+			)
 		}
 		if (provider && !model) {
 			throw RequestError.invalidParams(undefined, "--provider requires --model to be specified")

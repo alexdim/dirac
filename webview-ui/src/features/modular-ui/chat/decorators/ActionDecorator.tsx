@@ -6,7 +6,7 @@ import { cn } from "@/lib/utils"
 import DiracRulesToggleModal from "@/features/dirac-rules/components/DiracRulesToggleModal"
 import { InputDecorator, ModularInputContext } from "../types"
 import type { TaskStatus } from "@shared/ExtensionMessage"
-import type { OpenaiReasoningEffort } from "@shared/ExtensionMessage"
+import { OPENAI_REASONING_EFFORT_LABELS, type OpenaiReasoningEffort } from "@shared/ExtensionMessage"
 import { TaskStatusIndicator } from "../components/TaskStatusIndicator"
 import type { ModelProviderPreset } from "@shared/api"
 import { Popover, PopoverContent, PopoverTrigger } from "@/shared/ui/popover"
@@ -176,7 +176,7 @@ export const createActionDecorator = (props: ActionDecoratorProps): InputDecorat
 										disabled={props.isUpdatingReasoningEffort}
 										title="Change reasoning effort"
 										type="button">
-										<span>{props.reasoningEffort}</span>
+										<span>{OPENAI_REASONING_EFFORT_LABELS[props.reasoningEffort]}</span>
 										<ChevronDownIcon size={10} strokeWidth={2.5} />
 									</button>
 								</PopoverTrigger>
@@ -201,7 +201,7 @@ export const createActionDecorator = (props: ActionDecoratorProps): InputDecorat
 												}}>
 												{effort === props.reasoningEffort && <CheckIcon size={12} strokeWidth={2.5} />}
 											</span>
-											{effort}
+											{OPENAI_REASONING_EFFORT_LABELS[effort]}
 										</button>
 									))}
 									{props.reasoningEffortError && (

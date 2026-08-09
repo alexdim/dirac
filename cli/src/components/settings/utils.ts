@@ -1,10 +1,15 @@
-import { isOpenaiReasoningEffort, OPENAI_REASONING_EFFORT_OPTIONS, type OpenaiReasoningEffort } from "@shared/storage/types"
+import {
+	DEFAULT_OPENAI_REASONING_EFFORT,
+	isOpenaiReasoningEffort,
+	OPENAI_REASONING_EFFORT_OPTIONS,
+	type OpenaiReasoningEffort,
+} from "@shared/storage/types"
 
 export function normalizeReasoningEffort(value: unknown): OpenaiReasoningEffort {
 	if (isOpenaiReasoningEffort(value)) {
 		return value
 	}
-	return "low"
+	return DEFAULT_OPENAI_REASONING_EFFORT
 }
 
 export function nextReasoningEffort(current: OpenaiReasoningEffort): OpenaiReasoningEffort {

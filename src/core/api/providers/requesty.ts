@@ -1,4 +1,5 @@
 import { ModelInfo, requestyDefaultModelId, requestyDefaultModelInfo } from "@shared/api"
+import { DEFAULT_OPENAI_REASONING_EFFORT } from "@shared/storage/types"
 import { calculateApiCostOpenAI } from "@utils/cost"
 import OpenAI from "openai"
 import { toRequestyServiceStringUrl } from "@/shared/clients/requesty"
@@ -70,7 +71,7 @@ export class RequestyHandler implements ApiHandler {
 			...convertToOpenAiMessages(messages, undefined, this.getModel().info.supportsImages !== false),
 		]
 
-		const reasoningEffort = this.options.reasoningEffort || "medium"
+		const reasoningEffort = this.options.reasoningEffort || DEFAULT_OPENAI_REASONING_EFFORT
 		const reasoning = { reasoning_effort: reasoningEffort }
 		const reasoningArgs = model.id.startsWith("openai/o") ? reasoning : {}
 

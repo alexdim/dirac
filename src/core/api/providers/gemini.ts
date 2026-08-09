@@ -37,12 +37,14 @@ interface GeminiHandlerOptions extends CommonApiHandlerOptions {
 
 function mapReasoningEffortToGeminiThinkingLevel(effort: string): ThinkingLevel {
 	switch (effort) {
+		case "minimal":
 		case "low":
 			return ThinkingLevel.LOW
 		case "medium":
 			return ThinkingLevel.MEDIUM
 		case "high":
 		case "xhigh":
+		case "max":
 			return ThinkingLevel.HIGH
 		default:
 			return ThinkingLevel.LOW
@@ -183,7 +185,11 @@ export class GeminiHandler implements ApiHandler {
 		// Only set thinkingLevel for models that support it
 		let thinkingLevel: ThinkingLevel | undefined
 		const rawReasoningEffort = (this.options.reasoningEffort || "").toLowerCase()
-		const normalizedReasoningEffort = !rawReasoningEffort || rawReasoningEffort === "none" ? "low" : rawReasoningEffort
+		const normalizedReasoningEffort = !rawReasoningEffort
+			? "high"
+			: rawReasoningEffort === "none"
+				? "low"
+				: rawReasoningEffort
 		if (info.thinkingConfig?.supportsThinkingLevel) {
 			thinkingLevel = mapReasoningEffortToGeminiThinkingLevel(normalizedReasoningEffort)
 		}
