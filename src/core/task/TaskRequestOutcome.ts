@@ -7,10 +7,10 @@ import { processFilesIntoText } from "@integrations/misc/extract-text"
 import { DiracError, DiracErrorType } from "@services/error"
 import { findLastIndex } from "@shared/array"
 import { CardStatus, DiracMessageType, TaskStatus } from "@shared/ExtensionMessage"
-import { DiracAskResponse } from "@shared/WebviewMessage"
 import { DiracContent, DiracTextContentBlock } from "@shared/messages/content"
 import type { DiracMessageModelInfo } from "@shared/messages/metrics"
 import { isMutatingTool } from "@shared/tools"
+import { DiracAskResponse } from "@shared/WebviewMessage"
 import pWaitFor from "p-wait-for"
 import type { MessageStateHandler } from "./message-state"
 import type { StreamingMetricsManager } from "./StreamingMetricsManager"
@@ -301,7 +301,7 @@ export async function processStreamResult(
 					type: "text",
 					text: `<feedback>\n${ctx.taskState.pendingUserMessage}\n</feedback>`,
 					isUserInput: true,
-			} as DiracTextContentBlock)
+				} as DiracTextContentBlock)
 			}
 			if (ctx.taskState.pendingUserImages?.length) {
 				ctx.taskState.userMessageContent.push(...formatResponse.imageBlocks(ctx.taskState.pendingUserImages))
@@ -331,4 +331,24 @@ export async function processStreamResult(
 		return await ctx.recursivelyMakeDiracRequests(params.userContent)
 	}
 	return true
+}
+
+export async function persistApiStopReason(ctx: TaskRequestOutcomeContext, stopReason?: string): Promise<void> {
+	if (!stopReason) return
+
+	const lastApiRequestIndex = findLastIndex(
+		ctx.messageStateHandler.getDiracMessages(),
+		(message) => message.content.type === DiracMessageType.API_STATUS,
+	)
+	if (lastApiRequestIndex === -1) return
+
+	const message = ctx.messageStateHandler.getDiracMessages()[lastApiRequestIndex]
+	if (message.content.type !== DiracMessageType.API_STATUS) return
+
+	await ctx.messageStateHandler.updateDiracMessage(lastApiRequestIndex, {
+		content: {
+			type: DiracMessageType.API_STATUS,
+			status: { ...message.content.status, stopReason },
+		},
+	})
 }
