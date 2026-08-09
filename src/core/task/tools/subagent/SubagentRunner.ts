@@ -1,6 +1,5 @@
 import * as path from "node:path"
 import type { ApiHandler, buildApiHandler } from "@core/api"
-
 import { formatResponse } from "@core/formatResponse"
 import { StreamResponseHandler } from "@core/task/StreamResponseHandler"
 import { type ToolRequestSnapshot } from "@core/task/tools/runtime/ToolSnapshot"
@@ -454,7 +453,7 @@ export class SubagentRunner {
 				if (
 					!this.isWrappingUp &&
 					usageState.lastRequest &&
-					this.shouldCompactBeforeNextRequest(usageState.lastRequest.totalTokens, api, context.providerInfo.model.id)
+					this.shouldCompactBeforeNextRequest(usageState.lastRequest.totalTokens, api)
 				) {
 					const compactResult = this.compactConversationForContextWindow(
 						contextManager,
@@ -836,11 +835,7 @@ export class SubagentRunner {
 		}
 	}
 
-	private shouldCompactBeforeNextRequest(
-		requestTotalTokens: number,
-		api: ReturnType<typeof buildApiHandler>,
-		_modelId: string,
-	): boolean {
+	private shouldCompactBeforeNextRequest(requestTotalTokens: number, api: ReturnType<typeof buildApiHandler>): boolean {
 		const { contextWindow, maxAllowedSize } = getContextWindowInfo(api)
 		const useAutoCondense = this.baseConfig.services.stateManager.getGlobalSettingsKey("useAutoCondense")
 		if (useAutoCondense) {
