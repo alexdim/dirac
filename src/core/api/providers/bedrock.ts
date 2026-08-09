@@ -9,7 +9,6 @@ import {
 	ConverseStreamCommand,
 	InvokeModelWithResponseStreamCommand,
 } from "@aws-sdk/client-bedrock-runtime"
-import { fromNodeProviderChain } from "@aws-sdk/credential-providers"
 import {
 	type BedrockModelId,
 	bedrockDefaultModelId,
@@ -19,6 +18,7 @@ import {
 } from "@shared/api"
 import { calculateApiCostOpenAI, calculateApiCostQwen } from "@utils/cost"
 import { estimateTokenCount, extractNonStreamingContent, formatConverseError, prepareSystemMessages, chunkText } from "./bedrock-converse-utils"
+import { createBedrockClient, resolveAwsCredentials } from "./bedrock-client"
 import { BedrockStreamParser } from "./bedrock-stream-parser"
 import { ExtensionRegistryInfo } from "@/registry"
 import { getErrorMessage } from "@/shared/errors"
@@ -86,11 +86,6 @@ interface CachePointContentBlock {
 }
 
 // Define provider options type based on AWS SDK patterns
-interface ProviderChainOptions {
-	clientConfig?: { userAgentAppId?: string; region?: string }
-	ignoreCache?: boolean
-	profile?: string
-}
 
 // a special jp inference profile was created for sonnet 4.6, opus 4.6, sonnet 4.5 & haiku 4.5
 // https://docs.aws.amazon.com/bedrock/latest/userguide/inference-profiles-support.html
@@ -227,41 +222,6 @@ export class AwsBedrockHandler implements ApiHandler {
 	 * Gets AWS credentials using the provider chain
 	 * Centralizes credential retrieval logic for all AWS services
 	 */
-	private async getAwsCredentials(): Promise<{
-		accessKeyId: string
-		secretAccessKey: string
-		sessionToken?: string
-	}> {
-		// Configure provider options
-		const providerOptions: ProviderChainOptions = {
-			clientConfig: {
-				// set the inner sts client userAgentAppId
-				userAgentAppId: BEDROCK_USER_AGENT_APP_ID,
-			},
-		}
-		const useProfile =
-			(this.options.awsAuthentication === undefined && this.options.awsUseProfile) ||
-			this.options.awsAuthentication === "profile"
-		if (!useProfile && this.options.awsAccessKey && this.options.awsSecretKey) {
-			return {
-				accessKeyId: this.options.awsAccessKey,
-				secretAccessKey: this.options.awsSecretKey,
-				sessionToken: this.options.awsSessionToken,
-			}
-		}
-
-		providerOptions.clientConfig!.region = this.getRegion()
-		if (useProfile) {
-			// For profile-based auth, always use ignoreCache to detect credential file changes
-			// This solves the AWS Identity Manager issue where credential files change externally
-			providerOptions.ignoreCache = true
-			if (this.options.awsProfile) {
-				providerOptions.profile = this.options.awsProfile
-			}
-		}
-
-		return await fromNodeProviderChain(providerOptions)()
-	}
 
 	/**
 	 * Gets the AWS region to use, with fallback to default
@@ -273,34 +233,13 @@ export class AwsBedrockHandler implements ApiHandler {
 	/**
 	 * Creates a BedrockRuntimeClient with the appropriate credentials
 	 */
+	/** Resolves AWS credentials for this handler from options or the node provider chain. */
+	public getAwsCredentials(): Promise<{ accessKeyId: string; secretAccessKey: string; sessionToken?: string }> {
+		return resolveAwsCredentials(this.options, this.getRegion(), BEDROCK_USER_AGENT_APP_ID)
+	}
+
 	private async getBedrockClient(): Promise<BedrockRuntimeClient> {
-		let auth: any
-
-		if (this.options.awsAuthentication === "apikey") {
-			auth = {
-				token: { token: this.options.awsBedrockApiKey },
-				authSchemePreference: ["httpBearerAuth"],
-			}
-		} else {
-			const credentials = await this.getAwsCredentials()
-			auth = {
-				credentials: {
-					accessKeyId: credentials.accessKeyId,
-					secretAccessKey: credentials.secretAccessKey,
-					sessionToken: credentials.sessionToken,
-				},
-			}
-		}
-
-		// TODO: Add proxy support for AWS SDK
-		// AWS SDK uses a different architecture than fetch-based SDKs.
-		// To add proxy support, we need to provide a custom requestHandler.
-		return new BedrockRuntimeClient({
-			userAgentAppId: BEDROCK_USER_AGENT_APP_ID,
-			region: this.getRegion(),
-			...auth,
-			...(this.options.awsBedrockEndpoint && { endpoint: this.options.awsBedrockEndpoint }),
-		})
+		return createBedrockClient(this.options, AwsBedrockHandler.DEFAULT_REGION, BEDROCK_USER_AGENT_APP_ID)
 	}
 
 	/**
