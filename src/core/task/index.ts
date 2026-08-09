@@ -20,7 +20,6 @@ import { ICheckpointManager } from "@integrations/checkpoints/types"
 import { DiffViewProvider } from "@integrations/editor/DiffViewProvider"
 import { FileEditProvider } from "@integrations/editor/FileEditProvider"
 import { processFilesIntoText } from "@integrations/misc/extract-text"
-import { showSystemNotification } from "@integrations/notifications"
 import {
 	type CommandExecutionOptions,
 	type CommandExecutionResult,
@@ -46,7 +45,6 @@ import {
 	DiracStorageMessage,
 	DiracTextContentBlock,
 	DiracToolResponseContent,
-	DiracUserContent,
 	removeProviderBoundaryMetadataFromMessage,
 } from "@shared/messages/content"
 import { DiracMessageModelInfo } from "@shared/messages/metrics"
@@ -80,9 +78,15 @@ import { StreamingMetricsManager } from "./StreamingMetricsManager"
 import { StreamResponseHandler } from "./StreamResponseHandler"
 import { type SteeringClaim } from "./steering"
 import { TaskMessenger } from "./TaskMessenger"
+import { handleMistakeLimitReached } from "./TaskMistakeLimit"
 import { type TaskPromptArtifactsContext, writePromptMetadataArtifacts } from "./TaskPromptArtifacts"
 import { buildApiRequestParams, type TaskRequestBuilderContext } from "./TaskRequestBuilder"
-import { handleApiRequestError, processStreamResult, type TaskRequestOutcomeContext } from "./TaskRequestOutcome"
+import {
+	handleApiRequestError,
+	persistApiStopReason,
+	processStreamResult,
+	type TaskRequestOutcomeContext,
+} from "./TaskRequestOutcome"
 import { TaskState } from "./TaskState"
 import {
 	appendQueuedSteeringToNextApiRequest,
@@ -100,7 +104,6 @@ import {
 import { ToolExecutor } from "./ToolExecutor"
 import { DiracContext } from "./tools/context/DiracContext"
 import type { ToolSnapshotDirtyReason } from "./tools/runtime/ToolSnapshot"
-import { ToolSkippedByUserMessage } from "./tools/types/ToolSkippedByUserMessage"
 import { extractProviderDomainFromUrl } from "./utils"
 
 export type ToolResponse = DiracToolResponseContent
@@ -819,120 +822,16 @@ export class Task {
 	}
 
 	private async persistApiStopReason(stopReason?: string): Promise<void> {
-		if (!stopReason) return
-
-		const lastApiRequestIndex = findLastIndex(
-			this.messageStateHandler.getDiracMessages(),
-			(message) => message.content.type === DiracMessageType.API_STATUS,
-		)
-		if (lastApiRequestIndex === -1) return
-
-		const message = this.messageStateHandler.getDiracMessages()[lastApiRequestIndex]
-		if (message.content.type !== DiracMessageType.API_STATUS) return
-
-		await this.messageStateHandler.updateDiracMessage(lastApiRequestIndex, {
-			content: {
-				type: DiracMessageType.API_STATUS,
-				status: { ...message.content.status, stopReason },
-			},
-		})
+		return persistApiStopReason(this.requestOutcomeContext, stopReason)
 	}
 
 	private async handleMistakeLimitReached(
 		userContent: DiracContent[],
 	): Promise<{ didEndLoop: boolean; userContent: DiracContent[] }> {
-		if (this.taskState.consecutiveMistakeCount < this.stateManager.getGlobalSettingsKey("maxConsecutiveMistakes")) {
-			return { didEndLoop: false, userContent }
-		}
-
-		// In yolo mode, don't wait for user input - fail the task
-		if (this.stateManager.getGlobalSettingsKey("yoloModeToggled")) {
-			const errorMessage =
-				`[YOLO MODE] Task failed: Too many consecutive mistakes (${this.taskState.consecutiveMistakeCount}). ` +
-				`The model may not be capable enough for this task. Consider using a more capable model.`
-			const card = await this.taskMessenger.createCard({
-				status: CardStatus.ERROR,
-				header: "Task Failed",
-				body: errorMessage,
-			})
-			await card.finalize(CardStatus.ERROR)
-			// End the task loop with failure
-			return { didEndLoop: true, userContent } // didEndLoop = true, signals task completion/failure
-		}
-
-		const autoApprovalSettings = this.stateManager.getGlobalSettingsKey("autoApprovalSettings")
-		if (autoApprovalSettings.enableNotifications) {
-			showSystemNotification({
-				subtitle: "Error",
-				message: "Dirac is having trouble. Would you like to continue the task?",
-			})
-		}
-
-		const cardHandle = await this.taskMessenger.createCard({
-			header: "Mistake Limit Reached",
-			body: `Tool use failure. Can potentially be mitigated with some user guidance (e.g. "Try breaking down the task into smaller steps").`,
-			requireFeedback: true,
-			feedbackPlaceholder: "Provide guidance to Dirac...",
-		})
-		let response: DiracAskResponse
-		let text: string | undefined
-		let images: string[] | undefined
-		let files: string[] | undefined
-		try {
-			const result = await cardHandle.waitForInteraction()
-			response = result.response
-			text = result.text
-			images = result.images
-			files = result.files
-		} catch (error) {
-			if (error instanceof ToolSkippedByUserMessage) {
-				await cardHandle.finalize(CardStatus.SKIPPED)
-				this.taskState.pendingUserMessage = error.userMessage
-				this.taskState.pendingUserImages = error.userImages
-				this.taskState.pendingUserFiles = error.userFiles
-				this.taskState.consecutiveMistakeCount = 0
-				return { didEndLoop: false, userContent }
-			}
-			throw error
-		}
-
-		await cardHandle.finalize(CardStatus.SUCCESS)
-
-		if (response === DiracAskResponse.MESSAGE) {
-			// Display the user's message in the chat UI
-			await this.taskMessenger.upsertText(text || "", false, images, files, "user")
-
-			// This userContent is for the *next* API call.
-			const feedbackUserContent: DiracUserContent[] = []
-			feedbackUserContent.push({
-				type: "text",
-				isUserInput: true,
-				text: formatResponse.tooManyMistakes(text),
-			})
-
-			if (images && images.length > 0) {
-				feedbackUserContent.push(...formatResponse.imageBlocks(images))
-			}
-
-			let fileContentString = ""
-			if (files && files.length > 0) {
-				fileContentString = await processFilesIntoText(files)
-			}
-
-			if (fileContentString) {
-				feedbackUserContent.push({
-					type: "text",
-					text: fileContentString,
-				})
-			}
-
-			userContent = feedbackUserContent
-		}
-
-		this.taskState.consecutiveMistakeCount = 0
-		this.taskState.apiErrorRetryAttempts = 0
-		this.taskState.emptyResponseRetryAttempts = 0
-		return { didEndLoop: false, userContent }
+		return handleMistakeLimitReached(
+			{ taskState: this.taskState, stateManager: this.stateManager, taskMessenger: this.taskMessenger },
+			userContent,
+		)
 	}
 
 	async loadContext(
