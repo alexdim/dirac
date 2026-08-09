@@ -17,7 +17,7 @@ import {
 	type ModelInfo,
 } from "@shared/api"
 import { calculateApiCostOpenAI, calculateApiCostQwen } from "@utils/cost"
-import { applyCacheControlToMessages, chunkText, estimateTokenCount, extractNonStreamingContent, formatConverseError, mapDiracToolsToBedrockToolConfig, prepareSystemMessages, processImageContent } from "./bedrock-converse-utils"
+import { applyCacheControlToMessages, chunkText, estimateTokenCount, extractNonStreamingContent, formatConverseError, formatMessagesForConverseAPI, getInferenceConfig, mapDiracToolsToBedrockToolConfig, prepareSystemMessages, processImageContent } from "./bedrock-converse-utils"
 import { createBedrockClient, resolveAwsCredentials } from "./bedrock-client"
 import { BedrockStreamParser } from "./bedrock-stream-parser"
 import { ExtensionRegistryInfo } from "@/registry"
@@ -68,15 +68,6 @@ export interface BedrockMessageConfig {
 
 
 type SupportedContentType = "text" | "image" | "thinking" | "redacted_thinking" | "document"
-
-interface ContentItem {
-	type: SupportedContentType
-	text?: string
-	source?: {
-		data: string | Buffer | Uint8Array
-		media_type?: string
-	}
-}
 
 
 // Define provider options type based on AWS SDK patterns
@@ -491,23 +482,6 @@ export class AwsBedrockHandler implements ApiHandler {
 	/**
 	 * Gets inference configuration for different model types
 	 */
-	private getInferenceConfig(modelInfo: ModelInfo, modelType: "anthropic" | "nova"): any {
-		// For Anthropic models with thinking enabled, temperature must be 1
-		if (modelType === "anthropic") {
-			const budget_tokens = this.options.thinkingBudgetTokens || 0
-			const reasoningOn = modelInfo.supportsReasoning && budget_tokens > 0
-
-			return {
-				maxTokens: modelInfo.maxTokens || 8192,
-				temperature: reasoningOn ? undefined : (modelInfo.temperature ?? undefined),
-			}
-		}
-
-		return {
-			maxTokens: modelInfo.maxTokens || (modelType === "nova" ? 5000 : 8192),
-			temperature: modelInfo.temperature ?? 0,
-		}
-	}
 
 	/**
 	 * Creates a message using Anthropic Claude models through AWS Bedrock Converse API
@@ -516,7 +490,7 @@ export class AwsBedrockHandler implements ApiHandler {
 	private async *createAnthropicMessage(config: BedrockMessageConfig): ApiStream {
 		const { systemPrompt, messages, modelId, model, tools } = config
 		// Format messages for Anthropic model using unified formatter
-		const formattedMessages = this.formatMessagesForConverseAPI(messages, model.info.supportsImages !== false)
+		const formattedMessages = formatMessagesForConverseAPI(messages, model.info.supportsImages !== false)
 
 		// Get model info and message indices for caching
 		const userMsgIndices = messages.reduce((acc, msg, index) => (msg.role === "user" ? [...acc, index] : acc), [] as number[])
@@ -542,7 +516,7 @@ export class AwsBedrockHandler implements ApiHandler {
 			modelId: modelId,
 			messages: messagesWithCache,
 			system: systemMessages,
-			inferenceConfig: this.getInferenceConfig(model.info, "anthropic"),
+			inferenceConfig: getInferenceConfig(model.info, "anthropic", this.options.thinkingBudgetTokens || 0),
 			...(toolConfig ? { toolConfig } : {}),
 			additionalModelRequestFields: {
 				// Add thinking configuration as per LangChain documentation
@@ -566,100 +540,6 @@ export class AwsBedrockHandler implements ApiHandler {
 	 * Formats messages for models using the Converse API specification
 	 * Used by both Anthropic and Nova models to avoid code duplication
 	 */
-	private formatMessagesForConverseAPI(messages: DiracStorageMessage[], supportsImages = true): Message[] {
-		return messages.map((message) => {
-			// Determine role (user or assistant)
-			const role = message.role === "user" ? ConversationRole.USER : ConversationRole.ASSISTANT
-
-			// Process content based on type
-			let content: ContentBlock[] = []
-
-			if (typeof message.content === "string") {
-				// Simple text content
-				content = [{ text: message.content }]
-			} else if (Array.isArray(message.content)) {
-				// Convert Anthropic content format to Converse API content format
-				const processedContent = message.content
-					.map((item) => {
-						// Text content
-						if (item.type === "text") {
-							return { text: item.text }
-						}
-
-						// Image content
-						if (item.type === "image") {
-							if (supportsImages) {
-								return processImageContent(item)
-							}
-							return { text: "[Image]" }
-						}
-
-						if (item.type === "tool_use") {
-							return {
-								toolUse: {
-									toolUseId: item.id,
-									name: item.name,
-									input: item.input,
-								},
-							}
-						}
-
-						// Skip thinking blocks - Bedrock Converse API handles thinking via
-						// the thinking config parameter, not by replaying blocks in history
-						if (item.type === "thinking" || item.type === "redacted_thinking") {
-							return null
-						}
-
-						if (item.type === "tool_result") {
-							const content = (() => {
-								if (typeof item.content === "string") {
-									return [{ text: item.content }]
-								}
-								if (Array.isArray(item.content)) {
-									return item.content
-										.map((block) => {
-											if (block.type === "text") {
-												return { text: block.text }
-											}
-											if (block.type === "image") {
-												if (supportsImages) {
-													return processImageContent(block)
-												}
-												return { text: "[Image]" }
-											}
-											return null
-										})
-										.filter((block): block is ContentBlock => block !== null)
-								}
-
-								return [{ text: JSON.stringify(item.content) }]
-							})()
-
-							return {
-								toolResult: {
-									toolUseId: item.tool_use_id,
-									content,
-									status: item.is_error ? "error" : "success",
-								},
-							}
-						}
-
-						// Log unsupported content types for debugging
-						Logger.warn(`Unsupported content type: ${(item as ContentItem).type}`)
-						return null
-					})
-					.filter((item): item is ContentBlock => item !== null)
-
-				content = processedContent
-			}
-
-			// Return formatted message
-			return {
-				role,
-				content,
-			}
-		})
-	}
 
 	/**
 	 * Processes image content with proper error handling and user notification
@@ -677,7 +557,7 @@ export class AwsBedrockHandler implements ApiHandler {
 	private async *createNovaMessage(config: BedrockMessageConfig): ApiStream {
 		const { systemPrompt, messages, modelId, model, tools } = config
 		// Format messages for Nova model using unified formatter
-		const formattedMessages = this.formatMessagesForConverseAPI(messages, model.info.supportsImages !== false)
+		const formattedMessages = formatMessagesForConverseAPI(messages, model.info.supportsImages !== false)
 
 		// Get model info and message indices for caching (for Nova models that support it)
 		const userMsgIndices = messages.reduce((acc, msg, index) => (msg.role === "user" ? [...acc, index] : acc), [] as number[])
@@ -700,7 +580,7 @@ export class AwsBedrockHandler implements ApiHandler {
 			modelId: modelId,
 			messages: messagesWithCache,
 			system: systemMessages,
-			inferenceConfig: this.getInferenceConfig(model.info, "nova"),
+			inferenceConfig: getInferenceConfig(model.info, "nova", this.options.thinkingBudgetTokens || 0),
 			...(toolConfig ? { toolConfig } : {}),
 		})
 
@@ -733,7 +613,7 @@ export class AwsBedrockHandler implements ApiHandler {
 	): ApiStream {
 		const { systemPrompt, messages, modelId, model, tools } = config
 		const client = await this.getBedrockClient()
-		const formattedMessages = this.formatMessagesForConverseAPI(messages, model.info.supportsImages !== false)
+		const formattedMessages = formatMessagesForConverseAPI(messages, model.info.supportsImages !== false)
 		const systemMessages = systemPrompt ? [{ text: systemPrompt }] : undefined
 		const toolConfig = mapDiracToolsToBedrockToolConfig(tools)
 		const command = new ConverseCommand({

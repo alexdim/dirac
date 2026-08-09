@@ -8,6 +8,8 @@ import { getErrorMessage } from "@/shared/errors"
 import type { Tool as AnthropicTool } from "@anthropic-ai/sdk/resources/index"
 import type { ContentBlock, Message, ToolConfiguration } from "@aws-sdk/client-bedrock-runtime"
 import type { DiracTool } from "@/shared/tools"
+import type { DiracStorageMessage } from "@/shared/messages/content"
+import { ConversationRole } from "@aws-sdk/client-bedrock-runtime"
 
 /** Approximate token count (4 characters per token). */
 export function estimateTokenCount(text: string): number {
@@ -135,4 +137,81 @@ export function applyCacheControlToMessages(messages: Message[], userIndices: [n
 		}
 		return message
 	})
+}
+
+export interface ContentItem {
+	type: string
+	text?: string
+	source?: unknown
+}
+
+/** Converts Dirac (Anthropic-format) messages to Bedrock Converse `Message[]`. */
+export function formatMessagesForConverseAPI(messages: DiracStorageMessage[], supportsImages = true): Message[] {
+	return messages.map((message) => {
+		const role = message.role === "user" ? ConversationRole.USER : ConversationRole.ASSISTANT
+		let content: ContentBlock[] = []
+		if (typeof message.content === "string") {
+			content = [{ text: message.content }]
+		} else if (Array.isArray(message.content)) {
+			content = message.content
+				.map((item) => {
+					if (item.type === "text") return { text: item.text }
+					if (item.type === "image") {
+						if (supportsImages) return processImageContent(item)
+						return { text: "[Image]" }
+					}
+					if (item.type === "tool_use") {
+						return {
+							toolUse: { toolUseId: item.id, name: item.name, input: item.input },
+						}
+					}
+					if (item.type === "thinking" || item.type === "redacted_thinking") return null
+					if (item.type === "tool_result") {
+						const toolResultContent = (() => {
+							if (typeof item.content === "string") return [{ text: item.content }]
+							if (Array.isArray(item.content)) {
+								return item.content
+									.map((block) => {
+										if (block.type === "text") return { text: block.text }
+										if (block.type === "image") {
+											if (supportsImages) return processImageContent(block)
+											return { text: "[Image]" }
+										}
+										return null
+									})
+									.filter((block): block is ContentBlock => block !== null)
+							}
+							return [{ text: JSON.stringify(item.content) }]
+						})()
+						return {
+							toolResult: {
+								toolUseId: item.tool_use_id,
+								content: toolResultContent,
+								status: item.is_error ? "error" : "success",
+							},
+						}
+					}
+					Logger.warn(`Unsupported content type: ${(item as ContentItem).type}`)
+					return null
+				})
+				.filter((item): item is ContentBlock => item !== null)
+		}
+		return { role, content }
+	})
+}
+
+/** Gets the Bedrock Converse inference configuration for a model type. */
+export function getInferenceConfig(modelInfo: unknown, modelType: "anthropic" | "nova", thinkingBudgetTokens: number): any {
+	const mi = modelInfo as { supportsReasoning?: boolean; maxTokens?: number; temperature?: number }
+	if (modelType === "anthropic") {
+		const reasoningOn = !!mi.supportsReasoning && thinkingBudgetTokens > 0
+		return {
+			maxTokens: mi.maxTokens || 8192,
+			temperature: reasoningOn ? undefined : (mi.temperature ?? undefined),
+		}
+	}
+	return {
+		maxTokens: mi.maxTokens || (modelType === "nova" ? 5000 : 8192),
+		temperature: mi.temperature ?? 0,
+	}
 }
