@@ -5,26 +5,12 @@ import { ContextManager } from "@core/context/context-management/ContextManager"
 import { EnvironmentContextTracker } from "@core/context/context-tracking/EnvironmentContextTracker"
 import { FileContextTracker } from "@core/context/context-tracking/FileContextTracker"
 import { ModelContextTracker } from "@core/context/context-tracking/ModelContextTracker"
-import {
-	getGlobalDiracRules,
-	getLocalDiracRules,
-	refreshDiracRulesToggles,
-} from "@core/context/instructions/user-instructions/dirac-rules"
-import {
-	getLocalAgentsRules,
-	getLocalCursorRules,
-	getLocalWindsurfRules,
-	refreshExternalRulesToggles,
-} from "@core/context/instructions/user-instructions/external-rules"
 import { formatResponse } from "@core/formatResponse"
 import { DiracIgnoreController } from "@core/ignore/DiracIgnoreController"
 import { recordSuccessfulModelProviderPreset } from "@core/models/modelProviderPresets"
 import { CommandPermissionController } from "@core/permissions"
-import type { SystemPromptContext } from "@core/prompts/system-prompt"
-import { getSystemPrompt } from "@core/prompts/system-prompt"
 import type { SlashCommandDirectAction } from "@core/slash-commands"
-import { ensureRulesDirectoryExists, ensureTaskDirectoryExists } from "@core/storage/disk"
-import { createDefaultTextCondensationTemplateRegistry, TASK_HANDOFF_TEMPLATE_ID } from "@core/text-condensation/templates"
+import { createDefaultTextCondensationTemplateRegistry } from "@core/text-condensation/templates"
 import { isUtilityTextCondensationAvailable } from "@core/text-condensation/UtilityTextCondensationAvailability"
 import { getConfiguredUtilityModelSelection } from "@core/utility-model/UtilityModelSelection"
 import { isMultiRootEnabled } from "@core/workspace/multi-root-utils"
@@ -48,15 +34,14 @@ import { ITerminalManager } from "@integrations/terminal/types"
 import { BrowserSession } from "@services/browser/BrowserSession"
 import { UrlContentFetcher } from "@services/browser/UrlContentFetcher"
 import { DiracError, DiracErrorType, ErrorService } from "@services/error"
-import { featureFlagsService } from "@services/feature-flags"
+
 import { telemetryService } from "@services/telemetry"
 import { ApiConfiguration } from "@shared/api"
 import { findLastIndex } from "@shared/array"
-import { DiracClient } from "@shared/dirac"
 import { getExtensionSourceDir } from "@shared/dirac/constants"
 import { CardStatus, DiracApiReqCancelReason, DiracMessageContent, DiracMessageType, TaskStatus } from "@shared/ExtensionMessage"
 import { HistoryItem } from "@shared/HistoryItem"
-import { DEFAULT_LANGUAGE_SETTINGS, getLanguageKey, LanguageDisplay } from "@shared/Languages"
+
 import {
 	DiracContent,
 	DiracStorageMessage,
@@ -75,14 +60,10 @@ import { DiracAskResponse } from "@shared/WebviewMessage"
 import { isLocalModel, isParallelToolCallingEnabled } from "@utils/model-utils"
 import Mutex from "p-mutex"
 import pWaitFor from "p-wait-for"
-import * as path from "path"
 import { ulid } from "ulid"
 import { getErrorMessage } from "@/shared/errors"
-import { filterSkillsByProviderCapabilities, SkillMetadata } from "@/shared/skills"
-import { getAvailableCores } from "@/utils/os"
-import { detectBestShell } from "@/utils/shell-detection"
-import { RuleContextBuilder } from "../context/instructions/user-instructions/RuleContextBuilder"
-import { getOrDiscoverSkills } from "../context/instructions/user-instructions/skills"
+import { type SkillMetadata } from "@/shared/skills"
+
 import { Controller } from "../controller"
 import { StateManager } from "../storage/StateManager"
 import { ApiConversationManager } from "./ApiConversationManager"
@@ -101,6 +82,7 @@ import { StreamResponseHandler } from "./StreamResponseHandler"
 import { type SteeringClaim } from "./steering"
 import { TaskMessenger } from "./TaskMessenger"
 import { type TaskPromptArtifactsContext, writePromptMetadataArtifacts } from "./TaskPromptArtifacts"
+import { buildApiRequestParams, type TaskRequestBuilderContext } from "./TaskRequestBuilder"
 import { TaskState } from "./TaskState"
 import {
 	appendQueuedSteeringToNextApiRequest,
@@ -187,6 +169,26 @@ export class Task {
 			taskId: this.taskId,
 			cwd: this.cwd,
 			stateManager: this.stateManager,
+		}
+	}
+
+	private get requestBuilderContext(): TaskRequestBuilderContext {
+		return {
+			taskId: this.taskId,
+			cwd: this.cwd,
+			terminalExecutionMode: this.terminalExecutionMode,
+			api: this.api,
+			stateManager: this.stateManager,
+			messageStateHandler: this.messageStateHandler,
+			taskMessenger: this.taskMessenger,
+			toolExecutor: this.toolExecutor,
+			contextManager: this.contextManager,
+			apiConversationManager: this.apiConversationManager,
+			diracIgnoreController: this.diracIgnoreController,
+			workspaceManager: this.workspaceManager,
+			taskState: this.taskState,
+			getCurrentProviderInfo: () => this.getCurrentProviderInfo(),
+			isParallelToolCallingEnabled: () => this.isParallelToolCallingEnabled(),
 		}
 	}
 
@@ -1168,200 +1170,7 @@ export class Task {
 	 * for an API request. Extracted from attemptApiRequest for single-responsibility.
 	 */
 	private async buildApiRequestParams(params: { previousApiReqIndex: number; shouldCompact?: boolean }) {
-		const providerInfo = this.getCurrentProviderInfo()
-		const host = await HostProvider.env.getHostVersion({})
-		const ide = host?.platform || "Unknown"
-		const isCliEnvironment = host.diracType === DiracClient.Cli
-		const browserSettings = this.stateManager.getGlobalSettingsKey("browserSettings")
-		const disableBrowserTool = browserSettings.disableToolUse ?? false
-		// dirac browser tool uses image recognition for navigation (requires model image support).
-		const modelSupportsBrowserUse = providerInfo.model.info.supportsImages ?? false
-
-		const supportsBrowserUse = modelSupportsBrowserUse && !disableBrowserTool // only enable browser use if the model supports it and the user hasn't disabled it
-		const preferredLanguageRaw = this.stateManager.getGlobalSettingsKey("preferredLanguage")
-		const preferredLanguage = getLanguageKey(preferredLanguageRaw as LanguageDisplay)
-		const preferredLanguageInstructions =
-			preferredLanguage && preferredLanguage !== DEFAULT_LANGUAGE_SETTINGS
-				? `# Preferred Language\n\nSpeak in ${preferredLanguage}.`
-				: ""
-
-		const { globalToggles, localToggles } = await refreshDiracRulesToggles(this.stateManager, this.cwd)
-		const { windsurfLocalToggles, cursorLocalToggles, agentsLocalToggles } = await refreshExternalRulesToggles(
-			this.stateManager,
-			this.cwd,
-		)
-
-		const evaluationContext = await new RuleContextBuilder().buildEvaluationContext({
-			cwd: this.cwd,
-			messageStateHandler: this.messageStateHandler,
-			workspaceManager: this.workspaceManager,
-		})
-
-		const globalDiracRulesFilePath = await ensureRulesDirectoryExists()
-		const globalRules = await getGlobalDiracRules(globalDiracRulesFilePath, globalToggles, { evaluationContext })
-		const globalDiracRulesFileInstructions = globalRules.instructions
-		const localRules = await getLocalDiracRules(this.cwd, localToggles, { evaluationContext })
-		const localDiracRulesFileInstructions = localRules.instructions
-		const [localCursorRulesFileInstructions, localCursorRulesDirInstructions] = await getLocalCursorRules(
-			this.cwd,
-			cursorLocalToggles,
-		)
-		const localWindsurfRulesFileInstructions = await getLocalWindsurfRules(this.cwd, windsurfLocalToggles)
-		const localAgentsRulesFileInstructions = await getLocalAgentsRules(this.cwd, agentsLocalToggles)
-		this.diracIgnoreController.yoloMode = !!this.stateManager.getGlobalSettingsKey("yoloModeToggled")
-		const isYolo = !!this.stateManager.getGlobalSettingsKey("yoloModeToggled")
-		const diracIgnoreContent = this.diracIgnoreController.diracIgnoreContent
-		let diracIgnoreInstructions: string | undefined
-		if (diracIgnoreContent && !isYolo) {
-			diracIgnoreInstructions = formatResponse.diracIgnoreInstructions(diracIgnoreContent)
-		}
-		// Prepare multi-root workspace information if enabled
-		let workspaceRoots: Array<{ path: string; name: string; vcs?: string }> | undefined
-		const multiRootEnabled = isMultiRootEnabled(this.stateManager)
-		if (multiRootEnabled && this.workspaceManager) {
-			workspaceRoots = this.workspaceManager.getRoots().map((root) => ({
-				path: root.path,
-				name: root.name || path.basename(root.path), // Fallback to basename if name is undefined
-				vcs: root.vcs as string | undefined, // Cast VcsType to string
-			}))
-		}
-		// Discover and filter available skills
-		const resolvedSkills = await getOrDiscoverSkills(this.cwd, this.taskState)
-		const providerSkills = filterSkillsByProviderCapabilities(resolvedSkills, {
-			native_web_search: providerInfo.supportsNativeWebSearch === true,
-		})
-		// Filter skills by toggle state (enabled by default)
-		const globalSkillsToggles = this.stateManager.getGlobalSettingsKey("globalSkillsToggles") ?? {}
-		const localSkillsToggles = this.stateManager.getWorkspaceStateKey("localSkillsToggles") ?? {}
-		const availableSkills = providerSkills.filter((skill) => {
-			if (this.stateManager.getGlobalSettingsKey("yoloModeToggled") && skill.interactiveOnly) return false
-			if (skill.source === "builtin") return true
-			const toggles = skill.source === "global" ? globalSkillsToggles : localSkillsToggles
-			return toggles[skill.path] !== false
-		})
-		this.taskState.availableSkills = availableSkills
-		// Snapshot editor tabs so prompt tools can decide whether to include
-		// filetype-specific instructions (e.g. notebooks) without adding bespoke flags.
-		const openTabPaths = (await HostProvider.window.getOpenTabs({})).paths || []
-		const visibleTabPaths = (await HostProvider.window.getVisibleTabs({})).paths || []
-		const cap = 50
-		const editorTabs = {
-			open: openTabPaths.slice(0, cap),
-			visible: visibleTabPaths.slice(0, cap),
-		}
-		const shellInfo = detectBestShell()
-		const taskHandoffCondensationAvailable = isUtilityTextCondensationAvailable(
-			{
-				utilityModelEnabled: this.stateManager.getGlobalSettingsKey("utilityModelEnabled"),
-				utilityModelUseCondense: this.stateManager.getGlobalSettingsKey("utilityModelUseCondense"),
-				utilityModelUseNewTask: this.stateManager.getGlobalSettingsKey("utilityModelUseNewTask"),
-				utilityModelSelection: this.stateManager.getGlobalSettingsKey("utilityModelSelection"),
-			},
-			TASK_HANDOFF_TEMPLATE_ID,
-			createDefaultTextCondensationTemplateRegistry(),
-		)
-		const promptContext: SystemPromptContext = {
-			cwd: this.cwd,
-			ide,
-			providerInfo,
-			editorTabs,
-			supportsBrowserUse,
-			taskHandoffCondensationAvailable,
-			skills: availableSkills,
-			globalDiracRulesFileInstructions,
-			localDiracRulesFileInstructions,
-			localCursorRulesFileInstructions,
-			localCursorRulesDirInstructions,
-			localWindsurfRulesFileInstructions,
-			localAgentsRulesFileInstructions,
-			diracIgnoreInstructions,
-			preferredLanguageInstructions,
-			browserSettings: this.stateManager.getGlobalSettingsKey("browserSettings"),
-			yoloModeToggled: this.stateManager.getGlobalSettingsKey("yoloModeToggled"),
-			subagentsEnabled: this.stateManager.getGlobalSettingsKey("subagentsEnabled"),
-			utilityModelConfigured:
-				getConfiguredUtilityModelSelection(this.stateManager.getGlobalSettingsKey("utilityModelSelection")) !== undefined,
-			diracWebToolsEnabled:
-				this.stateManager.getGlobalSettingsKey("diracWebToolsEnabled") && featureFlagsService.getWebtoolsEnabled(),
-			isMultiRootEnabled: multiRootEnabled,
-			workspaceRoots,
-			isSubagentRun: false,
-			isCliEnvironment,
-			enableParallelToolCalling: this.isParallelToolCallingEnabled(),
-			terminalExecutionMode: this.terminalExecutionMode,
-			activeShellType: shellInfo.type,
-			activeShellPath: shellInfo.path,
-			activeShellIsPosix: shellInfo.isPosix,
-			availableCores: getAvailableCores(),
-			shouldCompact: params.shouldCompact,
-		}
-		// Notify user if any conditional rules were applied for this request
-		const activatedConditionalRules = [...globalRules.activatedConditionalRules, ...localRules.activatedConditionalRules]
-		if (activatedConditionalRules.length > 0) {
-			await this.taskMessenger.upsertText(JSON.stringify({ rules: activatedConditionalRules }))
-		}
-		// Surface rule-file load failures so silently-dropped rules are visible to the user.
-		const ruleLoadErrors = [...(globalRules.errors ?? []), ...(localRules.errors ?? [])]
-		if (ruleLoadErrors.length > 0) {
-			await this.taskMessenger.upsertText(JSON.stringify({ ruleLoadErrors }))
-		}
-		const toolSnapshot = await this.toolExecutor.getSnapshotForRequest(promptContext)
-		const { systemPrompt } = await getSystemPrompt(promptContext, toolSnapshot)
-		this.toolExecutor.activateSnapshot(toolSnapshot)
-		this.taskState.useNativeToolCalls = toolSnapshot.nativeTools.length > 0
-		const contextManagementMetadata = await this.contextManager.getNewContextMessagesAndMetadata(
-			this.messageStateHandler.getApiConversationHistory(),
-			this.messageStateHandler.getDiracMessages(),
-			this.api,
-			this.taskState.conversationHistoryDeletedRange,
-			params.previousApiReqIndex,
-			await ensureTaskDirectoryExists(this.taskId),
-			this.stateManager.getGlobalSettingsKey("useAutoCondense"),
-		)
-
-		await writePromptMetadataArtifacts(this.promptArtifactsContext, {
-			systemPrompt,
-			providerInfo,
-			tools: toolSnapshot.nativeTools,
-			fullHistory: this.messageStateHandler.getApiConversationHistory(),
-			deletedRange: this.taskState.conversationHistoryDeletedRange,
-		})
-
-		if (contextManagementMetadata.updatedConversationHistoryDeletedRange) {
-			const previousConversationHistoryDeletedRange = this.taskState.conversationHistoryDeletedRange
-			const conversationHistoryDeletedRange = contextManagementMetadata.conversationHistoryDeletedRange
-			if (!conversationHistoryDeletedRange) {
-				throw new Error("Context management reported a truncation update without a deleted range.")
-			}
-			this.taskState.conversationHistoryDeletedRange = conversationHistoryDeletedRange
-			await this.apiConversationManager.scheduleProviderConversationCompaction(
-				previousConversationHistoryDeletedRange,
-				conversationHistoryDeletedRange,
-			)
-			await this.messageStateHandler.saveDiracMessagesAndUpdateHistory()
-		}
-
-		// If we're not using auto-condense, we should explicitly notify the model that history was truncated
-		const useAutoCondense = this.stateManager.getGlobalSettingsKey("useAutoCondense")
-		if (!useAutoCondense) {
-			const lastMessage =
-				contextManagementMetadata.truncatedConversationHistory[
-					contextManagementMetadata.truncatedConversationHistory.length - 1
-				]
-			if (lastMessage && lastMessage.role === "user") {
-				const notice = formatResponse.contextTruncationNotice()
-				if (typeof lastMessage.content === "string") {
-					lastMessage.content += `\n\n${notice}`
-				} else if (Array.isArray(lastMessage.content)) {
-					lastMessage.content.push({
-						type: "text",
-						text: notice,
-					})
-				}
-			}
-		}
-
-		return { systemPrompt, toolSnapshot, contextManagementMetadata, providerInfo }
+		return buildApiRequestParams(this.requestBuilderContext, params)
 	}
 
 	private async handleApiRequestError(params: {
