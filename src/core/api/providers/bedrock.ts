@@ -17,7 +17,7 @@ import {
 	type ModelInfo,
 } from "@shared/api"
 import { calculateApiCostOpenAI, calculateApiCostQwen } from "@utils/cost"
-import { estimateTokenCount, extractNonStreamingContent, formatConverseError, prepareSystemMessages, chunkText } from "./bedrock-converse-utils"
+import { applyCacheControlToMessages, chunkText, estimateTokenCount, extractNonStreamingContent, formatConverseError, mapDiracToolsToBedrockToolConfig, prepareSystemMessages, processImageContent } from "./bedrock-converse-utils"
 import { createBedrockClient, resolveAwsCredentials } from "./bedrock-client"
 import { BedrockStreamParser } from "./bedrock-stream-parser"
 import { ExtensionRegistryInfo } from "@/registry"
@@ -78,12 +78,6 @@ interface ContentItem {
 	}
 }
 
-// Define cache point type for AWS Bedrock
-interface CachePointContentBlock {
-	cachePoint: {
-		type: "default"
-	}
-}
 
 // Define provider options type based on AWS SDK patterns
 
@@ -466,36 +460,6 @@ export class AwsBedrockHandler implements ApiHandler {
 	 * Bedrock Converse API `ToolConfiguration` shape. Returns `undefined` when no tools
 	 * are provided so callers can conditionally spread into the command params.
 	 */
-	private mapDiracToolsToBedrockToolConfig(tools?: DiracTool[]): ToolConfiguration | undefined {
-		if (!tools || tools.length === 0) {
-			return undefined
-		}
-
-		const isAnthropicTool = (tool: DiracTool): tool is AnthropicTool => "input_schema" in tool
-
-		const bedrockTools = tools.filter(isAnthropicTool).map((tool) => {
-			return {
-				toolSpec: {
-					name: tool.name,
-					description: tool.description || tool.name || "Tool",
-					inputSchema: {
-						json: tool.input_schema,
-					},
-				},
-			}
-		})
-
-		if (bedrockTools.length === 0) {
-			return undefined
-		}
-
-		const toolConfig: ToolConfiguration = {
-			tools: bedrockTools as unknown as ToolConfiguration["tools"],
-			toolChoice: { auto: {} },
-		}
-
-		return toolConfig
-	}
 
 	/**
 	 * Executes a Converse API stream command and handles the response
@@ -561,7 +525,7 @@ export class AwsBedrockHandler implements ApiHandler {
 
 		// Apply caching controls to messages if enabled
 		const messagesWithCache = this.options.awsBedrockUsePromptCache
-			? this.applyCacheControlToMessages(formattedMessages, [secondLastMsgUserIndex, lastUserMsgIndex])
+			? applyCacheControlToMessages(formattedMessages, [secondLastMsgUserIndex, lastUserMsgIndex])
 			: formattedMessages
 
 		// Prepare system message with caching support
@@ -573,7 +537,7 @@ export class AwsBedrockHandler implements ApiHandler {
 		const useAdaptive = isAnthropicAdaptiveThinkingSupported(modelId, model.info)
 
 		// Prepare request for Anthropic model using Converse API
-		const toolConfig = this.mapDiracToolsToBedrockToolConfig(tools)
+		const toolConfig = mapDiracToolsToBedrockToolConfig(tools)
 		const command = new ConverseStreamCommand({
 			modelId: modelId,
 			messages: messagesWithCache,
@@ -625,7 +589,7 @@ export class AwsBedrockHandler implements ApiHandler {
 						// Image content
 						if (item.type === "image") {
 							if (supportsImages) {
-								return this.processImageContent(item)
+								return processImageContent(item)
 							}
 							return { text: "[Image]" }
 						}
@@ -659,7 +623,7 @@ export class AwsBedrockHandler implements ApiHandler {
 											}
 											if (block.type === "image") {
 												if (supportsImages) {
-													return this.processImageContent(block)
+													return processImageContent(block)
 												}
 												return { text: "[Image]" }
 											}
@@ -700,85 +664,11 @@ export class AwsBedrockHandler implements ApiHandler {
 	/**
 	 * Processes image content with proper error handling and user notification
 	 */
-	private processImageContent(item: any): ContentBlock | null {
-		let imageData: Uint8Array
-		let format: "png" | "jpeg" | "gif" | "webp" = "jpeg" // default format
-
-		// Extract format from media_type if available
-		if (item.source.media_type) {
-			// Extract format from media_type (e.g., "image/jpeg" -> "jpeg")
-			const formatMatch = item.source.media_type.match(/image\/(\w+)/)
-			if (formatMatch && formatMatch[1]) {
-				const extractedFormat = formatMatch[1]
-				// Ensure format is one of the allowed values
-				if (["png", "jpeg", "gif", "webp"].includes(extractedFormat)) {
-					format = extractedFormat as "png" | "jpeg" | "gif" | "webp"
-				}
-			}
-		}
-
-		// Get image data with improved error handling
-		try {
-			if (typeof item.source.data === "string") {
-				// Handle base64 encoded data
-				const base64Data = item.source.data.replace(/^data:image\/\w+;base64,/, "")
-				imageData = new Uint8Array(Buffer.from(base64Data, "base64"))
-			} else if (item.source.data && typeof item.source.data === "object") {
-				// Try to convert to Uint8Array
-				imageData = new Uint8Array(Buffer.from(item.source.data as Buffer | Uint8Array))
-			} else {
-				throw new Error("Unsupported image data format")
-			}
-
-			return {
-				image: {
-					format,
-					source: {
-						bytes: imageData,
-					},
-				},
-			}
-		} catch (error) {
-			Logger.error("Failed to process image content:", error)
-			// Return a text content indicating the error instead of null
-			// This ensures users are aware of the issue
-			return {
-				text: `[ERROR: Failed to process image - ${getErrorMessage(error, "Unknown error")}]`,
-			}
-		}
-	}
 
 	/**
 	 * Applies cache control to messages for prompt caching using AWS Bedrock's cachePoint system
 	 * AWS Bedrock uses cachePoint objects instead of Anthropic's cache_control approach
 	 */
-	private applyCacheControlToMessages(messages: Message[], userIndices: [number, number]): Message[] {
-		const [, lastUserMsgIndex] = userIndices
-		const secondLastMsgUserIndex = userIndices[0] ?? -1
-		return messages.map((message, index) => {
-			// Add cachePoint to the last user message and second-to-last user message
-			if (index === lastUserMsgIndex || index === secondLastMsgUserIndex) {
-				// Clone the message to avoid modifying the original
-				const messageWithCache = { ...message }
-
-				if (messageWithCache.content && Array.isArray(messageWithCache.content)) {
-					// Add cachePoint to the end of the content array
-					messageWithCache.content = [
-						...messageWithCache.content,
-						{
-							cachePoint: {
-								type: "default",
-							},
-						} as CachePointContentBlock, // Properly typed cache point for AWS SDK
-					]
-				}
-
-				return messageWithCache
-			}
-
-			return message
-		})
-	}
 
 	/**
 	 * Creates a message using Amazon Nova models through AWS Bedrock
@@ -797,7 +687,7 @@ export class AwsBedrockHandler implements ApiHandler {
 		// Apply caching controls to messages if model supports caching and option is enabled
 		const messagesWithCache =
 			this.options.awsBedrockUsePromptCache && model.info.supportsPromptCache
-				? this.applyCacheControlToMessages(formattedMessages, [secondLastMsgUserIndex, lastUserMsgIndex])
+				? applyCacheControlToMessages(formattedMessages, [secondLastMsgUserIndex, lastUserMsgIndex])
 				: formattedMessages
 
 		// Prepare system message with caching support for Nova models that support it
@@ -805,7 +695,7 @@ export class AwsBedrockHandler implements ApiHandler {
 		const systemMessages = prepareSystemMessages(systemPrompt, enableCaching || false)
 
 		// Prepare request for Nova model
-		const toolConfig = this.mapDiracToolsToBedrockToolConfig(tools)
+		const toolConfig = mapDiracToolsToBedrockToolConfig(tools)
 		const command = new ConverseStreamCommand({
 			modelId: modelId,
 			messages: messagesWithCache,
@@ -845,7 +735,7 @@ export class AwsBedrockHandler implements ApiHandler {
 		const client = await this.getBedrockClient()
 		const formattedMessages = this.formatMessagesForConverseAPI(messages, model.info.supportsImages !== false)
 		const systemMessages = systemPrompt ? [{ text: systemPrompt }] : undefined
-		const toolConfig = this.mapDiracToolsToBedrockToolConfig(tools)
+		const toolConfig = mapDiracToolsToBedrockToolConfig(tools)
 		const command = new ConverseCommand({
 			modelId,
 			messages: formattedMessages,
