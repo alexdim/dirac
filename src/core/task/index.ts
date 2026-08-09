@@ -1,4 +1,3 @@
-import { setTimeout as setTimeoutPromise } from "node:timers/promises"
 import { ApiHandler, ApiProviderInfo, buildApiHandler } from "@core/api"
 import { ApiStream } from "@core/api/transform/stream"
 import { ContextManager } from "@core/context/context-management/ContextManager"
@@ -33,7 +32,7 @@ import {
 import { ITerminalManager } from "@integrations/terminal/types"
 import { BrowserSession } from "@services/browser/BrowserSession"
 import { UrlContentFetcher } from "@services/browser/UrlContentFetcher"
-import { DiracError, DiracErrorType, ErrorService } from "@services/error"
+import { ErrorService } from "@services/error"
 
 import { telemetryService } from "@services/telemetry"
 import { ApiConfiguration } from "@shared/api"
@@ -55,7 +54,7 @@ import { ShowMessageType } from "@shared/proto/index.host"
 import { Logger } from "@shared/services/Logger"
 import { Session } from "@shared/services/Session"
 import { type Mode } from "@shared/storage/types"
-import { isMutatingTool } from "@shared/tools"
+
 import { DiracAskResponse } from "@shared/WebviewMessage"
 import { isLocalModel, isParallelToolCallingEnabled } from "@utils/model-utils"
 import Mutex from "p-mutex"
@@ -83,6 +82,7 @@ import { type SteeringClaim } from "./steering"
 import { TaskMessenger } from "./TaskMessenger"
 import { type TaskPromptArtifactsContext, writePromptMetadataArtifacts } from "./TaskPromptArtifacts"
 import { buildApiRequestParams, type TaskRequestBuilderContext } from "./TaskRequestBuilder"
+import { handleApiRequestError, processStreamResult, type TaskRequestOutcomeContext } from "./TaskRequestOutcome"
 import { TaskState } from "./TaskState"
 import {
 	appendQueuedSteeringToNextApiRequest,
@@ -101,7 +101,7 @@ import { ToolExecutor } from "./ToolExecutor"
 import { DiracContext } from "./tools/context/DiracContext"
 import type { ToolSnapshotDirtyReason } from "./tools/runtime/ToolSnapshot"
 import { ToolSkippedByUserMessage } from "./tools/types/ToolSkippedByUserMessage"
-import { extractProviderDomainFromUrl, updateApiReqMsg } from "./utils"
+import { extractProviderDomainFromUrl } from "./utils"
 
 export type ToolResponse = DiracToolResponseContent
 
@@ -189,6 +189,26 @@ export class Task {
 			taskState: this.taskState,
 			getCurrentProviderInfo: () => this.getCurrentProviderInfo(),
 			isParallelToolCallingEnabled: () => this.isParallelToolCallingEnabled(),
+		}
+	}
+
+	private get requestOutcomeContext(): TaskRequestOutcomeContext {
+		return {
+			taskState: this.taskState,
+			messageStateHandler: this.messageStateHandler,
+			taskMessenger: this.taskMessenger,
+			api: this.api,
+			taskId: this.taskId,
+			checkpointManager: this.checkpointManager,
+			postStateToWebview: () => this.postStateToWebview(),
+			abortTask: () => this.abortTask(),
+			handleContextWindowExceededError: () => this.handleContextWindowExceededError(),
+			reinitExistingTaskFromId: () => this.reinitExistingTaskFromId(this.taskId),
+			attemptApiRequest: (previousApiReqIndex, lastApiReqIndex, shouldCompact) =>
+				this.attemptApiRequest(previousApiReqIndex, lastApiReqIndex, shouldCompact),
+			recursivelyMakeDiracRequests: (userContent, includeFileDetails) =>
+				this.recursivelyMakeDiracRequests(userContent, includeFileDetails),
+			handleEmptyAssistantResponse: (params) => this.handleEmptyAssistantResponse(params),
 		}
 	}
 
@@ -1182,187 +1202,7 @@ export class Task {
 		providerId: string
 		metricsManager: StreamingMetricsManager
 	}): Promise<boolean> {
-		const { error, model, providerId } = params
-		const diracError = DiracError.transform(error, model.id, providerId)
-
-		if (diracError.isErrorType(DiracErrorType.ContextWindowExceeded)) {
-			await this.handleContextWindowExceededError()
-			const truncatedConversationHistory = this.messageStateHandler.getDiracMessages()
-			if (truncatedConversationHistory.length > 3) {
-				diracError.message = "Context window exceeded. Click retry to truncate the conversation and try again."
-			}
-		}
-
-		const streamingFailedMessage = diracError.serialize()
-
-		const lastApiReqStartedIndex = findLastIndex(
-			this.messageStateHandler.getDiracMessages(),
-			(m) => m.content.type === DiracMessageType.API_STATUS,
-		)
-		if (lastApiReqStartedIndex !== -1) {
-			const diracMessages = this.messageStateHandler.getDiracMessages()
-			const msg = diracMessages[lastApiReqStartedIndex]
-			if (msg.content.type === DiracMessageType.API_STATUS) {
-				const currentApiReqInfo = { ...msg.content.status }
-				delete currentApiReqInfo.retryStatus
-
-				await this.messageStateHandler.updateDiracMessage(lastApiReqStartedIndex, {
-					content: {
-						type: DiracMessageType.API_STATUS,
-						status: {
-							...currentApiReqInfo,
-							streamingFailedMessage,
-						},
-					},
-				})
-			}
-		}
-
-		const isAuthError = diracError.isErrorType(DiracErrorType.Auth)
-		const isPaymentError = diracError.isErrorType(DiracErrorType.Payment)
-
-		let response: DiracAskResponse
-		if (!isAuthError && !isPaymentError && this.taskState.apiErrorRetryAttempts < 3) {
-			this.taskState.apiErrorRetryAttempts++
-			const delay = 2000 * 2 ** (this.taskState.apiErrorRetryAttempts - 1)
-
-			await updateApiReqMsg({
-				messageStateHandler: this.messageStateHandler,
-				lastApiReqIndex: lastApiReqStartedIndex,
-				inputTokens: 0,
-				reasoningTokens: 0,
-				outputTokens: 0,
-				cacheWriteTokens: 0,
-				cacheReadTokens: 0,
-				totalCost: undefined,
-				api: this.api,
-				cancelReason: "streaming_failed",
-				streamingFailedMessage,
-			})
-			await this.messageStateHandler.saveDiracMessagesAndUpdateHistory()
-			await this.postStateToWebview()
-
-			response = DiracAskResponse.APPROVE
-			const autoRetryCard = await this.taskMessenger.createCard({
-				status: CardStatus.PENDING,
-				header: "API Error (Retrying)",
-				body: `API Error (attempt ${this.taskState.apiErrorRetryAttempts}/3). Retrying in ${delay / 1000}s...`,
-			})
-
-			const autoRetryApiReqIndex = findLastIndex(
-				this.messageStateHandler.getDiracMessages(),
-				(m) => m.content.type === DiracMessageType.API_STATUS,
-			)
-			if (autoRetryApiReqIndex !== -1) {
-				const diracMessages = this.messageStateHandler.getDiracMessages()
-				const msg = diracMessages[autoRetryApiReqIndex]
-				if (msg.content.type === DiracMessageType.API_STATUS) {
-					const currentApiReqInfo = { ...msg.content.status }
-					delete currentApiReqInfo.streamingFailedMessage
-					await this.messageStateHandler.updateDiracMessage(autoRetryApiReqIndex, {
-						content: {
-							type: DiracMessageType.API_STATUS,
-							status: currentApiReqInfo,
-						},
-					})
-				}
-			}
-
-			const deadline = Date.now() + delay
-			while (Date.now() < deadline && !this.taskState.abort) {
-				await setTimeoutPromise(Math.min(200, deadline - Date.now()))
-			}
-			// If the user aborted during the retry delay, stop retrying
-			if (this.taskState.abort) {
-				await autoRetryCard.update({
-					header: "API Error (Cancelled)",
-					body: `API Error (attempt ${this.taskState.apiErrorRetryAttempts}/3). Cancelled.`,
-				})
-				await autoRetryCard.finalize(CardStatus.CANCELLED)
-				throw new Error("Task instance aborted")
-			}
-			await autoRetryCard.update({ body: `API Error (attempt ${this.taskState.apiErrorRetryAttempts}/3). Retrying...` })
-			await autoRetryCard.finalize(CardStatus.ERROR)
-		} else {
-			if (!isAuthError && !isPaymentError) {
-				await this.taskMessenger.createCard({
-					status: CardStatus.ERROR,
-					header: "API Error (Retries Exhausted)",
-					body: `The API request failed after 3 attempts. ${diracError.toDisplayMessage()}`,
-				})
-			}
-			if (isPaymentError) {
-				await this.taskMessenger.createCard({
-					status: CardStatus.ERROR,
-					header: "API Error (Payment Required)",
-					body: diracError.toDisplayMessage(),
-				})
-			}
-			if (isAuthError) {
-				await this.taskMessenger.createCard({
-					status: CardStatus.ERROR,
-					header: "API Error (Authentication)",
-					body: diracError.toDisplayMessage(),
-				})
-			}
-			this.taskState.status = TaskStatus.AWAITING_USER_INPUT
-
-			const cardHandle = await this.taskMessenger.createCard({
-				requireApproval: true,
-				header: "API Request Failed",
-				body: diracError.toDisplayMessage(),
-				actions: [
-					{ label: "Retry", value: DiracAskResponse.APPROVE, primary: true },
-					{ label: "Cancel", value: DiracAskResponse.REJECT },
-				],
-			})
-			try {
-				const askResult = await cardHandle.waitForInteraction()
-				response = askResult.response
-			} catch (error) {
-				if (error instanceof ToolSkippedByUserMessage) {
-					await cardHandle.finalize(CardStatus.SKIPPED)
-					this.taskState.pendingUserMessage = error.userMessage
-					this.taskState.pendingUserImages = error.userImages
-					this.taskState.pendingUserFiles = error.userFiles
-					response = DiracAskResponse.APPROVE
-				} else {
-					throw error
-				}
-			}
-			if (response === DiracAskResponse.APPROVE) {
-				this.taskState.apiErrorRetryAttempts = 0
-			}
-		}
-
-		if (response !== DiracAskResponse.APPROVE) {
-			await this.abortTask()
-			await this.reinitExistingTaskFromId(this.taskId)
-			return false
-		}
-
-		const manualRetryApiReqIndex = findLastIndex(
-			this.messageStateHandler.getDiracMessages(),
-			(m) => m.content.type === DiracMessageType.API_STATUS,
-		)
-		if (manualRetryApiReqIndex !== -1) {
-			const diracMessages = this.messageStateHandler.getDiracMessages()
-			const msg = diracMessages[manualRetryApiReqIndex]
-			if (msg.content.type === DiracMessageType.API_STATUS) {
-				const currentApiReqInfo = { ...msg.content.status }
-				delete currentApiReqInfo.streamingFailedMessage
-				await this.messageStateHandler.updateDiracMessage(manualRetryApiReqIndex, {
-					content: {
-						type: DiracMessageType.API_STATUS,
-						status: currentApiReqInfo,
-					},
-				})
-			}
-		}
-
-		await this.taskMessenger.upsertText("Retrying API request...")
-
-		return true
+		return handleApiRequestError(this.requestOutcomeContext, params)
 	}
 
 	private async resetStreamingState(): Promise<void> {
@@ -1388,84 +1228,7 @@ export class Task {
 		providerId: string
 		model: { id: string }
 	}): Promise<boolean> {
-		if (params.assistantHasContent) {
-			this.taskState.askResponse = undefined
-			this.taskState.askResponseText = undefined
-			this.taskState.askResponseImages = undefined
-			this.taskState.askResponseFiles = undefined
-			this.taskState.status = TaskStatus.AWAITING_USER_INPUT
-
-			await pWaitFor(() => this.taskState.userMessageContentReady)
-			const hasMutatingTools = this.taskState.assistantMessageContent.some(
-				(block) => block.type === "tool_use" && isMutatingTool(block.name),
-			)
-			if (hasMutatingTools) {
-				await this.checkpointManager?.saveCheckpoint()
-			}
-
-			const didToolUse = this.taskState.assistantMessageContent.some((block) => block.type === "tool_use")
-			if (this.taskState.didAttemptCompletion) {
-				this.taskState.completionCommitted = false
-				this.taskState.status = TaskStatus.COMPLETED
-				await this.postStateToWebview()
-				return true
-			}
-			const hitTokenLimit =
-				params.stopReason === "MAX_TOKENS" || params.stopReason === "max_tokens" || params.stopReason === "length"
-
-			if (!didToolUse) {
-				this.taskState.userMessageContent.push({
-					type: "text",
-					text: hitTokenLimit
-						? "You reached the output token limit. Continue from where you stopped; restart an interrupted tool call, or call respond with operation 'complete' if finished."
-						: formatResponse.noToolsUsed(this.taskState.useNativeToolCalls),
-				})
-				this.taskState.consecutiveMistakeCount++
-			}
-
-			this.taskState.apiErrorRetryAttempts = 0
-			this.taskState.emptyResponseRetryAttempts = 0
-
-			if (
-				this.taskState.pendingUserMessage !== undefined ||
-				(this.taskState.pendingUserImages?.length ?? 0) > 0 ||
-				(this.taskState.pendingUserFiles?.length ?? 0) > 0
-			) {
-				if (this.taskState.pendingUserMessage) {
-					this.taskState.userMessageContent.push({
-						type: "text",
-						text: `<feedback>\n${this.taskState.pendingUserMessage}\n</feedback>`,
-						isUserInput: true,
-					})
-				}
-				if (this.taskState.pendingUserImages?.length) {
-					this.taskState.userMessageContent.push(...formatResponse.imageBlocks(this.taskState.pendingUserImages))
-				}
-				if (this.taskState.pendingUserFiles?.length) {
-					const fileContent = await processFilesIntoText(this.taskState.pendingUserFiles)
-					if (fileContent) {
-						this.taskState.userMessageContent.push({ type: "text", text: fileContent })
-					}
-				}
-				this.taskState.pendingUserMessage = undefined
-				this.taskState.pendingUserImages = undefined
-				this.taskState.pendingUserFiles = undefined
-			}
-
-			return await this.recursivelyMakeDiracRequests(this.taskState.userMessageContent)
-		}
-		const taskMetrics = params.metricsManager.getMetrics()
-		const shouldRetry = await this.handleEmptyAssistantResponse({
-			modelInfo: params.modelInfo,
-			taskMetrics,
-			providerId: params.providerId,
-			model: params.model,
-		})
-		if (shouldRetry === false) {
-			this.taskState.consecutiveMistakeCount = 0
-			return await this.recursivelyMakeDiracRequests(params.userContent)
-		}
-		return true
+		return processStreamResult(this.requestOutcomeContext, params)
 	}
 
 	async *attemptApiRequest(previousApiReqIndex: number, lastApiReqIndex: number, shouldCompact?: boolean): ApiStream {
