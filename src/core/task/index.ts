@@ -4,7 +4,7 @@ import { ContextManager } from "@core/context/context-management/ContextManager"
 import { EnvironmentContextTracker } from "@core/context/context-tracking/EnvironmentContextTracker"
 import { FileContextTracker } from "@core/context/context-tracking/FileContextTracker"
 import { ModelContextTracker } from "@core/context/context-tracking/ModelContextTracker"
-import { formatResponse } from "@core/formatResponse"
+
 import { DiracIgnoreController } from "@core/ignore/DiracIgnoreController"
 import { recordSuccessfulModelProviderPreset } from "@core/models/modelProviderPresets"
 import { CommandPermissionController } from "@core/permissions"
@@ -19,7 +19,6 @@ import { buildCheckpointManager, shouldUseMultiRoot } from "@integrations/checkp
 import { ICheckpointManager } from "@integrations/checkpoints/types"
 import { DiffViewProvider } from "@integrations/editor/DiffViewProvider"
 import { FileEditProvider } from "@integrations/editor/FileEditProvider"
-import { processFilesIntoText } from "@integrations/misc/extract-text"
 import {
 	type CommandExecutionOptions,
 	type CommandExecutionResult,
@@ -56,7 +55,6 @@ import { type Mode } from "@shared/storage/types"
 import { DiracAskResponse } from "@shared/WebviewMessage"
 import { isLocalModel, isParallelToolCallingEnabled } from "@utils/model-utils"
 import Mutex from "p-mutex"
-import pWaitFor from "p-wait-for"
 import { ulid } from "ulid"
 import { getErrorMessage } from "@/shared/errors"
 import { type SkillMetadata } from "@/shared/skills"
@@ -105,6 +103,7 @@ import { ToolExecutor } from "./ToolExecutor"
 import { DiracContext } from "./tools/context/DiracContext"
 import type { ToolSnapshotDirtyReason } from "./tools/runtime/ToolSnapshot"
 import { extractProviderDomainFromUrl } from "./utils"
+import { submitCardResponse, waitForFollowUp } from "./TaskUserInput"
 
 export type ToolResponse = DiracToolResponseContent
 
@@ -855,40 +854,7 @@ export class Task {
 	}
 
 	private async waitForFollowUp(): Promise<DiracContent[] | undefined> {
-		this.taskState.status = TaskStatus.AWAITING_USER_INPUT
-
-		const messageTs = Date.now()
-		this.taskState.lastMessageTs = messageTs
-
-		await pWaitFor(
-			() => {
-				return (
-					this.taskState.askResponse !== undefined || this.taskState.lastMessageTs !== messageTs || this.taskState.abort
-				)
-			},
-			{ interval: 100 },
-		)
-
-		if (this.taskState.abort || this.taskState.lastMessageTs !== messageTs) {
-			return undefined
-		}
-
-		const text = this.taskState.askResponseText || ""
-		const images = this.taskState.askResponseImages as string[] | undefined
-		const files = this.taskState.askResponseFiles as string[] | undefined
-
-		const userContent: DiracContent[] = [{ type: "text", text: `<feedback>\n${text}\n</feedback>`, isUserInput: true }]
-		if (images && images.length > 0) {
-			userContent.push(...formatResponse.imageBlocks(images))
-		}
-		if (files && files.length > 0) {
-			const fileContentString = await processFilesIntoText(files)
-			if (fileContentString) {
-				userContent.push({ type: "text", text: fileContentString })
-			}
-		}
-
-		return userContent
+		return waitForFollowUp({ taskState: this.taskState })
 	}
 
 	/** Persist a project-scoped tool permission rule for an ACP “always” decision. */
@@ -915,22 +881,7 @@ export class Task {
 		value?: string,
 	) {
 		await this.withStateLock(async () => {
-			if (cardId && this.taskState.lastWaitingCardId !== cardId) {
-				Logger.warn(`[Task] Received response for card ${cardId}, but waiting for ${this.taskState.lastWaitingCardId}`)
-				return
-			}
-			const isStandardResponse = Object.values(DiracAskResponse).includes(response as DiracAskResponse)
-			this.taskState.askResponse = isStandardResponse ? (response as DiracAskResponse) : undefined
-			this.taskState.askResponseText = text
-			this.taskState.askResponseImages = images
-			this.taskState.askResponseFiles = files
-			this.taskState.askResponseAction = response as string
-			this.taskState.askResponseValue = value
-			// When user sends a text message while a card is awaiting approval,
-			// signal that the tool should be skipped and forward to LLM.
-			if (response === DiracAskResponse.MESSAGE && text && this.taskState.status !== TaskStatus.CANCELLED) {
-				this.taskState.didRejectTool = true
-			}
+			return submitCardResponse({ taskState: this.taskState }, { cardId, response, text, images, files, value })
 		})
 	}
 
