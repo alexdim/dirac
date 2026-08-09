@@ -1,8 +1,6 @@
-import { ApiStream } from "@core/api/transform/stream"
-import { recordSuccessfulModelProviderPreset } from "@core/models/modelProviderPresets"
 import { ErrorService } from "@services/error"
 import { telemetryService } from "@services/telemetry"
-import type { ApiProvider } from "@shared/api"
+
 import { findLastIndex } from "@shared/array"
 import type { DiracApiReqCancelReason, DiracMessageContent } from "@shared/ExtensionMessage"
 import { CardStatus, DiracMessageType, TaskStatus } from "@shared/ExtensionMessage"
@@ -17,19 +15,17 @@ import { StreamChunkCoordinator } from "./StreamChunkCoordinator"
 import { StreamingMetricsManager } from "./StreamingMetricsManager"
 import type { StreamResponseHandler } from "./StreamResponseHandler"
 
-import { removeProviderBoundaryMetadataFromMessage } from "@shared/messages/content"
-import type { DiracContent, DiracStorageMessage } from "@shared/messages/content"
+import type { DiracContent } from "@shared/messages/content"
 import type { DiracMessageModelInfo } from "@shared/messages/metrics"
 import { Logger } from "@shared/services/Logger"
-import { buildApiRequestParams, type TaskRequestBuilderContext } from "./TaskRequestBuilder"
+import { type TaskRequestBuilderContext } from "./TaskRequestBuilder"
 import {
-	handleApiRequestError,
 	persistApiStopReason,
 	processStreamResult,
 	type TaskRequestOutcomeContext,
 } from "./TaskRequestOutcome"
+import { attemptApiRequest } from "./TaskApiRequestAttempt"
 import {
-	appendQueuedSteeringToNextApiRequest,
 	appendQueuedSteeringToUserContent,
 	rollbackSteeringClaim,
 	settleConsumedSteeringClaim,
@@ -50,108 +46,6 @@ export interface TaskRequestLoopContext extends TaskRequestBuilderContext, TaskR
 	modelContextTracker: ModelContextTracker
 	diffViewProvider: DiffViewProvider
 	ulid: string
-}
-
-export async function* attemptApiRequest(
-	ctx: TaskRequestLoopContext,
-	previousApiReqIndex: number,
-	lastApiReqIndex: number,
-	shouldCompact?: boolean,
-): ApiStream {
-	const { systemPrompt, toolSnapshot, contextManagementMetadata, providerInfo } = await buildApiRequestParams(ctx, {
-		previousApiReqIndex,
-		shouldCompact,
-	})
-	const { model, providerId } = providerInfo
-
-	const metricsManager = new StreamingMetricsManager(ctx.messageStateHandler, lastApiReqIndex, ctx.api)
-
-	const finalizeApiReqMsg = async (cancelReason?: DiracApiReqCancelReason, streamingFailedMessage?: string) => {
-		await metricsManager.updateApiReqMsgFromMetrics(cancelReason, streamingFailedMessage)
-		await ctx.messageStateHandler.updateDiracMessage(lastApiReqIndex, {})
-		ctx.taskState.isApiRequestActive = false
-		ctx.taskState.activeVoiceStreamId = undefined
-	}
-
-	const abortStream = async (cancelReason: DiracApiReqCancelReason, streamingFailedMessage?: string) => {
-		ctx.taskState.didFinishAbortingStream = true
-		await finalizeApiReqMsg(cancelReason, streamingFailedMessage)
-		ctx.taskState.isApiRequestActive = false
-		ctx.taskState.activeVoiceStreamId = undefined
-	}
-
-	await appendQueuedSteeringToNextApiRequest(ctx.steeringContext, contextManagementMetadata.truncatedConversationHistory)
-
-	const providerDispatch = await ctx.apiConversationManager.prepareProviderConversationDispatch({
-		systemPrompt,
-		tools: toolSnapshot.nativeTools,
-		truncatedMessages: contextManagementMetadata.truncatedConversationHistory as DiracStorageMessage[],
-		providerId,
-		modelId: model.id,
-	})
-
-	if (ctx.taskState.abort) throw new Error("Task instance aborted")
-
-	const stream = ctx.api.createMessage(
-		systemPrompt,
-		providerDispatch.messages.map(removeProviderBoundaryMetadataFromMessage),
-		toolSnapshot.nativeTools,
-		providerDispatch.options,
-	)
-	const iterator = stream[Symbol.asyncIterator]()
-
-	try {
-		ctx.taskState.status = TaskStatus.WAITING_FOR_API
-
-		ctx.taskState.isWaitingForFirstChunk = true
-		const firstChunk = await iterator.next()
-		ctx.taskState.isWaitingForFirstChunk = false
-
-		if (firstChunk.done) {
-			await finalizeApiReqMsg()
-			return
-		}
-
-		yield firstChunk.value
-
-		for await (const chunk of iterator) {
-			if (ctx.taskState.abort) {
-				await abortStream("user_cancelled")
-				return
-			}
-
-			if (chunk.type === "usage") {
-				metricsManager.updateFromChunk(chunk)
-				yield chunk
-				continue
-			}
-
-			yield chunk
-		}
-
-		recordSuccessfulModelProviderPreset(
-			ctx.stateManager,
-			providerId as ApiProvider,
-			model.id,
-			model.info,
-			providerInfo.mode,
-		)
-		await finalizeApiReqMsg()
-	} catch (error) {
-		const shouldRetry = await handleApiRequestError(ctx, {
-			error,
-			previousApiReqIndex,
-			lastApiReqIndex,
-			shouldCompact,
-			model,
-			providerId,
-			metricsManager,
-		})
-		if (shouldRetry) {
-			yield* attemptApiRequest(ctx, previousApiReqIndex, lastApiReqIndex, shouldCompact)
-		}
-		return
-	}
 }
 
 export async function recursivelyMakeDiracRequests(

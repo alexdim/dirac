@@ -81,7 +81,8 @@ import {
 	persistApiStopReason,
 	type TaskRequestOutcomeContext,
 } from "./TaskRequestOutcome"
-import { attemptApiRequest, recursivelyMakeDiracRequests, type TaskRequestLoopContext } from "./TaskRequestLoop"
+import { attemptApiRequest } from "./TaskApiRequestAttempt"
+import { recursivelyMakeDiracRequests, type TaskRequestLoopContext } from "./TaskRequestLoop"
 import { TaskState } from "./TaskState"
 import {
 	appendQueuedSteeringToNextApiRequest,
