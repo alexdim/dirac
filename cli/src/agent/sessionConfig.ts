@@ -5,7 +5,12 @@ import { getProviderModelIdKey, getProviderModelInfoKey } from "@shared/storage/
 import type { Settings } from "@shared/storage/state-keys"
 import { refreshGithubCopilotModels } from "@/core/controller/models/refreshGithubCopilotModels"
 import { Logger } from "@/shared/services/Logger"
-import type { Mode } from "@/shared/storage/types"
+import {
+	DEFAULT_OPENAI_REASONING_EFFORT,
+	OPENAI_REASONING_EFFORT_LABELS,
+	OPENAI_REASONING_EFFORT_OPTIONS,
+	type Mode,
+} from "@/shared/storage/types"
 import { filterOpenRouterModelIds } from "@/shared/utils/model-filters"
 import { getDefaultModelId, getModelList, hasStaticModels } from "../utils/model-metadata.js"
 import { fetchOpenRouterModels, usesOpenRouterModels } from "../utils/openrouter-models"
@@ -21,13 +26,10 @@ const ACP_MODE_OPTIONS: { value: AcpModeId; name: string; description: string }[
 	{ value: "act", name: "Act", description: "Execute actions" },
 ]
 
-const REASONING_EFFORT_OPTIONS: acp.SessionConfigSelectOption[] = [
-	{ value: "none", name: "None" },
-	{ value: "low", name: "Low" },
-	{ value: "medium", name: "Medium" },
-	{ value: "high", name: "High" },
-	{ value: "xhigh", name: "Extra high" },
-]
+const REASONING_EFFORT_OPTIONS: acp.SessionConfigSelectOption[] = OPENAI_REASONING_EFFORT_OPTIONS.map((value) => ({
+	value,
+	name: OPENAI_REASONING_EFFORT_LABELS[value],
+}))
 
 const THINKING_BUDGET_OPTIONS: acp.SessionConfigSelectOption[] = [
 	{ value: "0", name: "Off" },
@@ -71,7 +73,7 @@ export class SessionConfigManager {
 		const thinkingKey = mode === "act" ? "actModeThinkingBudgetTokens" : "planModeThinkingBudgetTokens"
 		const thinkingBudget = String(sessionOverrides[thinkingKey] ?? 0)
 		const reasoningKey = mode === "act" ? "actModeReasoningEffort" : "planModeReasoningEffort"
-		const reasoningEffort = String(sessionOverrides[reasoningKey] ?? "medium")
+		const reasoningEffort = String(sessionOverrides[reasoningKey] ?? DEFAULT_OPENAI_REASONING_EFFORT)
 
 		const providerOptions = getValidCliProviders().map((provider) => ({
 			value: provider,

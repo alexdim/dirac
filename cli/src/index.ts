@@ -11,6 +11,7 @@ import { setupSignalHandlers } from "./utils/errors"
 import { parseTimeoutSeconds } from "./utils/task-timeout"
 import { parsePositiveInteger, parseReasoningEffort, parseThinkingBudget } from "./utils/command-parsers"
 
+import { OPENAI_REASONING_EFFORT_OPTIONS } from "@shared/storage/types"
 // CLI-only behavior: suppress console output unless verbose mode is enabled.
 // Kept explicit here so importing the library bundle does not mutate global console methods.
 suppressConsoleUnlessVerbose()
@@ -47,7 +48,11 @@ program
 	.option("-c, --cwd <path>", "Working directory for the task")
 	.option("--config <path>", "Path to Dirac configuration directory")
 	.option("--thinking [tokens]", "Enable extended thinking (default: 1024 tokens)", parseThinkingBudget)
-	.option("--reasoning-effort <effort>", "Reasoning effort: none|low|medium|high|xhigh", parseReasoningEffort)
+	.option(
+		"--reasoning-effort <effort>",
+		`Reasoning effort: ${OPENAI_REASONING_EFFORT_OPTIONS.join("|")}`,
+		parseReasoningEffort,
+	)
 	.option(
 		"--max-consecutive-mistakes <count>",
 		"Maximum consecutive mistakes before halting in yolo mode",
@@ -172,7 +177,11 @@ program
 	.option("-c, --cwd <path>", "Working directory")
 	.option("--config <path>", "Configuration directory")
 	.option("--thinking [tokens]", "Enable extended thinking (default: 1024 tokens)", parseThinkingBudget)
-	.option("--reasoning-effort <effort>", "Reasoning effort: none|low|medium|high|xhigh", parseReasoningEffort)
+	.option(
+		"--reasoning-effort <effort>",
+		`Reasoning effort: ${OPENAI_REASONING_EFFORT_OPTIONS.join("|")}`,
+		parseReasoningEffort,
+	)
 	.option(
 		"--max-consecutive-mistakes <count>",
 		"Maximum consecutive mistakes before halting in yolo mode",

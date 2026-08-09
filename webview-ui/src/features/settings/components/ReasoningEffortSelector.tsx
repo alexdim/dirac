@@ -1,4 +1,11 @@
-import { isOpenaiReasoningEffort, Mode, OPENAI_REASONING_EFFORT_OPTIONS, OpenaiReasoningEffort } from "@shared/ExtensionMessage"
+import {
+	DEFAULT_OPENAI_REASONING_EFFORT,
+	isOpenaiReasoningEffort,
+	Mode,
+	OPENAI_REASONING_EFFORT_LABELS,
+	OPENAI_REASONING_EFFORT_OPTIONS,
+	OpenaiReasoningEffort,
+} from "@shared/ExtensionMessage"
 import { memo } from "react"
 import { useSettingsStore } from "@/features/settings/store/settingsStore"
 import { Label } from "@/shared/ui/label"
@@ -25,7 +32,9 @@ const ReasoningEffortSelector = ({
 	const selectedEffort =
 		isOpenaiReasoningEffort(modeFields.reasoningEffort) && allowedEfforts.includes(modeFields.reasoningEffort)
 			? modeFields.reasoningEffort
-			: "medium"
+			: allowedEfforts.includes(DEFAULT_OPENAI_REASONING_EFFORT)
+				? DEFAULT_OPENAI_REASONING_EFFORT
+				: allowedEfforts[0]
 
 	return (
 		<div style={{ marginTop: 10, marginBottom: 5 }}>
@@ -41,7 +50,7 @@ const ReasoningEffortSelector = ({
 				<SelectContent>
 					{allowedEfforts.map((effort) => (
 						<SelectItem key={effort} value={effort}>
-							{effort.charAt(0).toUpperCase() + effort.slice(1)}
+							{OPENAI_REASONING_EFFORT_LABELS[effort]}
 						</SelectItem>
 					))}
 				</SelectContent>

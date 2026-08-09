@@ -16,9 +16,21 @@ import { DiracRulesToggles } from "./dirac-rules"
 import { HistoryItem } from "./HistoryItem"
 import { DiracMessageModelInfo } from "./messages"
 import { OnboardingModelGroup } from "./proto/dirac/state"
-import { isOpenaiReasoningEffort, Mode, OPENAI_REASONING_EFFORT_OPTIONS, OpenaiReasoningEffort } from "./storage/types"
+import {
+	DEFAULT_OPENAI_REASONING_EFFORT,
+	isOpenaiReasoningEffort,
+	Mode,
+	OPENAI_REASONING_EFFORT_LABELS,
+	OPENAI_REASONING_EFFORT_OPTIONS,
+	OpenaiReasoningEffort,
+} from "./storage/types"
 export type { Mode, OpenaiReasoningEffort }
-export { OPENAI_REASONING_EFFORT_OPTIONS, isOpenaiReasoningEffort }
+export {
+	DEFAULT_OPENAI_REASONING_EFFORT,
+	OPENAI_REASONING_EFFORT_LABELS,
+	OPENAI_REASONING_EFFORT_OPTIONS,
+	isOpenaiReasoningEffort,
+}
 
 import { TelemetrySetting } from "./TelemetrySetting"
 import type { UserApprovedCommand } from "./UserApprovedCommand"
