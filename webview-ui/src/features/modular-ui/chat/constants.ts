@@ -2,7 +2,7 @@
  * Constants used across the chat view components
  */
 export const CHAT_CONSTANTS = {
-	AT_BOTTOM_THRESHOLD: 4,
+	AT_BOTTOM_THRESHOLD: 64,
 	MAX_IMAGES_AND_FILES_PER_MESSAGE: 20,
 	QUICK_WINS_HISTORY_THRESHOLD: 300,
 } as const
