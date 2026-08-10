@@ -1,6 +1,7 @@
 import type { Hooks } from "@core/hooks/hook-factory"
 import { getHookModelContext } from "@core/hooks/hook-model-context"
 import { activateTaskSkill } from "@core/task/activateTaskSkill"
+import { getConfiguredUtilityModelSelection } from "@core/utility-model/UtilityModelSelection"
 import type { DiracMessage } from "@shared/ExtensionMessage"
 import { Logger } from "@shared/services/Logger"
 import type { IOrchestrationTrait } from "../../interfaces/IToolEnvironment"
@@ -12,6 +13,18 @@ export function buildOrchestrationTrait(config: TaskConfig): IOrchestrationTrait
 	return {
 		runSubagent: async (prompt, options) => {
 			const agentIdentity = options?.agentIdentity ?? { id: 1, name: options?.subagentName ?? "subagent" }
+			const utilityModelSelection = options?.useUtilityModel
+				? getConfiguredUtilityModelSelection(config.services.stateManager.getGlobalSettingsKey("utilityModelSelection"))
+				: undefined
+			if (options?.useUtilityModel && !utilityModelSelection) {
+				throw new Error("Utility model is not configured.")
+			}
+			const apiConfiguration = config.services.stateManager.getApiConfiguration()
+			const mode = config.services.stateManager.getGlobalSettingsKey("mode")
+			const providerId =
+				utilityModelSelection?.provider ??
+				(mode === "plan" ? apiConfiguration.planModeApiProvider : apiConfiguration.actModeApiProvider) ??
+				apiConfiguration.apiProvider
 			let recorder: SubagentRunRecorder | undefined
 			try {
 				recorder = await SubagentRunRecorder.create({
@@ -21,23 +34,20 @@ export function buildOrchestrationTrait(config: TaskConfig): IOrchestrationTrait
 					prompt,
 					timeoutSeconds: options?.timeout ?? 600,
 					includeHistory: options?.includeHistory === true,
-					modelId: config.api.getModel().id,
+					providerId,
+					modelId: utilityModelSelection?.modelId ?? config.api.getModel().id,
 				})
 			} catch (error) {
 				Logger.error("[OrchestrationTraitBuilder] failed to initialize subagent recorder", error)
 			}
 			const runner = new SubagentRunner(config, options?.subagentName, {
 				allowedTools: options?.allowedTools,
+				utilityModelSelection,
 				systemSuffix: options?.systemSuffix,
 				agentIdentity,
 				recorder,
 			})
-			return await runner.run(
-				prompt,
-				options?.onUpdate || (() => { }),
-				options?.timeout,
-				options?.includeHistory,
-			)
+			return await runner.run(prompt, options?.onUpdate || (() => {}), options?.timeout, options?.includeHistory)
 		},
 		runHook: async (name, input, options) => {
 			const { executeHook } = await import("@core/hooks/hook-executor")

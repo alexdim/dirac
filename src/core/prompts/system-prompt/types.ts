@@ -38,6 +38,7 @@ export interface SystemPromptContext {
 	readonly runtimePlaceholders?: Readonly<Record<string, unknown>>
 	readonly yoloModeToggled?: boolean
 	readonly subagentsEnabled?: boolean
+	readonly utilityModelConfigured?: boolean
 	readonly diracWebToolsEnabled?: boolean
 	readonly isMultiRootEnabled?: boolean
 	readonly workspaceRoots?: Array<{ path: string; name: string; vcs?: string }>

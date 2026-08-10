@@ -1,6 +1,6 @@
-import type { DiracTool } from "@/shared/tools"
 import { ensureBuiltinToolsRegistered } from "@core/task/tools/registry/refreshToolRegistry"
 import type { ToolRequestSnapshot } from "@core/task/tools/runtime/ToolSnapshot"
+import type { DiracTool } from "@/shared/tools"
 import type { SystemPromptContext } from "../types"
 import { PromptBuilder } from "./PromptBuilder"
 
@@ -46,6 +46,7 @@ export class PromptRegistry {
 			// Template text fields (template.ts)
 			context.cwd,
 			context.yoloModeToggled ? 1 : 0,
+			context.utilityModelConfigured ? 1 : 0,
 			context.enableParallelToolCalling ? 1 : 0,
 			context.activeShellIsPosix ? 1 : 0,
 			context.activeShellType,

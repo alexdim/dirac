@@ -1,10 +1,10 @@
 import { strict as assert } from "node:assert"
 import * as api from "@core/api"
 import type { TaskConfig } from "@core/task/tools/types/TaskConfig"
+import { RESPOND_TOOL_NAME, ResponseOperation } from "@shared/responseTool"
 import { afterEach, describe, it } from "mocha"
 import sinon from "sinon"
 import { DiracDefaultTool } from "@/shared/tools"
-import { RESPOND_TOOL_NAME, ResponseOperation } from "@shared/responseTool"
 import { AgentConfigLoader } from "../AgentConfigLoader"
 import {
 	SUBAGENT_DEFAULT_ALLOWED_TOOLS,
@@ -42,12 +42,12 @@ describe("SubagentBuilder", () => {
 			getCachedConfig: (subagentName?: string) =>
 				subagentName === "cached-agent"
 					? {
-						name: "cached-agent",
-						description: "cached description",
-						tools: [DiracDefaultTool.LIST_FILES],
-						modelId: "gpt-5",
-						systemPrompt: "cached system prompt",
-					}
+							name: "cached-agent",
+							description: "cached description",
+							tools: [DiracDefaultTool.LIST_FILES],
+							modelId: "gpt-5",
+							systemPrompt: "cached system prompt",
+						}
 					: undefined,
 		} as unknown as AgentConfigLoader)
 
@@ -97,12 +97,12 @@ describe("SubagentBuilder", () => {
 			getCachedConfig: (subagentName?: string) =>
 				subagentName === "openrouter-agent"
 					? {
-						name: "openrouter-agent",
-						description: "openrouter plan agent",
-						tools: [DiracDefaultTool.FILE_READ],
-						modelId: "openrouter/custom-model",
-						systemPrompt: "plan system",
-					}
+							name: "openrouter-agent",
+							description: "openrouter plan agent",
+							tools: [DiracDefaultTool.FILE_READ],
+							modelId: "openrouter/custom-model",
+							systemPrompt: "plan system",
+						}
 					: undefined,
 		} as unknown as AgentConfigLoader)
 
@@ -144,5 +144,39 @@ describe("SubagentBuilder", () => {
 			builder.buildSystemPrompt("generated prompt"),
 			`configured system# Agent Profile\nName: configured-agent\nDescription: configured description\n\n\n\n# Custom Builder Mode${SUBAGENT_PROGRESS_INSTRUCTION}`,
 		)
+	})
+
+	it("uses a Utility provider selection instead of the configured agent model override", () => {
+		sinon.stub(AgentConfigLoader, "getInstance").returns({
+			getCachedConfig: () => ({
+				name: "configured-agent",
+				description: "configured description",
+				tools: [DiracDefaultTool.LIST_FILES],
+				modelId: "primary-provider-override",
+				systemPrompt: "configured system",
+			}),
+		} as unknown as AgentConfigLoader)
+		const fakeHandler = { getModel: sinon.stub(), createMessage: sinon.stub() }
+		const buildApiHandlerStub = sinon.stub(api, "buildApiHandler")
+		const buildUtilityHandlerStub = sinon.stub(api, "buildApiHandlerForSelection").returns(fakeHandler as never)
+		const utilityModelSelection = { provider: "openrouter" as const, modelId: "utility/model" }
+		const config = createTaskConfig("act", "openai")
+
+		const builder = new SubagentBuilder(config, "configured-agent", { utilityModelSelection })
+
+		sinon.assert.notCalled(buildApiHandlerStub)
+		sinon.assert.calledOnceWithExactly(
+			buildUtilityHandlerStub,
+			config.services.stateManager.getApiConfiguration(),
+			utilityModelSelection,
+			{ ulid: "ulid-123" },
+		)
+		assert.equal(builder.getApiHandler(), fakeHandler)
+		assert.equal(builder.getProviderId(), "openrouter")
+		assert.deepEqual(builder.getAllowedTools(), [
+			DiracDefaultTool.LIST_FILES,
+			`${RESPOND_TOOL_NAME}:${ResponseOperation.PROGRESS}`,
+			`${RESPOND_TOOL_NAME}:${ResponseOperation.COMPLETE}`,
+		])
 	})
 })
