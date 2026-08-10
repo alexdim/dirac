@@ -8,11 +8,13 @@ export async function discoverAvailableSkills(
 	taskState: any,
 	providerCapabilities: SkillProviderCapabilities,
 ) {
-	const globalSkillsToggles = stateManager.getGlobalSettingsKey("globalSkillsToggles")
-	const localSkillsToggles = stateManager.getWorkspaceStateKey("localSkillsToggles")
+	const globalSkillsToggles = stateManager.getGlobalSettingsKey("globalSkillsToggles") ?? {}
+	const localSkillsToggles = stateManager.getWorkspaceStateKey("localSkillsToggles") ?? {}
+	const yoloModeToggled = !!stateManager.getGlobalSettingsKey("yoloModeToggled")
 	const discoveredSkills = await getOrDiscoverSkills(cwd, taskState || {})
 	const providerSkills = filterSkillsByProviderCapabilities(discoveredSkills, providerCapabilities)
 	return providerSkills.filter((skill) => {
+		if (yoloModeToggled && skill.interactiveOnly) return false
 		if (skill.source === "builtin") return true
 		const toggles = skill.source === "global" ? globalSkillsToggles : localSkillsToggles
 		return toggles[skill.path] !== false
