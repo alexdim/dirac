@@ -1,9 +1,10 @@
+import { hasPricing } from "@shared/api"
 import { DiracApiReqInfo, DiracMessage, DiracMessageType, Mode } from "@shared/ExtensionMessage"
 import { ChevronDownIcon, ChevronRightIcon } from "lucide-react"
 import React, { useCallback, useMemo } from "react"
 import { useAppStore } from "@/app/store/appStore"
 import { useTaskStore } from "@/entities/task/store/taskStore"
-import { getModeSpecificFields, normalizeApiConfiguration } from "@/features/settings/components/utils/providerUtils"
+import { normalizeApiConfiguration } from "@/features/settings/components/utils/providerUtils"
 import { useSettingsStore } from "@/features/settings/store/settingsStore"
 import { cn } from "@/lib/utils"
 import { getEnvironmentColor } from "@/shared/lib/environmentColors"
@@ -52,7 +53,6 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({ task, totalCost, cacheHitRate, 
 	const currentTaskItem = useTaskStore((state) => state.currentTaskItem)
 
 	const { selectedModelInfo } = normalizeApiConfiguration(apiConfiguration, mode as Mode)
-	const modeFields = getModeSpecificFields(apiConfiguration, mode as Mode)
 
 	const taskText = task.content.type === DiracMessageType.MARKDOWN ? task.content.content : ""
 	const highlightedText = useMemo(() => highlightText(taskText, false), [taskText])
@@ -74,14 +74,9 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({ task, totalCost, cacheHitRate, 
 		return (lastApiReqTotalTokens / contextWindow) * 100
 	}, [contextWindow, lastApiReqTotalTokens])
 
-	const isCostAvailable =
-		(totalCost &&
-			modeFields.apiProvider === "openai" &&
-			modeFields.openAiModelInfo?.inputPrice &&
-			modeFields.openAiModelInfo?.outputPrice) ||
-		(modeFields.apiProvider !== "vscode-lm" &&
-			modeFields.apiProvider !== "lmstudio" &&
-			modeFields.apiProvider !== "openai-codex")
+	// Three states: charged ($X.XX), explicitly free (FREE), unknown pricing (n/a)
+	const costLabel =
+		totalCost > 0 ? `$${totalCost.toFixed(4)}` : selectedModelInfo && hasPricing(selectedModelInfo) ? "FREE" : "n/a"
 
 	const toggleTaskExpanded = useCallback(() => setIsTaskExpanded(!isTaskExpanded), [setIsTaskExpanded, isTaskExpanded])
 
@@ -135,11 +130,9 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({ task, totalCost, cacheHitRate, 
 								</div>
 							)}
 
-							{isCostAvailable && (
-								<div className="rounded-md border border-foreground/5 bg-foreground/5 px-2 py-1 font-mono text-xs font-bold text-blue-400/90">
-									${totalCost?.toFixed(4)}
-								</div>
-							)}
+							<div className="rounded-md border border-foreground/5 bg-foreground/5 px-2 py-1 font-mono text-xs font-bold text-blue-400/90">
+								{costLabel}
+							</div>
 
 							{cacheHitRate > 0 && (
 								<div

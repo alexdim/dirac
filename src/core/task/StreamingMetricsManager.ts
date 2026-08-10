@@ -84,8 +84,8 @@ export class StreamingMetricsManager {
 		})
 	}
 
-	/** Compute the cost, using the provider-calculated value when available. */
-	getTotalCost(): number {
+	/** Compute the cost, using the provider-calculated value when available. Returns undefined when pricing is unknown. */
+	getTotalCost(): number | undefined {
 		return (
 			this.metrics.totalCost ??
 			calculateCost({
