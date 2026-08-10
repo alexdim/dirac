@@ -1,10 +1,10 @@
 import { strict as assert } from "node:assert"
-import { describe, it } from "mocha"
-import sinon from "sinon"
 import { CardStatus, SubagentExecutionStatus } from "@shared/ExtensionMessage"
 import { SubagentTrajectoryEventType } from "@shared/subagents"
+import { describe, it } from "mocha"
+import sinon from "sinon"
 import type { IToolEnvironment } from "../../interfaces/IToolEnvironment"
-import { use_subagents_spec, UseSubagentsTool } from "./UseSubagentsTool"
+import { UseSubagentsTool, use_subagents_spec } from "./UseSubagentsTool"
 
 const EMPTY_STATS = {
 	toolCalls: 0,
@@ -28,8 +28,8 @@ interface RecordedCard {
 function createRecordedCardEnvironment(
 	runSubagent: (_prompt: string, options: any) => Promise<any>,
 	shouldFailUpdate: (params: any) => boolean = () => false,
-	beforeCardUpdate: (params: any, patch: any) => Promise<void> = async () => { },
-	beforeCreateCard: (params: any) => Promise<void> = async () => { },
+	beforeCardUpdate: (params: any, patch: any) => Promise<void> = async () => {},
+	beforeCreateCard: (params: any) => Promise<void> = async () => {},
 ): {
 	env: IToolEnvironment
 	cards: RecordedCard[]
@@ -45,7 +45,7 @@ function createRecordedCardEnvironment(
 		orchestration: {
 			getHistory: () => [],
 			getTaskState: () => 0,
-			setTaskState: () => { },
+			setTaskState: () => {},
 			runSubagent,
 		},
 		ui: {
@@ -76,7 +76,7 @@ function createRecordedCardEnvironment(
 		},
 		logging: {
 			warn: (...args: unknown[]) => warnings.push(args),
-			debug: () => { },
+			debug: () => {},
 		},
 	} as unknown as IToolEnvironment
 	return { env, cards, warnings, telemetryMetadata }
@@ -210,7 +210,7 @@ describe("UseSubagentsTool", () => {
 				async (params, patch) => {
 					if (params.header === "Run Subagents") return
 					if (patch.rawOutput?.status === SubagentExecutionStatus.RUNNING) {
-						await new Promise<void>(() => { })
+						await new Promise<void>(() => {})
 					}
 				},
 			)
@@ -277,9 +277,9 @@ describe("UseSubagentsTool", () => {
 			const { env, warnings } = createRecordedCardEnvironment(
 				async () => ({ status: SubagentExecutionStatus.COMPLETED, result: "done", stats: EMPTY_STATS }),
 				() => false,
-				async () => { },
+				async () => {},
 				async (params) => {
-					if (params.header === "Run Subagents") await new Promise<void>(() => { })
+					if (params.header === "Run Subagents") await new Promise<void>(() => {})
 				},
 			)
 
@@ -304,9 +304,9 @@ describe("UseSubagentsTool", () => {
 			const { env, warnings } = createRecordedCardEnvironment(
 				async () => ({ status: SubagentExecutionStatus.COMPLETED, result: "done", stats: EMPTY_STATS }),
 				() => false,
-				async () => { },
+				async () => {},
 				async (params) => {
-					if (params.header !== "Run Subagents") await new Promise<void>(() => { })
+					if (params.header !== "Run Subagents") await new Promise<void>(() => {})
 				},
 			)
 
@@ -379,7 +379,7 @@ describe("UseSubagentsTool", () => {
 				return { status: SubagentExecutionStatus.COMPLETED, result: `${prompt} result`, stats: EMPTY_STATS }
 			},
 			() => false,
-			async () => { },
+			async () => {},
 			async (params) => {
 				if (params.rawInput?.prompt === "first prompt") await new Promise((resolve) => setTimeout(resolve, 15))
 			},
@@ -409,6 +409,30 @@ describe("UseSubagentsTool", () => {
 		assert.match(result as string, new RegExp(`${secondCard.params.rawInput.agentName}: Review second provider · COMPLETED`))
 	})
 
+	it("routes each subagent through the requested model independently", async () => {
+		const routes: boolean[] = []
+		const { env } = createRecordedCardEnvironment(async (_prompt, options) => {
+			routes.push(options.useUtilityModel)
+			return {
+				status: SubagentExecutionStatus.COMPLETED,
+				result: "done",
+				stats: EMPTY_STATS,
+			}
+		})
+
+		await new UseSubagentsTool().processCall(
+			{
+				subagents: [
+					{ task_title: "Use utility route", prompt: "first", use_utility_model: true },
+					{ task_title: "Use primary route", prompt: "second" },
+				],
+			},
+			env,
+		)
+
+		assert.deepEqual(routes.sort(), [false, true])
+	})
+
 	it("uses a 600-second default timeout without a turn-limit option", async () => {
 		let receivedOptions: any
 		const { env } = createRecordedCardEnvironment(async (_prompt, options) => {
@@ -435,6 +459,8 @@ describe("UseSubagentsTool", () => {
 			"Task header for user observability. No more than 5 words or 80 characters.",
 		)
 		assert.equal("max_turns" in subagentsParameter.items.properties, false)
+		assert.equal("use_utility_model" in subagentsParameter.items.properties, false)
+		assert.equal(receivedOptions.useUtilityModel, false)
 	})
 
 	it("rejects task titles longer than five words", async () => {
@@ -491,5 +517,4 @@ describe("UseSubagentsTool", () => {
 		assert.ok(aggregateCard?.updates.some((update) => /transcript\.md/.test(update.body)))
 		assert.ok(agentCard?.updates.some((update) => /\*\*Runtime:\*\* ⚠ stalled/.test(update.body)))
 	})
-
 })

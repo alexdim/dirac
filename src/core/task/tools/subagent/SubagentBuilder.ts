@@ -1,13 +1,13 @@
-import { buildApiHandler } from "@core/api"
+import { buildApiHandler, buildApiHandlerForSelection } from "@core/api"
+import { LEGACY_RESPONSE_TOOLS, RESPOND_TOOL_NAME, ResponseOperation } from "@shared/responseTool"
+import type { SubagentIdentity } from "@shared/subagents"
 import { DiracDefaultTool } from "@shared/tools"
-import { ApiProvider } from "@/shared/api"
+import { ApiProvider, type ModelProviderSelection } from "@/shared/api"
 import { getProviderModelIdKey } from "@/shared/storage/provider-keys"
 import type { TaskConfig } from "../types/TaskConfig"
-import type { SubagentIdentity } from "@shared/subagents"
-import type { SubagentRunRecorder } from "./SubagentRunRecorder"
 import type { AgentBaseConfig } from "./AgentConfigLoader"
 import { AgentConfigLoader } from "./AgentConfigLoader"
-import { LEGACY_RESPONSE_TOOLS, RESPOND_TOOL_NAME, ResponseOperation } from "@shared/responseTool"
+import type { SubagentRunRecorder } from "./SubagentRunRecorder"
 
 export type AgentConfig = Partial<AgentBaseConfig>
 
@@ -16,6 +16,7 @@ export interface SubagentBuilderOptions {
 	systemSuffix?: string
 	agentIdentity?: SubagentIdentity
 	recorder?: SubagentRunRecorder
+	utilityModelSelection?: ModelProviderSelection
 }
 
 export const SUBAGENT_DEFAULT_ALLOWED_TOOLS: string[] = [
@@ -44,6 +45,7 @@ export class SubagentBuilder {
 	private readonly agentConfig: AgentConfig = {}
 	private readonly allowedTools: string[]
 	private readonly apiHandler: ReturnType<typeof buildApiHandler>
+	private readonly providerId: string
 
 	constructor(
 		private readonly baseConfig: TaskConfig,
@@ -56,16 +58,31 @@ export class SubagentBuilder {
 
 		const mode = this.baseConfig.services.stateManager.getGlobalSettingsKey("mode")
 		const apiConfiguration = this.baseConfig.services.stateManager.getApiConfiguration()
+		if (this.options.utilityModelSelection) {
+			this.providerId = this.options.utilityModelSelection.provider
+			this.apiHandler = buildApiHandlerForSelection(apiConfiguration, this.options.utilityModelSelection, {
+				ulid: this.baseConfig.ulid,
+			})
+			return
+		}
+
 		const effectiveApiConfiguration = {
 			...apiConfiguration,
 			ulid: this.baseConfig.ulid,
 		} as Record<string, unknown>
 		this.applyModelOverride(effectiveApiConfiguration, mode, this.agentConfig.modelId)
+		this.providerId = ((mode === "plan"
+			? effectiveApiConfiguration.planModeApiProvider
+			: effectiveApiConfiguration.actModeApiProvider) ?? effectiveApiConfiguration.apiProvider) as string
 		this.apiHandler = buildApiHandler(effectiveApiConfiguration as typeof apiConfiguration, mode)
 	}
 
 	getApiHandler(): ReturnType<typeof buildApiHandler> {
 		return this.apiHandler
+	}
+
+	getProviderId(): string {
+		return this.providerId
 	}
 
 	getAllowedTools(): string[] {
@@ -124,7 +141,8 @@ export class SubagentBuilder {
 		}
 
 		const mode = _mode === "plan" ? "plan" : "act"
-		const provider = apiConfiguration[_mode === "plan" ? "planModeApiProvider" : "actModeApiProvider"] as ApiProvider
+		const provider = (apiConfiguration[_mode === "plan" ? "planModeApiProvider" : "actModeApiProvider"] ??
+			apiConfiguration.apiProvider) as ApiProvider
 		apiConfiguration[getProviderModelIdKey(provider as ApiProvider, mode)] = trimmedModelId
 	}
 }

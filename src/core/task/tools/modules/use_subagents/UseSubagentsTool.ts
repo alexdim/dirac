@@ -30,6 +30,7 @@ interface SubagentRequest {
 	prompt: string
 	timeout: number
 	includeHistory: boolean
+	useUtilityModel: boolean
 }
 
 type PresentationIssueScope = "aggregate" | "agent"
@@ -344,6 +345,7 @@ export class UseSubagentsTool implements IDiracTool {
 		return {
 			timeout: resolveSubagentTimeoutSeconds(timeout),
 			includeHistory: args.include_history === true || String(args.include_history) === "true",
+			useUtilityModel: args.use_utility_model === true || String(args.use_utility_model) === "true",
 		}
 	}
 
@@ -520,6 +522,7 @@ export class UseSubagentsTool implements IDiracTool {
 				const runResult = await env.orchestration.runSubagent(request.prompt, {
 					timeout: request.timeout,
 					includeHistory: request.includeHistory,
+					useUtilityModel: request.useUtilityModel,
 					subagentName,
 					agentIdentity: { id: entry.index, name: entry.name },
 					taskTitle: request.taskTitle,
@@ -562,7 +565,11 @@ export class UseSubagentsTool implements IDiracTool {
 						if (update.stats !== undefined || update.status !== undefined || update.isWrappingUp || runtimeChanged) {
 							emitRunningStatus(isTerminalSubagentStatus(status) || update.isWrappingUp === true)
 						}
-						if (!subagentCard || (!trajectoryChanged && !update.isWrappingUp && !runtimeChanged) || isTerminalSubagentStatus(status))
+						if (
+							!subagentCard ||
+							(!trajectoryChanged && !update.isWrappingUp && !runtimeChanged) ||
+							isTerminalSubagentStatus(status)
+						)
 							return
 
 						const cardUpdate = {

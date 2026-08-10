@@ -1,16 +1,16 @@
 import * as path from "node:path"
 import { getOrDiscoverSkills } from "@core/context/instructions/user-instructions/skills"
-import { filterSkillsByProviderCapabilities } from "@shared/skills"
-import { PromptRegistry, DiracToolSet } from "@core/prompts/system-prompt"
+import { DiracToolSet, PromptRegistry } from "@core/prompts/system-prompt"
 import type { SystemPromptContext } from "@core/prompts/system-prompt/types"
-import { validateToolRequestSnapshot, type ToolRequestSnapshot } from "@core/task/tools/runtime/ToolSnapshot"
-import { HostRegistryInfo } from "@/registry"
-import { DiracDefaultTool, DiracTool } from "@shared/tools"
+import { type ToolRequestSnapshot, validateToolRequestSnapshot } from "@core/task/tools/runtime/ToolSnapshot"
 import { Logger } from "@shared/services/Logger"
-import { ToolExecutorCoordinator } from "../ToolExecutorCoordinator"
+import { filterSkillsByProviderCapabilities } from "@shared/skills"
+import { DiracDefaultTool, DiracTool } from "@shared/tools"
+import { HostRegistryInfo } from "@/registry"
 import type { DiscoveredTool } from "../discovery/DiscoveredTool"
-import type { TaskConfig } from "../types/TaskConfig"
 import { ToolRegistry } from "../registry/ToolRegistry"
+import { ToolExecutorCoordinator } from "../ToolExecutorCoordinator"
+import type { TaskConfig } from "../types/TaskConfig"
 import { SubagentBuilder } from "./SubagentBuilder"
 
 // Builds the system prompt context and tool request snapshot for subagent runs.
@@ -30,11 +30,8 @@ export class SubagentContextBuilder {
 		useNativeToolCalls: boolean
 	}> {
 		const mode = this.baseConfig.services.stateManager.getGlobalSettingsKey("mode")
-		const apiConfiguration = this.baseConfig.services.stateManager.getApiConfiguration()
 		const api = this.apiHandler
-		const providerId = (
-			mode === "plan" ? apiConfiguration.planModeApiProvider : apiConfiguration.actModeApiProvider
-		) as string
+		const providerId = this.agent.getProviderId()
 		const providerInfo = {
 			providerId,
 			phone: undefined,

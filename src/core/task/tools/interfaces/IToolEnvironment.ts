@@ -1,5 +1,4 @@
-import { CardStatus, Card, RenderType, ActionButton, CardLocation, CleanupStrategy } from "../../../../shared/ExtensionMessage"
-import { FileDiagnostics } from "@shared/proto/index.dirac"
+import type { TextCondensationTemplateId } from "@core/text-condensation/TextCondenser"
 import type {
 	AstImplementationRequest,
 	AstImplementationResult,
@@ -11,20 +10,26 @@ import type {
 	AstReplacementRequest,
 	SourceMutationPlan,
 } from "@services/source-ast/types"
-
-import { DiracMessage } from "../../../../shared/ExtensionMessage"
-import { SubagentProgressUpdate, SubagentRunResult } from "../subagent/SubagentRunner"
+import { FileDiagnostics } from "@shared/proto/index.dirac"
+import type { SubagentIdentity } from "@shared/subagents"
+import { FileInfo } from "../../../../services/glob/list-files"
+import {
+	ActionButton,
+	BrowserActionResult,
+	Card,
+	CardLocation,
+	CardStatus,
+	CleanupStrategy,
+	DiracMessage,
+	RenderType,
+} from "../../../../shared/ExtensionMessage"
+import { SkillContent, SkillMetadata } from "../../../../shared/skills"
+import { DiracAskResponse } from "../../../../shared/WebviewMessage"
 import { HookExecutionResult } from "../../../hooks/hook-executor"
 import { TaskState } from "../../TaskState"
-
-import { BrowserActionResult } from "../../../../shared/ExtensionMessage"
-import { SkillContent, SkillMetadata } from "../../../../shared/skills"
-import { FileInfo } from "../../../../services/glob/list-files"
-import { DiracAskResponse } from "../../../../shared/WebviewMessage"
-import { IDiracContext } from "./IDiracContext"
+import { SubagentProgressUpdate, SubagentRunResult } from "../subagent/SubagentRunner"
 import { TaskConfig } from "../types/TaskConfig"
-import type { TextCondensationTemplateId } from "@core/text-condensation/TextCondenser"
-import type { SubagentIdentity } from "@shared/subagents"
+import { IDiracContext } from "./IDiracContext"
 
 export interface ICardHandle {
 	readonly collapsed: boolean
@@ -313,6 +318,7 @@ export interface IOrchestrationTrait {
 			agentIdentity?: SubagentIdentity
 			timeout?: number
 			includeHistory?: boolean
+			useUtilityModel?: boolean
 			allowedTools?: string[]
 			systemSuffix?: string
 			onUpdate?: (update: SubagentProgressUpdate) => void | Promise<void>

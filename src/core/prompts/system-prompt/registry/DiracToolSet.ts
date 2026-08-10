@@ -1,7 +1,7 @@
 import { AgentConfigLoader } from "@core/task/tools/subagent/AgentConfigLoader"
 import { DEFAULT_SUBAGENT_TIMEOUT_SECONDS } from "@core/task/tools/subagent/SubagentExecutionPolicy"
-import { DiracDefaultTool, type DiracTool } from "@/shared/tools"
 import { SUBAGENT_TASK_TITLE_MAX_CHARS, SUBAGENT_TASK_TITLE_MAX_WORDS } from "@shared/subagents"
+import { DiracDefaultTool, type DiracTool } from "@/shared/tools"
 import {
 	type DiracToolSpec,
 	shouldUseStrictToolSchemas,
@@ -11,8 +11,15 @@ import {
 } from "../spec"
 import { SystemPromptContext } from "../types"
 
+const UTILITY_MODEL_PARAMETER = {
+	name: "use_utility_model",
+	required: false,
+	type: "boolean" as const,
+	instruction: "Run this subagent using the configured Utility model. 'Utility model' is a pre-configured model that is cost effective and fast, but unsuitable for complex tasks. Default: false.",
+}
+
 export class DiracToolSet {
-	private constructor() { }
+	private constructor() {}
 
 	public static getDynamicSubagentToolSpecs(context: SystemPromptContext): DiracToolSpec[] {
 		if (context.subagentsEnabled !== true) {
@@ -41,23 +48,58 @@ export class DiracToolSet {
 					required: false,
 					instruction: `Optional timeout in seconds for the subagent. Default: ${DEFAULT_SUBAGENT_TIMEOUT_SECONDS}.`,
 				},
+				...(context.utilityModelConfigured ? [UTILITY_MODEL_PARAMETER] : []),
 			],
 		}))
 	}
 
 	public static withDynamicSubagentToolSpecs(registeredTools: DiracToolSpec[], context: SystemPromptContext): DiracToolSpec[] {
-		const hasSubagentDispatcher = registeredTools.some((tool) => tool.id === DiracDefaultTool.USE_SUBAGENTS)
+		const contextualizedRegisteredTools = registeredTools.map((tool) => DiracToolSet.withUtilityModelParameter(tool, context))
+		const hasSubagentDispatcher = contextualizedRegisteredTools.some((tool) => tool.id === DiracDefaultTool.USE_SUBAGENTS)
 		if (!hasSubagentDispatcher) {
-			return registeredTools
+			return contextualizedRegisteredTools
 		}
 
 		const dynamicSubagentTools = DiracToolSet.getDynamicSubagentToolSpecs(context)
 		const includesDynamicSubagents = dynamicSubagentTools.length > 0
 		const filteredRegistered = includesDynamicSubagents
-			? registeredTools.filter((tool) => tool.id !== DiracDefaultTool.USE_SUBAGENTS)
-			: registeredTools
+			? contextualizedRegisteredTools.filter((tool) => tool.id !== DiracDefaultTool.USE_SUBAGENTS)
+			: contextualizedRegisteredTools
 
 		return [...filteredRegistered, ...dynamicSubagentTools]
+	}
+
+	private static withUtilityModelParameter(tool: DiracToolSpec, context: SystemPromptContext): DiracToolSpec {
+		if (
+			context.utilityModelConfigured !== true ||
+			tool.id !== DiracDefaultTool.USE_SUBAGENTS ||
+			tool.name !== DiracDefaultTool.USE_SUBAGENTS
+		) {
+			return tool
+		}
+
+		return {
+			...tool,
+			parameters: tool.parameters?.map((parameter) => {
+				if (parameter.name !== "subagents" || parameter.type !== "array" || !parameter.items?.properties) {
+					return parameter
+				}
+
+				return {
+					...parameter,
+					items: {
+						...parameter.items,
+						properties: {
+							...parameter.items.properties,
+							use_utility_model: {
+								type: "boolean",
+								description: UTILITY_MODEL_PARAMETER.instruction,
+							},
+						},
+					},
+				}
+			}),
+		}
 	}
 
 	public static convertSpecsToNativeTools(specs: DiracToolSpec[], context: SystemPromptContext): DiracTool[] {
