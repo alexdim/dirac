@@ -1,4 +1,4 @@
-import { ModelInfo } from "@shared/api"
+import { hasPricing, ModelInfo } from "@shared/api"
 
 function calculateApiCostInternal(
 	modelInfo: ModelInfo,
@@ -9,7 +9,10 @@ function calculateApiCostInternal(
 	totalInputTokensForPricing?: number, // The *total* input tokens, used for tiered pricing lookup
 	thinkingBudgetTokens?: number, // Add thinking budget info
 	reasoningTokens?: number,
-): number {
+): number | undefined {
+	// No pricing data at all → cost is unknown, not zero
+	if (!hasPricing(modelInfo)) return undefined
+
 	const usedThinkingBudget = thinkingBudgetTokens && thinkingBudgetTokens > 0
 
 	// Default prices
@@ -73,7 +76,7 @@ export function calculateApiCostAnthropic(
 	cacheReadInputTokens?: number,
 	thinkingBudgetTokens?: number,
 	reasoningTokens?: number,
-): number {
+): number | undefined {
 	const cacheCreationInputTokensNum = cacheCreationInputTokens || 0
 	const cacheReadInputTokensNum = cacheReadInputTokens || 0
 	// Anthropic style: inputTokens already represents the total, so pass it directly for tiered pricing lookup if needed
@@ -100,7 +103,7 @@ export function calculateApiCostOpenAI(
 	cacheReadInputTokens?: number,
 	thinkingBudgetTokens?: number, // Pass thinking budget info
 	reasoningTokens?: number,
-): number {
+): number | undefined {
 	const cacheCreationInputTokensNum = cacheCreationInputTokens || 0
 	const cacheReadInputTokensNum = cacheReadInputTokens || 0
 	// Calculate non-cached tokens for the internal function's 'inputTokens' parameter
@@ -127,7 +130,7 @@ export function calculateApiCostQwen(
 	cacheReadInputTokens?: number,
 	thinkingBudgetTokens?: number,
 	reasoningTokens?: number,
-): number {
+): number | undefined {
 	const cacheCreationInputTokensNum = cacheCreationInputTokens || 0
 	const cacheReadInputTokensNum = cacheReadInputTokens || 0
 	// Calculate non-cached tokens for the internal function's 'inputTokens' parameter

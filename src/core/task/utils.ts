@@ -2,9 +2,7 @@ import { ApiHandler } from "@core/api"
 import { execSync } from "child_process"
 import { showSystemNotification } from "@/integrations/notifications"
 import { DiracApiReqCancelReason, DiracApiReqInfo, DiracMessageType } from "@/shared/ExtensionMessage"
-
-import { calculateApiCostAnthropic } from "@/utils/cost"
-import { calculateApiCostOpenAI, calculateApiCostQwen } from "@/utils/cost"
+import { calculateApiCostAnthropic, calculateApiCostOpenAI, calculateApiCostQwen } from "@/utils/cost"
 import { MessageStateHandler } from "./message-state"
 
 export const showNotificationForApproval = (message: string, notificationsEnabled: boolean) => {
@@ -40,7 +38,7 @@ export const calculateCost = (params: {
 	cacheReadTokens: number
 	reasoningTokens: number
 	api: ApiHandler
-}): number => {
+}): number | undefined => {
 	const info = params.api.getModel().info
 	const provider = params.api.constructor.name
 	if (provider === "ZAiHandler" || provider === "OpenAiHandler" || provider === "DeepSeekHandler") {
