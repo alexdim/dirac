@@ -1,4 +1,5 @@
-import { ApiProvider } from "../api"
+import { ALL_PROVIDERS, type ApiProvider } from "../api"
+import { getProviderModelIdKey, ProviderToApiKeyMap, ProviderToBaseUrlKeyMap } from "./provider-keys"
 import { Secrets, Settings } from "./state-keys"
 
 /**
@@ -53,6 +54,11 @@ export const ENV_VAR_TO_SETTINGS_KEY: Record<string, keyof Settings> = {
 	OPENAI_API_BASE: "openAiBaseUrl",
 }
 
+function getExplicitProviderFromEnv(): ApiProvider | undefined {
+	const provider = process.env.DIRAC_PROVIDER as ApiProvider | undefined
+	return provider && ALL_PROVIDERS.includes(provider) ? provider : undefined
+}
+
 /**
  * Get secrets from environment variables.
  * Returns a partial Secrets object with keys found in process.env.
@@ -76,6 +82,13 @@ export function getSecretsFromEnv(): Partial<Secrets> {
 	const customKey = process.env.OPENAI_COMPATIBLE_CUSTOM_KEY
 	if (customKey && !secrets.openAiApiKey) {
 		secrets.openAiApiKey = customKey
+	}
+
+	const provider = getExplicitProviderFromEnv()
+	const apiKeyField = provider ? ProviderToApiKeyMap[provider] : undefined
+	if (process.env.DIRAC_API_KEY && apiKeyField) {
+		const fields = Array.isArray(apiKeyField) ? apiKeyField : [apiKeyField]
+		secrets[fields[0]] = process.env.DIRAC_API_KEY
 	}
 
 	return secrets
@@ -109,6 +122,16 @@ export function getSettingsFromEnv(): Partial<Settings> {
 		settings.minimaxApiLine = "china"
 	}
 
+	const provider = getExplicitProviderFromEnv()
+	if (provider && process.env.DIRAC_MODEL) {
+		settings[getProviderModelIdKey(provider, "act")] = process.env.DIRAC_MODEL as never
+		settings[getProviderModelIdKey(provider, "plan")] = process.env.DIRAC_MODEL as never
+	}
+	const baseUrlKey = provider ? ProviderToBaseUrlKeyMap[provider] : undefined
+	if (baseUrlKey && process.env.DIRAC_BASE_URL) {
+		settings[baseUrlKey] = process.env.DIRAC_BASE_URL as never
+	}
+
 	return settings
 }
 
@@ -116,6 +139,8 @@ export function getSettingsFromEnv(): Partial<Settings> {
  * Get the best provider based on available environment variables.
  */
 export function getProviderFromEnv(): ApiProvider | undefined {
+	const explicitProvider = getExplicitProviderFromEnv()
+	if (explicitProvider) return explicitProvider
 	if (process.env.ANTHROPIC_API_KEY) return "anthropic"
 	if (process.env.OPENROUTER_API_KEY) return "openrouter"
 	if (process.env.OPENAI_API_KEY) return "openai-native"

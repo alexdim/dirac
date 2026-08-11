@@ -197,6 +197,7 @@ program
 	.option("--no-index", "Disable symbol indexing for the workspace")
 	.option("--no-emoji", "Disable emoji icons (use unicode/ascii fallbacks)")
 	.option("--acp", "Run in ACP (Agent Client Protocol) mode for editor integration")
+	.option("--acp-auth", "Configure a provider for ACP clients")
 	.option("--listen <socket>", "Run ACP detached on a Unix socket (implies --acp)")
 	.option("--kanban", "Run npx kanban --agent dirac")
 	.option("-T, --taskId <id>", "Resume an existing task by ID")
@@ -213,6 +214,11 @@ program
 			return
 		}
 
+		if (options.acpAuth) {
+			const { runAuth } = await import("./commands/auth")
+			await runAuth({ config: options.config, cwd: options.cwd, verbose: options.verbose })
+			return
+		}
 		// Check for ACP mode first - this takes precedence over everything else
 		if (options.acp || options.listen) {
 			releaseCliSignalOwnership()

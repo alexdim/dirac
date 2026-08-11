@@ -1,5 +1,4 @@
 import { exit } from "node:process"
-import type { ApiProvider } from "@shared/api"
 import type { CliContext } from "../types"
 import { initializeCli } from "../init"
 import { disposeCliContext } from "../utils/cleanup"
@@ -34,56 +33,24 @@ export function hasExplicitAuthQuickSetupFlags(options: { provider?: string; api
 	return !!(options.provider && options.apikey && options.modelid)
 }
 
-/**
- * Perform quick auth setup without UI - validates and saves configuration directly
- */
 export async function performQuickAuthSetup(
 	ctx: CliContext,
 	options: { provider: string; apikey: string; modelid: string; baseurl?: string; azureApiVersion?: string },
 ): Promise<{ success: boolean; error?: string }> {
-	const { isValidCliProvider, getValidCliProviders } = await import("../utils/providers")
-	const { applyProviderConfig } = await import("../utils/provider-config")
-	const { ProviderToBaseUrlKeyMap } = await import("@shared/storage")
-	const { StateManager } = await import("@/core/storage/StateManager")
-
-	const { provider, apikey, modelid, baseurl, azureApiVersion } = options
-
-	const normalizedProvider = provider.toLowerCase().trim()
-
-	if (!isValidCliProvider(normalizedProvider)) {
-		const validProviders = getValidCliProviders()
-		return {
-			success: false,
-			error: `Invalid provider '${provider}'. Supported providers: ${validProviders.join(", ")}`,
-		}
+	try {
+		const { configureApiKeyProvider } = await import("../utils/provider-config")
+		await configureApiKeyProvider({
+			provider: options.provider,
+			apiKey: options.apikey,
+			modelId: options.modelid,
+			baseUrl: options.baseurl,
+			azureApiVersion: options.azureApiVersion,
+			controller: ctx.controller,
+		})
+		return { success: true }
+	} catch (error) {
+		return { success: false, error: error instanceof Error ? error.message : String(error) }
 	}
-
-	if (normalizedProvider === "bedrock") {
-		return {
-			success: false,
-			error: "Bedrock provider is not supported for quick setup due to complex authentication requirements. Please use interactive setup.",
-		}
-	}
-
-	if (baseurl && !ProviderToBaseUrlKeyMap[normalizedProvider as ApiProvider]) {
-		return { success: false, error: "Base URL is not supported for this provider" }
-	}
-
-	// Save configuration using shared utility
-	await applyProviderConfig({
-		providerId: normalizedProvider,
-		apiKey: apikey,
-		modelId: modelid,
-		baseUrl: baseurl,
-		azureApiVersion: azureApiVersion,
-		controller: ctx.controller,
-	})
-
-	// Mark onboarding as complete
-	StateManager.get().setGlobalState("welcomeViewCompleted", true)
-	await StateManager.get().flushPendingState()
-
-	return { success: true }
 }
 
 /**
