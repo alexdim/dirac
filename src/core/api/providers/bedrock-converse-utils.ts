@@ -2,7 +2,6 @@
  * Pure helpers shared by the Bedrock provider. Extracted out of
  * `src/core/api/providers/bedrock.ts` (FB-15b) — no class state.
  */
-import { calculateApiCostOpenAI } from "@utils/cost"
 import { Logger } from "@/shared/services/Logger"
 import { getErrorMessage } from "@/shared/errors"
 import type { Tool as AnthropicTool } from "@anthropic-ai/sdk/resources/index"
