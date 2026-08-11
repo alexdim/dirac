@@ -1,10 +1,7 @@
 // Import proper AWS SDK types
 
-import type { Tool as AnthropicTool } from "@anthropic-ai/sdk/resources/index"
-import type { ContentBlock, Message, ToolConfiguration } from "@aws-sdk/client-bedrock-runtime"
 import {
 	BedrockRuntimeClient,
-	ConversationRole,
 	ConverseCommand,
 	ConverseStreamCommand,
 	InvokeModelWithResponseStreamCommand,
@@ -17,7 +14,7 @@ import {
 	type ModelInfo,
 } from "@shared/api"
 import { calculateApiCostOpenAI, calculateApiCostQwen } from "@utils/cost"
-import { applyCacheControlToMessages, chunkText, estimateTokenCount, extractNonStreamingContent, formatConverseError, formatMessagesForConverseAPI, getInferenceConfig, mapDiracToolsToBedrockToolConfig, prepareSystemMessages, processImageContent } from "./bedrock-converse-utils"
+import { applyCacheControlToMessages, chunkText, estimateTokenCount, extractNonStreamingContent, formatConverseError, formatMessagesForConverseAPI, getInferenceConfig, mapDiracToolsToBedrockToolConfig, prepareSystemMessages } from "./bedrock-converse-utils"
 import { createBedrockClient, resolveAwsCredentials } from "./bedrock-client"
 import { BedrockStreamParser } from "./bedrock-stream-parser"
 import { ExtensionRegistryInfo } from "@/registry"
