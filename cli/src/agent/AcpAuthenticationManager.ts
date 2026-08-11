@@ -1,7 +1,7 @@
 import type * as acp from "@agentclientprotocol/sdk"
 import { openAiCodexOAuthManager } from "@/integrations/openai-codex/oauth"
 import { openAiCodexUsageService } from "@/integrations/openai-codex/OpenAiCodexUsageService"
-import { checkAnyProviderConfigured } from "../utils/auth.js"
+import { applyProviderConfig } from "../utils/provider-config.js"
 import { openUrlInBrowser } from "../utils/browser.js"
 import { AcpProviderSetup } from "./AcpProviderSetup.js"
 
@@ -32,8 +32,8 @@ export class AcpAuthenticationManager {
 
 	constructor(private readonly options: AuthenticationOptions) {}
 
-	async listAuthenticationMethods(capabilities?: acp.ClientCapabilities): Promise<acp.AuthMethod[]> {
-		if (await checkAnyProviderConfigured()) return []
+	listAuthenticationMethods(configured: boolean, capabilities?: acp.ClientCapabilities): acp.AuthMethod[] {
+		if (configured) return []
 
 		const args = terminalSetupArgs(this.options)
 		const providerSetup: acp.AuthMethod = {
@@ -94,6 +94,7 @@ export class AcpAuthenticationManager {
 			const authorizationUrl = openAiCodexOAuthManager.startAuthorizationFlow()
 			await openUrlInBrowser(authorizationUrl)
 			await openAiCodexOAuthManager.waitForCallback()
+			await applyProviderConfig({ providerId: "openai-codex" })
 			openAiCodexUsageService.clear()
 			return {}
 		}

@@ -1,23 +1,45 @@
 # Dirac ACP Registry Entry
 
-This directory contains the files required to register Dirac as an agent in the [Agent Client Protocol (ACP) registry](https://github.com/agentclientprotocol/registry), which enables integration with editors like Zed.
+This directory contains Dirac's metadata and icon for the [Agent Client Protocol (ACP) Registry](https://github.com/agentclientprotocol/registry). Registry clients include JetBrains IDEs, Zed, and other ACP-compatible editors.
 
-## Files
-- `dirac/agent.json`: The agent configuration file.
-- `dirac/icon.svg`: The Dirac icon.
+## Install Dirac from the registry
 
-## How to register Dirac in Zed
-To add Dirac to the official ACP registry, follow these steps:
+### JetBrains IDEs
 
-1. Fork the [agentclientprotocol/registry](https://github.com/agentclientprotocol/registry) repository.
-2. Create a new directory named `dirac` in the root of the repository.
-3. Copy `agent.json` and `icon.svg` from this directory into the `dirac` directory in your fork.
-4. Submit a Pull Request to the `agentclientprotocol/registry` repository.
+JetBrains IDE 2025.3 or later is required for ACP Registry support. Open **Settings → Tools → AI Assistant → Agents**, or select **Install From ACP Registry…** in the agent picker. Find Dirac and select **Install**.
 
-Once the PR is merged, Dirac will be available for discovery in Zed and other ACP-compatible editors.
+### Zed
 
-## Manual Installation in Zed
-If you want to test Dirac in Zed before it's officially registered:
-1. Ensure you have `dirac-cli` installed: `npm install -g dirac-cli`
-2. Open Zed's settings (`cmd-,` or `ctrl-,`).
-3. Add Dirac to your `agents` configuration (refer to Zed's documentation for the exact format, as it may vary by version).
+Open **Agent Settings → External Agents**, select **Add Agent → Install from Registry**, and install Dirac.
+
+After installation, start a Dirac thread and choose an authentication method. **Configure a Dirac provider** accepts a provider, model, and API key, including DeepSeek credentials. **Sign in with ChatGPT** is an optional alternative, not a requirement.
+
+Dirac owns its provider configuration independently of the ACP client. Provider credentials configured for the editor's native AI features do not automatically configure Dirac.
+
+## Manual installation
+
+Install the CLI:
+
+```bash
+npm install -g dirac-cli
+```
+
+Then add an equivalent server entry to the editor's custom ACP configuration:
+
+```json
+{
+  "command": "dirac",
+  "args": ["--acp"]
+}
+```
+
+The surrounding configuration shape varies by client. Use the executable's absolute path if the editor cannot resolve `dirac` from `PATH`.
+
+You can also configure a provider before starting the editor with `dirac auth`, or supply `DIRAC_PROVIDER`, `DIRAC_MODEL`, `DIRAC_API_KEY`, and optional `DIRAC_BASE_URL` to the ACP process.
+
+## Registry files
+
+- `dirac/agent.json`: Agent metadata and launch command.
+- `dirac/icon.svg`: Dirac icon.
+
+When releasing ACP changes, keep the published `dirac-cli` version, this metadata, and the upstream registry entry synchronized. Follow the upstream registry's current `CONTRIBUTING.md` when submitting an update.

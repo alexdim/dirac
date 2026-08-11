@@ -54,9 +54,36 @@ export const ENV_VAR_TO_SETTINGS_KEY: Record<string, keyof Settings> = {
 	OPENAI_API_BASE: "openAiBaseUrl",
 }
 
-function getExplicitProviderFromEnv(): ApiProvider | undefined {
+export function getExplicitDiracProviderFromEnv(): ApiProvider | undefined {
 	const provider = process.env.DIRAC_PROVIDER as ApiProvider | undefined
 	return provider && ALL_PROVIDERS.includes(provider) ? provider : undefined
+}
+
+export function getExplicitDiracSecretsFromEnv(): Partial<Secrets> {
+	const provider = getExplicitDiracProviderFromEnv()
+	const apiKeyField = provider ? ProviderToApiKeyMap[provider] : undefined
+	if (!process.env.DIRAC_API_KEY || !apiKeyField) return {}
+	const fields = Array.isArray(apiKeyField) ? apiKeyField : [apiKeyField]
+	return { [fields[0]]: process.env.DIRAC_API_KEY }
+}
+
+export function getExplicitDiracSettingsFromEnv(): Partial<Settings> {
+	const provider = getExplicitDiracProviderFromEnv()
+	if (!provider) return {}
+
+	const settings: Partial<Settings> = {
+		actModeApiProvider: provider,
+		planModeApiProvider: provider,
+	}
+	if (process.env.DIRAC_MODEL) {
+		settings[getProviderModelIdKey(provider, "act")] = process.env.DIRAC_MODEL as never
+		settings[getProviderModelIdKey(provider, "plan")] = process.env.DIRAC_MODEL as never
+	}
+	const baseUrlKey = ProviderToBaseUrlKeyMap[provider]
+	if (baseUrlKey && process.env.DIRAC_BASE_URL) {
+		settings[baseUrlKey] = process.env.DIRAC_BASE_URL as never
+	}
+	return settings
 }
 
 /**
@@ -84,12 +111,7 @@ export function getSecretsFromEnv(): Partial<Secrets> {
 		secrets.openAiApiKey = customKey
 	}
 
-	const provider = getExplicitProviderFromEnv()
-	const apiKeyField = provider ? ProviderToApiKeyMap[provider] : undefined
-	if (process.env.DIRAC_API_KEY && apiKeyField) {
-		const fields = Array.isArray(apiKeyField) ? apiKeyField : [apiKeyField]
-		secrets[fields[0]] = process.env.DIRAC_API_KEY
-	}
+	Object.assign(secrets, getExplicitDiracSecretsFromEnv())
 
 	return secrets
 }
@@ -122,15 +144,7 @@ export function getSettingsFromEnv(): Partial<Settings> {
 		settings.minimaxApiLine = "china"
 	}
 
-	const provider = getExplicitProviderFromEnv()
-	if (provider && process.env.DIRAC_MODEL) {
-		settings[getProviderModelIdKey(provider, "act")] = process.env.DIRAC_MODEL as never
-		settings[getProviderModelIdKey(provider, "plan")] = process.env.DIRAC_MODEL as never
-	}
-	const baseUrlKey = provider ? ProviderToBaseUrlKeyMap[provider] : undefined
-	if (baseUrlKey && process.env.DIRAC_BASE_URL) {
-		settings[baseUrlKey] = process.env.DIRAC_BASE_URL as never
-	}
+	Object.assign(settings, getExplicitDiracSettingsFromEnv())
 
 	return settings
 }
@@ -139,7 +153,7 @@ export function getSettingsFromEnv(): Partial<Settings> {
  * Get the best provider based on available environment variables.
  */
 export function getProviderFromEnv(): ApiProvider | undefined {
-	const explicitProvider = getExplicitProviderFromEnv()
+	const explicitProvider = getExplicitDiracProviderFromEnv()
 	if (explicitProvider) return explicitProvider
 	if (process.env.ANTHROPIC_API_KEY) return "anthropic"
 	if (process.env.OPENROUTER_API_KEY) return "openrouter"

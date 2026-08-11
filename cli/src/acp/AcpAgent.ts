@@ -191,7 +191,6 @@ export class AcpAgent implements acp.Agent {
 		emitter.on("pinned_messages_update", pinnedMessagesListener)
 		cleanup.push(() => emitter.off("pinned_messages_update", pinnedMessagesListener))
 
-
 		const steeringStatusListener = (payload: Record<string, unknown>) => {
 			this.connection
 				.extNotification("dev.dirac/steering_status", {
@@ -452,6 +451,12 @@ export class AcpAgent implements acp.Agent {
 	async authenticate(params: acp.AuthenticateRequest): Promise<acp.AuthenticateResponse> {
 		this.assertConnected()
 		return this.diracAgent.authenticate(params)
+	}
+
+	async logout(params: acp.LogoutRequest): Promise<acp.LogoutResponse> {
+		this.assertConnected()
+		await this.diracAgent.logout()
+		return {}
 	}
 
 	/** Release only this client transport; active Dirac sessions remain running. */

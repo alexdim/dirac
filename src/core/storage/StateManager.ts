@@ -1,5 +1,10 @@
 import type { ApiConfiguration, ModelInfo, ModelProviderPreset } from "@shared/api"
-import { getSecretsFromEnv, getSettingsFromEnv } from "@shared/storage/env-config"
+import {
+	getExplicitDiracSecretsFromEnv,
+	getExplicitDiracSettingsFromEnv,
+	getSecretsFromEnv,
+	getSettingsFromEnv,
+} from "@shared/storage/env-config"
 import {
 	ApiHandlerSettingsKeys,
 	type GlobalState,
@@ -485,26 +490,29 @@ export class StateManager {
 	}
 
 	private constructApiConfigurationFromCache(): ApiConfiguration {
-		// Build secrets object from persistent storage
+		// Legacy provider-specific environment variables are fallbacks. The generic
+		// DIRAC_* authentication variables are explicit process configuration and
+		// therefore override persisted values.
 		const secrets = Object.fromEntries(SecretKeys.map((key) => [key, this.getSecret(key)])) as Secrets
-
-		// Merge environment variables as fallback
 		const envSecrets = getSecretsFromEnv()
 		for (const [key, value] of Object.entries(envSecrets)) {
 			if (value && !secrets[key as keyof Secrets]) {
 				secrets[key as keyof Secrets] = value
 			}
 		}
+		Object.assign(secrets, getExplicitDiracSecretsFromEnv())
 
-		// Build API handler settings object with task override support
 		const settings: Partial<Settings> = Object.fromEntries(
 			ApiHandlerSettingsKeys.map((key) => [key, this.getSettingWithOverride(key)]),
 		)
-
-		// Merge environment variables as fallback for settings (only fills undefined values)
 		const envSettings = getSettingsFromEnv()
 		for (const [key, value] of Object.entries(envSettings)) {
 			if (value && isSettingsKey(key) && settings[key] === undefined && !Object.hasOwn(this.sessionOverrideCache, key)) {
+				;(settings as Record<string, unknown>)[key] = this.normalizeLoadedSetting(key, value as never)
+			}
+		}
+		for (const [key, value] of Object.entries(getExplicitDiracSettingsFromEnv())) {
+			if (value !== undefined && isSettingsKey(key) && !Object.hasOwn(this.sessionOverrideCache, key)) {
 				;(settings as Record<string, unknown>)[key] = this.normalizeLoadedSetting(key, value as never)
 			}
 		}

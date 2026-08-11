@@ -14,7 +14,7 @@
 . ftr VB CB
 . ftr VBI CBI
 .\}
-.TH "DIRAC" "1" "July 2026" "Dirac CLI" "User Commands"
+.TH "DIRAC" "1" "August 2026" "Dirac CLI" "User Commands"
 .hy
 .SH NAME
 .PP
@@ -259,7 +259,13 @@ This option does not accept a prompt or piped stdin and conflicts with
 \f[B]\[en]taskId\f[R].
 .TP
 \f[B]\[en]acp\f[R]
-Run as an Agent Client Protocol server for editor integration.
+Run as an Agent Client Protocol server over standard input and output
+for editor integration.
+.TP
+\f[B]\[en]acp-auth\f[R]
+Configure a provider for an ACP client, then exit.
+This is primarily used by clients that support ACP terminal
+authentication.
 .TP
 \f[B]\[en]listen\f[R] \f[I]socket\f[R]
 Run ACP detached on a Unix socket.
@@ -268,6 +274,40 @@ Implies \f[B]\[en]acp\f[R].
 \f[B]\[en]kanban\f[R]
 Run \f[V]npx kanban --agent dirac\f[R].
 This option does not accept a prompt.
+.SH ACP EDITOR INTEGRATION
+.PP
+Install Dirac from the ACP Registry when the editor supports it.
+In JetBrains IDEs 2025.3 and later, open \f[B]Settings \[->] Tools \[->]
+AI Assistant \[->] Agents\f[R] or use \f[B]Install From ACP
+Registry\&...\f[R] in the agent picker.
+In Zed, open \f[B]Agent Settings \[->] External Agents\f[R] and use
+\f[B]Add Agent \[->] Install from Registry\f[R].
+.PP
+When a selected provider is not configured, Dirac advertises the
+authentication methods supported by the client: local browser provider
+setup, optional ChatGPT OAuth, explicit environment variables, and
+terminal setup where available.
+ChatGPT is not required; API-key providers such as DeepSeek can be
+selected directly.
+.PP
+For manual clients, install \f[V]dirac-cli\f[R] and configure an agent
+command equivalent to:
+.IP
+.nf
+\f[C]
+{
+  \[dq]command\[dq]: \[dq]dirac\[dq],
+  \[dq]args\[dq]: [\[dq]--acp\[dq]]
+}
+\f[R]
+.fi
+.PP
+Use an absolute executable path if the editor cannot resolve
+\f[V]dirac\f[R] from \f[V]PATH\f[R].
+Run \f[V]dirac auth\f[R] before starting the editor as a fallback when
+the client does not display ACP authentication methods.
+A non-default Dirac home must use the same \f[B]\[en]config\f[R] value
+during setup and ACP startup.
 .SH INPUT
 .SS Piped input
 .PP
@@ -382,6 +422,22 @@ Redirected output is uncolored by default.
 \f[B]DIRAC_DIR\f[R]
 Override the Dirac home directory.
 The default is \f[V]\[ti]/.dirac\f[R].
+.TP
+\f[B]DIRAC_PROVIDER\f[R]
+Explicit provider ID for both Act and Plan modes, such as
+\f[V]deepseek\f[R], \f[V]anthropic\f[R], or \f[V]openrouter\f[R].
+Overrides persisted provider defaults for the process.
+.TP
+\f[B]DIRAC_MODEL\f[R]
+Exact model ID for the provider selected by \f[B]DIRAC_PROVIDER\f[R].
+.TP
+\f[B]DIRAC_API_KEY\f[R]
+API key for the provider selected by \f[B]DIRAC_PROVIDER\f[R], when that
+provider uses API-key authentication.
+.TP
+\f[B]DIRAC_BASE_URL\f[R]
+Optional custom endpoint for the provider selected by
+\f[B]DIRAC_PROVIDER\f[R], when supported.
 .TP
 \f[B]DIRAC_NO_AUTO_UPDATE\f[R]
 Set to \f[V]1\f[R] to disable the background update check.

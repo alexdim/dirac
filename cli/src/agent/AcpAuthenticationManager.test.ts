@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
 const mocks = vi.hoisted(() => ({
-	checkAnyProviderConfigured: vi.fn(),
+	applyProviderConfig: vi.fn(),
 	providerAuthenticate: vi.fn(),
 	providerCancel: vi.fn(),
 	startAuthorizationFlow: vi.fn(),
@@ -12,7 +12,7 @@ const mocks = vi.hoisted(() => ({
 	openUrlInBrowser: vi.fn(),
 }))
 
-vi.mock("../utils/auth.js", () => ({ checkAnyProviderConfigured: mocks.checkAnyProviderConfigured }))
+vi.mock("../utils/provider-config.js", () => ({ applyProviderConfig: mocks.applyProviderConfig }))
 vi.mock("./AcpProviderSetup.js", () => ({
 	AcpProviderSetup: class {
 		authenticate = mocks.providerAuthenticate
@@ -43,23 +43,22 @@ import {
 describe("AcpAuthenticationManager", () => {
 	beforeEach(() => {
 		vi.clearAllMocks()
-		mocks.checkAnyProviderConfigured.mockResolvedValue(false)
 		mocks.providerAuthenticate.mockResolvedValue(undefined)
 		mocks.startAuthorizationFlow.mockReturnValue("https://auth.openai.test")
 		mocks.waitForCallback.mockResolvedValue(undefined)
 		mocks.openUrlInBrowser.mockResolvedValue(undefined)
+		mocks.applyProviderConfig.mockResolvedValue(undefined)
 		mocks.clearCredentials.mockResolvedValue(undefined)
 	})
 
-	it("does not request authentication when Dirac is already configured", async () => {
-		mocks.checkAnyProviderConfigured.mockResolvedValue(true)
+	it("does not request authentication when the selected provider is configured", () => {
 		const manager = new AcpAuthenticationManager({})
-		expect(await manager.listAuthenticationMethods({ auth: { terminal: true } })).toEqual([])
+		expect(manager.listAuthenticationMethods(true, { auth: { terminal: true } })).toEqual([])
 	})
 
-	it("advertises portable provider, OAuth, and environment setup to baseline clients", async () => {
+	it("advertises portable provider, OAuth, and environment setup to baseline clients", () => {
 		const manager = new AcpAuthenticationManager({})
-		const methods = await manager.listAuthenticationMethods()
+		const methods = manager.listAuthenticationMethods(false)
 		expect(methods.map((method) => method.id)).toEqual([
 			DIRAC_PROVIDER_SETUP_AUTH_METHOD_ID,
 			OPENAI_CODEX_AUTH_METHOD_ID,
@@ -71,9 +70,9 @@ describe("AcpAuthenticationManager", () => {
 		})
 	})
 
-	it("advertises terminal setup only when the client opts in", async () => {
+	it("advertises terminal setup only when the client opts in", () => {
 		const manager = new AcpAuthenticationManager({ diracDir: "/config", cwd: "/workspace" })
-		const methods = await manager.listAuthenticationMethods({ auth: { terminal: true } })
+		const methods = manager.listAuthenticationMethods(false, { auth: { terminal: true } })
 		expect(methods.find((method) => method.id === DIRAC_TERMINAL_SETUP_AUTH_METHOD_ID)).toEqual({
 			type: "terminal",
 			id: DIRAC_TERMINAL_SETUP_AUTH_METHOD_ID,
@@ -83,7 +82,7 @@ describe("AcpAuthenticationManager", () => {
 		})
 	})
 
-	it("dispatches provider setup and ChatGPT OAuth independently", async () => {
+	it("dispatches provider setup and selects OpenAI Codex after ChatGPT OAuth", async () => {
 		const manager = new AcpAuthenticationManager({})
 		await expect(manager.authenticate({ methodId: DIRAC_PROVIDER_SETUP_AUTH_METHOD_ID })).resolves.toEqual({})
 		expect(mocks.providerAuthenticate).toHaveBeenCalledOnce()
@@ -91,6 +90,7 @@ describe("AcpAuthenticationManager", () => {
 		await expect(manager.authenticate({ methodId: OPENAI_CODEX_AUTH_METHOD_ID })).resolves.toEqual({})
 		expect(mocks.openUrlInBrowser).toHaveBeenCalledWith("https://auth.openai.test")
 		expect(mocks.waitForCallback).toHaveBeenCalledOnce()
+		expect(mocks.applyProviderConfig).toHaveBeenCalledWith({ providerId: "openai-codex" })
 	})
 
 	it("rejects methods that require client-side execution", async () => {

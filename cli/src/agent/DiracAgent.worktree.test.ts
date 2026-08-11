@@ -122,6 +122,7 @@ describe("DiracAgent ACP worktrees", () => {
 
 		expect(Object.keys(capabilities).sort()).toEqual([
 			"_meta",
+			"auth",
 			"loadSession",
 			"promptCapabilities",
 			"providers",
