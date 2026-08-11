@@ -68,10 +68,74 @@ In plain text mode, the final result is written to stdout. Progress, tool activi
 
 Piped bytes are preserved and placed before an optional prompt. Image-only tasks are valid.
 
+## Agent Client Protocol (ACP)
+
+Dirac can run as an external coding agent in ACP-compatible editors. The ACP Registry is the recommended installation path because the editor can install and update the agent package.
+
+### Install from the ACP Registry
+
+- **JetBrains IDEs 2025.3 and later**: open **Settings → Tools → AI Assistant → Agents**, or select **Install From ACP Registry…** in the agent picker. Find Dirac and select **Install**.
+- **Zed**: open **Agent Settings → External Agents**, select **Add Agent → Install from Registry**, and install Dirac.
+
+Start a Dirac thread after installation. If the selected provider is not already configured, Dirac offers the authentication methods supported by the client:
+
+- **Configure a Dirac provider** opens a local browser page for provider, model, and API-key setup. This supports API-key providers such as DeepSeek.
+- **Sign in with ChatGPT** configures the optional ChatGPT subscription provider.
+- **Configure with environment variables** accepts explicit provider configuration from clients that support ACP environment authentication.
+- **Configure Dirac in a terminal** runs the interactive setup when the client supports ACP terminal authentication.
+
+ChatGPT is not required. Dirac's provider credentials and billing are separate from the editor's own model/provider settings.
+
+### Configure DeepSeek or another provider with environment variables
+
+The generic `DIRAC_*` variables select one provider explicitly for both Act and Plan modes:
+
+```bash
+DIRAC_PROVIDER=deepseek \
+DIRAC_MODEL=deepseek-chat \
+DIRAC_API_KEY="$DEEPSEEK_API_KEY" \
+dirac --acp
+```
+
+- `DIRAC_PROVIDER`: Dirac provider ID, such as `deepseek`, `anthropic`, or `openrouter`.
+- `DIRAC_MODEL`: Exact model ID for that provider.
+- `DIRAC_API_KEY`: API key for API-key providers.
+- `DIRAC_BASE_URL`: Optional custom endpoint for providers that support one.
+
+For registry installations, enter these values through the client's environment authentication method or its per-agent environment settings. Explicit `DIRAC_*` values override persisted provider and model defaults for that ACP process.
+
+### Configure before starting the editor
+
+If an ACP client does not render Dirac's authentication methods, configure the shared Dirac home from a terminal first:
+
+```bash
+dirac auth
+```
+
+The next `dirac --acp` process reads that persisted configuration. When using a non-default home, pass the same `--config <path>` to both setup and ACP startup.
+
+### Manual ACP configuration
+
+Install the CLI globally, then add an equivalent agent-server entry to the client's ACP configuration (the surrounding configuration shape is client-specific):
+
+```bash
+npm install -g dirac-cli
+```
+
+```json
+{
+  "command": "dirac",
+  "args": ["--acp"]
+}
+```
+
+Use the executable's absolute path if the editor cannot resolve `dirac` from `PATH`. `--cwd <path>` can provide a default workspace when the client does not send one.
+
 ## Common commands
 
 ```bash
 dirac auth                         # Configure a provider and model
+dirac --acp                        # Run as an ACP agent for an editor
 dirac history                      # Browse and resume prior tasks
 dirac config                       # Show active configuration
 dirac update                       # Check for a newer CLI release
@@ -134,6 +198,7 @@ Dirac stores configuration under `~/.dirac/data/` and per-workspace state under 
 
 Other useful environment variables are:
 
+- `DIRAC_PROVIDER`, `DIRAC_MODEL`, `DIRAC_API_KEY`, and optional `DIRAC_BASE_URL` explicitly configure the provider used by CLI and ACP processes.
 - `DIRAC_NO_AUTO_UPDATE=1` disables the background update check.
 - `DIRAC_NO_EMOJI=1` selects Unicode/ASCII fallbacks for icons.
 - `CUSTOM_HEADERS` supplies OpenAI-compatible custom headers in JSON or `key=value` form.

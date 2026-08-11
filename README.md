@@ -132,7 +132,18 @@ dirac "explain Dirac Delta function" \
 - `dirac -y "prompt"`: **Yolo Mode** (auto-approve all actions, great for simple fixes).
 - `git diff | dirac "Review these changes"`: Pipe context directly into Dirac.
 - `dirac history`: View and resume previous tasks.
+- `dirac --acp`: Run Dirac as an ACP agent for editor integration.
 
+## 🔌 ACP Editor Integration
+
+Dirac can run as an external coding agent in editors that support the [Agent Client Protocol (ACP)](https://agentclientprotocol.com/), including JetBrains IDEs and Zed. Installing from the ACP Registry is recommended so the editor can manage the agent package and updates.
+
+- **JetBrains IDEs 2025.3 and later**: open **Settings → Tools → AI Assistant → Agents**, or select **Install From ACP Registry…** in the agent picker, then install Dirac.
+- **Zed**: open **Agent Settings → External Agents**, select **Add Agent → Install from Registry**, then install Dirac.
+
+Dirac owns its provider configuration independently of the editor. On first use, choose **Configure a Dirac provider** to enter a provider, model, and API key. **ChatGPT sign-in is optional**; you can instead use DeepSeek or another supported provider with your own credentials.
+
+For environment-variable setup, manual `dirac --acp` configuration, and troubleshooting, see the [CLI ACP guide](cli/README.md#agent-client-protocol-acp).
 
 ## 🛠️ Getting Started
 

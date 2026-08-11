@@ -192,6 +192,8 @@ describe("generic Dirac environment authentication", () => {
 		expect(getProviderFromEnv()).to.equal("openai")
 		expect(getSecretsFromEnv().openAiApiKey).to.equal("custom-key")
 		const settings = getSettingsFromEnv()
+		expect(settings.actModeApiProvider).to.equal("openai")
+		expect(settings.planModeApiProvider).to.equal("openai")
 		expect(settings.actModeOpenAiModelId).to.equal("custom-model")
 		expect(settings.planModeOpenAiModelId).to.equal("custom-model")
 		expect(settings.openAiBaseUrl).to.equal("http://127.0.0.1:8080/v1")

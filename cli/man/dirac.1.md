@@ -3,7 +3,7 @@ title: DIRAC
 section: 1
 header: User Commands
 footer: Dirac CLI
-date: July 2026
+date: August 2026
 ---
 
 # NAME
@@ -205,13 +205,33 @@ These options apply to both **dirac** [*prompt*] and **dirac task** [*prompt*], 
 : Resume the most recent task associated with the current workspace. This option does not accept a prompt or piped stdin and conflicts with **--taskId**.
 
 **--acp**
-: Run as an Agent Client Protocol server for editor integration.
+: Run as an Agent Client Protocol server over standard input and output for editor integration.
+
+**--acp-auth**
+: Configure a provider for an ACP client, then exit. This is primarily used by clients that support ACP terminal authentication.
 
 **--listen** *socket*
 : Run ACP detached on a Unix socket. Implies **--acp**.
 
 **--kanban**
 : Run `npx kanban --agent dirac`. This option does not accept a prompt.
+
+# ACP EDITOR INTEGRATION
+
+Install Dirac from the ACP Registry when the editor supports it. In JetBrains IDEs 2025.3 and later, open **Settings → Tools → AI Assistant → Agents** or use **Install From ACP Registry…** in the agent picker. In Zed, open **Agent Settings → External Agents** and use **Add Agent → Install from Registry**.
+
+When a selected provider is not configured, Dirac advertises the authentication methods supported by the client: local browser provider setup, optional ChatGPT OAuth, explicit environment variables, and terminal setup where available. ChatGPT is not required; API-key providers such as DeepSeek can be selected directly.
+
+For manual clients, install `dirac-cli` and configure an agent command equivalent to:
+
+```json
+{
+  "command": "dirac",
+  "args": ["--acp"]
+}
+```
+
+Use an absolute executable path if the editor cannot resolve `dirac` from `PATH`. Run `dirac auth` before starting the editor as a fallback when the client does not display ACP authentication methods. A non-default Dirac home must use the same **--config** value during setup and ACP startup.
 
 # INPUT
 
@@ -296,6 +316,18 @@ Redirected output is uncolored by default.
 
 **DIRAC_DIR**
 : Override the Dirac home directory. The default is `~/.dirac`.
+
+**DIRAC_PROVIDER**
+: Explicit provider ID for both Act and Plan modes, such as `deepseek`, `anthropic`, or `openrouter`. Overrides persisted provider defaults for the process.
+
+**DIRAC_MODEL**
+: Exact model ID for the provider selected by **DIRAC_PROVIDER**.
+
+**DIRAC_API_KEY**
+: API key for the provider selected by **DIRAC_PROVIDER**, when that provider uses API-key authentication.
+
+**DIRAC_BASE_URL**
+: Optional custom endpoint for the provider selected by **DIRAC_PROVIDER**, when supported.
 
 **DIRAC_NO_AUTO_UPDATE**
 : Set to `1` to disable the background update check.

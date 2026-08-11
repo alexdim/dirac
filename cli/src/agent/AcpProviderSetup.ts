@@ -33,15 +33,21 @@ function escapeHtml(value: string): string {
 	return value.replace(/[&<>"']/g, (character) => `&#${character.charCodeAt(0)};`)
 }
 
-function setupPage(nonce: string): string {
+function setupPage(
+	nonce: string,
+	values: { provider?: string; modelId?: string; baseUrl?: string; azureApiVersion?: string } = {},
+	errorMessage?: string,
+): string {
 	const providers = providerOptions()
+	const selectedProvider = providers.find((provider) => provider.id === values.provider) ?? providers[0]
 	const options = providers
 		.map(
 			(provider) =>
-				`<option value="${escapeHtml(provider.id)}" data-model="${escapeHtml(provider.defaultModel)}" data-base-url="${provider.acceptsBaseUrl}">${escapeHtml(provider.label)}</option>`,
+				`<option value="${escapeHtml(provider.id)}" data-model="${escapeHtml(provider.defaultModel)}" data-base-url="${provider.acceptsBaseUrl}"${provider.id === selectedProvider?.id ? " selected" : ""}>${escapeHtml(provider.label)}</option>`,
 		)
 		.join("")
-	const initialModel = providers[0]?.defaultModel ?? ""
+	const initialModel = values.modelId ?? selectedProvider?.defaultModel ?? ""
+	const error = errorMessage ? `<p role="alert" style="color:#b42318;font-weight:600">${escapeHtml(errorMessage)}</p>` : ""
 
 	return `<!doctype html>
 <html lang="en">
@@ -56,13 +62,14 @@ body{font:16px system-ui,sans-serif;max-width:560px;margin:48px auto;padding:0 2
 <body>
 <h1>Configure Dirac</h1>
 <p>Choose an API provider. Credentials are submitted only to Dirac on this machine.</p>
+${error}
 <form method="post" action="/setup/${nonce}">
 <input type="hidden" name="nonce" value="${nonce}">
 <label>Provider<select id="provider" name="provider" required>${options}</select></label>
 <label>API key<input name="apiKey" type="password" autocomplete="new-password" required></label>
 <label>Model ID<input id="model" name="modelId" value="${escapeHtml(initialModel)}" required><small>Use the provider's exact model identifier.</small></label>
-<label>Base URL <small>Optional; supported by compatible providers.</small><input id="baseUrl" name="baseUrl" type="url"></label>
-<label>Azure API version <small>Optional; OpenAI-compatible Azure endpoints only.</small><input name="azureApiVersion"></label>
+<label>Base URL <small>Optional; supported by compatible providers.</small><input id="baseUrl" name="baseUrl" type="url" value="${escapeHtml(values.baseUrl ?? "")}"></label>
+<label>Azure API version <small>Optional; OpenAI-compatible Azure endpoints only.</small><input name="azureApiVersion" value="${escapeHtml(values.azureApiVersion ?? "")}"></label>
 <button type="submit">Save provider</button>
 </form>
 <script>
@@ -165,24 +172,41 @@ export class AcpProviderSetup {
 			return
 		}
 
+		let form: URLSearchParams
 		try {
-			const form = new URLSearchParams(await readRequestBody(request))
-			if (form.get("nonce") !== nonce) throw new Error("Provider setup session is invalid")
-			if (this.submissionStarted) throw new Error("Provider setup was already submitted")
-			this.submissionStarted = true
+			form = new URLSearchParams(await readRequestBody(request))
+		} catch (error) {
+			const failure = error instanceof Error ? error : new Error(String(error))
+			sendHtml(response, 400, setupPage(nonce, {}, failure.message))
+			return
+		}
+		if (form.get("nonce") !== nonce) {
+			sendHtml(response, 400, setupPage(nonce, {}, "Provider setup session is invalid"))
+			return
+		}
+		if (this.submissionStarted) {
+			sendHtml(response, 409, resultPage("Provider setup in progress", "Wait for the current submission to finish."))
+			return
+		}
+
+		const values = {
+			provider: form.get("provider") ?? "",
+			modelId: form.get("modelId") ?? "",
+			baseUrl: form.get("baseUrl") || undefined,
+			azureApiVersion: form.get("azureApiVersion") || undefined,
+		}
+		this.submissionStarted = true
+		try {
 			await configureApiKeyProvider({
-				provider: form.get("provider") ?? "",
+				...values,
 				apiKey: form.get("apiKey") ?? "",
-				modelId: form.get("modelId") ?? "",
-				baseUrl: form.get("baseUrl") || undefined,
-				azureApiVersion: form.get("azureApiVersion") || undefined,
 			})
 			sendHtml(response, 200, resultPage("Dirac is configured", "Return to your ACP client to continue."))
 			this.settleActiveSetup()
 		} catch (error) {
+			this.submissionStarted = false
 			const failure = error instanceof Error ? error : new Error(String(error))
-			sendHtml(response, 400, resultPage("Provider setup failed", failure.message))
-			this.settleActiveSetup(failure)
+			sendHtml(response, 400, setupPage(nonce, values, failure.message))
 		}
 	}
 

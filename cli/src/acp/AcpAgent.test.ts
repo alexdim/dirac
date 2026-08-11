@@ -412,6 +412,14 @@ describe("AcpAgent", () => {
 		expect(mocks.diracAgentInstance.authenticate).toHaveBeenCalledWith({ methodId: "openai-codex-oauth" })
 	})
 
+	it("delegates standard ACP logout", async () => {
+		mocks.diracAgentInstance.logout.mockResolvedValue(undefined)
+		const agent = new AcpAgent(connection, {})
+
+		await expect(agent.logout({})).resolves.toEqual({})
+		expect(mocks.diracAgentInstance.logout).toHaveBeenCalledTimes(1)
+	})
+
 	it("handles the capability-advertised logout extension", async () => {
 		mocks.diracAgentInstance.logout.mockResolvedValue(undefined)
 		const agent = new AcpAgent(connection, {})
