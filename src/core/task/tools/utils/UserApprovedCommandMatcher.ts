@@ -3,6 +3,54 @@ import type { UserApprovedCommand } from "@shared/UserApprovedCommand"
 
 const commandParser = new CommandParser()
 
+function isDescriptorRedirectBoundary(character: string | undefined): boolean {
+	return character === undefined || /\s|[|&;()<>]/.test(character)
+}
+
+function stripStderrToStdoutRedirects(command: string): string {
+	let normalized = ""
+	let inSingleQuote = false
+	let inDoubleQuote = false
+	let escaped = false
+
+	for (let index = 0; index < command.length; index++) {
+		const character = command[index]
+
+		if (escaped) {
+			normalized += character
+			escaped = false
+			continue
+		}
+		if (character === "\\" && !inSingleQuote) {
+			normalized += character
+			escaped = true
+			continue
+		}
+		if (character === "'" && !inDoubleQuote) {
+			normalized += character
+			inSingleQuote = !inSingleQuote
+			continue
+		}
+		if (character === '"' && !inSingleQuote) {
+			normalized += character
+			inDoubleQuote = !inDoubleQuote
+			continue
+		}
+
+		const startsDescriptorRedirect = command.startsWith("2>&1", index)
+		const hasLeadingBoundary = index === 0 || /\s/.test(command[index - 1])
+		const hasTrailingBoundary = isDescriptorRedirectBoundary(command[index + 4])
+		if (!inSingleQuote && !inDoubleQuote && startsDescriptorRedirect && hasLeadingBoundary && hasTrailingBoundary) {
+			index += 3
+			continue
+		}
+
+		normalized += character
+	}
+
+	return normalized
+}
+
 function hasUnsupportedShellSyntax(command: string): boolean {
 	let inSingleQuote = false
 	let inDoubleQuote = false
@@ -38,10 +86,10 @@ function hasUnsupportedShellSyntax(command: string): boolean {
 }
 
 function normalizeSingleCommand(command: string): string | undefined {
-	const trimmedCommand = command.trim()
-	if (!trimmedCommand || hasUnsupportedShellSyntax(trimmedCommand)) return undefined
+	const normalizedCommand = stripStderrToStdoutRedirects(command).trim()
+	if (!normalizedCommand || hasUnsupportedShellSyntax(normalizedCommand)) return undefined
 
-	const parsed = commandParser.parseCommandSegments(trimmedCommand)
+	const parsed = commandParser.parseCommandSegments(normalizedCommand)
 	if (parsed.hasRedirects || parsed.segments.length !== 1 || parsed.subshells.length > 0) return undefined
 	return parsed.segments[0].trim().replace(/\s+/g, " ")
 }
@@ -72,7 +120,7 @@ export function isUserApprovedCommandSegment(segment: string, entries: UserAppro
 }
 
 export function areCommandSegmentsApproved(command: string, isSegmentApproved: (segment: string) => boolean): boolean {
-	const trimmedCommand = command.trim()
-	if (!trimmedCommand || hasUnsupportedShellSyntax(trimmedCommand)) return false
-	return areParsedCommandSegmentsApproved(commandParser.parseCommandSegments(trimmedCommand), isSegmentApproved)
+	const normalizedCommand = stripStderrToStdoutRedirects(command).trim()
+	if (!normalizedCommand || hasUnsupportedShellSyntax(normalizedCommand)) return false
+	return areParsedCommandSegmentsApproved(commandParser.parseCommandSegments(normalizedCommand), isSegmentApproved)
 }

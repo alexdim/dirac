@@ -177,7 +177,7 @@ export const UserApprovedCommandsSection = ({ renderSectionHeader }: UserApprove
 						</p>
 					)}
 					<p className="m-0 text-xs text-(--vscode-descriptionForeground)">
-						Each part of a chained command must be approved separately. Redirects are not covered by these entries.
+						Each part of a chained command must be approved separately. File redirects are not covered; 2&gt;&amp;1 is ignored when matching.
 					</p>
 					{error && <p className="m-0 text-xs text-(--vscode-errorForeground)">{error}</p>}
 					<div className="flex justify-end gap-2">
