@@ -96,7 +96,7 @@ export interface ScrollBehavior {
 	handleScrollTouchMove: (event: React.TouchEvent) => void
 	handleScrollTouchStart: (event: React.TouchEvent) => void
 	handleScrollWheel: (event: React.WheelEvent) => void
-	followOutput: () => "auto" | false
+	followOutput: (atBottom: boolean) => "auto" | false
 }
 
 /**
