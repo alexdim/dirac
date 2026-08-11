@@ -120,7 +120,9 @@ export const UserApprovedCommandsPage = ({ commands, isActive, onChange, onClose
 				{match === "prefix" && (
 					<Text color={theme.warning}>Choose this only when you trust every possible argument.</Text>
 				)}
-				<Text color={theme.muted}>Chained commands are checked one part at a time. Redirects are not covered.</Text>
+				<Text color={theme.muted}>
+					Chained commands are checked one part at a time. File redirects are not covered; 2&gt;&amp;1 is ignored when matching.
+				</Text>
 				{error && <Text color={theme.error}>{error}</Text>}
 				<Text color={theme.muted}>Type command · Tab change scope · Enter save · Esc cancel</Text>
 			</Box>

@@ -21,6 +21,27 @@ describe("UserApprovedCommandMatcher", () => {
 		assert.equal(areCommandSegmentsApproved("npm test -- --watch", isApproved), true)
 	})
 
+	it("allows stderr-to-stdout descriptor duplication in prefix mode", () => {
+		const isApproved = matches([{ command: "uv run pytest", match: "prefix" }])
+
+		assert.equal(areCommandSegmentsApproved("uv run pytest -v 2>&1", isApproved), true)
+	})
+
+	it("normalizes stderr-to-stdout descriptor duplication in exact mode", () => {
+		const withoutRedirect = matches([{ command: "uv run pytest -v", match: "exact" }])
+		const withRedirect = matches([{ command: "uv run pytest -v 2>&1", match: "exact" }])
+
+		assert.equal(areCommandSegmentsApproved("uv run pytest -v 2>&1", withoutRedirect), true)
+		assert.equal(areCommandSegmentsApproved("uv run pytest -v 2>&1", withRedirect), true)
+		assert.equal(areCommandSegmentsApproved("uv run pytest -v", withRedirect), true)
+	})
+
+	it("does not treat quoted descriptor text as a redirect", () => {
+		const isApproved = matches([{ command: "echo value", match: "exact" }])
+
+		assert.equal(areCommandSegmentsApproved("echo '2>&1' value", isApproved), false)
+	})
+
 	it("requires every chained segment to be approved", () => {
 		const isApproved = matches([
 			{ command: "npm test", match: "exact" },
@@ -29,6 +50,7 @@ describe("UserApprovedCommandMatcher", () => {
 
 		assert.equal(areCommandSegmentsApproved("npm test && npm run lint", isApproved), true)
 		assert.equal(areCommandSegmentsApproved("npm test && rm -rf project", isApproved), false)
+		assert.equal(areCommandSegmentsApproved("npm test 2>&1 && rm -rf project", isApproved), false)
 	})
 
 	it("rejects redirects before matching command segments", () => {

@@ -3,6 +3,7 @@ import { CardStatus } from "@shared/ExtensionMessage"
 import { DiracAskResponse } from "@shared/WebviewMessage"
 import { describe, it } from "mocha"
 import sinon from "sinon"
+import { AutoApprove } from "../../autoApprove"
 import { ToolSkippedByUserMessage } from "../../types/ToolSkippedByUserMessage"
 import { ExecuteCommandTool } from "../execute_command/ExecuteCommandTool"
 
@@ -100,6 +101,38 @@ describe("ExecuteCommandTool", () => {
 		await tool.processCall(args, env as any)
 
 		assert.ok(mockCard.waitForInteraction.calledOnce)
+	})
+
+	it("does not require approval for a user-approved command with stderr redirected to stdout", async () => {
+		const { env, diracIgnoreController, commandPermissionController, mockCard } = createMocks()
+		const stateManager = {
+			getGlobalSettingsKey: sinon.stub().callsFake((key: string) => {
+				switch (key) {
+					case "userApprovedCommands":
+						return [{ command: "uv run pytest", match: "prefix" }]
+					case "autoApprovalSettings":
+						return { actions: { executeCommands: false } }
+					case "yoloModeToggled":
+					case "autoApproveAllToggled":
+						return false
+					default:
+						throw new Error(`Unexpected global setting: ${key}`)
+				}
+			}),
+		}
+		const autoApprover = new AutoApprove(stateManager as any, commandPermissionController as any)
+		const tool = new ExecuteCommandTool(
+			diracIgnoreController as any,
+			commandPermissionController as any,
+			autoApprover,
+			{},
+			false,
+		)
+
+		await tool.processCall({ commands: ["uv run pytest -v 2>&1"] }, env as any)
+
+		assert.ok(mockCard.waitForInteraction.notCalled)
+		assert.ok((env.system.executeCommand as sinon.SinonStub).calledOnce)
 	})
 
 	it("does not require approval for safe commands when auto-approve is enabled", async () => {
