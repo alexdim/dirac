@@ -187,19 +187,26 @@ export function useScrollBehavior(
 
 	const handleListHeightChanged = useCallback((height: number) => {
 		const listGrew = height > lastListHeightRef.current
+		const listShrunk = height < lastListHeightRef.current
 		lastListHeightRef.current = height
-		if (!listGrew || !isFollowingRef.current) return
+		if (!isFollowingRef.current) return
 
 		cancelAnimationFrame(listHeightRafIdRef.current)
 		listHeightRafIdRef.current = requestAnimationFrame(() => {
-			virtuosoRef.current?.autoscrollToBottom()
+			if (listGrew) {
+				virtuosoRef.current?.autoscrollToBottom()
+			} else if (listShrunk) {
+				// autoscrollToBottom only works when notAtBottomBecause === "SIZE_INCREASED";
+				// on shrink it would no-op, so re-anchor explicitly to the new last item.
+				virtuosoRef.current?.scrollToIndex({ index: "LAST", align: "end", behavior: "auto" })
+			}
 		})
 	}, [])
 
 	const handleScrollWheel = useCallback(
 		(event: React.WheelEvent) => {
-			if (event.deltaY >= 0) return
 			stopFollowing()
+			if (event.deltaY < 0) return
 			resumeFollowingIfAtBottom(event.currentTarget as HTMLElement)
 		},
 		[resumeFollowingIfAtBottom, stopFollowing],
@@ -207,11 +214,20 @@ export function useScrollBehavior(
 
 	const handleScrollKeyDown = useCallback(
 		(event: React.KeyboardEvent) => {
+			const isScrollKey =
+				event.key === "ArrowUp" ||
+				event.key === "ArrowDown" ||
+				event.key === "PageUp" ||
+				event.key === "PageDown" ||
+				event.key === "Home" ||
+				event.key === "End" ||
+				event.key === " "
+			if (!isScrollKey) return
+
 			const scrollsUp =
 				event.key === "ArrowUp" || event.key === "PageUp" || event.key === "Home" || (event.key === " " && event.shiftKey)
-			if (!scrollsUp) return
-
 			stopFollowing()
+			if (scrollsUp) return
 			resumeFollowingIfAtBottom(event.currentTarget as HTMLElement)
 		},
 		[resumeFollowingIfAtBottom, stopFollowing],
@@ -251,7 +267,9 @@ export function useScrollBehavior(
 			const currentY = event.touches[0]?.clientY
 			const previousY = touchYRef.current
 			touchYRef.current = currentY ?? null
-			if (currentY !== undefined && previousY !== null && currentY > previousY) {
+			// Any touch scroll — up or down — means the user is taking control;
+			// stop following and let handleScrollTouchEnd resume if at the bottom.
+			if (currentY !== undefined && previousY !== null && currentY !== previousY) {
 				stopFollowing()
 			}
 		},
@@ -266,7 +284,14 @@ export function useScrollBehavior(
 		[resumeFollowingIfAtBottom],
 	)
 
-	const followOutput = useCallback((): "auto" | false => (isFollowingRef.current ? "auto" : false), [])
+	const followOutput = useCallback((atBottom: boolean): "auto" | false => {
+		if (!isFollowingRef.current) return false
+		// NOTE: Virtuoso's argument is isAtBottom || scrollingInProgress, not just isAtBottom —
+		// during a programmatic scroll it is true even when the user is not at the bottom.
+		// Gate on it anyway (defense-in-depth for Mechanism B); the isFollowingRef check is
+		// the real authority that prevents following while the user is scrolling.
+		return atBottom ? "auto" : false
+	}, [])
 
 	const taskId = messages.at(0)?.id
 	// biome-ignore lint/correctness/useExhaustiveDependencies: task identity intentionally resets all scroll state.

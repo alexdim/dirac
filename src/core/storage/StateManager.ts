@@ -1,36 +1,46 @@
-import type { ApiConfiguration, ModelInfo, ModelProviderPreset } from "@shared/api"
+import type { ApiConfiguration, ModelInfo } from "@shared/api"
+import { buildLegacySynthetic1mStateUpdates } from "@shared/storage/legacy-model-id-migration"
 import {
-	getExplicitDiracSecretsFromEnv,
-	getExplicitDiracSettingsFromEnv,
-	getSecretsFromEnv,
-	getSettingsFromEnv,
-} from "@shared/storage/env-config"
-import {
-	ApiHandlerSettingsKeys,
 	type GlobalState,
 	type GlobalStateAndSettings,
-	type GlobalStateAndSettingsKey,
-	isSecretKey,
-	isSettingsKey,
 	type LocalState,
-	type LocalStateKey,
-	type SecretKey,
-	SecretKeys,
 	type Secrets,
 	type Settings,
-	type SettingsKey,
 } from "@shared/storage/state-keys"
 import type { StorageContext } from "@shared/storage/storage-context"
-import {
-	buildLegacySynthetic1mStateUpdates,
-	normalizeLegacyModelProviderPresets,
-	normalizeLegacyOpenRouterPinMap,
-	normalizeLegacySynthetic1mModelId,
-} from "@shared/storage/legacy-model-id-migration"
 import { initializeDistinctId } from "@/services/logging/distinctId"
 import { Logger } from "@/shared/services/Logger"
 import { AgentConfigLoader } from "../task/tools/subagent/AgentConfigLoader"
-import { STATE_MANAGER_NOT_INITIALIZED } from "./error-messages"
+import {
+	getAllGlobalStateEntries,
+	getAllWorkspaceStateEntries,
+	getApiConfiguration,
+	getGlobalSettingsKey,
+	getGlobalStateKey,
+	getSecretKey,
+	getSystemDefaultSettingsKey,
+	getWorkspaceStateKey,
+	type StateManagerGetterCaches,
+} from "./StateManagerGetters"
+import { getModelInfo, getModelsCache, type ModelCache, setModelsCache } from "./StateManagerModelCache"
+import {
+	clearTaskSettings,
+	loadTaskSettings,
+	refreshModelProviderPresetsFromDisk,
+	type StateManagerSettersContext,
+	setApiConfiguration,
+	setGlobalState,
+	setGlobalStateBatch,
+	setSecret,
+	setSecretsBatch,
+	setSessionOverride,
+	setSessionOverrideCache,
+	setTaskSettings,
+	setTaskSettingsBatch,
+	setWorkspaceState,
+	setWorkspaceStateBatch,
+} from "./StateManagerSetters"
+import { type StateManagerSettingsCaches } from "./StateManagerSettings"
 import { type PersistenceErrorEvent, StatePersistenceManager } from "./StatePersistenceManager"
 
 // Re-export for backward compatibility — consumers import PersistenceErrorEvent from StateManager
@@ -71,11 +81,8 @@ export class StateManager {
 	private persistence: StatePersistenceManager
 	private isInitialized = false
 
-	// Cache TTL: 1 hour - long enough to prevent duplicate fetches, short enough to see new models
-	private readonly MODEL_CACHE_TTL_MS = 60 * 60 * 1000
-
 	// In-memory model info cache (not persisted to disk) — keyed by `${provider}Models`
-	private modelInfoCache: Record<string, { data: Record<string, ModelInfo>; timestamp: number } | null> = {}
+	private modelInfoCache: ModelCache = {}
 
 	// Callback to sync external state changes with the UI client
 	onSyncExternalChange?: () => void | Promise<void>
@@ -102,6 +109,35 @@ export class StateManager {
 				this.globalStateCache.taskHistory = value
 			},
 		})
+	}
+
+	private get settingsCaches(): StateManagerSettingsCaches {
+		return {
+			sessionOverrideCache: this.sessionOverrideCache,
+			taskStateCache: this.taskStateCache,
+			globalStateCache: this.globalStateCache,
+			secretsCache: this.secretsCache,
+		}
+	}
+
+	private get allCaches(): StateManagerGetterCaches {
+		return {
+			...this.settingsCaches,
+			workspaceStateCache: this.workspaceStateCache,
+		}
+	}
+
+	private get settersContext(): StateManagerSettersContext {
+		return {
+			isInitialized: this.isInitialized,
+			globalStateCache: this.globalStateCache,
+			taskStateCache: this.taskStateCache,
+			sessionOverrideCache: this.sessionOverrideCache,
+			secretsCache: this.secretsCache,
+			workspaceStateCache: this.workspaceStateCache,
+			persistence: this.persistence,
+			notifyStateChange: () => this.notifyStateChange(),
+		}
 	}
 
 	/**
@@ -218,111 +254,53 @@ export class StateManager {
 	}
 
 	setGlobalState<K extends keyof GlobalStateAndSettings>(key: K, value: GlobalStateAndSettings[K]): void {
-		if (!this.isInitialized) throw new Error(STATE_MANAGER_NOT_INITIALIZED)
-		const normalizedValue = isSettingsKey(key) ? this.normalizeLoadedSetting(key as SettingsKey, value as never) : value
-		;(this.globalStateCache as Record<string, unknown>)[key] = normalizedValue
-		this.persistence.addPendingGlobalState(key)
-		this.notifyStateChange()
+		setGlobalState(this.settersContext, key, value)
 	}
 
 	refreshModelProviderPresetsFromDisk(): void {
-		if (!this.isInitialized) throw new Error(STATE_MANAGER_NOT_INITIALIZED)
-
-		const cachedPresets = this.globalStateCache.modelProviderPresets
-		const diskPresets = this.persistence.readGlobalStateKeyFromDisk("modelProviderPresets") as
-			| ModelProviderPreset[]
-			| undefined
-		const presetsById = new Map<string, ModelProviderPreset>()
-
-		for (const preset of [...cachedPresets, ...(diskPresets || [])]) {
-			const existing = presetsById.get(preset.id)
-			if (!existing || preset.lastUsedAt > existing.lastUsedAt) presetsById.set(preset.id, preset)
-		}
-
-		const mergedPresets = [...presetsById.values()].sort((a, b) => b.lastUsedAt - a.lastUsedAt).slice(0, 20)
-		if (JSON.stringify(mergedPresets) === JSON.stringify(cachedPresets)) return
-		this.setGlobalState("modelProviderPresets", mergedPresets)
+		refreshModelProviderPresetsFromDisk(this.settersContext)
 	}
 
 	setGlobalStateBatch(updates: Partial<GlobalStateAndSettings>): void {
-		if (!this.isInitialized) throw new Error(STATE_MANAGER_NOT_INITIALIZED)
-		const normalizedUpdates = { ...updates, ...buildLegacySynthetic1mStateUpdates(updates) }
-		Object.assign(this.globalStateCache, normalizedUpdates)
-		this.persistence.addPendingGlobalStateBatch(Object.keys(normalizedUpdates) as GlobalStateAndSettingsKey[])
-		this.notifyStateChange()
+		setGlobalStateBatch(this.settersContext, updates)
 	}
 
 	setTaskSettings<K extends keyof Settings>(taskId: string, key: K, value: Settings[K]): void {
-		if (!this.isInitialized) throw new Error(STATE_MANAGER_NOT_INITIALIZED)
-		this.taskStateCache[key] = this.normalizeLoadedSetting(key, value)
-		this.persistence.addPendingTaskState(taskId, key)
+		setTaskSettings(this.settersContext, taskId, key, value)
 	}
 
 	setTaskSettingsBatch(taskId: string, updates: Partial<Settings>): void {
-		if (!this.isInitialized) throw new Error(STATE_MANAGER_NOT_INITIALIZED)
-		const normalizedUpdates = this.normalizeLoadedSettings(updates)
-		Object.assign(this.taskStateCache, normalizedUpdates)
-		this.persistence.addPendingTaskStateBatch(taskId, Object.keys(normalizedUpdates) as SettingsKey[])
+		setTaskSettingsBatch(this.settersContext, taskId, updates)
 	}
 
 	async loadTaskSettings(taskId: string): Promise<void> {
-		if (!this.isInitialized) throw new Error(STATE_MANAGER_NOT_INITIALIZED)
-		const taskSettings = (await this.persistence.loadTaskSettingsFromDisk(taskId)) as Partial<Settings>
-		const normalizedTaskSettings = this.normalizeLoadedSettings(taskSettings)
-		Object.assign(this.taskStateCache, normalizedTaskSettings)
-		if (JSON.stringify(normalizedTaskSettings) !== JSON.stringify(taskSettings)) {
-			this.persistence.addPendingTaskStateBatch(taskId, Object.keys(normalizedTaskSettings) as SettingsKey[])
-		}
+		await loadTaskSettings(this.settersContext, taskId)
 	}
 
 	async clearTaskSettings(): Promise<void> {
-		if (this.persistence.hasPendingTaskState()) {
-			await this.persistence.persistAndClearPendingTaskState()
-		}
-		this.taskStateCache = {}
-		this.persistence.clearPendingTaskState()
+		await clearTaskSettings(this.settersContext)
 	}
 
 	setSecret<K extends keyof Secrets>(key: K, value: Secrets[K]): void {
-		if (!this.isInitialized) throw new Error(STATE_MANAGER_NOT_INITIALIZED)
-		this.secretsCache[key] = value
-		this.persistence.addPendingSecret(key)
+		setSecret(this.settersContext, key, value)
 	}
 
 	setSecretsBatch(updates: Partial<Secrets>): void {
-		if (!this.isInitialized) throw new Error(STATE_MANAGER_NOT_INITIALIZED)
-		const changedKeys: SecretKey[] = []
-		Object.entries(updates).forEach(([key, value]) => {
-			// Skip unchanged values to avoid unnecessary writes & onDidChange events
-			const current = this.secretsCache[key as keyof Secrets]
-			if (current === value) return
-			this.secretsCache[key as keyof Secrets] = value
-			changedKeys.push(key as SecretKey)
-		})
-		this.persistence.addPendingSecretBatch(changedKeys)
+		setSecretsBatch(this.settersContext, updates)
 	}
 
 	setWorkspaceState<K extends keyof LocalState>(key: K, value: LocalState[K]): void
 	setWorkspaceState(key: string, value: unknown): void
 	setWorkspaceState(key: string, value: unknown): void {
-		if (!this.isInitialized) throw new Error(STATE_MANAGER_NOT_INITIALIZED)
-		;(this.workspaceStateCache as Record<string, unknown>)[key] = value
-		this.persistence.addPendingWorkspaceState(key as LocalStateKey)
+		setWorkspaceState(this.settersContext, key, value)
 	}
 
 	setWorkspaceStateBatch(updates: Partial<LocalState>): void {
-		if (!this.isInitialized) throw new Error(STATE_MANAGER_NOT_INITIALIZED)
-		const changedKeys: LocalStateKey[] = []
-		Object.entries(updates).forEach(([key, value]) => {
-			this.workspaceStateCache[key as keyof LocalState] = value
-			changedKeys.push(key as LocalStateKey)
-		})
-		this.persistence.addPendingWorkspaceStateBatch(changedKeys)
+		setWorkspaceStateBatch(this.settersContext, updates)
 	}
 
 	setSessionOverride<K extends keyof Settings>(key: K, value: Settings[K]): void {
-		if (!this.isInitialized) throw new Error(STATE_MANAGER_NOT_INITIALIZED)
-		this.sessionOverrideCache[key] = this.normalizeLoadedSetting(key, value)
+		setSessionOverride(this.settersContext, key, value)
 	}
 
 	/** Return the current session-override cache (in-memory only). (from main) */
@@ -332,93 +310,53 @@ export class StateManager {
 
 	/** Replace the session-override cache wholesale. In-memory only, never persisted. (from main) */
 	setSessionOverrideCache(overrides: Partial<Settings>): void {
-		this.sessionOverrideCache = this.normalizeLoadedSettings(overrides)
+		setSessionOverrideCache(this.settersContext, overrides)
 	}
 
 	setModelsCache(provider: string, models: Record<string, ModelInfo>): void {
-		const cacheKey = `${provider}Models`
-		this.modelInfoCache[cacheKey] = { data: models, timestamp: Date.now() }
+		setModelsCache(this.modelInfoCache, provider, models)
 	}
 
 	getModelsCache(provider: string): Record<string, ModelInfo> | null {
-		const cacheKey = `${provider}Models`
-		const cached = this.modelInfoCache[cacheKey]
-		if (!cached) return null
-		if (Date.now() - cached.timestamp > this.MODEL_CACHE_TTL_MS) {
-			this.modelInfoCache[cacheKey] = null
-			return null
-		}
-		return cached.data
+		return getModelsCache(this.modelInfoCache, provider)
 	}
 
 	getModelInfo(
 		provider: "openRouter" | "groq" | "baseten" | "huggingFace" | "requesty" | "huaweiCloudMaas" | "aihubmix" | "liteLlm",
 		modelId: string,
 	): ModelInfo | undefined {
-		const cacheKey = `${provider}Models`
-		const cached = this.modelInfoCache[cacheKey]
-		if (!cached) return undefined
-		if (Date.now() - cached.timestamp > this.MODEL_CACHE_TTL_MS) {
-			this.modelInfoCache[cacheKey] = null
-			return undefined
-		}
-		return cached.data[modelId]
+		return getModelInfo(this.modelInfoCache, provider, modelId)
 	}
 
 	getApiConfiguration(): ApiConfiguration {
-		if (!this.isInitialized) throw new Error(STATE_MANAGER_NOT_INITIALIZED)
-		return this.constructApiConfigurationFromCache()
+		return getApiConfiguration(this.settingsCaches, this.isInitialized)
 	}
 
 	setApiConfiguration(apiConfiguration: ApiConfiguration): void {
-		if (!this.isInitialized) throw new Error(STATE_MANAGER_NOT_INITIALIZED)
-
-		const { settingsUpdates, secretsUpdates } = Object.entries(apiConfiguration).reduce(
-			(acc, [key, value]) => {
-				if (key === undefined) return acc
-				if (isSecretKey(key)) {
-					;(acc.secretsUpdates as Record<string, string | undefined>)[key] = value as string | undefined
-				} else if (isSettingsKey(key)) {
-					;(acc.settingsUpdates as Record<string, unknown>)[key] = value
-				}
-				return acc
-			},
-			{ settingsUpdates: {} as Partial<Settings>, secretsUpdates: {} as Partial<Secrets> },
-		)
-
-		if (Object.keys(settingsUpdates).length > 0) this.setGlobalStateBatch(settingsUpdates)
-		if (Object.keys(secretsUpdates).length > 0) this.setSecretsBatch(secretsUpdates)
+		setApiConfiguration(this.settersContext, apiConfiguration)
 	}
 
 	getGlobalSettingsKey<K extends keyof Settings>(key: K): Settings[K] {
-		if (!this.isInitialized) throw new Error(STATE_MANAGER_NOT_INITIALIZED)
-		// Precedence: session override > task settings > global settings
-		if (Object.hasOwn(this.sessionOverrideCache, key)) return this.sessionOverrideCache[key] as Settings[K]
-		if (this.taskStateCache[key] !== undefined) return this.taskStateCache[key]
-		return this.globalStateCache[key]
+		return getGlobalSettingsKey(key, this.settingsCaches, this.isInitialized)
 	}
 
 	/** Read a system default without inheriting active session or task state. */
 	getSystemDefaultSettingsKey<K extends keyof Settings>(key: K): Settings[K] {
-		if (!this.isInitialized) throw new Error(STATE_MANAGER_NOT_INITIALIZED)
-		return this.globalStateCache[key]
+		return getSystemDefaultSettingsKey(key, this.settingsCaches, this.isInitialized)
 	}
 
 	getGlobalStateKey<K extends keyof GlobalState>(key: K): GlobalState[K] {
-		if (!this.isInitialized) throw new Error(STATE_MANAGER_NOT_INITIALIZED)
-		return this.globalStateCache[key]
+		return getGlobalStateKey(key, this.settingsCaches, this.isInitialized)
 	}
 
 	getSecretKey<K extends keyof Secrets>(key: K): Secrets[K] {
-		if (!this.isInitialized) throw new Error(STATE_MANAGER_NOT_INITIALIZED)
-		return this.secretsCache[key]
+		return getSecretKey(key, this.settingsCaches, this.isInitialized)
 	}
 
 	getWorkspaceStateKey<K extends keyof LocalState>(key: K): LocalState[K]
 	getWorkspaceStateKey(key: string): unknown
 	getWorkspaceStateKey(key: string): unknown {
-		if (!this.isInitialized) throw new Error(STATE_MANAGER_NOT_INITIALIZED)
-		return (this.workspaceStateCache as Record<string, unknown>)[key]
+		return getWorkspaceStateKey(this.allCaches, this.isInitialized, key)
 	}
 
 	async reInitialize(currentTaskId?: string): Promise<void> {
@@ -441,82 +379,16 @@ export class StateManager {
 	}
 
 	getAllGlobalStateEntries(): Record<string, unknown> {
-		if (!this.isInitialized) throw new Error(STATE_MANAGER_NOT_INITIALIZED)
-		return { ...this.globalStateCache }
+		return getAllGlobalStateEntries(this.settingsCaches, this.isInitialized)
 	}
 
 	getAllWorkspaceStateEntries(): Record<string, unknown> {
-		if (!this.isInitialized) throw new Error(STATE_MANAGER_NOT_INITIALIZED)
-		return { ...this.workspaceStateCache }
+		return getAllWorkspaceStateEntries(this.allCaches, this.isInitialized)
 	}
 
 	private populateCache(globalState: GlobalState, secrets: Secrets, workspaceState: LocalState): void {
 		Object.assign(this.globalStateCache, globalState)
 		Object.assign(this.secretsCache, secrets)
 		Object.assign(this.workspaceStateCache, workspaceState)
-	}
-
-	private normalizeLoadedSettings(settings: Partial<Settings>): Partial<Settings> {
-		const normalized = { ...settings }
-		for (const [key, value] of Object.entries(normalized)) {
-			;(normalized as Record<string, unknown>)[key] = this.normalizeLoadedSetting(key as keyof Settings, value as never)
-		}
-		return normalized
-	}
-
-	private normalizeLoadedSetting<K extends keyof Settings>(key: K, value: Settings[K]): Settings[K] {
-		if (typeof value === "string" && (key.endsWith("ModelId") || key.endsWith("ModelBaseId"))) {
-			return normalizeLegacySynthetic1mModelId(value) as Settings[K]
-		}
-		if (key === "openRouterPinnedProviders") {
-			return normalizeLegacyOpenRouterPinMap(value as Record<string, string[]> | undefined) as Settings[K]
-		}
-		if (key === "modelProviderPresets") {
-			return normalizeLegacyModelProviderPresets(value as ModelProviderPreset[]) as Settings[K]
-		}
-		return value
-	}
-
-	private getSettingWithOverride<K extends keyof Settings>(key: K): Settings[K] {
-		// Precedence: session override > task settings > global settings
-		if (Object.hasOwn(this.sessionOverrideCache, key)) return this.sessionOverrideCache[key] as Settings[K]
-		const taskValue = this.taskStateCache[key]
-		if (taskValue !== undefined) return taskValue
-		return this.globalStateCache[key]
-	}
-
-	private getSecret<K extends keyof Secrets>(key: K): Secrets[K] {
-		return this.secretsCache[key]
-	}
-
-	private constructApiConfigurationFromCache(): ApiConfiguration {
-		// Legacy provider-specific environment variables are fallbacks. The generic
-		// DIRAC_* authentication variables are explicit process configuration and
-		// therefore override persisted values.
-		const secrets = Object.fromEntries(SecretKeys.map((key) => [key, this.getSecret(key)])) as Secrets
-		const envSecrets = getSecretsFromEnv()
-		for (const [key, value] of Object.entries(envSecrets)) {
-			if (value && !secrets[key as keyof Secrets]) {
-				secrets[key as keyof Secrets] = value
-			}
-		}
-		Object.assign(secrets, getExplicitDiracSecretsFromEnv())
-
-		const settings: Partial<Settings> = Object.fromEntries(
-			ApiHandlerSettingsKeys.map((key) => [key, this.getSettingWithOverride(key)]),
-		)
-		const envSettings = getSettingsFromEnv()
-		for (const [key, value] of Object.entries(envSettings)) {
-			if (value && isSettingsKey(key) && settings[key] === undefined && !Object.hasOwn(this.sessionOverrideCache, key)) {
-				;(settings as Record<string, unknown>)[key] = this.normalizeLoadedSetting(key, value as never)
-			}
-		}
-		for (const [key, value] of Object.entries(getExplicitDiracSettingsFromEnv())) {
-			if (value !== undefined && isSettingsKey(key) && !Object.hasOwn(this.sessionOverrideCache, key)) {
-				;(settings as Record<string, unknown>)[key] = this.normalizeLoadedSetting(key, value as never)
-			}
-		}
-
-		return { ...secrets, ...settings } satisfies ApiConfiguration
 	}
 }

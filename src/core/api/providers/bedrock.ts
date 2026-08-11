@@ -9,7 +9,6 @@ import {
 	ConverseStreamCommand,
 	InvokeModelWithResponseStreamCommand,
 } from "@aws-sdk/client-bedrock-runtime"
-import { fromNodeProviderChain } from "@aws-sdk/credential-providers"
 import {
 	type BedrockModelId,
 	bedrockDefaultModelId,
@@ -18,6 +17,9 @@ import {
 	type ModelInfo,
 } from "@shared/api"
 import { calculateApiCostOpenAI, calculateApiCostQwen } from "@utils/cost"
+import { applyCacheControlToMessages, chunkText, estimateTokenCount, extractNonStreamingContent, formatConverseError, formatMessagesForConverseAPI, getInferenceConfig, mapDiracToolsToBedrockToolConfig, prepareSystemMessages, processImageContent } from "./bedrock-converse-utils"
+import { createBedrockClient, resolveAwsCredentials } from "./bedrock-client"
+import { BedrockStreamParser } from "./bedrock-stream-parser"
 import { ExtensionRegistryInfo } from "@/registry"
 import { getErrorMessage } from "@/shared/errors"
 import type { DiracStorageMessage } from "@/shared/messages/content"
@@ -59,97 +61,16 @@ export interface BedrockMessageConfig {
 	abortSignal?: AbortSignal
 }
 
-// Extend AWS SDK types to include additionalModelResponseFields
-interface ExtendedMetadata {
-	usage?: {
-		inputTokens?: number
-		outputTokens?: number
-		cacheReadInputTokens?: number
-		cacheWriteInputTokens?: number
-	}
-	additionalModelResponseFields?: {
-		thinkingResponse?: {
-			reasoning?: Array<{
-				type: string
-				text?: string
-				signature?: string
-			}>
-		}
-	}
-}
 
-// Define types for stream response content blocks
-interface ContentBlockStart {
-	contentBlockIndex?: number
-	start?: {
-		type?: string
-		thinking?: string
-		signature?: string
-		toolUse?: ToolUseStart
-	}
-	contentBlock?: {
-		type?: string
-		thinking?: string
-		signature?: string
-	}
-	type?: string
-	thinking?: string
-	// Redacted thinking block data
-	data?: string
-}
 
-// Define types for stream response deltas
-interface ContentBlockDelta {
-	contentBlockIndex?: number
-	delta?: {
-		type?: string
-		thinking?: string
-		text?: string
-		signature?: string
-		reasoningContent?: {
-			text?: string
-		}
-		toolUse?: ToolUseDelta
-	}
-}
 
-// Tool use types returned by Bedrock ConverseStream API.
-// The @aws-sdk/client-bedrock-runtime types don't fully cover these
-// fields in the streaming response, so we define them here.
-interface ToolUseStart {
-	toolUseId: string
-	name: string
-}
 
-interface ToolUseDelta {
-	input: string
-}
 
-// Define types for supported content types
+
 type SupportedContentType = "text" | "image" | "thinking" | "redacted_thinking" | "document"
 
-interface ContentItem {
-	type: SupportedContentType
-	text?: string
-	source?: {
-		data: string | Buffer | Uint8Array
-		media_type?: string
-	}
-}
-
-// Define cache point type for AWS Bedrock
-interface CachePointContentBlock {
-	cachePoint: {
-		type: "default"
-	}
-}
 
 // Define provider options type based on AWS SDK patterns
-interface ProviderChainOptions {
-	clientConfig?: { userAgentAppId?: string; region?: string }
-	ignoreCache?: boolean
-	profile?: string
-}
 
 // a special jp inference profile was created for sonnet 4.6, opus 4.6, sonnet 4.5 & haiku 4.5
 // https://docs.aws.amazon.com/bedrock/latest/userguide/inference-profiles-support.html
@@ -163,178 +84,7 @@ const JP_SUPPORTED_CRIS_MODELS = [
 
 // Parses Bedrock ConverseStream events into Dirac ApiStreamChunk objects.
 // Tracks per-block state (content buffers, block types, active tool calls) across the stream.
-class BedrockStreamParser {
-	private contentBuffers: Record<number, string> = {}
-	private blockTypes = new Map<number, "reasoning" | "text">()
-	private activeToolCalls: Map<number, { toolUseId: string; name: string }> = new Map()
 
-	public *parseChunk(chunk: any, modelInfo: ModelInfo): Generator<any> {
-		yield* this.handleMetadata(chunk, modelInfo)
-		yield* this.handleContentBlockStart(chunk)
-		yield* this.handleContentBlockDelta(chunk)
-		yield* this.handleContentBlockStop(chunk)
-		yield* this.handleStreamError(chunk)
-	}
-
-	private *handleMetadata(chunk: any, modelInfo: ModelInfo): Generator<any> {
-		const metadata = chunk.metadata as ExtendedMetadata | undefined
-		if (metadata?.additionalModelResponseFields?.thinkingResponse) {
-			yield* this.parseThinkingResponse(metadata.additionalModelResponseFields.thinkingResponse)
-		}
-		if (chunk.metadata?.usage) yield this.buildUsageChunk(chunk.metadata.usage, modelInfo)
-	}
-
-	private *parseThinkingResponse(thinkingResponse: any): Generator<any> {
-		if (!thinkingResponse.reasoning || !Array.isArray(thinkingResponse.reasoning)) return
-		for (const block of thinkingResponse.reasoning) {
-			if (block.type === "text" && block.text) {
-				yield { type: "reasoning", reasoning: block.text, ...(block.signature ? { signature: block.signature } : {}) }
-			}
-		}
-	}
-
-	private buildUsageChunk(usage: any, modelInfo: ModelInfo): any {
-		const inputTokens = usage.inputTokens || 0
-		const outputTokens = usage.outputTokens || 0
-		const cacheReadInputTokens = usage.cacheReadInputTokens || 0
-		const cacheWriteInputTokens = usage.cacheWriteInputTokens || 0
-		return {
-			type: "usage",
-			inputTokens,
-			outputTokens,
-			cacheReadTokens: cacheReadInputTokens,
-			cacheWriteTokens: cacheWriteInputTokens,
-			totalCost: calculateApiCostOpenAI(modelInfo, inputTokens, outputTokens, cacheWriteInputTokens, cacheReadInputTokens),
-		}
-	}
-
-	private *handleContentBlockStart(chunk: any): Generator<any> {
-		if (!chunk.contentBlockStart) return
-		const blockStart = chunk.contentBlockStart as ContentBlockStart
-		const blockIndex = chunk.contentBlockStart.contentBlockIndex
-		if (blockStart.start?.toolUse?.toolUseId && blockStart.start.toolUse.name && blockIndex !== undefined) {
-			this.activeToolCalls.set(blockIndex, {
-				toolUseId: blockStart.start.toolUse.toolUseId,
-				name: blockStart.start.toolUse.name,
-			})
-		}
-		yield* this.handleThinkingBlockStart(blockStart, blockIndex)
-		yield* this.handleRedactedThinkingBlockStart(blockStart)
-	}
-
-	private *handleThinkingBlockStart(blockStart: ContentBlockStart, blockIndex: number | undefined): Generator<any> {
-		const isThinking =
-			blockStart.start?.type === "thinking" ||
-			blockStart.contentBlock?.type === "thinking" ||
-			blockStart.type === "thinking"
-		if (!isThinking || blockIndex === undefined) return
-		this.blockTypes.set(blockIndex, "reasoning")
-		const signature = blockStart.start?.signature || blockStart.contentBlock?.signature || undefined
-		const initialContent = blockStart.start?.thinking || blockStart.contentBlock?.thinking || blockStart.thinking || ""
-		if (initialContent || signature) {
-			yield { type: "reasoning", reasoning: initialContent || "", ...(signature ? { signature } : {}) }
-		}
-	}
-
-	private *handleRedactedThinkingBlockStart(blockStart: ContentBlockStart): Generator<any> {
-		const isRedacted =
-			blockStart.start?.type === "redacted_thinking" ||
-			blockStart.contentBlock?.type === "redacted_thinking" ||
-			blockStart.type === "redacted_thinking"
-		if (!isRedacted) return
-		yield {
-			type: "reasoning",
-			reasoning: "[Redacted thinking block]",
-			...(blockStart.data ? { redacted_data: blockStart.data } : {}),
-		}
-	}
-
-	private *handleContentBlockDelta(chunk: any): Generator<any> {
-		if (!chunk.contentBlockDelta) return
-		const blockIndex = chunk.contentBlockDelta.contentBlockIndex
-		if (blockIndex === undefined) return
-		if (!(blockIndex in this.contentBuffers)) this.contentBuffers[blockIndex] = ""
-
-		const blockType = this.blockTypes.get(blockIndex)
-		const delta = chunk.contentBlockDelta.delta as ContentBlockDelta["delta"]
-		yield* this.parseDelta(delta, blockIndex, blockType, chunk)
-	}
-
-	private *parseDelta(
-		delta: ContentBlockDelta["delta"],
-		blockIndex: number,
-		blockType: "reasoning" | "text" | undefined,
-		chunk: any,
-	): Generator<any> {
-		if (delta?.type === "signature_delta" && delta?.signature) {
-			yield { type: "reasoning", reasoning: "", signature: delta.signature }
-			return
-		}
-		if (delta?.type === "thinking_delta" || delta?.thinking) {
-			const thinkingContent = delta.thinking || delta.text || ""
-			if (thinkingContent) yield { type: "reasoning", reasoning: thinkingContent }
-			return
-		}
-		if (delta?.reasoningContent?.text) {
-			yield { type: "reasoning", reasoning: delta.reasoningContent.text }
-			return
-		}
-		if (delta?.toolUse?.input !== undefined) {
-			yield* this.parseToolUseDelta(delta.toolUse.input, blockIndex)
-			return
-		}
-		if (chunk.contentBlockDelta.delta?.text) {
-			yield* this.parseTextDelta(chunk.contentBlockDelta.delta.text, blockIndex, blockType)
-		}
-	}
-
-	private *parseToolUseDelta(toolInput: any, blockIndex: number): Generator<any> {
-		const toolCall = this.activeToolCalls.get(blockIndex)
-		if (!toolCall || typeof toolInput !== "string") return
-		yield {
-			type: "tool_calls",
-			tool_call: {
-				call_id: toolCall.toolUseId,
-				function: { id: toolCall.toolUseId, name: toolCall.name, arguments: toolInput },
-			},
-		}
-	}
-
-	private *parseTextDelta(
-		textContent: string,
-		blockIndex: number,
-		blockType: "reasoning" | "text" | undefined,
-	): Generator<any> {
-		this.contentBuffers[blockIndex] += textContent
-		yield blockType === "reasoning" ? { type: "reasoning", reasoning: textContent } : { type: "text", text: textContent }
-	}
-
-	private *handleContentBlockStop(chunk: any): Generator<void> {
-		if (!chunk.contentBlockStop) return
-		const blockIndex = chunk.contentBlockStop.contentBlockIndex
-		if (blockIndex === undefined) return
-		delete this.contentBuffers[blockIndex]
-		this.blockTypes.delete(blockIndex)
-		this.activeToolCalls.delete(blockIndex)
-	}
-
-	private *handleStreamError(chunk: any): Generator<any> {
-		if (chunk.internalServerException) {
-			yield { type: "text", text: `[ERROR] Internal server error: ${chunk.internalServerException.message}` }
-		} else if (chunk.modelStreamErrorException) {
-			yield { type: "text", text: `[ERROR] Model stream error: ${chunk.modelStreamErrorException.message}` }
-		} else if (chunk.validationException) {
-			const message = chunk.validationException.message || ""
-			const isContextError = /input.*too long|context.*exceed|maximum.*token|input length.*max.*tokens/i.test(message)
-			if (isContextError) throw chunk.validationException
-			yield { type: "text", text: `[ERROR] Validation error: ${message}` }
-		} else if (chunk.throttlingException) {
-			yield { type: "text", text: `[ERROR] Throttling error: ${chunk.throttlingException.message}` }
-		} else if (chunk.serviceUnavailableException) {
-			yield { type: "text", text: `[ERROR] Service unavailable: ${chunk.serviceUnavailableException.message}` }
-		}
-	}
-}
 
 // https://docs.anthropic.com/en/api/claude-on-amazon-bedrock
 export class AwsBedrockHandler implements ApiHandler {
@@ -457,41 +207,6 @@ export class AwsBedrockHandler implements ApiHandler {
 	 * Gets AWS credentials using the provider chain
 	 * Centralizes credential retrieval logic for all AWS services
 	 */
-	private async getAwsCredentials(): Promise<{
-		accessKeyId: string
-		secretAccessKey: string
-		sessionToken?: string
-	}> {
-		// Configure provider options
-		const providerOptions: ProviderChainOptions = {
-			clientConfig: {
-				// set the inner sts client userAgentAppId
-				userAgentAppId: BEDROCK_USER_AGENT_APP_ID,
-			},
-		}
-		const useProfile =
-			(this.options.awsAuthentication === undefined && this.options.awsUseProfile) ||
-			this.options.awsAuthentication === "profile"
-		if (!useProfile && this.options.awsAccessKey && this.options.awsSecretKey) {
-			return {
-				accessKeyId: this.options.awsAccessKey,
-				secretAccessKey: this.options.awsSecretKey,
-				sessionToken: this.options.awsSessionToken,
-			}
-		}
-
-		providerOptions.clientConfig!.region = this.getRegion()
-		if (useProfile) {
-			// For profile-based auth, always use ignoreCache to detect credential file changes
-			// This solves the AWS Identity Manager issue where credential files change externally
-			providerOptions.ignoreCache = true
-			if (this.options.awsProfile) {
-				providerOptions.profile = this.options.awsProfile
-			}
-		}
-
-		return await fromNodeProviderChain(providerOptions)()
-	}
 
 	/**
 	 * Gets the AWS region to use, with fallback to default
@@ -503,34 +218,13 @@ export class AwsBedrockHandler implements ApiHandler {
 	/**
 	 * Creates a BedrockRuntimeClient with the appropriate credentials
 	 */
+	/** Resolves AWS credentials for this handler from options or the node provider chain. */
+	public getAwsCredentials(): Promise<{ accessKeyId: string; secretAccessKey: string; sessionToken?: string }> {
+		return resolveAwsCredentials(this.options, this.getRegion(), BEDROCK_USER_AGENT_APP_ID)
+	}
+
 	private async getBedrockClient(): Promise<BedrockRuntimeClient> {
-		let auth: any
-
-		if (this.options.awsAuthentication === "apikey") {
-			auth = {
-				token: { token: this.options.awsBedrockApiKey },
-				authSchemePreference: ["httpBearerAuth"],
-			}
-		} else {
-			const credentials = await this.getAwsCredentials()
-			auth = {
-				credentials: {
-					accessKeyId: credentials.accessKeyId,
-					secretAccessKey: credentials.secretAccessKey,
-					sessionToken: credentials.sessionToken,
-				},
-			}
-		}
-
-		// TODO: Add proxy support for AWS SDK
-		// AWS SDK uses a different architecture than fetch-based SDKs.
-		// To add proxy support, we need to provide a custom requestHandler.
-		return new BedrockRuntimeClient({
-			userAgentAppId: BEDROCK_USER_AGENT_APP_ID,
-			region: this.getRegion(),
-			...auth,
-			...(this.options.awsBedrockEndpoint && { endpoint: this.options.awsBedrockEndpoint }),
-		})
+		return createBedrockClient(this.options, AwsBedrockHandler.DEFAULT_REGION, BEDROCK_USER_AGENT_APP_ID)
 	}
 
 	/**
@@ -621,7 +315,7 @@ export class AwsBedrockHandler implements ApiHandler {
 								// For non-streaming response (full response)
 								const text = parsedChunk.choices[0].text
 								if (text) {
-									const chunkTokens = this.estimateTokenCount(text)
+									const chunkTokens = estimateTokenCount(text)
 									outputTokens += chunkTokens
 									accumulatedTokens += chunkTokens
 
@@ -644,7 +338,7 @@ export class AwsBedrockHandler implements ApiHandler {
 							} else if (parsedChunk.delta?.text) {
 								// For streaming response (delta updates)
 								const text = parsedChunk.delta.text
-								const chunkTokens = this.estimateTokenCount(text)
+								const chunkTokens = estimateTokenCount(text)
 								outputTokens += chunkTokens
 								accumulatedTokens += chunkTokens
 
@@ -751,46 +445,12 @@ export class AwsBedrockHandler implements ApiHandler {
 	/**
 	 * Estimates token count for a text string
 	 */
-	private estimateTokenCount(text: string): number {
-		// Approximate 4 characters per token
-		return Math.ceil(text.length / 4)
-	}
 
 	/**
 	 * Converts Dirac's tool definitions (Anthropic format with `input_schema`) to the
 	 * Bedrock Converse API `ToolConfiguration` shape. Returns `undefined` when no tools
 	 * are provided so callers can conditionally spread into the command params.
 	 */
-	private mapDiracToolsToBedrockToolConfig(tools?: DiracTool[]): ToolConfiguration | undefined {
-		if (!tools || tools.length === 0) {
-			return undefined
-		}
-
-		const isAnthropicTool = (tool: DiracTool): tool is AnthropicTool => "input_schema" in tool
-
-		const bedrockTools = tools.filter(isAnthropicTool).map((tool) => {
-			return {
-				toolSpec: {
-					name: tool.name,
-					description: tool.description || tool.name || "Tool",
-					inputSchema: {
-						json: tool.input_schema,
-					},
-				},
-			}
-		})
-
-		if (bedrockTools.length === 0) {
-			return undefined
-		}
-
-		const toolConfig: ToolConfiguration = {
-			tools: bedrockTools as unknown as ToolConfiguration["tools"],
-			toolChoice: { auto: {} },
-		}
-
-		return toolConfig
-	}
 
 	/**
 	 * Executes a Converse API stream command and handles the response
@@ -818,38 +478,10 @@ export class AwsBedrockHandler implements ApiHandler {
 	/**
 	 * Prepares system messages with optional caching support
 	 */
-	private prepareSystemMessages(systemPrompt: string, enableCaching: boolean): any[] | undefined {
-		if (!systemPrompt) {
-			return undefined
-		}
-
-		if (enableCaching) {
-			return [{ text: systemPrompt }, { cachePoint: { type: "default" } }]
-		}
-
-		return [{ text: systemPrompt }]
-	}
 
 	/**
 	 * Gets inference configuration for different model types
 	 */
-	private getInferenceConfig(modelInfo: ModelInfo, modelType: "anthropic" | "nova"): any {
-		// For Anthropic models with thinking enabled, temperature must be 1
-		if (modelType === "anthropic") {
-			const budget_tokens = this.options.thinkingBudgetTokens || 0
-			const reasoningOn = modelInfo.supportsReasoning && budget_tokens > 0
-
-			return {
-				maxTokens: modelInfo.maxTokens || 8192,
-				temperature: reasoningOn ? undefined : (modelInfo.temperature ?? undefined),
-			}
-		}
-
-		return {
-			maxTokens: modelInfo.maxTokens || (modelType === "nova" ? 5000 : 8192),
-			temperature: modelInfo.temperature ?? 0,
-		}
-	}
 
 	/**
 	 * Creates a message using Anthropic Claude models through AWS Bedrock Converse API
@@ -858,7 +490,7 @@ export class AwsBedrockHandler implements ApiHandler {
 	private async *createAnthropicMessage(config: BedrockMessageConfig): ApiStream {
 		const { systemPrompt, messages, modelId, model, tools } = config
 		// Format messages for Anthropic model using unified formatter
-		const formattedMessages = this.formatMessagesForConverseAPI(messages, model.info.supportsImages !== false)
+		const formattedMessages = formatMessagesForConverseAPI(messages, model.info.supportsImages !== false)
 
 		// Get model info and message indices for caching
 		const userMsgIndices = messages.reduce((acc, msg, index) => (msg.role === "user" ? [...acc, index] : acc), [] as number[])
@@ -867,11 +499,11 @@ export class AwsBedrockHandler implements ApiHandler {
 
 		// Apply caching controls to messages if enabled
 		const messagesWithCache = this.options.awsBedrockUsePromptCache
-			? this.applyCacheControlToMessages(formattedMessages, [secondLastMsgUserIndex, lastUserMsgIndex])
+			? applyCacheControlToMessages(formattedMessages, [secondLastMsgUserIndex, lastUserMsgIndex])
 			: formattedMessages
 
 		// Prepare system message with caching support
-		const systemMessages = this.prepareSystemMessages(systemPrompt, this.options.awsBedrockUsePromptCache || false)
+		const systemMessages = prepareSystemMessages(systemPrompt, this.options.awsBedrockUsePromptCache || false)
 
 		// Get thinking configuration
 		const budget_tokens = this.options.thinkingBudgetTokens || 0
@@ -879,12 +511,12 @@ export class AwsBedrockHandler implements ApiHandler {
 		const useAdaptive = isAnthropicAdaptiveThinkingSupported(modelId, model.info)
 
 		// Prepare request for Anthropic model using Converse API
-		const toolConfig = this.mapDiracToolsToBedrockToolConfig(tools)
+		const toolConfig = mapDiracToolsToBedrockToolConfig(tools)
 		const command = new ConverseStreamCommand({
 			modelId: modelId,
 			messages: messagesWithCache,
 			system: systemMessages,
-			inferenceConfig: this.getInferenceConfig(model.info, "anthropic"),
+			inferenceConfig: getInferenceConfig(model.info, "anthropic", this.options.thinkingBudgetTokens || 0),
 			...(toolConfig ? { toolConfig } : {}),
 			additionalModelRequestFields: {
 				// Add thinking configuration as per LangChain documentation
@@ -908,183 +540,15 @@ export class AwsBedrockHandler implements ApiHandler {
 	 * Formats messages for models using the Converse API specification
 	 * Used by both Anthropic and Nova models to avoid code duplication
 	 */
-	private formatMessagesForConverseAPI(messages: DiracStorageMessage[], supportsImages = true): Message[] {
-		return messages.map((message) => {
-			// Determine role (user or assistant)
-			const role = message.role === "user" ? ConversationRole.USER : ConversationRole.ASSISTANT
-
-			// Process content based on type
-			let content: ContentBlock[] = []
-
-			if (typeof message.content === "string") {
-				// Simple text content
-				content = [{ text: message.content }]
-			} else if (Array.isArray(message.content)) {
-				// Convert Anthropic content format to Converse API content format
-				const processedContent = message.content
-					.map((item) => {
-						// Text content
-						if (item.type === "text") {
-							return { text: item.text }
-						}
-
-						// Image content
-						if (item.type === "image") {
-							if (supportsImages) {
-								return this.processImageContent(item)
-							}
-							return { text: "[Image]" }
-						}
-
-						if (item.type === "tool_use") {
-							return {
-								toolUse: {
-									toolUseId: item.id,
-									name: item.name,
-									input: item.input,
-								},
-							}
-						}
-
-						// Skip thinking blocks - Bedrock Converse API handles thinking via
-						// the thinking config parameter, not by replaying blocks in history
-						if (item.type === "thinking" || item.type === "redacted_thinking") {
-							return null
-						}
-
-						if (item.type === "tool_result") {
-							const content = (() => {
-								if (typeof item.content === "string") {
-									return [{ text: item.content }]
-								}
-								if (Array.isArray(item.content)) {
-									return item.content
-										.map((block) => {
-											if (block.type === "text") {
-												return { text: block.text }
-											}
-											if (block.type === "image") {
-												if (supportsImages) {
-													return this.processImageContent(block)
-												}
-												return { text: "[Image]" }
-											}
-											return null
-										})
-										.filter((block): block is ContentBlock => block !== null)
-								}
-
-								return [{ text: JSON.stringify(item.content) }]
-							})()
-
-							return {
-								toolResult: {
-									toolUseId: item.tool_use_id,
-									content,
-									status: item.is_error ? "error" : "success",
-								},
-							}
-						}
-
-						// Log unsupported content types for debugging
-						Logger.warn(`Unsupported content type: ${(item as ContentItem).type}`)
-						return null
-					})
-					.filter((item): item is ContentBlock => item !== null)
-
-				content = processedContent
-			}
-
-			// Return formatted message
-			return {
-				role,
-				content,
-			}
-		})
-	}
 
 	/**
 	 * Processes image content with proper error handling and user notification
 	 */
-	private processImageContent(item: any): ContentBlock | null {
-		let imageData: Uint8Array
-		let format: "png" | "jpeg" | "gif" | "webp" = "jpeg" // default format
-
-		// Extract format from media_type if available
-		if (item.source.media_type) {
-			// Extract format from media_type (e.g., "image/jpeg" -> "jpeg")
-			const formatMatch = item.source.media_type.match(/image\/(\w+)/)
-			if (formatMatch && formatMatch[1]) {
-				const extractedFormat = formatMatch[1]
-				// Ensure format is one of the allowed values
-				if (["png", "jpeg", "gif", "webp"].includes(extractedFormat)) {
-					format = extractedFormat as "png" | "jpeg" | "gif" | "webp"
-				}
-			}
-		}
-
-		// Get image data with improved error handling
-		try {
-			if (typeof item.source.data === "string") {
-				// Handle base64 encoded data
-				const base64Data = item.source.data.replace(/^data:image\/\w+;base64,/, "")
-				imageData = new Uint8Array(Buffer.from(base64Data, "base64"))
-			} else if (item.source.data && typeof item.source.data === "object") {
-				// Try to convert to Uint8Array
-				imageData = new Uint8Array(Buffer.from(item.source.data as Buffer | Uint8Array))
-			} else {
-				throw new Error("Unsupported image data format")
-			}
-
-			return {
-				image: {
-					format,
-					source: {
-						bytes: imageData,
-					},
-				},
-			}
-		} catch (error) {
-			Logger.error("Failed to process image content:", error)
-			// Return a text content indicating the error instead of null
-			// This ensures users are aware of the issue
-			return {
-				text: `[ERROR: Failed to process image - ${getErrorMessage(error, "Unknown error")}]`,
-			}
-		}
-	}
 
 	/**
 	 * Applies cache control to messages for prompt caching using AWS Bedrock's cachePoint system
 	 * AWS Bedrock uses cachePoint objects instead of Anthropic's cache_control approach
 	 */
-	private applyCacheControlToMessages(messages: Message[], userIndices: [number, number]): Message[] {
-		const [, lastUserMsgIndex] = userIndices
-		const secondLastMsgUserIndex = userIndices[0] ?? -1
-		return messages.map((message, index) => {
-			// Add cachePoint to the last user message and second-to-last user message
-			if (index === lastUserMsgIndex || index === secondLastMsgUserIndex) {
-				// Clone the message to avoid modifying the original
-				const messageWithCache = { ...message }
-
-				if (messageWithCache.content && Array.isArray(messageWithCache.content)) {
-					// Add cachePoint to the end of the content array
-					messageWithCache.content = [
-						...messageWithCache.content,
-						{
-							cachePoint: {
-								type: "default",
-							},
-						} as CachePointContentBlock, // Properly typed cache point for AWS SDK
-					]
-				}
-
-				return messageWithCache
-			}
-
-			return message
-		})
-	}
 
 	/**
 	 * Creates a message using Amazon Nova models through AWS Bedrock
@@ -1093,7 +557,7 @@ export class AwsBedrockHandler implements ApiHandler {
 	private async *createNovaMessage(config: BedrockMessageConfig): ApiStream {
 		const { systemPrompt, messages, modelId, model, tools } = config
 		// Format messages for Nova model using unified formatter
-		const formattedMessages = this.formatMessagesForConverseAPI(messages, model.info.supportsImages !== false)
+		const formattedMessages = formatMessagesForConverseAPI(messages, model.info.supportsImages !== false)
 
 		// Get model info and message indices for caching (for Nova models that support it)
 		const userMsgIndices = messages.reduce((acc, msg, index) => (msg.role === "user" ? [...acc, index] : acc), [] as number[])
@@ -1103,20 +567,20 @@ export class AwsBedrockHandler implements ApiHandler {
 		// Apply caching controls to messages if model supports caching and option is enabled
 		const messagesWithCache =
 			this.options.awsBedrockUsePromptCache && model.info.supportsPromptCache
-				? this.applyCacheControlToMessages(formattedMessages, [secondLastMsgUserIndex, lastUserMsgIndex])
+				? applyCacheControlToMessages(formattedMessages, [secondLastMsgUserIndex, lastUserMsgIndex])
 				: formattedMessages
 
 		// Prepare system message with caching support for Nova models that support it
 		const enableCaching = this.options.awsBedrockUsePromptCache && model.info.supportsPromptCache
-		const systemMessages = this.prepareSystemMessages(systemPrompt, enableCaching || false)
+		const systemMessages = prepareSystemMessages(systemPrompt, enableCaching || false)
 
 		// Prepare request for Nova model
-		const toolConfig = this.mapDiracToolsToBedrockToolConfig(tools)
+		const toolConfig = mapDiracToolsToBedrockToolConfig(tools)
 		const command = new ConverseStreamCommand({
 			modelId: modelId,
 			messages: messagesWithCache,
 			system: systemMessages,
-			inferenceConfig: this.getInferenceConfig(model.info, "nova"),
+			inferenceConfig: getInferenceConfig(model.info, "nova", this.options.thinkingBudgetTokens || 0),
 			...(toolConfig ? { toolConfig } : {}),
 		})
 
@@ -1149,9 +613,9 @@ export class AwsBedrockHandler implements ApiHandler {
 	): ApiStream {
 		const { systemPrompt, messages, modelId, model, tools } = config
 		const client = await this.getBedrockClient()
-		const formattedMessages = this.formatMessagesForConverseAPI(messages, model.info.supportsImages !== false)
+		const formattedMessages = formatMessagesForConverseAPI(messages, model.info.supportsImages !== false)
 		const systemMessages = systemPrompt ? [{ text: systemPrompt }] : undefined
-		const toolConfig = this.mapDiracToolsToBedrockToolConfig(tools)
+		const toolConfig = mapDiracToolsToBedrockToolConfig(tools)
 		const command = new ConverseCommand({
 			modelId,
 			messages: formattedMessages,
@@ -1163,11 +627,11 @@ export class AwsBedrockHandler implements ApiHandler {
 		try {
 			const inputTokenEstimate = this.estimateInputTokens(systemPrompt, messages)
 			const response = await client.send(command, { abortSignal: config.abortSignal })
-			const { fullText, reasoningText } = this.extractNonStreamingContent(response)
+			const { fullText, reasoningText } = extractNonStreamingContent(response)
 
 			const outputTokens = response.usage
-				? response.usage.outputTokens || this.estimateTokenCount(fullText + reasoningText)
-				: this.estimateTokenCount(fullText + reasoningText)
+				? response.usage.outputTokens || estimateTokenCount(fullText + reasoningText)
+				: estimateTokenCount(fullText + reasoningText)
 
 			if (response.usage) {
 				const actualInputTokens = response.usage.inputTokens || inputTokenEstimate
@@ -1179,8 +643,8 @@ export class AwsBedrockHandler implements ApiHandler {
 				}
 			}
 
-			yield* this.chunkText(reasoningText, "reasoning")
-			yield* this.chunkText(fullText, "text")
+			yield* chunkText(reasoningText, "reasoning")
+			yield* chunkText(fullText, "text")
 
 			if (!response.usage) {
 				yield {
@@ -1192,46 +656,15 @@ export class AwsBedrockHandler implements ApiHandler {
 			}
 		} catch (error) {
 			Logger.error(`Error with ${label} model via Converse API:`, error)
-			yield { type: "text", text: `[ERROR] ${this.formatConverseError(error, label)}` }
+			yield { type: "text", text: `[ERROR] ${formatConverseError(error, label)}` }
 		} finally {
 			client.destroy()
 		}
 	}
 
 	// Extracts text and reasoning content from a non-streaming Converse response.
-	private extractNonStreamingContent(response: any): { fullText: string; reasoningText: string } {
-		let fullText = ""
-		let reasoningText = ""
-		if (!response.output?.message?.content) return { fullText, reasoningText }
-		for (const block of response.output.message.content) {
-			if ("reasoningContent" in block && block.reasoningContent) {
-				const reasoning = block.reasoningContent
-				if ("reasoningText" in reasoning && reasoning.reasoningText && "text" in reasoning.reasoningText) {
-					reasoningText += reasoning.reasoningText.text
-				}
-			} else if ("text" in block && block.text) {
-				fullText += block.text
-			}
-		}
-		return { fullText, reasoningText }
-	}
 
 	// Chunks text into 1000-char segments and yields as the given chunk type.
-	private *chunkText(text: string, type: "text" | "reasoning"): Generator<any> {
-		if (!text) return
-		const chunkSize = 1000
-		for (let i = 0; i < text.length; i += chunkSize) {
-			const chunk = text.slice(i, Math.min(i + chunkSize, text.length))
-			yield type === "reasoning" ? { type: "reasoning", reasoning: chunk } : { type: "text", text: chunk }
-		}
-	}
 
 	// Formats an error from the Converse API into a human-readable message.
-	private formatConverseError(error: unknown, label: string): string {
-		if (error instanceof Error) {
-			const named = error as Error & { name?: string }
-			return named.name ? `${named.name}: ${error.message}` : error.message
-		}
-		return `Failed to process ${label} model request`
-	}
 }
