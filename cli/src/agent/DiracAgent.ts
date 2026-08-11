@@ -22,7 +22,7 @@ import { isPlanResponseCard } from "@shared/responseTool"
 import type { DiracMessage } from "@shared/ExtensionMessage"
 import { CardStatus, DiracMessageType, TaskStatus } from "@shared/ExtensionMessage"
 import { CLI_ONLY_COMMANDS, VSCODE_ONLY_COMMANDS } from "@shared/slashCommands"
-import { getSettingsFromEnv } from "@shared/storage/env-config"
+import { getProviderFromEnv, getSettingsFromEnv } from "@shared/storage/env-config"
 import { getProviderModelIdKey, getProviderModelInfoKey } from "@shared/storage/provider-keys"
 import { isOpenaiReasoningEffort, OPENAI_REASONING_EFFORT_OPTIONS } from "@shared/storage/types"
 import { DiracAskResponse } from "@shared/WebviewMessage"
@@ -40,8 +40,6 @@ import { ExternalCommentReviewController } from "@/hosts/external/ExternalCommen
 import { ExternalDiracWebviewProvider } from "@/hosts/external/ExternalWebviewProvider.js"
 import { HostProvider } from "@/hosts/host-provider.js"
 import { FileEditProvider } from "@/integrations/editor/FileEditProvider"
-import { openAiCodexOAuthManager } from "@/integrations/openai-codex/oauth"
-import { openAiCodexUsageService } from "@/integrations/openai-codex/OpenAiCodexUsageService"
 import { StandaloneTerminalManager } from "@/integrations/terminal/index.js"
 import { Logger } from "@/shared/services/Logger.js"
 import { DiracTempManager } from "@/services/temp/DiracTempManager.js"
@@ -81,10 +79,10 @@ import {
 } from "../acp/acp-session-runtime-config.js"
 import { swapSessionOverrides } from "../acp/sessionOverrides.js"
 import { initCoreServices } from "../initCoreServices.js"
-import { openUrlInBrowser } from "../utils/browser.js"
 import { getDefaultModelId } from "../utils/model-metadata.js"
 import { isValidCliProvider } from "../utils/providers.js"
 import { CliContextResult, initializeCliContext } from "../vscode-context.js"
+import { AcpAuthenticationManager } from "./AcpAuthenticationManager.js"
 import { DiracSessionEmitter } from "./DiracSessionEmitter.js"
 import { translateMessage } from "./messageTranslator.js"
 import { parsePromptContent } from "./promptContent.js"
@@ -174,6 +172,7 @@ export class DiracAgent implements acp.Agent {
 				await this.releaseSessionResources(sessionId, true)
 			}
 		} finally {
+			this.authentication.shutdown()
 			DiracTempManager.stopPeriodicCleanup()
 		}
 	}
@@ -331,6 +330,7 @@ export class DiracAgent implements acp.Agent {
 		}
 	}
 	private readonly options: DiracAgentOptions
+	private readonly authentication: AcpAuthenticationManager
 	private ctx!: CliContextResult
 
 	/** Map of active sessions by session ID */
@@ -653,6 +653,7 @@ export class DiracAgent implements acp.Agent {
 
 	constructor(options: DiracAgentOptions) {
 		this.options = options
+		this.authentication = new AcpAuthenticationManager({ diracDir: options.diracDir, cwd: options.cwd })
 		setRuntimeHooksDir(options.hooksDir)
 		// ctx is initialized lazily in initialize() so that IO failures (e.g. an
 		// unwritable --config path) surface as a JSON-RPC error response on
@@ -696,6 +697,11 @@ export class DiracAgent implements acp.Agent {
 		for (const key of TASK_RUNTIME_SETTINGS_KEYS) {
 			const systemDefault = stateManager.getSystemDefaultSettingsKey(key)
 				; (effectiveDefaults as Record<keyof Settings, unknown>)[key] = systemDefault ?? environmentSettings[key]
+		}
+		const environmentProvider = getProviderFromEnv()
+		if (environmentProvider && isValidCliProvider(environmentProvider)) {
+			effectiveDefaults.actModeApiProvider ??= environmentProvider
+			effectiveDefaults.planModeApiProvider ??= environmentProvider
 		}
 
 		const overrides = copyTaskRuntimeSettings(effectiveDefaults)
@@ -1094,6 +1100,7 @@ export class DiracAgent implements acp.Agent {
 			storageContext: this.ctx.storageContext,
 		})
 		this.applyStartupProviderInfrastructure()
+		const authMethods = await this.authentication.listAuthenticationMethods(this.clientCapabilities)
 
 		return {
 			protocolVersion: PROTOCOL_VERSION,
@@ -1143,13 +1150,7 @@ export class DiracAgent implements acp.Agent {
 				name: "dirac",
 				version: AGENT_VERSION,
 			},
-			authMethods: [
-				{
-					id: "openai-codex-oauth",
-					name: "Sign in with ChatGPT",
-					description: "Authenticate with your ChatGPT Plus/Pro/Team subscription",
-				},
-			],
+			authMethods,
 		}
 	}
 
@@ -2108,21 +2109,11 @@ export class DiracAgent implements acp.Agent {
 	}
 
 	async authenticate(params: acp.AuthenticateRequest): Promise<acp.AuthenticateResponse> {
-		if (params.methodId !== "openai-codex-oauth") {
-			throw new Error(`Unsupported authentication method: ${params.methodId}`)
-		}
-
-		const authorizationUrl = openAiCodexOAuthManager.startAuthorizationFlow()
-		await openUrlInBrowser(authorizationUrl)
-		await openAiCodexOAuthManager.waitForCallback()
-		openAiCodexUsageService.clear()
-		return {}
+		return this.authentication.authenticate(params)
 	}
 
 	async logout(): Promise<void> {
-		openAiCodexOAuthManager.cancelAuthorizationFlow()
-		await openAiCodexOAuthManager.clearCredentials()
-		openAiCodexUsageService.clear()
+		await this.authentication.logout()
 	}
 
 	private async emitCurrentModeUpdate(sessionId: string): Promise<void> {

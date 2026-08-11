@@ -181,3 +181,24 @@ describe("getProviderFromEnv - OpenAI detection", () => {
 		expect(getProviderFromEnv()).to.equal("openai")
 	})
 })
+
+describe("generic Dirac environment authentication", () => {
+	it("maps provider, model, API key, and base URL", () => {
+		process.env.DIRAC_PROVIDER = "openai"
+		process.env.DIRAC_MODEL = "custom-model"
+		process.env.DIRAC_API_KEY = "custom-key"
+		process.env.DIRAC_BASE_URL = "http://127.0.0.1:8080/v1"
+
+		expect(getProviderFromEnv()).to.equal("openai")
+		expect(getSecretsFromEnv().openAiApiKey).to.equal("custom-key")
+		const settings = getSettingsFromEnv()
+		expect(settings.actModeOpenAiModelId).to.equal("custom-model")
+		expect(settings.planModeOpenAiModelId).to.equal("custom-model")
+		expect(settings.openAiBaseUrl).to.equal("http://127.0.0.1:8080/v1")
+	})
+
+	it("ignores an unknown explicit provider", () => {
+		process.env.DIRAC_PROVIDER = "unknown"
+		expect(getProviderFromEnv()).to.be.undefined
+	})
+})

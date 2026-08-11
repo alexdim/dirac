@@ -150,6 +150,46 @@ export async function applyProviderConfig(options: ApplyProviderConfigOptions): 
 	}
 }
 
+export interface ConfigureApiKeyProviderOptions {
+	provider: string
+	apiKey: string
+	modelId?: string
+	baseUrl?: string
+	azureApiVersion?: string
+	controller?: Controller
+}
+
+export async function configureApiKeyProvider(options: ConfigureApiKeyProviderOptions): Promise<void> {
+	const { getValidCliProviders } = await import("./providers.js")
+	const providers = getValidCliProviders()
+	const requestedProvider = options.provider.trim()
+	const provider = providers.find((candidate) => candidate.toLowerCase() === requestedProvider.toLowerCase())
+	if (!provider) throw new Error(`Invalid provider '${options.provider}'. Supported providers: ${providers.join(", ")}`)
+	if (provider === "bedrock") {
+		throw new Error(
+			"Bedrock provider is not supported for quick setup due to complex authentication requirements. Please use interactive setup.",
+		)
+	}
+	if (!ProviderToApiKeyMap[provider as ApiProvider]) throw new Error(`Provider ${provider} does not support API-key setup`)
+	if (!options.apiKey.trim()) throw new Error("API key is required")
+	if (options.baseUrl && !ProviderToBaseUrlKeyMap[provider as ApiProvider]) {
+		throw new Error("Base URL is not supported for this provider")
+	}
+
+	const modelId = options.modelId?.trim() || getDefaultModelId(provider)
+	if (!modelId) throw new Error("Model ID is required for this provider")
+	await applyProviderConfig({
+		providerId: provider,
+		apiKey: options.apiKey.trim(),
+		modelId,
+		baseUrl: options.baseUrl,
+		azureApiVersion: options.azureApiVersion,
+		controller: options.controller,
+	})
+	StateManager.get().setGlobalState("welcomeViewCompleted", true)
+	await StateManager.get().flushPendingState()
+}
+
 export interface ApplyBedrockConfigOptions {
 	bedrockConfig: BedrockConfig
 	modelId?: string
