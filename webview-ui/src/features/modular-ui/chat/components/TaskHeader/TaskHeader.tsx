@@ -1,4 +1,3 @@
-import { hasPricing } from "@shared/api"
 import { DiracApiReqInfo, DiracMessage, DiracMessageType, Mode } from "@shared/ExtensionMessage"
 import { ChevronDownIcon, ChevronRightIcon } from "lucide-react"
 import React, { useCallback, useMemo } from "react"
@@ -15,6 +14,7 @@ import DeleteTaskButton from "./buttons/DeleteTaskButton"
 import OpenDiskConversationHistoryButton from "./buttons/OpenDiskConversationHistoryButton"
 import { CheckpointError } from "./CheckpointError"
 import ContextWindow from "./ContextWindow"
+import { getCostLabel } from "./getCostLabel"
 import { highlightText } from "./Highlights"
 
 const IS_DEV = process.env.IS_DEV === '"true"'
@@ -74,9 +74,7 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({ task, totalCost, cacheHitRate, 
 		return (lastApiReqTotalTokens / contextWindow) * 100
 	}, [contextWindow, lastApiReqTotalTokens])
 
-	// Three states: charged ($X.XX), explicitly free (FREE), unknown pricing (n/a)
-	const costLabel =
-		totalCost > 0 ? `$${totalCost.toFixed(4)}` : selectedModelInfo && hasPricing(selectedModelInfo) ? "FREE" : "n/a"
+	const costLabel = getCostLabel(totalCost, selectedModelInfo)
 
 	const toggleTaskExpanded = useCallback(() => setIsTaskExpanded(!isTaskExpanded), [setIsTaskExpanded, isTaskExpanded])
 

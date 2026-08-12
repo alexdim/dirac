@@ -1,6 +1,6 @@
 import { describe, it } from "mocha"
 import "should"
-import { ModelInfo } from "@shared/api"
+import { isFreeModel, type ModelInfo } from "@shared/api"
 import { calculateApiCostAnthropic, calculateApiCostOpenAI, calculateApiCostQwen } from "@utils/cost"
 
 describe("Cost Utilities", () => {
@@ -229,6 +229,32 @@ describe("Cost Utilities", () => {
 
 			const cost = calculateApiCostQwen(modelInfo, 0, 0, 0, 0)
 			cost!.should.equal(0)
+		})
+	})
+
+	describe("isFreeModel", () => {
+		it("returns true when input and output prices are zero", () => {
+			isFreeModel({ supportsPromptCache: true, inputPrice: 0, outputPrice: 0 }).should.be.true()
+		})
+
+		it("returns false for paid models", () => {
+			isFreeModel({ supportsPromptCache: true, inputPrice: 3.0, outputPrice: 15.0 }).should.be.false()
+		})
+
+		it("returns false for unknown-pricing models", () => {
+			isFreeModel({ supportsPromptCache: true }).should.be.false()
+		})
+
+		it("returns false when one base price is missing", () => {
+			isFreeModel({ supportsPromptCache: true, inputPrice: 0 }).should.be.false()
+		})
+
+		// Regression: paid model with totalCost === 0 must not be labeled FREE.
+		it("paid model with zero tokens is not labeled FREE", () => {
+			const paidModel: ModelInfo = { supportsPromptCache: true, inputPrice: 3.0, outputPrice: 15.0 }
+			const cost = calculateApiCostAnthropic(paidModel, 0, 0, 0, 0)
+			cost!.should.equal(0)
+			isFreeModel(paidModel).should.be.false()
 		})
 	})
 })
