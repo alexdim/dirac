@@ -71,6 +71,7 @@ export {
 	type BasetenModelInfo,
 	createModelProviderSelection,
 	hasPricing,
+	isFreeModel,
 	type LiteLLMModelInfo,
 	type ModelCapabilities,
 	type ModelInfo,
