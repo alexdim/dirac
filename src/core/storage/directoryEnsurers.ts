@@ -9,27 +9,44 @@ export async function ensureTaskDirectoryExists(taskId: string): Promise<string>
 	return getGlobalStorageDir("tasks", taskId)
 }
 
-// Copies a single file from legacy to dest, skipping if dest already exists.
+// Expected legacy-path errors: ENOENT (dir missing), EPERM/EACCES (TCC-protected ~/Documents).
+function isExpectedMigrationError(error: unknown): boolean {
+	const code = (error as NodeJS.ErrnoException).code
+	return code === "ENOENT" || code === "EPERM" || code === "EACCES"
+}
+
+// Copies a single file, skipping if dest exists. Per-file isolation — one failure doesn't block others.
 async function migrateFile(src: string, dest: string): Promise<void> {
 	try {
-		await fs.copyFile(src, dest, fs.constants.COPYFILE_EXCL) // don't overwrite existing
+		await fs.copyFile(src, dest, fs.constants.COPYFILE_EXCL)
 	} catch (error) {
 		if ((error as NodeJS.ErrnoException).code !== "EEXIST") Logger.warn(`migration: skipping ${src}: ${error}`)
 	}
 }
 
-// Migrates files from the legacy ~/Documents/Dirac/<subdir> to ~/.dirac/<Subdir>.
-// Best-effort: swallows EPERM (TCC-protected ~/Documents) and any other read error.
-// Idempotent: skips files that already exist at the destination.
+// Recursively migrates src → dest. Each file has its own try/catch — one failure doesn't abort the rest.
+async function migrateDir(src: string, dest: string): Promise<void> {
+	await fs.mkdir(dest, { recursive: true })
+	const entries = await fs.readdir(src, { withFileTypes: true })
+	await Promise.all(
+		entries.map(async (entry) => {
+			const s = path.join(src, entry.name)
+			const d = path.join(dest, entry.name)
+			if (entry.isDirectory()) await migrateDir(s, d)
+			else await migrateFile(s, d)
+		}),
+	)
+}
+
+// Migrates legacy ~/Documents/Dirac/<subdir> → ~/.dirac/<subdir> recursively, skipping existing files.
+// Swallows only ENOENT/EPERM/EACCES (TCC-protected ~/Documents); logs unexpected errors.
 async function migrateFromDocumentsDir(subdir: string, destDir: string): Promise<void> {
 	const legacyDir = path.join(await getDocumentsPath(), "Dirac", subdir)
-	let entries: string[]
 	try {
-		entries = await fs.readdir(legacyDir)
-	} catch {
-		return // legacy dir doesn't exist or is TCC-blocked — nothing to migrate
+		await migrateDir(legacyDir, destDir)
+	} catch (error) {
+		if (!isExpectedMigrationError(error)) Logger.warn(`migration: skipping ${legacyDir}: ${error}`)
 	}
-	await Promise.all(entries.map((entry) => migrateFile(path.join(legacyDir, entry), path.join(destDir, entry))))
 }
 
 // Ensures a ~/.dirac/<subdir> directory exists and migrates from the legacy ~/Documents/Dirac/<subdir>.

@@ -11,6 +11,7 @@ import { afterEach, beforeEach, describe, it } from "mocha"
 import os from "os"
 import path from "path"
 import * as sinon from "sinon"
+import { Logger } from "@/shared/services/Logger"
 import { ensureHooksDirectoryExists, ensureRulesDirectoryExists, ensureWorkflowsDirectoryExists } from "../directoryEnsurers"
 import * as pathsModule from "../paths"
 
@@ -88,16 +89,14 @@ describe("directoryEnsurers — FU-9 (TCC-protected path relocation)", () => {
 				expect(await fs.readFile(path.join(newDir, "shared.md"), "utf8")).to.equal("new-content")
 			})
 
-			it("swallows EPERM on legacy dir readdir (TCC-protected ~/Documents)", async () => {
+			it("swallows EPERM on legacy dir (TCC-protected ~/Documents)", async () => {
 				const legacyDir = path.join(fakeDocuments, "Dirac", subdir)
 				await fs.mkdir(legacyDir, { recursive: true })
 				await fs.writeFile(path.join(legacyDir, "rule.md"), "content")
-				// Simulate TCC denial on readdir of the legacy dir only
+				// Stub readdir to reject EPERM only for the legacy dir (TCC denial)
 				const realReaddir = fs.readdir.bind(fs)
 				sandbox.stub(fs, "readdir").callsFake(((p: string) => {
-					if (p === legacyDir) {
-						return Promise.reject(Object.assign(new Error("EPERM"), { code: "EPERM" }))
-					}
+					if (p === legacyDir) return Promise.reject(Object.assign(new Error("EPERM"), { code: "EPERM" }))
 					return realReaddir(p)
 				}) as typeof fs.readdir)
 
@@ -113,6 +112,75 @@ describe("directoryEnsurers — FU-9 (TCC-protected path relocation)", () => {
 				const result = await ENSURER[subdir]()
 				const migrated = await fs.readdir(result)
 				expect(migrated).to.deep.equal([])
+			})
+
+			// Review fix #1: nested dirs must be migrated recursively (not skipped as EISDIR).
+			it("migrates nested subdirectories from legacy dir (recursive)", async () => {
+				const legacyDir = path.join(fakeDocuments, "Dirac", subdir)
+				await fs.mkdir(path.join(legacyDir, "nested"), { recursive: true })
+				await fs.writeFile(path.join(legacyDir, "top.md"), "top")
+				await fs.writeFile(path.join(legacyDir, "nested", "deep.md"), "deep")
+
+				const result = await ENSURER[subdir]()
+
+				expect(await fs.readFile(path.join(result, "top.md"), "utf8")).to.equal("top")
+				expect(await fs.readFile(path.join(result, "nested", "deep.md"), "utf8")).to.equal("deep")
+			})
+
+			// One bad sibling must not block the rest (data safety — per-file isolation).
+			it("continues migrating siblings when one copyFile fails", async () => {
+				const legacyDir = path.join(fakeDocuments, "Dirac", subdir)
+				await fs.mkdir(legacyDir, { recursive: true })
+				await fs.writeFile(path.join(legacyDir, "good.md"), "good")
+				await fs.writeFile(path.join(legacyDir, "bad.md"), "bad")
+				const realCopyFile = fs.copyFile.bind(fs)
+				sandbox.stub(fs, "copyFile").callsFake(((src: string, dest: string, mode?: number) => {
+					if (src.endsWith("bad.md")) return Promise.reject(Object.assign(new Error("EIO"), { code: "EIO" }))
+					return realCopyFile(src, dest, mode)
+				}) as typeof fs.copyFile)
+
+				const result = await ENSURER[subdir]()
+
+				expect(await fs.readFile(path.join(result, "good.md"), "utf8")).to.equal("good")
+				await fs.stat(path.join(result, "bad.md")).then(
+					() => expect.fail("bad.md should not have been migrated"),
+					() => undefined,
+				)
+			})
+
+			// Review fix #3: EACCES is an expected legacy-path denial, same class as EPERM.
+			it("swallows EACCES on legacy dir", async () => {
+				const legacyDir = path.join(fakeDocuments, "Dirac", subdir)
+				await fs.mkdir(legacyDir, { recursive: true })
+				await fs.writeFile(path.join(legacyDir, "rule.md"), "content")
+				const realReaddir = fs.readdir.bind(fs)
+				sandbox.stub(fs, "readdir").callsFake(((p: string) => {
+					if (p === legacyDir) return Promise.reject(Object.assign(new Error("EACCES"), { code: "EACCES" }))
+					return realReaddir(p)
+				}) as typeof fs.readdir)
+
+				const result = await ENSURER[subdir]()
+
+				expect(result).to.equal(path.join(fakeHome, ".dirac", subdir))
+				expect(await fs.readdir(result)).to.deep.equal([])
+			})
+
+			// Review fix #3: unexpected errors must be logged, not swallowed.
+			it("logs unexpected readdir errors (not ENOENT/EPERM/EACCES)", async () => {
+				const legacyDir = path.join(fakeDocuments, "Dirac", subdir)
+				await fs.mkdir(legacyDir, { recursive: true })
+				const warnStub = sandbox.stub(Logger, "warn")
+				const realReaddir = fs.readdir.bind(fs)
+				sandbox.stub(fs, "readdir").callsFake(((p: string) => {
+					if (p === legacyDir) return Promise.reject(Object.assign(new Error("ENOSYS"), { code: "ENOSYS" }))
+					return realReaddir(p)
+				}) as typeof fs.readdir)
+
+				const result = await ENSURER[subdir]()
+
+				expect(result).to.equal(path.join(fakeHome, ".dirac", subdir))
+				expect(warnStub.called).to.be.true
+				expect(String(warnStub.firstCall.args[0])).to.match(/migration: skipping/)
 			})
 		})
 	}
