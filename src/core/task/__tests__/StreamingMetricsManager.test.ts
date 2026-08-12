@@ -41,10 +41,18 @@ describe("StreamingMetricsManager", () => {
 		expect(manager.getTotalCost()).to.equal(1.23)
 	})
 
-	it("computes cost via calculateCost when provider totalCost is absent", () => {
+	it("returns undefined when provider totalCost is absent and model has no pricing", () => {
 		const manager = new StreamingMetricsManager({} as any, 0, stubApi(100_000) as any)
 		manager.updateFromChunk({ inputTokens: 0, outputTokens: 0 })
-		// zero tokens and no provider cost -> calculateCost yields 0
+		// no provider cost + no model pricing -> unknown, not zero
+		expect(manager.getTotalCost()).to.be.undefined
+	})
+
+	it("returns 0 when provider totalCost is absent but model has explicit zero pricing", () => {
+		const freeApi = { getModel: () => ({ info: { contextWindow: 100_000, inputPrice: 0, outputPrice: 0 } }) } as any
+		const manager = new StreamingMetricsManager({} as any, 0, freeApi)
+		manager.updateFromChunk({ inputTokens: 10, outputTokens: 5 })
+		// explicitly free model -> cost is genuinely 0
 		expect(manager.getTotalCost()).to.equal(0)
 	})
 

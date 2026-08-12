@@ -129,3 +129,13 @@ export interface LiteLLMModelInfo extends ModelInfo {
 export interface BasetenModelInfo extends ModelInfo {
 	supportedFeatures?: string[]
 }
+
+// True when the model has any pricing data (even $0); false when pricing is unknown.
+export function hasPricing(modelInfo: ModelInfo): boolean {
+	return modelInfo.inputPrice !== undefined || modelInfo.outputPrice !== undefined
+}
+
+// True only for models with explicitly zero base prices (genuinely free).
+export function isFreeModel(modelInfo: ModelInfo): boolean {
+	return modelInfo.inputPrice === 0 && modelInfo.outputPrice === 0
+}

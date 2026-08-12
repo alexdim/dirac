@@ -122,7 +122,7 @@ const HistoryViewItem = ({
 					<span className="flex w-full items-center justify-between">
 						<span className="text-xs uppercase text-description">{formatDate(item.ts)}</span>
 						<span className="flex items-center text-xs">
-							<span className="text-description">${item.totalCost?.toFixed(4) ?? "0.0000"}</span>
+							<span className="text-description">{item.totalCost > 0 ? `$${item.totalCost.toFixed(4)}` : "—"}</span>
 							{expanded ? (
 								<ChevronsDownUpIcon className="text-description" />
 							) : (
