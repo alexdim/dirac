@@ -165,8 +165,8 @@ describe("directoryEnsurers — FU-9 (TCC-protected path relocation)", () => {
 				expect(await fs.readdir(result)).to.deep.equal([])
 			})
 
-			// Review fix #3: unexpected errors must be logged, not swallowed.
-			it("logs unexpected readdir errors (not ENOENT/EPERM/EACCES)", async () => {
+			// Review fix #3: unexpected errors must be logged and rethrown, not swallowed.
+			it("rejects on unexpected readdir errors (not ENOENT/EPERM/EACCES)", async () => {
 				const legacyDir = path.join(fakeDocuments, "Dirac", subdir)
 				await fs.mkdir(legacyDir, { recursive: true })
 				const warnStub = sandbox.stub(Logger, "warn")
@@ -176,11 +176,14 @@ describe("directoryEnsurers — FU-9 (TCC-protected path relocation)", () => {
 					return realReaddir(p)
 				}) as typeof fs.readdir)
 
-				const result = await ENSURER[subdir]()
-
-				expect(result).to.equal(path.join(fakeHome, ".dirac", subdir))
+				await ENSURER[subdir]().then(
+					() => expect.fail("unexpected migration error should reject"),
+					(error) => {
+						expect((error as NodeJS.ErrnoException).code).to.equal("ENOSYS")
+					},
+				)
 				expect(warnStub.called).to.be.true
-				expect(String(warnStub.firstCall.args[0])).to.match(/migration: skipping/)
+				expect(String(warnStub.firstCall.args[0])).to.match(/migration: failed/)
 			})
 		})
 	}
