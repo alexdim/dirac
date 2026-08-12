@@ -2185,7 +2185,8 @@ export class Task {
 				this.taskState.totalReasoningTokens += metrics.reasoningTokens
 				this.taskState.totalCacheWriteTokens += metrics.cacheWriteTokens
 				this.taskState.totalCacheReadTokens += metrics.cacheReadTokens
-				this.taskState.totalCost += metricsManager.getTotalCost()
+				const cost = metricsManager.getTotalCost()
+				if (cost !== undefined) this.taskState.totalCost += cost
 
 				const currentApiReqIndex = findLastIndex(
 					this.messageStateHandler.getDiracMessages(),

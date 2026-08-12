@@ -1,6 +1,6 @@
 import { describe, it } from "mocha"
 import "should"
-import { ModelInfo } from "@shared/api"
+import { isFreeModel, type ModelInfo } from "@shared/api"
 import { calculateApiCostAnthropic, calculateApiCostOpenAI, calculateApiCostQwen } from "@utils/cost"
 
 describe("Cost Utilities", () => {
@@ -16,17 +16,28 @@ describe("Cost Utilities", () => {
 			// Input: (3.0 / 1_000_000) * 1000 = 0.003
 			// Output: (15.0 / 1_000_000) * 500 = 0.0075
 			// Total: 0.003 + 0.0075 = 0.0105
-			cost.should.equal(0.0105)
+			cost!.should.equal(0.0105)
 		})
 
-		it("should handle missing prices", () => {
+		it("should return undefined when prices are missing (unknown pricing)", () => {
 			const modelInfo: ModelInfo = {
 				supportsPromptCache: true,
 				// No prices specified
 			}
 
 			const cost = calculateApiCostAnthropic(modelInfo, 1000, 500)
-			cost.should.equal(0)
+			should.not.exist(cost)
+		})
+
+		it("should return 0 when prices are explicitly zero (genuinely free)", () => {
+			const modelInfo: ModelInfo = {
+				supportsPromptCache: true,
+				inputPrice: 0,
+				outputPrice: 0,
+			}
+
+			const cost = calculateApiCostAnthropic(modelInfo, 1000, 500)
+			cost!.should.equal(0)
 		})
 
 		it("should use real model configuration (Claude 3.5 Sonnet)", () => {
@@ -47,7 +58,7 @@ describe("Cost Utilities", () => {
 			// Input: (3.0 / 1_000_000) * 2000 = 0.006
 			// Output: (15.0 / 1_000_000) * 1000 = 0.015
 			// Total: 0.005625 + 0.00015 + 0.006 + 0.015 = 0.026775
-			cost.should.equal(0.026775)
+			cost!.should.equal(0.026775)
 		})
 
 		it("should handle zero token counts", () => {
@@ -60,7 +71,7 @@ describe("Cost Utilities", () => {
 			}
 
 			const cost = calculateApiCostAnthropic(modelInfo, 0, 0, 0, 0)
-			cost.should.equal(0)
+			cost!.should.equal(0)
 		})
 	})
 
@@ -76,17 +87,28 @@ describe("Cost Utilities", () => {
 			// Input: (3.0 / 1_000_000) * 1000 = 0.003
 			// Output: (15.0 / 1_000_000) * 500 = 0.0075
 			// Total: 0.003 + 0.0075 = 0.0105
-			cost.should.equal(0.0105)
+			cost!.should.equal(0.0105)
 		})
 
-		it("should handle missing prices", () => {
+		it("should return undefined when prices are missing (unknown pricing)", () => {
 			const modelInfo: ModelInfo = {
 				supportsPromptCache: true,
 				// No prices specified
 			}
 
 			const cost = calculateApiCostOpenAI(modelInfo, 1000, 500)
-			cost.should.equal(0)
+			should.not.exist(cost)
+		})
+
+		it("should return 0 when prices are explicitly zero (genuinely free)", () => {
+			const modelInfo: ModelInfo = {
+				supportsPromptCache: true,
+				inputPrice: 0,
+				outputPrice: 0,
+			}
+
+			const cost = calculateApiCostOpenAI(modelInfo, 1000, 500)
+			cost!.should.equal(0)
 		})
 
 		it("should use real model configuration (Claude 3.5 Sonnet)", () => {
@@ -107,7 +129,7 @@ describe("Cost Utilities", () => {
 			// Input: (3.0 / 1_000_000) * (2100 - 1500 - 500) = 0.0003
 			// Output: (15.0 / 1_000_000) * 1000 = 0.015
 			// Total: 0.005625 + 0.00015 + 0.0003 + 0.015 = 0.021075
-			cost.should.equal(0.021075)
+			cost!.should.equal(0.021075)
 		})
 
 		it("should handle zero token counts", () => {
@@ -120,7 +142,7 @@ describe("Cost Utilities", () => {
 			}
 
 			const cost = calculateApiCostOpenAI(modelInfo, 0, 0, 0, 0)
-			cost.should.equal(0)
+			cost!.should.equal(0)
 		})
 	})
 
@@ -136,17 +158,28 @@ describe("Cost Utilities", () => {
 			// Input: (0.15 / 1_000_000) * 1000 = 0.00015
 			// Output: (0.6 / 1_000_000) * 500 = 0.0003
 			// Total: 0.00015 + 0.0003 = 0.00045
-			cost.should.equal(0.00045)
+			cost!.should.equal(0.00045)
 		})
 
-		it("should handle missing prices", () => {
+		it("should return undefined when prices are missing (unknown pricing)", () => {
 			const modelInfo: ModelInfo = {
 				supportsPromptCache: true,
 				// No prices specified
 			}
 
 			const cost = calculateApiCostQwen(modelInfo, 1000, 500)
-			cost.should.equal(0)
+			should.not.exist(cost)
+		})
+
+		it("should return 0 when prices are explicitly zero (genuinely free)", () => {
+			const modelInfo: ModelInfo = {
+				supportsPromptCache: true,
+				inputPrice: 0,
+				outputPrice: 0,
+			}
+
+			const cost = calculateApiCostQwen(modelInfo, 1000, 500)
+			cost!.should.equal(0)
 		})
 
 		it("should use real Qwen model configuration (30B)", () => {
@@ -163,7 +196,7 @@ describe("Cost Utilities", () => {
 			// Input: (0.15 / 1_000_000) * 1000 = 0.00015
 			// Output: (0.6 / 1_000_000) * 500 = 0.0003
 			// Total: 0.00015 + 0.0003 = 0.00045
-			cost.should.equal(0.00045)
+			cost!.should.equal(0.00045)
 		})
 
 		it("should handle cache tokens correctly (Qwen-style)", () => {
@@ -182,7 +215,7 @@ describe("Cost Utilities", () => {
 			// Input: (0.15 / 1_000_000) * (2100 - 1500 - 500) = 0.000015
 			// Output: (0.6 / 1_000_000) * 1000 = 0.0006
 			// Total: 0.0003 + 0.000025 + 0.000015 + 0.0006 = 0.00094
-			cost.should.equal(0.00094)
+			cost!.should.equal(0.00094)
 		})
 
 		it("should handle zero token counts", () => {
@@ -195,7 +228,33 @@ describe("Cost Utilities", () => {
 			}
 
 			const cost = calculateApiCostQwen(modelInfo, 0, 0, 0, 0)
-			cost.should.equal(0)
+			cost!.should.equal(0)
+		})
+	})
+
+	describe("isFreeModel", () => {
+		it("returns true when input and output prices are zero", () => {
+			isFreeModel({ supportsPromptCache: true, inputPrice: 0, outputPrice: 0 }).should.be.true()
+		})
+
+		it("returns false for paid models", () => {
+			isFreeModel({ supportsPromptCache: true, inputPrice: 3.0, outputPrice: 15.0 }).should.be.false()
+		})
+
+		it("returns false for unknown-pricing models", () => {
+			isFreeModel({ supportsPromptCache: true }).should.be.false()
+		})
+
+		it("returns false when one base price is missing", () => {
+			isFreeModel({ supportsPromptCache: true, inputPrice: 0 }).should.be.false()
+		})
+
+		// Regression: paid model with totalCost === 0 must not be labeled FREE.
+		it("paid model with zero tokens is not labeled FREE", () => {
+			const paidModel: ModelInfo = { supportsPromptCache: true, inputPrice: 3.0, outputPrice: 15.0 }
+			const cost = calculateApiCostAnthropic(paidModel, 0, 0, 0, 0)
+			cost!.should.equal(0)
+			isFreeModel(paidModel).should.be.false()
 		})
 	})
 })
