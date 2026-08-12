@@ -1149,6 +1149,46 @@ describe("SubagentRunner", () => {
 		}
 	})
 
+	// Regression: on timeout/parent-cancel, the terminal phase must transition
+	// to "cancelled" — not stay "cancelling". The enterPhase call in
+	// recordTerminal was dropped during the FB-15c extraction.
+	it("reports cancelled phase on parent cancel, not cancelling", async () => {
+		expectLoggerErrors()
+		const createMessage = sinon.stub().callsFake(async function* () {
+			await new Promise<void>(() => {})
+		})
+		const promptRegistry = PromptRegistry.getInstance()
+		sinon.stub(promptRegistry, "get").resolves("system prompt")
+		sinon.stub(skills, "getOrDiscoverSkills").resolves([])
+		const abort = stubApiHandler(createMessage)
+		initializeHostProvider()
+
+		const clock = sinon.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "setInterval", "clearInterval", "Date"] })
+		try {
+			const config = createTaskConfigWithListFilesSnapshot()
+			const updates: any[] = []
+			const runner = new SubagentRunner(config)
+			const runPromise = runner.run("Never settles", (update) => {
+				updates.push(update)
+			})
+			await clock.tickAsync(0)
+			config.taskState.abort = true
+			await clock.tickAsync(50)
+			const result = await runPromise
+
+			assert.equal(result.status, SubagentExecutionStatus.CANCELLED)
+			// Progress must show a terminal "cancelled" phase, not "cancelling".
+			const cancelledUpdates = updates.filter((u) => u.status === SubagentExecutionStatus.CANCELLED)
+			assert.ok(cancelledUpdates.length > 0, "should have at least one cancelled status update")
+			assert.ok(
+				cancelledUpdates.every((u) => u.phase === "cancelled"),
+				`expected phase "cancelled", got phases: ${cancelledUpdates.map((u: any) => u.phase).join(", ")}`,
+			)
+		} finally {
+			clock.restore()
+		}
+	})
+
 	it("records first-chunk liveness warnings without waiting for the overall timeout", async () => {
 		const createMessage = sinon.stub().callsFake(async function* () {
 			await new Promise<void>(() => {})

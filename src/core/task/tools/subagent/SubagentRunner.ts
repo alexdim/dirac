@@ -152,6 +152,9 @@ export class SubagentRunner {
 	}
 
 	private recordTerminal(result: SubagentRunResult): void {
+		// Phase transition must happen before the terminal record so progress
+		// reports a final "cancelled" (not "cancelling") on timeout/abort.
+		this.enterPhase(this.phaseForStatus(result.status), "subagent run settled", { status: result.status })
 		this.runProgress.recordTerminal(
 			result,
 			this.runState.getDiagnosticDetails({
