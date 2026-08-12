@@ -39,13 +39,15 @@ async function migrateDir(src: string, dest: string): Promise<void> {
 }
 
 // Migrates legacy ~/Documents/Dirac/<subdir> → ~/.dirac/<subdir> recursively, skipping existing files.
-// Swallows only ENOENT/EPERM/EACCES (TCC-protected ~/Documents); logs unexpected errors.
+// Swallows only ENOENT/EPERM/EACCES (TCC-protected ~/Documents); logs and rethrows unexpected errors.
 async function migrateFromDocumentsDir(subdir: string, destDir: string): Promise<void> {
 	const legacyDir = path.join(await getDocumentsPath(), "Dirac", subdir)
 	try {
 		await migrateDir(legacyDir, destDir)
 	} catch (error) {
-		if (!isExpectedMigrationError(error)) Logger.warn(`migration: skipping ${legacyDir}: ${error}`)
+		if (isExpectedMigrationError(error)) return
+		Logger.warn(`migration: failed ${legacyDir}: ${error}`)
+		throw error
 	}
 }
 
