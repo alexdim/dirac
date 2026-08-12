@@ -358,7 +358,8 @@ export class SubagentRunner {
 			clearInterval(parentAbortPoll)
 			this.runState.stopHeartbeat()
 			this.runProgress.endExecution()
-			await this.runProgress.flush()
+			// Fire-and-forget: recorder flush must not block terminal completion (matches pre-split behavior).
+			void this.runProgress.flush()
 		}
 	}
 
