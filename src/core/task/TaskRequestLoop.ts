@@ -190,7 +190,7 @@ export async function recursivelyMakeDiracRequests(
 			ctx.taskState.totalReasoningTokens += metrics.reasoningTokens
 			ctx.taskState.totalCacheWriteTokens += metrics.cacheWriteTokens
 			ctx.taskState.totalCacheReadTokens += metrics.cacheReadTokens
-			ctx.taskState.totalCost += metricsManager.getTotalCost()
+			ctx.taskState.totalCost += metricsManager.getTotalCost() ?? 0
 
 			const currentApiReqIndex = findLastIndex(
 				ctx.messageStateHandler.getDiracMessages(),
@@ -222,10 +222,9 @@ export async function recursivelyMakeDiracRequests(
 						type: "text",
 						text:
 							assistantMessage +
-							`\n\n[${
-								cancelReason === "streaming_failed"
-									? "Response interrupted by API Error"
-									: "Response interrupted by user"
+							`\n\n[${cancelReason === "streaming_failed"
+								? "Response interrupted by API Error"
+								: "Response interrupted by user"
 							}]`,
 					},
 				],
