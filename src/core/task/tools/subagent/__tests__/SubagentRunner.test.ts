@@ -2,28 +2,28 @@ import { strict as assert } from "node:assert"
 import fs from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
-import { expectLoggerErrors } from "@/test/loggerGuard"
 import * as coreApi from "@core/api"
 import * as skills from "@core/context/instructions/user-instructions/skills"
 import { DiracToolSet, PromptRegistry } from "@core/prompts/system-prompt"
 import type { TaskConfig } from "@core/task/tools/types/TaskConfig"
+import { SubagentExecutionStatus } from "@shared/ExtensionMessage"
+import { ResponseOperation } from "@shared/responseTool"
+import { SubagentTrajectoryEventType } from "@shared/subagents"
+import { DiracAskResponse } from "@shared/WebviewMessage"
 import { afterEach, describe, it } from "mocha"
 import sinon from "sinon"
 import { HostProvider } from "@/hosts/host-provider"
 import { ApiFormat } from "@/shared/proto/dirac/models"
 import { Logger } from "@/shared/services/Logger"
 import { DiracDefaultTool } from "@/shared/tools"
-import { ResponseOperation } from "@shared/responseTool"
+import { expectLoggerErrors } from "@/test/loggerGuard"
 import { TaskState } from "../../../TaskState"
-import { list_files_spec, ListFilesTool } from "../../modules/list_files"
-import { respondSpec, RespondTool } from "../../modules/respond/RespondTool"
-import { SubagentRunner } from "../SubagentRunner"
+import { ListFilesTool, list_files_spec } from "../../modules/list_files"
+import { RespondTool, respondSpec } from "../../modules/respond/RespondTool"
 import { SubagentBuilder } from "../SubagentBuilder"
-import { DiracAskResponse } from "@shared/WebviewMessage"
-import { SubagentExecutionStatus } from "@shared/ExtensionMessage"
-import { SubagentTrajectoryEventType } from "@shared/subagents"
-import { SubagentToolExecutor } from "../SubagentToolExecutor"
+import { SubagentRunner } from "../SubagentRunner"
 import { SubagentRunRecorder } from "../SubagentRunRecorder"
+import { SubagentToolExecutor } from "../SubagentToolExecutor"
 
 function initializeHostProvider() {
 	HostProvider.reset()
@@ -74,7 +74,7 @@ function createTaskConfig(): TaskConfig {
 					supportsPromptCache: true,
 				},
 			}),
-			createMessage: sinon.stub().callsFake(async function* () { }),
+			createMessage: sinon.stub().callsFake(async function* () {}),
 		},
 		services: {
 			stateManager: {
@@ -211,7 +211,7 @@ describe("SubagentRunner", () => {
 		createMessage.onSecondCall().callsFake(async function* (_systemPrompt: string, conversation: unknown[]) {
 			const assistantMessage = conversation[1] as {
 				role: string
-				content: Array<{ type?: string;[key: string]: unknown }>
+				content: Array<{ type?: string; [key: string]: unknown }>
 			}
 			assert.equal(assistantMessage.role, "assistant")
 
@@ -220,7 +220,7 @@ describe("SubagentRunner", () => {
 			assert.equal(toolUse.id, "toolu_subagent_1")
 			assert.equal(toolUse.name, DiracDefaultTool.LIST_FILES)
 
-			const userMessage = conversation[2] as { role: string; content: Array<{ type?: string;[key: string]: unknown }> }
+			const userMessage = conversation[2] as { role: string; content: Array<{ type?: string; [key: string]: unknown }> }
 			assert.equal(userMessage.role, "user")
 			const toolResult = userMessage.content.find((block) => block.type === "tool_result")
 			assert.ok(toolResult)
@@ -312,7 +312,7 @@ describe("SubagentRunner", () => {
 		initializeHostProvider()
 		const config = createTaskConfigWithListFilesSnapshot()
 
-		const result = await new SubagentRunner(config).run("Search", () => { })
+		const result = await new SubagentRunner(config).run("Search", () => {})
 
 		assert.equal(result.status, SubagentExecutionStatus.COMPLETED)
 		assert.deepEqual(config.taskState.activeSkillIds, ["web-search"])
@@ -364,6 +364,68 @@ describe("SubagentRunner", () => {
 		])
 	})
 
+	// Regression: run() must not await recorder.flush() — a slow/stuck append must not delay terminal completion.
+	it("does not block terminal completion on a slow recorder flush (fire-and-forget)", async () => {
+		expectLoggerErrors()
+		const createMessage = sinon.stub()
+		createMessage.onFirstCall().callsFake(async function* () {
+			yield {
+				type: "tool_calls",
+				tool_call: { function: { id: "call-1", name: DiracDefaultTool.LIST_FILES, arguments: "{}" } },
+			}
+		})
+		createMessage.onSecondCall().callsFake(async function* () {
+			yield {
+				type: "tool_calls",
+				tool_call: {
+					function: {
+						id: "call-2",
+						name: DiracDefaultTool.RESPOND,
+						arguments: JSON.stringify({ operation: ResponseOperation.COMPLETE, text: "done" }),
+					},
+				},
+			}
+		})
+		const promptRegistry = PromptRegistry.getInstance()
+		sinon.stub(promptRegistry, "get").callsFake(async () => {
+			promptRegistry.nativeTools = [{ name: "list_files" } as any, { name: "respond" } as any]
+			return "system prompt"
+		})
+		sinon.stub(skills, "getOrDiscoverSkills").resolves([])
+		stubApiHandler(createMessage)
+		initializeHostProvider()
+
+		const taskDirectory = await fs.mkdtemp(path.join(os.tmpdir(), "dirac-subagent-flush-"))
+		const recorder = await SubagentRunRecorder.create({
+			taskId: "task-flush",
+			agent: { id: 1, name: "Flush Agent" },
+			taskTitle: "Verify fire-and-forget flush",
+			prompt: "List files",
+			timeoutSeconds: 600,
+			includeHistory: false,
+			taskDirectory,
+			runId: "flush",
+		})
+		// Stub flush to hang — if run() awaited it, this test would never resolve.
+		let resolveFlush: () => void = () => {}
+		const flushPromise = new Promise<void>((resolve) => {
+			resolveFlush = resolve
+		})
+		const flushStub = sinon.stub(recorder, "flush").returns(flushPromise)
+
+		try {
+			const runner = new SubagentRunner(createTaskConfigWithListFilesSnapshot(), "subagent", { recorder })
+			const result = await runner.run("List files", () => {})
+
+			assert.equal(result.status, SubagentExecutionStatus.COMPLETED)
+			assert.equal(result.result, "done")
+			assert.ok(flushStub.called, "recorder.flush was called")
+		} finally {
+			resolveFlush()
+			await fs.rm(taskDirectory, { recursive: true, force: true })
+		}
+	})
+
 	it("returns after the drain timeout when a progress observer never settles", async () => {
 		const createMessage = sinon.stub()
 		createMessage.onFirstCall().callsFake(async function* () {
@@ -398,7 +460,7 @@ describe("SubagentRunner", () => {
 			const runner = new SubagentRunner(createTaskConfigWithListFilesSnapshot())
 			const resultPromise = runner.run("List files", (update) => {
 				if (!update.trajectoryEvent) return
-				return new Promise<void>(() => { })
+				return new Promise<void>(() => {})
 			})
 			await clock.tickAsync(0)
 			await clock.tickAsync(1_000)
@@ -461,7 +523,7 @@ describe("SubagentRunner", () => {
 			return false
 		})
 
-		const result = await runner.run("List files", () => { })
+		const result = await runner.run("List files", () => {})
 
 		assert.equal(result.status, "completed")
 		assert.equal(result.result, "done")
@@ -486,7 +548,7 @@ describe("SubagentRunner", () => {
 		createMessage.onSecondCall().callsFake(async function* (_systemPrompt: string, conversation: unknown[]) {
 			const lastMessage = conversation[conversation.length - 1] as {
 				role: string
-				content: Array<{ type?: string;[key: string]: unknown }>
+				content: Array<{ type?: string; [key: string]: unknown }>
 			}
 
 			assert.equal(lastMessage.role, "user")
@@ -518,7 +580,7 @@ describe("SubagentRunner", () => {
 		initializeHostProvider()
 
 		const runner = new SubagentRunner(createTaskConfigWithListFilesSnapshot())
-		const result = await runner.run("List files", () => { })
+		const result = await runner.run("List files", () => {})
 
 		assert.equal(result.status, "completed")
 		assert.equal(result.result, "done")
@@ -574,7 +636,7 @@ describe("SubagentRunner", () => {
 		initializeHostProvider()
 
 		const runner = new SubagentRunner(createTaskConfigWithListFilesSnapshot())
-		const result = await runner.run("List files", () => { })
+		const result = await runner.run("List files", () => {})
 
 		assert.equal(result.status, "completed")
 		assert.equal(result.result, "done")
@@ -614,7 +676,7 @@ describe("SubagentRunner", () => {
 
 		const clock = sinon.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "setInterval", "clearInterval", "Date"] })
 		const runner = new SubagentRunner(createTaskConfigWithListFilesSnapshot())
-		const runPromise = runner.run("List files", () => { })
+		const runPromise = runner.run("List files", () => {})
 		await clock.runAllAsync()
 		const result = await runPromise
 		clock.restore()
@@ -630,7 +692,7 @@ describe("SubagentRunner", () => {
 		createMessage.onFirstCall().callsFake(async function* () {
 			yield* []
 			const contextError = new Error("context length exceeded")
-				; (contextError as Error & { status: number }).status = 400
+			;(contextError as Error & { status: number }).status = 400
 			throw contextError
 		})
 
@@ -644,7 +706,7 @@ describe("SubagentRunner", () => {
 		initializeHostProvider()
 
 		const runner = new SubagentRunner(createTaskConfigWithListFilesSnapshot())
-		const result = await runner.run("Huge prompt", () => { })
+		const result = await runner.run("Huge prompt", () => {})
 
 		assert.equal(result.status, "failed")
 		assert.equal(createMessage.callCount, 1)
@@ -699,7 +761,7 @@ describe("SubagentRunner", () => {
 		initializeHostProvider()
 
 		const runner = new SubagentRunner(createTaskConfigWithListFilesSnapshot())
-		const result = await runner.run("Inspect the repository", () => { })
+		const result = await runner.run("Inspect the repository", () => {})
 
 		assert.equal(result.status, "completed")
 		assert.equal(result.result, "done")
@@ -730,7 +792,7 @@ describe("SubagentRunner", () => {
 		initializeHostProvider()
 
 		const runner = new SubagentRunner(createTaskConfigWithListFilesSnapshot())
-		const result = await runner.run("List files", () => { })
+		const result = await runner.run("List files", () => {})
 
 		assert.equal(result.status, "completed")
 		assert.equal(createMessage.callCount, 1)
@@ -769,7 +831,7 @@ describe("SubagentRunner", () => {
 		initializeHostProvider()
 
 		const runner = new SubagentRunner(createTaskConfigWithListFilesSnapshot())
-		const result = await runner.run("Run task", () => { })
+		const result = await runner.run("Run task", () => {})
 
 		assert.equal(result.status, "completed")
 		assert.equal(createMessage.callCount, 1)
@@ -808,7 +870,7 @@ describe("SubagentRunner", () => {
 		initializeHostProvider()
 
 		const runner = new SubagentRunner(createTaskConfigWithListFilesSnapshot())
-		const result = await runner.run("Run task", () => { })
+		const result = await runner.run("Run task", () => {})
 
 		assert.equal(result.status, "completed")
 		assert.equal(createMessage.callCount, 1)
@@ -847,7 +909,7 @@ describe("SubagentRunner", () => {
 		initializeHostProvider()
 
 		const runner = new SubagentRunner(createTaskConfigWithListFilesSnapshot())
-		const result = await runner.run("Run task", () => { })
+		const result = await runner.run("Run task", () => {})
 
 		assert.equal(result.status, "completed")
 		assert.equal(createMessage.callCount, 1)
@@ -913,7 +975,7 @@ describe("SubagentRunner", () => {
 		initializeHostProvider()
 
 		const runner = new SubagentRunner(createTaskConfigWithListFilesSnapshot())
-		const result = await runner.run("List files", () => { })
+		const result = await runner.run("List files", () => {})
 
 		assert.equal(result.status, "completed")
 		assert.equal(result.result, "done")
@@ -922,7 +984,7 @@ describe("SubagentRunner", () => {
 
 	it("returns after the wrap-up deadline when the API stream ignores abort", async () => {
 		const createMessage = sinon.stub().callsFake(async function* () {
-			await new Promise<void>(() => { })
+			await new Promise<void>(() => {})
 		})
 		const promptRegistry = PromptRegistry.getInstance()
 		sinon.stub(promptRegistry, "get").resolves("system prompt")
@@ -1061,7 +1123,7 @@ describe("SubagentRunner", () => {
 
 	it("returns cancelled when the parent task is cancelled even if the API stream never settles", async () => {
 		const createMessage = sinon.stub().callsFake(async function* () {
-			await new Promise<void>(() => { })
+			await new Promise<void>(() => {})
 		})
 		const promptRegistry = PromptRegistry.getInstance()
 		sinon.stub(promptRegistry, "get").resolves("system prompt")
@@ -1073,7 +1135,7 @@ describe("SubagentRunner", () => {
 		try {
 			const config = createTaskConfigWithListFilesSnapshot()
 			const runner = new SubagentRunner(config)
-			const runPromise = runner.run("Never settles", () => { })
+			const runPromise = runner.run("Never settles", () => {})
 			await clock.tickAsync(0)
 			config.taskState.abort = true
 			await clock.tickAsync(50)
@@ -1087,9 +1149,49 @@ describe("SubagentRunner", () => {
 		}
 	})
 
+	// Regression: on timeout/parent-cancel, the terminal phase must transition
+	// to "cancelled" — not stay "cancelling". The enterPhase call in
+	// recordTerminal was dropped during the FB-15c extraction.
+	it("reports cancelled phase on parent cancel, not cancelling", async () => {
+		expectLoggerErrors()
+		const createMessage = sinon.stub().callsFake(async function* () {
+			await new Promise<void>(() => {})
+		})
+		const promptRegistry = PromptRegistry.getInstance()
+		sinon.stub(promptRegistry, "get").resolves("system prompt")
+		sinon.stub(skills, "getOrDiscoverSkills").resolves([])
+		const abort = stubApiHandler(createMessage)
+		initializeHostProvider()
+
+		const clock = sinon.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "setInterval", "clearInterval", "Date"] })
+		try {
+			const config = createTaskConfigWithListFilesSnapshot()
+			const updates: any[] = []
+			const runner = new SubagentRunner(config)
+			const runPromise = runner.run("Never settles", (update) => {
+				updates.push(update)
+			})
+			await clock.tickAsync(0)
+			config.taskState.abort = true
+			await clock.tickAsync(50)
+			const result = await runPromise
+
+			assert.equal(result.status, SubagentExecutionStatus.CANCELLED)
+			// Progress must show a terminal "cancelled" phase, not "cancelling".
+			const cancelledUpdates = updates.filter((u) => u.status === SubagentExecutionStatus.CANCELLED)
+			assert.ok(cancelledUpdates.length > 0, "should have at least one cancelled status update")
+			assert.ok(
+				cancelledUpdates.every((u) => u.phase === "cancelled"),
+				`expected phase "cancelled", got phases: ${cancelledUpdates.map((u: any) => u.phase).join(", ")}`,
+			)
+		} finally {
+			clock.restore()
+		}
+	})
+
 	it("records first-chunk liveness warnings without waiting for the overall timeout", async () => {
 		const createMessage = sinon.stub().callsFake(async function* () {
-			await new Promise<void>(() => { })
+			await new Promise<void>(() => {})
 		})
 		const promptRegistry = PromptRegistry.getInstance()
 		sinon.stub(promptRegistry, "get").resolves("system prompt")
@@ -1135,5 +1237,4 @@ describe("SubagentRunner", () => {
 			await fs.rm(taskDirectory, { recursive: true, force: true })
 		}
 	})
-
 })
