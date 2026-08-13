@@ -1,3 +1,4 @@
+import type { Dirent } from "fs"
 import fs from "fs/promises"
 import * as path from "path"
 import { Logger } from "@/shared/services/Logger"
@@ -24,10 +25,23 @@ async function migrateFile(src: string, dest: string): Promise<void> {
 	}
 }
 
-// Recursively migrates src → dest. Each file has its own try/catch — one failure doesn't abort the rest.
+// Reads a legacy source directory, skipping only unavailable or inaccessible legacy paths.
+async function readLegacyDir(src: string): Promise<Dirent<string>[] | undefined> {
+	try {
+		return await fs.readdir(src, { withFileTypes: true })
+	} catch (error) {
+		if (isExpectedMigrationError(error)) return undefined
+		Logger.warn(`migration: failed ${src}: ${error}`)
+		throw error
+	}
+}
+
+// Recursively migrates src → dest. Source access is checked before mutating the destination.
 async function migrateDir(src: string, dest: string): Promise<void> {
+	const entries = await readLegacyDir(src)
+	if (!entries) return
+
 	await fs.mkdir(dest, { recursive: true })
-	const entries = await fs.readdir(src, { withFileTypes: true })
 	await Promise.all(
 		entries.map(async (entry) => {
 			const s = path.join(src, entry.name)
@@ -39,16 +53,9 @@ async function migrateDir(src: string, dest: string): Promise<void> {
 }
 
 // Migrates legacy ~/Documents/Dirac/<subdir> → ~/.dirac/<subdir> recursively, skipping existing files.
-// Swallows only ENOENT/EPERM/EACCES (TCC-protected ~/Documents); logs and rethrows unexpected errors.
 async function migrateFromDocumentsDir(subdir: string, destDir: string): Promise<void> {
 	const legacyDir = path.join(await getDocumentsPath(), "Dirac", subdir)
-	try {
-		await migrateDir(legacyDir, destDir)
-	} catch (error) {
-		if (isExpectedMigrationError(error)) return
-		Logger.warn(`migration: failed ${legacyDir}: ${error}`)
-		throw error
-	}
+	await migrateDir(legacyDir, destDir)
 }
 
 // Ensures a ~/.dirac/<subdir> directory exists and migrates from the legacy ~/Documents/Dirac/<subdir>.

@@ -11,7 +11,6 @@ import { CommandPermissionController } from "@core/permissions"
 import type { SlashCommandDirectAction } from "@core/slash-commands"
 import { createDefaultTextCondensationTemplateRegistry } from "@core/text-condensation/templates"
 import { isUtilityTextCondensationAvailable } from "@core/text-condensation/UtilityTextCondensationAvailability"
-import { getConfiguredUtilityModelSelection } from "@core/utility-model/UtilityModelSelection"
 import { isMultiRootEnabled } from "@core/workspace/multi-root-utils"
 import { WorkspaceRootManager } from "@core/workspace/WorkspaceRootManager"
 import { HostProvider } from "@hosts/host-provider"
@@ -189,6 +188,7 @@ export class Task {
 			taskState: this.taskState,
 			getCurrentProviderInfo: () => this.getCurrentProviderInfo(),
 			isParallelToolCallingEnabled: () => this.isParallelToolCallingEnabled(),
+			writePromptMetadataArtifacts: (params) => this.writePromptMetadataArtifacts(params),
 		}
 	}
 
