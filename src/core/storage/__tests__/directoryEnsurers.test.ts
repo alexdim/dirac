@@ -164,7 +164,43 @@ describe("directoryEnsurers — FU-9 (TCC-protected path relocation)", () => {
 				expect(result).to.equal(path.join(fakeHome, ".dirac", subdir))
 				expect(await fs.readdir(result)).to.deep.equal([])
 			})
+			it("does not create a destination subtree when its legacy source is inaccessible", async () => {
+				const legacyDir = path.join(fakeDocuments, "Dirac", subdir)
+				const nestedLegacyDir = path.join(legacyDir, "inaccessible")
+				await fs.mkdir(nestedLegacyDir, { recursive: true })
+				const realReaddir = fs.readdir.bind(fs)
+				sandbox.stub(fs, "readdir").callsFake(((p: string) => {
+					if (p === nestedLegacyDir) return Promise.reject(Object.assign(new Error("EACCES"), { code: "EACCES" }))
+					return realReaddir(p, { withFileTypes: true })
+				}) as unknown as typeof fs.readdir)
 
+				const result = await ENSURER[subdir]()
+
+				await fs.stat(path.join(result, "inaccessible")).then(
+					() => expect.fail("inaccessible legacy subtree should not create a destination subtree"),
+					(error: NodeJS.ErrnoException) => expect(error.code).to.equal("ENOENT"),
+				)
+			})
+
+			it("rejects when a nested destination directory cannot be created", async () => {
+				const legacyDir = path.join(fakeDocuments, "Dirac", subdir)
+				const nestedLegacyDir = path.join(legacyDir, "nested")
+				const nestedDestinationDir = path.join(fakeHome, ".dirac", subdir, "nested")
+				await fs.mkdir(nestedLegacyDir, { recursive: true })
+				await fs.writeFile(path.join(nestedLegacyDir, "rule.md"), "content")
+				const realMkdir = fs.mkdir.bind(fs)
+				sandbox.stub(fs, "mkdir").callsFake(((p: string, options?: Parameters<typeof fs.mkdir>[1]) => {
+					if (p === nestedDestinationDir) {
+						return Promise.reject(Object.assign(new Error("destination denied"), { code: "EACCES" }))
+					}
+					return realMkdir(p, options as any)
+				}) as typeof fs.mkdir)
+
+				await ENSURER[subdir]().then(
+					() => expect.fail("destination mkdir failure should reject"),
+					(error: NodeJS.ErrnoException) => expect(error.code).to.equal("EACCES"),
+				)
+			})
 			// Review fix #3: unexpected errors must be logged and rethrown, not swallowed.
 			it("rejects on unexpected readdir errors (not ENOENT/EPERM/EACCES)", async () => {
 				const legacyDir = path.join(fakeDocuments, "Dirac", subdir)

@@ -14,6 +14,7 @@ import { formatResponse } from "@core/formatResponse"
 import { ensureRulesDirectoryExists, ensureTaskDirectoryExists } from "@core/storage/disk"
 import { createDefaultTextCondensationTemplateRegistry, TASK_HANDOFF_TEMPLATE_ID } from "@core/text-condensation/templates"
 import { isUtilityTextCondensationAvailable } from "@core/text-condensation/UtilityTextCondensationAvailability"
+import { getConfiguredUtilityModelSelection } from "@core/utility-model/UtilityModelSelection"
 import { isMultiRootEnabled } from "@core/workspace/multi-root-utils"
 import { HostProvider } from "@hosts/host-provider"
 import { featureFlagsService } from "@services/feature-flags"
@@ -53,6 +54,13 @@ export interface TaskRequestBuilderContext {
 	taskState: TaskState
 	getCurrentProviderInfo: () => ApiProviderInfo
 	isParallelToolCallingEnabled: () => boolean
+	writePromptMetadataArtifacts: (params: {
+		systemPrompt: string
+		providerInfo: ApiProviderInfo
+		tools: any[]
+		fullHistory: any[]
+		deletedRange?: [number, number]
+	}) => Promise<void>
 }
 
 export async function buildApiRequestParams(
@@ -161,6 +169,8 @@ export async function buildApiRequestParams(
 		editorTabs,
 		supportsBrowserUse,
 		taskHandoffCondensationAvailable,
+		utilityModelConfigured:
+			getConfiguredUtilityModelSelection(ctx.stateManager.getGlobalSettingsKey("utilityModelSelection")) !== undefined,
 		skills: availableSkills,
 		globalDiracRulesFileInstructions,
 		localDiracRulesFileInstructions,
@@ -230,7 +240,7 @@ export async function buildApiRequestParams(
 	if (!useAutoCondense) {
 		const lastMessage =
 			contextManagementMetadata.truncatedConversationHistory[
-				contextManagementMetadata.truncatedConversationHistory.length - 1
+			contextManagementMetadata.truncatedConversationHistory.length - 1
 			]
 		if (lastMessage && lastMessage.role === "user") {
 			const notice = formatResponse.contextTruncationNotice()
@@ -245,5 +255,12 @@ export async function buildApiRequestParams(
 		}
 	}
 
+	await ctx.writePromptMetadataArtifacts({
+		systemPrompt,
+		providerInfo,
+		tools: toolSnapshot.nativeTools,
+		fullHistory: ctx.messageStateHandler.getApiConversationHistory(),
+		deletedRange: ctx.taskState.conversationHistoryDeletedRange,
+	})
 	return { systemPrompt, toolSnapshot, contextManagementMetadata, providerInfo }
 }
