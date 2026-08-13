@@ -23,7 +23,7 @@ export interface ModelCapabilities {
 	description?: string
 	thinkingConfig?: {
 		maxBudget?: number
-		geminiThinkingLevel?: "low" | "high"
+		geminiThinkingLevel?: "low" | "medium" | "high"
 		supportsThinkingLevel?: boolean
 	}
 }
@@ -48,7 +48,7 @@ export interface ModelInfo extends ModelCapabilities {
 		maxBudget?: number
 		outputPrice?: number
 		outputPriceTiers?: PriceTier[]
-		geminiThinkingLevel?: "low" | "high"
+		geminiThinkingLevel?: "low" | "medium" | "high"
 		supportsThinkingLevel?: boolean
 	}
 }

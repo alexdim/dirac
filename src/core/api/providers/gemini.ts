@@ -186,7 +186,7 @@ export class GeminiHandler implements ApiHandler {
 		let thinkingLevel: ThinkingLevel | undefined
 		const rawReasoningEffort = (this.options.reasoningEffort || "").toLowerCase()
 		const normalizedReasoningEffort = !rawReasoningEffort
-			? "high"
+			? (info.thinkingConfig?.geminiThinkingLevel ?? "high")
 			: rawReasoningEffort === "none"
 				? "low"
 				: rawReasoningEffort

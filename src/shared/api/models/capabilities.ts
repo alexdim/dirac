@@ -201,6 +201,16 @@ export const MODEL_CAPABILITIES: Record<string, ModelCapabilities> = {
 			supportsThinkingLevel: true,
 		},
 	},
+	"gemini-3.7-flash": {
+		maxTokens: 65_536,
+		contextWindow: 1_048_576,
+		supportsImages: true,
+		supportsReasoning: true,
+		thinkingConfig: {
+			geminiThinkingLevel: "medium",
+			supportsThinkingLevel: true,
+		},
+	},
 	"gemini-3.6-flash": {
 		maxTokens: 65536,
 		contextWindow: 1_048_576,
@@ -340,6 +350,14 @@ export const MODEL_CAPABILITIES: Record<string, ModelCapabilities> = {
 		contextWindow: 128_000,
 		supportsImages: false,
 	},
+	"grok-4.6": {
+		contextWindow: 500_000,
+		supportsImages: true,
+		supportsReasoning: true,
+		supportsReasoningEffort: true,
+		supportsTools: true,
+	},
+
 	"grok-4-1-fast-non-reasoning": {
 		contextWindow: 2_000_000,
 		supportsImages: true,
