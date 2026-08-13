@@ -190,7 +190,8 @@ export async function recursivelyMakeDiracRequests(
 			ctx.taskState.totalReasoningTokens += metrics.reasoningTokens
 			ctx.taskState.totalCacheWriteTokens += metrics.cacheWriteTokens
 			ctx.taskState.totalCacheReadTokens += metrics.cacheReadTokens
-			ctx.taskState.totalCost += metricsManager.getTotalCost() ?? 0
+			const cost = metricsManager.getTotalCost()
+			if (cost !== undefined) ctx.taskState.totalCost += cost
 
 			const currentApiReqIndex = findLastIndex(
 				ctx.messageStateHandler.getDiracMessages(),
