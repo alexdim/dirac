@@ -217,7 +217,7 @@ export const ModularChatView: React.FC<ChatViewProps> = ({ isHidden, showAnnounc
 						))}
 					</div>
 
-					<div className="px-4 pb-4">{InputSection.shouldRender(context) && InputSection.render(context)}</div>
+					<div className="px-4">{InputSection.shouldRender(context) && InputSection.render(context)}</div>
 				</div>
 			</div>
 		</ChatLayout>
