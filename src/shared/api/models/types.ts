@@ -135,7 +135,22 @@ export function hasPricing(modelInfo: ModelInfo): boolean {
 	return modelInfo.inputPrice !== undefined || modelInfo.outputPrice !== undefined
 }
 
-// True only for models with explicitly zero base prices (genuinely free).
+// True only when base prices are explicitly zero and no pricing override can add a charge.
 export function isFreeModel(modelInfo: ModelInfo): boolean {
-	return modelInfo.inputPrice === 0 && modelInfo.outputPrice === 0
+	if (modelInfo.inputPrice !== 0 || modelInfo.outputPrice !== 0) return false
+
+	const overridePrices = [
+		modelInfo.cacheWritesPrice,
+		modelInfo.cacheReadsPrice,
+		modelInfo.thinkingConfig?.outputPrice,
+		...(modelInfo.tiers?.flatMap((tier) => [
+			tier.inputPrice,
+			tier.outputPrice,
+			tier.cacheWritesPrice,
+			tier.cacheReadsPrice,
+		]) ?? []),
+		...(modelInfo.thinkingConfig?.outputPriceTiers?.map((tier) => tier.price) ?? []),
+	]
+
+	return overridePrices.every((price) => price === undefined || price === 0)
 }
