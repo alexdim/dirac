@@ -237,6 +237,18 @@ describe("Cost Utilities", () => {
 			isFreeModel({ supportsPromptCache: true, inputPrice: 0, outputPrice: 0 }).should.be.true()
 		})
 
+		it("returns true when all pricing overrides are explicitly zero", () => {
+			isFreeModel({
+				supportsPromptCache: true,
+				inputPrice: 0,
+				outputPrice: 0,
+				cacheWritesPrice: 0,
+				cacheReadsPrice: 0,
+				tiers: [{ contextWindow: 100_000, inputPrice: 0, outputPrice: 0, cacheWritesPrice: 0, cacheReadsPrice: 0 }],
+				thinkingConfig: { outputPrice: 0, outputPriceTiers: [{ tokenLimit: 1_000, price: 0 }] },
+			}).should.be.true()
+		})
+
 		it("returns false for paid models", () => {
 			isFreeModel({ supportsPromptCache: true, inputPrice: 3.0, outputPrice: 15.0 }).should.be.false()
 		})
@@ -249,8 +261,30 @@ describe("Cost Utilities", () => {
 			isFreeModel({ supportsPromptCache: true, inputPrice: 0 }).should.be.false()
 		})
 
-		// Regression: paid model with totalCost === 0 must not be labeled FREE.
-		it("paid model with zero tokens is not labeled FREE", () => {
+		it("returns false when cache pricing can add a charge", () => {
+			isFreeModel({ supportsPromptCache: true, inputPrice: 0, outputPrice: 0, cacheWritesPrice: 1 }).should.be.false()
+			isFreeModel({ supportsPromptCache: true, inputPrice: 0, outputPrice: 0, cacheReadsPrice: 1 }).should.be.false()
+		})
+
+		it("returns false when tiered pricing can add a charge", () => {
+			const baseModel: ModelInfo = { supportsPromptCache: true, inputPrice: 0, outputPrice: 0 }
+			isFreeModel({ ...baseModel, tiers: [{ contextWindow: 100_000, inputPrice: 1 }] }).should.be.false()
+			isFreeModel({ ...baseModel, tiers: [{ contextWindow: 100_000, outputPrice: 1 }] }).should.be.false()
+			isFreeModel({ ...baseModel, tiers: [{ contextWindow: 100_000, cacheWritesPrice: 1 }] }).should.be.false()
+			isFreeModel({ ...baseModel, tiers: [{ contextWindow: 100_000, cacheReadsPrice: 1 }] }).should.be.false()
+		})
+
+		it("returns false when thinking pricing can add a charge", () => {
+			const baseModel: ModelInfo = { supportsPromptCache: true, inputPrice: 0, outputPrice: 0 }
+			isFreeModel({ ...baseModel, thinkingConfig: { outputPrice: 1 } }).should.be.false()
+			isFreeModel({
+				...baseModel,
+				thinkingConfig: { outputPriceTiers: [{ tokenLimit: 1_000, price: 1 }] },
+			}).should.be.false()
+		})
+
+		// Regression: paid model with totalCost === 0 must not be labeled Free.
+		it("paid model with zero tokens is not labeled Free", () => {
 			const paidModel: ModelInfo = { supportsPromptCache: true, inputPrice: 3.0, outputPrice: 15.0 }
 			const cost = calculateApiCostAnthropic(paidModel, 0, 0, 0, 0)
 			cost!.should.equal(0)
