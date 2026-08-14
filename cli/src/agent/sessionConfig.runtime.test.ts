@@ -1,8 +1,31 @@
-import { describe, expect, it, vi } from "vitest"
+import { beforeEach, describe, expect, it, vi } from "vitest"
 import { openAiModelInfoSaneDefaults } from "@shared/api"
 import type { Settings } from "@shared/storage/state-keys"
 import type { DiracAcpSession } from "./public-types.js"
 import { SessionConfigManager } from "./sessionConfig.js"
+
+const stateManagerMock = vi.hoisted(() => {
+	let overrides: Partial<Settings> = {}
+	return {
+		getSessionOverrideCache: vi.fn(() => overrides),
+		setSessionOverrideCache: vi.fn((next: Partial<Settings>) => {
+			overrides = next
+		}),
+		getApiConfiguration: vi.fn(() => ({ ...overrides })),
+		getModelInfo: vi.fn(() => undefined),
+	}
+})
+
+vi.mock("@/core/storage/StateManager", () => ({
+	StateManager: { get: () => stateManagerMock },
+}))
+
+
+const refreshGithubCopilotModelsMock = vi.hoisted(() => vi.fn(async () => ({})))
+
+vi.mock("@/core/controller/models/refreshGithubCopilotModels", () => ({
+	refreshGithubCopilotModels: refreshGithubCopilotModelsMock,
+}))
 
 function session(mode: "act" | "plan" = "act"): DiracAcpSession {
 	return {
@@ -29,7 +52,22 @@ function linkedDeepSeekRuntime(): Partial<Settings> {
 	}
 }
 
+function selectOption(options: Awaited<ReturnType<SessionConfigManager["getSessionConfigOptions"]>>, id: string) {
+	return options.find((option) => option.id === id) as Extract<(typeof options)[number], { type: "select" }>
+}
+
+function optionValues(option: ReturnType<typeof selectOption>): string[] {
+	return option.options.flatMap((entry) =>
+		"value" in entry ? [entry.value] : entry.options.map((groupedOption) => groupedOption.value),
+	)
+}
+
 describe("SessionConfigManager task runtime behavior", () => {
+	beforeEach(() => {
+		refreshGithubCopilotModelsMock.mockClear()
+		refreshGithubCopilotModelsMock.mockResolvedValue({})
+	})
+
 	it("updates both modes only when the task snapshot links their models", async () => {
 		const manager = new SessionConfigManager()
 		const linked = linkedDeepSeekRuntime()
@@ -43,7 +81,7 @@ describe("SessionConfigManager task runtime behavior", () => {
 		expect(separate.planModeApiModelId).toBe("deepseek-v4-flash")
 	})
 
-	it("clears stale model metadata when the selected model changes", async () => {
+	it("clears stale model metadata when an advertised model is selected", async () => {
 		const manager = new SessionConfigManager()
 		const runtime: Partial<Settings> = {
 			mode: "act",
@@ -55,50 +93,161 @@ describe("SessionConfigManager task runtime behavior", () => {
 			planModeOpenAiModelInfo: openAiModelInfoSaneDefaults,
 			actModeOpenAiModelInfo: openAiModelInfoSaneDefaults,
 		}
+		const model = selectOption(await manager.getSessionConfigOptions(session(), runtime), "model")
+		const replacement = optionValues(model).find((value) => value !== "old-model")!
 
-		await manager.applyModelConfigOption(session(), "new-model", runtime)
+		await manager.applyModelConfigOption(session(), replacement, runtime)
 
-		expect(runtime.planModeOpenAiModelId).toBe("new-model")
-		expect(runtime.actModeOpenAiModelId).toBe("new-model")
+		expect(runtime.planModeOpenAiModelId).toBe(replacement)
+		expect(runtime.actModeOpenAiModelId).toBe(replacement)
 		expect(runtime.planModeOpenAiModelInfo).toBeUndefined()
 		expect(runtime.actModeOpenAiModelInfo).toBeUndefined()
 	})
 
-	it("reports an unavailable historical model without substituting it", async () => {
+	it("normalizes a removed historical model to the provider default", async () => {
 		const manager = new SessionConfigManager()
 		const runtime = linkedDeepSeekRuntime()
 		runtime.actModeApiModelId = "removed-deepseek-model"
 
 		const options = await manager.getSessionConfigOptions(session(), runtime)
-		const model = options.find((option) => option.id === "model")
-		expect(model).toMatchObject({
-			currentValue: "removed-deepseek-model",
-			options: expect.arrayContaining([expect.objectContaining({ value: "removed-deepseek-model" })]),
-		})
-		expect(() => manager.assertTaskRuntimeAvailable(session(), runtime)).toThrow(
-			"Model removed-deepseek-model is unavailable",
-		)
+		const model = selectOption(options, "model")
+		expect(model.currentValue).toBe("deepseek-v4-flash")
+		expect(optionValues(model)).not.toContain("removed-deepseek-model")
+		expect(runtime.actModeApiModelId).toBe("deepseek-v4-flash")
+		await expect(manager.assertTaskRuntimeAvailable(session(), runtime)).resolves.toBeUndefined()
 	})
 
-	it("keeps a disabled provider visible while rejecting work and model mutations", async () => {
+	it("never advertises an OpenAI model while DeepSeek is active", async () => {
+		const manager = new SessionConfigManager()
+		const runtime = linkedDeepSeekRuntime()
+		runtime.actModeApiModelId = "gpt-5.6-sol"
+
+		const options = await manager.getSessionConfigOptions(session(), runtime)
+		const model = selectOption(options, "model")
+		expect(model.currentValue).toBe("deepseek-v4-flash")
+		expect(optionValues(model)).not.toContain("gpt-5.6-sol")
+	})
+
+	it("preserves a model shared by the old and new providers", async () => {
+		const manager = new SessionConfigManager()
+		const runtime: Partial<Settings> = {
+			mode: "act",
+			planActSeparateModelsSetting: false,
+			planModeApiProvider: "anthropic",
+			actModeApiProvider: "anthropic",
+			planModeApiModelId: "claude-sonnet-5",
+			actModeApiModelId: "claude-sonnet-5",
+		}
+
+		await manager.applyProviderConfigOption(session(), "claude-code", runtime)
+
+		expect(runtime.actModeApiProvider).toBe("claude-code")
+		expect(runtime.actModeApiModelId).toBe("claude-sonnet-5")
+	})
+
+	it("selects the new provider default when the current model is incompatible", async () => {
+		const manager = new SessionConfigManager()
+		const runtime = linkedDeepSeekRuntime()
+
+		await manager.applyProviderConfigOption(session(), "openai-native", runtime)
+
+		expect(runtime.actModeApiProvider).toBe("openai-native")
+		expect(runtime.actModeApiModelId).toBe("gpt-5.6-terra")
+	})
+
+	it("does not carry a source model into a permissive target provider catalog", async () => {
+		const manager = new SessionConfigManager()
+		const runtime = linkedDeepSeekRuntime()
+
+		await manager.applyProviderConfigOption(session(), "openai", runtime)
+
+		expect(runtime.actModeApiProvider).toBe("openai")
+		expect(runtime.actModeOpenAiModelId).not.toBe("deepseek-v4-flash")
+	})
+
+	it("rejects an incompatible direct model request without mutation", async () => {
+		const manager = new SessionConfigManager()
+		const runtime = linkedDeepSeekRuntime()
+		const before = structuredClone(runtime)
+
+		await expect(manager.applyModelConfigOption(session(), "gpt-5.6-sol", runtime)).rejects.toThrow(
+			"Model gpt-5.6-sol is unavailable for provider deepseek",
+		)
+		expect(runtime).toEqual(before)
+	})
+
+	it("preserves an active custom Bedrock model and clears custom metadata when a standard model is selected", async () => {
+		const manager = new SessionConfigManager()
+		const customModelId = "arn:aws:bedrock:us-east-1:123456789012:application-inference-profile/custom"
+		const runtime: Partial<Settings> = {
+			mode: "act",
+			planActSeparateModelsSetting: false,
+			planModeApiProvider: "bedrock",
+			actModeApiProvider: "bedrock",
+			planModeApiModelId: customModelId,
+			actModeApiModelId: customModelId,
+			planModeAwsBedrockCustomSelected: true,
+			actModeAwsBedrockCustomSelected: true,
+			planModeAwsBedrockCustomModelBaseId: "anthropic.claude-sonnet-4-6",
+			actModeAwsBedrockCustomModelBaseId: "anthropic.claude-sonnet-4-6",
+		}
+
+		const model = selectOption(await manager.getSessionConfigOptions(session(), runtime), "model")
+		expect(model.currentValue).toBe(customModelId)
+		expect(optionValues(model)).toContain(customModelId)
+
+		const standardModelId = optionValues(model).find((modelId) => modelId !== customModelId)!
+		await manager.applyModelConfigOption(session(), standardModelId, runtime)
+
+		expect(runtime.actModeApiModelId).toBe(standardModelId)
+		expect(runtime.planModeApiModelId).toBe(standardModelId)
+		expect(runtime.actModeAwsBedrockCustomSelected).toBe(false)
+		expect(runtime.planModeAwsBedrockCustomSelected).toBe(false)
+		expect(runtime.actModeAwsBedrockCustomModelBaseId).toBeUndefined()
+		expect(runtime.planModeAwsBedrockCustomModelBaseId).toBeUndefined()
+	})
+
+	it("keeps OpenRouter selectable before its dynamic catalog is loaded", async () => {
+		const manager = new SessionConfigManager()
+		const provider = selectOption(await manager.getSessionConfigOptions(session(), linkedDeepSeekRuntime()), "provider")
+
+		expect(optionValues(provider)).toContain("openrouter")
+	})
+
+	it("refreshes the active GitHub Copilot catalog once while building config options", async () => {
+		refreshGithubCopilotModelsMock.mockResolvedValue({ "gpt-4o": openAiModelInfoSaneDefaults })
+		const manager = new SessionConfigManager()
+		const runtime: Partial<Settings> = {
+			mode: "act",
+			planActSeparateModelsSetting: false,
+			planModeApiProvider: "github-copilot",
+			actModeApiProvider: "github-copilot",
+			planModeApiModelId: "gpt-4o",
+			actModeApiModelId: "gpt-4o",
+		}
+
+		await manager.getSessionConfigOptions(session(), runtime)
+
+		expect(refreshGithubCopilotModelsMock).toHaveBeenCalledTimes(1)
+	})
+
+	it("removes a disabled provider and normalizes its active session", async () => {
 		const providerConfiguration = {
-			assertProviderEnabled: vi.fn(() => {
-				throw new Error("Provider deepseek is disabled")
+			isProviderEnabled: vi.fn((provider: string) => provider !== "deepseek"),
+			assertProviderEnabled: vi.fn((provider: string) => {
+				if (provider === "deepseek") throw new Error("Provider deepseek is disabled")
 			}),
 		}
 		const manager = new SessionConfigManager(providerConfiguration as never)
 		const runtime = linkedDeepSeekRuntime()
 
 		const options = await manager.getSessionConfigOptions(session(), runtime)
-		expect(options.find((option) => option.id === "provider")).toMatchObject({ currentValue: "deepseek" })
-		expect(() => manager.assertTaskRuntimeAvailable(session(), runtime)).toThrow("Provider deepseek is disabled")
-		await expect(manager.applyModelConfigOption(session(), "deepseek-v4-pro", runtime)).rejects.toThrow(
-			"Provider deepseek is disabled",
-		)
-		expect(runtime.actModeApiModelId).toBe("deepseek-v4-flash")
+		const provider = selectOption(options, "provider")
+		expect(provider.currentValue).not.toBe("deepseek")
+		expect(optionValues(provider)).not.toContain("deepseek")
 	})
 
-	it("uses standard ACP categories for task runtime controls", async () => {
+	it("uses standard ACP categories with provider before model", async () => {
 		const options = await new SessionConfigManager().getSessionConfigOptions(session(), linkedDeepSeekRuntime())
 		expect(options.map(({ id, category }) => [id, category])).toEqual([
 			["mode", "mode"],
@@ -109,19 +258,18 @@ describe("SessionConfigManager task runtime behavior", () => {
 			["reasoning_effort", "thought_level"],
 			["thinking_budget", "thought_level"],
 		])
+		expect(options.findIndex((option) => option.id === "provider")).toBeLessThan(
+			options.findIndex((option) => option.id === "model"),
+		)
 	})
 
 	it("advertises independent Plan/Act, auto-approve, and YOLO values", async () => {
 		const runtime = { ...linkedDeepSeekRuntime(), mode: "plan" as const, autoApproveAllToggled: false, yoloModeToggled: true }
 		const options = await new SessionConfigManager().getSessionConfigOptions(session("act"), runtime)
-		const mode = options.find((option) => option.id === "mode")
+		const mode = selectOption(options, "mode")
 		expect(mode).toMatchObject({ type: "select", currentValue: "plan" })
-		expect(mode && "options" in mode ? mode.options : []).toEqual([
-			expect.objectContaining({ value: "plan" }),
-			expect.objectContaining({ value: "act" }),
-		])
+		expect(optionValues(mode)).toEqual(["plan", "act"])
 		expect(options.find((option) => option.id === "auto_approve")).toMatchObject({ type: "boolean", currentValue: false })
 		expect(options.find((option) => option.id === "yolo")).toMatchObject({ type: "boolean", currentValue: true })
 	})
-
 })

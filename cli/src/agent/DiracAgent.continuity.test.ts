@@ -301,6 +301,78 @@ describe("DiracAgent ACP conversation continuity", () => {
 		expect(mocks.task.setApiHandler).toHaveBeenCalledOnce()
 	})
 
+	it("serializes provider publications with client runtime mutations", async () => {
+		const agent = new DiracAgent({ cwd: "/tmp/workspace" })
+			; (agent as any).ctx = { extensionContext: {}, DATA_DIR: "/tmp/dirac-test-data" }
+			; (agent as any).sessionConfig.getSessionConfigOptions = vi.fn(async () => [])
+			; (agent as any).sessionConfig.getSessionModeState = vi.fn(() => ({ currentModeId: "act", availableModes: [] }))
+
+		const { sessionId } = await agent.newSession({ cwd: "/tmp/workspace", mcpServers: [] } as any)
+		let releasePublication!: () => void
+		let markPublicationStarted!: () => void
+		const publicationGate = new Promise<void>((resolve) => {
+			releasePublication = resolve
+		})
+		const publicationStarted = new Promise<void>((resolve) => {
+			markPublicationStarted = resolve
+		})
+		const getSessionConfigOptions = (agent as any).sessionConfig.getSessionConfigOptions as ReturnType<typeof vi.fn>
+		getSessionConfigOptions.mockImplementationOnce(async () => {
+			markPublicationStarted()
+			await publicationGate
+			return []
+		})
+
+		const publication = (agent as any).publishProviderConfigChanges()
+		await publicationStarted
+		const clientMutation = agent.setSessionConfigOption({
+			sessionId,
+			configId: "auto_approve",
+			type: "boolean",
+			value: true,
+		} as any)
+		releasePublication()
+		await Promise.all([publication, clientMutation])
+
+		expect((agent as any).acpSessionOverrides.get(sessionId).autoApproveAllToggled).toBe(true)
+	})
+
+	it("normalizes automatic Act switches before persisting their authoritative runtime", async () => {
+		const agent = new DiracAgent({ cwd: "/tmp/workspace", mode: "plan" })
+			; (agent as any).ctx = { extensionContext: {}, DATA_DIR: "/tmp/dirac-test-data" }
+			; (agent as any).sessionConfig.getSessionConfigOptions = vi.fn(async () => [])
+			; (agent as any).sessionConfig.getSessionModeState = vi.fn(() => ({ currentModeId: "plan", availableModes: [] }))
+
+		const { sessionId } = await agent.newSession({ cwd: "/tmp/workspace", mcpServers: [] } as any)
+		const runtime = (agent as any).acpSessionOverrides.get(sessionId)
+		Object.assign(runtime, {
+			mode: "plan",
+			planActSeparateModelsSetting: true,
+			actModeApiProvider: "deepseek",
+			actModeApiModelId: "removed-deepseek-model",
+		})
+
+		const persistedSnapshots: Array<Record<string, unknown>> = []
+			; (agent as any).writeSessionRuntimeConfig = vi.fn((_session: unknown, overrides: Record<string, unknown>) => {
+				persistedSnapshots.push(structuredClone(overrides))
+			})
+			; (agent as any).sessionConfig.getSessionConfigOptions = vi.fn(
+				async (_session: unknown, overrides: Record<string, unknown>) => {
+					if (overrides.mode === "act") overrides.actModeApiModelId = "deepseek-v4-flash"
+					return []
+				},
+			)
+
+		await (agent as any).switchSessionToActMode(sessionId)
+
+		expect(persistedSnapshots.at(-1)).toMatchObject({
+			mode: "act",
+			actModeApiProvider: "deepseek",
+			actModeApiModelId: "deepseek-v4-flash",
+		})
+	})
+
+
 	it("forces cleanup during shutdown while preserving close-session guards", async () => {
 		const agent = new DiracAgent({ cwd: "/tmp/workspace" })
 			; (agent as any).ctx = { extensionContext: {}, DATA_DIR: "/tmp/dirac-test-data" }
