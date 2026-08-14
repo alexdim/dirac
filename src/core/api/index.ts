@@ -1,5 +1,5 @@
 import { ApiConfiguration, getModelInfo, ModelInfo, openAiModelInfoSaneDefaults, QwenApiRegions } from "@shared/api"
-import type { ModelProviderSelection } from "@shared/api"
+import type { ApiProvider, ModelProviderSelection } from "@shared/api"
 import { modelProviderSelectionUpdates } from "./modelProviderSelection"
 import { Mode } from "@shared/storage/types"
 import { DiracStorageMessage } from "@/shared/messages/content"
@@ -654,4 +654,40 @@ export function buildApiHandlerForSelection(
 	options: ApiHandlerForSelectionOptions = {},
 ): ApiHandler {
 	return buildApiHandler(createApiConfigurationForModelProviderSelection(baseConfiguration, selection, options), "act")
+}
+
+/**
+ * Resolves a provider/model candidate through the same handler construction used
+ * for inference. Static handlers return their declared default when the
+ * candidate is incompatible; dynamic handlers preserve accepted IDs.
+ */
+export function resolveModelIdForProvider(
+	baseConfiguration: ApiConfiguration,
+	provider: ApiProvider,
+	modelId: string,
+	mode: Mode = "act",
+): string {
+	const configuredProvider = mode === "plan" ? baseConfiguration.planModeApiProvider : baseConfiguration.actModeApiProvider
+	const selection: ModelProviderSelection = { provider, modelId }
+	if (provider === "bedrock" && configuredProvider === "bedrock") {
+		selection.awsBedrockCustomSelected =
+			mode === "plan"
+				? baseConfiguration.planModeAwsBedrockCustomSelected
+				: baseConfiguration.actModeAwsBedrockCustomSelected
+		selection.awsBedrockCustomModelBaseId =
+			mode === "plan"
+				? baseConfiguration.planModeAwsBedrockCustomModelBaseId
+				: baseConfiguration.actModeAwsBedrockCustomModelBaseId
+	}
+
+	const configuration = {
+		...baseConfiguration,
+		...modelProviderSelectionUpdates(mode, selection),
+		apiProvider: provider,
+		disableRetries: true,
+		geminiSearchEnabled: false,
+		enableParallelToolCalling: false,
+		onRetryAttempt: undefined,
+	}
+	return buildApiHandler(configuration, mode).getModel().id
 }
