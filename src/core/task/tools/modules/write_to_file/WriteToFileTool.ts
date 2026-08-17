@@ -159,9 +159,9 @@ export abstract class BaseWriteFileTool implements IDiracTool<WriteFileArgs> {
 			}
 
 			if (env.config.backgroundEditEnabled) {
-				saveResult = await env.editor.applyAndSaveSilently(absolutePath, content)
+				saveResult = await env.editor.applyAndSaveSilently(absolutePath, content, fileExists ? "modify" : "create")
 			} else {
-				await env.editor.open(absolutePath)
+				await env.editor.open(absolutePath, { editType: fileExists ? "modify" : "create" })
 				await env.editor.update(content, true)
 				saveResult = await env.editor.saveChanges()
 			}
@@ -233,7 +233,7 @@ export abstract class BaseWriteFileTool implements IDiracTool<WriteFileArgs> {
 				return reason ? formatResponse.toolDeniedWithFeedback(reason) : formatResponse.toolDenied()
 			}
 
-			await env.editor.open(absolutePath)
+			await env.editor.open(absolutePath, { editType: fileExists ? "modify" : "create" })
 			await env.editor.update(content, true)
 			await env.editor.scrollToFirstDiff()
 			saveResult = await env.editor.saveChanges()
@@ -334,7 +334,6 @@ export const write_to_file_spec: DiracToolSpec = {
 		},
 	],
 }
-
 
 export class WriteToFileTool extends BaseWriteFileTool {
 	spec(): DiracToolSpec {

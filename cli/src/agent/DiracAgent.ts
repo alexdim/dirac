@@ -40,15 +40,17 @@ import { ExternalCommentReviewController } from "@/hosts/external/ExternalCommen
 import { ExternalDiracWebviewProvider } from "@/hosts/external/ExternalWebviewProvider.js"
 import { HostProvider } from "@/hosts/host-provider.js"
 import { FileEditProvider } from "@/integrations/editor/FileEditProvider"
+import { NodeTextFileAccess } from "@/integrations/editor/NodeTextFileAccess"
 import { StandaloneTerminalManager } from "@/integrations/terminal/index.js"
 import { Logger } from "@/shared/services/Logger.js"
 import { DiracTempManager } from "@/services/temp/DiracTempManager.js"
 import type { Settings } from "@/shared/storage/state-keys"
 import { createWorktree, deleteWorktree, getGitRootPath } from "@/utils/git-worktree"
 import { version as AGENT_VERSION } from "../../package.json"
-import { ACPDiffViewProvider } from "../acp/ACPDiffViewProvider.js"
+import { ACPTextFileAccess } from "../acp/ACPTextFileAccess.js"
 import { ACPHostBridgeClientProvider } from "../acp/ACPHostBridgeClientProvider.js"
 import { AcpTerminalManager } from "../acp/AcpTerminalManager.js"
+import type { ActiveAcpSessionIdResolver } from "../acp/active-session.js"
 import {
 	deletePinnedSessionMessages,
 	getPinnedSessionMessages,
@@ -537,9 +539,9 @@ export class DiracAgent implements acp.Agent {
 	private applyPinnedContext(
 		task:
 			| {
-				taskState: { pinnedContext?: string }
-				setContextCompactionObserver: (observer: () => void) => void
-			}
+					taskState: { pinnedContext?: string }
+					setContextCompactionObserver: (observer: () => void) => void
+			  }
 			| undefined,
 		sessionId: string,
 	): void {
@@ -695,7 +697,7 @@ export class DiracAgent implements acp.Agent {
 
 		for (const key of TASK_RUNTIME_SETTINGS_KEYS) {
 			const systemDefault = stateManager.getSystemDefaultSettingsKey(key)
-				; (effectiveDefaults as Record<keyof Settings, unknown>)[key] = systemDefault ?? environmentSettings[key]
+			;(effectiveDefaults as Record<keyof Settings, unknown>)[key] = systemDefault ?? environmentSettings[key]
 		}
 		Object.assign(effectiveDefaults, getExplicitDiracSettingsFromEnv())
 		const environmentProvider = getProviderFromEnv()
@@ -734,13 +736,13 @@ export class DiracAgent implements acp.Agent {
 					runtimeValues[modelInfoKey] ||= structuredClone(profile.modelInfo)
 				}
 			}
-			; (overrides as Record<string, unknown>)[modelKey] =
+			;(overrides as Record<string, unknown>)[modelKey] =
 				(overrides[modelKey] as string | undefined) || getDefaultModelId(defaultProvider)
 
 			const thinkingKey = mode === "act" ? "actModeThinkingBudgetTokens" : "planModeThinkingBudgetTokens"
 			const reasoningKey = mode === "act" ? "actModeReasoningEffort" : "planModeReasoningEffort"
-				; (overrides as Record<string, unknown>)[thinkingKey] ??= 0
-				; (overrides as Record<string, unknown>)[reasoningKey] ??= "medium"
+			;(overrides as Record<string, unknown>)[thinkingKey] ??= 0
+			;(overrides as Record<string, unknown>)[reasoningKey] ??= "medium"
 		}
 
 		if (model) {
@@ -760,9 +762,9 @@ export class DiracAgent implements acp.Agent {
 
 			const modes = overrides.planActSeparateModelsSetting ? [overrides.mode] : (["plan", "act"] as const)
 			for (const mode of modes) {
-				; (overrides as Record<string, unknown>)[mode === "act" ? "actModeApiProvider" : "planModeApiProvider"] =
+				;(overrides as Record<string, unknown>)[mode === "act" ? "actModeApiProvider" : "planModeApiProvider"] =
 					targetProvider
-					; (overrides as Record<string, unknown>)[getProviderModelIdKey(targetProvider, mode)] = model
+				;(overrides as Record<string, unknown>)[getProviderModelIdKey(targetProvider, mode)] = model
 				const modelInfoKey = getProviderModelInfoKey(targetProvider, mode)
 				if (modelInfoKey) overrides[modelInfoKey] = undefined
 				if (provider?.startsWith("http://") || provider?.startsWith("https://")) {
@@ -1192,13 +1194,16 @@ export class DiracAgent implements acp.Agent {
 	 * @param connection - Optional ACP connection for host bridge operations
 	 */
 	initializeHostProvider(clientCapabilities?: acp.ClientCapabilities, connection?: acp.AgentSideConnection): void {
+		const activeSessionIdResolver: ActiveAcpSessionIdResolver = () => this.activePromptSessionId
 		const hostBridgeClientProvider = new ACPHostBridgeClientProvider(
+			connection,
 			clientCapabilities,
-			() => undefined,
+			activeSessionIdResolver,
 			() =>
 				this.activePromptSessionId
 					? this.sessions.get(this.activePromptSessionId)?.cwd
 					: (this.options.cwd ?? process.cwd()),
+			connection ? (sessionId, update) => this.persistAndSendSessionUpdate(connection, sessionId, update) : undefined,
 			AGENT_VERSION,
 		)
 
@@ -1206,26 +1211,26 @@ export class DiracAgent implements acp.Agent {
 			"cli",
 			() => new ExternalDiracWebviewProvider(this.ctx.extensionContext),
 			() => {
-				if (clientCapabilities?.fs && connection) {
-					return new ACPDiffViewProvider(connection, clientCapabilities, () => undefined)
+				if (connection) {
+					return new FileEditProvider(
+						new ACPTextFileAccess(connection, clientCapabilities, activeSessionIdResolver, new NodeTextFileAccess()),
+						false,
+						false,
+					)
 				}
-				// Fallback for programmatic use
-				return new FileEditProvider()
+				return new FileEditProvider(new NodeTextFileAccess(), false)
 			},
 			() => new ExternalCommentReviewController(),
 			() => {
 				if (clientCapabilities?.terminal && connection) {
-					return new AcpTerminalManager(connection, clientCapabilities, () => undefined)
+					return new AcpTerminalManager(connection, clientCapabilities, activeSessionIdResolver)
 				}
-				// Fallback for programmatic use
 				return new StandaloneTerminalManager()
 			},
 			hostBridgeClientProvider,
 			(message: string) => Logger.info(message),
-			async (path: string) => {
-				return AuthHandler.getInstance().getCallbackUrl(path)
-			},
-			async () => "", // get binary location not needed in ACP mode
+			async (path: string) => AuthHandler.getInstance().getCallbackUrl(path),
+			async () => "",
 			this.ctx.EXTENSION_DIR,
 			this.ctx.DATA_DIR,
 			async (_cwd: string) => undefined,
@@ -1283,21 +1288,20 @@ export class DiracAgent implements acp.Agent {
 
 		this.sessionStates.set(sessionId, sessionState)
 
-
 		return {
 			sessionId,
 			modes: this.sessionConfig.getSessionModeState(session.mode, sessionOverrides),
 			configOptions,
 			...(worktree
 				? {
-					_meta: {
-						"dev.dirac/worktree": {
-							path: worktree.worktreePath,
-							branch: worktree.branch,
-							...(worktree.targetBranch ? { targetBranch: worktree.targetBranch } : {}),
+						_meta: {
+							"dev.dirac/worktree": {
+								path: worktree.worktreePath,
+								branch: worktree.branch,
+								...(worktree.targetBranch ? { targetBranch: worktree.targetBranch } : {}),
+							},
 						},
-					},
-				}
+					}
 				: {}),
 		}
 	}
@@ -1379,9 +1383,9 @@ export class DiracAgent implements acp.Agent {
 			lastActivityAt: Date.now(),
 			...(persistedHistory
 				? {
-					isLoadedFromHistory: true,
-					loadedTaskId: resolvedTaskId,
-				}
+						isLoadedFromHistory: true,
+						loadedTaskId: resolvedTaskId,
+					}
 				: { reservedTaskId: sessionId }),
 		}
 		const sessionOverrides = copyTaskRuntimeSettings(persistedRuntimeConfig.settings)
@@ -1574,6 +1578,7 @@ export class DiracAgent implements acp.Agent {
 		if ((sessionState.status as AcpSessionStatus) === AcpSessionStatus.Cancelled) {
 			releasePrompt()
 			sessionState.status = AcpSessionStatus.Idle
+			this.activePromptSessionId = undefined
 			return this.bridgeForSession(params.sessionId).promptResponse("cancelled")
 		}
 
@@ -1664,12 +1669,12 @@ export class DiracAgent implements acp.Agent {
 			const interceptedReviewResponse =
 				imageContent.length === 0 && fileResources.length === 0
 					? await handleAcpReviewCommand({
-						commandText: textContent,
-						controller,
-						sessionId: params.sessionId,
-						cwd: session.cwd,
-						emitSessionUpdate: this.emitSessionUpdate.bind(this),
-					})
+							commandText: textContent,
+							controller,
+							sessionId: params.sessionId,
+							cwd: session.cwd,
+							emitSessionUpdate: this.emitSessionUpdate.bind(this),
+						})
 					: null
 
 			if (interceptedReviewResponse) {
@@ -1785,13 +1790,13 @@ export class DiracAgent implements acp.Agent {
 				const waitingCardId = controller.task.taskState.lastWaitingCardId
 				const waitingCard = waitingCardId
 					? controller.task.messageStateHandler
-						.getDiracMessages()
-						.find(
-							(message) =>
-								message.content.type === DiracMessageType.CARD &&
-								message.content.card.id === waitingCardId &&
-								message.content.card.status === CardStatus.WAITING_FOR_INPUT,
-						)
+							.getDiracMessages()
+							.find(
+								(message) =>
+									message.content.type === DiracMessageType.CARD &&
+									message.content.card.id === waitingCardId &&
+									message.content.card.status === CardStatus.WAITING_FOR_INPUT,
+							)
 					: undefined
 
 				if (waitingCard) {
@@ -2073,7 +2078,8 @@ export class DiracAgent implements acp.Agent {
 			const currentOverrides = this.acpSessionOverrides.get(sessionId)
 			if (!currentOverrides) throw new Error(`Session runtime configuration not found: ${sessionId}`)
 			const activeOverrides = this.activePromptOverrides.get(sessionId)
-			if ((activeOverrides?.mode ?? session.mode) === "act") return this.#sessionControllers.get(session)?.task !== undefined
+			if ((activeOverrides?.mode ?? session.mode) === "act")
+				return this.#sessionControllers.get(session)?.task !== undefined
 
 			const nextAuthoritativeOverrides = copyTaskRuntimeSettings(currentOverrides)
 			nextAuthoritativeOverrides.mode = "act"
@@ -2151,6 +2157,15 @@ export class DiracAgent implements acp.Agent {
 			sessionUpdate: "current_mode_update",
 			currentModeId: this.sessionConfig.computeCurrentAcpModeId(session.mode, sessionOverrides),
 		})
+	}
+
+	private async persistAndSendSessionUpdate(
+		connection: acp.AgentSideConnection,
+		sessionId: string,
+		update: acp.SessionUpdate,
+	): Promise<void> {
+		const persistedUpdate = this.persistSessionUpdate(sessionId, update)
+		await connection.sessionUpdate({ sessionId, update: persistedUpdate })
 	}
 
 	private async emitSessionUpdate(sessionId: string, update: acp.SessionUpdate): Promise<void> {

@@ -28,12 +28,13 @@ export class EditFileApplier {
 			content: userEdits?.[batch.displayPath] ?? batch.prepared!.finalContent,
 		}))
 		const batchResults = await env.editor.applyAndSaveBatchSilently(filesToApply)
+		const formattedContents = new Map<string, string>()
 
 		for (const batch of preparedBatches) {
 			try {
-				await env.editor.format(batch.absolutePath)
+				formattedContents.set(batch.absolutePath, await env.editor.format(batch.absolutePath))
 			} catch {
-				/* formatting is best-effort */
+				// Formatting is best-effort; the confirmed save result remains authoritative.
 			}
 		}
 
@@ -41,12 +42,7 @@ export class EditFileApplier {
 			preparedBatches.map(async (batch) => {
 				const saveResult = batchResults.get(batch.absolutePath)
 				if (!saveResult) return
-				let finalContent: string
-				try {
-					finalContent = await env.workspace.readFile(batch.absolutePath)
-				} catch {
-					finalContent = saveResult.content || batch.prepared!.finalContent
-				}
+				const finalContent = formattedContents.get(batch.absolutePath) ?? saveResult.content
 				const finalLines = finalContent.split(/\r?\n/)
 
 				appliedResults.set(batch.absolutePath, {

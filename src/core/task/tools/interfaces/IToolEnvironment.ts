@@ -279,13 +279,13 @@ export interface IEditorTrait {
 	/** Hides the review UI */
 	hideReview(): Promise<void>
 	/** Opens a specific file in the editor */
-	open(path: string, options?: { displayPath?: string }): Promise<void>
+	open(path: string, options?: { displayPath?: string; editType?: "create" | "modify" | "delete" }): Promise<void>
 	/** Updates the content of the currently open editor */
 	update(content: string, finalize: boolean): Promise<void>
 	/** Saves changes in the current editor, returning auto-formatting and user edits */
 	saveChanges(options?: { skipDiagnostics?: boolean }): Promise<SaveResult>
 	/** Applies content and saves a file silently (background edit) */
-	applyAndSaveSilently(path: string, content: string): Promise<SaveResult>
+	applyAndSaveSilently(path: string, content: string, editType?: "create" | "modify"): Promise<SaveResult>
 	/** Applies content and saves multiple files silently in a single transaction */
 	applyAndSaveBatchSilently(files: { path: string; content: string }[]): Promise<Map<string, SaveResult>>
 	/** Reverts all unsaved changes in the editor */
