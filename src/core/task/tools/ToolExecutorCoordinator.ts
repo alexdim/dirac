@@ -11,6 +11,7 @@ import type { ToolResponse } from "./types/ToolResponse"
 import { ToolSkippedByUserMessage } from "./types/ToolSkippedByUserMessage"
 import { createUIHelpers } from "./types/UIHelpers"
 import { normalizeOptionalToolParameters } from "./runtime/normalizeOptionalToolParameters"
+import { assertValidToolResponse } from "./runtime/assertValidToolResponse"
 
 interface PartialToolUseHandler extends IDiracTool {
 	bufferPartialToolUse(block: ToolUse, uiHelpers: ReturnType<typeof createUIHelpers>): Promise<void>
@@ -21,7 +22,7 @@ interface PartialToolUseHandler extends IDiracTool {
  * Throws an error for unregistered tools.
  */
 export class ToolExecutorCoordinator {
-	constructor() { }
+	constructor() {}
 
 	private modularTools = new Map<string, IDiracTool>()
 
@@ -107,14 +108,14 @@ export class ToolExecutorCoordinator {
 		// 4. Observability: "Calling..." (Removed redundant message)
 
 		let executionSuccess = false
-		let result: any
 		let response!: ToolResponse
 
 		const initialMistakeCount = config.taskState.consecutiveMistakeCount
 		const unfinalizedCards: { id: string; status: CardStatus }[] = []
 		try {
 			// 5. Execute (Dispatcher)
-			result = await tool.processCall(block.params, env)
+			const result = await tool.processCall(block.params, env)
+			assertValidToolResponse(result, block.name)
 			executionSuccess = true
 
 			// 6. Persist Context

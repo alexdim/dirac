@@ -1,5 +1,11 @@
 import { parseAssistantMessageV2, ToolUse } from "@core/assistant-message"
-import { DiracAssistantToolUseBlock, DiracContent, DiracStorageMessage, DiracTextContentBlock } from "@shared/messages"
+import {
+	DiracAssistantToolUseBlock,
+	DiracContent,
+	DiracStorageMessage,
+	DiracTextContentBlock,
+	DiracToolResponseContent,
+} from "@shared/messages"
 import { Logger } from "@shared/services/Logger"
 import type { SubagentRequestUsageState, SubagentRunStats, SubagentToolCall } from "./SubagentRunTypes"
 
@@ -27,29 +33,18 @@ export function createEmptySubagentRunStats(): SubagentRunStats {
 	}
 }
 
-export function serializeToolResult(result: unknown): string {
+export function serializeToolResult(result: DiracToolResponseContent): string {
 	if (typeof result === "string") {
 		return result
 	}
 
-	if (Array.isArray(result)) {
-		return result
-			.map((item) => {
-				if (!item || typeof item !== "object") {
-					return String(item)
-				}
-
-				const maybeText = (item as { text?: string }).text
-				if (typeof maybeText === "string") {
-					return maybeText
-				}
-
-				return JSON.stringify(item)
-			})
-			.join("")
-	}
-
-	return JSON.stringify(result, null, 2)
+	return result
+		.map((item) => {
+			if (item.type === "text") return item.text
+			const imageKind = item.source.type === "base64" ? item.source.media_type : "remote URL"
+			return `[Image omitted from trajectory: ${imageKind}]`
+		})
+		.join("")
 }
 
 export function toToolUseParams(input: unknown): Partial<Record<string, unknown>> {
@@ -140,7 +135,7 @@ export function pushSubagentToolResultBlock(
 	toolResultBlocks: DiracContent[],
 	call: SubagentToolCall,
 	label: string,
-	content: string,
+	content: DiracToolResponseContent,
 ): void {
 	if (call.isNativeToolCall) {
 		toolResultBlocks.push({
@@ -152,10 +147,12 @@ export function pushSubagentToolResultBlock(
 		return
 	}
 
-	toolResultBlocks.push({
-		type: "text",
-		text: `${label} Result:\n${content}`,
-	})
+	if (typeof content === "string") {
+		toolResultBlocks.push({ type: "text", text: `${label} Result:\n${content}` })
+		return
+	}
+	toolResultBlocks.push({ type: "text", text: `${label} Result:` })
+	toolResultBlocks.push(...content)
 }
 
 export function getBestEffortResult(conversation: DiracStorageMessage[]): string {

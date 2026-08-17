@@ -166,6 +166,61 @@ describe("OpenAiCodexHandler persisted reasoning", () => {
 		requests[1].input.should.deepEqual([{ type: "function_call_output", call_id: "call_server", output: "contents" }])
 	})
 
+	it("sends read-file images as structured incremental function output", async () => {
+		const handler = createHandler()
+		const requests: any[] = []
+		sinon.stub(handler as any, "createResponseStreamWebsocket").callsFake(async function* (request: any) {
+			requests.push(request)
+			yield { type: "usage", id: "resp_123" }
+		})
+
+		await drain(handler.createMessage("system", [{ role: "user", content: "read the image" }] as any, tools))
+		await drain(
+			handler.createMessage(
+				"system",
+				[
+					{ role: "user", content: "read the image" },
+					currentCodexResponse("gpt-5.6-terra", [
+						{ type: "tool_use", id: "fc_local", call_id: "call_server", name: "read_file", input: {} },
+					]),
+					{
+						role: "user",
+						content: [
+							{
+								type: "tool_result",
+								tool_use_id: "fc_local",
+								content: [
+									{ type: "text", text: "Successfully read image" },
+									{
+										type: "image",
+										source: { type: "base64", media_type: "image/png", data: "BASE64_SENTINEL" },
+									},
+								],
+							},
+						],
+					},
+				] as any,
+				tools,
+			),
+		)
+
+		requests[1].input.should.deepEqual([
+			{
+				type: "function_call_output",
+				call_id: "call_server",
+				output: [
+					{ type: "input_text", text: "Successfully read image" },
+					{
+						type: "input_image",
+						detail: "high",
+						image_url: "data:image/png;base64,BASE64_SENTINEL",
+					},
+				],
+			},
+		])
+		expect(typeof requests[1].input[0].output).not.to.equal("string")
+	})
+
 	it("retries an unavailable active websocket anchor with full context", async () => {
 		const handler = createHandler()
 		const requests: any[] = []

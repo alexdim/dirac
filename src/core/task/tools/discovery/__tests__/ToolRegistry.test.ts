@@ -35,7 +35,7 @@ function makeTool(overrides: Partial<DiscoveredTool> = {}): DiscoveredTool {
 					return ["all" as const]
 				},
 				async processCall() {
-					return undefined
+					return "ok"
 				},
 			})),
 		modulePath: overrides.modulePath ?? `modules/${id}/tool.ts`,
@@ -368,10 +368,7 @@ describe("ToolRegistry", () => {
 
 		it("enables a new tool only when requested", () => {
 			const registry = ToolRegistry.getInstance()
-			assert.strictEqual(
-				registry.replaceUserTool(makeTool({ id: "user_tool", source: "workspace" }), true),
-				true,
-			)
+			assert.strictEqual(registry.replaceUserTool(makeTool({ id: "user_tool", source: "workspace" }), true), true)
 			assert.strictEqual(registry.isEnabled("user_tool"), true)
 		})
 
@@ -509,7 +506,10 @@ describe("ToolRegistry", () => {
 
 			registry.reconcileWorkspaceUserTools([])
 
-			assert.deepStrictEqual(registry.getAllTools().map((tool) => tool.id), ["task_tool"])
+			assert.deepStrictEqual(
+				registry.getAllTools().map((tool) => tool.id),
+				["task_tool"],
+			)
 		})
 
 		it("allows a manual reload to invalidate an unchanged inventory", () => {
@@ -619,5 +619,4 @@ describe("ToolRegistry", () => {
 			)
 		})
 	})
-
 })

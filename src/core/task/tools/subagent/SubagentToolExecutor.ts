@@ -17,6 +17,7 @@ import { DiracDefaultTool } from "@shared/tools"
 import type { TaskState } from "../../TaskState"
 import { ToolExecutorCoordinator } from "../ToolExecutorCoordinator"
 import type { TaskConfig } from "../types/TaskConfig"
+import type { ToolResponse } from "../types/ToolResponse"
 import { formatToolCallPreview, pushSubagentToolResultBlock, serializeToolResult, toToolUseParams } from "./SubagentRunHelpers"
 import { type SubagentProgressUpdate, type SubagentRunStats, type SubagentToolCall } from "./SubagentRunTypes"
 
@@ -34,7 +35,7 @@ export class SubagentToolExecutor {
 		private createSubagentTaskConfig: (state: TaskState, coordinator: ToolExecutorCoordinator) => TaskConfig,
 		private isAllowedTool: (toolName: string, requestSnapshot: ToolRequestSnapshot) => boolean,
 		private readonly observer?: SubagentToolExecutionObserver,
-	) {}
+	) { }
 
 	// Processes all tool calls for a turn. Returns a completed result for the complete response operation.
 	async executeToolCalls(
@@ -135,7 +136,7 @@ export class SubagentToolExecutor {
 
 			if (call.call_id) state.toolUseIdMap.set(call.call_id, call.toolUseId)
 			const subagentConfig = this.createSubagentTaskConfig(state, requestSnapshot.coordinator)
-			let toolResult: unknown
+			let toolResult: ToolResponse
 			if (!subagentConfig.coordinator.has(toolName)) {
 				toolResult = formatResponse.toolError(`No handler registered for tool '${toolName}'.`)
 			} else {
@@ -147,14 +148,14 @@ export class SubagentToolExecutor {
 			}
 
 			this.observer?.markActivity(`completed tool call '${toolName}'`)
-			recordToolResult(toolResult)
+			const serializedToolResult = serializeToolResult(toolResult)
+			recordToolResult(serializedToolResult)
 			stats.toolCalls += 1
 			onProgress({ stats: { ...stats } })
-			const serializedToolResult = serializeToolResult(toolResult)
 			onProgress({
 				trajectoryEvent: createSubagentTrajectoryEvent(SubagentTrajectoryEventType.TOOL_RESULT, serializedToolResult),
 			})
-			pushSubagentToolResultBlock(toolResultBlocks, call, `[${toolName}]`, serializedToolResult)
+			pushSubagentToolResultBlock(toolResultBlocks, call, `[${toolName}]`, toolResult)
 		}
 		return { toolResultBlocks }
 	}
