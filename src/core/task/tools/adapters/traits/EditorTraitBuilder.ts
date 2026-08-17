@@ -14,7 +14,8 @@ export function buildEditorTrait(config: TaskConfig): IEditorTrait {
 		open: async (path, options) => await diffView().open(path, options),
 		update: async (content, finalize) => await diffView().update(content, finalize),
 		saveChanges: async (options) => mapSaveResult(await diffView().saveChanges(options)),
-		applyAndSaveSilently: async (path, content) => mapSaveResult(await diffView().applyAndSaveSilently(path, content)),
+		applyAndSaveSilently: async (path, content, editType) =>
+			mapSaveResult(await diffView().applyAndSaveSilently(path, content, editType)),
 		applyAndSaveBatchSilently: async (files) => {
 			const results = await diffView().applyAndSaveBatchSilently(files)
 			const mapped = new Map<string, any>()

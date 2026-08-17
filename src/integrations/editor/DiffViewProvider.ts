@@ -9,6 +9,8 @@ import { sanitizeNotebookForLLM } from "../misc/notebook-utils"
 import { openFile } from "../misc/open-file"
 import { DiffContentManager } from "./DiffContentManager"
 import { FileOperationManager } from "./FileOperationManager"
+import { NodeTextFileAccess } from "./NodeTextFileAccess"
+import type { TextFileAccess } from "./TextFileAccess"
 
 export abstract class DiffViewProvider {
 	editType?: "create" | "modify" | "delete"
@@ -23,11 +25,18 @@ export abstract class DiffViewProvider {
 	protected fileOpManager?: FileOperationManager
 	protected readonly contentManager: DiffContentManager
 
-	constructor() {
+	constructor(
+		private readonly textFileAccess: TextFileAccess = new NodeTextFileAccess(),
+		private readonly shouldSaveOpenDocumentBeforeRead = true,
+	) {
 		this.contentManager = new DiffContentManager()
 	}
 
-	public async open(relPath: string, options?: { displayPath?: string }): Promise<void> {
+	public async open(
+		relPath: string,
+		options?: { displayPath?: string; editType?: "create" | "modify" | "delete" },
+	): Promise<void> {
+		this.editType = options?.editType ?? this.editType
 		this.isEditing = true
 		const cwd = await getCwd()
 		const absolutePathResolved = workspaceResolver.resolveWorkspacePath(cwd, relPath, "DiffViewProvider.open.absolutePath")
@@ -35,13 +44,13 @@ export abstract class DiffViewProvider {
 		this.relPath = options?.displayPath ?? relPath
 		const fileExists = this.editType === "modify"
 
-		if (fileExists) {
+		if (fileExists && this.shouldSaveOpenDocumentBeforeRead) {
 			await HostProvider.workspace.saveOpenDocumentIfDirty({
 				filePath: this.absolutePath,
 			})
 		}
 
-		this.fileOpManager = new FileOperationManager(this.absolutePath, this.editType ?? "create")
+		this.fileOpManager = new FileOperationManager(this.absolutePath, this.editType ?? "create", this.textFileAccess)
 		await this.fileOpManager.setup()
 		this.originalContent = this.fileOpManager.originalContent
 		this.fileEncoding = this.fileOpManager.fileEncoding
@@ -86,7 +95,7 @@ export abstract class DiffViewProvider {
 		let newProblemsMessage = ""
 
 		for (const provider of providers) {
-			const result = await provider.getDiagnosticsFeedback(this.absolutePath, postSaveContent || "", this.preDiagnostics)
+			const result = await provider.getDiagnosticsFeedback(this.absolutePath, postSaveContent ?? "", this.preDiagnostics)
 
 			if (result.newProblemsMessage) {
 				newProblemsMessage = result.newProblemsMessage
@@ -165,7 +174,7 @@ export abstract class DiffViewProvider {
 			)
 		}
 
-		if (!this.relPath || !this.absolutePath || !this.newContent || preSaveContent === undefined) {
+		if (!this.relPath || !this.absolutePath || this.newContent === undefined || preSaveContent === undefined) {
 			return {
 				newProblemsMessage: undefined,
 				userEdits: undefined,
@@ -174,7 +183,7 @@ export abstract class DiffViewProvider {
 			}
 		}
 
-		const postSaveContent = (await this.getDocumentText()) || ""
+		const postSaveContent = (await this.getDocumentText()) ?? ""
 
 		await this.showFile(this.absolutePath)
 		await this.closeAllDiffViews()
@@ -235,6 +244,7 @@ export abstract class DiffViewProvider {
 			}
 		} catch (error) {
 			Logger.error(`Failed to revert changes for ${this.absolutePath}:`, error)
+			throw error
 		} finally {
 			await this.reset()
 		}
@@ -245,7 +255,7 @@ export abstract class DiffViewProvider {
 			return
 		}
 		await this.contentManager.scrollToFirstDiff(
-			this.originalContent || "",
+			this.originalContent ?? "",
 			async () => (await this.getDocumentText()) ?? "",
 			(line) => this.scrollEditorToLine(line),
 		)
@@ -264,6 +274,7 @@ export abstract class DiffViewProvider {
 			Logger.log(`File ${fileLocation} has been deleted.`)
 		} catch (error) {
 			Logger.error(`Failed to delete file ${fileLocation}:`, error)
+			throw error
 		}
 
 		this.isEditing = false
@@ -287,6 +298,7 @@ export abstract class DiffViewProvider {
 	abstract applyAndSaveSilently(
 		absolutePath: string,
 		content: string,
+		editType?: "create" | "modify",
 	): Promise<{
 		finalContent: string | undefined
 		autoFormattingEdits: string | undefined
