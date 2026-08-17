@@ -4,11 +4,12 @@ import type { TaskConfig } from "../../types/TaskConfig"
 export function buildEditorTrait(config: TaskConfig): IEditorTrait {
 	const diffView = () => config.services.diffViewProvider
 	const mapSaveResult = (result: any) => ({
-		content: result.finalContent || "",
+		content: result.finalContent ?? "",
 		userEdits: !!result.userEdits,
 		autoFormatting: !!result.autoFormattingEdits,
 	})
 	return {
+		readText: async (path) => await diffView().readText(path),
 		showReview: async (files) => await diffView().showReview(files),
 		hideReview: async () => await diffView().hideReview(),
 		open: async (path, options) => await diffView().open(path, options),

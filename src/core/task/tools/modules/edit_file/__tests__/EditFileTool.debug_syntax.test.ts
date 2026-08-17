@@ -35,6 +35,7 @@ function createConfig() {
 	let lastPath: string | undefined
 	let lastContent: string | undefined
 	const diffViewProvider = {
+		readText: sinon.stub().callsFake(async (filePath: string) => await fs.readFile(filePath, "utf8")),
 		open: sinon.stub().callsFake(async (path: string) => {
 			lastPath = path
 		}),

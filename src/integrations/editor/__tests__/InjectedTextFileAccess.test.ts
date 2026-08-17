@@ -191,4 +191,20 @@ describe("injected TextFileAccess editing lifecycle", () => {
 		assert.deepStrictEqual(access.writes.at(-1), { path: filePath, content: "original" })
 		assert.strictEqual(await provider.getContent(), undefined)
 	})
+
+	it("clears prior document state when a later open fails", async () => {
+		const access = new FakeTextFileAccess()
+		const firstPath = path.join(directory, "first.txt")
+		const secondPath = path.join(directory, "second.txt")
+		const provider = new FileEditProvider(access, false, false)
+		await provider.applyAndSaveSilently(firstPath, "first updated", "modify")
+		access.readError = new Error("second read denied")
+
+		await assert.rejects(provider.open(secondPath, { editType: "modify" }), /second read denied/)
+		await assert.rejects(provider.saveChanges({ skipDiagnostics: true }), /Failed to save changes/)
+
+		assert.deepStrictEqual(access.writes, [{ path: firstPath, content: "first updated" }])
+		assert.strictEqual(await provider.getContent(), undefined)
+	})
+
 })

@@ -36,6 +36,7 @@ let tmpDir: string
 function createConfig(opts: { isSubagent?: boolean; diracIgnore?: any } = {}) {
 	const taskState = new TaskState()
 	const diffViewProvider = {
+		readText: sinon.stub().callsFake(async (filePath: string) => await fs.readFile(filePath, "utf8")),
 		open: sinon.stub().resolves(),
 		update: sinon.stub().resolves(),
 		reset: sinon.stub().resolves(),
@@ -462,6 +463,29 @@ describe("EditFileTool – characterization edge cases", () => {
 			assert.equal(await fs.readFile(path2, "utf8"), "a1\nnew a2\na3", "allowed file edited")
 			assert.ok(typeof result === "string")
 		})
+
+		it("resolves anchors against the editor transport's authoritative content", async () => {
+			const { config, taskState, validator, diffViewProvider } = createConfig()
+			const handler = new EditFileToolHandler(validator, false)
+			const fileName = "authoritative.txt"
+			const filePath = path.join(tmpDir, fileName)
+			const localContent = "stale 1\nstale 2"
+			const authoritativeContent = "current 1\ncurrent 2"
+			await fs.writeFile(filePath, localContent)
+				; (diffViewProvider.readText as sinon.SinonStub).resolves(authoritativeContent)
+			const anchors = makeAnchors(filePath, authoritativeContent, config.ulid)
+			const block = makeBlock([
+				{ path: fileName, edits: [{ edit_type: "replace", anchor: anchors[1], end_anchor: anchors[1], text: "updated 2" }] },
+			])
+			taskState.assistantMessageContent = [block]
+
+			const result = await handler.execute(config, block.params)
+
+			sinon.assert.calledWith(diffViewProvider.readText as sinon.SinonStub, filePath)
+			assert.equal(await fs.readFile(filePath, "utf8"), "current 1\nupdated 2")
+			assert.ok(typeof result === "string" && result.includes("Applied 1 edit(s) successfully"))
+		})
+
 	})
 
 	describe("telemetry", () => {

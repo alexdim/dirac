@@ -401,6 +401,13 @@ describe("SurfaceAdapter", () => {
 	})
 
 	describe("editor trait", () => {
+		it("readText delegates to the diff view provider's authoritative transport", async () => {
+			config.services.diffViewProvider.readText.resolves("content")
+			const result = await adapter.editor.readText("/path/to/file")
+			result.should.equal("content")
+			sinon.assert.calledWith(config.services.diffViewProvider.readText, "/path/to/file")
+		})
+
 		it("showReview delegates to diffViewProvider.showReview", async () => {
 			config.services.diffViewProvider.showReview = sinon.stub().resolves()
 			await adapter.editor.showReview([{ path: "file1.ts", content: "" }] as any)
@@ -522,6 +529,7 @@ function createMockConfig(): any {
 			},
 			urlContentFetcher: {},
 			diffViewProvider: {
+				readText: sinon.stub(),
 				showReview: sinon.stub(),
 				hideReview: sinon.stub(),
 				open: sinon.stub(),

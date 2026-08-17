@@ -39,7 +39,7 @@ export class AstEditApplier {
 			const approvedContent = userEdits?.[file.displayPath] ?? userEdits?.[file.absolutePath] ?? file.content
 			let currentContent: string
 			try {
-				currentContent = await env.workspace.readFile(file.absolutePath)
+				currentContent = await env.editor.readText(file.absolutePath)
 			} catch (error) {
 				files.push({
 					file,
@@ -76,7 +76,7 @@ export class AstEditApplier {
 				continue
 			}
 
-			const finalContent = saveResult.content || approvedContent
+			const finalContent = saveResult.content ?? approvedContent
 			try {
 				await env.diagnostics.prepare([file.absolutePath])
 				const diagnostics = await env.diagnostics.getRaw([file.absolutePath])

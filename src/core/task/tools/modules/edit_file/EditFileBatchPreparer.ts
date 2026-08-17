@@ -103,8 +103,7 @@ export class EditFileBatchPreparer {
 		env: IToolEnvironment,
 	): Promise<PreparedEdits | { error: string }> {
 		try {
-			await env.workspace.saveOpenDocumentIfDirty({ filePath: absolutePath })
-			const content = await env.workspace.readFile(absolutePath)
+			const content = await env.editor.readText(absolutePath)
 			const lines = content.split(/\r?\n/)
 			const lineHashes = env.anchors.reconcile(absolutePath, lines)
 			const { resolvedEdits, failedEdits } = this.executor.resolveEdits(
