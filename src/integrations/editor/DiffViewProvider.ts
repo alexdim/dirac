@@ -32,34 +32,49 @@ export abstract class DiffViewProvider {
 		this.contentManager = new DiffContentManager()
 	}
 
+	public async readText(path: string): Promise<string> {
+		await this.saveOpenDocumentBeforeTextRead(path)
+		return (await this.textFileAccess.readText(path)).content
+	}
+
+	private async saveOpenDocumentBeforeTextRead(path: string): Promise<void> {
+		if (!this.shouldSaveOpenDocumentBeforeRead) return
+		await HostProvider.workspace.saveOpenDocumentIfDirty({ filePath: path })
+	}
+
 	public async open(
 		relPath: string,
 		options?: { displayPath?: string; editType?: "create" | "modify" | "delete" },
 	): Promise<void> {
-		this.editType = options?.editType ?? this.editType
-		this.isEditing = true
-		const cwd = await getCwd()
-		const absolutePathResolved = workspaceResolver.resolveWorkspacePath(cwd, relPath, "DiffViewProvider.open.absolutePath")
-		this.absolutePath = typeof absolutePathResolved === "string" ? absolutePathResolved : absolutePathResolved.absolutePath
-		this.relPath = options?.displayPath ?? relPath
-		const fileExists = this.editType === "modify"
+		const editType = options?.editType ?? this.editType ?? "create"
+		await this.reset()
 
-		if (fileExists && this.shouldSaveOpenDocumentBeforeRead) {
-			await HostProvider.workspace.saveOpenDocumentIfDirty({
-				filePath: this.absolutePath,
-			})
+		try {
+			const cwd = await getCwd()
+			const absolutePathResolved = workspaceResolver.resolveWorkspacePath(cwd, relPath, "DiffViewProvider.open.absolutePath")
+			this.absolutePath = typeof absolutePathResolved === "string" ? absolutePathResolved : absolutePathResolved.absolutePath
+			this.relPath = options?.displayPath ?? relPath
+			this.editType = editType
+			this.isEditing = true
+
+			if (editType === "modify") {
+				await this.saveOpenDocumentBeforeTextRead(this.absolutePath)
+			}
+
+			this.fileOpManager = new FileOperationManager(this.absolutePath, editType, this.textFileAccess)
+			await this.fileOpManager.setup()
+			this.originalContent = this.fileOpManager.originalContent
+			this.fileEncoding = this.fileOpManager.fileEncoding
+
+			const providers = getDiagnosticsProviders()
+			this.preDiagnostics = (await Promise.all(providers.map((p) => p.capturePreSaveState()))).flat()
+			await this.openDiffEditor()
+			await this.scrollEditorToLine(0)
+			this.contentManager.reset()
+		} catch (error) {
+			await this.reset()
+			throw error
 		}
-
-		this.fileOpManager = new FileOperationManager(this.absolutePath, this.editType ?? "create", this.textFileAccess)
-		await this.fileOpManager.setup()
-		this.originalContent = this.fileOpManager.originalContent
-		this.fileEncoding = this.fileOpManager.fileEncoding
-
-		const providers = getDiagnosticsProviders()
-		this.preDiagnostics = (await Promise.all(providers.map((p) => p.capturePreSaveState()))).flat()
-		await this.openDiffEditor()
-		await this.scrollEditorToLine(0)
-		this.contentManager.reset()
 	}
 
 	get originalContent(): string | undefined {
@@ -290,6 +305,8 @@ export abstract class DiffViewProvider {
 		this.fileEncoding = "utf8"
 		this.documentWasOpen = false
 		this.newContent = undefined
+		this.fileOpManager?.reset()
+		this.fileOpManager = undefined
 
 		this.contentManager.reset()
 		await this.resetDiffView()

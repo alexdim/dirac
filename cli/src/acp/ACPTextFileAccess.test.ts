@@ -173,4 +173,37 @@ describe("ACPTextFileAccess", () => {
 		expect(connection.readTextFile).toHaveBeenNthCalledWith(1, { sessionId: "session-a", path: "/workspace/a.txt" })
 		expect(connection.readTextFile).toHaveBeenNthCalledWith(2, { sessionId: "session-b", path: "/workspace/b.txt" })
 	})
+
+	it("rejects read-back if the active session changes while a write is pending", async () => {
+		const connection = createConnection()
+		let completeWrite!: () => void
+		connection.writeTextFile.mockImplementation(
+			() =>
+				new Promise<void>((resolve) => {
+					completeWrite = resolve
+				}),
+		)
+		const nodeAccess = new FakeNodeTextFileAccess()
+		let sessionId = "session-a"
+		const access = new ACPTextFileAccess(
+			connection,
+			{ fs: { readTextFile: true, writeTextFile: true } },
+			() => sessionId,
+			nodeAccess,
+		)
+
+		const write = access.writeText("/workspace/file.txt", "content")
+		expect(connection.writeTextFile).toHaveBeenCalledWith({
+			sessionId: "session-a",
+			path: "/workspace/file.txt",
+			content: "content",
+		})
+		sessionId = "session-b"
+		completeWrite()
+
+		await expect(write).rejects.toThrow(/session changed.*cross-session read-back/i)
+		expect(connection.readTextFile).not.toHaveBeenCalled()
+		expect(nodeAccess.readText).not.toHaveBeenCalled()
+	})
+
 })

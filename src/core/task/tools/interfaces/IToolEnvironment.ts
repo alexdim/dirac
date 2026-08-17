@@ -274,6 +274,8 @@ export interface SaveResult {
 }
 
 export interface IEditorTrait {
+	/** Reads authoritative text through the editor's configured transport. */
+	readText(path: string): Promise<string>
 	/** Opens the diff/review UI for one or more files */
 	showReview(files: { absolutePath: string; displayPath: string; content: string; originalContent?: string }[]): Promise<void>
 	/** Hides the review UI */

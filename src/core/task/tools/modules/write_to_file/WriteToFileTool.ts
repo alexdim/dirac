@@ -117,7 +117,7 @@ export abstract class BaseWriteFileTool implements IDiracTool<WriteFileArgs> {
 			absolutePath,
 			displayPath,
 			fileExists: fileInfo.exists,
-			originalContent: fileInfo.exists ? await env.workspace.readFile(absolutePath) : "",
+			originalContent: fileInfo.exists ? await env.editor.readText(absolutePath) : "",
 		}
 	}
 

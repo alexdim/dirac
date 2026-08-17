@@ -49,6 +49,7 @@ function makeEnv() {
 			upsertText: sinon.stub().resolves(),
 		},
 		editor: {
+			readText: sinon.stub().resolves("const oldName = 1"),
 			showReview: sinon.stub().resolves(),
 			scrollToFirstDiff: sinon.stub().resolves(),
 			hideReview: sinon.stub().resolves(),
@@ -183,7 +184,7 @@ describe("EditAstTool", () => {
 	it("does not overwrite a file that changed after planning", async () => {
 		const { env } = makeEnv()
 			; (env.sourceAst.planRename as sinon.SinonStub).resolves(renamePlan)
-			; (env.workspace.readFile as sinon.SinonStub).resolves("const userChange = 1")
+			; (env.editor.readText as sinon.SinonStub).resolves("const userChange = 1")
 
 		const result = await tool.processCall(
 			{ operation: "rename", targets: [{ path: "src", symbol: "oldName", replacement: "newName" }] },

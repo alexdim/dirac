@@ -33,6 +33,9 @@ export class ACPTextFileAccess implements TextFileAccess {
 		}
 
 		const readSessionId = requireActiveAcpSessionId(this.sessionIdResolver, `reading back ${path}`)
+		if (readSessionId !== sessionId) {
+			throw new Error(`Active ACP session changed while writing ${path}; refusing cross-session read-back.`)
+		}
 		const response = await this.connection.readTextFile({ sessionId: readSessionId, path })
 		return { content: response.content }
 	}
