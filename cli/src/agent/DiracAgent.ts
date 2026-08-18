@@ -82,6 +82,7 @@ import {
 import { swapSessionOverrides } from "../acp/sessionOverrides.js"
 import { initCoreServices } from "../initCoreServices.js"
 import { isSelectedProviderConfigured } from "../utils/auth.js"
+import { getCliBinaryPath } from "../utils/path.js"
 import { getDefaultModelId } from "../utils/model-metadata.js"
 import { isValidCliProvider } from "../utils/providers.js"
 import { CliContextResult, initializeCliContext } from "../vscode-context.js"
@@ -1230,7 +1231,7 @@ export class DiracAgent implements acp.Agent {
 			hostBridgeClientProvider,
 			(message: string) => Logger.info(message),
 			async (path: string) => AuthHandler.getInstance().getCallbackUrl(path),
-			async () => "",
+			getCliBinaryPath,
 			this.ctx.EXTENSION_DIR,
 			this.ctx.DATA_DIR,
 			async (_cwd: string) => undefined,

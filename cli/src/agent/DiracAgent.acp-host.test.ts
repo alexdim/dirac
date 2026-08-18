@@ -3,6 +3,10 @@ import { afterEach, describe, expect, it, vi } from "vitest"
 import { HostProvider } from "@/hosts/host-provider"
 import { DiracAgent } from "./DiracAgent.js"
 
+const getCliBinaryPath = vi.hoisted(() => vi.fn(async (name: string) => `/resolved/${name}`))
+
+vi.mock("../utils/path.js", () => ({ getCliBinaryPath }))
+
 function createAgent() {
 	const agent = new DiracAgent({ diracDir: "/tmp/dirac-acp-host-test", cwd: "/workspace" } as any)
 	;(agent as any).ctx = {
@@ -24,7 +28,18 @@ function terminalHandle(id: string) {
 }
 
 describe("DiracAgent ACP host composition", () => {
-	afterEach(() => HostProvider.reset())
+	afterEach(() => {
+		HostProvider.reset()
+		getCliBinaryPath.mockClear()
+	})
+
+	it("resolves ripgrep through the shared CLI binary resolver", async () => {
+		const agent = createAgent()
+		agent.initializeHostProvider()
+
+		await expect(HostProvider.get().getBinaryLocation("rg")).resolves.toBe("/resolved/rg")
+		expect(getCliBinaryPath).toHaveBeenCalledWith("rg")
+	})
 
 	it("persists multi-file presentation once and awaits client delivery", async () => {
 		const agent = createAgent()
