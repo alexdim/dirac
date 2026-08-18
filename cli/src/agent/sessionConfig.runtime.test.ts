@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest"
-import { openAiModelInfoSaneDefaults } from "@shared/api"
+import { openAiModelInfoSaneDefaults, type ModelInfo } from "@shared/api"
 import type { Settings } from "@shared/storage/state-keys"
 import type { DiracAcpSession } from "./public-types.js"
 import { SessionConfigManager } from "./sessionConfig.js"
@@ -26,6 +26,24 @@ const refreshGithubCopilotModelsMock = vi.hoisted(() => vi.fn(async () => ({})))
 vi.mock("@/core/controller/models/refreshGithubCopilotModels", () => ({
 	refreshGithubCopilotModels: refreshGithubCopilotModelsMock,
 }))
+
+const refreshOpenRouterModelsMock = vi.hoisted(() => vi.fn())
+
+vi.mock("@/core/controller/models/refreshOpenRouterModels", () => ({
+	refreshOpenRouterModels: refreshOpenRouterModelsMock,
+}))
+
+const dynamicOpenRouterModelId = "xiaomi/mimo-v2.5-pro"
+const dynamicOpenRouterModelInfo: ModelInfo = {
+	name: "MiMo V2.5 Pro",
+	contextWindow: 1_048_576,
+	maxTokens: 65_536,
+	inputPrice: 0.15,
+	outputPrice: 0.6,
+	supportsPromptCache: false,
+	supportsReasoning: true,
+	supportsTools: true,
+}
 
 function session(mode: "act" | "plan" = "act"): DiracAcpSession {
 	return {
@@ -66,6 +84,8 @@ describe("SessionConfigManager task runtime behavior", () => {
 	beforeEach(() => {
 		refreshGithubCopilotModelsMock.mockClear()
 		refreshGithubCopilotModelsMock.mockResolvedValue({})
+		refreshOpenRouterModelsMock.mockReset()
+		refreshOpenRouterModelsMock.mockResolvedValue({ [dynamicOpenRouterModelId]: dynamicOpenRouterModelInfo })
 	})
 
 	it("updates both modes only when the task snapshot links their models", async () => {
@@ -102,6 +122,32 @@ describe("SessionConfigManager task runtime behavior", () => {
 		expect(runtime.actModeOpenAiModelId).toBe(replacement)
 		expect(runtime.planModeOpenAiModelInfo).toBeUndefined()
 		expect(runtime.actModeOpenAiModelInfo).toBeUndefined()
+	})
+
+	it("retains complete metadata for a dynamically selected OpenRouter model", async () => {
+		const manager = new SessionConfigManager()
+		const runtime: Partial<Settings> = {
+			mode: "act",
+			planActSeparateModelsSetting: false,
+			planModeApiProvider: "openrouter",
+			actModeApiProvider: "openrouter",
+			planModeOpenRouterModelId: "old/model",
+			actModeOpenRouterModelId: "old/model",
+			planModeOpenRouterModelInfo: { contextWindow: 1, supportsPromptCache: false },
+			actModeOpenRouterModelInfo: { contextWindow: 1, supportsPromptCache: false },
+		}
+
+		await manager.applyModelConfigOption(session(), dynamicOpenRouterModelId, runtime)
+
+		expect(runtime.actModeOpenRouterModelId).toBe(dynamicOpenRouterModelId)
+		expect(runtime.planModeOpenRouterModelId).toBe(dynamicOpenRouterModelId)
+		expect(runtime.actModeOpenRouterModelInfo).toEqual(dynamicOpenRouterModelInfo)
+		expect(runtime.planModeOpenRouterModelInfo).toEqual(dynamicOpenRouterModelInfo)
+		expect(runtime.actModeOpenRouterModelInfo).toMatchObject({
+			contextWindow: 1_048_576,
+			inputPrice: 0.15,
+			outputPrice: 0.6,
+		})
 	})
 
 	it("normalizes a removed historical model to the provider default", async () => {

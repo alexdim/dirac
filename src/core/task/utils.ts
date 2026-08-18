@@ -39,6 +39,7 @@ export const calculateCost = (params: {
 	reasoningTokens: number
 	api: ApiHandler
 }): number | undefined => {
+	if (params.api.shouldEstimateCost?.() === false) return undefined
 	const info = params.api.getModel().info
 	const provider = params.api.constructor.name
 	if (provider === "ZAiHandler" || provider === "OpenAiHandler" || provider === "DeepSeekHandler") {

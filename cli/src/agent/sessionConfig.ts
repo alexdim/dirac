@@ -84,7 +84,12 @@ export class SessionConfigManager {
 			const currentModelId = await this.getCurrentModeModelId(mode, provider, sessionOverrides)
 			const modelId = catalog.modelIds.includes(currentModelId) ? currentModelId : catalog.defaultModelId
 			if (!modelId) continue
-			if (requestedProvider === provider && currentModelId === modelId) return
+			if (requestedProvider === provider && currentModelId === modelId) {
+				if (provider === "openrouter") {
+					await this.applyProviderAndModel(session, provider, modelId, sessionOverrides)
+				}
+				return
+			}
 
 			await this.applyProviderAndModel(session, provider, modelId, sessionOverrides)
 			return
@@ -273,6 +278,8 @@ export class SessionConfigManager {
 		modelId: string,
 		sessionOverrides: Partial<Settings>,
 	): Promise<void> {
+		const openRouterModelInfo = provider === "openrouter" ? (await fetchOpenRouterModels())[modelId] : undefined
+
 		this.setModeScopedSessionState(this.getSessionMode(session, sessionOverrides), sessionOverrides, (mode) => {
 			const providerKey = mode === "act" ? "actModeApiProvider" : "planModeApiProvider"
 			const modelKey = getProviderModelIdKey(provider, mode)
@@ -281,15 +288,18 @@ export class SessionConfigManager {
 			const customBaseModelKey =
 				mode === "act" ? "actModeAwsBedrockCustomModelBaseId" : "planModeAwsBedrockCustomModelBaseId"
 			const overrides = sessionOverrides as Record<string, unknown>
+			const selectedModelIsUnchanged = overrides[providerKey] === provider && overrides[modelKey] === modelId
 			const preserveCustomBedrockModel =
-				provider === "bedrock" &&
-				overrides[providerKey] === "bedrock" &&
-				overrides[modelKey] === modelId &&
-				overrides[customSelectedKey] === true
+				provider === "bedrock" && selectedModelIsUnchanged && overrides[customSelectedKey] === true
 
 			overrides[providerKey] = provider
 			overrides[modelKey] = modelId
-			if (modelInfoKey) overrides[modelInfoKey] = undefined
+			if (modelInfoKey) {
+				overrides[modelInfoKey] =
+					provider === "openrouter"
+						? openRouterModelInfo ?? (selectedModelIsUnchanged ? overrides[modelInfoKey] : undefined)
+						: undefined
+			}
 			if (provider === "bedrock" && !preserveCustomBedrockModel) {
 				overrides[customSelectedKey] = false
 				overrides[customBaseModelKey] = undefined
@@ -402,7 +412,12 @@ export class SessionConfigManager {
 			candidates = (async () => {
 				try {
 					if (usesOpenRouterModels(provider)) {
-						return refreshDynamicCatalog ? filterOpenRouterModelIds(await fetchOpenRouterModels(), provider) : []
+						return refreshDynamicCatalog
+							? filterOpenRouterModelIds(
+								Object.keys(await fetchOpenRouterModels()).sort((a, b) => a.localeCompare(b)),
+								provider,
+							)
+							: []
 					}
 					if (provider === "github-copilot") {
 						return refreshDynamicCatalog

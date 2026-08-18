@@ -23,6 +23,7 @@ export function formatOpenAiCompatibleUsage(
 	overrides?: {
 		cacheReadTokens?: number
 		cacheWriteTokens?: number
+		estimateCost?: boolean
 	},
 ): ApiStreamUsageChunk {
 	const totalInputTokens = usage.prompt_tokens || 0
@@ -36,9 +37,11 @@ export function formatOpenAiCompatibleUsage(
 	const cacheWriteTokens =
 		overrides?.cacheWriteTokens ?? usage.prompt_tokens_details?.cache_write_tokens ?? usage.prompt_cache_miss_tokens ?? 0
 
-	// Prefer provider-reported cost (e.g. OpenRouter) or calculate locally
 	const totalCost =
-		usage.cost ?? calculateApiCostOpenAI(modelInfo, totalInputTokens, outputTokens, cacheWriteTokens, cacheReadTokens)
+		usage.cost ??
+		(overrides?.estimateCost === false
+			? undefined
+			: calculateApiCostOpenAI(modelInfo, totalInputTokens, outputTokens, cacheWriteTokens, cacheReadTokens))
 
 	return {
 		type: "usage",

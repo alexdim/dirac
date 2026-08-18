@@ -75,6 +75,8 @@ export interface ApiHandler {
 	): ApiStream
 	compactConversation?(request: ApiConversationCompactionRequest): Promise<ApiConversationCompactionResult>
 	supportsNativeWebSearch?(): boolean
+	/** Whether Dirac may estimate cost when the provider omits it. Defaults to true. */
+	shouldEstimateCost?(): boolean
 	getModel(): ApiHandlerModel
 	getApiStreamUsage?(): Promise<ApiStreamUsageChunk | undefined>
 	abort?(): void
