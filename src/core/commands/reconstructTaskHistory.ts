@@ -1,4 +1,9 @@
-import { getSavedDiracMessages, getTaskMetadata, readTaskHistoryFromState, writeTaskHistoryToState } from "@core/storage/disk"
+import {
+	getSavedDiracMessages,
+	getTaskHistoryStateFilePath,
+	getTaskMetadata,
+	writeTaskHistoryToState,
+} from "@core/storage/disk"
 import type { TaskMetadata } from "@core/context/context-tracking/ContextTrackerTypes"
 import { HostProvider } from "@hosts/host-provider"
 import { DiracMessage, DiracMessageType } from "@shared/ExtensionMessage"
@@ -18,28 +23,27 @@ interface TaskReconstructionResult {
 }
 
 /**
- * Reconstructs task history from existing task folders
+ * Reconstructs task history from existing task folders.
+ * Automatic recovery runs without prompting; the command path retains confirmation and notifications.
  * @param showNotifications Whether to show user-facing notifications and dialogs
- * @returns Reconstruction result or null if cancelled
+ * @returns Reconstruction result or null if cancelled or recovery fails
  */
 export async function reconstructTaskHistory(showNotifications = true): Promise<TaskReconstructionResult | null> {
 	try {
-		// Show confirmation dialog using HostProvider
-		const proceed = await HostProvider.window.showMessage({
-			type: ShowMessageType.WARNING,
-			message:
-				"This will rebuild your task history from existing task data. This operation will backup your current task history and attempt to reconstruct it from task folders. Continue?",
-			options: {
-				items: ["Yes, Reconstruct", "Cancel"],
-			},
-		})
-
-		if (proceed?.selectedOption !== "Yes, Reconstruct") {
-			return null
-		}
-
 		if (showNotifications) {
-			// Show initial progress message
+			const proceed = await HostProvider.window.showMessage({
+				type: ShowMessageType.WARNING,
+				message:
+					"This will rebuild your task history from existing task data. This operation will backup your current task history and attempt to reconstruct it from task folders. Continue?",
+				options: {
+					items: ["Yes, Reconstruct", "Cancel"],
+				},
+			})
+
+			if (proceed?.selectedOption !== "Yes, Reconstruct") {
+				return null
+			}
+
 			HostProvider.window.showMessage({
 				type: ShowMessageType.INFORMATION,
 				message: "Reconstructing task history...",
@@ -48,7 +52,6 @@ export async function reconstructTaskHistory(showNotifications = true): Promise<
 
 		const result = await performTaskHistoryReconstruction()
 
-		// Show results
 		if (showNotifications) {
 			if (result.errors.length > 0) {
 				const errorMessage = `Reconstruction completed with warnings:\n- Reconstructed: ${result.reconstructedTasks} tasks\n- Skipped: ${result.skippedTasks} tasks\n- Errors: ${result.errors.length}\n\nFirst few errors:\n${result.errors.slice(0, 3).join("\n")}`
@@ -73,6 +76,8 @@ export async function reconstructTaskHistory(showNotifications = true): Promise<
 				type: ShowMessageType.ERROR,
 				message: `Failed to reconstruct task history: ${errorMessage}`,
 			})
+		} else {
+			Logger.warn(`[Task History] Automatic reconstruction failed: ${errorMessage}`)
 		}
 		return null
 	}
@@ -135,17 +140,16 @@ async function performTaskHistoryReconstruction(): Promise<TaskReconstructionRes
 
 async function backupExistingTaskHistory(): Promise<void> {
 	try {
-		const existingHistory = await readTaskHistoryFromState()
-		if (existingHistory.length > 0) {
-			const backupPath = path.join(HostProvider.get().globalStorageFsPath, "state", `taskHistory.backup.${Date.now()}.json`)
+		const historyFilePath = await getTaskHistoryStateFilePath()
+		if (!(await fileExistsAtPath(historyFilePath))) return
 
-			// Ensure state directory exists
-			const fs = await import("fs/promises")
-			await fs.mkdir(path.dirname(backupPath), { recursive: true })
-			await fs.writeFile(backupPath, JSON.stringify(existingHistory, null, 2))
-		}
+		const fs = await import("fs/promises")
+		const contents = await fs.readFile(historyFilePath, "utf8")
+		if (contents.length === 0) return
+
+		const backupPath = path.join(path.dirname(historyFilePath), `taskHistory.backup.${Date.now()}.json`)
+		await fs.writeFile(backupPath, contents)
 	} catch (error) {
-		// Non-fatal error, just log it
 		Logger.warn("Failed to backup existing task history:", error)
 	}
 }
@@ -155,10 +159,7 @@ async function scanTaskDirectories(tasksDir: string): Promise<string[]> {
 
 	try {
 		const entries = await fs.readdir(tasksDir, { withFileTypes: true })
-		return entries
-			.filter((entry) => entry.isDirectory())
-			.map((entry) => entry.name)
-			.filter((name) => /^\d+$/.test(name)) // Only numeric task IDs
+		return entries.filter((entry) => entry.isDirectory()).map((entry) => entry.name)
 	} catch (error) {
 		throw new Error(`Failed to scan tasks directory: ${error}`)
 	}

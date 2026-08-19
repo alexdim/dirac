@@ -7,6 +7,7 @@ import {
 	type TaskWorkingConfigurationInput,
 } from "../../task/runtime/TaskWorkingConfiguration"
 import pWaitFor from "p-wait-for"
+import pTimeout from "p-timeout"
 import type { FolderLockWithRetryResult } from "@/core/locks/types"
 import { Logger } from "@/shared/services/Logger"
 import { getCwd, getDesktopDir } from "@/utils/path"
@@ -54,6 +55,8 @@ export interface ITaskControllerDependencies {
 	toggleActModeForYoloMode: () => Promise<boolean>
 }
 
+const HISTORICAL_TASK_RESTORE_TIMEOUT_MS = 30_000
+const HISTORICAL_TASK_CLEANUP_TIMEOUT_MS = 5_000
 export class TaskController {
 	private _task?: Task
 	private _workspaceManager?: WorkspaceRootManager
@@ -161,6 +164,60 @@ export class TaskController {
 	private trackTaskRun(run: Promise<void>): void {
 		this._taskRunPromise = run
 		void run.catch((error) => Logger.error("Task run failed", error))
+	}
+
+	private async startHistoricalTaskAndWaitForRestore(task: Task): Promise<void> {
+		let didRestore = false
+		let resolveRestore!: () => void
+		let rejectRestore!: (reason?: unknown) => void
+		const restored = new Promise<void>((resolve, reject) => {
+			resolveRestore = resolve
+			rejectRestore = reject
+		})
+
+		const run = this.runTaskWithReplacement(
+			task,
+			task.resumeTaskFromHistory(() => {
+				didRestore = true
+				resolveRestore()
+			}),
+		)
+		this.trackTaskRun(run)
+		void run.then(
+			() => {
+				if (!didRestore) rejectRestore(new Error(`Task ${task.taskId} ended before its history was restored`))
+			},
+			(error) => {
+				if (!didRestore) rejectRestore(error)
+			},
+		)
+
+		try {
+			await pTimeout(restored, {
+				milliseconds: HISTORICAL_TASK_RESTORE_TIMEOUT_MS,
+				message: `Task ${task.taskId} history restoration timed out after ${HISTORICAL_TASK_RESTORE_TIMEOUT_MS / 1_000} seconds`,
+			})
+			if (this._task !== task) {
+				throw new Error(`Task ${task.taskId} was replaced before its history finished restoring`)
+			}
+		} catch (error) {
+			if (this._task === task) {
+				const abort = task.abortTask()
+				void abort.catch((abortError) =>
+					Logger.error(`Failed to abort task ${task.taskId} after history restoration failed`, abortError),
+				)
+				try {
+					await pTimeout(this.clearTask(), {
+						milliseconds: HISTORICAL_TASK_CLEANUP_TIMEOUT_MS,
+						message: `Timed out while clearing task ${task.taskId} after history restoration failed`,
+					})
+				} catch (cleanupError) {
+					Logger.error(`Failed to clear task ${task.taskId} after history restoration failed`, cleanupError)
+					if (this._task === task) this._task = undefined
+				}
+			}
+			throw error
+		}
 	}
 
 	async initTask(
@@ -283,7 +340,7 @@ export class TaskController {
 		}
 
 		if (historyItem) {
-			this.trackTaskRun(this.runTaskWithReplacement(this._task, this._task.resumeTaskFromHistory()))
+			await this.startHistoricalTaskAndWaitForRestore(this._task)
 		} else if (task || images || files) {
 			this.trackTaskRun(this.runTaskWithReplacement(this._task, this._task.startTask(task, images, files)))
 		} else {

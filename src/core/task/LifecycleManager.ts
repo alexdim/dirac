@@ -224,15 +224,17 @@ export class LifecycleManager {
 		await this.dependencies.initiateTaskLoop(userContent)
 	}
 
-	public async resumeTaskFromHistory() {
+	public async resumeTaskFromHistory(onRestored?: () => void) {
 		try {
 			await this.dependencies.diracIgnoreController.initialize()
 			await this.dependencies.commandPermissionController.initialize(this.dependencies.cwd)
 		} catch (error) {
 			Logger.error("Failed to initialize DiracIgnoreController:", error)
 		}
+		if (this.dependencies.taskState.abort) return
 
 		const savedDiracMessages = await getSavedDiracMessages(this.dependencies.taskId)
+		if (this.dependencies.taskState.abort) return
 
 		const lastRelevantMessageIndex = findLastIndex(
 			savedDiracMessages,
@@ -254,23 +256,31 @@ export class LifecycleManager {
 		}
 
 		await this.dependencies.messageStateHandler.overwriteDiracMessages(savedDiracMessages)
-		this.dependencies.messageStateHandler.setDiracMessages(await getSavedDiracMessages(this.dependencies.taskId))
+		if (this.dependencies.taskState.abort) return
+		const persistedDiracMessages = await getSavedDiracMessages(this.dependencies.taskId)
+		if (this.dependencies.taskState.abort) return
+		this.dependencies.messageStateHandler.setDiracMessages(persistedDiracMessages)
 
 		const savedApiConversationHistory = (await getSavedApiConversationHistory(this.dependencies.taskId)).map(
 			removeUserInputMarkersFromMessage,
 		)
+		if (this.dependencies.taskState.abort) return
 		this.dependencies.messageStateHandler.setApiConversationHistory(savedApiConversationHistory as any)
 		this.dependencies.messageStateHandler.setApiConversationProviderState(
 			await getSavedApiConversationProviderState(this.dependencies.taskId),
 		)
+		if (this.dependencies.taskState.abort) return
 		this.dependencies.restoreQueuedSteeringFromTranscript()
 
 		await ensureTaskDirectoryExists(this.dependencies.taskId)
+		if (this.dependencies.taskState.abort) return
 
 		// Restore task-scoped tools from the task directory
 		const { refreshTaskTools } = await import("@core/task/tools/registry/refreshToolRegistry")
 		this.dependencies.taskState.taskScopedToolIds = await refreshTaskTools(this.dependencies.taskId)
+		if (this.dependencies.taskState.abort) return
 		const taskMetadata = await getTaskMetadata(this.dependencies.taskId)
+		if (this.dependencies.taskState.abort) return
 		this.dependencies.taskState.activeSkillIds = taskMetadata.active_skill_ids ?? []
 
 		const lastDiracMessage = this.dependencies.messageStateHandler
@@ -295,6 +305,7 @@ export class LifecycleManager {
 
 		this.dependencies.taskState.status = completedTask ? TaskStatus.COMPLETED : TaskStatus.CANCELLED
 		await this.dependencies.postStateToWebview()
+		onRestored?.()
 
 		await pWaitFor(() => this.dependencies.taskState.askResponse !== undefined || this.dependencies.taskState.abort, {
 			interval: 100,
@@ -475,12 +486,10 @@ export class LifecycleManager {
 		if (this.dependencies.taskState.abort) {
 			return
 		}
-
 		if (userPromptHookResult.cancel === true) {
 			await this.dependencies.cancelTask()
 			return
 		}
-
 		if (userPromptHookResult.contextModification) {
 			newUserContent.push({
 				type: "text",

@@ -97,6 +97,111 @@ describe("TaskController task replacement", () => {
 			(error: unknown) => error === failure,
 		)
 	})
+
+	it("waits for historical state restoration without waiting for the follow-up loop", async () => {
+		const controller = new (TaskController as any)({ clearTaskSettings: sinon.stub().resolves() }) as TaskController
+		let signalRestored!: () => void
+		let finishRun!: () => void
+		const taskRun = new Promise<void>((resolve) => {
+			finishRun = resolve
+		})
+		const task = {
+			taskId: "history-task",
+			taskState: { pendingTaskReplacement: undefined },
+			resumeTaskFromHistory: sinon.stub().callsFake((onRestored: () => void) => {
+				signalRestored = onRestored
+				return taskRun
+			}),
+			abortTask: sinon.stub().resolves(),
+		} as any
+		controller.task = task
+		let didReturn = false
+
+		const start = (controller as any).startHistoricalTaskAndWaitForRestore(task).then(() => {
+			didReturn = true
+		})
+		await Promise.resolve()
+		assert.equal(didReturn, false)
+
+		signalRestored()
+		await start
+		assert.equal(didReturn, true)
+
+		finishRun()
+		await controller.taskRunPromise
+	})
+
+	it("clears a historical task whose restoration fails", async () => {
+		const failure = new Error("unreadable transcript")
+		sinon.stub(Logger, "error")
+		const clearTaskSettings = sinon.stub().resolves()
+		const controller = new (TaskController as any)({ clearTaskSettings }) as TaskController
+		const task = {
+			taskId: "broken-history-task",
+			taskState: { pendingTaskReplacement: undefined },
+			resumeTaskFromHistory: sinon.stub().rejects(failure),
+			abortTask: sinon.stub().resolves(),
+		} as any
+		controller.task = task
+
+		await assert.rejects(
+			() => (controller as any).startHistoricalTaskAndWaitForRestore(task),
+			(error: unknown) => error === failure,
+		)
+
+		sinon.assert.calledOnce(clearTaskSettings)
+		sinon.assert.calledOnce(task.abortTask)
+		assert.equal(controller.task, undefined)
+	})
+
+	it("times out a historical task that never reaches restoration readiness", async () => {
+		const clock = sinon.useFakeTimers()
+		const clearTaskSettings = sinon.stub().resolves()
+		const controller = new (TaskController as any)({ clearTaskSettings }) as TaskController
+		const task = {
+			taskId: "stalled-history-task",
+			taskState: { pendingTaskReplacement: undefined },
+			resumeTaskFromHistory: sinon.stub().returns(new Promise<void>(() => {})),
+			abortTask: sinon.stub().resolves(),
+		} as any
+		controller.task = task
+
+		const start = (controller as any).startHistoricalTaskAndWaitForRestore(task)
+		await clock.tickAsync(30_000)
+
+		await assert.rejects(start, /history restoration timed out after 30 seconds/)
+		sinon.assert.calledOnce(clearTaskSettings)
+		sinon.assert.calledOnce(task.abortTask)
+		assert.equal(controller.task, undefined)
+	})
+
+	it("rejects a historical open that is replaced before restoration completes", async () => {
+		const controller = new (TaskController as any)({ clearTaskSettings: sinon.stub().resolves() }) as TaskController
+		let signalRestored!: () => void
+		let finishRun!: () => void
+		const taskRun = new Promise<void>((resolve) => {
+			finishRun = resolve
+		})
+		const task = {
+			taskId: "replaced-history-task",
+			taskState: { pendingTaskReplacement: undefined },
+			resumeTaskFromHistory: sinon.stub().callsFake((onRestored: () => void) => {
+				signalRestored = onRestored
+				return taskRun
+			}),
+			abortTask: sinon.stub().resolves(),
+		} as any
+		controller.task = task
+		const start = (controller as any).startHistoricalTaskAndWaitForRestore(task)
+		await Promise.resolve()
+
+		controller.task = { taskId: "newer-task" } as any
+		signalRestored()
+
+		await assert.rejects(start, /was replaced before its history finished restoring/)
+		finishRun()
+		await controller.taskRunPromise
+	})
 })
 
 describe("TaskController task isolation", () => {

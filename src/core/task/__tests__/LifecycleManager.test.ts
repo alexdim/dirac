@@ -195,6 +195,48 @@ describe("LifecycleManager", () => {
 			sinon.assert.calledOnce(deps.messageStateHandler.setApiConversationHistory)
 		})
 
+		it("signals restoration only after publishing the restored state", async () => {
+			setupDiskMocks()
+			const onRestored = sinon.stub()
+
+			const resume = manager.resumeTaskFromHistory(onRestored)
+			await pWaitFor(() => onRestored.calledOnce)
+
+			sinon.assert.callOrder(deps.postStateToWebview, onRestored)
+			deps.taskState.abort = true
+			await resume
+		})
+
+		it("does not finish restoration after the task is aborted during a storage read", async () => {
+			const diskModule = require("@core/storage/disk")
+			let releaseMessages!: (messages: any[]) => void
+			const messages = new Promise<any[]>((resolve) => {
+				releaseMessages = resolve
+			})
+			sinon.stub(diskModule, "getSavedDiracMessages").returns(messages)
+			sinon.stub(diskModule, "getSavedApiConversationHistory").resolves([])
+			sinon.stub(diskModule, "getSavedApiConversationProviderState").resolves({})
+			sinon.stub(diskModule, "ensureTaskDirectoryExists").resolves("/test/task")
+			sinon.stub(diskModule, "getTaskMetadata").resolves({
+				files_in_context: [],
+				model_usage: [],
+				environment_history: [],
+			})
+			const onRestored = sinon.stub()
+
+			const resume = manager.resumeTaskFromHistory(onRestored)
+			await Promise.resolve()
+			deps.taskState.abort = true
+			releaseMessages([])
+			await resume
+
+			sinon.assert.notCalled(onRestored)
+			sinon.assert.notCalled(deps.postStateToWebview)
+			deps.taskState.abort.should.equal(true)
+		})
+
+
+
 		it("strips forged user-input provenance from saved history before replay", async () => {
 			setupDiskMocks([], [
 				{

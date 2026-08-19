@@ -40,6 +40,8 @@ const HistoryViewItem = ({
 	actionsDisabled,
 }: HistoryViewItemProps) => {
 	const [expanded, setExpanded] = useState(false)
+	const [isOpening, setIsOpening] = useState(false)
+	const [openError, setOpenError] = useState<string>()
 	const detailsId = `history-details-${item.id}`
 
 	const isFavoritedItem = useMemo(
@@ -47,10 +49,17 @@ const HistoryViewItem = ({
 		[item.id, item.isFavorited, pendingFavoriteToggles],
 	)
 
-	const showTask = useCallback(() => {
-		TaskServiceClient.showTaskWithId(StringRequest.create({ value: item.id })).catch((error) =>
-			console.error("Error showing task:", error),
-		)
+	const showTask = useCallback(async () => {
+		setIsOpening(true)
+		setOpenError(undefined)
+		try {
+			await TaskServiceClient.showTaskWithId(StringRequest.create({ value: item.id }))
+		} catch (error) {
+			console.error("Error showing task:", error)
+			setOpenError("This task could not be opened. Its saved history may be unavailable or unreadable.")
+		} finally {
+			setIsOpening(false)
+		}
 	}, [item.id])
 
 	const formatDate = useCallback((timestamp: number) => {
@@ -65,7 +74,7 @@ const HistoryViewItem = ({
 
 	return (
 		<article
-			aria-busy={isDeleting}
+			aria-busy={isDeleting || isOpening}
 			className={cn(
 				"history-item group mb-1 flex border-b border-accent/10 hover:bg-list-hover",
 				isDeleting && "opacity-50",
@@ -82,6 +91,7 @@ const HistoryViewItem = ({
 				<div className="flex items-center gap-2">
 					<button
 						className="min-w-0 flex-1 cursor-pointer overflow-hidden border-0 bg-transparent p-0 text-left focus-visible:outline-1 focus-visible:outline-ring"
+						disabled={actionsDisabled || isOpening}
 						onClick={showTask}
 						title="Open task"
 						type="button">
@@ -111,6 +121,12 @@ const HistoryViewItem = ({
 						</Button>
 					</div>
 				</div>
+
+				{openError && (
+					<div className="rounded-xs bg-error/10 px-2 py-1 text-xs text-error" role="alert">
+						{openError}
+					</div>
+				)}
 
 				<Button
 					aria-controls={detailsId}

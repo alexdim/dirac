@@ -1050,9 +1050,9 @@ export class Task {
 		restoreQueuedSteeringFromTranscript(this.steeringContext)
 	}
 
-	public async resumeTaskFromHistory() {
+	public async resumeTaskFromHistory(onRestored?: () => void) {
 		await this.toolExecutor.refreshToolsForTask()
-		return this.lifecycleManager.resumeTaskFromHistory()
+		return this.lifecycleManager.resumeTaskFromHistory(onRestored)
 	}
 
 	public markToolsDirty(reason: ToolSnapshotDirtyReason): void {
