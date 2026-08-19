@@ -6,10 +6,17 @@ import { ToolExecutor } from "../ToolExecutor"
 import { createTaskRequestRuntime } from "../runtime/TaskRequestRuntime"
 import { createTaskWorkingConfiguration } from "../runtime/TaskWorkingConfiguration"
 
-function configuration(mode: "plan" | "act", revision = 1) {
+function configuration(mode: "plan" | "act", revision = 1, autoApproveAllToggled = false) {
 	return createTaskWorkingConfiguration({
 		revision,
-		settings: { mode } as any,
+		settings: {
+			mode,
+			strictPlanModeEnabled: true,
+			autoApproveAllToggled,
+			yoloModeToggled: false,
+			autoApprovalSettings: { actions: {} },
+			userApprovedCommands: [],
+		} as any,
 		apiConfiguration: {
 			planModeApiProvider: "anthropic",
 			actModeApiProvider: "anthropic",
@@ -110,6 +117,21 @@ describe("ToolExecutor request-runtime authorization", () => {
 		sinon.assert.notCalled(bufferPartialToolUse)
 		sinon.assert.notCalled(pushToolResult)
 		sinon.assert.notCalled(closeBrowser)
+	})
+
+	it("evaluates auto-approval from the Task's current configuration", () => {
+		const runtime = createTaskRequestRuntime(configuration("act", 1, false), {} as any, "request-1")
+		let current = configuration("act", 2, true)
+		const harness = {
+			requestRuntime: () => runtime,
+			getCurrentWorkingConfiguration: () => current,
+			commandPermissionController: {},
+		}
+		const autoApprover = (ToolExecutor.prototype as any).requestAutoApprover.call(harness)
+
+		assert.equal(autoApprover.isUnrestrictedAutoApprove(), true)
+		current = configuration("act", 3, false)
+		assert.equal(autoApprover.isUnrestrictedAutoApprove(), false)
 	})
 
 	it("keeps concurrent calls bound to the same request runtime", async () => {

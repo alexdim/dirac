@@ -163,7 +163,7 @@ describe("DiracAgent active prompt runtime construction", () => {
 		expect(findRuntimeSettings(atConstructionBoundary)).toMatchObject({ mode: "plan" })
 	})
 
-	it("does not mix staged non-mode settings into the active turn runtime", () => {
+	it("constructs from the active Task mirror rather than an uncommitted session value", () => {
 		const agent = new DiracAgent({ cwd: "/tmp/workspace" })
 		const sessionId = "active-session"
 			; (agent as any).acpSessionOverrides.set(sessionId, {
@@ -411,7 +411,7 @@ describe("DiracAgent ACP conversation continuity", () => {
 			actModeApiModelId: "deepseek-v4-flash",
 		})
 	})
-	it("stages an ordinary in-turn auto-approve update without changing the active Plan runtime", async () => {
+	it("applies in-turn auto-approve updates to the active Task before advertising them", async () => {
 		const agent = new DiracAgent({ cwd: "/tmp/workspace", mode: "plan" })
 			; (agent as any).ctx = { extensionContext: {}, DATA_DIR: "/tmp/dirac-test-data" }
 			; (agent as any).providerConfiguration.assertProviderEnabled = vi.fn()
@@ -434,17 +434,67 @@ describe("DiracAgent ACP conversation continuity", () => {
 			value: true,
 		} as any)
 
+		expect(mocks.task.applyWorkingConfigurationUpdate).toHaveBeenCalledOnce()
+		expect(mocks.task.applyWorkingConfigurationUpdate.mock.calls[0]?.[0]).toMatchObject({
+			settings: { mode: "plan", autoApproveAllToggled: true },
+		})
 		expect((agent as any).acpSessionOverrides.get(sessionId)).toMatchObject({
 			mode: "plan",
 			autoApproveAllToggled: true,
 		})
 		expect((agent as any).activePromptOverrides.get(sessionId)).toMatchObject({
 			mode: "plan",
+			autoApproveAllToggled: true,
+		})
+
+		await agent.setSessionConfigOption({
+			sessionId,
+			configId: "auto_approve",
+			type: "boolean",
+			value: false,
+		} as any)
+
+		expect(mocks.task.applyWorkingConfigurationUpdate).toHaveBeenCalledTimes(2)
+		expect(mocks.task.applyWorkingConfigurationUpdate.mock.calls[1]?.[0]).toMatchObject({
+			settings: { mode: "plan", autoApproveAllToggled: false },
+		})
+		expect((agent as any).activePromptOverrides.get(sessionId)).toMatchObject({
+			mode: "plan",
 			autoApproveAllToggled: false,
 		})
 		expect(session.mode).toBe("plan")
-		expect(mocks.task.applyWorkingConfigurationUpdate).not.toHaveBeenCalled()
 		expect(emitCurrentModeUpdate).not.toHaveBeenCalled()
+	})
+
+	it("does not advertise an in-turn auto-approve update rejected by the active Task", async () => {
+		const agent = new DiracAgent({ cwd: "/tmp/workspace", mode: "plan" })
+			; (agent as any).ctx = { extensionContext: {}, DATA_DIR: "/tmp/dirac-test-data" }
+			; (agent as any).providerConfiguration.assertProviderEnabled = vi.fn()
+			; (agent as any).sessionConfig.getSessionConfigOptions = vi.fn(async () => [])
+			; (agent as any).sessionConfig.getSessionModeState = vi.fn(() => ({ currentModeId: "plan", availableModes: [] }))
+
+		const { sessionId } = await agent.newSession({ cwd: "/tmp/workspace", mcpServers: [] } as any)
+		const session = (agent as any).sessions.get(sessionId)
+		mocks.controllers[0].task = mocks.task
+		const committedBefore = structuredClone((agent as any).acpSessionOverrides.get(sessionId))
+		const activeBefore = structuredClone(committedBefore)
+			; (agent as any).activePromptOverrides.set(sessionId, activeBefore)
+		const persist = vi.spyOn(agent as any, "writeSessionRuntimeConfig")
+		mocks.task.applyWorkingConfigurationUpdate.mockRejectedValueOnce(new Error("invalid task candidate"))
+
+		await expect(
+			agent.setSessionConfigOption({
+				sessionId,
+				configId: "auto_approve",
+				type: "boolean",
+				value: true,
+			} as any),
+		).rejects.toThrow("invalid task candidate")
+
+		expect(persist).not.toHaveBeenCalled()
+		expect((agent as any).acpSessionOverrides.get(sessionId)).toEqual(committedBefore)
+		expect((agent as any).activePromptOverrides.get(sessionId)).toEqual(activeBefore)
+		expect(session.mode).toBe("plan")
 	})
 
 	it("publishes an authorized active-turn Plan-to-Act switch only after the task runtime changes", async () => {
@@ -596,7 +646,7 @@ describe("DiracAgent ACP conversation continuity", () => {
 		})
 		expect((agent as any).activePromptOverrides.get(first.sessionId)).toMatchObject({
 			mode: "plan",
-			autoApproveAllToggled: false,
+			autoApproveAllToggled: true,
 		})
 		expect((agent as any).acpSessionOverrides.get(second.sessionId)).toMatchObject({
 			mode: "plan",

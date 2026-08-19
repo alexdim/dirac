@@ -615,7 +615,7 @@ export class DiracAgent implements acp.Agent {
 	/** Authoritative committed, persisted runtime choices for each ACP session. */
 	private readonly acpSessionOverrides: Map<string, Partial<Settings>> = new Map()
 
-	/** Immutable-at-turn-start runtime snapshots; client config changes are staged for the next turn. */
+	/** Session-owned mirror of the configuration currently committed to the active Task. */
 	private readonly activePromptOverrides: Map<string, Partial<Settings>> = new Map()
 
 	/** Config mutations are serialized independently from prompt lifecycle state. */
@@ -875,43 +875,18 @@ export class DiracAgent implements acp.Agent {
 		})
 	}
 
-
-	private stageSessionRuntimeConfig(session: DiracAcpSession, nextOverrides: Partial<Settings>): void {
-		this.writeSessionRuntimeConfig(session, nextOverrides)
-		this.acpSessionOverrides.set(session.sessionId, nextOverrides)
-	}
-
 	private async commitClientSessionRuntime(session: DiracAcpSession, nextOverrides: Partial<Settings>): Promise<void> {
 		const nextMode = nextOverrides.mode
 		if (nextMode !== "plan" && nextMode !== "act") throw new Error(`Invalid session mode: ${nextMode}`)
 
-		const activeOverrides = this.activePromptOverrides.get(session.sessionId)
-		if (!activeOverrides) {
+		if (!this.activePromptOverrides.has(session.sessionId)) {
 			await this.replaceSessionRuntimeConfig(session, nextOverrides, nextMode)
 			return
 		}
 
-		const activeMode = activeOverrides.mode
-		if (activeMode !== "plan" && activeMode !== "act") throw new Error(`Invalid active prompt mode: ${activeMode}`)
-		if (activeMode === nextMode) {
-			// Ordinary in-turn changes are authoritative for the next turn only.
-			// They do not alter the active Task or its turn-start runtime.
-			this.stageSessionRuntimeConfig(session, nextOverrides)
-			return
-		}
-
-		// A mode transition is an explicit authorization event. Apply only the mode
-		// change to the turn-start snapshot; unrelated in-turn configuration changes
-		// remain staged in nextOverrides for the next turn.
-		const nextActiveOverrides = copyTaskRuntimeSettings(activeOverrides)
-		nextActiveOverrides.mode = nextMode
-		await this.sessionConfig.normalizeSessionConfig({ ...session, mode: nextMode }, nextActiveOverrides)
-		const activeTask = this.#sessionControllers.get(session)?.task
-		this.resolveSessionTaskRuntime(nextActiveOverrides, nextMode, activeTask)
-
 		await this.applyActivePromptRuntime(
 			session,
-			nextActiveOverrides,
+			nextOverrides,
 			nextMode,
 			() => this.writeSessionRuntimeConfig(session, nextOverrides),
 		)

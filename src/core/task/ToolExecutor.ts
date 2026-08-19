@@ -134,11 +134,10 @@ export class ToolExecutor {
 	}
 
 	private requestAutoApprover(): AutoApprove {
-		const runtime = this.requestRuntime()
 		return new AutoApprove(
 			this.commandPermissionController,
-			runtime.workingConfiguration.settings,
-			runtime.workingConfiguration.executionOptions.multiRootEnabled,
+			() => this.getCurrentWorkingConfiguration().settings,
+			this.getCurrentWorkingConfiguration().executionOptions.multiRootEnabled,
 		)
 	}
 
@@ -147,17 +146,10 @@ export class ToolExecutor {
 	}
 
 	private assertMutationAuthorized(toolName?: DiracToolSpec["id"]): void {
-		assertTaskMutationAuthorized(
-			this.requestRuntime().workingConfiguration,
-			this.getCurrentWorkingConfiguration(),
-			toolName,
-		)
+		assertTaskMutationAuthorized(this.requestRuntime().workingConfiguration, this.getCurrentWorkingConfiguration(), toolName)
 	}
 
-	private withMutationAuthorization<T>(
-		toolName: DiracToolSpec["id"] | undefined,
-		mutation: () => Promise<T>,
-	): Promise<T> {
+	private withMutationAuthorization<T>(toolName: DiracToolSpec["id"] | undefined, mutation: () => Promise<T>): Promise<T> {
 		return this.withTaskMutationAuthorization(this.requestRuntime().workingConfiguration, toolName, mutation)
 	}
 
@@ -218,7 +210,7 @@ export class ToolExecutor {
 				"unknown") as string
 			const modelId = options.modelId?.trim()
 			if (modelId && providerId !== "unknown") {
-				; (candidate as Record<string, unknown>)[getProviderModelIdKey(providerId as ApiProvider, mode)] = modelId
+				;(candidate as Record<string, unknown>)[getProviderModelIdKey(providerId as ApiProvider, mode)] = modelId
 			}
 			handler = buildApiHandler(candidate, mode)
 		}
@@ -235,13 +227,16 @@ export class ToolExecutor {
 	private asToolConfig(coordinator = this.coordinator): TaskConfig {
 		const runtime = this.requestRuntime()
 		const settings = runtime.workingConfiguration.settings
+		const currentSettings = () => this.getCurrentWorkingConfiguration().settings
 		const autoApprover = this.requestAutoApprover()
 		const config: TaskConfig = {
 			taskId: this.taskId,
 			ulid: this.ulid,
 			mode: settings.mode,
 			strictPlanModeEnabled: settings.strictPlanModeEnabled,
-			yoloModeToggled: settings.yoloModeToggled,
+			get yoloModeToggled() {
+				return currentSettings().yoloModeToggled
+			},
 			doubleCheckCompletionEnabled: settings.doubleCheckCompletionEnabled,
 			vscodeTerminalExecutionMode: this.terminalExecutionMode,
 			enableParallelToolCalling: settings.enableParallelToolCalling,
@@ -268,7 +263,9 @@ export class ToolExecutor {
 			messageState: this.messageStateHandler,
 			model: deepFreezeConfiguration(structuredClone(runtime.api.getModel())),
 			supportsNativeWebSearch: runtime.api.supportsNativeWebSearch?.() === true,
-			autoApprovalSettings: settings.autoApprovalSettings as TaskConfig["autoApprovalSettings"],
+			get autoApprovalSettings() {
+				return currentSettings().autoApprovalSettings as TaskConfig["autoApprovalSettings"]
+			},
 			autoApprover,
 			browserSettings: settings.browserSettings,
 			services: {

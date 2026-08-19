@@ -5,13 +5,13 @@ import { SurfaceAdapter } from "./adapters/SurfaceAdapter"
 
 import { IDiracTool } from "./interfaces/IDiracTool"
 import { SurfaceType } from "./interfaces/SurfaceType"
+import { assertValidToolResponse } from "./runtime/assertValidToolResponse"
+import { normalizeOptionalToolParameters } from "./runtime/normalizeOptionalToolParameters"
 import { AgentConfigLoader } from "./subagent/AgentConfigLoader"
 import type { TaskConfig } from "./types/TaskConfig"
 import type { ToolResponse } from "./types/ToolResponse"
 import { ToolSkippedByUserMessage } from "./types/ToolSkippedByUserMessage"
 import { createUIHelpers } from "./types/UIHelpers"
-import { normalizeOptionalToolParameters } from "./runtime/normalizeOptionalToolParameters"
-import { assertValidToolResponse } from "./runtime/assertValidToolResponse"
 
 interface PartialToolUseHandler extends IDiracTool {
 	bufferPartialToolUse(block: ToolUse, uiHelpers: ReturnType<typeof createUIHelpers>): Promise<void>
@@ -22,7 +22,7 @@ interface PartialToolUseHandler extends IDiracTool {
  * Throws an error for unregistered tools.
  */
 export class ToolExecutorCoordinator {
-	constructor() { }
+	constructor() {}
 
 	private modularTools = new Map<string, IDiracTool>()
 
@@ -82,7 +82,10 @@ export class ToolExecutorCoordinator {
 		}
 
 		// 1. Initialize Tool Environment (Surface Adapter)
-		const env = new SurfaceAdapter({ ...config, toolUse: { name: block.name, params: block.params } }, block.name)
+		// Preserve live task-setting accessors while adding call-specific metadata.
+		const toolConfig = Object.create(Object.getPrototypeOf(config), Object.getOwnPropertyDescriptors(config)) as TaskConfig
+		toolConfig.toolUse = { name: block.name, params: block.params }
+		const env = new SurfaceAdapter(toolConfig, block.name)
 
 		// 2. Filter (Surface Check)
 		const supported = tool.supportedSurfaces()

@@ -19,14 +19,15 @@ export class AutoApprove {
 
 	constructor(
 		commandPermissionController: CommandPermissionController,
-		private readonly settings: DeepReadonly<Settings>,
+		private readonly settingsSource: DeepReadonly<Settings> | (() => DeepReadonly<Settings>),
 		private readonly multiRootEnabled: boolean,
 	) {
 		this.commandPermissionController = commandPermissionController
 	}
 
 	private setting<K extends keyof Settings>(key: K): DeepReadonly<Settings[K]> {
-		return this.settings[key]
+		const settings = typeof this.settingsSource === "function" ? this.settingsSource() : this.settingsSource
+		return settings[key]
 	}
 
 	/**
