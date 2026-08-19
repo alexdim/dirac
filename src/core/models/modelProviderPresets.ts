@@ -1,6 +1,7 @@
 import type { StateManager } from "@core/storage/StateManager"
 import type { Controller } from "@core/controller"
 import { applyApiConfigurationTransaction } from "@core/controller/models/apiConfigurationTransaction"
+import { persistApiConfigurationPatch } from "@core/controller/models/apiConfigurationPersistence"
 import type { ApiConfiguration, ApiProvider, ModelInfo, ModelProviderPreset, OpenAiCompatibleProfile } from "@shared/api"
 import type { Mode } from "@shared/storage/types"
 import { modelProviderSelectionUpdates } from "@core/api/modelProviderSelection"
@@ -176,7 +177,9 @@ export async function activateModelProviderPreset(controller: Controller, preset
 		? modeUpdates(currentMode, preset, profile)
 		: { ...modeUpdates("plan", preset, profile), ...modeUpdates("act", preset, profile) }
 	const candidateConfiguration = { ...configuration, ...updates }
-	applyApiConfigurationTransaction(controller, candidateConfiguration, () => controller.stateManager.setApiConfiguration(updates))
+	await applyApiConfigurationTransaction(controller, candidateConfiguration, () =>
+		persistApiConfigurationPatch(controller.stateManager, updates),
+	)
 	upsertPreset(controller.stateManager, { ...preset, lastUsedAt: Date.now() })
 	await controller.postStateToWebview()
 }

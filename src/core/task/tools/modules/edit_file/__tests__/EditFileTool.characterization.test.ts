@@ -61,6 +61,7 @@ function createConfig(opts: { isSubagent?: boolean; diracIgnore?: any } = {}) {
 	}
 
 	const callbacks = {
+		assertMutationAuthorized: sinon.stub(),
 		say: sinon.stub().resolves(undefined),
 		ask: sinon.stub().resolves({ response: DiracAskResponse.APPROVE }),
 		saveCheckpoint: sinon.stub().resolves(),
@@ -95,7 +96,8 @@ function createConfig(opts: { isSubagent?: boolean; diracIgnore?: any } = {}) {
 		isSubagentExecution: opts.isSubagent ?? true,
 		taskState,
 		messageState: { getApiConversationHistory: sinon.stub().returns([]) },
-		api: { getModel: () => ({ id: "test-model", info: { supportsImages: false } }) },
+		model: { id: "test-model", info: { supportsImages: false } },
+		supportsNativeWebSearch: false,
 		autoApprovalSettings: { enableNotifications: false, actions: { executeCommands: false } },
 		autoApprover: {
 			shouldAutoApproveTool: sinon.stub().returns([true, true]),
@@ -104,11 +106,6 @@ function createConfig(opts: { isSubagent?: boolean; diracIgnore?: any } = {}) {
 		browserSettings: {},
 		focusChainSettings: {},
 		services: {
-			stateManager: {
-				getGlobalStateKey: () => undefined,
-				getGlobalSettingsKey: (key: string) => (key === "mode" ? "act" : key === "hooksEnabled" ? false : undefined),
-				getApiConfiguration: () => ({ planModeApiProvider: "openai", actModeApiProvider: "openai" }),
-			},
 			fileContextTracker: { trackFileContext: sinon.stub().resolves(), markFileAsEditedByDirac: sinon.stub() },
 			browserSession: {},
 			urlContentFetcher: {},
@@ -232,6 +229,35 @@ describe("EditFileTool – characterization edge cases", () => {
 			assert.equal(finalContent, "line 1\nnew line 2\nline 3")
 			assert.ok(typeof result === "string")
 			assert.ok(result.includes("Applied 1 edit(s) successfully"))
+		})
+
+		it("does not apply a prepared edit when mutation consent is revoked after approval", async () => {
+			const { config, callbacks, validator, diffViewProvider } = createConfig()
+			const handler = new EditFileToolHandler(validator, false)
+			const fileName = "revoked.txt"
+			const filePath = path.join(tmpDir, fileName)
+			const content = "line 1\nline 2"
+			await fs.writeFile(filePath, content)
+			const anchors = makeAnchors(filePath, content, config.ulid)
+			callbacks.assertMutationAuthorized.throws(new Error("Plan Mode revoked mutation"))
+
+			await assert.rejects(
+				handler.execute(config, {
+					files: [
+						{
+							path: fileName,
+							edits: [
+								{ edit_type: "replace", anchor: anchors[1], end_anchor: anchors[1], text: "changed" },
+							],
+						},
+					],
+				}),
+				/Plan Mode revoked mutation/,
+			)
+
+			assert.equal(await fs.readFile(filePath, "utf8"), content)
+			sinon.assert.calledOnceWithExactly(callbacks.assertMutationAuthorized, "edit_file")
+			sinon.assert.notCalled(diffViewProvider.applyAndSaveBatchSilently)
 		})
 
 		it("handles empty files array gracefully", async () => {

@@ -32,8 +32,10 @@ import {
 	type TaskSteeringContext,
 } from "./TaskSteering"
 import type { ApiConversationManager } from "./ApiConversationManager"
+import type { TaskRequestRuntime } from "./runtime/TaskRequestRuntime"
 
 export interface TaskRequestLoopContext extends TaskRequestBuilderContext, TaskRequestOutcomeContext {
+	requestRuntime: TaskRequestRuntime
 	steeringContext: TaskSteeringContext
 	handleMistakeLimitReached: (userContent: DiracContent[]) => Promise<{ didEndLoop: boolean; userContent: DiracContent[] }>
 	enqueuePreRequestSteeringMessages: () => Promise<void>
@@ -60,7 +62,11 @@ export async function recursivelyMakeDiracRequests(
 	}
 	await ctx.enqueuePreRequestSteeringMessages()
 
-	const { model, providerId, customPrompt, mode } = ctx.getCurrentProviderInfo()
+	const { settings, apiConfiguration } = ctx.requestRuntime.workingConfiguration
+	const mode = settings.mode
+	const model = ctx.requestRuntime.api.getModel()
+	const providerId = (mode === "plan" ? apiConfiguration.planModeApiProvider : apiConfiguration.actModeApiProvider) as string
+	const customPrompt = settings.customPrompt
 	if (providerId && model.id) {
 		try {
 			await ctx.modelContextTracker.recordModelUsage(providerId, model.id, mode)
@@ -90,7 +96,9 @@ export async function recursivelyMakeDiracRequests(
 
 	await ctx.initializeCheckpoints(isFirstRequest)
 
-	const useCompactPrompt = customPrompt === "compact" && isLocalModel(ctx.getCurrentProviderInfo())
+	const useCompactPrompt =
+		customPrompt === "compact" &&
+		isLocalModel({ model, providerId, customPrompt, mode, supportsNativeWebSearch: false })
 	let shouldCompact = await ctx.determineContextCompaction(previousApiReqIndex)
 	if (shouldCompact && ctx.localConversationCompaction.isAvailable()) {
 		const continuation = await ctx.localConversationCompaction.run({
@@ -152,7 +160,7 @@ export async function recursivelyMakeDiracRequests(
 	}
 
 	try {
-		const metricsManager = new StreamingMetricsManager(ctx.messageStateHandler, lastApiReqIndex, ctx.api)
+		const metricsManager = new StreamingMetricsManager(ctx.messageStateHandler, lastApiReqIndex, ctx.requestRuntime.api)
 		let didFinalizeApiReqMsg = false
 		let usageChunkSideEffectsQueue = Promise.resolve()
 
@@ -317,7 +325,7 @@ export async function recursivelyMakeDiracRequests(
 			const streamResult = await ctx.responseProcessor.consumeStream(streamCoordinator, {
 				abortStream,
 				finalizePendingReasoningMessage,
-				apiAbort: () => ctx.api.abort?.(),
+				apiAbort: () => ctx.requestRuntime.api.abort?.(),
 			})
 
 			assistantMessage = streamResult.assistantMessage
@@ -347,7 +355,7 @@ export async function recursivelyMakeDiracRequests(
 				return true
 			}
 
-			const diracError = ErrorService.get().toDiracError(error, ctx.api.getModel().id)
+			const diracError = ErrorService.get().toDiracError(error, ctx.requestRuntime.api.getModel().id)
 			const errorMessage = diracError.serialize()
 			await ctx.abortTask()
 			await abortStream("streaming_failed", errorMessage)
@@ -358,7 +366,7 @@ export async function recursivelyMakeDiracRequests(
 		}
 
 		if (!didReceiveUsageChunk) {
-			const apiStreamUsage = await ctx.api.getApiStreamUsage?.()
+			const apiStreamUsage = await ctx.requestRuntime.api.getApiStreamUsage?.()
 			if (apiStreamUsage) {
 				metricsManager.updateFromChunk(apiStreamUsage)
 				queueUsageChunkSideEffects(apiStreamUsage.inputTokens, apiStreamUsage.outputTokens, {

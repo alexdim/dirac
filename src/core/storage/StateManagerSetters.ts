@@ -38,7 +38,7 @@ export function setGlobalState<K extends keyof GlobalStateAndSettings>(
 ): void {
 	guardInitialized(ctx)
 	const normalizedValue = isSettingsKey(key) ? normalizeLoadedSetting(key as SettingsKey, value as never) : value
-	;(ctx.globalStateCache as Record<string, unknown>)[key] = normalizedValue
+		; (ctx.globalStateCache as Record<string, unknown>)[key] = normalizedValue
 	ctx.persistence.addPendingGlobalState(key)
 	ctx.notifyStateChange()
 }
@@ -67,6 +67,22 @@ export function setTaskSettingsBatch(ctx: StateManagerSettersContext, taskId: st
 	const normalizedUpdates = normalizeLoadedSettings(updates)
 	Object.assign(ctx.taskStateCache, normalizedUpdates)
 	ctx.persistence.addPendingTaskStateBatch(taskId, Object.keys(normalizedUpdates) as SettingsKey[])
+}
+
+export function hasTaskSetting<K extends keyof Settings>(ctx: StateManagerSettersContext, key: K): boolean {
+	guardInitialized(ctx)
+	return Object.hasOwn(ctx.taskStateCache, key)
+}
+
+export function getTaskSetting<K extends keyof Settings>(ctx: StateManagerSettersContext, key: K): Settings[K] | undefined {
+	guardInitialized(ctx)
+	return ctx.taskStateCache[key]
+}
+
+export function clearTaskSetting<K extends keyof Settings>(ctx: StateManagerSettersContext, taskId: string, key: K): void {
+	guardInitialized(ctx)
+	delete ctx.taskStateCache[key]
+	ctx.persistence.addPendingTaskState(taskId, key)
 }
 
 export async function loadTaskSettings(ctx: StateManagerSettersContext, taskId: string): Promise<void> {
@@ -109,7 +125,7 @@ export function setSecretsBatch(ctx: StateManagerSettersContext, updates: Partia
 
 export function setWorkspaceState(ctx: StateManagerSettersContext, key: string, value: unknown): void {
 	guardInitialized(ctx)
-	;(ctx.workspaceStateCache as Record<string, unknown>)[key] = value
+		; (ctx.workspaceStateCache as Record<string, unknown>)[key] = value
 	ctx.persistence.addPendingWorkspaceState(key as LocalStateKey)
 }
 
@@ -128,12 +144,17 @@ export function setSessionOverride<K extends keyof Settings>(ctx: StateManagerSe
 	ctx.sessionOverrideCache[key] = normalizeLoadedSetting(key, value)
 }
 
-export function setSessionOverrideCache(ctx: StateManagerSettersContext, overrides: Partial<Settings>): void {
-	for (const key of Object.keys(ctx.sessionOverrideCache)) {
-		delete ctx.sessionOverrideCache[key as keyof Settings]
-	}
-	Object.assign(ctx.sessionOverrideCache, normalizeLoadedSettings(overrides))
+
+export function hasSessionOverride<K extends keyof Settings>(ctx: StateManagerSettersContext, key: K): boolean {
+	guardInitialized(ctx)
+	return Object.hasOwn(ctx.sessionOverrideCache, key)
 }
+
+export function clearSessionOverride<K extends keyof Settings>(ctx: StateManagerSettersContext, key: K): void {
+	guardInitialized(ctx)
+	delete ctx.sessionOverrideCache[key]
+}
+
 
 export function refreshModelProviderPresetsFromDisk(ctx: StateManagerSettersContext): void {
 	guardInitialized(ctx)
@@ -159,9 +180,9 @@ export function setApiConfiguration(ctx: StateManagerSettersContext, apiConfigur
 		(acc, [key, value]) => {
 			if (key === undefined) return acc
 			if (isSecretKey(key)) {
-				;(acc.secretsUpdates as Record<string, string | undefined>)[key] = value as string | undefined
+				; (acc.secretsUpdates as Record<string, string | undefined>)[key] = value as string | undefined
 			} else if (isSettingsKey(key)) {
-				;(acc.settingsUpdates as Record<string, unknown>)[key] = value
+				; (acc.settingsUpdates as Record<string, unknown>)[key] = value
 			}
 			return acc
 		},

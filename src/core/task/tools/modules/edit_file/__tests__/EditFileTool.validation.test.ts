@@ -20,7 +20,7 @@ import { createMockContext, createMockTaskMessenger } from "../../../__tests__/h
 
 class EditFileToolHandler {
 	private tool = new EditFileTool()
-	constructor(_validator: any, _forceSyntaxChecker: boolean) {}
+	constructor(_validator: any, _forceSyntaxChecker: boolean) { }
 	async execute(config: TaskConfig, block: any) {
 		const env = new SurfaceAdapter(config)
 		return this.tool.processCall(block.params, env)
@@ -68,6 +68,7 @@ function createConfig() {
 	}
 
 	const callbacks = {
+		assertMutationAuthorized: sinon.stub(),
 		say: sinon.stub().resolves(undefined),
 		ask: sinon.stub().resolves({ response: DiracAskResponse.APPROVE }),
 		saveCheckpoint: sinon.stub().resolves(),
@@ -104,9 +105,8 @@ function createConfig() {
 		messageState: {
 			getApiConversationHistory: sinon.stub().returns([]),
 		},
-		api: {
-			getModel: () => ({ id: "test-model", info: { supportsImages: false } }),
-		},
+		model: { id: "test-model", info: { supportsImages: false } },
+		supportsNativeWebSearch: false,
 		autoApprovalSettings: {
 			enableNotifications: false,
 			actions: { executeCommands: false },
@@ -117,18 +117,6 @@ function createConfig() {
 		browserSettings: {},
 		focusChainSettings: {},
 		services: {
-			stateManager: {
-				getGlobalStateKey: () => undefined,
-				getGlobalSettingsKey: (key: string) => {
-					if (key === "mode") return "act"
-					if (key === "hooksEnabled") return false
-					return undefined
-				},
-				getApiConfiguration: () => ({
-					planModeApiProvider: "openai",
-					actModeApiProvider: "openai",
-				}),
-			},
 			fileContextTracker: {
 				trackFileContext: sinon.stub().resolves(),
 				markFileAsEditedByDirac: sinon.stub(),
@@ -184,7 +172,7 @@ describe("EditFileTool.execute – validation", () => {
 	afterEach(async () => {
 		sandbox.restore()
 		HostProvider.reset()
-		await fs.rm(tmpDir, { recursive: true, force: true }).catch(() => {})
+		await fs.rm(tmpDir, { recursive: true, force: true }).catch(() => { })
 	})
 
 	it("successfully parses stringified edits array", async () => {

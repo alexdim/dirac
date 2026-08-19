@@ -1,5 +1,6 @@
 import { strict as assert } from "node:assert"
 import { CardStatus } from "@shared/ExtensionMessage"
+import { SETTINGS_DEFAULTS, type Settings } from "@shared/storage/state-keys"
 import { DiracAskResponse } from "@shared/WebviewMessage"
 import { describe, it } from "mocha"
 import sinon from "sinon"
@@ -120,7 +121,14 @@ describe("ExecuteCommandTool", () => {
 				}
 			}),
 		}
-		const autoApprover = new AutoApprove(stateManager as any, commandPermissionController as any)
+		const autoApprover = new AutoApprove(
+			commandPermissionController as any,
+			{
+				...structuredClone(SETTINGS_DEFAULTS),
+				userApprovedCommands: [{ command: "uv run pytest", match: "prefix" }],
+			} as Settings,
+			false,
+		)
 		const tool = new ExecuteCommandTool(
 			diracIgnoreController as any,
 			commandPermissionController as any,
@@ -158,12 +166,12 @@ describe("ExecuteCommandTool", () => {
 
 	it("records structured command input and output on its card", async () => {
 		const { tool, env, mockCard } = createMocks()
-			; (env.system.executeCommand as sinon.SinonStub).resolves({
-				userRejected: false,
-				output: "Command executed successfully (exit code 0).\nOutput:\nok",
-				exitCode: 0,
-				completed: true,
-			})
+		;(env.system.executeCommand as sinon.SinonStub).resolves({
+			userRejected: false,
+			output: "Command executed successfully (exit code 0).\nOutput:\nok",
+			exitCode: 0,
+			completed: true,
+		})
 
 		await tool.processCall({ commands: ["echo ok"] }, env as any)
 
@@ -178,12 +186,12 @@ describe("ExecuteCommandTool", () => {
 	})
 	it("does not infer failure from command-controlled output text", async () => {
 		const { tool, env, mockCard } = createMocks()
-			; (env.system.executeCommand as sinon.SinonStub).resolves({
-				userRejected: false,
-				output: "the documentation says exit code 99",
-				exitCode: 0,
-				completed: true,
-			})
+		;(env.system.executeCommand as sinon.SinonStub).resolves({
+			userRejected: false,
+			output: "the documentation says exit code 99",
+			exitCode: 0,
+			completed: true,
+		})
 
 		await tool.processCall({ commands: ["echo status"] }, env as any)
 
@@ -192,12 +200,12 @@ describe("ExecuteCommandTool", () => {
 
 	it("publishes bounded output once without streaming into the card", async () => {
 		const { tool, env, mockCard } = createMocks()
-			; (env.system.executeCommand as sinon.SinonStub).resolves({
-				userRejected: false,
-				output: "start\n" + "x".repeat(20 * 1024) + "\nend",
-				exitCode: 0,
-				completed: true,
-			})
+		;(env.system.executeCommand as sinon.SinonStub).resolves({
+			userRejected: false,
+			output: "start\n" + "x".repeat(20 * 1024) + "\nend",
+			exitCode: 0,
+			completed: true,
+		})
 
 		await tool.processCall({ commands: ["echo large-output"] }, env as any)
 

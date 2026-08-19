@@ -136,6 +136,7 @@ export class EditFileTool implements IDiracTool<EditFileArgs> {
 		const { approved, userEdits, feedback } = await this.approvalFlow.handle(env, preparedBatches, cards)
 		if (!approved) return feedback || formatResponse.toolDenied()
 
+		env.config.callbacks.assertMutationAuthorized(DiracDefaultTool.EDIT_FILE)
 		const appliedResults = await this.applier.applyAndSave(env, preparedBatches, cards, userEdits)
 		const finalResults = await this.applier.finalizeResults(env, preparedBatches, appliedResults)
 		results.push(...finalResults)

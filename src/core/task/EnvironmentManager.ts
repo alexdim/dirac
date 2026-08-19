@@ -2,8 +2,8 @@ import { ApiHandler } from "@core/api"
 import { FileContextTracker } from "@core/context/context-tracking/FileContextTracker"
 import { formatResponse } from "@core/formatResponse"
 import { getEditingFilesInstructions } from "@core/prompts/system-prompt/sections/editing-files"
-import { StateManager } from "@core/storage/StateManager"
-import { isMultiRootEnabled } from "@core/workspace/multi-root-utils"
+import type { TaskWorkingConfiguration } from "./runtime/TaskWorkingConfiguration"
+import type { TaskRequestRuntime } from "./runtime/TaskRequestRuntime"
 import { WorkspaceRootManager } from "@core/workspace/WorkspaceRootManager"
 import { ITerminalManager } from "@integrations/terminal/types"
 import type { Dirent } from "fs"
@@ -61,7 +61,8 @@ export interface EnvironmentManagerDependencies {
 	fileContextTracker: FileContextTracker
 	api: ApiHandler
 	messageStateHandler: MessageStateHandler
-	stateManager: StateManager
+	getWorkingConfiguration: () => TaskWorkingConfiguration
+	getRequestRuntime: () => TaskRequestRuntime | undefined
 	workspaceManager?: WorkspaceRootManager
 }
 
@@ -93,9 +94,6 @@ export class EnvironmentManager {
 	}
 	private get messageStateHandler() {
 		return this.dependencies.messageStateHandler
-	}
-	private get stateManager() {
-		return this.dependencies.stateManager
 	}
 	private get workspaceManager() {
 		return this.dependencies.workspaceManager
@@ -139,7 +137,7 @@ export class EnvironmentManager {
 		}
 
 		details += "\n\n# Current Mode"
-		const mode = this.stateManager.getGlobalSettingsKey("mode")
+		const mode = (this.dependencies.getRequestRuntime()?.workingConfiguration ?? this.dependencies.getWorkingConfiguration()).settings.mode
 		if (mode === "plan") {
 			details += `\nPLAN MODE\n${formatResponse.planModeInstructions()}`
 		} else {
@@ -153,7 +151,8 @@ export class EnvironmentManager {
 	}
 
 	private formatWorkspaceRootsSection(): string {
-		const multiRootEnabled = isMultiRootEnabled(this.stateManager)
+		const multiRootEnabled =
+			(this.dependencies.getRequestRuntime()?.workingConfiguration ?? this.dependencies.getWorkingConfiguration()).executionOptions.multiRootEnabled
 		const hasWorkspaceManager = !!this.workspaceManager
 		const roots = hasWorkspaceManager ? this.workspaceManager!.getRoots() : []
 

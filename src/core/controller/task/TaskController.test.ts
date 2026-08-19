@@ -14,8 +14,20 @@ describe("TaskController task replacement", () => {
 	it("starts an approved replacement even when the old task run rejects", async () => {
 		const controller = createController()
 		const replacement = { context: "replacement context", images: ["image"], files: ["file"] }
-		const task = { taskState: { pendingTaskReplacement: replacement } } as any
+		const latestWorkingConfiguration = {
+			revision: 4,
+			settings: { mode: "act" },
+			apiConfiguration: {},
+			workspaceConfiguration: {},
+			executionOptions: {},
+		} as any
+		const task = {
+			taskState: { pendingTaskReplacement: replacement },
+			getWorkingConfiguration: () => latestWorkingConfiguration,
+		} as any
 		controller.task = task
+		const ownerOptions = { runtimeConfigurationOverrides: { mode: "plan", autoApproveAllToggled: true } } as const
+		;(controller as any).currentInitializationOptions = ownerOptions
 		const controllerInternals = controller as any
 		const initTask = sinon.stub(controller, "initTask").callsFake(async () => {
 			assert.equal(task.taskState.pendingTaskReplacement, replacement)
@@ -34,8 +46,13 @@ describe("TaskController task replacement", () => {
 			undefined,
 			undefined,
 			undefined,
-			undefined,
+			{
+				workingConfiguration: latestWorkingConfiguration,
+			},
 		)
+		const replacementOptions = initTask.firstCall.args[7]!
+		assert.equal(replacementOptions.workingConfiguration, latestWorkingConfiguration)
+		assert.equal(replacementOptions.runtimeConfigurationOverrides, undefined)
 		assert.equal(task.taskState.pendingTaskReplacement, undefined)
 	})
 
@@ -171,5 +188,114 @@ describe("TaskController task isolation", () => {
 		)
 
 		sinon.assert.calledOnce(releaseTaskLock)
+	})
+
+	it("captures task working configuration after persisted settings and runtime overrides", async () => {
+		const order: string[] = []
+		const workingConfiguration = {
+			revision: 1,
+			settings: { shellIntegrationTimeout: 4321, terminalOutputLineLimit: 250, defaultTerminalProfile: "zsh" },
+			apiConfiguration: {},
+			workspaceConfiguration: {},
+			executionOptions: {
+				terminalReuseEnabled: false,
+				vscodeTerminalExecutionMode: "backgroundExec",
+				multiRootEnabled: false,
+			},
+		}
+		const capture = sinon.stub().callsFake((runtimeOverrides: unknown) => {
+			order.push("capture")
+			assert.deepEqual(runtimeOverrides, { mode: "plan" })
+			return workingConfiguration
+		})
+		const stateManager = {
+			refreshModelProviderPresetsFromDisk: sinon.stub(),
+			getGlobalStateKey: sinon.stub().returns(undefined),
+			loadTaskSettings: sinon.stub().callsFake(async () => order.push("load")),
+			setTaskSettingsBatch: sinon.stub().callsFake(() => order.push("persisted")),
+			captureEffectiveTaskConfiguration: capture,
+		} as any
+		const workspaceManager = { getPrimaryRoot: () => ({ path: "/workspace" }) }
+		const controller = new (TaskController as any)(
+			{
+				controller: {},
+				stateManager,
+				clearTaskSettings: sinon.stub().resolves(),
+				postStateToWebview: sinon.stub().resolves(),
+			},
+			sinon.stub().resolves({ acquired: false, skipped: true }),
+			sinon.stub().resolves(workspaceManager),
+		) as TaskController
+
+		await assert.rejects(
+			() =>
+				controller.initTask("test", undefined, undefined, undefined, { mode: "act" }, undefined, undefined, {
+					runtimeConfigurationOverrides: { mode: "plan" },
+				}),
+			/HostProvider|Either historyItem|undefined/,
+		)
+		assert.deepEqual(order.slice(0, 3), ["load", "persisted", "capture"])
+	})
+	it("reconstructs from the latest committed task configuration instead of constructor-time overrides", async () => {
+		const originalOwnerOptions = {
+			runtimeConfigurationOverrides: { mode: "act", autoApproveAllToggled: false },
+		} as const
+		const latestWorkingConfiguration = {
+			revision: 7,
+			settings: { mode: "plan", autoApproveAllToggled: true },
+		} as any
+		const historyItem = { id: "persisted-task" } as any
+		const task = { getWorkingConfiguration: () => latestWorkingConfiguration } as any
+		const controller = new (TaskController as any)({
+			task,
+			getTaskWithId: sinon.stub().resolves({ historyItem }),
+		}) as TaskController
+		;(controller as any).currentInitializationOptions = originalOwnerOptions
+		const initTask = sinon.stub(controller, "initTask").resolves(historyItem.id)
+
+		await controller.reinitExistingTaskFromId(historyItem.id)
+
+		sinon.assert.calledOnce(initTask)
+		assert.equal(initTask.firstCall.args[3], historyItem)
+		const reconstructionOptions = initTask.firstCall.args[7]!
+		assert.equal(reconstructionOptions.workingConfiguration, latestWorkingConfiguration)
+		assert.equal(reconstructionOptions.runtimeConfigurationOverrides, undefined)
+	})
+
+	it("forwards the owning runtime through cancellation recreation after defaults change", async () => {
+		const ownerOptions = {
+			runtimeConfigurationOverrides: { mode: "plan", autoApproveAllToggled: true, yoloModeToggled: false },
+		} as const
+		const historyItem = { id: "cancelled-task" } as any
+		const latestWorkingConfiguration = {
+			revision: 5,
+			settings: { mode: "act", autoApproveAllToggled: false, yoloModeToggled: false },
+		} as any
+		const task = {
+			taskId: historyItem.id,
+			taskState: { isApiRequestActive: false },
+			abortTask: sinon.stub().resolves(),
+			getWorkingConfiguration: () => latestWorkingConfiguration,
+		} as any
+		const postStateToWebview = sinon.stub().resolves()
+		const controller = new (TaskController as any)({
+			task,
+			getTaskWithId: sinon.stub().resolves({ historyItem }),
+			postStateToWebview,
+		}) as TaskController
+		;(controller as any).currentInitializationOptions = ownerOptions
+		;(controller as any).currentConversationUlid = "conversation"
+		const initTask = sinon.stub(controller, "initTask").callsFake(async (...args: any[]) => {
+			assert.equal(args[7].workingConfiguration, latestWorkingConfiguration)
+			assert.equal(args[7].runtimeConfigurationOverrides, undefined)
+			return historyItem.id
+		})
+
+		await controller.cancelTask()
+
+		sinon.assert.calledOnce(initTask)
+		assert.equal(initTask.firstCall.args[3], historyItem)
+		assert.equal(initTask.firstCall.args[5], "conversation")
+		sinon.assert.calledOnce(postStateToWebview)
 	})
 })

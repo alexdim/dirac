@@ -1,5 +1,4 @@
 import type { Hooks } from "@core/hooks/hook-factory"
-import { getHookModelContext } from "@core/hooks/hook-model-context"
 import { activateTaskSkill } from "@core/task/activateTaskSkill"
 import { getConfiguredUtilityModelSelection } from "@core/utility-model/UtilityModelSelection"
 import type { DiracMessage } from "@shared/ExtensionMessage"
@@ -14,17 +13,12 @@ export function buildOrchestrationTrait(config: TaskConfig): IOrchestrationTrait
 		runSubagent: async (prompt, options) => {
 			const agentIdentity = options?.agentIdentity ?? { id: 1, name: options?.subagentName ?? "subagent" }
 			const utilityModelSelection = options?.useUtilityModel
-				? getConfiguredUtilityModelSelection(config.services.stateManager.getGlobalSettingsKey("utilityModelSelection"))
+				? getConfiguredUtilityModelSelection(config.utilityModelSelection)
 				: undefined
 			if (options?.useUtilityModel && !utilityModelSelection) {
 				throw new Error("Utility model is not configured.")
 			}
-			const apiConfiguration = config.services.stateManager.getApiConfiguration()
-			const mode = config.services.stateManager.getGlobalSettingsKey("mode")
-			const providerId =
-				utilityModelSelection?.provider ??
-				(mode === "plan" ? apiConfiguration.planModeApiProvider : apiConfiguration.actModeApiProvider) ??
-				apiConfiguration.apiProvider
+			const providerId = utilityModelSelection?.provider ?? config.providerId
 			let recorder: SubagentRunRecorder | undefined
 			try {
 				recorder = await SubagentRunRecorder.create({
@@ -35,7 +29,7 @@ export function buildOrchestrationTrait(config: TaskConfig): IOrchestrationTrait
 					timeoutSeconds: options?.timeout ?? 600,
 					includeHistory: options?.includeHistory === true,
 					providerId,
-					modelId: utilityModelSelection?.modelId ?? config.api.getModel().id,
+					modelId: utilityModelSelection?.modelId ?? config.model.id,
 				})
 			} catch (error) {
 				Logger.error("[OrchestrationTraitBuilder] failed to initialize subagent recorder", error)
@@ -47,7 +41,7 @@ export function buildOrchestrationTrait(config: TaskConfig): IOrchestrationTrait
 				agentIdentity,
 				recorder,
 			})
-			return await runner.run(prompt, options?.onUpdate || (() => {}), options?.timeout, options?.includeHistory)
+			return await runner.run(prompt, options?.onUpdate || (() => { }), options?.timeout, options?.includeHistory)
 		},
 		runHook: async (name, input, options) => {
 			const { executeHook } = await import("@core/hooks/hook-executor")
@@ -60,8 +54,8 @@ export function buildOrchestrationTrait(config: TaskConfig): IOrchestrationTrait
 				clearActiveHookExecution: config.callbacks.clearActiveHookExecution,
 				messageStateHandler: config.messageState,
 				taskId: config.taskId,
-				hooksEnabled: config.services.stateManager.getGlobalSettingsKey("hooksEnabled") ?? false,
-				model: getHookModelContext(config.api, config.services.stateManager),
+				hooksEnabled: config.hooksEnabled,
+				model: { provider: config.providerId as any, slug: config.model.id || "unknown" },
 			})
 		},
 		switchToActMode: () => config.callbacks.switchToActMode(),

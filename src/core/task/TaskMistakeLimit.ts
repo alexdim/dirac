@@ -4,14 +4,15 @@ import { showSystemNotification } from "@integrations/notifications"
 import { CardStatus } from "@shared/ExtensionMessage"
 import { DiracAskResponse } from "@shared/WebviewMessage"
 import { DiracContent, type DiracUserContent } from "@shared/messages/content"
-import type { StateManager } from "../storage/StateManager"
+import type { DeepReadonly } from "./runtime/TaskWorkingConfiguration"
+import type { Settings } from "@shared/storage/state-keys"
 import type { TaskMessenger } from "./TaskMessenger"
 import type { TaskState } from "./TaskState"
 import { ToolSkippedByUserMessage } from "./tools/types/ToolSkippedByUserMessage"
 
 export interface TaskMistakeLimitContext {
 	taskState: TaskState
-	stateManager: StateManager
+	settings: DeepReadonly<Settings>
 	taskMessenger: TaskMessenger
 }
 
@@ -19,12 +20,12 @@ export async function handleMistakeLimitReached(
 	ctx: TaskMistakeLimitContext,
 	userContent: DiracContent[],
 ): Promise<{ didEndLoop: boolean; userContent: DiracContent[] }> {
-	if (ctx.taskState.consecutiveMistakeCount < ctx.stateManager.getGlobalSettingsKey("maxConsecutiveMistakes")) {
+	if (ctx.taskState.consecutiveMistakeCount < ctx.settings.maxConsecutiveMistakes) {
 		return { didEndLoop: false, userContent }
 	}
 
 	// In yolo mode, don't wait for user input - fail the task
-	if (ctx.stateManager.getGlobalSettingsKey("yoloModeToggled")) {
+	if (ctx.settings.yoloModeToggled) {
 		const errorMessage =
 			`[YOLO MODE] Task failed: Too many consecutive mistakes (${ctx.taskState.consecutiveMistakeCount}). ` +
 			`The model may not be capable enough for this task. Consider using a more capable model.`
@@ -38,7 +39,7 @@ export async function handleMistakeLimitReached(
 		return { didEndLoop: true, userContent } // didEndLoop = true, signals task completion/failure
 	}
 
-	const autoApprovalSettings = ctx.stateManager.getGlobalSettingsKey("autoApprovalSettings")
+	const autoApprovalSettings = ctx.settings.autoApprovalSettings
 	if (autoApprovalSettings.enableNotifications) {
 		showSystemNotification({
 			subtitle: "Error",

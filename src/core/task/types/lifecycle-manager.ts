@@ -10,7 +10,8 @@ import { UrlContentFetcher } from "../../../services/browser/UrlContentFetcher"
 import { ContextManager } from "../../context/context-management/ContextManager"
 import { FileContextTracker } from "../../context/context-tracking/FileContextTracker"
 import { DiracIgnoreController } from "../../ignore/DiracIgnoreController"
-import { StateManager } from "../../storage/StateManager"
+import type { TaskWorkingConfiguration } from "../runtime/TaskWorkingConfiguration"
+import type { TaskRequestRuntime } from "../runtime/TaskRequestRuntime"
 import { HookManager } from "../HookManager"
 import { MessageStateHandler } from "../message-state"
 import { TaskMessenger } from "../TaskMessenger"
@@ -19,7 +20,8 @@ import { TaskState } from "../TaskState"
 export interface LifecycleManagerDependencies {
 	taskState: TaskState
 	messageStateHandler: MessageStateHandler
-	stateManager: StateManager
+	getWorkingConfiguration: () => TaskWorkingConfiguration
+	getRequestRuntime: () => TaskRequestRuntime | undefined
 	api: ApiHandler
 	taskId: string
 	ulid: string

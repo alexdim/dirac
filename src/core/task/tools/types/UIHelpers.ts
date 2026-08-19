@@ -33,15 +33,12 @@ export function createUIHelpers(config: TaskConfig): StronglyTypedUIHelpers {
 		shouldAutoApproveTool: (toolName: DiracDefaultTool) => config.autoApprover.shouldAutoApproveTool(toolName),
 		shouldAutoApproveToolWithPath: config.callbacks.shouldAutoApproveToolWithPath,
 		captureTelemetry: (toolName: DiracDefaultTool, autoApproved: boolean, approved: boolean, isNativeToolCall?: boolean) => {
-			// Extract provider information for telemetry
-			const apiConfig = config.services.stateManager.getApiConfiguration()
-			const currentMode = config.services.stateManager.getGlobalSettingsKey("mode")
-			const provider = (currentMode === "plan" ? apiConfig.planModeApiProvider : apiConfig.actModeApiProvider) as string
+			const provider = config.providerId
 
 			telemetryService.captureToolUsage(
 				config.ulid,
 				toolName,
-				config.api.getModel().id,
+				config.model.id,
 				provider,
 				autoApproved,
 				approved,

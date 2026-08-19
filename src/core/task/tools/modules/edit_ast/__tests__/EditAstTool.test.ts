@@ -31,7 +31,10 @@ function makeEnv() {
 		config: {
 			isSubagentExecution: false,
 			autoApprover: { isUnrestrictedAutoApprove: sinon.stub().returns(false) },
-			callbacks: { shouldAutoApproveToolWithPath: sinon.stub().resolves(true) },
+			callbacks: {
+				shouldAutoApproveToolWithPath: sinon.stub().resolves(true),
+				assertMutationAuthorized: sinon.stub(),
+			},
 		},
 		workspace: {
 			readFile: sinon.stub().resolves("const oldName = 1"),
@@ -129,6 +132,26 @@ describe("EditAstTool", () => {
 			"edit_ast",
 			"src/a.ts",
 		)
+	})
+
+	it("stops before the AST applier when mutation consent is revoked after approval", async () => {
+		const { env } = makeEnv()
+			; (env.sourceAst.planRename as sinon.SinonStub).resolves(renamePlan)
+			; (env.config.callbacks.assertMutationAuthorized as sinon.SinonStub).throws(
+				new Error("Plan Mode revoked mutation"),
+			)
+
+		const result = await tool.processCall(
+			{ operation: "rename", targets: [{ path: "src", symbol: "oldName", replacement: "newName" }] },
+			env,
+		)
+
+		assert.match(result, /Plan Mode revoked mutation/)
+		sinon.assert.calledOnceWithExactly(
+			env.config.callbacks.assertMutationAuthorized as sinon.SinonStub,
+			"edit_ast",
+		)
+		sinon.assert.notCalled(env.editor.applyAndSaveSilently as sinon.SinonStub)
 	})
 
 	it("does not create interactive cards in subagent execution", async () => {

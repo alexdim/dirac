@@ -16,7 +16,7 @@ import type { CheckpointStorageManager } from "./CheckpointStorageManager"
 import type CheckpointTracker from "./CheckpointTracker"
 
 interface CheckpointRestoreConfig {
-	readonly enableCheckpoints: boolean
+	enableCheckpoints: boolean
 	readonly taskId: string
 }
 
@@ -70,6 +70,10 @@ export class CheckpointRestoreHandler {
 		this.callbacks = callbacks
 		this.storage = storage
 		this.conversationHistoryDeletedRange = initialConversationHistoryDeletedRange
+	}
+
+	setEnabled(enabled: boolean): void {
+		this.config.enableCheckpoints = enabled
 	}
 
 	getConversationHistoryDeletedRange(): [number, number] | undefined {

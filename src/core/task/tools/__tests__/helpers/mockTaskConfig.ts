@@ -74,6 +74,11 @@ export function createMockTaskMessenger() {
 
 export function createMockCallbacks(): TaskCallbacks {
 	return {
+		assertMutationAuthorized: sinon.stub(),
+		withMutationAuthorization: async <T>(_toolName: unknown, mutation: () => Promise<T>) => await mutation(),
+		transitionFromMutation: async <T>(transition: () => Promise<T>) => transition(),
+		retainMutationUntil: sinon.stub(),
+		commitEnabledToolToggles: sinon.stub().callsFake(async (_toolIds, finalize) => finalize?.()),
 		saveCheckpoint: sinon.stub().resolves(),
 		commitAttemptCompletion: sinon.stub().resolves(true),
 		executeCommandTool: sinon.stub().resolves([false, "ok"]),
@@ -93,6 +98,14 @@ export function createMockCallbacks(): TaskCallbacks {
 		runUserPromptSubmitHook: sinon.stub().resolves({}),
 		resetTransientState: sinon.stub().resolves(),
 		notifyContextCompacted: sinon.stub(),
+		createUtilityModelRunner: sinon.stub(),
+		createSubagentRuntime: sinon.stub().returns({
+			providerId: "test-provider",
+			model: { id: "test-model", info: {} },
+			supportsNativeWebSearch: false,
+			createMessage: sinon.stub(),
+			abort: sinon.stub(),
+		}),
 	}
 }
 
@@ -122,18 +135,6 @@ export function createMockServices(overrides?: Partial<TaskServices>): TaskServi
 		} as any,
 		commandPermissionController: {} as any,
 		contextManager: {} as any,
-		stateManager: {
-			getGlobalStateKey: () => undefined,
-			getGlobalSettingsKey: (key: string) => {
-				if (key === "mode") return "act"
-				if (key === "hooksEnabled") return false
-				return undefined
-			},
-			getApiConfiguration: () => ({
-				planModeApiProvider: "openai",
-				actModeApiProvider: "openai",
-			}),
-		} as any,
 	}
 
 	return { ...base, ...overrides }
@@ -171,15 +172,25 @@ export function createMockTaskConfig(options: MockTaskConfigOptions = {}) {
 		enableParallelToolCalling: true,
 		isSubagentExecution: true,
 		backgroundEditEnabled: false,
+		providerId: "test-provider",
+		customPrompt: undefined,
+		hooksEnabled: false,
+		subagentsEnabled: false,
+		useAutoCondense: true,
+		utilityModelEnabled: false,
+		utilityModelUseCondense: true,
+		utilityModelUseNewTask: true,
+		utilityModelSelection: undefined,
+		globalSkillsToggles: {},
+		localSkillsToggles: {},
 		taskState,
 		messageState: {
 			getApiConversationHistory: sinon.stub().returns([]),
 			getDiracMessages: sinon.stub().returns([]),
 			addToDiracMessages: sinon.stub().resolves(),
 		},
-		api: {
-			getModel: () => ({ id: "test-model", info: { supportsImages: false } }),
-		},
+		model: { id: "test-model", info: { supportsImages: false } },
+		supportsNativeWebSearch: false,
 		autoApprovalSettings: {
 			enableNotifications: false,
 			actions: { executeCommands: false },

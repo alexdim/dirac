@@ -1,4 +1,4 @@
-import { ApiHandler, ApiProviderInfo, buildApiHandler } from "@core/api"
+import { ApiHandler, ApiProviderInfo, buildApiHandler, validateApiConfiguration } from "@core/api"
 import { ApiStream } from "@core/api/transform/stream"
 import { ContextManager } from "@core/context/context-management/ContextManager"
 import { EnvironmentContextTracker } from "@core/context/context-tracking/EnvironmentContextTracker"
@@ -11,7 +11,6 @@ import { CommandPermissionController } from "@core/permissions"
 import type { SlashCommandDirectAction } from "@core/slash-commands"
 import { createDefaultTextCondensationTemplateRegistry } from "@core/text-condensation/templates"
 import { isUtilityTextCondensationAvailable } from "@core/text-condensation/UtilityTextCondensationAvailability"
-import { isMultiRootEnabled } from "@core/workspace/multi-root-utils"
 import { WorkspaceRootManager } from "@core/workspace/WorkspaceRootManager"
 import { HostProvider } from "@hosts/host-provider"
 import { buildCheckpointManager, shouldUseMultiRoot } from "@integrations/checkpoints/factory"
@@ -30,7 +29,8 @@ import { ITerminalManager } from "@integrations/terminal/types"
 import { BrowserSession } from "@services/browser/BrowserSession"
 import { UrlContentFetcher } from "@services/browser/UrlContentFetcher"
 import { telemetryService } from "@services/telemetry"
-import { ApiConfiguration } from "@shared/api"
+import { type ApiConfiguration } from "@shared/api"
+import type { DiracToolSpec } from "@shared/tools"
 
 import { getExtensionSourceDir } from "@shared/dirac/constants"
 import { TaskStatus } from "@shared/ExtensionMessage"
@@ -49,7 +49,6 @@ import { Logger } from "@shared/services/Logger"
 import { type Mode } from "@shared/storage/types"
 
 import { DiracAskResponse } from "@shared/WebviewMessage"
-import { isParallelToolCallingEnabled } from "@utils/model-utils"
 import Mutex from "p-mutex"
 import { ulid } from "ulid"
 import { getErrorMessage } from "@/shared/errors"
@@ -99,6 +98,17 @@ import {
 import { ToolExecutor } from "./ToolExecutor"
 import { DiracContext } from "./tools/context/DiracContext"
 import type { ToolSnapshotDirtyReason } from "./tools/runtime/ToolSnapshot"
+import {
+	assertTaskMutationAuthorized,
+	createTaskRequestRuntime,
+	TaskMutationGate,
+	type TaskRequestRuntime,
+} from "./runtime/TaskRequestRuntime"
+import {
+	buildTaskWorkingConfigurationUpdate,
+	type TaskWorkingConfiguration,
+	type TaskWorkingConfigurationPatch,
+} from "./runtime/TaskWorkingConfiguration"
 import { extractProviderDomainFromUrl } from "./utils"
 import { submitCardResponse, waitForFollowUp } from "./TaskUserInput"
 
@@ -117,6 +127,7 @@ type TaskParams = {
 	vscodeTerminalExecutionMode: "vscodeTerminal" | "backgroundExec"
 	cwd: string
 	stateManager: StateManager
+	workingConfiguration: TaskWorkingConfiguration
 	workspaceManager?: WorkspaceRootManager
 	task?: string
 	images?: string[]
@@ -141,9 +152,12 @@ export class Task {
 	private taskInitializationStartTime: number
 
 	taskState: TaskState
+	private workingConfiguration: TaskWorkingConfiguration
+	private activeRequestRuntime?: TaskRequestRuntime
 
 	// ONE mutex for ALL state modifications to prevent race conditions
 	private stateMutex = new Mutex()
+	private readonly mutationGate = new TaskMutationGate()
 
 	/**
 	 * Execute function with exclusive lock on all task state
@@ -167,16 +181,16 @@ export class Task {
 		return {
 			taskId: this.taskId,
 			cwd: this.cwd,
-			stateManager: this.stateManager,
+			writePromptMetadataEnabled: this.workingConfiguration.settings.writePromptMetadataEnabled,
+			writePromptMetadataDirectory: this.workingConfiguration.settings.writePromptMetadataDirectory,
 		}
 	}
 
-	private get requestBuilderContext(): TaskRequestBuilderContext {
+	private requestBuilderContext(requestRuntime: TaskRequestRuntime): TaskRequestBuilderContext {
 		return {
 			taskId: this.taskId,
 			cwd: this.cwd,
 			terminalExecutionMode: this.terminalExecutionMode,
-			api: this.api,
 			stateManager: this.stateManager,
 			messageStateHandler: this.messageStateHandler,
 			taskMessenger: this.taskMessenger,
@@ -186,18 +200,25 @@ export class Task {
 			diracIgnoreController: this.diracIgnoreController,
 			workspaceManager: this.workspaceManager,
 			taskState: this.taskState,
-			getCurrentProviderInfo: () => this.getCurrentProviderInfo(),
-			isParallelToolCallingEnabled: () => this.isParallelToolCallingEnabled(),
-			writePromptMetadataArtifacts: (params) => this.writePromptMetadataArtifacts(params),
+			writePromptMetadataArtifacts: (params) =>
+				writePromptMetadataArtifacts(
+					{
+						taskId: this.taskId,
+						cwd: this.cwd,
+						writePromptMetadataEnabled: requestRuntime.workingConfiguration.settings.writePromptMetadataEnabled,
+						writePromptMetadataDirectory: requestRuntime.workingConfiguration.settings.writePromptMetadataDirectory,
+					},
+					params,
+				),
 		}
 	}
 
-	private get requestOutcomeContext(): TaskRequestOutcomeContext {
+	private requestOutcomeContext(requestRuntime: TaskRequestRuntime): TaskRequestOutcomeContext {
 		return {
 			taskState: this.taskState,
 			messageStateHandler: this.messageStateHandler,
 			taskMessenger: this.taskMessenger,
-			api: this.api,
+			api: requestRuntime.api,
 			taskId: this.taskId,
 			checkpointManager: this.checkpointManager,
 			postStateToWebview: () => this.postStateToWebview(),
@@ -212,10 +233,11 @@ export class Task {
 		}
 	}
 
-	private get requestLoopContext(): TaskRequestLoopContext {
+	private requestLoopContext(requestRuntime: TaskRequestRuntime): TaskRequestLoopContext {
 		return {
-			...this.requestBuilderContext,
-			...this.requestOutcomeContext,
+			...this.requestBuilderContext(requestRuntime),
+			...this.requestOutcomeContext(requestRuntime),
+			requestRuntime,
 			steeringContext: this.steeringContext,
 			handleMistakeLimitReached: (userContent) => this.handleMistakeLimitReached(userContent),
 			enqueuePreRequestSteeringMessages: () => this.enqueuePreRequestSteeringMessages(),
@@ -371,6 +393,7 @@ export class Task {
 			vscodeTerminalExecutionMode,
 			cwd,
 			stateManager,
+			workingConfiguration,
 			workspaceManager,
 			task,
 			images,
@@ -391,6 +414,7 @@ export class Task {
 		this.reinitExistingTaskFromId = reinitExistingTaskFromId
 		this.cancelTask = cancelTask
 		this.stateManager = stateManager
+		this.workingConfiguration = workingConfiguration
 		this.workspaceManager = workspaceManager
 		this.cwd = cwd
 		this.taskId = taskId
@@ -399,7 +423,7 @@ export class Task {
 		this.switchToActMode = params.switchToActMode ?? (() => this.controller.toggleActModeForYoloMode())
 		this.enqueuePreRequestSteeringMessages = params.enqueuePreRequestSteeringMessages ?? (async () => undefined)
 
-		if (stateManager.getGlobalSettingsKey("mode") === "act") {
+		if (workingConfiguration.settings.mode === "act") {
 			this.taskState.didSwitchToActMode = true
 		}
 
@@ -430,7 +454,8 @@ export class Task {
 			taskState: this.taskState,
 			messageStateHandler: this.messageStateHandler,
 			postStateToWebview: this.postStateToWebview,
-			stateManager: this.stateManager,
+			getWorkingConfiguration: () => this.activeRequestRuntime?.workingConfiguration ?? this.workingConfiguration,
+			getRequestRuntime: () => this.activeRequestRuntime,
 			taskId: this.taskId,
 			getCurrentProviderInfo: this.getCurrentProviderInfo.bind(this),
 		})
@@ -440,7 +465,8 @@ export class Task {
 		this.hookManager = new HookManager({
 			taskState: this.taskState,
 			messageStateHandler: this.messageStateHandler,
-			stateManager: this.stateManager,
+			getWorkingConfiguration: () => this.activeRequestRuntime?.workingConfiguration ?? this.workingConfiguration,
+			getRequestRuntime: () => this.activeRequestRuntime,
 			taskId: this.taskId,
 			taskMessenger: this.taskMessenger,
 			postStateToWebview: this.postStateToWebview,
@@ -450,7 +476,7 @@ export class Task {
 		})
 
 		this.diracIgnoreController = new DiracIgnoreController(cwd)
-		this.diracIgnoreController.yoloMode = !!stateManager.getGlobalSettingsKey("yoloModeToggled")
+		this.diracIgnoreController.yoloMode = !!workingConfiguration.settings.yoloModeToggled
 
 		this.commandPermissionController = new CommandPermissionController()
 
@@ -471,8 +497,12 @@ export class Task {
 		this.terminalManager.setTerminalOutputLineLimit(terminalOutputLineLimit)
 		this.terminalManager.setDefaultTerminalProfile(defaultTerminalProfile)
 
-		this.urlContentFetcher = new UrlContentFetcher()
-		this.browserSession = new BrowserSession(stateManager)
+		this.urlContentFetcher = new UrlContentFetcher(
+			() => (this.activeRequestRuntime?.workingConfiguration ?? this.workingConfiguration).settings.browserSettings,
+		)
+		this.browserSession = new BrowserSession(
+			() => (this.activeRequestRuntime?.workingConfiguration ?? this.workingConfiguration).settings.browserSettings,
+		)
 		this.contextManager = new ContextManager()
 		this.streamHandler = new StreamResponseHandler()
 
@@ -492,7 +522,7 @@ export class Task {
 
 		// Check for multiroot workspace and warn about checkpoints
 		const isMultiRootWorkspace = this.workspaceManager && this.workspaceManager.getRoots().length > 1
-		const checkpointsEnabled = this.stateManager.getGlobalSettingsKey("enableCheckpointsSetting")
+		const checkpointsEnabled = workingConfiguration.settings.enableCheckpointsSetting
 
 		if (isMultiRootWorkspace && checkpointsEnabled) {
 			// Set checkpoint manager error message to display warning in TaskHeader
@@ -515,7 +545,8 @@ export class Task {
 					postStateToWebview: this.postStateToWebview,
 					initialConversationHistoryDeletedRange: this.taskState.conversationHistoryDeletedRange,
 					initialCheckpointManagerErrorMessage: this.taskState.checkpointManagerErrorMessage,
-					stateManager: this.stateManager,
+					enableCheckpoints: workingConfiguration.settings.enableCheckpointsSetting,
+					multiRootEnabled: workingConfiguration.executionOptions.multiRootEnabled,
 					resetTransientState: this.resetTransientState.bind(this),
 				})
 
@@ -524,8 +555,8 @@ export class Task {
 				if (
 					shouldUseMultiRoot({
 						workspaceManager: this.workspaceManager,
-						enableCheckpoints: this.stateManager.getGlobalSettingsKey("enableCheckpointsSetting"),
-						stateManager: this.stateManager,
+						enableCheckpoints: workingConfiguration.settings.enableCheckpointsSetting,
+						multiRootEnabled: workingConfiguration.executionOptions.multiRootEnabled,
 					})
 				) {
 					this.checkpointManager.initialize?.().catch((error: Error) => {
@@ -535,7 +566,7 @@ export class Task {
 				}
 			} catch (error) {
 				Logger.error("Failed to initialize checkpoint manager:", error)
-				if (this.stateManager.getGlobalSettingsKey("enableCheckpointsSetting")) {
+				if (workingConfiguration.settings.enableCheckpointsSetting) {
 					const errorMessage = getErrorMessage(error, "Unknown error")
 					HostProvider.window.showMessage({
 						type: ShowMessageType.ERROR,
@@ -546,7 +577,7 @@ export class Task {
 		}
 
 		// Prepare effective API configuration
-		const apiConfiguration = this.stateManager.getApiConfiguration()
+		const apiConfiguration = workingConfiguration.apiConfiguration as ApiConfiguration
 		const effectiveApiConfiguration: ApiConfiguration = {
 			...apiConfiguration,
 			ulid: this.ulid,
@@ -561,7 +592,7 @@ export class Task {
 				})
 			},
 		}
-		const mode = this.stateManager.getGlobalSettingsKey("mode")
+		const mode = workingConfiguration.settings.mode
 		const currentProvider = mode === "plan" ? apiConfiguration.planModeApiProvider : apiConfiguration.actModeApiProvider
 
 		// Now that ulid is initialized, we can build the API handler
@@ -623,6 +654,10 @@ export class Task {
 			this.api,
 			this.urlContentFetcher,
 			this.browserSession,
+			(browserSession) => {
+				this.browserSession = browserSession
+				this.lifecycleManager.setBrowserSession(browserSession)
+			},
 			this.diffViewProvider,
 			this.fileContextTracker,
 			this.diracIgnoreController,
@@ -635,7 +670,13 @@ export class Task {
 			this.ulid,
 			this.terminalExecutionMode,
 			this.workspaceManager,
-			isMultiRootEnabled(this.stateManager),
+			workingConfiguration.executionOptions.multiRootEnabled,
+			() => this.workingConfiguration,
+			(requestConfiguration, toolName, mutation) =>
+				this.withMutationAuthorization(requestConfiguration, toolName, mutation),
+			(transition) => this.mutationGate.transitionFromMutation(transition),
+			(completion) => this.mutationGate.retainMutationUntil(completion),
+			this.commitEnabledToolToggles.bind(this),
 			this.saveCheckpointCallback.bind(this),
 			this.commitAttemptCompletion.bind(this),
 			this.executeCommandTool.bind(this),
@@ -659,13 +700,18 @@ export class Task {
 			fileContextTracker: this.fileContextTracker,
 			api: this.api,
 			messageStateHandler: this.messageStateHandler,
-			stateManager: this.stateManager,
+			getWorkingConfiguration: () => this.workingConfiguration,
 			workspaceManager: this.workspaceManager,
+			getRequestRuntime: () => this.activeRequestRuntime,
 		})
 
 		this.contextLoader = new ContextLoader({
 			ulid: this.ulid,
 			stateManager: this.stateManager,
+			getRequestRuntime: () => {
+				if (!this.activeRequestRuntime) throw new Error("Context loading requires an active request runtime")
+				return this.activeRequestRuntime
+			},
 			cwd: this.cwd,
 			urlContentFetcher: this.urlContentFetcher,
 			fileContextTracker: this.fileContextTracker,
@@ -679,23 +725,23 @@ export class Task {
 			isTextCondensationAvailable: (template) =>
 				isUtilityTextCondensationAvailable(
 					{
-						utilityModelEnabled: this.stateManager.getGlobalSettingsKey("utilityModelEnabled"),
-						utilityModelUseCondense: this.stateManager.getGlobalSettingsKey("utilityModelUseCondense"),
-						utilityModelUseNewTask: this.stateManager.getGlobalSettingsKey("utilityModelUseNewTask"),
-						utilityModelSelection: this.stateManager.getGlobalSettingsKey("utilityModelSelection"),
+						utilityModelEnabled: this.workingConfiguration.settings.utilityModelEnabled,
+						utilityModelUseCondense: this.workingConfiguration.settings.utilityModelUseCondense,
+						utilityModelUseNewTask: this.workingConfiguration.settings.utilityModelUseNewTask,
+						utilityModelSelection: this.workingConfiguration.settings.utilityModelSelection,
 					},
 					template,
 					createDefaultTextCondensationTemplateRegistry(),
 				),
 			commandPermissionController: this.commandPermissionController,
-			yoloModeToggled: !!this.stateManager.getGlobalSettingsKey("yoloModeToggled"),
 			postStateToWebview: () => this.postStateToWebview(),
 		})
 
 		this.lifecycleManager = new LifecycleManager({
 			taskState: this.taskState,
 			messageStateHandler: this.messageStateHandler,
-			stateManager: this.stateManager,
+			getWorkingConfiguration: () => this.activeRequestRuntime?.workingConfiguration ?? this.workingConfiguration,
+			getRequestRuntime: () => this.activeRequestRuntime,
 			api: this.api,
 			taskId: this.taskId,
 			ulid: this.ulid,
@@ -726,9 +772,9 @@ export class Task {
 			taskState: this.taskState,
 			messageStateHandler: this.messageStateHandler,
 			contextManager: this.contextManager,
-			stateManager: this.stateManager,
+			getWorkingConfiguration: () => this.activeRequestRuntime?.workingConfiguration ?? this.workingConfiguration,
 			taskMessenger: this.taskMessenger,
-			getApi: () => this.api,
+			getApi: () => this.activeRequestRuntime?.api ?? this.api,
 			postStateToWebview: this.postStateToWebview,
 			cancelTask: this.cancelTask,
 			setActiveHookExecution: this.hookManager.setActiveHookExecution.bind(this.hookManager),
@@ -741,7 +787,8 @@ export class Task {
 			messageStateHandler: this.messageStateHandler,
 			api: this.api,
 			contextManager: this.contextManager,
-			stateManager: this.stateManager,
+			getWorkingConfiguration: () => this.workingConfiguration,
+			getRequestRuntime: () => this.activeRequestRuntime,
 			taskId: this.taskId,
 			ulid: this.ulid,
 			cwd: this.cwd,
@@ -771,7 +818,6 @@ export class Task {
 			taskState: this.taskState,
 			messageStateHandler: this.messageStateHandler,
 			api: this.api,
-			stateManager: this.stateManager,
 			taskId: this.taskId,
 			ulid: this.ulid,
 			taskMessenger: this.taskMessenger,
@@ -786,9 +832,80 @@ export class Task {
 		})
 	}
 
-	/** Rebuild the model runtime used by this existing task between API turns. */
-	public rebuildApiHandler(configuration: ApiConfiguration, mode: Mode): void {
-		this.setApiHandler(this.createApiHandlerForRuntime(configuration, mode))
+	/** Read-only task-owned configuration. The value is detached and deeply frozen. */
+	public getWorkingConfiguration(): TaskWorkingConfiguration {
+		return this.workingConfiguration
+	}
+
+	/**
+ * Atomically validate and install one explicit update derived from the current
+ * task configuration. No StateManager defaults are recaptured. When supplied,
+ * `beforeCommit` runs only after the candidate configuration and API handler
+ * have been built successfully, while the task-local transition lock is held.
+ */
+	public async applyWorkingConfigurationUpdate(
+		patch:
+			| TaskWorkingConfigurationPatch
+			| ((current: TaskWorkingConfiguration) => TaskWorkingConfigurationPatch),
+		beforeCommit?: (candidate: TaskWorkingConfiguration) => void | Promise<void>,
+	): Promise<TaskWorkingConfiguration> {
+		return this.mutationGate.withTransition(() =>
+			this.withStateLock(async () => {
+				const previous = this.workingConfiguration
+				const resolvedPatch = typeof patch === "function" ? patch(previous) : patch
+				const candidate = buildTaskWorkingConfigurationUpdate(previous, resolvedPatch)
+				validateApiConfiguration(candidate.apiConfiguration as ApiConfiguration, candidate.settings.mode)
+				const candidateApi = this.createApiHandlerForRuntime(
+					candidate.apiConfiguration as ApiConfiguration,
+					candidate.settings.mode,
+				)
+
+				await beforeCommit?.(candidate)
+
+				if (previous.settings.enableCheckpointsSetting !== candidate.settings.enableCheckpointsSetting) {
+					this.checkpointManager?.setEnabled(candidate.settings.enableCheckpointsSetting)
+				}
+
+				this.workingConfiguration = candidate
+				this.installApiHandler(candidateApi)
+				this.applyCommittedModeEffects(previous.settings.mode, candidate.settings.mode)
+				this.diracIgnoreController.yoloMode = !!candidate.settings.yoloModeToggled
+				if (resolvedPatch.settings && Object.hasOwn(resolvedPatch.settings, "toolToggles")) {
+					this.toolExecutor.markToolsDirty("tool_toggles_changed")
+				}
+				return candidate
+			}),
+		)
+	}
+
+	private async commitEnabledToolToggles(toolIds: readonly string[], finalize?: () => Promise<void>): Promise<void> {
+		const enabledToolIds = [...new Set(toolIds)]
+		if (enabledToolIds.length === 0) {
+			await finalize?.()
+			return
+		}
+		await this.applyWorkingConfigurationUpdate(
+			(current) => {
+				const toolToggles = { ...current.settings.toolToggles }
+				for (const toolId of enabledToolIds) toolToggles[toolId] = true
+				return { settings: { toolToggles } }
+			},
+			async (candidate) => {
+				this.stateManager.setGlobalState("toolToggles", structuredClone(candidate.settings.toolToggles))
+				await finalize?.()
+			},
+		)
+	}
+
+	private withMutationAuthorization<T>(
+		requestConfiguration: TaskWorkingConfiguration,
+		toolName: DiracToolSpec["id"] | undefined,
+		mutation: () => Promise<T>,
+	): Promise<T> {
+		return this.mutationGate.withMutation(
+			() => assertTaskMutationAuthorized(requestConfiguration, this.workingConfiguration, toolName),
+			mutation,
+		)
 	}
 
 	/** Construct a model runtime without installing it on the task. */
@@ -812,8 +929,8 @@ export class Task {
 		)
 	}
 
-	/** Replace the model runtime used by this existing task between API turns. */
-	public setApiHandler(api: ApiHandler): void {
+	/** Internal propagation of a handler that already matches the committed snapshot. */
+	private installApiHandler(api: ApiHandler): void {
 		this.api = api
 		this.taskMessenger.setApi(api)
 		this.hookManager.setApi(api)
@@ -824,8 +941,7 @@ export class Task {
 		this.responseProcessor.setApi(api)
 	}
 
-	/** Apply task-state effects required when its owning runtime changes mode. */
-	public applyRuntimeModeChange(previousMode: Mode, nextMode: Mode): void {
+	private applyCommittedModeEffects(previousMode: Mode, nextMode: Mode): void {
 		if (previousMode !== "plan" || nextMode !== "act") return
 		this.taskState.didSwitchToActMode = true
 		if (this.taskState.isAwaitingPlanResponse) {
@@ -833,19 +949,23 @@ export class Task {
 		}
 	}
 
+
+
+
 	async getEnvironmentDetails(includeFileDetails = false): Promise<string> {
 		return this.environmentManager.getEnvironmentDetails(includeFileDetails)
 	}
 
 	private async persistApiStopReason(stopReason?: string): Promise<void> {
-		return persistApiStopReason(this.requestOutcomeContext, stopReason)
+		const runtime = this.activeRequestRuntime ?? createTaskRequestRuntime(this.workingConfiguration, this.api)
+		return persistApiStopReason(this.requestOutcomeContext(runtime), stopReason)
 	}
 
 	private async handleMistakeLimitReached(
 		userContent: DiracContent[],
 	): Promise<{ didEndLoop: boolean; userContent: DiracContent[] }> {
 		return handleMistakeLimitReached(
-			{ taskState: this.taskState, stateManager: this.stateManager, taskMessenger: this.taskMessenger },
+			{ taskState: this.taskState, settings: this.workingConfiguration.settings, taskMessenger: this.taskMessenger },
 			userContent,
 		)
 	}
@@ -909,17 +1029,6 @@ export class Task {
 		return this.checkpointManager?.saveCheckpoint(isAttemptCompletionMessage, completionMessageId) ?? Promise.resolve()
 	}
 
-	/**
-	 * Check if parallel tool calling is enabled.
-	 * Parallel tool calling is enabled if:
-	 * 1. User has enabled it in settings, OR
-	 * 2. The current model/provider supports native tool calling and handles parallel tools well
-	 */
-	private isParallelToolCallingEnabled(): boolean {
-		const enableParallelSetting = this.stateManager.getGlobalSettingsKey("enableParallelToolCalling")
-		const providerInfo = this.getCurrentProviderInfo()
-		return isParallelToolCallingEnabled(enableParallelSetting, providerInfo)
-	}
 
 	private async switchToActModeCallback(): Promise<boolean> {
 		return await this.switchToActMode()
@@ -1015,18 +1124,19 @@ export class Task {
 		return this.hookManager.cancelHookExecution()
 	}
 
-	private getCurrentProviderInfo(): ApiProviderInfo {
-		const model = this.api.getModel()
-		const apiConfig = this.stateManager.getApiConfiguration()
-		const mode = this.stateManager.getGlobalSettingsKey("mode")
+	private getCurrentProviderInfo(requestRuntime = this.activeRequestRuntime): ApiProviderInfo {
+		const configuration = requestRuntime?.workingConfiguration ?? this.workingConfiguration
+		const api = requestRuntime?.api ?? this.api
+		const model = api.getModel()
+		const mode = configuration.settings.mode
+		const apiConfig = configuration.apiConfiguration
 		const providerId = (mode === "plan" ? apiConfig.planModeApiProvider : apiConfig.actModeApiProvider) as string
-		const customPrompt = this.stateManager.getGlobalSettingsKey("customPrompt")
 		return {
 			model,
 			providerId,
-			customPrompt,
+			customPrompt: configuration.settings.customPrompt,
 			mode,
-			supportsNativeWebSearch: this.api.supportsNativeWebSearch?.() === true,
+			supportsNativeWebSearch: api.supportsNativeWebSearch?.() === true,
 		}
 	}
 
@@ -1061,7 +1171,8 @@ export class Task {
 		providerId: string
 		metricsManager: StreamingMetricsManager
 	}): Promise<boolean> {
-		return handleApiRequestError(this.requestOutcomeContext, params)
+		const runtime = this.activeRequestRuntime ?? createTaskRequestRuntime(this.workingConfiguration, this.api)
+		return handleApiRequestError(this.requestOutcomeContext(runtime), params)
 	}
 
 	private async resetStreamingState(): Promise<void> {
@@ -1079,7 +1190,8 @@ export class Task {
 	}
 
 	async *attemptApiRequest(previousApiReqIndex: number, lastApiReqIndex: number, shouldCompact?: boolean): ApiStream {
-		yield* attemptApiRequest(this.requestLoopContext, previousApiReqIndex, lastApiReqIndex, shouldCompact)
+		const runtime = this.activeRequestRuntime ?? createTaskRequestRuntime(this.workingConfiguration, this.api)
+		yield* attemptApiRequest(this.requestLoopContext(runtime), previousApiReqIndex, lastApiReqIndex, shouldCompact)
 	}
 
 	async presentAssistantMessage() {
@@ -1087,7 +1199,13 @@ export class Task {
 	}
 
 	async recursivelyMakeDiracRequests(userContent: DiracContent[], includeFileDetails = false): Promise<boolean> {
-		return recursivelyMakeDiracRequests(this.requestLoopContext, userContent, includeFileDetails)
+		const runtime = createTaskRequestRuntime(this.workingConfiguration, this.api)
+		this.activeRequestRuntime = runtime
+		try {
+			return await recursivelyMakeDiracRequests(this.requestLoopContext(runtime), userContent, includeFileDetails)
+		} finally {
+			if (this.activeRequestRuntime === runtime) this.activeRequestRuntime = undefined
+		}
 	}
 
 	private async initializeCheckpoints(isFirstRequest: boolean): Promise<void> {

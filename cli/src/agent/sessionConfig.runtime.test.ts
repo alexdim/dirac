@@ -1,17 +1,14 @@
-import { beforeEach, describe, expect, it, vi } from "vitest"
-import { openAiModelInfoSaneDefaults, type ModelInfo } from "@shared/api"
+import { type ModelInfo, openAiModelInfoSaneDefaults } from "@shared/api"
 import type { Settings } from "@shared/storage/state-keys"
+import { beforeEach, describe, expect, it, vi } from "vitest"
 import type { DiracAcpSession } from "./public-types.js"
 import { SessionConfigManager } from "./sessionConfig.js"
 
 const stateManagerMock = vi.hoisted(() => {
-	let overrides: Partial<Settings> = {}
 	return {
-		getSessionOverrideCache: vi.fn(() => overrides),
-		setSessionOverrideCache: vi.fn((next: Partial<Settings>) => {
-			overrides = next
-		}),
-		getApiConfiguration: vi.fn(() => ({ ...overrides })),
+		captureEffectiveTaskConfiguration: vi.fn((explicitOverrides: Partial<Settings>) => ({
+			apiConfiguration: structuredClone(explicitOverrides),
+		})),
 		getModelInfo: vi.fn(() => undefined),
 	}
 })
@@ -19,7 +16,6 @@ const stateManagerMock = vi.hoisted(() => {
 vi.mock("@/core/storage/StateManager", () => ({
 	StateManager: { get: () => stateManagerMock },
 }))
-
 
 const refreshGithubCopilotModelsMock = vi.hoisted(() => vi.fn(async () => ({})))
 

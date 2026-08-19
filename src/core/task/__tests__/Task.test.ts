@@ -67,6 +67,13 @@ describe("Task (original)", () => {
 				planModeApiModelId: "claude-sonnet-4-20250514",
 				actModeApiModelId: "claude-sonnet-4-20250514",
 			}),
+			captureEffectiveTaskConfiguration: sandbox.stub().callsFake(() => ({
+				revision: 1,
+				settings: new Proxy({}, { get: (_target, key) => ({ mode: "act", enableCheckpointsSetting: true, shellIntegrationTimeout: 5000, terminalOutputLineLimit: 500, defaultTerminalProfile: "default", autoApprovalSettings: { actions: {} }, browserSettings: {}, toolToggles: {} } as any)[key as any] }),
+				apiConfiguration: { planModeApiProvider: "anthropic", actModeApiProvider: "anthropic", planModeApiModelId: "claude-sonnet-4-20250514", actModeApiModelId: "claude-sonnet-4-20250514" },
+				workspaceConfiguration: {},
+				executionOptions: { terminalReuseEnabled: true, vscodeTerminalExecutionMode: "vscodeTerminal", multiRootEnabled: false },
+			})),
 			registerCallbacks: sandbox.stub(),
 			getSecretKey: sandbox.stub().returns(undefined),
 		}
@@ -114,6 +121,7 @@ describe("Task (original)", () => {
 			task: "test task",
 			taskId: "test-123",
 			taskLockAcquired: false,
+			workingConfiguration: StateManager.get().captureEffectiveTaskConfiguration(),
 		})
 		t.should.not.be.undefined()
 		t.taskId.should.equal("test-123")
@@ -136,6 +144,7 @@ describe("Task (original)", () => {
 			task: "test task",
 			taskId: "test-active-model-compaction-fallback",
 			taskLockAcquired: false,
+			workingConfiguration: StateManager.get().captureEffectiveTaskConfiguration(),
 		}) as any
 		const userContent = [{ type: "text", text: "continue" }]
 		sandbox.stub(task, "getCurrentProviderInfo").returns({
@@ -182,6 +191,7 @@ describe("Task (original)", () => {
 			task: "test task",
 			taskId: "test-automatic-condense-source-cleanup",
 			taskLockAcquired: false,
+			workingConfiguration: StateManager.get().captureEffectiveTaskConfiguration(),
 		}) as any
 		task.taskState.pendingCondenseSource = "automatic"
 		task.taskState.didAttemptCompletion = true
@@ -202,7 +212,7 @@ describe("Task (original)", () => {
 		assert.equal(task.taskState.pendingCondenseSource, undefined)
 	})
 
-	it("propagates a replacement API handler to every task-owned manager", () => {
+	it("propagates the transaction-built API handler to every task-owned manager", async () => {
 		const t = new Task({
 			controller: createMockController(),
 			updateTaskHistory: sandbox.stub().resolves([]),
@@ -219,8 +229,8 @@ describe("Task (original)", () => {
 			task: "test task",
 			taskId: "test-api-propagation",
 			taskLockAcquired: false,
+			workingConfiguration: StateManager.get().captureEffectiveTaskConfiguration(),
 		}) as any
-		const replacement = { getModel: () => ({ id: "replacement", info: {} }) }
 		const managers = [
 			t.taskMessenger,
 			t.hookManager,
@@ -232,10 +242,79 @@ describe("Task (original)", () => {
 		]
 		const setters = managers.map((manager) => sandbox.stub(manager, "setApi"))
 
-		t.setApiHandler(replacement)
+		const updated = await t.applyWorkingConfigurationUpdate({ settings: { mode: "plan" } })
+		const installed = t.api
 
-		t.api.should.equal(replacement)
-		setters.forEach((setter) => sinon.assert.calledOnceWithExactly(setter, replacement))
+		updated.revision.should.equal(2)
+		updated.settings.mode.should.equal("plan")
+		setters.forEach((setter) => sinon.assert.calledOnceWithExactly(setter, installed))
+	})
+
+	it("commits mode, YOLO state, API propagation, and tool inventory only after beforeCommit succeeds", async () => {
+		const t = new Task({
+			controller: createMockController(),
+			updateTaskHistory: sandbox.stub().resolves([]),
+			postStateToWebview: sandbox.stub().resolves(),
+			reinitExistingTaskFromId: sandbox.stub().resolves(),
+			cancelTask: sandbox.stub().resolves(),
+			shellIntegrationTimeout: 5000,
+			terminalReuseEnabled: true,
+			terminalOutputLineLimit: 500,
+			defaultTerminalProfile: "default",
+			vscodeTerminalExecutionMode: "vscodeTerminal",
+			cwd: tempDir,
+			stateManager: StateManager.get(),
+			task: "test task",
+			taskId: "test-atomic-config-commit",
+			taskLockAcquired: false,
+			workingConfiguration: StateManager.get().captureEffectiveTaskConfiguration(),
+		}) as any
+		const previous = t.getWorkingConfiguration()
+		const previousApi = t.api
+		const markDirty = sandbox.stub(t.toolExecutor, "markToolsDirty")
+		const setters = [
+			t.taskMessenger,
+			t.hookManager,
+			t.toolExecutor,
+			t.environmentManager,
+			t.lifecycleManager,
+			t.apiConversationManager,
+			t.responseProcessor,
+		].map((manager) => sandbox.stub(manager, "setApi"))
+
+		await assert.rejects(
+			() =>
+				t.applyWorkingConfigurationUpdate(
+					{ settings: { mode: "plan", yoloModeToggled: true, toolToggles: { edit_file: false } } },
+					async () => {
+						throw new Error("persistence failed")
+					},
+				),
+			/persistence failed/,
+		)
+		assert.strictEqual(t.getWorkingConfiguration(), previous)
+		assert.strictEqual(t.api, previousApi)
+		assert.equal(t.diracIgnoreController.yoloMode, false)
+		assert.equal(markDirty.callCount, 0)
+		setters.forEach((setter) => assert.equal(setter.callCount, 0))
+
+		let observedBeforeCommit = false
+		const updated = await t.applyWorkingConfigurationUpdate(
+			{ settings: { mode: "plan", yoloModeToggled: true, toolToggles: { edit_file: false } } },
+			() => {
+				observedBeforeCommit = true
+				assert.strictEqual(t.getWorkingConfiguration(), previous)
+				assert.strictEqual(t.api, previousApi)
+				assert.equal(markDirty.callCount, 0)
+			},
+		)
+		assert.equal(observedBeforeCommit, true)
+		assert.strictEqual(t.getWorkingConfiguration(), updated)
+		assert.equal(updated.revision, previous.revision + 1)
+		assert.equal(updated.settings.mode, "plan")
+		assert.equal(t.diracIgnoreController.yoloMode, true)
+		sinon.assert.calledOnceWithExactly(markDirty, "tool_toggles_changed")
+		setters.forEach((setter) => sinon.assert.calledOnceWithExactly(setter, t.api))
 	})
 
 	it("has cwd set from params", () => {
@@ -256,6 +335,7 @@ describe("Task (original)", () => {
 			task: "test",
 			taskId: "test-456",
 			taskLockAcquired: false,
+			workingConfiguration: StateManager.get().captureEffectiveTaskConfiguration(),
 		})
 		t.cwd.should.equal(tempDir)
 	})
@@ -278,6 +358,7 @@ describe("Task (original)", () => {
 			task: "test",
 			taskId: "test-789",
 			taskLockAcquired: false,
+			workingConfiguration: StateManager.get().captureEffectiveTaskConfiguration(),
 		})
 		t.taskState.should.not.be.undefined()
 	})
@@ -300,6 +381,7 @@ describe("Task (original)", () => {
 			task: "test",
 			taskId: "test-abort",
 			taskLockAcquired: false,
+			workingConfiguration: StateManager.get().captureEffectiveTaskConfiguration(),
 		})
 		await t.abortTask()
 		// Status should be CANCELLING or IDLE after abort
@@ -324,6 +406,7 @@ describe("Task (original)", () => {
 			task: "test",
 			taskId: "test-cancelbg",
 			taskLockAcquired: false,
+			workingConfiguration: StateManager.get().captureEffectiveTaskConfiguration(),
 		})
 		const r = await t.cancelBackgroundCommand()
 		r.should.be.a.Boolean()
@@ -360,6 +443,7 @@ describe("Task (original)", () => {
 			task: "test",
 			taskId: "test-dirty",
 			taskLockAcquired: false,
+			workingConfiguration: StateManager.get().captureEffectiveTaskConfiguration(),
 		})
 			; (() => t.markToolsDirty("settings_refresh_detected_change" as any)).should.not.throw()
 	})
@@ -382,6 +466,7 @@ describe("Task (original)", () => {
 			task: "test",
 			taskId: "test-reset",
 			taskLockAcquired: false,
+			workingConfiguration: StateManager.get().captureEffectiveTaskConfiguration(),
 		})
 		await t.resetTransientState().should.not.be.rejected()
 	})
@@ -404,6 +489,7 @@ describe("Task (original)", () => {
 			task: "test",
 			taskId: "test-exec",
 			taskLockAcquired: false,
+			workingConfiguration: StateManager.get().captureEffectiveTaskConfiguration(),
 		})
 			// Test that the method exists and can be called
 			; (() => t.executeCommandTool("echo test", undefined)).should.not.throw()
@@ -427,6 +513,7 @@ describe("Task (original)", () => {
 			task: "test",
 			taskId: "test-hook",
 			taskLockAcquired: false,
+			workingConfiguration: StateManager.get().captureEffectiveTaskConfiguration(),
 		})
 			; (() => t.cancelHookExecution()).should.not.throw()
 	})
@@ -449,6 +536,7 @@ describe("Task (original)", () => {
 			task: "test",
 			taskId: "test-ulid",
 			taskLockAcquired: false,
+			workingConfiguration: StateManager.get().captureEffectiveTaskConfiguration(),
 		})
 		t.ulid.should.be.a.String()
 		t.ulid.length.should.be.greaterThan(0)
@@ -472,6 +560,7 @@ describe("Task (original)", () => {
 			task: "test",
 			taskId: "test-api-cancel",
 			taskLockAcquired: false,
+			workingConfiguration: StateManager.get().captureEffectiveTaskConfiguration(),
 		}) as any
 		const abortTask = sandbox.stub(task, "abortTask").resolves()
 

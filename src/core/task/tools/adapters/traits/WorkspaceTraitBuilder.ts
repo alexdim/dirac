@@ -16,7 +16,7 @@ export function buildWorkspaceTrait(config: TaskConfig): IWorkspaceTrait {
 		},
 		readFile: async (path) => await fs.readFile(path, "utf8"),
 		readRichFile: async (path) => {
-			const supportsImages = config.api.getModel().info.supportsImages ?? false
+			const supportsImages = config.model.info.supportsImages ?? false
 			return await extractFileContent(path, supportsImages)
 		},
 		formatAttachedFiles: processFilesIntoText,
@@ -29,9 +29,12 @@ export function buildWorkspaceTrait(config: TaskConfig): IWorkspaceTrait {
 			}
 		},
 		listFiles: async (path, recursive, limit) => await listFiles(path, recursive, limit),
-		writeFile: async (path, content) => await fs.writeFile(path, content, "utf8"),
+		writeFile: async (path, content) =>
+			await config.callbacks.withMutationAuthorization(config.toolUse?.name, () => fs.writeFile(path, content, "utf8")),
 		saveOpenDocumentIfDirty: async (options) => {
-			await HostProvider.workspace.saveOpenDocumentIfDirty(options)
+			await config.callbacks.withMutationAuthorization(config.toolUse?.name, async () => {
+				await HostProvider.workspace.saveOpenDocumentIfDirty(options)
+			})
 		},
 	}
 }

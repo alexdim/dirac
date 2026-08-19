@@ -22,7 +22,7 @@ interface PartialToolUseHandler extends IDiracTool {
  * Throws an error for unregistered tools.
  */
 export class ToolExecutorCoordinator {
-	constructor() {}
+	constructor() { }
 
 	private modularTools = new Map<string, IDiracTool>()
 
@@ -163,10 +163,9 @@ export class ToolExecutorCoordinator {
 			const customMetadata = env.getCustomMetadata()
 
 			const { telemetryService } = await import("@/services/telemetry")
-			const { getProviderForModel } = await import("@shared/api")
 
-			const modelId = config.api.getModel().id
-			const providerId = getProviderForModel(modelId) || "unknown"
+			const modelId = config.model.id
+			const providerId = config.providerId
 
 			telemetryService.captureToolUsage(
 				config.ulid,

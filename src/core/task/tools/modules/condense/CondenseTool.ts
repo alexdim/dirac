@@ -281,11 +281,10 @@ export class CondenseTool implements IDiracTool {
 	private captureSuccessfulCondense(source: CondenseSource, env: IToolEnvironment): void {
 		const telemetryData = this.getContextTelemetry(env)
 		if (telemetryData) {
-			const apiConfig = env.config.services.stateManager.getApiConfiguration()
-			const provider = (env.config.mode === "plan" ? apiConfig.planModeApiProvider : apiConfig.actModeApiProvider) as string
+			const provider = env.config.providerId
 			telemetryService.captureCondense(
 				env.config.ulid,
-				env.config.api.getModel().id,
+				env.config.model.id,
 				provider,
 				source,
 				telemetryData.tokensUsed,
@@ -296,12 +295,11 @@ export class CondenseTool implements IDiracTool {
 	}
 
 	private captureToolUsage(success: boolean, env: IToolEnvironment): void {
-		const apiConfig = env.config.services.stateManager.getApiConfiguration()
-		const provider = (env.config.mode === "plan" ? apiConfig.planModeApiProvider : apiConfig.actModeApiProvider) as string
+		const provider = env.config.providerId
 		telemetryService.captureToolUsage(
 			env.config.ulid,
 			this.spec().id,
-			env.config.api.getModel().id,
+			env.config.model.id,
 			provider,
 			false,
 			success,
@@ -313,7 +311,7 @@ export class CondenseTool implements IDiracTool {
 	private getContextTelemetry(env: IToolEnvironment) {
 		return env.config.services.contextManager.getContextTelemetryData(
 			env.config.messageState.getDiracMessages(),
-			env.config.api,
+			env.config.model.info.contextWindow || 256_000,
 			env.config.taskState.lastAutoCondenseTriggerIndex,
 		)
 	}

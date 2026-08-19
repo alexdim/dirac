@@ -1,24 +1,29 @@
-import { ApiHandler } from "@core/api"
+import { ApiHandler, buildApiHandler, buildApiHandlerForSelection } from "@core/api"
 import { FileContextTracker } from "@core/context/context-tracking/FileContextTracker"
 import { formatResponse } from "@core/formatResponse"
 import { getHooksEnabledSafe } from "@core/hooks/hooks-utils"
 import { DiracIgnoreController } from "@core/ignore/DiracIgnoreController"
 import { CommandPermissionController } from "@core/permissions"
 import type { SystemPromptContext } from "@core/prompts/system-prompt/types"
+import { createUtilityModelRunner } from "@core/utility-model/UtilityModelRunner"
 import { DiffViewProvider } from "@integrations/editor/DiffViewProvider"
 import type { CommandExecutionOptions } from "@integrations/terminal"
 import { BrowserSession } from "@services/browser/BrowserSession"
 import { UrlContentFetcher } from "@services/browser/UrlContentFetcher"
+import type { ApiConfiguration, ApiProvider, ModelProviderSelection } from "@shared/api"
 import { CardStatus, DiracMessage } from "@shared/ExtensionMessage"
 import { DiracContent } from "@shared/messages/content"
-import { DiracDefaultTool, type DiracToolSpec } from "@shared/tools"
 import { canonicalizeResponseToolCall, isCompletionResponseCall } from "@shared/responseTool"
-import { isParallelToolCallingEnabled, modelDoesntSupportWebp } from "@/utils/model-utils"
+import { getProviderModelIdKey } from "@shared/storage/provider-keys"
+import { DiracDefaultTool, type DiracToolSpec } from "@shared/tools"
+import { modelDoesntSupportWebp } from "@/utils/model-utils"
 import { ToolUse } from "../assistant-message"
 import { ContextManager } from "../context/context-management/ContextManager"
 import { StateManager } from "../storage/StateManager"
 import { WorkspaceRootManager } from "../workspace"
 import { MessageStateHandler } from "./message-state"
+import { assertTaskMutationAuthorized, type TaskRequestRuntime } from "./runtime/TaskRequestRuntime"
+import { deepFreezeConfiguration, type TaskWorkingConfiguration } from "./runtime/TaskWorkingConfiguration"
 import { TaskState } from "./TaskState"
 import { AutoApprove } from "./tools/autoApprove"
 import { IDiracContext } from "./tools/interfaces/IDiracContext"
@@ -27,19 +32,20 @@ import { ToolResultPusher } from "./tools/runtime/ToolResultPusher"
 import type { ToolRequestSnapshot, ToolSnapshotDirtyReason } from "./tools/runtime/ToolSnapshot"
 import { ToolSnapshotManager } from "./tools/runtime/ToolSnapshotManager"
 import { ToolExecutorCoordinator } from "./tools/ToolExecutorCoordinator"
-import { TaskConfig, validateTaskConfig } from "./tools/types/TaskConfig"
+import { type SubagentRuntime, TaskConfig, validateTaskConfig } from "./tools/types/TaskConfig"
 import { ToolDisplayUtils } from "./tools/utils/ToolDisplayUtils"
 
 export { canonicalizeResponseToolCall }
 
 // Main tool execution entry point — dispatches tool calls, manages hooks, errors, and results.
 export class ToolExecutor {
-	private autoApprover: AutoApprove
 	private coordinator: ToolExecutorCoordinator
 	private snapshotManager: ToolSnapshotManager
 	private hookRunner: ToolHookRunner
 	private resultPusher: ToolResultPusher
 	private errorHandler: ToolErrorHandler
+	private activeRequestRuntime?: TaskRequestRuntime
+	private buildingRequestRuntime?: TaskRequestRuntime
 
 	private static readonly PLAN_MODE_RESTRICTED_TOOLS: DiracDefaultTool[] = [
 		DiracDefaultTool.FILE_NEW,
@@ -53,6 +59,7 @@ export class ToolExecutor {
 		private api: ApiHandler,
 		private urlContentFetcher: UrlContentFetcher,
 		private browserSession: BrowserSession,
+		private installBrowserSession: (browserSession: BrowserSession) => void,
 		private diffViewProvider: DiffViewProvider,
 		private fileContextTracker: FileContextTracker,
 		private diracIgnoreController: DiracIgnoreController,
@@ -66,6 +73,15 @@ export class ToolExecutor {
 		private terminalExecutionMode: "vscodeTerminal" | "backgroundExec",
 		private workspaceManager: WorkspaceRootManager | undefined,
 		private isMultiRootEnabled: boolean,
+		private getCurrentWorkingConfiguration: () => TaskWorkingConfiguration,
+		private withTaskMutationAuthorization: <T>(
+			requestConfiguration: TaskWorkingConfiguration,
+			toolName: DiracToolSpec["id"] | undefined,
+			mutation: () => Promise<T>,
+		) => Promise<T>,
+		private transitionFromMutation: <T>(transition: () => Promise<T>) => Promise<T>,
+		private retainMutationUntil: (completion: Promise<void>) => void,
+		private commitEnabledToolToggles: (toolIds: readonly string[], finalize?: () => Promise<void>) => Promise<void>,
 		private saveCheckpoint: (isAttemptCompletionMessage?: boolean, completionMessageId?: string) => Promise<void>,
 		private commitAttemptCompletion: () => Promise<boolean>,
 		private executeCommandTool: (
@@ -89,12 +105,12 @@ export class ToolExecutor {
 		private resetTransientState: () => Promise<void>,
 		private notifyContextCompacted: () => void,
 	) {
-		this.autoApprover = new AutoApprove(this.stateManager, this.commandPermissionController)
 		this.coordinator = new ToolExecutorCoordinator()
 		this.snapshotManager = new ToolSnapshotManager({
 			createTaskConfig: (coordinator) => this.asToolConfig(coordinator),
+			getTaskId: () => this.taskId,
 			getWorkspaceRoot: () => this.workspaceManager?.getPrimaryRoot()?.path,
-			getToggles: () => this.stateManager.getGlobalSettingsKey("toolToggles") || {},
+			getToggles: () => this.requestRuntime().workingConfiguration.settings.toolToggles || {},
 			getActiveSkills: () => {
 				const activeIds = new Set(this.taskState.activeSkillIds)
 				return this.taskState.availableSkills.filter((skill) => activeIds.has(skill.name))
@@ -103,8 +119,6 @@ export class ToolExecutor {
 		this.hookRunner = new ToolHookRunner(
 			taskState,
 			messageStateHandler,
-			api,
-			stateManager,
 			taskMessenger,
 			taskId,
 			setActiveHookExecution,
@@ -116,12 +130,35 @@ export class ToolExecutor {
 
 	public setApi(api: ApiHandler): void {
 		this.api = api
-		this.hookRunner.setApi(api)
 		this.markToolsDirty("settings_refresh_detected_change")
 	}
 
+	private requestAutoApprover(): AutoApprove {
+		const runtime = this.requestRuntime()
+		return new AutoApprove(
+			this.commandPermissionController,
+			runtime.workingConfiguration.settings,
+			runtime.workingConfiguration.executionOptions.multiRootEnabled,
+		)
+	}
+
 	private shouldAutoApproveTool(toolName: DiracDefaultTool): boolean | [boolean, boolean] {
-		return this.autoApprover.shouldAutoApproveTool(toolName)
+		return this.requestAutoApprover().shouldAutoApproveTool(toolName)
+	}
+
+	private assertMutationAuthorized(toolName?: DiracToolSpec["id"]): void {
+		assertTaskMutationAuthorized(
+			this.requestRuntime().workingConfiguration,
+			this.getCurrentWorkingConfiguration(),
+			toolName,
+		)
+	}
+
+	private withMutationAuthorization<T>(
+		toolName: DiracToolSpec["id"] | undefined,
+		mutation: () => Promise<T>,
+	): Promise<T> {
+		return this.withTaskMutationAuthorization(this.requestRuntime().workingConfiguration, toolName, mutation)
 	}
 
 	private async shouldAutoApproveToolWithPath(
@@ -129,31 +166,111 @@ export class ToolExecutor {
 		autoApproveActionpath: string | undefined,
 	): Promise<boolean> {
 		if (!Object.values(DiracDefaultTool).includes(blockname as DiracDefaultTool)) return false
-		return this.autoApprover.shouldAutoApproveToolWithPath(blockname as DiracDefaultTool, autoApproveActionpath)
+		const approved = await this.requestAutoApprover().shouldAutoApproveToolWithPath(
+			blockname as DiracDefaultTool,
+			autoApproveActionpath,
+		)
+		this.assertMutationAuthorized(blockname)
+		return approved
+	}
+
+	private requestRuntime(): TaskRequestRuntime {
+		const runtime = this.buildingRequestRuntime ?? this.activeRequestRuntime
+		if (!runtime) throw new Error("Tool execution has no request-bound runtime")
+		if (runtime.toolSnapshot && runtime.toolSnapshot.requestId !== runtime.requestId) {
+			throw new Error("Active tool snapshot does not belong to the request-bound runtime")
+		}
+		return runtime
+	}
+
+	private requestProviderId(runtime = this.requestRuntime()): string {
+		const { mode } = runtime.workingConfiguration.settings
+		const configuration = runtime.workingConfiguration.apiConfiguration
+		return ((mode === "plan" ? configuration.planModeApiProvider : configuration.actModeApiProvider) ??
+			configuration.apiProvider ??
+			"unknown") as string
+	}
+
+	private createUtilityRunner(selection: ModelProviderSelection, options: Parameters<typeof createUtilityModelRunner>[2] = {}) {
+		return createUtilityModelRunner(
+			this.requestRuntime().workingConfiguration.apiConfiguration as ApiConfiguration,
+			selection,
+			{ ...options, ulid: this.ulid },
+		)
+	}
+
+	private createSubagentRuntime(options: {
+		modelId?: string
+		utilityModelSelection?: ModelProviderSelection
+	}): SubagentRuntime {
+		const requestRuntime = this.requestRuntime()
+		const configuration = requestRuntime.workingConfiguration.apiConfiguration as ApiConfiguration
+		let handler: ApiHandler
+		let providerId: string
+		if (options.utilityModelSelection) {
+			handler = buildApiHandlerForSelection(configuration, options.utilityModelSelection, { ulid: this.ulid })
+			providerId = options.utilityModelSelection.provider
+		} else {
+			const mode = requestRuntime.workingConfiguration.settings.mode
+			const candidate = { ...configuration, ulid: this.ulid } as ApiConfiguration
+			providerId = ((mode === "plan" ? candidate.planModeApiProvider : candidate.actModeApiProvider) ??
+				candidate.apiProvider ??
+				"unknown") as string
+			const modelId = options.modelId?.trim()
+			if (modelId && providerId !== "unknown") {
+				; (candidate as Record<string, unknown>)[getProviderModelIdKey(providerId as ApiProvider, mode)] = modelId
+			}
+			handler = buildApiHandler(candidate, mode)
+		}
+
+		return Object.freeze({
+			providerId,
+			model: deepFreezeConfiguration(structuredClone(handler.getModel())),
+			supportsNativeWebSearch: handler.supportsNativeWebSearch?.() === true,
+			createMessage: handler.createMessage.bind(handler),
+			abort: () => handler.abort?.(),
+		})
 	}
 
 	private asToolConfig(coordinator = this.coordinator): TaskConfig {
+		const runtime = this.requestRuntime()
+		const settings = runtime.workingConfiguration.settings
+		const autoApprover = this.requestAutoApprover()
 		const config: TaskConfig = {
 			taskId: this.taskId,
 			ulid: this.ulid,
-			mode: this.stateManager.getGlobalSettingsKey("mode"),
-			strictPlanModeEnabled: this.stateManager.getGlobalSettingsKey("strictPlanModeEnabled"),
-			yoloModeToggled: this.stateManager.getGlobalSettingsKey("yoloModeToggled"),
-			doubleCheckCompletionEnabled: this.stateManager.getGlobalSettingsKey("doubleCheckCompletionEnabled"),
+			mode: settings.mode,
+			strictPlanModeEnabled: settings.strictPlanModeEnabled,
+			yoloModeToggled: settings.yoloModeToggled,
+			doubleCheckCompletionEnabled: settings.doubleCheckCompletionEnabled,
 			vscodeTerminalExecutionMode: this.terminalExecutionMode,
-			enableParallelToolCalling: this.isParallelToolCallingEnabled(),
+			enableParallelToolCalling: settings.enableParallelToolCalling,
 			isSubagentExecution: false,
-			backgroundEditEnabled: !!this.stateManager.getGlobalSettingsKey("backgroundEditEnabled"),
+			backgroundEditEnabled: !!settings.backgroundEditEnabled,
+			providerId: this.requestProviderId(),
+			customPrompt: settings.customPrompt,
+			hooksEnabled: settings.hooksEnabled,
+			subagentsEnabled: settings.subagentsEnabled,
+			useAutoCondense: settings.useAutoCondense,
+			utilityModelEnabled: settings.utilityModelEnabled,
+			utilityModelUseCondense: settings.utilityModelUseCondense,
+			utilityModelUseNewTask: settings.utilityModelUseNewTask,
+			utilityModelSelection: settings.utilityModelSelection
+				? (structuredClone(settings.utilityModelSelection) as ModelProviderSelection)
+				: undefined,
+			globalSkillsToggles: settings.globalSkillsToggles,
+			localSkillsToggles: runtime.workingConfiguration.workspaceConfiguration.localSkillsToggles,
 			context: this.diracContext,
 			cwd: this.cwd,
 			workspaceManager: this.workspaceManager,
 			isMultiRootEnabled: this.isMultiRootEnabled,
 			taskState: this.taskState,
 			messageState: this.messageStateHandler,
-			api: this.api,
-			autoApprovalSettings: this.stateManager.getGlobalSettingsKey("autoApprovalSettings"),
-			autoApprover: this.autoApprover,
-			browserSettings: this.stateManager.getGlobalSettingsKey("browserSettings"),
+			model: deepFreezeConfiguration(structuredClone(runtime.api.getModel())),
+			supportsNativeWebSearch: runtime.api.supportsNativeWebSearch?.() === true,
+			autoApprovalSettings: settings.autoApprovalSettings as TaskConfig["autoApprovalSettings"],
+			autoApprover,
+			browserSettings: settings.browserSettings,
 			services: {
 				browserSession: this.browserSession,
 				urlContentFetcher: this.urlContentFetcher,
@@ -162,9 +279,13 @@ export class ToolExecutor {
 				diracIgnoreController: this.diracIgnoreController,
 				commandPermissionController: this.commandPermissionController,
 				contextManager: this.contextManager,
-				stateManager: this.stateManager,
 			},
 			callbacks: {
+				assertMutationAuthorized: (toolName) => this.assertMutationAuthorized(toolName),
+				withMutationAuthorization: (toolName, mutation) => this.withMutationAuthorization(toolName, mutation),
+				transitionFromMutation: (transition) => this.transitionFromMutation(transition),
+				retainMutationUntil: (completion) => this.retainMutationUntil(completion),
+				commitEnabledToolToggles: (toolIds, finalize) => this.commitEnabledToolToggles(toolIds, finalize),
 				saveCheckpoint: async (isAttemptCompletionMessage?: boolean, completionMessageId?: string) => {
 					await this.saveCheckpoint(isAttemptCompletionMessage, completionMessageId)
 				},
@@ -189,11 +310,13 @@ export class ToolExecutor {
 				runUserPromptSubmitHook: this.runUserPromptSubmitHook,
 				resetTransientState: this.resetTransientState,
 				notifyContextCompacted: this.notifyContextCompacted,
+				createUtilityModelRunner: (selection, options) => this.createUtilityRunner(selection, options),
+				createSubagentRuntime: (options) => this.createSubagentRuntime(options),
 			},
 			coordinator,
 			taskMessenger: this.taskMessenger,
 		}
-		config.activeToolSnapshot = this.snapshotManager?.getActiveSnapshot()
+		config.activeToolSnapshot = runtime.toolSnapshot
 		validateTaskConfig(config)
 		return config
 	}
@@ -204,13 +327,33 @@ export class ToolExecutor {
 	public markToolsDirty(reason: ToolSnapshotDirtyReason): void {
 		this.snapshotManager.markDirty(reason)
 	}
-	public async getSnapshotForRequest(context: SystemPromptContext): Promise<ToolRequestSnapshot> {
-		return this.snapshotManager.getSnapshotForRequest(context)
+	public async getSnapshotForRequest(
+		context: SystemPromptContext,
+		requestRuntime: TaskRequestRuntime,
+	): Promise<ToolRequestSnapshot> {
+		this.buildingRequestRuntime = requestRuntime
+		try {
+			return await this.snapshotManager.getSnapshotForRequest(context, {
+				requestId: requestRuntime.requestId,
+				configurationRevision: requestRuntime.workingConfiguration.revision,
+			})
+		} finally {
+			this.buildingRequestRuntime = undefined
+		}
 	}
 	public getActiveSnapshot(): ToolRequestSnapshot | undefined {
 		return this.snapshotManager.getActiveSnapshot()
 	}
-	public activateSnapshot(snapshot: ToolRequestSnapshot): void {
+	public activateSnapshot(snapshot: ToolRequestSnapshot, requestRuntime: TaskRequestRuntime): void {
+		if (snapshot.requestId !== requestRuntime.requestId)
+			throw new Error("Cannot activate a tool snapshot for another request")
+		if (
+			snapshot.configurationRevision !== undefined &&
+			snapshot.configurationRevision !== requestRuntime.workingConfiguration.revision
+		) {
+			throw new Error("Cannot activate a tool snapshot for another configuration revision")
+		}
+		this.activeRequestRuntime = requestRuntime
 		this.snapshotManager.activateSnapshot(snapshot)
 		this.coordinator = snapshot.coordinator
 	}
@@ -220,18 +363,12 @@ export class ToolExecutor {
 
 	public async applyLatestBrowserSettings() {
 		await this.browserSession.dispose()
-		const useWebp = this.api ? !modelDoesntSupportWebp(this.api.getModel()) : true
-		this.browserSession = new BrowserSession(this.stateManager, useWebp)
+		const runtime = this.requestRuntime()
+		const useWebp = !modelDoesntSupportWebp(runtime.api.getModel())
+		this.browserSession = new BrowserSession(runtime.workingConfiguration.settings.browserSettings, useWebp)
+		this.browserSession.setUlid(this.ulid)
+		this.installBrowserSession(this.browserSession)
 		return this.browserSession
-	}
-
-	private isParallelToolCallingEnabled(): boolean {
-		const enableParallelSetting = this.stateManager.getGlobalSettingsKey("enableParallelToolCalling")
-		const model = this.api.getModel()
-		const apiConfig = this.stateManager.getApiConfiguration()
-		const mode = this.stateManager.getGlobalSettingsKey("mode")
-		const providerId = (mode === "plan" ? apiConfig.planModeApiProvider : apiConfig.actModeApiProvider) as string
-		return isParallelToolCallingEnabled(enableParallelSetting, { providerId, model, mode })
 	}
 
 	private isPlanModeToolRestricted(toolName: DiracDefaultTool): boolean {
@@ -278,13 +415,13 @@ export class ToolExecutor {
 
 	// Checks plan mode restrictions and creates error card if tool is restricted.
 	private async isPlanModeRestricted(block: ToolUse, isComplete = true): Promise<boolean> {
-		if (
-			!this.stateManager.getGlobalSettingsKey("strictPlanModeEnabled") ||
-			this.stateManager.getGlobalSettingsKey("mode") !== "plan" ||
-			!block.name ||
-			!this.isPlanModeToolRestricted(block.name as DiracDefaultTool)
-		)
+		if (!block.name || !this.isPlanModeToolRestricted(block.name as DiracDefaultTool)) return false
+		try {
+			this.assertMutationAuthorized(block.name as DiracDefaultTool)
 			return false
+		} catch {
+			// Present the established Plan-mode rejection below.
+		}
 		const errorMessage = `Tool '${block.name}' is not available in PLAN MODE. This tool is restricted to ACT MODE for file modifications. Only use tools available for PLAN MODE when in that mode.`
 		await this.taskMessenger.createCard({ header: "Plan Mode Restriction", body: errorMessage, status: CardStatus.ERROR })
 		if (isComplete) await this.resultPusher.pushToolResult(formatResponse.toolError(errorMessage), block)
@@ -293,7 +430,9 @@ export class ToolExecutor {
 
 	private async handleCompleteBlock(block: ToolUse, config: any): Promise<void> {
 		if (this.taskState.abort) return
-		const hooksEnabled = getHooksEnabledSafe(this.stateManager.getGlobalSettingsKey("hooksEnabled"))
+		const requestRuntime = this.requestRuntime()
+		const providerId = this.requestProviderId(requestRuntime)
+		const hooksEnabled = getHooksEnabledSafe(requestRuntime.workingConfiguration.settings.hooksEnabled)
 		let shouldCancelAfterHook = false
 		let executionSuccess = true
 		let toolResult: any = null
@@ -315,6 +454,8 @@ export class ToolExecutor {
 						executionSuccess,
 						executionStartTime,
 						hooksEnabled,
+						requestRuntime.api,
+						providerId,
 					)
 				) {
 					await config.callbacks.cancelTask()
@@ -333,6 +474,8 @@ export class ToolExecutor {
 						executionSuccess,
 						executionStartTime,
 						hooksEnabled,
+						requestRuntime.api,
+						providerId,
 					)
 				) {
 					await config.callbacks.cancelTask()

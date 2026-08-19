@@ -12,6 +12,11 @@ import { initializeDistinctId } from "@/services/logging/distinctId"
 import { Logger } from "@/shared/services/Logger"
 import { AgentConfigLoader } from "../task/tools/subagent/AgentConfigLoader"
 import {
+	createTaskWorkingConfiguration,
+	type TaskExecutionOptions,
+	type TaskWorkingConfiguration,
+} from "../task/runtime/TaskWorkingConfiguration"
+import {
 	getAllGlobalStateEntries,
 	getAllWorkspaceStateEntries,
 	getApiConfiguration,
@@ -25,7 +30,9 @@ import {
 import { getModelInfo, getModelsCache, type ModelCache, setModelsCache } from "./StateManagerModelCache"
 import {
 	clearTaskSettings,
+	clearSessionOverride,
 	loadTaskSettings,
+	hasSessionOverride,
 	refreshModelProviderPresetsFromDisk,
 	type StateManagerSettersContext,
 	setApiConfiguration,
@@ -34,13 +41,19 @@ import {
 	setSecret,
 	setSecretsBatch,
 	setSessionOverride,
-	setSessionOverrideCache,
 	setTaskSettings,
 	setTaskSettingsBatch,
+	clearTaskSetting,
+	getTaskSetting,
+	hasTaskSetting,
 	setWorkspaceState,
 	setWorkspaceStateBatch,
 } from "./StateManagerSetters"
-import { type StateManagerSettingsCaches } from "./StateManagerSettings"
+import {
+	buildEffectiveApiConfigurationFromCache,
+	buildEffectiveSettingsFromCache,
+	type StateManagerSettingsCaches,
+} from "./StateManagerSettings"
 import { type PersistenceErrorEvent, StatePersistenceManager } from "./StatePersistenceManager"
 
 // Re-export for backward compatibility — consumers import PersistenceErrorEvent from StateManager
@@ -273,6 +286,18 @@ export class StateManager {
 		setTaskSettingsBatch(this.settersContext, taskId, updates)
 	}
 
+	hasTaskSetting<K extends keyof Settings>(key: K): boolean {
+		return hasTaskSetting(this.settersContext, key)
+	}
+
+	getTaskSetting<K extends keyof Settings>(key: K): Settings[K] | undefined {
+		return getTaskSetting(this.settersContext, key)
+	}
+
+	clearTaskSetting<K extends keyof Settings>(taskId: string, key: K): void {
+		clearTaskSetting(this.settersContext, taskId, key)
+	}
+
 	async loadTaskSettings(taskId: string): Promise<void> {
 		await loadTaskSettings(this.settersContext, taskId)
 	}
@@ -303,15 +328,15 @@ export class StateManager {
 		setSessionOverride(this.settersContext, key, value)
 	}
 
-	/** Return the current session-override cache (in-memory only). (from main) */
-	getSessionOverrideCache(): Partial<Settings> {
-		return this.sessionOverrideCache
+
+	hasSessionOverride<K extends keyof Settings>(key: K): boolean {
+		return hasSessionOverride(this.settersContext, key)
 	}
 
-	/** Replace the session-override cache wholesale. In-memory only, never persisted. (from main) */
-	setSessionOverrideCache(overrides: Partial<Settings>): void {
-		setSessionOverrideCache(this.settersContext, overrides)
+	clearSessionOverride<K extends keyof Settings>(key: K): void {
+		clearSessionOverride(this.settersContext, key)
 	}
+
 
 	setModelsCache(provider: string, models: Record<string, ModelInfo>): void {
 		setModelsCache(this.modelInfoCache, provider, models)
@@ -330,6 +355,31 @@ export class StateManager {
 
 	getApiConfiguration(): ApiConfiguration {
 		return getApiConfiguration(this.settingsCaches, this.isInitialized)
+	}
+
+	/**
+	 * Capture a detached task-owned effective configuration from already loaded state.
+	 * Explicit runtime overrides participate as a highest-precedence, session-like
+	 * input but are never installed into StateManager caches.
+	 */
+	captureEffectiveTaskConfiguration(
+		explicitOverrides?: Partial<Settings>,
+		executionOptions?: Partial<TaskExecutionOptions>,
+	): TaskWorkingConfiguration {
+		if (!this.isInitialized) throw new Error("StateManager has not been initialized")
+
+		return createTaskWorkingConfiguration({
+			revision: 1,
+			settings: buildEffectiveSettingsFromCache(this.settingsCaches, explicitOverrides),
+			apiConfiguration: buildEffectiveApiConfigurationFromCache(this.settingsCaches, explicitOverrides),
+			workspaceConfiguration: this.workspaceStateCache,
+			executionOptions: {
+				terminalReuseEnabled: executionOptions?.terminalReuseEnabled ?? this.globalStateCache.terminalReuseEnabled,
+				vscodeTerminalExecutionMode:
+					executionOptions?.vscodeTerminalExecutionMode ?? this.globalStateCache.vscodeTerminalExecutionMode,
+				multiRootEnabled: executionOptions?.multiRootEnabled ?? this.globalStateCache.multiRootEnabled,
+			},
+		})
 	}
 
 	setApiConfiguration(apiConfiguration: ApiConfiguration): void {

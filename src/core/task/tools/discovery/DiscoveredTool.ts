@@ -1,6 +1,6 @@
-import type { DiracToolSpec } from "@/shared/tools"
-import type { IDiracTool } from "../interfaces/IDiracTool"
-import type { TaskConfig } from "../types/TaskConfig"
+import type { DiracToolSpec } from "@/shared/tools";
+import type { IDiracTool } from "../interfaces/IDiracTool";
+import type { TaskConfig } from "../types/TaskConfig";
 
 export type ToolExposure =
 	| { kind: "configurable" }
@@ -17,6 +17,8 @@ export interface DiscoveredTool {
 	name: string
 	/** Where this tool was discovered */
 	source: ToolSource
+	/** Owning Task for task-scoped tools. Required when source is "task". */
+	ownerTaskId?: string
 	/** Controls whether this tool is user-configurable or only available through an authorized skill. */
 	exposure: ToolExposure
 	/** For LLM API schema generation */

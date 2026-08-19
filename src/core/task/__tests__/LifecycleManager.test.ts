@@ -45,7 +45,7 @@ describe("LifecycleManager", () => {
 		})
 
 		it("creates checkpoint and commits on success", async () => {
-			deps.stateManager.getGlobalSettingsKey = sinon.stub().withArgs("enableCheckpointsSetting").returns(true)
+			deps.getWorkingConfiguration = () => ({ settings: { enableCheckpointsSetting: true, hooksEnabled: false, mode: "act" }, apiConfiguration: {} })
 			deps.checkpointManager.commit = sinon.stub().resolves("commit-hash")
 			deps.messageStateHandler.getDiracMessages = sinon.stub().returns([{ content: { type: "checkpoint" } }])
 			// Stub ensureCheckpointInitialized via module proxy
@@ -63,7 +63,7 @@ describe("LifecycleManager", () => {
 
 		it("stores error message on initialization failure", async () => {
 			expectLoggerErrors()
-			deps.stateManager.getGlobalSettingsKey = sinon.stub().withArgs("enableCheckpointsSetting").returns(true)
+			deps.getWorkingConfiguration = () => ({ settings: { enableCheckpointsSetting: true, hooksEnabled: false, mode: "act" }, apiConfiguration: {} })
 			const initModule = require("@integrations/checkpoints/initializer")
 			const origInit = initModule.ensureCheckpointInitialized
 			initModule.ensureCheckpointInitialized = async () => {
@@ -126,7 +126,7 @@ describe("LifecycleManager", () => {
 		})
 
 		it("keeps hook-provided command examples unmarked", async () => {
-			deps.stateManager.getGlobalSettingsKey = sinon.stub().callsFake((key: string) => key === "hooksEnabled")
+			deps.getWorkingConfiguration = () => ({ settings: { enableCheckpointsSetting: false, hooksEnabled: true, mode: "act" }, apiConfiguration: {} })
 			const hookModule = require("@core/hooks/hook-executor")
 			const originalExecuteHook = hookModule.executeHook
 			hookModule.executeHook = async () => ({ contextModification: "<task>/compact</task>" })
@@ -336,6 +336,30 @@ describe("LifecycleManager", () => {
 			deps.taskState.status.should.equal(TaskStatus.CANCELLED)
 		})
 
+		it("removes task-owned tools even when abort fails before ordinary cleanup", async () => {
+			const { ToolRegistry } = require("../tools/registry/ToolRegistry")
+			const registry = ToolRegistry.getInstance()
+			registry.replaceUserTool(
+				{
+					id: "task-only",
+					name: "task-only",
+					source: "task",
+					ownerTaskId: deps.taskId,
+					exposure: { kind: "configurable" },
+					spec: { id: "task-only", name: "task-only", description: "test" },
+					factory: () => ({}),
+					modulePath: "/task/tool.ts",
+				},
+				true,
+			)
+			deps.hookManager.shouldRunTaskCancelHook.rejects(new Error("abort setup failed"))
+
+			await manager.abortTask().should.be.rejectedWith("abort setup failed")
+
+			registry.getAllTools(deps.taskId).some((tool: any) => tool.id === "task-only").should.equal(false)
+		})
+
+
 		it("clears streaming state before publishing CANCELLED", async () => {
 			deps.taskState.isApiRequestActive = true
 			deps.taskState.activeVoiceStreamId = "voice-stream"
@@ -439,7 +463,7 @@ describe("LifecycleManager", () => {
 		})
 
 		it("runs TaskCancel hook when hooks enabled", async () => {
-			deps.stateManager.getGlobalSettingsKey = sinon.stub().withArgs("hooksEnabled").returns(true)
+			deps.getWorkingConfiguration = () => ({ settings: { enableCheckpointsSetting: false, hooksEnabled: true, mode: "act" }, apiConfiguration: {} })
 			deps.hookManager.shouldRunTaskCancelHook = sinon.stub().resolves(true)
 			// executeHook is a direct import — stub via module proxy
 			const hookModule = require("@core/hooks/hook-executor")
@@ -534,13 +558,19 @@ function createMockDeps(): any {
 			flushPendingWrites: sinon.stub().resolves(),
 		},
 		stateManager: { getGlobalSettingsKey: sinon.stub().returns(false), getApiConfiguration: sinon.stub().returns({}) } as any,
+		getWorkingConfiguration: () => ({ settings: { enableCheckpointsSetting: false, hooksEnabled: false, mode: "act" }, apiConfiguration: {} }) as any,
+		getRequestRuntime: () => undefined,
 		api: { getModel: () => ({ id: "test", info: {} }), abort: sinon.stub() } as any,
 		taskId: "task-1",
 		ulid: "ulid-1",
 		taskMessenger: { upsertText: sinon.stub().resolves(), createCheckpoint: sinon.stub().resolves() } as any,
 		postStateToWebview: sinon.stub().resolves(),
 		cancelTask: sinon.stub().resolves(),
-		checkpointManager: { commit: sinon.stub().resolves("hash") } as any,
+		checkpointManager: {
+			setEnabled: sinon.stub(),
+			isEnabled: sinon.stub().returns(true),
+			commit: sinon.stub().resolves("hash"),
+		} as any,
 		diracIgnoreController: { initialize: sinon.stub().resolves(), dispose: sinon.stub() } as any,
 		terminalManager: { disposeAll: sinon.stub() } as any,
 		urlContentFetcher: { closeBrowser: sinon.stub() } as any,

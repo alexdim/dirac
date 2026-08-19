@@ -158,6 +158,7 @@ export abstract class BaseWriteFileTool implements IDiracTool<WriteFileArgs> {
 				})
 			}
 
+			env.config.callbacks.assertMutationAuthorized(toolId)
 			if (env.config.backgroundEditEnabled) {
 				saveResult = await env.editor.applyAndSaveSilently(absolutePath, content, fileExists ? "modify" : "create")
 			} else {
@@ -233,6 +234,7 @@ export abstract class BaseWriteFileTool implements IDiracTool<WriteFileArgs> {
 				return reason ? formatResponse.toolDeniedWithFeedback(reason) : formatResponse.toolDenied()
 			}
 
+			env.config.callbacks.assertMutationAuthorized(toolId)
 			await env.editor.open(absolutePath, { editType: fileExists ? "modify" : "create" })
 			await env.editor.update(content, true)
 			await env.editor.scrollToFirstDiff()

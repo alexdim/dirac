@@ -3,7 +3,6 @@ import fs from "fs/promises"
 import os from "os"
 import path from "path"
 import { afterEach, beforeEach, describe, it } from "mocha"
-import type { StateManager } from "@core/storage/StateManager"
 import { writePromptMetadataArtifacts } from "../TaskPromptArtifacts"
 
 const ENVIRONMENT_KEYS = ["DIRAC_WRITE_PROMPT_ARTIFACTS", "DIRAC_PROMPT_ARTIFACT_DIR", "IS_DEV"] as const
@@ -31,11 +30,6 @@ describe("TaskPromptArtifacts", () => {
 		await fs.rm(cwd, { recursive: true, force: true })
 	})
 
-	function stateManager(settings: Record<string, unknown>): StateManager {
-		return {
-			getGlobalSettingsKey: (key: string) => settings[key],
-		} as unknown as StateManager
-	}
 
 	it("writes enabled prompt, tool, and full-history request data", async () => {
 		const artifactDir = path.join(cwd, "artifacts")
@@ -43,10 +37,8 @@ describe("TaskPromptArtifacts", () => {
 			{
 				taskId: "task-1",
 				cwd,
-				stateManager: stateManager({
-					writePromptMetadataEnabled: true,
-					writePromptMetadataDirectory: "artifacts",
-				}),
+				writePromptMetadataEnabled: true,
+				writePromptMetadataDirectory: "artifacts",
 			},
 			{
 				systemPrompt: "system prompt contents",
@@ -73,7 +65,7 @@ describe("TaskPromptArtifacts", () => {
 			{
 				taskId: "task-disabled",
 				cwd,
-				stateManager: stateManager({}),
+				writePromptMetadataEnabled: false,
 			},
 			{
 				systemPrompt: "must not be written",

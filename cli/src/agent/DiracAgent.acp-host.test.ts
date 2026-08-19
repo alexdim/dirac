@@ -5,15 +5,18 @@ import { DiracAgent } from "./DiracAgent.js"
 
 const getCliBinaryPath = vi.hoisted(() => vi.fn(async (name: string) => `/resolved/${name}`))
 
-vi.mock("../utils/path.js", () => ({ getCliBinaryPath }))
+vi.mock("../utils/path.js", async (importOriginal) => ({
+	...(await importOriginal<typeof import("../utils/path.js")>()),
+	getCliBinaryPath,
+}))
 
 function createAgent() {
 	const agent = new DiracAgent({ diracDir: "/tmp/dirac-acp-host-test", cwd: "/workspace" } as any)
-	;(agent as any).ctx = {
-		extensionContext: {},
-		EXTENSION_DIR: "/tmp/dirac-extension",
-		DATA_DIR: "/tmp/dirac-data",
-	}
+		; (agent as any).ctx = {
+			extensionContext: {},
+			EXTENSION_DIR: "/tmp/dirac-extension",
+			DATA_DIR: "/tmp/dirac-data",
+		}
 	return agent
 }
 
@@ -43,7 +46,7 @@ describe("DiracAgent ACP host composition", () => {
 
 	it("persists multi-file presentation once and awaits client delivery", async () => {
 		const agent = createAgent()
-		;(agent as any).activePromptSessionId = "session-a"
+			; (agent as any).activePromptSessionId = "session-a"
 		const persistedUpdate = {
 			sessionUpdate: "tool_call",
 			toolCallId: "persisted-tool-call",
@@ -51,7 +54,7 @@ describe("DiracAgent ACP host composition", () => {
 			_meta: { "dev.dirac/seq": 1 },
 		} as any
 		const persistSessionUpdate = vi.fn(() => persistedUpdate)
-		;(agent as any).persistSessionUpdate = persistSessionUpdate
+			; (agent as any).persistSessionUpdate = persistSessionUpdate
 
 		let releaseDelivery!: () => void
 		const delivery = new Promise<void>((resolve) => {
@@ -85,8 +88,8 @@ describe("DiracAgent ACP host composition", () => {
 
 	it("propagates real client presentation delivery failures", async () => {
 		const agent = createAgent()
-		;(agent as any).activePromptSessionId = "session-a"
-		;(agent as any).persistSessionUpdate = vi.fn((_sessionId: string, update: acp.SessionUpdate) => update)
+			; (agent as any).activePromptSessionId = "session-a"
+			; (agent as any).persistSessionUpdate = vi.fn((_sessionId: string, update: acp.SessionUpdate) => update)
 		const connection = { sessionUpdate: vi.fn().mockRejectedValue(new Error("client delivery failed")) } as any
 		agent.initializeHostProvider({}, connection)
 
@@ -108,19 +111,19 @@ describe("DiracAgent ACP host composition", () => {
 		} as any
 		agent.initializeHostProvider({ fs: { readTextFile: true, writeTextFile: true }, terminal: true }, connection)
 
-		;(agent as any).activePromptSessionId = "session-a"
+			; (agent as any).activePromptSessionId = "session-a"
 		const firstProvider = HostProvider.get().createDiffViewProvider()
 		await firstProvider.open("/workspace/a.ts", { editType: "modify" })
 		await firstProvider.update("changed", true)
 		await firstProvider.saveChanges({ skipDiagnostics: true })
 
-		;(agent as any).activePromptSessionId = "session-b"
+			; (agent as any).activePromptSessionId = "session-b"
 		const secondProvider = HostProvider.get().createDiffViewProvider()
 		await secondProvider.open("/workspace/b.ts", { editType: "modify" })
 		const terminalManager = HostProvider.get().createTerminalManager() as any
 		await terminalManager.createTerminal({ command: "pwd", cwd: "/workspace" })
 
-		;(agent as any).activePromptSessionId = undefined
+			; (agent as any).activePromptSessionId = undefined
 		const inactiveProvider = HostProvider.get().createDiffViewProvider()
 		await expect(inactiveProvider.open("/workspace/inactive.ts", { editType: "modify" })).rejects.toThrow(
 			/No active ACP session.*reading/,

@@ -8,9 +8,9 @@ import { StateManager } from "@/core/storage/StateManager"
 import { Logger } from "@/shared/services/Logger"
 import {
 	DEFAULT_OPENAI_REASONING_EFFORT,
+	type Mode,
 	OPENAI_REASONING_EFFORT_LABELS,
 	OPENAI_REASONING_EFFORT_OPTIONS,
-	type Mode,
 } from "@/shared/storage/types"
 import { filterOpenRouterModelIds } from "@/shared/utils/model-filters"
 import { getDefaultModelId, getModelList, hasStaticModels } from "../utils/model-metadata.js"
@@ -297,7 +297,7 @@ export class SessionConfigManager {
 			if (modelInfoKey) {
 				overrides[modelInfoKey] =
 					provider === "openrouter"
-						? openRouterModelInfo ?? (selectedModelIsUnchanged ? overrides[modelInfoKey] : undefined)
+						? (openRouterModelInfo ?? (selectedModelIsUnchanged ? overrides[modelInfoKey] : undefined))
 						: undefined
 			}
 			if (provider === "bedrock" && !preserveCustomBedrockModel) {
@@ -414,9 +414,9 @@ export class SessionConfigManager {
 					if (usesOpenRouterModels(provider)) {
 						return refreshDynamicCatalog
 							? filterOpenRouterModelIds(
-								Object.keys(await fetchOpenRouterModels()).sort((a, b) => a.localeCompare(b)),
-								provider,
-							)
+									Object.keys(await fetchOpenRouterModels()).sort((a, b) => a.localeCompare(b)),
+									provider,
+								)
 							: []
 					}
 					if (provider === "github-copilot") {
@@ -438,14 +438,7 @@ export class SessionConfigManager {
 	}
 
 	private getInferenceConfiguration(sessionOverrides: Partial<Settings>): ApiConfiguration {
-		const stateManager = StateManager.get()
-		const previousOverrides = stateManager.getSessionOverrideCache()
-		stateManager.setSessionOverrideCache({ ...sessionOverrides })
-		try {
-			return stateManager.getApiConfiguration()
-		} finally {
-			stateManager.setSessionOverrideCache(previousOverrides)
-		}
+		return StateManager.get().captureEffectiveTaskConfiguration(sessionOverrides).apiConfiguration as ApiConfiguration
 	}
 
 	private isModelAcceptedByInference(

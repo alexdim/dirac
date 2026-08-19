@@ -75,7 +75,7 @@ export class CompletionResponseOperation {
 			return undefined
 		}
 
-		const subagentsEnabled = env.config.services.stateManager.getGlobalSettingsKey("subagentsEnabled")
+		const subagentsEnabled = env.config.subagentsEnabled
 		if (subagentsEnabled) {
 			return await this.runVerificationSubagent(env, result)
 		}

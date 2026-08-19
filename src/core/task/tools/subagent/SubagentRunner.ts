@@ -1,5 +1,4 @@
 import * as path from "node:path"
-import type { ApiHandler, buildApiHandler } from "@core/api"
 import { formatResponse } from "@core/formatResponse"
 import { StreamResponseHandler } from "@core/task/StreamResponseHandler"
 import { type ToolRequestSnapshot } from "@core/task/tools/runtime/ToolSnapshot"
@@ -11,13 +10,12 @@ import { SubagentTrajectoryEventType } from "@shared/subagents"
 import { DiracTool } from "@shared/tools"
 import { ContextManager } from "@/core/context/context-management/ContextManager"
 import { checkContextWindowExceededError } from "@/core/context/context-management/context-error-handling"
-import { getContextWindowInfo } from "@/core/context/context-management/context-window-utils"
 import { DiracError, DiracErrorType } from "@/services/error"
 import { calculateApiCostAnthropic } from "@/utils/cost"
 import { TaskState } from "../../TaskState"
 import { excerpt } from "../../utils/excerpt"
 import { ToolExecutorCoordinator } from "../ToolExecutorCoordinator"
-import type { TaskConfig } from "../types/TaskConfig"
+import type { SubagentRuntime, TaskConfig } from "../types/TaskConfig"
 import { SubagentAbortHandler } from "./SubagentAbortHandler"
 import { SubagentBuilder, type SubagentBuilderOptions } from "./SubagentBuilder"
 import { SubagentContextBuilder } from "./SubagentContextBuilder"
@@ -59,7 +57,7 @@ interface SubagentContextState {
 
 export class SubagentRunner {
 	private readonly agent: SubagentBuilder
-	private readonly apiHandler: ApiHandler
+	private readonly runtime: SubagentRuntime
 	private readonly allowedTools: string[]
 	private readonly contextBuilder: SubagentContextBuilder
 	private readonly abortHandler: SubagentAbortHandler
@@ -82,9 +80,9 @@ export class SubagentRunner {
 	) {
 		this.agent = new SubagentBuilder(baseConfig, subagentName, options)
 		this.subagentName = subagentName
-		this.apiHandler = this.agent.getApiHandler()
+		this.runtime = this.agent.getRuntime()
 		this.allowedTools = this.agent.getAllowedTools()
-		this.contextBuilder = new SubagentContextBuilder(baseConfig, this.agent, this.allowedTools, this.apiHandler)
+		this.contextBuilder = new SubagentContextBuilder(baseConfig, this.agent, this.allowedTools, this.runtime)
 		const logPrefix = `[SubagentRunner:${this.subagentName || "unnamed"}]`
 		this.runProgress = new SubagentRunProgress(options.recorder, logPrefix)
 		this.runState = new SubagentRunState(baseConfig, this.runProgress)
@@ -400,8 +398,8 @@ export class SubagentRunner {
 		})
 
 		try {
-			const api = this.apiHandler
-			this.activeApiAbort = api.abort?.bind(api)
+			const runtime = this.runtime
+			this.activeApiAbort = () => runtime.abort()
 
 			this.enterPhase("building_initial_context", "building initial tool and provider context")
 			const initialContext = await this.contextBuilder.buildContext()
@@ -437,11 +435,11 @@ export class SubagentRunner {
 					// initial user message of subagent runs.
 					...(workspaceMetadataEnvironmentBlock
 						? [
-								{
-									type: "text",
-									text: workspaceMetadataEnvironmentBlock,
-								} as DiracTextContentBlock,
-							]
+							{
+								type: "text",
+								text: workspaceMetadataEnvironmentBlock,
+							} as DiracTextContentBlock,
+						]
 						: []),
 				],
 			})
@@ -457,7 +455,7 @@ export class SubagentRunner {
 				if (
 					!this.isWrappingUp &&
 					usageState.lastRequest &&
-					this.shouldCompactBeforeNextRequest(usageState.lastRequest.totalTokens, api)
+					this.shouldCompactBeforeNextRequest(usageState.lastRequest.totalTokens, runtime.model.info.contextWindow)
 				) {
 					const compactResult = this.compactConversationForContextWindow(
 						contextManager,
@@ -482,7 +480,7 @@ export class SubagentRunner {
 				let requestId: string | undefined
 
 				const stream = this.createMessageWithInitialChunkRetry(
-					api,
+					runtime,
 					systemPrompt,
 					conversation,
 					requestSnapshot.nativeTools,
@@ -762,7 +760,9 @@ export class SubagentRunner {
 		return {
 			...this.baseConfig,
 			context: this.baseConfig.context,
-			api: this.apiHandler,
+			providerId: this.runtime.providerId,
+			model: this.runtime.model,
+			supportsNativeWebSearch: this.runtime.supportsNativeWebSearch,
 			coordinator,
 			taskState: state,
 			isSubagentExecution: true,
@@ -839,12 +839,13 @@ export class SubagentRunner {
 		}
 	}
 
-	private shouldCompactBeforeNextRequest(requestTotalTokens: number, api: ReturnType<typeof buildApiHandler>): boolean {
-		const { contextWindow, maxAllowedSize } = getContextWindowInfo(api)
-		const useAutoCondense = this.baseConfig.services.stateManager.getGlobalSettingsKey("useAutoCondense")
+	private shouldCompactBeforeNextRequest(requestTotalTokens: number, configuredContextWindow?: number): boolean {
+		const contextWindow = configuredContextWindow || 256_000
+		const maxAllowedSize = Math.min(1_000_000, Math.max(contextWindow - 40_000, contextWindow * 0.8))
+		const useAutoCondense = this.baseConfig.useAutoCondense
 		if (useAutoCondense) {
 			const autoCondenseThreshold = 0.75
-			const roundedThreshold = autoCondenseThreshold ? Math.floor(contextWindow * autoCondenseThreshold) : maxAllowedSize
+			const roundedThreshold = Math.floor(contextWindow * autoCondenseThreshold)
 			const thresholdTokens = Math.min(roundedThreshold, maxAllowedSize)
 			return requestTotalTokens >= thresholdTokens
 		}
@@ -853,7 +854,7 @@ export class SubagentRunner {
 	}
 
 	private async *createMessageWithInitialChunkRetry(
-		api: ReturnType<typeof buildApiHandler>,
+		runtime: SubagentRuntime,
 		systemPrompt: string,
 		fullConversation: DiracStorageMessage[],
 		nativeTools: DiracTool[] | undefined,
@@ -868,7 +869,7 @@ export class SubagentRunner {
 				.getTruncatedMessages(fullConversation, contextState.conversationHistoryDeletedRange)
 				.map((message) => message as DiracStorageMessage)
 			const enableNativeWebSearch =
-				api.supportsNativeWebSearch?.() === true &&
+				runtime.supportsNativeWebSearch &&
 				this.activeTaskState?.activeSkillIds.includes(NATIVE_WEB_SEARCH_SKILL_NAME) === true
 			this.enterPhase("awaiting_first_provider_chunk", "starting provider request", {
 				attempt,
@@ -879,7 +880,7 @@ export class SubagentRunner {
 			})
 
 			try {
-				const stream = api.createMessage(systemPrompt, truncatedConversation, nativeTools, { enableNativeWebSearch })
+				const stream = runtime.createMessage(systemPrompt, truncatedConversation, nativeTools, { enableNativeWebSearch })
 				const iterator = stream[Symbol.asyncIterator]()
 				const firstChunk = await iterator.next()
 				this.enterPhase("streaming_provider_response", "received first provider chunk", { attempt, providerId, modelId })

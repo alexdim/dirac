@@ -516,7 +516,9 @@ function createMockConfig(): any {
 		backgroundEditEnabled: false,
 		taskState: { conversationHistoryDeletedRange: undefined },
 		messageState: { getDiracMessages: () => [], getApiConversationHistory: () => [] },
-		api: { getModel: () => ({ id: "test-model", info: { supportsImages: false, supportsPromptCache: false } }) },
+		providerId: "test",
+		model: { id: "test-model", info: { supportsImages: false, supportsPromptCache: false } },
+		supportsNativeWebSearch: false,
 		services: {
 			browserSession: {
 				launchBrowser: sinon.stub(),
@@ -547,16 +549,13 @@ function createMockConfig(): any {
 			diracIgnoreController: {},
 			commandPermissionController: {},
 			contextManager: { getNextTruncationRange: sinon.stub() },
-			stateManager: {
-				getGlobalSettingsKey: () => undefined,
-				getWorkspaceStateKey: () => undefined,
-				getApiConfiguration: () => ({ planModeApiProvider: "test", actModeApiProvider: "test" }),
-			},
 		},
 		autoApprovalSettings: {},
 		autoApprover: {},
 		browserSettings: {},
 		callbacks: {
+			assertMutationAuthorized: sinon.stub(),
+			withMutationAuthorization: async (_toolName: string, mutation: () => Promise<unknown>) => await mutation(),
 			saveCheckpoint: sinon.stub(),
 			executeCommandTool: sinon.stub(),
 			doesLatestTaskCompletionHaveNewChanges: sinon.stub(),

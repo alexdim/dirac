@@ -1,6 +1,11 @@
 import { cleanupLegacyCheckpoints } from "@integrations/checkpoints/CheckpointMigration"
 import type { HistoryItem } from "@shared/HistoryItem"
 import { type Settings } from "@shared/storage/state-keys"
+import {
+	createTaskWorkingConfiguration,
+	type TaskWorkingConfiguration,
+	type TaskWorkingConfigurationInput,
+} from "../../task/runtime/TaskWorkingConfiguration"
 import pWaitFor from "p-wait-for"
 import type { FolderLockWithRetryResult } from "@/core/locks/types"
 import { Logger } from "@/shared/services/Logger"
@@ -18,6 +23,10 @@ export type TaskInitializationOptions = {
 	onContextCompacted?: () => void
 	switchToActMode?: () => Promise<boolean>
 	enqueueSteeringMessages?: (task: Task) => Promise<void>
+	/** Host/session-owned runtime values; capture input only and never task-settings persistence. */
+	runtimeConfigurationOverrides?: Partial<Settings>
+	/** Exact immutable runtime used only when reconstructing an existing active Task. */
+	workingConfiguration?: TaskWorkingConfiguration
 }
 
 export interface ITaskControllerDependencies {
@@ -104,6 +113,18 @@ export class TaskController {
 		return () => this.taskReplacementListeners.delete(listener)
 	}
 
+	private reconstructionInitializationOptions(task: Task): TaskInitializationOptions {
+		const {
+			runtimeConfigurationOverrides: _runtimeOverrides,
+			workingConfiguration: _workingConfiguration,
+			...callbacks
+		} = this.currentInitializationOptions ?? {}
+		return {
+			...callbacks,
+			workingConfiguration: task.getWorkingConfiguration(),
+		}
+	}
+
 	private async runTaskWithReplacement(task: Task, run: Promise<void>): Promise<void> {
 		let runFailure: { error: unknown } | undefined
 		try {
@@ -130,7 +151,7 @@ export class TaskController {
 			undefined,
 			this.currentConversationUlid,
 			undefined,
-			this.currentInitializationOptions,
+			this.reconstructionInitializationOptions(task),
 		)
 		task.taskState.pendingTaskReplacement = undefined
 		await Promise.all([...this.taskReplacementListeners].map((listener) => listener(taskId)))
@@ -162,12 +183,6 @@ export class TaskController {
 		await this.clearTask()
 		this.deps.stateManager.refreshModelProviderPresetsFromDisk()
 
-		const autoApprovalSettings = this.deps.stateManager.getGlobalSettingsKey("autoApprovalSettings")
-		const shellIntegrationTimeout = this.deps.stateManager.getGlobalSettingsKey("shellIntegrationTimeout")
-		const terminalReuseEnabled = this.deps.stateManager.getGlobalStateKey("terminalReuseEnabled")
-		const vscodeTerminalExecutionMode = this.deps.stateManager.getGlobalStateKey("vscodeTerminalExecutionMode")
-		const terminalOutputLineLimit = this.deps.stateManager.getGlobalSettingsKey("terminalOutputLineLimit")
-		const defaultTerminalProfile = this.deps.stateManager.getGlobalSettingsKey("defaultTerminalProfile")
 		const isNewUser = this.deps.stateManager.getGlobalStateKey("isNewUser")
 		const taskHistory = this.deps.stateManager.getGlobalStateKey("taskHistory")
 
@@ -215,19 +230,38 @@ export class TaskController {
 				this.deps.stateManager.setTaskSettingsBatch(taskId, taskSettings)
 			}
 
+			const suppliedWorkingConfiguration = initializationOptions?.workingConfiguration
+			const workingConfiguration: TaskWorkingConfiguration = suppliedWorkingConfiguration
+				? createTaskWorkingConfiguration({
+						revision: suppliedWorkingConfiguration.revision,
+						settings: suppliedWorkingConfiguration.settings as Settings,
+						apiConfiguration: structuredClone(
+							suppliedWorkingConfiguration.apiConfiguration,
+						) as TaskWorkingConfigurationInput["apiConfiguration"],
+						workspaceConfiguration: structuredClone(
+							suppliedWorkingConfiguration.workspaceConfiguration,
+						) as TaskWorkingConfigurationInput["workspaceConfiguration"],
+						executionOptions: structuredClone(
+							suppliedWorkingConfiguration.executionOptions,
+						) as TaskWorkingConfigurationInput["executionOptions"],
+					})
+				: this.deps.stateManager.captureEffectiveTaskConfiguration(initializationOptions?.runtimeConfigurationOverrides)
+			const { settings, executionOptions } = workingConfiguration
+
 			this._task = new Task({
 				controller,
 				updateTaskHistory: (historyItem) => this.deps.updateTaskHistory(historyItem),
 				postStateToWebview: () => this.deps.postStateToWebview(),
-				reinitExistingTaskFromId: (taskId) => this.reinitExistingTaskFromId(taskId, this.currentInitializationOptions),
+				reinitExistingTaskFromId: (taskId) => this.reinitExistingTaskFromId(taskId),
 				cancelTask: () => this.cancelTask(),
-				shellIntegrationTimeout,
-				terminalReuseEnabled: terminalReuseEnabled ?? true,
-				terminalOutputLineLimit: terminalOutputLineLimit ?? 500,
-				defaultTerminalProfile: defaultTerminalProfile ?? "default",
-				vscodeTerminalExecutionMode,
+				shellIntegrationTimeout: settings.shellIntegrationTimeout,
+				terminalReuseEnabled: executionOptions.terminalReuseEnabled,
+				terminalOutputLineLimit: settings.terminalOutputLineLimit,
+				defaultTerminalProfile: settings.defaultTerminalProfile,
+				vscodeTerminalExecutionMode: executionOptions.vscodeTerminalExecutionMode,
 				cwd,
 				stateManager: this.deps.stateManager,
+				workingConfiguration,
 				workspaceManager: this._workspaceManager,
 				task,
 				images,
@@ -260,6 +294,9 @@ export class TaskController {
 	}
 
 	async reinitExistingTaskFromId(taskId: string, initializationOptions?: TaskInitializationOptions) {
+		const effectiveInitializationOptions =
+			initializationOptions ??
+			(this._task ? this.reconstructionInitializationOptions(this._task) : this.currentInitializationOptions)
 		const history = await this.deps.getTaskWithId(taskId)
 		if (history) {
 			await this.initTask(
@@ -270,7 +307,7 @@ export class TaskController {
 				undefined,
 				this.currentConversationUlid,
 				undefined,
-				initializationOptions,
+				effectiveInitializationOptions,
 			)
 		}
 	}
@@ -331,7 +368,7 @@ export class TaskController {
 					undefined,
 					this.currentConversationUlid,
 					undefined,
-					this.currentInitializationOptions,
+					this.reconstructionInitializationOptions(task),
 				)
 			} else {
 				await this.clearTask()

@@ -1,40 +1,40 @@
-import { terminalColorMode, TerminalColorMode, theme } from "../../constants/theme"
-import React, { useCallback, useMemo, useState } from "react"
-import { Text, useInput } from "ink"
-import { StateManager } from "@/core/storage/StateManager"
-import { buildApiHandler } from "@/core/api"
-import { getProviderModelIdKey, isSettingsKey, type UtilityModelUseCases } from "@shared/storage"
-import { DEFAULT_AUTO_APPROVAL_SETTINGS } from "@shared/AutoApprovalSettings"
-import { useStdinContext } from "../../context/StdinContext"
-import { shouldIgnoreTerminalInput } from "../../utils/input"
-import { copyToClipboardNative } from "../../utils/clipboard"
-import { Panel } from "../Panel"
-import { TABS, FEATURE_SETTINGS, type FeatureKey } from "./constants"
-import { normalizeReasoningEffort } from "./utils"
-import { usesOpenRouterModels } from "../../utils/openrouter-models"
-import { useAuthStatus } from "./hooks/useAuthStatus"
-import { useSettingsItems } from "./hooks/useSettingsItems"
-import { useSettingsActions } from "./hooks/useSettingsActions"
-import { SettingsListView } from "./SettingsListView"
-import { UserApprovedCommandsPage } from "./UserApprovedCommandsPage"
-import { ProviderPickerPage, ModelPickerPage, LanguagePickerPage, UtilityModelPresetPickerPage } from "./subpages/PickerPages"
-import { ApiKeyInputPage, EditValuePage, ObjectEditorPage } from "./subpages/EditPages"
-import { BedrockSetupPage, BedrockCustomFlowPage } from "./subpages/SetupPages"
-import { CodexAuthPage, GithubAuthPage, AuthErrorPage } from "./subpages/AuthPages"
-import { OpenRouterRoutingPage } from "./subpages/OpenRouterRoutingPage"
-import { SettingsNavigationDirection, SettingsTab, type SettingsPanelContentProps } from "./types"
-import { getFirstSelectableSettingsIndex, isSelectableSettingsItem } from "./navigation"
-import type { TelemetrySetting } from "@shared/TelemetrySetting"
-import type { OpenaiReasoningEffort } from "@shared/storage/types"
 import type { AutoApprovalSettings } from "@shared/AutoApprovalSettings"
-import { normalizeUserApprovedCommands, type UserApprovedCommand } from "@shared/UserApprovedCommand"
+import { DEFAULT_AUTO_APPROVAL_SETTINGS } from "@shared/AutoApprovalSettings"
 import type { ModelProviderPreset, ModelProviderSelection } from "@shared/api"
-import type { ObjectEditorState } from "../ConfigViewComponents"
-
-import { ToolRegistry } from "@/core/task/tools/registry/ToolRegistry"
-import type { ToolMetadata } from "@shared/ExtensionMessage"
-import { Logger } from "@/shared/services/Logger"
 import { getAutoCondenseContextLimit } from "@shared/context-management"
+import type { ToolMetadata } from "@shared/ExtensionMessage"
+import { getProviderModelIdKey, isSettingsKey, type UtilityModelUseCases } from "@shared/storage"
+import type { OpenaiReasoningEffort } from "@shared/storage/types"
+import type { TelemetrySetting } from "@shared/TelemetrySetting"
+import { normalizeUserApprovedCommands, type UserApprovedCommand } from "@shared/UserApprovedCommand"
+import { Text, useInput } from "ink"
+import React, { useCallback, useMemo, useState } from "react"
+import { StateManager } from "@/core/storage/StateManager"
+import type { TaskWorkingConfigurationPatch } from "@/core/task/runtime/TaskWorkingConfiguration"
+import { ToolRegistry } from "@/core/task/tools/registry/ToolRegistry"
+import { Logger } from "@/shared/services/Logger"
+import { TerminalColorMode, terminalColorMode, theme } from "../../constants/theme"
+import { useStdinContext } from "../../context/StdinContext"
+import { copyToClipboardNative } from "../../utils/clipboard"
+import { shouldIgnoreTerminalInput } from "../../utils/input"
+import { usesOpenRouterModels } from "../../utils/openrouter-models"
+import type { ObjectEditorState } from "../ConfigViewComponents"
+import { Panel } from "../Panel"
+import { FEATURE_SETTINGS, type FeatureKey, TABS } from "./constants"
+import { useAuthStatus } from "./hooks/useAuthStatus"
+import { useSettingsActions } from "./hooks/useSettingsActions"
+import { useSettingsItems } from "./hooks/useSettingsItems"
+import { getFirstSelectableSettingsIndex, isSelectableSettingsItem } from "./navigation"
+import { SettingsListView } from "./SettingsListView"
+import { commitInteractiveSetting, persistInteractiveSettingWithRollback } from "./settingsTransaction"
+import { AuthErrorPage, CodexAuthPage, GithubAuthPage } from "./subpages/AuthPages"
+import { ApiKeyInputPage, EditValuePage, ObjectEditorPage } from "./subpages/EditPages"
+import { OpenRouterRoutingPage } from "./subpages/OpenRouterRoutingPage"
+import { LanguagePickerPage, ModelPickerPage, ProviderPickerPage, UtilityModelPresetPickerPage } from "./subpages/PickerPages"
+import { BedrockCustomFlowPage, BedrockSetupPage } from "./subpages/SetupPages"
+import { SettingsNavigationDirection, type SettingsPanelContentProps, SettingsTab } from "./types"
+import { UserApprovedCommandsPage } from "./UserApprovedCommandsPage"
+import { normalizeReasoningEffort } from "./utils"
 export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 	onClose,
 	controller,
@@ -227,14 +227,12 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 		}
 	}, [modelRefreshKey, stateManager])
 
-	const rebuildTaskApi = useCallback(async () => {
-		const currentMode = stateManager.getGlobalSettingsKey("mode")
-		const apiConfig = stateManager.getApiConfiguration()
-		if (controller?.task) {
-			controller.task.api = buildApiHandler({ ...apiConfig, ulid: controller.task.ulid }, currentMode)
-		}
-		await controller?.postStateToWebview()
-	}, [controller, stateManager])
+	const rebuildTaskApi = useCallback(
+		async (patch: TaskWorkingConfigurationPatch, persist: () => void | Promise<void>) => {
+			await commitInteractiveSetting(controller, patch, persist)
+		},
+		[controller],
+	)
 
 	const { openAiCodexIsAuthenticated, openAiCodexEmail, githubIsAuthenticated, githubEmail, authStatusError } = useAuthStatus(
 		provider,
@@ -363,10 +361,20 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 		(commands: UserApprovedCommand[]) =>
 			runSettingsAction("approved command update", async () => {
 				const normalizedCommands = normalizeUserApprovedCommands(commands)
-				stateManager.setGlobalState("userApprovedCommands", normalizedCommands)
-				await stateManager.flushPendingState()
+				const previousCommands = structuredClone(stateManager.getGlobalSettingsKey("userApprovedCommands"))
+				await commitInteractiveSetting(controller, { settings: { userApprovedCommands: normalizedCommands } }, () =>
+					persistInteractiveSettingWithRollback(
+						async () => {
+							stateManager.setGlobalState("userApprovedCommands", normalizedCommands)
+							await stateManager.flushPendingState()
+						},
+						async () => {
+							stateManager.setGlobalState("userApprovedCommands", previousCommands)
+							await stateManager.flushPendingState()
+						},
+					),
+				)
 				setUserApprovedCommands(normalizedCommands)
-				await controller?.postStateToWebview()
 			}),
 		[controller, runSettingsAction, stateManager],
 	)
@@ -530,13 +538,12 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 						const nextPinnedProviders = { ...openRouterPinnedProviders }
 						if (providers.length > 0) nextPinnedProviders[openRouterRoutingModelId] = providers
 						else delete nextPinnedProviders[openRouterRoutingModelId]
-						setOpenRouterPinnedProviders(nextPinnedProviders)
-						stateManager.setGlobalState(
-							"openRouterPinnedProviders",
-							Object.keys(nextPinnedProviders).length > 0 ? nextPinnedProviders : undefined,
-						)
+						const persistedValue = Object.keys(nextPinnedProviders).length > 0 ? nextPinnedProviders : undefined
 						runSettingsAction("routing update", async () => {
-							await rebuildTaskApi()
+							await rebuildTaskApi({ settings: { openRouterPinnedProviders: persistedValue } }, () =>
+								stateManager.setGlobalState("openRouterPinnedProviders", persistedValue),
+							)
+							setOpenRouterPinnedProviders(nextPinnedProviders)
 							setOpenRouterRoutingModelId(null)
 						})
 					}}
@@ -555,6 +562,7 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 		if (isEnteringApiKey && pendingProvider) {
 			return (
 				<ApiKeyInputPage
+					apiKeyValue={apiKeyValue}
 					isActive={isEnteringApiKey && !isApplyingSetting}
 					onCancel={() => {
 						setIsEnteringApiKey(false)
@@ -564,7 +572,6 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 					onChange={setApiKeyValue}
 					onSubmit={(value) => runSettingsAction("API key update", () => handleApiKeySubmit(value))}
 					pendingProvider={pendingProvider}
-					apiKeyValue={apiKeyValue}
 				/>
 			)
 		}
@@ -595,9 +602,9 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 				<ModelPickerPage
 					controller={controller}
 					isActive={isPickingModel && !isApplyingSetting}
+					label={label}
 					onSelect={(modelId) => runSettingsAction("model update", () => handleModelSelect(modelId))}
 					provider={pendingProvider || provider}
-					label={label}
 				/>
 			)
 		}
@@ -605,10 +612,10 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 			return (
 				<UtilityModelPresetPickerPage
 					isActive={isPickingUtilityModel && !isApplyingSetting}
-					presets={modelProviderPresets}
 					onSelect={(preset) =>
 						runSettingsAction("utility model selection", () => handleUtilityModelPresetSelect(preset))
 					}
+					presets={modelProviderPresets}
 				/>
 			)
 		}
@@ -643,15 +650,18 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 			return (
 				<ObjectEditorPage
 					objectEditor={objectEditor}
-					setObjectEditor={setObjectEditor}
 					onPersist={(nextObject) => {
 						if (objectEditor.key === "openAiHeaders") {
 							const headers = nextObject as Record<string, string>
-							setOpenAiHeaders(headers)
-							stateManager.setGlobalState("openAiHeaders", headers)
-							runSettingsAction("custom header update", rebuildTaskApi)
+							runSettingsAction("custom header update", async () => {
+								await rebuildTaskApi({ settings: { openAiHeaders: headers } }, () =>
+									stateManager.setGlobalState("openAiHeaders", headers),
+								)
+								setOpenAiHeaders(headers)
+							})
 						}
 					}}
+					setObjectEditor={setObjectEditor}
 				/>
 			)
 		}

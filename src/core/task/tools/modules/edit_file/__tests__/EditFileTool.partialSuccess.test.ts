@@ -91,7 +91,17 @@ function createConfig() {
 		updateFCListFromToolResponse: sinon.stub().resolves(),
 		shouldAutoApproveTool: sinon.stub().returns([true, true]),
 		applyLatestBrowserSettings: sinon.stub().resolves(undefined),
+		createUtilityModelRunner: sinon.stub(),
+		createSubagentRuntime: sinon.stub(),
+		assertMutationAuthorized: sinon.stub(),
+		commitAttemptCompletion: sinon.stub().resolves(true),
+		getDiracMessages: sinon.stub().returns([]),
+		updateDiracMessage: sinon.stub().resolves(),
+		resetTransientState: sinon.stub().resolves(),
+		notifyContextCompacted: sinon.stub(),
 	}
+
+	const persistenceStateManager = { flushPendingState: sinon.stub().resolves() }
 
 	const config = {
 		taskId: "task-1",
@@ -108,9 +118,8 @@ function createConfig() {
 		messageState: {
 			getApiConversationHistory: sinon.stub().returns([]),
 		},
-		api: {
-			getModel: () => ({ id: "test-model", info: { supportsImages: false } }),
-		},
+		model: { id: "test-model", info: { supportsImages: false } },
+		supportsNativeWebSearch: false,
 		autoApprovalSettings: {
 			enableNotifications: false,
 			actions: { executeCommands: false },
@@ -121,19 +130,6 @@ function createConfig() {
 		browserSettings: {},
 		focusChainSettings: {},
 		services: {
-			stateManager: {
-				getGlobalStateKey: () => undefined,
-				getGlobalSettingsKey: (key: string) => {
-					if (key === "mode") return "act"
-					if (key === "hooksEnabled") return false
-					return undefined
-				},
-				getApiConfiguration: () => ({
-					planModeApiProvider: "openai",
-					actModeApiProvider: "openai",
-				}),
-				flushPendingState: sinon.stub().resolves(),
-			},
 			fileContextTracker: {
 				trackFileContext: sinon.stub().resolves(),
 				markFileAsEditedByDirac: sinon.stub(),
@@ -153,7 +149,7 @@ function createConfig() {
 
 	const validator = new ToolValidator({ validateAccess: () => true } as any)
 
-	return { config, callbacks, taskState, validator }
+	return { config, callbacks, taskState, validator, persistenceStateManager }
 }
 
 function makeMultiEditBlock(
@@ -364,7 +360,7 @@ describe("EditFileTool.execute – partial success", () => {
 
 
 	it("restores persisted anchors before editing after task reconstruction", async () => {
-		const { config, taskState, validator } = createConfig()
+		const { config, taskState, validator, persistenceStateManager } = createConfig()
 		const handler = new EditFileToolHandler(validator, false)
 		const fileName = "reconstructed-anchor-edit.txt"
 		const filePath = path.join(tmpDir, fileName)
@@ -375,7 +371,7 @@ describe("EditFileTool.execute – partial success", () => {
 		process.env.DIRAC_DIR = path.join(tmpDir, "dirac-home")
 		try {
 			config.taskId = "anchor-reconstruction"
-			const firstContext = new DiracContext(config.taskId, config.services.stateManager, config.ulid)
+			const firstContext = new DiracContext(config.taskId, persistenceStateManager as any, config.ulid)
 			config.context = firstContext
 			await firstContext.load()
 
@@ -389,7 +385,7 @@ describe("EditFileTool.execute – partial success", () => {
 			await firstContext.save()
 
 			AnchorStateManager.reset(config.ulid)
-			const reconstructedContext = new DiracContext(config.taskId, config.services.stateManager, config.ulid)
+			const reconstructedContext = new DiracContext(config.taskId, persistenceStateManager as any, config.ulid)
 			await reconstructedContext.ensureAnchorState()
 			config.context = reconstructedContext
 			assert.equal(AnchorStateManager.getDocumentFingerprint(filePath, config.ulid), emittedFingerprint)

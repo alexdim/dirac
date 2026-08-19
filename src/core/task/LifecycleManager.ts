@@ -1,6 +1,6 @@
 import { formatResponse } from "@core/formatResponse"
 import { executeHook } from "@core/hooks/hook-executor"
-import { getHookModelContext } from "@core/hooks/hook-model-context"
+import { getTaskHookModelContext } from "./runtime/TaskRuntimeModelContext"
 import { getHooksEnabledSafe } from "@core/hooks/hooks-utils"
 import {
 	ensureTaskDirectoryExists,
@@ -12,6 +12,7 @@ import {
 import { HostProvider } from "@hosts/host-provider"
 import { ensureCheckpointInitialized } from "@integrations/checkpoints/initializer"
 import { processFilesIntoText } from "@integrations/misc/extract-text"
+import type { BrowserSession } from "@services/browser/BrowserSession"
 import { findLastIndex } from "@shared/array"
 import { isResumePromptCard, isSuccessfulTaskCompletionCard } from "@shared/cardIdentity"
 import {
@@ -40,11 +41,20 @@ export class LifecycleManager {
 		this.dependencies.api = api
 	}
 
+	setBrowserSession(browserSession: BrowserSession): void {
+		this.dependencies.browserSession = browserSession
+	}
+
+	private getOperationalApi(): LifecycleManagerDependencies["api"] {
+		return this.dependencies.getRequestRuntime()?.api ?? this.dependencies.api
+	}
+
 	public async initializeCheckpoints(isFirstRequest: boolean): Promise<void> {
 		if (
 			!isFirstRequest ||
-			!this.dependencies.stateManager.getGlobalSettingsKey("enableCheckpointsSetting") ||
+			!this.dependencies.getWorkingConfiguration().settings.enableCheckpointsSetting ||
 			!this.dependencies.checkpointManager ||
+			!this.dependencies.checkpointManager.isEnabled() ||
 			this.dependencies.taskState.checkpointManagerErrorMessage
 		) {
 			return
@@ -134,7 +144,7 @@ export class LifecycleManager {
 			}
 		}
 
-		const hooksEnabled = getHooksEnabledSafe(this.dependencies.stateManager.getGlobalSettingsKey("hooksEnabled"))
+		const hooksEnabled = getHooksEnabledSafe(this.dependencies.getWorkingConfiguration().settings.hooksEnabled)
 		if (hooksEnabled) {
 			const taskStartResult = await executeHook({
 				hookName: "TaskStart",
@@ -156,7 +166,10 @@ export class LifecycleManager {
 				messageStateHandler: this.dependencies.messageStateHandler,
 				taskId: this.dependencies.taskId,
 				hooksEnabled,
-				model: getHookModelContext(this.dependencies.api, this.dependencies.stateManager),
+				model: getTaskHookModelContext(
+					this.getOperationalApi(),
+					this.dependencies.getRequestRuntime()?.workingConfiguration ?? this.dependencies.getWorkingConfiguration(),
+				),
 			})
 
 			if (taskStartResult.cancel === true) {
@@ -296,7 +309,7 @@ export class LifecycleManager {
 
 		const newUserContent: DiracContent[] = []
 
-		const hooksEnabled = getHooksEnabledSafe(this.dependencies.stateManager.getGlobalSettingsKey("hooksEnabled"))
+		const hooksEnabled = getHooksEnabledSafe(this.dependencies.getWorkingConfiguration().settings.hooksEnabled)
 		if (hooksEnabled) {
 			const diracMessages = this.dependencies.messageStateHandler.getDiracMessages()
 			const taskResumeResult = await executeHook({
@@ -325,7 +338,10 @@ export class LifecycleManager {
 				messageStateHandler: this.dependencies.messageStateHandler,
 				taskId: this.dependencies.taskId,
 				hooksEnabled,
-				model: getHookModelContext(this.dependencies.api, this.dependencies.stateManager),
+				model: getTaskHookModelContext(
+					this.getOperationalApi(),
+					this.dependencies.getRequestRuntime()?.workingConfiguration ?? this.dependencies.getWorkingConfiguration(),
+				),
 			})
 
 			if (taskResumeResult.cancel === true) {
@@ -407,7 +423,7 @@ export class LifecycleManager {
 		const wasRecent = lastDiracMessage?.ts && Date.now() - lastDiracMessage.ts < 30_000
 		const pendingContextWarning = await this.dependencies.fileContextTracker.retrieveAndClearPendingFileContextWarning()
 		const hasPendingFileContextWarnings = pendingContextWarning && pendingContextWarning.length > 0
-		const mode = this.dependencies.stateManager.getGlobalSettingsKey("mode")
+		const mode = this.dependencies.getWorkingConfiguration().settings.mode
 		const [taskResumptionMessage, userResponseMessage] = formatResponse.taskResumption(
 			mode === "plan" ? "plan" : "act",
 			agoText,
@@ -502,7 +518,7 @@ export class LifecycleManager {
 		let cleanupFailures: unknown[] = []
 
 		try {
-			this.dependencies.api.abort?.()
+			this.getOperationalApi().abort?.()
 			const shouldRunTaskCancelHook = await this.dependencies.hookManager.shouldRunTaskCancelHook()
 
 			const activeHook = await this.dependencies.hookManager.getActiveHookExecution()
@@ -524,7 +540,7 @@ export class LifecycleManager {
 				}
 			}
 
-			const hooksEnabled = getHooksEnabledSafe(this.dependencies.stateManager.getGlobalSettingsKey("hooksEnabled"))
+			const hooksEnabled = getHooksEnabledSafe(this.dependencies.getWorkingConfiguration().settings.hooksEnabled)
 			if (hooksEnabled && shouldRunTaskCancelHook) {
 				try {
 					await executeHook({
@@ -543,7 +559,10 @@ export class LifecycleManager {
 						messageStateHandler: this.dependencies.messageStateHandler,
 						taskId: this.dependencies.taskId,
 						hooksEnabled,
-						model: getHookModelContext(this.dependencies.api, this.dependencies.stateManager),
+						model: getTaskHookModelContext(
+							this.getOperationalApi(),
+							this.dependencies.getRequestRuntime()?.workingConfiguration ?? this.dependencies.getWorkingConfiguration(),
+						),
 					})
 				} catch (error) {
 					Logger.error("[TaskCancel Hook] Failed (non-fatal):", error)
@@ -581,18 +600,20 @@ export class LifecycleManager {
 				Logger.error("Failed to post state after setting abort flag", error)
 			}
 
-			// Remove task-scoped tools from registry
-			const { ToolRegistry } = await import("@core/task/tools/registry/ToolRegistry")
-			const registry = ToolRegistry.getInstance()
-			for (const toolId of this.dependencies.taskState.taskScopedToolIds) {
-				registry.removeUserTool(toolId)
-			}
-			this.dependencies.taskState.taskScopedToolIds = []
 
 		} catch (error) {
 			abortFailures.push(error)
 		} finally {
-			cleanupFailures = await this.disposeTaskResources()
+			try {
+				const { ToolRegistry } = await import("@core/task/tools/registry/ToolRegistry")
+				await ToolRegistry.withExclusiveAccess((registry) => {
+					registry.removeTaskTools(this.dependencies.taskId)
+				})
+				this.dependencies.taskState.taskScopedToolIds = []
+			} catch (error) {
+				cleanupFailures.push(error)
+			}
+			cleanupFailures.push(...(await this.disposeTaskResources()))
 
 			if (this.dependencies.taskState.taskLockAcquired) {
 				try {

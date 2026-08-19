@@ -40,6 +40,7 @@ function makeTool(overrides: Partial<DiscoveredTool> = {}): DiscoveredTool {
 			})),
 		modulePath: overrides.modulePath ?? `modules/${id}/tool.ts`,
 		sourceHash: overrides.sourceHash,
+		ownerTaskId: overrides.ownerTaskId,
 	}
 }
 
@@ -374,13 +375,13 @@ describe("ToolRegistry", () => {
 
 		it("rejects a lower-priority replacement without mutating the existing tool", () => {
 			const registry = ToolRegistry.getInstance()
-			const existing = makeTool({ id: "user_tool", source: "task", modulePath: "task" })
+			const existing = makeTool({ id: "user_tool", source: "workspace", modulePath: "workspace" })
 			registry.registerUserTool(existing)
 			registry.enable("user_tool")
 			const version = registry.getVersion()
 
 			assert.strictEqual(
-				registry.replaceUserTool(makeTool({ id: "user_tool", source: "workspace", modulePath: "workspace" })),
+				registry.replaceUserTool(makeTool({ id: "user_tool", source: "global", modulePath: "global" })),
 				false,
 			)
 			assert.strictEqual(registry.getAllTools()[0], existing)
@@ -502,12 +503,15 @@ describe("ToolRegistry", () => {
 		it("removes stale disk tools while preserving task-scoped tools", () => {
 			const registry = ToolRegistry.getInstance()
 			registry.registerUserTool(makeTool({ id: "workspace_tool", source: "workspace", sourceHash: "hash-1" }))
-			registry.registerUserTool(makeTool({ id: "task_tool", source: "task", sourceHash: "task-hash" }))
+			registry.registerUserTool(
+				makeTool({ id: "task_tool", source: "task", sourceHash: "task-hash", ownerTaskId: "owner-task" }),
+			)
 
 			registry.reconcileWorkspaceUserTools([])
 
+			assert.deepStrictEqual(registry.getAllTools(), [])
 			assert.deepStrictEqual(
-				registry.getAllTools().map((tool) => tool.id),
+				registry.getAllTools("owner-task").map((tool) => tool.id),
 				["task_tool"],
 			)
 		})

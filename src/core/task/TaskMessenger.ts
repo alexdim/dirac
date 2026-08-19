@@ -2,7 +2,7 @@ import { ApiHandler } from "@core/api"
 
 import { executeHook } from "@core/hooks/hook-executor"
 
-import { getHookModelContext } from "@core/hooks/hook-model-context"
+import { getTaskHookModelContext } from "./runtime/TaskRuntimeModelContext"
 import { getHooksEnabledSafe } from "@core/hooks/hooks-utils"
 import {
 	Card,
@@ -462,7 +462,7 @@ export class TaskMessenger implements ITaskMessenger {
 		message: string
 		waitingForUserInput: boolean
 	}): Promise<void> {
-		const hooksEnabled = getHooksEnabledSafe(this.dependencies.stateManager.getGlobalSettingsKey("hooksEnabled"))
+		const hooksEnabled = getHooksEnabledSafe(this.dependencies.getWorkingConfiguration().settings.hooksEnabled)
 		if (!hooksEnabled) {
 			return
 		}
@@ -479,7 +479,10 @@ export class TaskMessenger implements ITaskMessenger {
 				messageStateHandler: this.dependencies.messageStateHandler,
 				taskId: this.dependencies.taskId,
 				hooksEnabled,
-				model: getHookModelContext(this.dependencies.api!, this.dependencies.stateManager),
+				model: getTaskHookModelContext(
+					this.dependencies.getRequestRuntime?.()?.api ?? this.dependencies.api!,
+					this.dependencies.getWorkingConfiguration(),
+				),
 			})
 		} catch (error) {
 			Logger.error("[Notification Hook] Failed (non-fatal):", error)

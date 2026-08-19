@@ -65,35 +65,17 @@ function createTaskConfig(): TaskConfig {
 		context: {},
 		taskState: new TaskState(),
 		messageState: {},
-		api: {
-			getModel: () => ({
-				id: "anthropic/claude-sonnet-4.5",
-				info: {
-					contextWindow: 200_000,
-					apiFormat: ApiFormat.ANTHROPIC_CHAT,
-					supportsPromptCache: true,
-				},
-			}),
-			createMessage: sinon.stub().callsFake(async function* () {}),
-		},
-		services: {
-			stateManager: {
-				getGlobalSettingsKey: (key: string) => {
-					if (key === "mode") {
-						return "act"
-					}
-					if (key === "customPrompt") {
-						return undefined
-					}
-					return undefined
-				},
-				getGlobalStateKey: (_key: string) => undefined,
-				getApiConfiguration: () => ({
-					actModeApiProvider: "anthropic",
-					planModeApiProvider: "anthropic",
-				}),
+		providerId: "anthropic",
+		model: {
+			id: "anthropic/claude-sonnet-4.5",
+			info: {
+				contextWindow: 200_000,
+				apiFormat: ApiFormat.ANTHROPIC_CHAT,
+				supportsPromptCache: true,
 			},
 		},
+		supportsNativeWebSearch: false,
+		services: {},
 		browserSettings: {},
 		focusChainSettings: {},
 		autoApprovalSettings: {
@@ -121,6 +103,16 @@ function createTaskConfig(): TaskConfig {
 			clearActiveHookExecution: sinon.stub().resolves(),
 			getActiveHookExecution: sinon.stub().resolves(undefined),
 			runUserPromptSubmitHook: sinon.stub().resolves({}),
+			createSubagentRuntime: () => {
+				const handler = coreApi.buildApiHandler({ actModeApiProvider: "anthropic" } as any, "act")
+				return {
+					providerId: "anthropic",
+					model: structuredClone(handler.getModel()),
+					supportsNativeWebSearch: handler.supportsNativeWebSearch?.() === true,
+					createMessage: handler.createMessage.bind(handler),
+					abort: () => handler.abort?.(),
+				}
+			},
 		},
 		coordinator: {
 			getHandler: sinon.stub().callsFake((toolName: DiracDefaultTool) => {
@@ -211,7 +203,7 @@ describe("SubagentRunner", () => {
 		createMessage.onSecondCall().callsFake(async function* (_systemPrompt: string, conversation: unknown[]) {
 			const assistantMessage = conversation[1] as {
 				role: string
-				content: Array<{ type?: string; [key: string]: unknown }>
+				content: Array<{ type?: string;[key: string]: unknown }>
 			}
 			assert.equal(assistantMessage.role, "assistant")
 
@@ -220,7 +212,7 @@ describe("SubagentRunner", () => {
 			assert.equal(toolUse.id, "toolu_subagent_1")
 			assert.equal(toolUse.name, DiracDefaultTool.LIST_FILES)
 
-			const userMessage = conversation[2] as { role: string; content: Array<{ type?: string; [key: string]: unknown }> }
+			const userMessage = conversation[2] as { role: string; content: Array<{ type?: string;[key: string]: unknown }> }
 			assert.equal(userMessage.role, "user")
 			const toolResult = userMessage.content.find((block) => block.type === "tool_result")
 			assert.ok(toolResult)
@@ -312,7 +304,7 @@ describe("SubagentRunner", () => {
 		initializeHostProvider()
 		const config = createTaskConfigWithListFilesSnapshot()
 
-		const result = await new SubagentRunner(config).run("Search", () => {})
+		const result = await new SubagentRunner(config).run("Search", () => { })
 
 		assert.equal(result.status, SubagentExecutionStatus.COMPLETED)
 		assert.deepEqual(config.taskState.activeSkillIds, ["web-search"])
@@ -407,7 +399,7 @@ describe("SubagentRunner", () => {
 			runId: "flush",
 		})
 		// Stub flush to hang — if run() awaited it, this test would never resolve.
-		let resolveFlush: () => void = () => {}
+		let resolveFlush: () => void = () => { }
 		const flushPromise = new Promise<void>((resolve) => {
 			resolveFlush = resolve
 		})
@@ -415,14 +407,16 @@ describe("SubagentRunner", () => {
 
 		try {
 			const runner = new SubagentRunner(createTaskConfigWithListFilesSnapshot(), "subagent", { recorder })
-			const result = await runner.run("List files", () => {})
+			const result = await runner.run("List files", () => { })
 
 			assert.equal(result.status, SubagentExecutionStatus.COMPLETED)
 			assert.equal(result.result, "done")
 			assert.ok(flushStub.called, "recorder.flush was called")
 		} finally {
 			resolveFlush()
-			await fs.rm(taskDirectory, { recursive: true, force: true })
+			await flushPromise
+			await new Promise((resolve) => setImmediate(resolve))
+			await fs.rm(taskDirectory, { recursive: true, force: true, maxRetries: 5, retryDelay: 20 })
 		}
 	})
 
@@ -460,10 +454,10 @@ describe("SubagentRunner", () => {
 			const runner = new SubagentRunner(createTaskConfigWithListFilesSnapshot())
 			const resultPromise = runner.run("List files", (update) => {
 				if (!update.trajectoryEvent) return
-				return new Promise<void>(() => {})
+				return new Promise<void>(() => { })
 			})
 			await clock.tickAsync(0)
-			await clock.tickAsync(1_000)
+			await clock.tickAsync(10_000)
 			const result = await resultPromise
 
 			assert.equal(result.status, SubagentExecutionStatus.COMPLETED)
@@ -523,7 +517,7 @@ describe("SubagentRunner", () => {
 			return false
 		})
 
-		const result = await runner.run("List files", () => {})
+		const result = await runner.run("List files", () => { })
 
 		assert.equal(result.status, "completed")
 		assert.equal(result.result, "done")
@@ -548,7 +542,7 @@ describe("SubagentRunner", () => {
 		createMessage.onSecondCall().callsFake(async function* (_systemPrompt: string, conversation: unknown[]) {
 			const lastMessage = conversation[conversation.length - 1] as {
 				role: string
-				content: Array<{ type?: string; [key: string]: unknown }>
+				content: Array<{ type?: string;[key: string]: unknown }>
 			}
 
 			assert.equal(lastMessage.role, "user")
@@ -580,7 +574,7 @@ describe("SubagentRunner", () => {
 		initializeHostProvider()
 
 		const runner = new SubagentRunner(createTaskConfigWithListFilesSnapshot())
-		const result = await runner.run("List files", () => {})
+		const result = await runner.run("List files", () => { })
 
 		assert.equal(result.status, "completed")
 		assert.equal(result.result, "done")
@@ -636,7 +630,7 @@ describe("SubagentRunner", () => {
 		initializeHostProvider()
 
 		const runner = new SubagentRunner(createTaskConfigWithListFilesSnapshot())
-		const result = await runner.run("List files", () => {})
+		const result = await runner.run("List files", () => { })
 
 		assert.equal(result.status, "completed")
 		assert.equal(result.result, "done")
@@ -676,7 +670,7 @@ describe("SubagentRunner", () => {
 
 		const clock = sinon.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "setInterval", "clearInterval", "Date"] })
 		const runner = new SubagentRunner(createTaskConfigWithListFilesSnapshot())
-		const runPromise = runner.run("List files", () => {})
+		const runPromise = runner.run("List files", () => { })
 		await clock.runAllAsync()
 		const result = await runPromise
 		clock.restore()
@@ -692,7 +686,7 @@ describe("SubagentRunner", () => {
 		createMessage.onFirstCall().callsFake(async function* () {
 			yield* []
 			const contextError = new Error("context length exceeded")
-			;(contextError as Error & { status: number }).status = 400
+				; (contextError as Error & { status: number }).status = 400
 			throw contextError
 		})
 
@@ -706,7 +700,7 @@ describe("SubagentRunner", () => {
 		initializeHostProvider()
 
 		const runner = new SubagentRunner(createTaskConfigWithListFilesSnapshot())
-		const result = await runner.run("Huge prompt", () => {})
+		const result = await runner.run("Huge prompt", () => { })
 
 		assert.equal(result.status, "failed")
 		assert.equal(createMessage.callCount, 1)
@@ -761,7 +755,7 @@ describe("SubagentRunner", () => {
 		initializeHostProvider()
 
 		const runner = new SubagentRunner(createTaskConfigWithListFilesSnapshot())
-		const result = await runner.run("Inspect the repository", () => {})
+		const result = await runner.run("Inspect the repository", () => { })
 
 		assert.equal(result.status, "completed")
 		assert.equal(result.result, "done")
@@ -792,7 +786,7 @@ describe("SubagentRunner", () => {
 		initializeHostProvider()
 
 		const runner = new SubagentRunner(createTaskConfigWithListFilesSnapshot())
-		const result = await runner.run("List files", () => {})
+		const result = await runner.run("List files", () => { })
 
 		assert.equal(result.status, "completed")
 		assert.equal(createMessage.callCount, 1)
@@ -831,7 +825,7 @@ describe("SubagentRunner", () => {
 		initializeHostProvider()
 
 		const runner = new SubagentRunner(createTaskConfigWithListFilesSnapshot())
-		const result = await runner.run("Run task", () => {})
+		const result = await runner.run("Run task", () => { })
 
 		assert.equal(result.status, "completed")
 		assert.equal(createMessage.callCount, 1)
@@ -870,7 +864,7 @@ describe("SubagentRunner", () => {
 		initializeHostProvider()
 
 		const runner = new SubagentRunner(createTaskConfigWithListFilesSnapshot())
-		const result = await runner.run("Run task", () => {})
+		const result = await runner.run("Run task", () => { })
 
 		assert.equal(result.status, "completed")
 		assert.equal(createMessage.callCount, 1)
@@ -909,7 +903,7 @@ describe("SubagentRunner", () => {
 		initializeHostProvider()
 
 		const runner = new SubagentRunner(createTaskConfigWithListFilesSnapshot())
-		const result = await runner.run("Run task", () => {})
+		const result = await runner.run("Run task", () => { })
 
 		assert.equal(result.status, "completed")
 		assert.equal(createMessage.callCount, 1)
@@ -975,7 +969,7 @@ describe("SubagentRunner", () => {
 		initializeHostProvider()
 
 		const runner = new SubagentRunner(createTaskConfigWithListFilesSnapshot())
-		const result = await runner.run("List files", () => {})
+		const result = await runner.run("List files", () => { })
 
 		assert.equal(result.status, "completed")
 		assert.equal(result.result, "done")
@@ -984,7 +978,7 @@ describe("SubagentRunner", () => {
 
 	it("returns after the wrap-up deadline when the API stream ignores abort", async () => {
 		const createMessage = sinon.stub().callsFake(async function* () {
-			await new Promise<void>(() => {})
+			await new Promise<void>(() => { })
 		})
 		const promptRegistry = PromptRegistry.getInstance()
 		sinon.stub(promptRegistry, "get").resolves("system prompt")
@@ -1123,7 +1117,7 @@ describe("SubagentRunner", () => {
 
 	it("returns cancelled when the parent task is cancelled even if the API stream never settles", async () => {
 		const createMessage = sinon.stub().callsFake(async function* () {
-			await new Promise<void>(() => {})
+			await new Promise<void>(() => { })
 		})
 		const promptRegistry = PromptRegistry.getInstance()
 		sinon.stub(promptRegistry, "get").resolves("system prompt")
@@ -1135,7 +1129,7 @@ describe("SubagentRunner", () => {
 		try {
 			const config = createTaskConfigWithListFilesSnapshot()
 			const runner = new SubagentRunner(config)
-			const runPromise = runner.run("Never settles", () => {})
+			const runPromise = runner.run("Never settles", () => { })
 			await clock.tickAsync(0)
 			config.taskState.abort = true
 			await clock.tickAsync(50)
@@ -1155,7 +1149,7 @@ describe("SubagentRunner", () => {
 	it("reports cancelled phase on parent cancel, not cancelling", async () => {
 		expectLoggerErrors()
 		const createMessage = sinon.stub().callsFake(async function* () {
-			await new Promise<void>(() => {})
+			await new Promise<void>(() => { })
 		})
 		const promptRegistry = PromptRegistry.getInstance()
 		sinon.stub(promptRegistry, "get").resolves("system prompt")
@@ -1191,7 +1185,7 @@ describe("SubagentRunner", () => {
 
 	it("records first-chunk liveness warnings without waiting for the overall timeout", async () => {
 		const createMessage = sinon.stub().callsFake(async function* () {
-			await new Promise<void>(() => {})
+			await new Promise<void>(() => { })
 		})
 		const promptRegistry = PromptRegistry.getInstance()
 		sinon.stub(promptRegistry, "get").resolves("system prompt")

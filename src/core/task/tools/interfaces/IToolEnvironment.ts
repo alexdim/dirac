@@ -175,6 +175,7 @@ export interface SystemCommandResult {
 	exitCode?: number | null
 	signal?: NodeJS.Signals | null
 	logFilePath?: string
+	backgroundCompletion?: Promise<void>
 }
 
 export interface ISystemTrait {

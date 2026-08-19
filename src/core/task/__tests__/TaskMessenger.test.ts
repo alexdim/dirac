@@ -23,7 +23,7 @@ function createMessenger() {
 		taskState,
 		messageStateHandler,
 		postStateToWebview: sinon.stub().resolves(),
-		stateManager: { getGlobalSettingsKey: sinon.stub().returns(false) } as any,
+		getWorkingConfiguration: () => ({ settings: { hooksEnabled: false }, apiConfiguration: {} }) as any,
 		taskId: "task-1",
 		getCurrentProviderInfo: sinon.stub(),
 	} as any)

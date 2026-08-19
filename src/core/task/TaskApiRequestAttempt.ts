@@ -17,13 +17,17 @@ export async function* attemptApiRequest(
 	lastApiReqIndex: number,
 	shouldCompact?: boolean,
 ): ApiStream {
-	const { systemPrompt, toolSnapshot, contextManagementMetadata, providerInfo } = await buildApiRequestParams(ctx, {
-		previousApiReqIndex,
-		shouldCompact,
-	})
+	const { systemPrompt, toolSnapshot, contextManagementMetadata, providerInfo } = await buildApiRequestParams(
+		ctx,
+		ctx.requestRuntime,
+		{
+			previousApiReqIndex,
+			shouldCompact,
+		},
+	)
 	const { model, providerId } = providerInfo
 
-	const metricsManager = new StreamingMetricsManager(ctx.messageStateHandler, lastApiReqIndex, ctx.api)
+	const metricsManager = new StreamingMetricsManager(ctx.messageStateHandler, lastApiReqIndex, ctx.requestRuntime.api)
 
 	const finalizeApiReqMsg = async (cancelReason?: DiracApiReqCancelReason, streamingFailedMessage?: string) => {
 		await metricsManager.updateApiReqMsgFromMetrics(cancelReason, streamingFailedMessage)
@@ -51,7 +55,7 @@ export async function* attemptApiRequest(
 
 	if (ctx.taskState.abort) throw new Error("Task instance aborted")
 
-	const stream = ctx.api.createMessage(
+	const stream = ctx.requestRuntime.api.createMessage(
 		systemPrompt,
 		providerDispatch.messages.map(removeProviderBoundaryMetadataFromMessage),
 		toolSnapshot.nativeTools,

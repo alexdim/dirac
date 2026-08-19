@@ -25,7 +25,7 @@ interface CheckpointManagerTask {
 	readonly taskId: string
 }
 interface CheckpointManagerConfig {
-	readonly enableCheckpoints: boolean
+	enableCheckpoints: boolean
 }
 interface CheckpointManagerServices {
 	readonly fileContextTracker: FileContextTracker
@@ -122,6 +122,17 @@ export class TaskCheckpointManager implements ICheckpointManager {
 			},
 			this.storage,
 		)
+	}
+
+	setEnabled(enabled: boolean): void {
+		this.config.enableCheckpoints = enabled
+		this.storage.setEnabled(enabled)
+		this.restoreHandler.setEnabled(enabled)
+		this.diffPresenter.setEnabled(enabled)
+	}
+
+	isEnabled(): boolean {
+		return this.config.enableCheckpoints
 	}
 
 	/** Creates a checkpoint of the current workspace state */

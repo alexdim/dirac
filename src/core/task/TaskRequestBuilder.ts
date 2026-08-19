@@ -1,4 +1,4 @@
-import type { ApiHandler, ApiProviderInfo } from "@core/api"
+import type { ApiProviderInfo } from "@core/api"
 import {
 	getGlobalDiracRules,
 	getLocalDiracRules,
@@ -15,7 +15,6 @@ import { ensureRulesDirectoryExists, ensureTaskDirectoryExists } from "@core/sto
 import { createDefaultTextCondensationTemplateRegistry, TASK_HANDOFF_TEMPLATE_ID } from "@core/text-condensation/templates"
 import { isUtilityTextCondensationAvailable } from "@core/text-condensation/UtilityTextCondensationAvailability"
 import { getConfiguredUtilityModelSelection } from "@core/utility-model/UtilityModelSelection"
-import { isMultiRootEnabled } from "@core/workspace/multi-root-utils"
 import { HostProvider } from "@hosts/host-provider"
 import { featureFlagsService } from "@services/feature-flags"
 import { DiracClient } from "@shared/dirac"
@@ -24,6 +23,7 @@ import * as path from "path"
 import { filterSkillsByProviderCapabilities } from "@/shared/skills"
 import { getAvailableCores } from "@/utils/os"
 import { detectBestShell } from "@/utils/shell-detection"
+import { isParallelToolCallingEnabled } from "@/utils/model-utils"
 import type { ContextManager } from "../context/context-management/ContextManager"
 import { RuleContextBuilder } from "../context/instructions/user-instructions/RuleContextBuilder"
 import { getOrDiscoverSkills } from "../context/instructions/user-instructions/skills"
@@ -37,12 +37,13 @@ import type { MessageStateHandler } from "./message-state"
 import type { TaskMessenger } from "./TaskMessenger"
 import type { TaskState } from "./TaskState"
 import type { ToolExecutor } from "./ToolExecutor"
+import type { TaskRequestRuntime } from "./runtime/TaskRequestRuntime"
+import { bindToolSnapshotToRequestRuntime } from "./runtime/TaskRequestRuntime"
 
 export interface TaskRequestBuilderContext {
 	taskId: string
 	cwd: string
 	terminalExecutionMode: "vscodeTerminal" | "backgroundExec"
-	api: ApiHandler
 	stateManager: StateManager
 	messageStateHandler: MessageStateHandler
 	taskMessenger: TaskMessenger
@@ -52,8 +53,6 @@ export interface TaskRequestBuilderContext {
 	diracIgnoreController: DiracIgnoreController
 	workspaceManager?: WorkspaceRootManager
 	taskState: TaskState
-	getCurrentProviderInfo: () => ApiProviderInfo
-	isParallelToolCallingEnabled: () => boolean
 	writePromptMetadataArtifacts: (params: {
 		systemPrompt: string
 		providerInfo: ApiProviderInfo
@@ -65,6 +64,7 @@ export interface TaskRequestBuilderContext {
 
 export async function buildApiRequestParams(
 	ctx: TaskRequestBuilderContext,
+	requestRuntime: TaskRequestRuntime,
 	params: { previousApiReqIndex: number; shouldCompact?: boolean },
 ): Promise<{
 	systemPrompt: string
@@ -72,26 +72,43 @@ export async function buildApiRequestParams(
 	contextManagementMetadata: Awaited<ReturnType<ContextManager["getNewContextMessagesAndMetadata"]>>
 	providerInfo: ApiProviderInfo
 }> {
-	const providerInfo = ctx.getCurrentProviderInfo()
+	const { settings, workspaceConfiguration, executionOptions } = requestRuntime.workingConfiguration
+	const apiConfiguration = requestRuntime.workingConfiguration.apiConfiguration
+	const mode = settings.mode
+	const providerInfo: ApiProviderInfo = {
+		model: requestRuntime.api.getModel(),
+		providerId: (mode === "plan" ? apiConfiguration.planModeApiProvider : apiConfiguration.actModeApiProvider) as string,
+		customPrompt: settings.customPrompt,
+		mode,
+		supportsNativeWebSearch: requestRuntime.api.supportsNativeWebSearch?.() === true,
+	}
 	const host = await HostProvider.env.getHostVersion({})
 	const ide = host?.platform || "Unknown"
 	const isCliEnvironment = host.diracType === DiracClient.Cli
-	const browserSettings = ctx.stateManager.getGlobalSettingsKey("browserSettings")
+	const browserSettings = settings.browserSettings
 	const disableBrowserTool = browserSettings?.disableToolUse ?? false
 	const modelSupportsBrowserUse = providerInfo.model.info.supportsImages ?? false
 
 	const supportsBrowserUse = modelSupportsBrowserUse && !disableBrowserTool
-	const preferredLanguageRaw = ctx.stateManager.getGlobalSettingsKey("preferredLanguage")
+	const preferredLanguageRaw = settings.preferredLanguage
 	const preferredLanguage = getLanguageKey(preferredLanguageRaw as LanguageDisplay)
 	const preferredLanguageInstructions =
 		preferredLanguage && preferredLanguage !== DEFAULT_LANGUAGE_SETTINGS
 			? `# Preferred Language\n\nSpeak in ${preferredLanguage}.`
 			: ""
 
-	const { globalToggles, localToggles } = await refreshDiracRulesToggles(ctx.stateManager, ctx.cwd)
+	const { globalToggles, localToggles } = await refreshDiracRulesToggles(ctx.stateManager, ctx.cwd, {
+		globalToggles: settings.globalDiracRulesToggles,
+		localToggles: workspaceConfiguration.localDiracRulesToggles,
+	})
 	const { windsurfLocalToggles, cursorLocalToggles, agentsLocalToggles } = await refreshExternalRulesToggles(
 		ctx.stateManager,
 		ctx.cwd,
+		{
+			localWindsurfRulesToggles: workspaceConfiguration.localWindsurfRulesToggles,
+			localCursorRulesToggles: workspaceConfiguration.localCursorRulesToggles,
+			localAgentsRulesToggles: workspaceConfiguration.localAgentsRulesToggles,
+		},
 	)
 
 	const evaluationContext = await new RuleContextBuilder().buildEvaluationContext({
@@ -111,8 +128,8 @@ export async function buildApiRequestParams(
 	)
 	const localWindsurfRulesFileInstructions = await getLocalWindsurfRules(ctx.cwd, windsurfLocalToggles)
 	const localAgentsRulesFileInstructions = await getLocalAgentsRules(ctx.cwd, agentsLocalToggles)
-	ctx.diracIgnoreController.yoloMode = !!ctx.stateManager.getGlobalSettingsKey("yoloModeToggled")
-	const isYolo = !!ctx.stateManager.getGlobalSettingsKey("yoloModeToggled")
+	ctx.diracIgnoreController.yoloMode = !!settings.yoloModeToggled
+	const isYolo = !!settings.yoloModeToggled
 	const diracIgnoreContent = ctx.diracIgnoreController.diracIgnoreContent
 	let diracIgnoreInstructions: string | undefined
 	if (diracIgnoreContent && !isYolo) {
@@ -120,7 +137,7 @@ export async function buildApiRequestParams(
 	}
 
 	let workspaceRoots: Array<{ path: string; name: string; vcs?: string }> | undefined
-	const multiRootEnabled = isMultiRootEnabled(ctx.stateManager)
+	const multiRootEnabled = executionOptions.multiRootEnabled
 	if (multiRootEnabled && ctx.workspaceManager) {
 		workspaceRoots = ctx.workspaceManager.getRoots().map((root) => ({
 			path: root.path,
@@ -133,10 +150,10 @@ export async function buildApiRequestParams(
 	const providerSkills = filterSkillsByProviderCapabilities(resolvedSkills, {
 		native_web_search: providerInfo.supportsNativeWebSearch === true,
 	})
-	const globalSkillsToggles = ctx.stateManager.getGlobalSettingsKey("globalSkillsToggles") ?? {}
-	const localSkillsToggles = ctx.stateManager.getWorkspaceStateKey("localSkillsToggles") ?? {}
+	const globalSkillsToggles = settings.globalSkillsToggles ?? {}
+	const localSkillsToggles = workspaceConfiguration.localSkillsToggles ?? {}
 	const availableSkills = providerSkills.filter((skill) => {
-		if (ctx.stateManager.getGlobalSettingsKey("yoloModeToggled") && skill.interactiveOnly) return false
+		if (settings.yoloModeToggled && skill.interactiveOnly) return false
 		if (skill.source === "builtin") return true
 		const toggles = skill.source === "global" ? globalSkillsToggles : localSkillsToggles
 		return toggles[skill.path] !== false
@@ -153,10 +170,10 @@ export async function buildApiRequestParams(
 	const shellInfo = detectBestShell()
 	const taskHandoffCondensationAvailable = isUtilityTextCondensationAvailable(
 		{
-			utilityModelEnabled: ctx.stateManager.getGlobalSettingsKey("utilityModelEnabled"),
-			utilityModelUseCondense: ctx.stateManager.getGlobalSettingsKey("utilityModelUseCondense"),
-			utilityModelUseNewTask: ctx.stateManager.getGlobalSettingsKey("utilityModelUseNewTask"),
-			utilityModelSelection: ctx.stateManager.getGlobalSettingsKey("utilityModelSelection"),
+			utilityModelEnabled: settings.utilityModelEnabled,
+			utilityModelUseCondense: settings.utilityModelUseCondense,
+			utilityModelUseNewTask: settings.utilityModelUseNewTask,
+			utilityModelSelection: settings.utilityModelSelection,
 		},
 		TASK_HANDOFF_TEMPLATE_ID,
 		createDefaultTextCondensationTemplateRegistry(),
@@ -169,8 +186,7 @@ export async function buildApiRequestParams(
 		editorTabs,
 		supportsBrowserUse,
 		taskHandoffCondensationAvailable,
-		utilityModelConfigured:
-			getConfiguredUtilityModelSelection(ctx.stateManager.getGlobalSettingsKey("utilityModelSelection")) !== undefined,
+		utilityModelConfigured: getConfiguredUtilityModelSelection(settings.utilityModelSelection) !== undefined,
 		skills: availableSkills,
 		globalDiracRulesFileInstructions,
 		localDiracRulesFileInstructions,
@@ -180,16 +196,15 @@ export async function buildApiRequestParams(
 		localAgentsRulesFileInstructions,
 		diracIgnoreInstructions,
 		preferredLanguageInstructions,
-		browserSettings: ctx.stateManager.getGlobalSettingsKey("browserSettings"),
-		yoloModeToggled: ctx.stateManager.getGlobalSettingsKey("yoloModeToggled"),
-		subagentsEnabled: ctx.stateManager.getGlobalSettingsKey("subagentsEnabled"),
-		diracWebToolsEnabled:
-			ctx.stateManager.getGlobalSettingsKey("diracWebToolsEnabled") && featureFlagsService.getWebtoolsEnabled(),
+		browserSettings,
+		yoloModeToggled: settings.yoloModeToggled,
+		subagentsEnabled: settings.subagentsEnabled,
+		diracWebToolsEnabled: settings.diracWebToolsEnabled && featureFlagsService.getWebtoolsEnabled(),
 		isMultiRootEnabled: multiRootEnabled,
 		workspaceRoots,
 		isSubagentRun: false,
 		isCliEnvironment,
-		enableParallelToolCalling: ctx.isParallelToolCallingEnabled(),
+		enableParallelToolCalling: isParallelToolCallingEnabled(settings.enableParallelToolCalling, providerInfo),
 		terminalExecutionMode: ctx.terminalExecutionMode,
 		activeShellType: shellInfo.type,
 		activeShellPath: shellInfo.path,
@@ -208,18 +223,19 @@ export async function buildApiRequestParams(
 		await ctx.taskMessenger.upsertText(JSON.stringify({ ruleLoadErrors }))
 	}
 
-	const toolSnapshot = await ctx.toolExecutor.getSnapshotForRequest(promptContext)
+	const toolSnapshot = await ctx.toolExecutor.getSnapshotForRequest(promptContext, requestRuntime)
 	const { systemPrompt } = await getSystemPrompt(promptContext, toolSnapshot)
-	ctx.toolExecutor.activateSnapshot(toolSnapshot)
+	const boundRequestRuntime = bindToolSnapshotToRequestRuntime(requestRuntime, toolSnapshot)
+	ctx.toolExecutor.activateSnapshot(toolSnapshot, boundRequestRuntime)
 	ctx.taskState.useNativeToolCalls = toolSnapshot.nativeTools.length > 0
 	const contextManagementMetadata = await ctx.contextManager.getNewContextMessagesAndMetadata(
 		ctx.messageStateHandler.getApiConversationHistory(),
 		ctx.messageStateHandler.getDiracMessages(),
-		ctx.api,
+		requestRuntime.api,
 		ctx.taskState.conversationHistoryDeletedRange,
 		params.previousApiReqIndex,
 		await ensureTaskDirectoryExists(ctx.taskId),
-		ctx.stateManager.getGlobalSettingsKey("useAutoCondense"),
+		settings.useAutoCondense,
 	)
 
 	if (contextManagementMetadata.updatedConversationHistoryDeletedRange) {
@@ -236,7 +252,7 @@ export async function buildApiRequestParams(
 		await ctx.messageStateHandler.saveDiracMessagesAndUpdateHistory()
 	}
 
-	const useAutoCondense = ctx.stateManager.getGlobalSettingsKey("useAutoCondense")
+	const useAutoCondense = settings.useAutoCondense
 	if (!useAutoCondense) {
 		const lastMessage =
 			contextManagementMetadata.truncatedConversationHistory[

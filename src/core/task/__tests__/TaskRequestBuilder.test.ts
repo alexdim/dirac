@@ -13,6 +13,7 @@ import { afterEach, beforeEach, describe, it } from "mocha"
 import sinon from "sinon"
 import { HostProvider } from "@/hosts/host-provider"
 import { buildApiRequestParams, type TaskRequestBuilderContext } from "../TaskRequestBuilder"
+import type { TaskRequestRuntime } from "../runtime/TaskRequestRuntime"
 
 const providerInfo = {
 	providerId: "anthropic",
@@ -64,7 +65,18 @@ describe("TaskRequestBuilder", () => {
 
 	afterEach(() => sandbox.restore())
 
-	function createContext(utilityModelSelection: unknown) {
+	function createContext(
+		utilityModelSelection: unknown,
+		overrides: {
+			mode?: "plan" | "act"
+			providerId?: string
+			modelId?: string
+			browserSettings?: Record<string, unknown>
+			preferredLanguage?: string
+			requestId?: string
+			revision?: number
+		} = {},
+	) {
 		let capturedPromptContext: SystemPromptContext | undefined
 		const writePromptMetadataArtifacts = sandbox.stub().resolves()
 		const getGlobalSettingsKey = sandbox.stub().callsFake((key: string) => {
@@ -76,7 +88,8 @@ describe("TaskRequestBuilder", () => {
 			capturedPromptContext = context
 			return {
 				inventoryVersion: 1,
-				requestId: "request-1",
+				requestId: overrides.requestId ?? "request-1",
+				configurationRevision: overrides.revision ?? 1,
 				promptVisibleSpecs: [],
 				inventoryEnabledTools: [],
 				activeSkillIds: [],
@@ -123,7 +136,51 @@ describe("TaskRequestBuilder", () => {
 			isParallelToolCallingEnabled: () => false,
 			writePromptMetadataArtifacts,
 		} as unknown as TaskRequestBuilderContext
-		return { context, getCapturedPromptContext: () => capturedPromptContext, writePromptMetadataArtifacts }
+		const requestMode = overrides.mode ?? "act"
+		const requestProviderId = overrides.providerId ?? "anthropic"
+		const requestModelId = overrides.modelId ?? providerInfo.model.id
+		const requestRuntime = {
+			requestId: overrides.requestId ?? "request-1",
+			api: {
+				getModel: () => ({ ...providerInfo.model, id: requestModelId }),
+				supportsNativeWebSearch: () => false,
+			},
+			workingConfiguration: {
+				revision: overrides.revision ?? 1,
+				settings: new Proxy(
+					{},
+					{
+						get: (_target, key) =>
+							({
+								mode: requestMode,
+								utilityModelSelection,
+								subagentsEnabled: true,
+								browserSettings: overrides.browserSettings ?? {},
+								preferredLanguage: overrides.preferredLanguage ?? "English",
+								globalSkillsToggles: {},
+								utilityModelEnabled: false,
+								utilityModelUseCondense: true,
+								utilityModelUseNewTask: true,
+								yoloModeToggled: false,
+								diracWebToolsEnabled: false,
+								enableParallelToolCalling: false,
+								useAutoCondense: false,
+							} as any)[key as any],
+					},
+				),
+				apiConfiguration: {
+					actModeApiProvider: requestProviderId,
+					planModeApiProvider: requestProviderId,
+				},
+				workspaceConfiguration: { localSkillsToggles: {} },
+				executionOptions: {
+					terminalReuseEnabled: true,
+					vscodeTerminalExecutionMode: "backgroundExec",
+					multiRootEnabled: false,
+				},
+			},
+		} as unknown as TaskRequestRuntime
+		return { context, requestRuntime, getCapturedPromptContext: () => capturedPromptContext, writePromptMetadataArtifacts }
 	}
 
 	function genericSubagentProperties(context: SystemPromptContext): Record<string, unknown> {
@@ -133,12 +190,12 @@ describe("TaskRequestBuilder", () => {
 	}
 
 	it("exposes Utility routing in generic and dynamic subagent schemas for a valid selection", async () => {
-		const { context, getCapturedPromptContext, writePromptMetadataArtifacts } = createContext({
+		const { context, requestRuntime, getCapturedPromptContext, writePromptMetadataArtifacts } = createContext({
 			provider: "anthropic",
 			modelId: "utility-model",
 		})
 
-		await buildApiRequestParams(context, { previousApiReqIndex: 0 })
+		await buildApiRequestParams(context, requestRuntime, { previousApiReqIndex: 0 })
 
 		const promptContext = getCapturedPromptContext()
 		assert.ok(promptContext)
@@ -160,7 +217,7 @@ describe("TaskRequestBuilder", () => {
 		sinon.assert.calledOnce(writePromptMetadataArtifacts)
 		assert.deepEqual(writePromptMetadataArtifacts.firstCall.args[0], {
 			systemPrompt: "built system prompt",
-			providerInfo,
+			providerInfo: { ...providerInfo, customPrompt: undefined, supportsNativeWebSearch: false },
 			tools: nativeTools,
 			fullHistory,
 			deletedRange,
@@ -175,8 +232,8 @@ describe("TaskRequestBuilder", () => {
 		]
 
 		for (const selection of selections) {
-			const { context, getCapturedPromptContext, writePromptMetadataArtifacts } = createContext(selection)
-			await buildApiRequestParams(context, { previousApiReqIndex: 0 })
+			const { context, requestRuntime, getCapturedPromptContext, writePromptMetadataArtifacts } = createContext(selection)
+			await buildApiRequestParams(context, requestRuntime, { previousApiReqIndex: 0 })
 
 			const promptContext = getCapturedPromptContext()
 			assert.ok(promptContext)
@@ -198,5 +255,38 @@ describe("TaskRequestBuilder", () => {
 			configuredAgents = []
 			sinon.assert.calledOnce(writePromptMetadataArtifacts)
 		}
+	})
+
+	it("uses one request runtime for prompt context, tools, provider reporting, and metadata", async () => {
+		const requestBrowserSettings = { disableToolUse: true, remoteBrowserHost: "request.example" }
+		const { context, requestRuntime, getCapturedPromptContext, writePromptMetadataArtifacts } = createContext(undefined, {
+			mode: "plan",
+			providerId: "openrouter",
+			modelId: "request-model",
+			browserSettings: requestBrowserSettings,
+			preferredLanguage: "French - Français",
+			requestId: "bound-request",
+			revision: 7,
+		})
+
+		const result = await buildApiRequestParams(context, requestRuntime, { previousApiReqIndex: 0 })
+		const promptContext = getCapturedPromptContext()
+		assert.ok(promptContext)
+		assert.equal(result.providerInfo.mode, "plan")
+		assert.equal(result.providerInfo.providerId, "openrouter")
+		assert.equal(result.providerInfo.model.id, "request-model")
+		assert.equal(promptContext.providerInfo, result.providerInfo)
+		assert.equal(promptContext.browserSettings, requestBrowserSettings)
+		assert.match(promptContext.preferredLanguageInstructions ?? "", /fr/)
+		assert.equal(result.toolSnapshot.requestId, "bound-request")
+		assert.equal(result.toolSnapshot.configurationRevision, 7)
+		sinon.assert.calledWithExactly(context.toolExecutor.getSnapshotForRequest as sinon.SinonStub, promptContext, requestRuntime)
+
+		const activatedRuntime = (context.toolExecutor.activateSnapshot as sinon.SinonStub).firstCall.args[1]
+		assert.equal(activatedRuntime.requestId, "bound-request")
+		assert.equal(activatedRuntime.workingConfiguration, requestRuntime.workingConfiguration)
+		assert.equal(activatedRuntime.api, requestRuntime.api)
+		assert.equal(activatedRuntime.toolSnapshot, result.toolSnapshot)
+		assert.equal(writePromptMetadataArtifacts.firstCall.args[0].providerInfo, result.providerInfo)
 	})
 })

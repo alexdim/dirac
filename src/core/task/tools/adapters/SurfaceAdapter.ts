@@ -153,6 +153,7 @@ export class SurfaceAdapter implements IToolEnvironment {
 			exitCode: metadata?.exitCode,
 			signal: metadata?.signal,
 			logFilePath: metadata?.logFilePath,
+			backgroundCompletion: metadata?.backgroundCompletion,
 		}
 	}
 
