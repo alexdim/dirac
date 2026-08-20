@@ -11,6 +11,7 @@ import type {
 import type { StorageContext } from "@shared/storage/storage-context"
 import chokidar, { type FSWatcher } from "chokidar"
 import { Logger } from "@/shared/services/Logger"
+import { ChokidarWatcherCloser } from "@/shared/utils/ChokidarWatcherCloser"
 import {
 	getTaskHistoryStateFilePath,
 	readTaskHistoryFromState,
@@ -50,6 +51,7 @@ export class StatePersistenceManager {
 	private persistenceTimeout: NodeJS.Timeout | null = null
 	private readonly PERSISTENCE_DELAY_MS = 500
 	private taskHistoryWatcher: FSWatcher | null = null
+	private readonly taskHistoryWatcherCloser = new ChokidarWatcherCloser()
 
 	onPersistenceError?: (event: PersistenceErrorEvent) => void
 
@@ -187,7 +189,7 @@ export class StatePersistenceManager {
 		}
 		const watcher = this.taskHistoryWatcher
 		this.taskHistoryWatcher = null
-		if (watcher) await watcher.close()
+		await this.taskHistoryWatcherCloser.closeAll(watcher ? [watcher] : [])
 	}
 
 	// ── Debounced scheduling ────────────────────────────────────────────
@@ -287,12 +289,13 @@ export class StatePersistenceManager {
 
 	async setupTaskHistoryWatcher(isInitialized: () => boolean, onSyncExternalChange: () => void | Promise<void>): Promise<void> {
 		try {
+			await this.taskHistoryWatcherCloser.closeAll()
 			const historyFile = await getTaskHistoryStateFilePath()
 
 			if (this.taskHistoryWatcher) {
 				const previousWatcher = this.taskHistoryWatcher
 				this.taskHistoryWatcher = null
-				await previousWatcher.close()
+				await this.taskHistoryWatcherCloser.close(previousWatcher)
 			}
 
 			const watcher = chokidar.watch(historyFile, {
@@ -331,27 +334,30 @@ export class StatePersistenceManager {
 					if (this.taskHistoryWatcher !== watcher) return
 					this.taskHistoryWatcher = null
 					Logger.error("[StatePersistenceManager] Task history live reload is disabled after watcher failure:", error)
-					void watcher
-						.close()
+					void this.taskHistoryWatcherCloser
+						.close(watcher)
 						.catch((closeError) =>
 							Logger.error("[StatePersistenceManager] Failed to close disabled task history watcher:", closeError),
 						)
 				})
 				.on("add", () => {
+					if (this.taskHistoryWatcher !== watcher) return
 					void syncTaskHistoryFromDisk()
 				})
 				.on("change", () => {
+					if (this.taskHistoryWatcher !== watcher) return
 					void syncTaskHistoryFromDisk()
 				})
 				.on("unlink", () => {
+					if (this.taskHistoryWatcher !== watcher) return
 					void clearTaskHistoryAfterRemoval()
 				})
 		} catch (err) {
 			const watcher = this.taskHistoryWatcher
 			this.taskHistoryWatcher = null
 			if (watcher) {
-				await watcher
-					.close()
+				await this.taskHistoryWatcherCloser
+					.close(watcher)
 					.catch((closeError) =>
 						Logger.error("[StatePersistenceManager] Failed to close incomplete task history watcher:", closeError),
 					)

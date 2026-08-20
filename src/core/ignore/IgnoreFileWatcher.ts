@@ -1,5 +1,6 @@
 import path from "path"
 import { Logger } from "@/shared/services/Logger"
+import { ChokidarWatcherCloser } from "@/shared/utils/ChokidarWatcherCloser"
 import { type WatcherFactory } from "./IgnorePatterns"
 
 /**
@@ -8,13 +9,15 @@ import { type WatcherFactory } from "./IgnorePatterns"
  */
 export class IgnoreFileWatcher {
 	private watcher?: ReturnType<WatcherFactory>
+	private readonly watcherCloser = new ChokidarWatcherCloser()
 
 	constructor(
 		private readonly cwd: string,
 		private readonly watcherFactory: WatcherFactory,
 	) {}
 
-	start(onReload: () => Promise<void> | void): void {
+	async start(onReload: () => Promise<void> | void): Promise<void> {
+		await this.watcherCloser.closeAll()
 		const ignorePath = path.join(this.cwd, ".diracignore")
 		try {
 			const watcher = this.watcherFactory(ignorePath, {
@@ -29,6 +32,7 @@ export class IgnoreFileWatcher {
 			})
 			this.watcher = watcher
 			const reload = () => {
+				if (this.watcher !== watcher) return
 				try {
 					void Promise.resolve(onReload()).catch((reloadError) =>
 						Logger.error("Failed to reload .diracignore after file change:", reloadError),
@@ -41,8 +45,8 @@ export class IgnoreFileWatcher {
 				if (this.watcher !== watcher) return
 				this.watcher = undefined
 				Logger.error("Error watching .diracignore file; live reload is disabled:", error)
-				void watcher
-					.close()
+				void this.watcherCloser
+					.close(watcher)
 					.catch((closeError) => Logger.error("Failed to close disabled .diracignore watcher:", closeError))
 			})
 			watcher.on("change", reload)
@@ -57,7 +61,6 @@ export class IgnoreFileWatcher {
 	async dispose(): Promise<void> {
 		const watcher = this.watcher
 		this.watcher = undefined
-		if (!watcher) return
-		await watcher.close()
+		await this.watcherCloser.closeAll(watcher ? [watcher] : [])
 	}
 }

@@ -1,5 +1,6 @@
 import { LEGACY_RESPONSE_TOOLS, RESPOND_TOOL_NAME } from "@shared/responseTool"
 import { Logger } from "@shared/services/Logger"
+import { ChokidarWatcherCloser } from "@/shared/utils/ChokidarWatcherCloser"
 import { setDynamicToolUseNames } from "@shared/tools"
 import { parseYamlFrontmatter } from "@utils/frontmatter"
 import chokidar, { type FSWatcher } from "chokidar"
@@ -156,6 +157,7 @@ export class AgentConfigLoader {
 	private readonly directoryPath: string
 	private readonly initialLoadPromise: Promise<void>
 	private watcher?: FSWatcher
+	private readonly watcherCloser = new ChokidarWatcherCloser()
 	private cachedConfigs = new Map<string, AgentBaseConfig>()
 	private cachedAgentToolNames = new Map<string, string>()
 	private cachedToolNameToAgentName = new Map<string, string>()
@@ -252,6 +254,7 @@ export class AgentConfigLoader {
 	}
 
 	public async watch(listener?: AgentConfigChangeListener): Promise<void> {
+		await this.watcherCloser.closeAll()
 		if (listener) {
 			this.listeners.add(listener)
 		}
@@ -277,23 +280,26 @@ export class AgentConfigLoader {
 					const watcherError = toError(error)
 					Logger.error("[AgentConfigLoader] Agent config live reload is disabled after watcher failure", watcherError)
 					this.notify(this.cachedConfigs, watcherError)
-					void watcher
-						.close()
+					void this.watcherCloser
+						.close(watcher)
 						.catch((closeError) =>
 							Logger.error("[AgentConfigLoader] Failed to close disabled agent config watcher", closeError),
 						)
 				})
 				.on("add", (filePath) => {
+					if (this.watcher !== watcher) return
 					if (isYamlFile(filePath)) {
 						void this.reloadAndNotify()
 					}
 				})
 				.on("change", (filePath) => {
+					if (this.watcher !== watcher) return
 					if (isYamlFile(filePath)) {
 						void this.reloadAndNotify()
 					}
 				})
 				.on("unlink", (filePath) => {
+					if (this.watcher !== watcher) return
 					if (isYamlFile(filePath)) {
 						void this.reloadAndNotify()
 					}
@@ -313,8 +319,7 @@ export class AgentConfigLoader {
 	public async dispose(): Promise<void> {
 		const watcher = this.watcher
 		this.watcher = undefined
-		if (!watcher) return
-		await watcher.close()
+		await this.watcherCloser.closeAll(watcher ? [watcher] : [])
 	}
 
 	private async reloadAndNotify(): Promise<void> {

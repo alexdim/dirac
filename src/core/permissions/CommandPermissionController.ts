@@ -4,6 +4,7 @@ import chokidar, { FSWatcher } from "chokidar"
 import fs from "fs/promises"
 import path from "path"
 import { Logger } from "@/shared/services/Logger"
+import { ChokidarWatcherCloser } from "@/shared/utils/ChokidarWatcherCloser"
 import { CommandParser, type ParsedCommand } from "./CommandParser"
 import { DangerousCharDetector } from "./DangerousCharDetector"
 import { PermissionRuleEvaluator } from "./PermissionRuleEvaluator"
@@ -27,6 +28,7 @@ import { COMMAND_PERMISSIONS_ENV_VAR, CommandPermissionConfig, PermissionValidat
 export class CommandPermissionController {
 	private workspaceRoot: string | null = null
 	private fileWatcher?: FSWatcher
+	private readonly watcherCloser = new ChokidarWatcherCloser()
 	private config: CommandPermissionConfig | null = null
 	private readonly ruleEvaluator = new PermissionRuleEvaluator()
 	private readonly commandParser = new CommandParser()
@@ -45,10 +47,11 @@ export class CommandPermissionController {
 
 	/** Set up a file watcher for .dirac/permissions.json */
 	private async setupFileWatcher(): Promise<void> {
+		await this.watcherCloser.closeAll()
 		if (this.fileWatcher) {
 			const previousWatcher = this.fileWatcher
 			this.fileWatcher = undefined
-			await previousWatcher.close()
+			await this.watcherCloser.close(previousWatcher)
 		}
 		if (!this.workspaceRoot) return
 
@@ -65,11 +68,12 @@ export class CommandPermissionController {
 				if (this.fileWatcher !== watcher) return
 				this.fileWatcher = undefined
 				Logger.error("Command permissions live reload is disabled after watcher failure:", error)
-				void watcher
-					.close()
+				void this.watcherCloser
+					.close(watcher)
 					.catch((closeError) => Logger.error("Failed to close disabled command permissions watcher:", closeError))
 			})
 			watcher.on("all", (_event) => {
+				if (this.fileWatcher !== watcher) return
 				void this.loadConfig().catch((error) => {
 					Logger.error("Failed to reload command permissions:", error)
 				})
@@ -309,6 +313,6 @@ export class CommandPermissionController {
 	async dispose(): Promise<void> {
 		const watcher = this.fileWatcher
 		this.fileWatcher = undefined
-		if (watcher) await watcher.close()
+		await this.watcherCloser.closeAll(watcher ? [watcher] : [])
 	}
 }

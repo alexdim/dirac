@@ -29,7 +29,7 @@ export class DiracIgnoreController {
 
 	/** Load custom patterns and start watching .diracignore for changes. Must be called after construction. */
 	async initialize(): Promise<void> {
-		this.fileWatcher?.start(() => this.loadDiracIgnore())
+		await this.fileWatcher?.start(() => this.loadDiracIgnore())
 		await this.loadDiracIgnore()
 	}
 

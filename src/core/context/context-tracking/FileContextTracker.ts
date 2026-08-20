@@ -6,6 +6,7 @@ import * as path from "path"
 import { Controller } from "@/core/controller"
 import { StateManager } from "@/core/storage/StateManager"
 import { Logger } from "@/shared/services/Logger"
+import { ChokidarWatcherCloser } from "@/shared/utils/ChokidarWatcherCloser"
 import { getCwd } from "@/utils/path"
 import type { FileMetadataEntry } from "./ContextTrackerTypes"
 
@@ -29,6 +30,7 @@ export class FileContextTracker {
 
 	// File tracking and watching
 	private fileWatchers = new Map<string, FSWatcher>()
+	private readonly watcherCloser = new ChokidarWatcherCloser()
 	private recentlyModifiedFiles = new Set<string>()
 	private recentlyEditedByDirac = new Set<string>()
 
@@ -45,6 +47,7 @@ export class FileContextTracker {
 	 * File watchers are set up for each file that is tracked in the task metadata.
 	 */
 	async setupFileWatcher(filePath: string) {
+		await this.watcherCloser.closeAll()
 		if (this.fileWatchers.has(filePath)) return
 
 		const cwd = await getCwd()
@@ -69,13 +72,14 @@ export class FileContextTracker {
 				if (this.fileWatchers.get(filePath) !== watcher) return
 				this.fileWatchers.delete(filePath)
 				Logger.error(`File context live tracking is disabled for ${filePath} after watcher failure:`, error)
-				void watcher
-					.close()
+				void this.watcherCloser
+					.close(watcher)
 					.catch((closeError) =>
 						Logger.error(`Failed to close disabled file context watcher for ${filePath}:`, closeError),
 					)
 			})
 			watcher.on("change", () => {
+				if (this.fileWatchers.get(filePath) !== watcher) return
 				const isDiracEdit = this.recentlyEditedByDirac.has(filePath)
 				if (isDiracEdit) {
 					this.recentlyEditedByDirac.delete(filePath)
@@ -186,7 +190,7 @@ export class FileContextTracker {
 	async dispose(): Promise<void> {
 		const watchers = Array.from(this.fileWatchers.values())
 		this.fileWatchers.clear()
-		await Promise.all(watchers.map((watcher) => watcher.close()))
+		await this.watcherCloser.closeAll(watchers)
 	}
 
 	/**

@@ -119,6 +119,25 @@ describe("SymbolIndexRuntime", () => {
 			.should.be.true()
 	})
 
+	it("retries an external control watcher after a transient startup failure", async () => {
+		clock = sinon.useFakeTimers()
+		let externalFailuresRemaining = 1
+		const watchFactory: SymbolIndexWatchFactory = (watchPath, options, listener) => {
+			if (watchPath === "/external/git" && externalFailuresRemaining-- > 0) {
+				throw Object.assign(new Error("injected watcher failure"), { code: "ENOENT" })
+			}
+			return recordWatch(watchPath, options, listener)
+		}
+		runtime = createRuntime({}, watchFactory)
+
+		runtime.refreshExternalControlPaths(new Set(["/external/git/global-ignore"]))
+		watchRecords.length.should.equal(1)
+
+		await clock.tickAsync(1_000)
+		watchRecords.length.should.equal(2)
+		watchRecords[1].watchPath.should.equal("/external/git")
+	})
+
 	it("drains events queued while a watcher batch is active without overlapping callbacks", async () => {
 		clock = sinon.useFakeTimers()
 		let releaseFirst!: () => void
@@ -171,16 +190,24 @@ describe("SymbolIndexRuntime", () => {
 		requestReconciliation.callCount.should.equal(1)
 	})
 
-	function createRuntime(overrides: Partial<SymbolIndexRuntimeDependencies> = {}): SymbolIndexRuntime {
-		const watchFactory: SymbolIndexWatchFactory = (watchPath, options, listener) => {
-			const watcher = new EventEmitter() as FSWatcher
-			const close = sinon.stub()
-			watcher.close = close
-			watcher.ref = sinon.stub().returns(watcher)
-			watcher.unref = sinon.stub().returns(watcher)
-			watchRecords.push({ watchPath, options, listener, watcher, close })
-			return watcher
-		}
+	function recordWatch(
+		watchPath: string,
+		options: { persistent: boolean; recursive: boolean },
+		listener: (eventType: "rename" | "change", filename: string | Buffer | null) => void,
+	): FSWatcher {
+		const watcher = new EventEmitter() as FSWatcher
+		const close = sinon.stub()
+		watcher.close = close
+		watcher.ref = sinon.stub().returns(watcher)
+		watcher.unref = sinon.stub().returns(watcher)
+		watchRecords.push({ watchPath, options, listener, watcher, close })
+		return watcher
+	}
+
+	function createRuntime(
+		overrides: Partial<SymbolIndexRuntimeDependencies> = {},
+		watchFactory: SymbolIndexWatchFactory = recordWatch,
+	): SymbolIndexRuntime {
 		return new SymbolIndexRuntime(
 			"/workspace",
 			{

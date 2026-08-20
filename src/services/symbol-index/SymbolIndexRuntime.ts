@@ -36,10 +36,14 @@ export class SymbolIndexRuntime {
 	private static readonly EVENT_BATCH_DELAY_MS = 1_000
 	private static readonly MAX_PENDING_EVENTS = 500
 	private static readonly RECONCILIATION_INTERVAL_MS = 5 * 60_000
+	private static readonly EXTERNAL_CONTROL_RETRY_BASE_DELAY_MS = 1_000
+	private static readonly EXTERNAL_CONTROL_RETRY_MAX_DELAY_MS = 5 * 60_000
 
 	private workspaceWatcher: FSWatcher | null = null
 	private readonly externalControlWatchers = new Map<string, ExternalControlWatcher>()
-	private readonly unavailableExternalDirectories = new Set<string>()
+	private readonly desiredExternalControlPaths = new Map<string, Set<string>>()
+	private readonly externalControlRetryTimers = new Map<string, NodeJS.Timeout>()
+	private readonly externalControlRetryAttempts = new Map<string, number>()
 	private readonly pendingEvents = new Map<string, SymbolIndexWatcherEventKind>()
 	private eventTimer: NodeJS.Timeout | null = null
 	private activeFlush: Promise<void> | null = null
@@ -67,6 +71,13 @@ export class SymbolIndexRuntime {
 			paths.add(normalizedPath)
 			desiredByDirectory.set(directory, paths)
 		}
+		for (const directory of this.desiredExternalControlPaths.keys()) {
+			if (!desiredByDirectory.has(directory)) this.clearExternalControlRetry(directory)
+		}
+		this.desiredExternalControlPaths.clear()
+		for (const [directory, desiredPaths] of desiredByDirectory) {
+			this.desiredExternalControlPaths.set(directory, desiredPaths)
+		}
 
 		for (const [directory, ownedWatcher] of this.externalControlWatchers) {
 			const desiredPaths = desiredByDirectory.get(directory)
@@ -79,7 +90,7 @@ export class SymbolIndexRuntime {
 		}
 
 		for (const [directory, desiredPaths] of desiredByDirectory) {
-			if (this.externalControlWatchers.has(directory) || this.unavailableExternalDirectories.has(directory)) continue
+			if (this.externalControlWatchers.has(directory) || this.externalControlRetryTimers.has(directory)) continue
 			this.startExternalControlWatcher(directory, desiredPaths)
 		}
 	}
@@ -114,9 +125,10 @@ export class SymbolIndexRuntime {
 				this.recordExternalControlChange(directory, filename)
 			})
 			this.externalControlWatchers.set(directory, { watcher, controlPaths })
+			this.externalControlRetryAttempts.delete(directory)
 			watcher.on("error", (error) => this.disableExternalControlWatcher(directory, watcher, error))
 		} catch (error) {
-			this.unavailableExternalDirectories.add(directory)
+			this.scheduleExternalControlWatcherRetry(directory)
 			Logger.warn(`[SymbolIndexRuntime] External eligibility-control watching disabled for ${directory}`, error)
 			this.requestFullReconciliation(`external control watcher unavailable: ${directory}`)
 		}
@@ -249,10 +261,42 @@ export class SymbolIndexRuntime {
 		}
 
 		this.externalControlWatchers.delete(directory)
-		this.unavailableExternalDirectories.add(directory)
+		this.scheduleExternalControlWatcherRetry(directory)
 		watcher.close()
 		Logger.warn(`[SymbolIndexRuntime] External eligibility-control watching disabled for ${directory}`, error)
 		this.requestFullReconciliation(`external control watcher failed: ${directory}`)
+	}
+	private scheduleExternalControlWatcherRetry(directory: string): void {
+		if (this.disposed || this.liveWatchingDisabled || this.externalControlRetryTimers.has(directory)) return
+		if (!this.desiredExternalControlPaths.has(directory)) return
+
+		const attempt = (this.externalControlRetryAttempts.get(directory) ?? 0) + 1
+		this.externalControlRetryAttempts.set(directory, attempt)
+		const delay = Math.min(
+			SymbolIndexRuntime.EXTERNAL_CONTROL_RETRY_BASE_DELAY_MS * 2 ** (attempt - 1),
+			SymbolIndexRuntime.EXTERNAL_CONTROL_RETRY_MAX_DELAY_MS,
+		)
+		const timer = setTimeout(() => {
+			this.externalControlRetryTimers.delete(directory)
+			if (this.disposed || this.liveWatchingDisabled || this.externalControlWatchers.has(directory)) return
+			const controlPaths = this.desiredExternalControlPaths.get(directory)
+			if (controlPaths) this.startExternalControlWatcher(directory, controlPaths)
+		}, delay)
+		timer.unref()
+		this.externalControlRetryTimers.set(directory, timer)
+	}
+
+	private clearExternalControlRetry(directory: string): void {
+		const timer = this.externalControlRetryTimers.get(directory)
+		if (timer) clearTimeout(timer)
+		this.externalControlRetryTimers.delete(directory)
+		this.externalControlRetryAttempts.delete(directory)
+	}
+
+	private clearAllExternalControlRetries(): void {
+		for (const timer of this.externalControlRetryTimers.values()) clearTimeout(timer)
+		this.externalControlRetryTimers.clear()
+		this.externalControlRetryAttempts.clear()
 	}
 
 	private closeAllWatchers(): void {
@@ -261,6 +305,7 @@ export class SymbolIndexRuntime {
 		workspaceWatcher?.close()
 		for (const { watcher } of this.externalControlWatchers.values()) watcher.close()
 		this.externalControlWatchers.clear()
+		this.clearAllExternalControlRetries()
 	}
 
 	private isInsideProjectRoot(absolutePath: string): boolean {
