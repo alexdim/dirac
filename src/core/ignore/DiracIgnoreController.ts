@@ -1,14 +1,9 @@
-import { fileExistsAtPath } from "@utils/fs"
 import chokidar from "chokidar"
-import fs from "fs/promises"
-import ignore, { type Ignore } from "ignore"
-import path from "path"
+import { DiracIgnorePolicy } from "@/shared/ignore/DiracIgnorePolicy"
 import { Logger } from "@/shared/services/Logger"
 import { findBlockedCommandArgument } from "./CommandAccessValidator"
 import { IgnoreFileWatcher } from "./IgnoreFileWatcher"
-import { parseIgnoreContent } from "./IgnorePatternParser"
 import type { WatcherFactory } from "./IgnorePatterns"
-import { DEFAULT_IGNORE_PATTERNS } from "./IgnorePatterns"
 
 export type { WatcherFactory } from "./IgnorePatterns"
 // Re-export public API symbols so existing import sites keep working
@@ -23,14 +18,11 @@ export class DiracIgnoreController {
 	public yoloMode = false
 	diracIgnoreContent: string | undefined
 
-	private readonly cwd: string
-	private ignoreInstance: Ignore
+	private readonly ignorePolicy: DiracIgnorePolicy
 	private fileWatcher?: IgnoreFileWatcher
 
 	constructor(cwd: string, watcherFactory: WatcherFactory = chokidar.watch) {
-		this.cwd = cwd
-		this.ignoreInstance = ignore()
-		this.ignoreInstance.add(DEFAULT_IGNORE_PATTERNS)
+		this.ignorePolicy = new DiracIgnorePolicy(cwd)
 		this.diracIgnoreContent = undefined
 		this.fileWatcher = new IgnoreFileWatcher(cwd, watcherFactory)
 	}
@@ -44,60 +36,36 @@ export class DiracIgnoreController {
 	/** Reload .diracignore from disk, resolving !include directives into the ignore instance. */
 	private async loadDiracIgnore(): Promise<void> {
 		try {
-			this.resetIgnoreInstance()
-			const ignorePath = path.join(this.cwd, ".diracignore")
-			if (!(await fileExistsAtPath(ignorePath))) {
-				this.diracIgnoreContent = undefined
-				return
-			}
-			const content = await fs.readFile(ignorePath, "utf8")
-			this.diracIgnoreContent = content
-			const combinedContent = await parseIgnoreContent(content, this.cwd)
-			this.ignoreInstance.add(combinedContent)
-			this.ignoreInstance.add(".diracignore")
+			await this.ignorePolicy.reload()
+			this.diracIgnoreContent = this.ignorePolicy.content
 		} catch (error) {
-			// Should never happen: reading file failed even though it exists
 			Logger.error("Unexpected error loading .diracignore:", error)
 		}
 	}
 
-	// Reset ignore instance to prevent duplicate patterns on reload
-	private resetIgnoreInstance(): void {
-		this.ignoreInstance = ignore()
-		this.ignoreInstance.add(DEFAULT_IGNORE_PATTERNS)
-	}
-
 	/** True if `filePath` is accessible (not ignored); paths outside cwd are allowed. */
 	validateAccess(filePath: string): boolean {
-		if (this.yoloMode) {
-			return true
-		}
+		if (this.yoloMode) return true
 		try {
-			// Normalize path to be relative to cwd and use forward slashes; ignore expects relative paths
-			const absolutePath = path.resolve(this.cwd, filePath)
-			const relativePath = path.relative(this.cwd, absolutePath).toPosix()
-			return !this.ignoreInstance.ignores(relativePath)
+			return this.ignorePolicy.allowsAbsolutePath(filePath)
 		} catch (_error) {
-			// ignore throws for paths outside cwd; we allow access to all files outside cwd
 			return true
 		}
 	}
 
 	/** Returns the first blocked file argument in a file-reading command, or undefined if allowed. */
 	validateCommand(command: string): string | undefined {
-		if (this.yoloMode) {
-			return undefined
-		}
-		return findBlockedCommandArgument(command, (p) => this.validateAccess(p))
+		if (this.yoloMode) return undefined
+		return findBlockedCommandArgument(command, (path) => this.validateAccess(path))
 	}
 
 	/** Filter an array of paths, removing those that are ignored. Fails closed for security. */
 	filterPaths(paths: string[]): string[] {
 		try {
-			return paths.filter((p) => this.validateAccess(p))
+			return paths.filter((path) => this.validateAccess(path))
 		} catch (error) {
 			Logger.error("Error filtering paths:", error)
-			return [] // Fail closed for security
+			return []
 		}
 	}
 

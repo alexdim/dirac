@@ -14,7 +14,6 @@ import { buildSubagentToolName } from "./SubagentToolName"
 export const AGENTS_CONFIG_DIRECTORY_NAME = "Agents"
 const SUBAGENT_DYNAMIC_TOOL_NAMESPACE = "subagent"
 
-
 const AgentBaseConfigSchema = z.object({
 	name: z.string().trim().min(1),
 	description: z.string().trim().min(1),
@@ -261,35 +260,50 @@ export class AgentConfigLoader {
 			return
 		}
 
-		this.watcher = chokidar.watch(this.directoryPath, {
-			persistent: true,
-			ignoreInitial: true,
-			awaitWriteFinish: {
-				stabilityThreshold: 300,
-				pollInterval: 100,
-			},
-		})
-		this.watcher
-			.on("add", (filePath) => {
-				if (isYamlFile(filePath)) {
-					void this.reloadAndNotify()
-				}
+		try {
+			const watcher = chokidar.watch(this.directoryPath, {
+				persistent: true,
+				ignoreInitial: true,
+				awaitWriteFinish: {
+					stabilityThreshold: 300,
+					pollInterval: 100,
+				},
 			})
-			.on("change", (filePath) => {
-				if (isYamlFile(filePath)) {
-					void this.reloadAndNotify()
-				}
-			})
-			.on("unlink", (filePath) => {
-				if (isYamlFile(filePath)) {
-					void this.reloadAndNotify()
-				}
-			})
-			.on("error", (error) => {
-				const watcherError = toError(error)
-				Logger.error("[AgentConfigLoader] Failed to watch agent configs directory", watcherError)
-				this.notify(this.cachedConfigs, watcherError)
-			})
+			this.watcher = watcher
+			watcher
+				.on("error", (error) => {
+					if (this.watcher !== watcher) return
+					this.watcher = undefined
+					const watcherError = toError(error)
+					Logger.error("[AgentConfigLoader] Agent config live reload is disabled after watcher failure", watcherError)
+					this.notify(this.cachedConfigs, watcherError)
+					void watcher
+						.close()
+						.catch((closeError) =>
+							Logger.error("[AgentConfigLoader] Failed to close disabled agent config watcher", closeError),
+						)
+				})
+				.on("add", (filePath) => {
+					if (isYamlFile(filePath)) {
+						void this.reloadAndNotify()
+					}
+				})
+				.on("change", (filePath) => {
+					if (isYamlFile(filePath)) {
+						void this.reloadAndNotify()
+					}
+				})
+				.on("unlink", (filePath) => {
+					if (isYamlFile(filePath)) {
+						void this.reloadAndNotify()
+					}
+				})
+		} catch (error) {
+			this.watcher = undefined
+			const watcherError = toError(error)
+			Logger.error("[AgentConfigLoader] Agent config live reload could not start and is disabled", watcherError)
+			this.notify(this.cachedConfigs, watcherError)
+		}
 	}
 
 	public unwatch(listener: AgentConfigChangeListener): void {
@@ -297,12 +311,10 @@ export class AgentConfigLoader {
 	}
 
 	public async dispose(): Promise<void> {
-		if (!this.watcher) {
-			return
-		}
-
-		await this.watcher.close()
+		const watcher = this.watcher
 		this.watcher = undefined
+		if (!watcher) return
+		await watcher.close()
 	}
 
 	private async reloadAndNotify(): Promise<void> {
@@ -318,7 +330,11 @@ export class AgentConfigLoader {
 
 	private notify(configs: ReadonlyMap<string, AgentBaseConfig>, error?: Error): void {
 		for (const listener of this.listeners) {
-			listener(new Map(configs), error)
+			try {
+				listener(new Map(configs), error)
+			} catch (listenerError) {
+				Logger.error("[AgentConfigLoader] Agent config listener failed", listenerError)
+			}
 		}
 	}
 

@@ -46,25 +46,38 @@ export class CommandPermissionController {
 	/** Set up a file watcher for .dirac/permissions.json */
 	private async setupFileWatcher(): Promise<void> {
 		if (this.fileWatcher) {
-			await this.fileWatcher.close()
+			const previousWatcher = this.fileWatcher
 			this.fileWatcher = undefined
+			await previousWatcher.close()
 		}
 		if (!this.workspaceRoot) return
 
 		const configPath = path.join(this.workspaceRoot, ".dirac", "permissions.json")
-
-		this.fileWatcher = this.watcherFactory(configPath, {
-			persistent: true,
-			ignoreInitial: true,
-			awaitWriteFinish: { stabilityThreshold: 100, pollInterval: 100 },
-			atomic: true,
-		})
-
-		this.fileWatcher.on("all", (_event) => {
-			void this.loadConfig().catch((error) => {
-				Logger.error("Failed to reload command permissions:", error)
+		try {
+			const watcher = this.watcherFactory(configPath, {
+				persistent: true,
+				ignoreInitial: true,
+				awaitWriteFinish: { stabilityThreshold: 100, pollInterval: 100 },
+				atomic: true,
 			})
-		})
+			this.fileWatcher = watcher
+			watcher.on("error", (error) => {
+				if (this.fileWatcher !== watcher) return
+				this.fileWatcher = undefined
+				Logger.error("Command permissions live reload is disabled after watcher failure:", error)
+				void watcher
+					.close()
+					.catch((closeError) => Logger.error("Failed to close disabled command permissions watcher:", closeError))
+			})
+			watcher.on("all", (_event) => {
+				void this.loadConfig().catch((error) => {
+					Logger.error("Failed to reload command permissions:", error)
+				})
+			})
+		} catch (error) {
+			this.fileWatcher = undefined
+			Logger.error("Command permissions live reload could not start and is disabled:", error)
+		}
 	}
 
 	/** Load configuration from environment and file. */
@@ -294,9 +307,8 @@ export class CommandPermissionController {
 
 	/** Clean up resources when the controller is no longer needed. */
 	async dispose(): Promise<void> {
-		if (this.fileWatcher) {
-			await this.fileWatcher.close()
-			this.fileWatcher = undefined
-		}
+		const watcher = this.fileWatcher
+		this.fileWatcher = undefined
+		if (watcher) await watcher.close()
 	}
 }

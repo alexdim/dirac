@@ -185,10 +185,9 @@ export class StatePersistenceManager {
 			clearTimeout(this.persistenceTimeout)
 			this.persistenceTimeout = null
 		}
-		if (this.taskHistoryWatcher) {
-			await this.taskHistoryWatcher.close()
-			this.taskHistoryWatcher = null
-		}
+		const watcher = this.taskHistoryWatcher
+		this.taskHistoryWatcher = null
+		if (watcher) await watcher.close()
 	}
 
 	// ── Debounced scheduling ────────────────────────────────────────────
@@ -286,23 +285,23 @@ export class StatePersistenceManager {
 		}
 	}
 
-	// ── Task-history file watcher ───────────────────────────────────────
-
 	async setupTaskHistoryWatcher(isInitialized: () => boolean, onSyncExternalChange: () => void | Promise<void>): Promise<void> {
 		try {
 			const historyFile = await getTaskHistoryStateFilePath()
 
 			if (this.taskHistoryWatcher) {
-				await this.taskHistoryWatcher.close()
+				const previousWatcher = this.taskHistoryWatcher
 				this.taskHistoryWatcher = null
+				await previousWatcher.close()
 			}
 
-			this.taskHistoryWatcher = chokidar.watch(historyFile, {
+			const watcher = chokidar.watch(historyFile, {
 				persistent: true,
 				ignoreInitial: true,
 				atomic: true,
 				awaitWriteFinish: { stabilityThreshold: 300, pollInterval: 100 },
 			})
+			this.taskHistoryWatcher = watcher
 
 			const syncTaskHistoryFromDisk = async () => {
 				try {
@@ -318,20 +317,46 @@ export class StatePersistenceManager {
 				}
 			}
 
-			this.taskHistoryWatcher
-				.on("add", () => {
-					syncTaskHistoryFromDisk()
-				})
-				.on("change", () => {
-					syncTaskHistoryFromDisk()
-				})
-				.on("unlink", async () => {
+			const clearTaskHistoryAfterRemoval = async () => {
+				try {
 					this.accessors.setTaskHistoryInCache([])
 					await onSyncExternalChange()
+				} catch (error) {
+					Logger.error("[StatePersistenceManager] Failed to handle task history removal:", error)
+				}
+			}
+
+			watcher
+				.on("error", (error) => {
+					if (this.taskHistoryWatcher !== watcher) return
+					this.taskHistoryWatcher = null
+					Logger.error("[StatePersistenceManager] Task history live reload is disabled after watcher failure:", error)
+					void watcher
+						.close()
+						.catch((closeError) =>
+							Logger.error("[StatePersistenceManager] Failed to close disabled task history watcher:", closeError),
+						)
 				})
-				.on("error", (error) => Logger.error("[StatePersistenceManager] TaskHistory watcher error:", error))
+				.on("add", () => {
+					void syncTaskHistoryFromDisk()
+				})
+				.on("change", () => {
+					void syncTaskHistoryFromDisk()
+				})
+				.on("unlink", () => {
+					void clearTaskHistoryAfterRemoval()
+				})
 		} catch (err) {
-			Logger.error("[StatePersistenceManager] Failed to set up taskHistory watcher:", err)
+			const watcher = this.taskHistoryWatcher
+			this.taskHistoryWatcher = null
+			if (watcher) {
+				await watcher
+					.close()
+					.catch((closeError) =>
+						Logger.error("[StatePersistenceManager] Failed to close incomplete task history watcher:", closeError),
+					)
+			}
+			Logger.error("[StatePersistenceManager] Task history live reload could not start and is disabled:", err)
 		}
 	}
 }

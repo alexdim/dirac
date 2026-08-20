@@ -45,10 +45,7 @@ export class FileContextTracker {
 	 * File watchers are set up for each file that is tracked in the task metadata.
 	 */
 	async setupFileWatcher(filePath: string) {
-		// Only setup watcher if it doesn't already exist for this file
-		if (this.fileWatchers.has(filePath)) {
-			return
-		}
+		if (this.fileWatchers.has(filePath)) return
 
 		const cwd = await getCwd()
 		if (!cwd) {
@@ -56,32 +53,41 @@ export class FileContextTracker {
 			return
 		}
 
-		// Create a chokidar file watcher for this specific file
 		const resolvedFilePath = path.resolve(cwd, filePath)
-		const watcher = this.watcherFactory(resolvedFilePath, {
-			persistent: true, // Keep process alive while watching
-			ignoreInitial: true, // Don't emit events for existing files on startup
-			atomic: true, // Handle atomic writes (editors that use temp files)
-			awaitWriteFinish: {
-				// Wait for writes to finish before emitting events
-				stabilityThreshold: 100, // Wait 100ms for file size to stabilize
-				pollInterval: 100, // Check every 100ms while waiting
-			},
-		})
-
-		// Track file changes
-		watcher.on("change", () => {
-			const isDiracEdit = this.recentlyEditedByDirac.has(filePath)
-			if (isDiracEdit) {
-				this.recentlyEditedByDirac.delete(filePath) // This was an edit by Dirac, no need to inform Dirac
-			} else {
-				this.recentlyModifiedFiles.add(filePath) // This was a user edit, we will inform Dirac
-				this.trackFileContext(filePath, "user_edited") // Update the task metadata with file tracking
-			}
-		})
-
-		// Store the watcher so we can dispose it later
-		this.fileWatchers.set(filePath, watcher)
+		try {
+			const watcher = this.watcherFactory(resolvedFilePath, {
+				persistent: true,
+				ignoreInitial: true,
+				atomic: true,
+				awaitWriteFinish: {
+					stabilityThreshold: 100,
+					pollInterval: 100,
+				},
+			})
+			this.fileWatchers.set(filePath, watcher)
+			watcher.on("error", (error) => {
+				if (this.fileWatchers.get(filePath) !== watcher) return
+				this.fileWatchers.delete(filePath)
+				Logger.error(`File context live tracking is disabled for ${filePath} after watcher failure:`, error)
+				void watcher
+					.close()
+					.catch((closeError) =>
+						Logger.error(`Failed to close disabled file context watcher for ${filePath}:`, closeError),
+					)
+			})
+			watcher.on("change", () => {
+				const isDiracEdit = this.recentlyEditedByDirac.has(filePath)
+				if (isDiracEdit) {
+					this.recentlyEditedByDirac.delete(filePath)
+				} else {
+					this.recentlyModifiedFiles.add(filePath)
+					void this.trackFileContext(filePath, "user_edited")
+				}
+			})
+		} catch (error) {
+			this.fileWatchers.delete(filePath)
+			Logger.error(`File context live tracking could not start and is disabled for ${filePath}:`, error)
+		}
 	}
 
 	/**
@@ -178,9 +184,9 @@ export class FileContextTracker {
 	 * Disposes all file watchers
 	 */
 	async dispose(): Promise<void> {
-		const closePromises = Array.from(this.fileWatchers.values()).map((watcher) => watcher.close())
-		await Promise.all(closePromises)
+		const watchers = Array.from(this.fileWatchers.values())
 		this.fileWatchers.clear()
+		await Promise.all(watchers.map((watcher) => watcher.close()))
 	}
 
 	/**
