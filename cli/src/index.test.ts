@@ -39,6 +39,7 @@ describe("CLI Commands", () => {
 			.option("--auto-condense", "Enable AI-powered context compaction instead of mechanical truncation")
 			.option("--auto-condense-at <tokens>", "Auto-condense at a token count", Number)
 			.option("--hooks-dir <path>", "Additional hooks directory")
+			.option("--no-index", "Disable symbol indexing for the workspace")
 			.action(() => { })
 
 		program
@@ -86,6 +87,7 @@ describe("CLI Commands", () => {
 			.option("--double-check-completion", "Reject first completion attempt to force re-verification")
 			.option("--auto-condense", "Enable AI-powered context compaction instead of mechanical truncation")
 			.option("--hooks-dir <path>", "Additional hooks directory")
+			.option("--no-index", "Disable symbol indexing for the workspace")
 			.option("--auto-approve-all", "Enable auto-approve all")
 			.option("--kanban", "Run npx kanban --agent dirac")
 			.action(() => { })
@@ -220,6 +222,13 @@ describe("CLI Commands", () => {
 			const args = ["test prompt", "--auto-condense-at", "272000"]
 			taskCmd.parse(args, { from: "user" })
 			expect(taskCmd.opts().autoCondenseAt).toBe(272000)
+		})
+
+		it("should parse --no-index flag as index false", () => {
+			const taskCmd = program.commands.find((c) => c.name() === "task")!
+			const args = ["test prompt", "--no-index"]
+			taskCmd.parse(args, { from: "user" })
+			expect(taskCmd.opts().index).toBe(false)
 		})
 
 		it("should parse short flags", () => {
@@ -383,6 +392,11 @@ describe("CLI Commands", () => {
 		it("should parse --hooks-dir option", () => {
 			program.parse(["node", "cli", "--hooks-dir", "/tmp/hooks"])
 			expect(program.opts().hooksDir).toBe("/tmp/hooks")
+		})
+
+		it("should parse --no-index flag as index false", () => {
+			program.parse(["node", "cli", "--no-index"])
+			expect(program.opts().index).toBe(false)
 		})
 
 		it("should parse --auto-approve-all flag", () => {

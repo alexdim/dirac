@@ -124,7 +124,7 @@ export async function initializeCli(options: InitOptions): Promise<CliContext> {
 	// Initialize symbol index for the project in background with a delay
 	// to avoid blocking UI rendering (matches VS Code extension behavior).
 	// Skipped entirely when --no-index is set.
-	if (!options.noIndex) {
+	if (options.index !== false) {
 		const INITIALIZATION_DELAY_MS = 5000
 		setTimeout(() => {
 			SymbolIndexService.getInstance()
