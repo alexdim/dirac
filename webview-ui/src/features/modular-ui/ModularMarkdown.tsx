@@ -1,6 +1,7 @@
 import { SteeringTranscriptStatus } from "@shared/ExtensionMessage"
 import { MarkdownRow } from "./components/MarkdownRow"
 import { ThinkingRow } from "./components/ThinkingRow"
+import { UserMessageContent } from "./components/UserMessageContent"
 import { WithCopyButton } from "@/shared/ui/CopyButton"
 import { cn } from "@/lib/utils"
 import Thumbnails from "@/shared/ui/Thumbnails"
@@ -73,7 +74,15 @@ export const ModularMarkdown = memo(
 									? "modular-message-user border-(--vscode-focusBorder)/25 bg-(--vscode-focusBorder)/10"
 									: "modular-message-assistant border-foreground/10 bg-foreground/[0.025]",
 							)}>
-							<MarkdownRow markdown={content} showCursor={false} />
+							{role === "user" ? (
+								<UserMessageContent
+									content={content}
+									isExpanded={isExpanded ?? false}
+									onToggleExpand={onToggleExpand ?? NOOP}
+								/>
+							) : (
+								<MarkdownRow markdown={content} showCursor={false} />
+							)}
 							{quoteButtonState.visible && (
 								<QuoteButton left={quoteButtonState.left} onClick={handleQuoteClick} top={quoteButtonState.top} />
 							)}
