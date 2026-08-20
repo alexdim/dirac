@@ -138,6 +138,38 @@ describe("SymbolIndexRuntime", () => {
 		watchRecords[1].watchPath.should.equal("/external/git")
 	})
 
+	it("backs off repeated asynchronous external watcher failures", async () => {
+		clock = sinon.useFakeTimers()
+		runtime = createRuntime()
+		runtime.refreshExternalControlPaths(new Set(["/external/git/global-ignore"]))
+
+		watchRecords[1].watcher.emit("error", Object.assign(new Error("failure 1"), { code: "ENOENT" }))
+		await clock.tickAsync(1_000)
+		watchRecords.length.should.equal(3)
+
+		watchRecords[2].watcher.emit("error", Object.assign(new Error("failure 2"), { code: "ENOENT" }))
+		await clock.tickAsync(1_999)
+		watchRecords.length.should.equal(3)
+		await clock.tickAsync(1)
+		watchRecords.length.should.equal(4)
+	})
+
+	it("resets external watcher backoff after a stable retry", async () => {
+		clock = sinon.useFakeTimers()
+		runtime = createRuntime()
+		runtime.refreshExternalControlPaths(new Set(["/external/git/global-ignore"]))
+
+		watchRecords[1].watcher.emit("error", Object.assign(new Error("initial failure"), { code: "ENOENT" }))
+		await clock.tickAsync(1_000)
+		await clock.tickAsync(30_000)
+		watchRecords[2].watcher.emit("error", Object.assign(new Error("later failure"), { code: "ENOENT" }))
+
+		await clock.tickAsync(999)
+		watchRecords.length.should.equal(3)
+		await clock.tickAsync(1)
+		watchRecords.length.should.equal(4)
+	})
+
 	it("drains events queued while a watcher batch is active without overlapping callbacks", async () => {
 		clock = sinon.useFakeTimers()
 		let releaseFirst!: () => void

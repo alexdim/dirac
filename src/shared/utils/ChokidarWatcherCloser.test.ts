@@ -22,17 +22,16 @@ describe("ChokidarWatcherCloser", () => {
 		await Promise.all([runtimeClosure, disposal])
 	})
 
-	it("retains a watcher for a disposal retry when close fails", async () => {
+	it("releases a watcher after its cached close promise rejects", async () => {
 		const closeFailure = new Error("injected close failure")
-		const close = sinon.stub()
-		close.onFirstCall().rejects(closeFailure)
-		close.onSecondCall().resolves()
+		const rejectedClose = Promise.reject(closeFailure)
+		const close = sinon.stub().returns(rejectedClose)
 		const watcher = { close } as unknown as FSWatcher
 		const closer = new ChokidarWatcherCloser()
 
 		await closer.close(watcher).catch(() => undefined)
 		await closer.closeAll()
 
-		close.calledTwice.should.be.true()
+		close.calledOnce.should.be.true()
 	})
 })

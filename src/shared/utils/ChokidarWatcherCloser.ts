@@ -1,6 +1,6 @@
 import type { FSWatcher } from "chokidar"
 
-/** Retains ownership of Chokidar watchers until their asynchronous close succeeds. */
+/** Coordinates Chokidar watcher closure and shares in-flight close promises. */
 export class ChokidarWatcherCloser {
 	private readonly ownedWatchers = new Set<FSWatcher>()
 	private readonly activeClosures = new Map<FSWatcher, Promise<void>>()
@@ -10,16 +10,10 @@ export class ChokidarWatcherCloser {
 		if (activeClosure) return activeClosure
 
 		this.ownedWatchers.add(watcher)
-		const closure = watcher.close().then(
-			() => {
-				this.activeClosures.delete(watcher)
-				this.ownedWatchers.delete(watcher)
-			},
-			(error) => {
-				this.activeClosures.delete(watcher)
-				throw error
-			},
-		)
+		const closure = watcher.close().finally(() => {
+			this.activeClosures.delete(watcher)
+			this.ownedWatchers.delete(watcher)
+		})
 		this.activeClosures.set(watcher, closure)
 		return closure
 	}

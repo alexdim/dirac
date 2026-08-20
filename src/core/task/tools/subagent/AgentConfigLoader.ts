@@ -1,6 +1,5 @@
 import { LEGACY_RESPONSE_TOOLS, RESPOND_TOOL_NAME } from "@shared/responseTool"
 import { Logger } from "@shared/services/Logger"
-import { ChokidarWatcherCloser } from "@/shared/utils/ChokidarWatcherCloser"
 import { setDynamicToolUseNames } from "@shared/tools"
 import { parseYamlFrontmatter } from "@utils/frontmatter"
 import chokidar, { type FSWatcher } from "chokidar"
@@ -9,6 +8,7 @@ import os from "os"
 import * as path from "path"
 import { z } from "zod"
 import { toError } from "@/shared/errors"
+import { ChokidarWatcherCloser } from "@/shared/utils/ChokidarWatcherCloser"
 import { buildSubagentToolName } from "./SubagentToolName"
 
 /** Default Directory for agent configurations: ~/Documents/Dirac/Agents */
@@ -158,6 +158,7 @@ export class AgentConfigLoader {
 	private readonly initialLoadPromise: Promise<void>
 	private watcher?: FSWatcher
 	private readonly watcherCloser = new ChokidarWatcherCloser()
+	private disposed = false
 	private cachedConfigs = new Map<string, AgentBaseConfig>()
 	private cachedAgentToolNames = new Map<string, string>()
 	private cachedToolNameToAgentName = new Map<string, string>()
@@ -255,6 +256,7 @@ export class AgentConfigLoader {
 
 	public async watch(listener?: AgentConfigChangeListener): Promise<void> {
 		await this.watcherCloser.closeAll()
+		if (this.disposed) return
 		if (listener) {
 			this.listeners.add(listener)
 		}
@@ -317,6 +319,7 @@ export class AgentConfigLoader {
 	}
 
 	public async dispose(): Promise<void> {
+		this.disposed = true
 		const watcher = this.watcher
 		this.watcher = undefined
 		await this.watcherCloser.closeAll(watcher ? [watcher] : [])

@@ -10,6 +10,7 @@ import { type WatcherFactory } from "./IgnorePatterns"
 export class IgnoreFileWatcher {
 	private watcher?: ReturnType<WatcherFactory>
 	private readonly watcherCloser = new ChokidarWatcherCloser()
+	private disposed = false
 
 	constructor(
 		private readonly cwd: string,
@@ -18,6 +19,7 @@ export class IgnoreFileWatcher {
 
 	async start(onReload: () => Promise<void> | void): Promise<void> {
 		await this.watcherCloser.closeAll()
+		if (this.disposed) return
 		const ignorePath = path.join(this.cwd, ".diracignore")
 		try {
 			const watcher = this.watcherFactory(ignorePath, {
@@ -59,6 +61,7 @@ export class IgnoreFileWatcher {
 	}
 
 	async dispose(): Promise<void> {
+		this.disposed = true
 		const watcher = this.watcher
 		this.watcher = undefined
 		await this.watcherCloser.closeAll(watcher ? [watcher] : [])
