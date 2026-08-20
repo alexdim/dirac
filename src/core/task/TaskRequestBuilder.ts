@@ -198,6 +198,7 @@ export async function buildApiRequestParams(
 		preferredLanguageInstructions,
 		browserSettings,
 		yoloModeToggled: settings.yoloModeToggled,
+		lowVerbosityEnabled: settings.lowVerbosityEnabled,
 		subagentsEnabled: settings.subagentsEnabled,
 		diracWebToolsEnabled: settings.diracWebToolsEnabled && featureFlagsService.getWebtoolsEnabled(),
 		isMultiRootEnabled: multiRootEnabled,

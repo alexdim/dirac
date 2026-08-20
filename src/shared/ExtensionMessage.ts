@@ -141,6 +141,7 @@ export interface ExtensionState {
 	writePromptMetadataDirectory?: string
 	optOutOfRemoteConfig?: boolean
 	doubleCheckCompletionEnabled?: boolean
+	lowVerbosityEnabled?: boolean
 	banners?: BannerCardData[]
 	availableSkills?: SkillMetadata[]
 	availableTools: ToolMetadata[]

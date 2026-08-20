@@ -72,6 +72,7 @@ function makeFakeStateManager(overrides?: {
 		terminalOutputLineLimit: 500,
 		maxConsecutiveMistakes: 3,
 		doubleCheckCompletionEnabled: false,
+		lowVerbosityEnabled: true,
 		toolToggles: {},
 		hooksEnabled: true,
 		enableParallelToolCalling: false,
@@ -191,6 +192,12 @@ describe("getStateToPostToWebview", () => {
 			const state = await getStateToPostToWebview({ stateManager, backgroundCommandRunning: false })
 			expect(state.planActSeparateModelsSetting).to.equal(true)
 			expect(state.enableCheckpointsSetting).to.equal(false)
+		})
+
+		it("maps lowVerbosityEnabled from settings", async () => {
+			const stateManager = makeFakeStateManager({ globalSettings: { lowVerbosityEnabled: false } })
+			const state = await getStateToPostToWebview({ stateManager, backgroundCommandRunning: false })
+			expect(state.lowVerbosityEnabled).to.equal(false)
 		})
 
 		it("defaults enableCheckpointsSetting to true when setting is undefined", async () => {

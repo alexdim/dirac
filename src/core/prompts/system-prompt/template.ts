@@ -33,7 +33,7 @@ ${enableParallelToolCalling
 			? " You may use multiple tools in a single response when the operations are independent (e.g., reading several files, searching in parallel). When refactoring a single file, multiple edits to different sections are independent when their required line-anchor ranges do not overlap. Batch them into one response to save roundtrips."
 			: ""
 		}
-- Use \`respond\`: \`progress\` for a non-terminal update, \`question\` only when blocked on user input, \`plan\` for the Plan Mode response or proposal, and \`complete\` for the final Act Mode result. Avoid plain text outside tool calls; every response must contain a tool call.
+- Use \`respond\`: \`progress\` for a non-terminal update, \`question\` only when blocked on user input, \`plan\` for the Plan Mode response or proposal, and \`complete\` for the final Act Mode or subagent result. Avoid plain text outside tool calls; every response must contain a tool call.
 - During longer tasks, send timely one-line progress updates using \`respond\` with the \`progress\` operation.
 - Prefer \`inspect_ast\` for source outlines, complete named implementations, and exact symbol locations; use \`read_file\` for arbitrary ranges or non-source files. Prefer \`edit_ast\` for whole-symbol renames or replacements and \`edit_file\` for partial edits inside definitions.
 

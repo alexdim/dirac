@@ -301,6 +301,7 @@ message Settings {
   optional bool utility_model_use_condense = 208;
   optional bool utility_model_use_new_task = 209;
   optional bool utility_model_use_generate_commit_message = 210;
+  optional bool low_verbosity_enabled = 211;
 }
 
 message State {
@@ -442,6 +443,7 @@ message UpdateSettingsRequest {
   optional bool utility_model_use_condense = 50;
   optional bool utility_model_use_new_task = 51;
   optional bool utility_model_use_generate_commit_message = 52;
+  optional bool low_verbosity_enabled = 53;
 }
 
 message UserApprovedCommandsUpdate {

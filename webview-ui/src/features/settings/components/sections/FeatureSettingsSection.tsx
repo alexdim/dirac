@@ -32,6 +32,13 @@ interface FeatureToggle {
 
 const agentFeatures: FeatureToggle[] = [
 	{
+		id: "low-verbosity-responses",
+		label: "Low-verbosity responses",
+		description: "Keep responses concise while preserving important decisions, caveats, and verification.",
+		stateKey: "lowVerbosityEnabled",
+		settingKey: "lowVerbosityEnabled",
+	},
+	{
 		id: "subagents",
 		label: "Subagents",
 		description: "Let Dirac run focused subagents in parallel to explore the codebase for you.",
@@ -193,6 +200,7 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 		enableParallelToolCalling,
 		backgroundEditEnabled,
 		doubleCheckCompletionEnabled,
+		lowVerbosityEnabled,
 	} = useSettingsStore()
 
 	const isYoloRemoteLocked = remoteConfigSettings?.yoloModeToggled !== undefined
@@ -209,6 +217,7 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 		enableParallelToolCalling,
 		backgroundEditEnabled,
 		doubleCheckCompletionEnabled,
+		lowVerbosityEnabled,
 		yoloModeToggled: isYoloRemoteLocked ? remoteConfigSettings?.yoloModeToggled : yoloModeToggled,
 	}
 

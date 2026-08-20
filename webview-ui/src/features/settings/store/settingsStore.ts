@@ -119,6 +119,7 @@ interface SettingsState {
 	lastDismissedCliBannerVersion: number
 	backgroundEditEnabled: boolean
 	doubleCheckCompletionEnabled: boolean
+	lowVerbosityEnabled: boolean
 
 	// Toggles
 	globalDiracRulesToggles: Record<string, boolean>
@@ -226,6 +227,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
 	lastDismissedCliBannerVersion: 0,
 	backgroundEditEnabled: false,
 	doubleCheckCompletionEnabled: false,
+	lowVerbosityEnabled: true,
 
 	globalDiracRulesToggles: {},
 	localDiracRulesToggles: {},

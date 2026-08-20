@@ -237,6 +237,7 @@ export class ToolExecutor {
 			get yoloModeToggled() {
 				return currentSettings().yoloModeToggled
 			},
+			lowVerbosityEnabled: settings.lowVerbosityEnabled,
 			doubleCheckCompletionEnabled: settings.doubleCheckCompletionEnabled,
 			vscodeTerminalExecutionMode: this.terminalExecutionMode,
 			enableParallelToolCalling: settings.enableParallelToolCalling,

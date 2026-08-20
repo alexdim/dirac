@@ -12,6 +12,12 @@ export const TABS: PanelTab[] = [
 
 // Settings configuration for simple boolean toggles
 export const FEATURE_SETTINGS = {
+	lowVerbosity: {
+		stateKey: "lowVerbosityEnabled",
+		default: true,
+		label: "Low-verbosity responses",
+		description: "Keep responses concise while preserving important decisions, caveats, and verification",
+	},
 	yolo: {
 		stateKey: "yoloModeToggled",
 		default: false,

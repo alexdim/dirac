@@ -149,6 +149,7 @@ const baseContext: SystemPromptContext = {
 	supportsBrowserUse: true,
 	diracWebToolsEnabled: true,
 	subagentsEnabled: true,
+	lowVerbosityEnabled: true,
 	browserSettings: { viewport: { width: 1280, height: 720 } },
 	globalDiracRulesFileInstructions: "Follow global rules",
 	localDiracRulesFileInstructions: "Follow local rules",

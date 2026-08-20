@@ -58,6 +58,7 @@ function createTaskConfig(): TaskConfig {
 		mode: "act",
 		strictPlanModeEnabled: false,
 		yoloModeToggled: false,
+		lowVerbosityEnabled: true,
 		doubleCheckCompletionEnabled: false,
 		vscodeTerminalExecutionMode: "backgroundExec",
 		enableParallelToolCalling: false,
@@ -231,7 +232,8 @@ describe("SubagentRunner", () => {
 		})
 
 		const promptRegistry = PromptRegistry.getInstance()
-		sinon.stub(promptRegistry, "get").callsFake(async () => {
+		sinon.stub(promptRegistry, "get").callsFake(async (context) => {
+			assert.equal(context.lowVerbosityEnabled, true)
 			promptRegistry.nativeTools = [{ name: "list_files" } as any]
 			return "system prompt"
 		})

@@ -22,6 +22,7 @@ const SESSION_MODE_RUNTIME_KEYS = [
 	"mode",
 	"autoApproveAllToggled",
 	"yoloModeToggled",
+	"lowVerbosityEnabled",
 	"planActSeparateModelsSetting",
 ] as const satisfies readonly SettingsKey[]
 
