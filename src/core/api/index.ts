@@ -1,7 +1,16 @@
-import { ApiConfiguration, getModelInfo, ModelInfo, openAiModelInfoSaneDefaults, QwenApiRegions } from "@shared/api"
-import type { ApiProvider, ModelProviderSelection } from "@shared/api"
+import {
+	ApiConfiguration,
+	getModelInfo,
+	modelSupportsInferenceSpeed,
+	providerSupportsInferenceSpeed,
+	ModelInfo,
+	openAiModelInfoSaneDefaults,
+	QwenApiRegions,
+	type ApiProvider,
+	type ModelProviderSelection,
+} from "@shared/api"
 import { modelProviderSelectionUpdates } from "./modelProviderSelection"
-import { Mode } from "@shared/storage/types"
+import { DEFAULT_INFERENCE_SPEED, type InferenceSpeed, isInferenceSpeed, type Mode } from "@shared/storage/types"
 import { DiracStorageMessage } from "@/shared/messages/content"
 import type {
 	ApiConversationCompactionRequest,
@@ -65,6 +74,7 @@ export type CommonApiHandlerOptions = {
 	onRetryAttempt?: ApiConfiguration["onRetryAttempt"]
 	disableRetries?: boolean
 	enableParallelToolCalling?: boolean
+	inferenceSpeed?: InferenceSpeed
 }
 export interface ApiHandler {
 	createMessage(
@@ -106,6 +116,7 @@ export function resolveModeConfig(options: Omit<ApiConfiguration, "apiProvider">
 		apiModelId: isPlan ? options.planModeApiModelId : options.actModeApiModelId,
 		thinkingBudgetTokens: isPlan ? options.planModeThinkingBudgetTokens : options.actModeThinkingBudgetTokens,
 		reasoningEffort: isPlan ? options.planModeReasoningEffort : options.actModeReasoningEffort,
+		inferenceSpeed: isPlan ? options.planModeInferenceSpeed : options.actModeInferenceSpeed,
 		openRouterModelId: isPlan ? options.planModeOpenRouterModelId : options.actModeOpenRouterModelId,
 		openRouterModelInfo: isPlan ? options.planModeOpenRouterModelInfo : options.actModeOpenRouterModelInfo,
 		openAiModelId: isPlan ? options.planModeOpenAiModelId : options.actModeOpenAiModelId,
@@ -153,6 +164,7 @@ const PROVIDER_REGISTRY: Record<
 			apiModelId: mc.apiModelId,
 			thinkingBudgetTokens: mc.thinkingBudgetTokens,
 			reasoningEffort: mc.reasoningEffort,
+			inferenceSpeed: mc.inferenceSpeed,
 		}),
 	openrouter: (cfg, mc) =>
 		new OpenRouterHandler({
@@ -287,6 +299,7 @@ const PROVIDER_REGISTRY: Record<
 			disableRetries: cfg.disableRetries,
 			openAiNativeApiKey: cfg.openAiNativeApiKey,
 			reasoningEffort: mc.reasoningEffort,
+			inferenceSpeed: mc.inferenceSpeed,
 			apiModelId: mc.apiModelId,
 			thinkingBudgetTokens: mc.thinkingBudgetTokens,
 			enableParallelToolCalling: cfg.enableParallelToolCalling,
@@ -296,6 +309,7 @@ const PROVIDER_REGISTRY: Record<
 			onRetryAttempt: cfg.onRetryAttempt,
 			disableRetries: cfg.disableRetries,
 			reasoningEffort: mc.reasoningEffort,
+			inferenceSpeed: mc.inferenceSpeed,
 			apiModelId: mc.apiModelId,
 			enableParallelToolCalling: cfg.enableParallelToolCalling,
 		}),
@@ -547,6 +561,32 @@ export function validateApiConfiguration(configuration: ApiConfiguration, mode?:
 		const provider = configuredProvider(configuration, selectedMode)
 		assertProviderSupported(provider)
 		const modeConfig = resolveModeConfig(configuration, selectedMode)
+		const configuredInferenceSpeed = modeConfig.inferenceSpeed
+		if (configuredInferenceSpeed !== undefined && !isInferenceSpeed(configuredInferenceSpeed)) {
+			throw new ApiConfigurationError(
+				ApiConfigurationErrorCode.ProviderConfigurationIncomplete,
+				`Invalid inference speed: ${String(configuredInferenceSpeed)}`,
+				"Select Default, Standard, or Fast before retrying.",
+			)
+		}
+		const inferenceSpeed = configuredInferenceSpeed ?? DEFAULT_INFERENCE_SPEED
+		if (inferenceSpeed === "standard" && !providerSupportsInferenceSpeed(provider as ApiProvider)) {
+			throw new ApiConfigurationError(
+				ApiConfigurationErrorCode.ModelUnavailable,
+				`Provider ${provider} does not support inference speed controls`,
+				"Reset inference speed to Default before retrying.",
+			)
+		}
+		if (
+			inferenceSpeed === "fast" &&
+			(!modeConfig.apiModelId || !modelSupportsInferenceSpeed(provider as ApiProvider, modeConfig.apiModelId))
+		) {
+			throw new ApiConfigurationError(
+				ApiConfigurationErrorCode.ModelUnavailable,
+				`Model ${modeConfig.apiModelId || "(unconfigured)"} does not support Fast mode`,
+				"Select a Fast-capable model or reset inference speed to Default.",
+			)
+		}
 		if (
 			provider === "openai" &&
 			modeConfig.openAiProfileName &&
@@ -637,7 +677,7 @@ export function createApiConfigurationForModelProviderSelection(
 ): ApiConfiguration {
 	return {
 		...baseConfiguration,
-		...modelProviderSelectionUpdates("act", selection),
+		...modelProviderSelectionUpdates("act", selection, baseConfiguration.actModeInferenceSpeed),
 		apiProvider: selection.provider,
 		ulid: options.ulid,
 		disableRetries: true,
@@ -684,7 +724,11 @@ export function resolveModelIdForProvider(
 
 	const configuration = {
 		...baseConfiguration,
-		...modelProviderSelectionUpdates(mode, selection),
+		...modelProviderSelectionUpdates(
+			mode,
+			selection,
+			mode === "plan" ? baseConfiguration.planModeInferenceSpeed : baseConfiguration.actModeInferenceSpeed,
+		),
 		apiProvider: provider,
 		disableRetries: true,
 		geminiSearchEnabled: false,

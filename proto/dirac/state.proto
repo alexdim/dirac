@@ -304,6 +304,8 @@ message Settings {
   optional bool low_verbosity_enabled = 211;
   optional bool utility_model_use_permission_handling = 212;
   optional string utility_model_permission_policy = 213;
+  optional string plan_mode_inference_speed = 214;
+  optional string act_mode_inference_speed = 215;
 }
 
 message State {

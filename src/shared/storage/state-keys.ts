@@ -13,7 +13,7 @@ import { DiracRulesToggles } from "@shared/dirac-rules"
 import { UIActionState } from "@shared/ExtensionMessage"
 import { HistoryItem } from "@shared/HistoryItem"
 import { WorkspaceRoot } from "@shared/multi-root/types"
-import { Mode } from "@shared/storage/types"
+import { InferenceSpeed, Mode, normalizeInferenceSpeed } from "@shared/storage/types"
 import { TelemetrySetting } from "@shared/TelemetrySetting"
 import { normalizeUserApprovedCommands, type UserApprovedCommand } from "@shared/UserApprovedCommand"
 import { LanguageModelChatSelector } from "vscode"
@@ -132,6 +132,10 @@ const API_HANDLER_SETTINGS_FIELDS = {
 	planModeThinkingBudgetTokens: { default: undefined as number | undefined },
 	geminiPlanModeThinkingLevel: { default: undefined as string | undefined },
 	planModeReasoningEffort: { default: undefined as string | undefined },
+	planModeInferenceSpeed: {
+		default: "default" as InferenceSpeed,
+		transform: normalizeInferenceSpeed,
+	},
 	planModeVerbosity: { default: undefined as string | undefined },
 	planModeVsCodeLmModelSelector: { default: undefined as LanguageModelChatSelector | undefined },
 	planModeAwsBedrockCustomSelected: { default: undefined as boolean | undefined },
@@ -170,6 +174,10 @@ const API_HANDLER_SETTINGS_FIELDS = {
 	actModeThinkingBudgetTokens: { default: undefined as number | undefined },
 	geminiActModeThinkingLevel: { default: undefined as string | undefined },
 	actModeReasoningEffort: { default: undefined as string | undefined },
+	actModeInferenceSpeed: {
+		default: "default" as InferenceSpeed,
+		transform: normalizeInferenceSpeed,
+	},
 	actModeVerbosity: { default: undefined as string | undefined },
 	actModeVsCodeLmModelSelector: { default: undefined as LanguageModelChatSelector | undefined },
 	actModeAwsBedrockCustomSelected: { default: undefined as boolean | undefined },

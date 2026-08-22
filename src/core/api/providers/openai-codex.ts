@@ -34,6 +34,7 @@ import { RetriableError } from "../retry"
 import { convertToOpenAIResponsesInput } from "../transform/openai-response-format"
 import { ApiStream } from "../transform/stream"
 import {
+	getOpenAIServiceTier,
 	parseSseResponse,
 	processResponsesEvents,
 	ResponsesWebsocketManager,
@@ -64,6 +65,7 @@ interface OpenAiCodexHandlerOptions extends CommonApiHandlerOptions {
 interface CodexRequestBodyOptions {
 	previousResponseId?: string
 	usePersistedReasoning: boolean
+	includeInferenceSpeed?: boolean
 }
 
 /**
@@ -121,6 +123,7 @@ export class OpenAiCodexHandler implements ApiHandler {
 						return tool
 					}),
 					parallelToolCalls: this.shouldEnableParallelToolCalling(),
+					inferenceSpeed: this.options.inferenceSpeed,
 					reasoningEffort: normalizeOpenaiReasoningEffort(this.options.reasoningEffort),
 					usePersistedReasoning,
 				}),
@@ -166,6 +169,14 @@ export class OpenAiCodexHandler implements ApiHandler {
 
 	private shouldEnableParallelToolCalling(): boolean {
 		return isParallelToolCallingEnabled(this.options.enableParallelToolCalling ?? false)
+	}
+
+	private resolveServiceTier(modelInfo: ModelInfo) {
+		const serviceTier = getOpenAIServiceTier(this.options.inferenceSpeed, "priority")
+		if (serviceTier === "priority" && !modelInfo.supportsFastMode) {
+			throw new Error("The selected Codex model does not support Fast mode")
+		}
+		return serviceTier
 	}
 
 	private createCodexClient(accessToken: string, headers: Record<string, string>): OpenAI {
@@ -275,12 +286,15 @@ export class OpenAiCodexHandler implements ApiHandler {
 		let requestBody = this.buildRequestBody(model, input, systemPrompt, finalTools, {
 			previousResponseId: converted.previousResponseId,
 			usePersistedReasoning,
+			includeInferenceSpeed: true,
 		})
 		const websocketFallbackRequestBody = this.buildRequestBody(model, fallbackInput, systemPrompt, finalTools, {
 			usePersistedReasoning,
+			includeInferenceSpeed: true,
 		})
 		const httpFallbackRequestBody = this.buildRequestBody(model, fallbackInput, systemPrompt, finalTools, {
 			usePersistedReasoning,
+			includeInferenceSpeed: true,
 		})
 		const functionCallOutputs = input.filter((item: any) => item.type === "function_call_output").length
 
@@ -344,6 +358,7 @@ export class OpenAiCodexHandler implements ApiHandler {
 		const reasoningEffort = normalizeOpenaiReasoningEffort(this.options.reasoningEffort)
 		const includeReasoning = reasoningEffort !== "none"
 		const includeReasoningConfig = includeReasoning || options.usePersistedReasoning
+		const serviceTier = options.includeInferenceSpeed ? this.resolveServiceTier(model.info) : undefined
 
 		const body: any = {
 			model: model.id,
@@ -356,16 +371,17 @@ export class OpenAiCodexHandler implements ApiHandler {
 			prompt_cache_key: this.sessionId,
 			tool_choice: "auto",
 			parallel_tool_calls: this.shouldEnableParallelToolCalling(),
+			...(serviceTier ? { service_tier: serviceTier } : {}),
 			...(options.previousResponseId ? { previous_response_id: options.previousResponseId } : {}),
 			...(includeReasoningConfig ? { include: ["reasoning.encrypted_content"] } : {}),
 			...(includeReasoningConfig
 				? {
-						reasoning: {
-							...(includeReasoning ? { effort: reasoningEffort } : {}),
-							summary: "auto",
-							...(options.usePersistedReasoning ? { context: "all_turns" } : {}),
-						},
-					}
+					reasoning: {
+						...(includeReasoning ? { effort: reasoningEffort } : {}),
+						summary: "auto",
+						...(options.usePersistedReasoning ? { context: "all_turns" } : {}),
+					},
+				}
 				: {}),
 		}
 

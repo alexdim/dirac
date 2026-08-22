@@ -21,7 +21,7 @@ import {
 	OcaModelInfo,
 	ModelProviderSelection as AppModelProviderSelection,
 } from "../../api"
-import { OpenaiReasoningEffort } from "../../storage/types"
+import { normalizeInferenceSpeed, OpenaiReasoningEffort } from "../../storage/types"
 
 // Convert application ThinkingConfig to proto ThinkingConfig
 function convertThinkingConfigToProto(config: ModelInfo["thinkingConfig"]): ThinkingConfig | undefined {
@@ -73,6 +73,8 @@ function convertModelInfoToProtoOpenRouter(info: ModelInfo | undefined): OpenRou
 		supportsPromptCache: info.supportsPromptCache ?? false,
 		supportsReasoning: info.supportsReasoning,
 		supportsReasoningEffort: info.supportsReasoningEffort,
+		supportsFastMode: info.supportsFastMode,
+		fastModePriceMultiplier: info.fastModePriceMultiplier,
 		inputPrice: info.inputPrice,
 		outputPrice: info.outputPrice,
 		cacheWritesPrice: info.cacheWritesPrice,
@@ -97,6 +99,8 @@ function convertProtoToModelInfo(info: OpenRouterModelInfo | undefined): ModelIn
 		supportsPromptCache: info.supportsPromptCache,
 		supportsReasoning: info.supportsReasoning,
 		supportsReasoningEffort: info.supportsReasoningEffort,
+		supportsFastMode: info.supportsFastMode,
+		fastModePriceMultiplier: info.fastModePriceMultiplier,
 		inputPrice: info.inputPrice,
 		outputPrice: info.outputPrice,
 		cacheWritesPrice: info.cacheWritesPrice,
@@ -232,6 +236,8 @@ function convertOpenAiCompatibleModelInfoToProto(
 		tiers: info.tiers || [],
 		temperature: info.temperature,
 		isR1FormatRequired: info.isR1FormatRequired,
+		supportsFastMode: info.supportsFastMode,
+		fastModePriceMultiplier: info.fastModePriceMultiplier,
 	}
 }
 
@@ -280,6 +286,8 @@ function convertProtoToOpenAiCompatibleModelInfo(
 		supportsGlobalEndpoint: info.supportsGlobalEndpoint,
 		cacheWritesPrice: info.cacheWritesPrice,
 		cacheReadsPrice: info.cacheReadsPrice,
+		supportsFastMode: info.supportsFastMode,
+		fastModePriceMultiplier: info.fastModePriceMultiplier,
 		description: info.description,
 		tiers: info.tiers.length > 0 ? info.tiers : undefined,
 		temperature: info.temperature,
@@ -566,6 +574,7 @@ export function convertApiConfigurationToProto(config: ApiConfiguration): ProtoA
 		planModeThinkingBudgetTokens: config.planModeThinkingBudgetTokens,
 		geminiPlanModeThinkingLevel: config.geminiPlanModeThinkingLevel,
 		planModeReasoningEffort: config.planModeReasoningEffort,
+		planModeInferenceSpeed: config.planModeInferenceSpeed,
 		planModeVsCodeLmModelSelector: config.planModeVsCodeLmModelSelector,
 		planModeAwsBedrockCustomSelected: config.planModeAwsBedrockCustomSelected,
 		planModeAwsBedrockCustomModelBaseId: config.planModeAwsBedrockCustomModelBaseId as string | undefined,
@@ -601,6 +610,7 @@ export function convertApiConfigurationToProto(config: ApiConfiguration): ProtoA
 		actModeThinkingBudgetTokens: config.actModeThinkingBudgetTokens,
 		geminiActModeThinkingLevel: config.geminiActModeThinkingLevel,
 		actModeReasoningEffort: config.actModeReasoningEffort,
+		actModeInferenceSpeed: config.actModeInferenceSpeed,
 		actModeVsCodeLmModelSelector: config.actModeVsCodeLmModelSelector,
 		actModeAwsBedrockCustomSelected: config.actModeAwsBedrockCustomSelected,
 		actModeAwsBedrockCustomModelBaseId: config.actModeAwsBedrockCustomModelBaseId as string | undefined,
@@ -716,6 +726,7 @@ export function convertProtoToApiConfiguration(protoConfig: ProtoApiConfiguratio
 		planModeThinkingBudgetTokens: protoConfig.planModeThinkingBudgetTokens,
 		geminiPlanModeThinkingLevel: protoConfig.geminiPlanModeThinkingLevel,
 		planModeReasoningEffort: protoConfig.planModeReasoningEffort as OpenaiReasoningEffort | undefined,
+		planModeInferenceSpeed: normalizeInferenceSpeed(protoConfig.planModeInferenceSpeed),
 		planModeVsCodeLmModelSelector: protoConfig.planModeVsCodeLmModelSelector,
 		planModeAwsBedrockCustomSelected: protoConfig.planModeAwsBedrockCustomSelected,
 		planModeAwsBedrockCustomModelBaseId: protoConfig.planModeAwsBedrockCustomModelBaseId as BedrockModelId | undefined,
@@ -752,6 +763,7 @@ export function convertProtoToApiConfiguration(protoConfig: ProtoApiConfiguratio
 		actModeThinkingBudgetTokens: protoConfig.actModeThinkingBudgetTokens,
 		geminiActModeThinkingLevel: protoConfig.geminiActModeThinkingLevel,
 		actModeReasoningEffort: protoConfig.actModeReasoningEffort as OpenaiReasoningEffort | undefined,
+		actModeInferenceSpeed: normalizeInferenceSpeed(protoConfig.actModeInferenceSpeed),
 		actModeVsCodeLmModelSelector: protoConfig.actModeVsCodeLmModelSelector,
 		actModeAwsBedrockCustomSelected: protoConfig.actModeAwsBedrockCustomSelected,
 		actModeAwsBedrockCustomModelBaseId: protoConfig.actModeAwsBedrockCustomModelBaseId as BedrockModelId | undefined,

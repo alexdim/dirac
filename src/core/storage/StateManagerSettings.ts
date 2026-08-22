@@ -7,9 +7,11 @@ import {
 } from "@shared/storage/env-config"
 import {
 	normalizeLegacyModelProviderPresets,
+	buildLegacyAnthropicFastModeStateUpdates,
 	normalizeLegacyOpenRouterPinMap,
 	normalizeLegacySynthetic1mModelId,
 } from "@shared/storage/legacy-model-id-migration"
+import { normalizeInferenceSpeed } from "@shared/storage/types"
 import {
 	ApiHandlerSettingsKeys,
 	type GlobalStateAndSettings,
@@ -38,14 +40,18 @@ export function normalizeLoadedSetting<K extends keyof Settings>(key: K, value: 
 	if (key === "modelProviderPresets") {
 		return normalizeLegacyModelProviderPresets(value as ModelProviderPreset[]) as Settings[K]
 	}
+	if (key === "planModeInferenceSpeed" || key === "actModeInferenceSpeed") {
+		return normalizeInferenceSpeed(value) as Settings[K]
+	}
 	return value
 }
 
 export function normalizeLoadedSettings(settings: Partial<Settings>): Partial<Settings> {
 	const normalized = { ...settings }
 	for (const [key, value] of Object.entries(normalized)) {
-		;(normalized as Record<string, unknown>)[key] = normalizeLoadedSetting(key as keyof Settings, value as never)
+		; (normalized as Record<string, unknown>)[key] = normalizeLoadedSetting(key as keyof Settings, value as never)
 	}
+	Object.assign(normalized, buildLegacyAnthropicFastModeStateUpdates(normalized))
 	return normalized
 }
 
@@ -96,7 +102,7 @@ export function buildEffectiveSettingsFromCache(
 			settings[key] === undefined &&
 			!Object.hasOwn(resolvedCaches.sessionOverrideCache, key)
 		) {
-			;(settings as Record<string, unknown>)[key] = normalizeLoadedSetting(key, value as never)
+			; (settings as Record<string, unknown>)[key] = normalizeLoadedSetting(key, value as never)
 		}
 	}
 	for (const [key, value] of Object.entries(getExplicitDiracSettingsFromEnv())) {
@@ -106,7 +112,7 @@ export function buildEffectiveSettingsFromCache(
 			ApiHandlerSettingsKeys.includes(key as never) &&
 			!Object.hasOwn(resolvedCaches.sessionOverrideCache, key)
 		) {
-			;(settings as Record<string, unknown>)[key] = normalizeLoadedSetting(key, value as never)
+			; (settings as Record<string, unknown>)[key] = normalizeLoadedSetting(key, value as never)
 		}
 	}
 

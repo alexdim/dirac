@@ -89,7 +89,7 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 	const planActSeparateModelsSetting = useSettingsStore((state) => state.planActSeparateModelsSetting)
 	const { selectedProvider } = normalizeApiConfiguration(apiConfiguration, currentMode)
 	const modeFields = getModeSpecificFields(apiConfiguration, currentMode)
-	const { handleFieldsChange, handleModeFieldChange } = useApiConfigurationHandlers()
+	const { handleFieldsChange, handleModeFieldsChange } = useApiConfigurationHandlers()
 
 	// Poll vscode-lm models
 
@@ -168,7 +168,14 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 			return
 		}
 		setPendingProvider(undefined)
-		void handleModeFieldChange({ plan: "planModeApiProvider", act: "actModeApiProvider" }, newProvider as any, currentMode)
+		void handleModeFieldsChange(
+			{
+				apiProvider: { plan: "planModeApiProvider", act: "actModeApiProvider" },
+				inferenceSpeed: { plan: "planModeInferenceSpeed", act: "actModeInferenceSpeed" },
+			},
+			{ apiProvider: newProvider, inferenceSpeed: "default" },
+			currentMode,
+		)
 	}
 
 	const handlePendingOpenRouterModelSelected = async (modelId: string, modelInfo: ModelInfo | undefined): Promise<boolean> => {
@@ -178,11 +185,13 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 					planModeApiProvider: "openrouter",
 					planModeOpenRouterModelId: modelId,
 					planModeOpenRouterModelInfo: modelInfo,
+					planModeInferenceSpeed: "default",
 				}
 				: {
 					actModeApiProvider: "openrouter",
 					actModeOpenRouterModelId: modelId,
 					actModeOpenRouterModelInfo: modelInfo,
+					actModeInferenceSpeed: "default",
 				}
 			: {
 				planModeApiProvider: "openrouter",
@@ -191,6 +200,8 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 				actModeOpenRouterModelId: modelId,
 				planModeOpenRouterModelInfo: modelInfo,
 				actModeOpenRouterModelInfo: modelInfo,
+				planModeInferenceSpeed: "default",
+				actModeInferenceSpeed: "default",
 			}
 		const saved = await handleFieldsChange(updates)
 		if (saved) setPendingProvider(undefined)
@@ -259,8 +270,7 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 	}, [selectedIndex])
 
 	/*
-	VSCodeDropdown has an open bug where dynamically rendered options don't auto select the provided value prop. You can see this for yourself by comparing  it with normal select/option elements, which work as expected.
-	https://github.com/microsoft/vscode-webview-ui-toolkit/issues/433
+	VSCodeDropdown has an open bug where dynamically rendered options don't auto select the provided value prop. You can see this for yourself by comparing it with normal select/option elements, which work as expected.
 
 	In our case, when the user switches between providers, we recalculate the selectedModelId depending on the provider, the default model for that provider, and a modelId that the user may have selected. Unfortunately, the VSCodeDropdown component wouldn't select this calculated value, and would default to the first "Select a model..." option instead, which makes it seem like the model was cleared out when it wasn't.
 

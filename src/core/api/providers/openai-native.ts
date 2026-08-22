@@ -31,7 +31,9 @@ import { ApiStream } from "../transform/stream"
 import { getOpenAIToolParams, ToolCallProcessor } from "../transform/tool-call-processor"
 import {
 	buildResponseCreateParams,
+	getOpenAIServiceTier,
 	mapResponseTools,
+	normalizeOpenAIServiceTier,
 	processResponsesEvents,
 	ResponsesWebsocketManager,
 	shouldRetryWithFullContext,
@@ -81,6 +83,14 @@ export class OpenAiNativeHandler implements ApiHandler {
 
 	private shouldEnableParallelToolCalling(): boolean {
 		return isParallelToolCallingEnabled(this.options.enableParallelToolCalling ?? false)
+	}
+
+	private resolveServiceTier(modelInfo: ModelInfo) {
+		const serviceTier = getOpenAIServiceTier(this.options.inferenceSpeed)
+		if (serviceTier === "fast" && !modelInfo.supportsFastMode) {
+			throw new Error("The selected OpenAI model does not support Fast mode")
+		}
+		return serviceTier
 	}
 
 	private ensureClient(): OpenAI {
@@ -175,6 +185,7 @@ export class OpenAiNativeHandler implements ApiHandler {
 	): ApiStream {
 		const client = this.ensureClient()
 		const model = this.getModel()
+		const serviceTier = this.resolveServiceTier(model.info)
 		const toolCallProcessor = new ToolCallProcessor()
 		this.abortController = new AbortController()
 
@@ -184,6 +195,7 @@ export class OpenAiNativeHandler implements ApiHandler {
 				{
 					model: model.id,
 					messages: [{ role: "user", content: systemPrompt }, ...convertToOpenAiMessages(messages, "openai-native")],
+					...(serviceTier ? { service_tier: serviceTier } : {}),
 				},
 				{ signal: this.abortController?.signal },
 			)
@@ -191,7 +203,9 @@ export class OpenAiNativeHandler implements ApiHandler {
 				type: "text",
 				text: response.choices[0]?.message.content || "",
 			}
-			yield* this.yieldUsage(model.info, response.usage)
+			yield formatOpenAiCompatibleUsage(response.usage || {}, model.info, {
+				inferenceSpeed: normalizeOpenAIServiceTier((response as any).service_tier),
+			})
 			return
 		}
 
@@ -209,6 +223,7 @@ export class OpenAiNativeHandler implements ApiHandler {
 				stream: true,
 				stream_options: { include_usage: true },
 				reasoning_effort: reasoningEffort,
+				...(serviceTier ? { service_tier: serviceTier } : {}),
 				...(model.info.temperature !== undefined ? { temperature: model.info.temperature } : {}),
 				...(includeTools ? getOpenAIToolParams(tools, this.shouldEnableParallelToolCalling()) : {}),
 			},
@@ -230,7 +245,9 @@ export class OpenAiNativeHandler implements ApiHandler {
 
 			if (chunk.usage) {
 				// Only last chunk contains usage
-				yield* this.yieldUsage(model.info, chunk.usage)
+				yield formatOpenAiCompatibleUsage(chunk.usage, model.info, {
+					inferenceSpeed: normalizeOpenAIServiceTier((chunk as any).service_tier),
+				})
 			}
 		}
 	}
@@ -242,6 +259,7 @@ export class OpenAiNativeHandler implements ApiHandler {
 		options?: ApiConversationRequestOptions,
 	): ApiStream {
 		const model = this.getModel()
+		const serviceTier = this.resolveServiceTier(model.info)
 		const usePersistedReasoning = model.info.supportsPersistedReasoning === true
 		const useWebsocket = this.useWebsocketMode(model.info.apiFormat) && !usePersistedReasoning
 		const usePreviousResponseId = !options?.breakProviderContinuation && (usePersistedReasoning || useWebsocket)
@@ -278,6 +296,7 @@ export class OpenAiNativeHandler implements ApiHandler {
 			reasoningContext: usePersistedReasoning ? "all_turns" : undefined,
 			store: usePersistedReasoning ? true : undefined,
 			enableParallelToolCalling: this.shouldEnableParallelToolCalling(),
+			serviceTier,
 		})
 		const fallbackParams = buildResponseCreateParams({
 			modelId: model.id,
@@ -288,6 +307,7 @@ export class OpenAiNativeHandler implements ApiHandler {
 			reasoningContext: usePersistedReasoning ? "all_turns" : undefined,
 			store: usePersistedReasoning ? true : undefined,
 			enableParallelToolCalling: this.shouldEnableParallelToolCalling(),
+			serviceTier,
 		})
 
 		if (usePersistedReasoning) {

@@ -30,6 +30,8 @@ export interface ModelCapabilities {
 
 export interface ModelInfo extends ModelCapabilities {
 	supportsPromptCache: boolean
+	supportsFastMode?: boolean
+	fastModePriceMultiplier?: number
 	inputPrice?: number
 	outputPrice?: number
 	cacheWritesPrice?: number

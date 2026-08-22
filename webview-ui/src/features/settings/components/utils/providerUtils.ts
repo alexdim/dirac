@@ -31,6 +31,8 @@ import {
 	internationalZAiModels,
 	liteLlmModelInfoSaneDefaults,
 	ModelInfo,
+	modelSupportsInferenceSpeed,
+	providerSupportsInferenceSpeed,
 	mainlandQwenDefaultModelId,
 	mainlandQwenModels,
 	mainlandZAiDefaultModelId,
@@ -357,8 +359,8 @@ export function normalizeApiConfiguration(
 				selectedModelInfo: basetenModelInfo ||
 					basetenModels[finalBasetenModelId as keyof typeof basetenModels] ||
 					basetenModels[basetenDefaultModelId] || {
-					description: "Baseten model",
-				},
+						description: "Baseten model",
+					},
 			}
 		}
 		case "huawei-cloud-maas":
@@ -465,6 +467,7 @@ export function getModeSpecificFields(apiConfiguration: ApiConfiguration | undef
 		thinkingBudgetTokens:
 			mode === "plan" ? apiConfiguration?.planModeThinkingBudgetTokens : apiConfiguration?.actModeThinkingBudgetTokens,
 		reasoningEffort: mode === "plan" ? apiConfiguration?.planModeReasoningEffort : apiConfiguration?.actModeReasoningEffort,
+		inferenceSpeed: mode === "plan" ? apiConfiguration?.planModeInferenceSpeed : apiConfiguration?.actModeInferenceSpeed,
 		vsCodeLmModelSelector:
 			mode === "plan" ? apiConfiguration?.planModeVsCodeLmModelSelector : apiConfiguration?.actModeVsCodeLmModelSelector,
 		awsBedrockCustomSelected:
@@ -541,10 +544,16 @@ export async function syncModeConfigurations(
 
 	const sourceFields = getModeSpecificFields(apiConfiguration, sourceMode)
 	const { apiProvider } = sourceFields
-
 	if (!apiProvider) {
 		return
 	}
+	const selectedModelId = normalizeApiConfiguration(apiConfiguration, sourceMode).selectedModelId
+	const configuredInferenceSpeed = sourceFields.inferenceSpeed ?? "default"
+	const inferenceSpeed =
+		(configuredInferenceSpeed === "fast" && !modelSupportsInferenceSpeed(apiProvider, selectedModelId)) ||
+		(configuredInferenceSpeed === "standard" && !providerSupportsInferenceSpeed(apiProvider))
+			? "default"
+			: configuredInferenceSpeed
 
 	// Build the complete update object with both plan and act mode fields
 	const updates: Partial<ApiConfiguration> = {
@@ -555,6 +564,8 @@ export async function syncModeConfigurations(
 		actModeThinkingBudgetTokens: sourceFields.thinkingBudgetTokens,
 		planModeReasoningEffort: sourceFields.reasoningEffort,
 		actModeReasoningEffort: sourceFields.reasoningEffort,
+		planModeInferenceSpeed: inferenceSpeed,
+		actModeInferenceSpeed: inferenceSpeed,
 	}
 
 	// Handle provider-specific fields
@@ -565,7 +576,6 @@ export async function syncModeConfigurations(
 			updates.planModeOpenRouterModelInfo = sourceFields.openRouterModelInfo
 			updates.actModeOpenRouterModelInfo = sourceFields.openRouterModelInfo
 			break
-
 
 		case "requesty":
 			updates.planModeRequestyModelId = sourceFields.requestyModelId

@@ -1,5 +1,4 @@
 import type { ApiConfiguration, ModelProviderPreset } from "@shared/api"
-import { buildLegacySynthetic1mStateUpdates } from "@shared/storage/legacy-model-id-migration"
 import {
 	type GlobalStateAndSettings,
 	type GlobalStateAndSettingsKey,
@@ -45,7 +44,7 @@ export function setGlobalState<K extends keyof GlobalStateAndSettings>(
 
 export function setGlobalStateBatch(ctx: StateManagerSettersContext, updates: Partial<GlobalStateAndSettings>): void {
 	guardInitialized(ctx)
-	const normalizedUpdates = { ...updates, ...buildLegacySynthetic1mStateUpdates(updates) }
+	const normalizedUpdates = normalizeLoadedSettings(updates as Partial<Settings>) as Partial<GlobalStateAndSettings>
 	Object.assign(ctx.globalStateCache, normalizedUpdates)
 	ctx.persistence.addPendingGlobalStateBatch(Object.keys(normalizedUpdates) as GlobalStateAndSettingsKey[])
 	ctx.notifyStateChange()

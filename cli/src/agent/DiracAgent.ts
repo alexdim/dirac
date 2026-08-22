@@ -16,7 +16,12 @@ import path from "node:path"
 import type * as acp from "@agentclientprotocol/sdk"
 import { PROTOCOL_VERSION, RequestError } from "@agentclientprotocol/sdk"
 import type { DiracMessageChange } from "@core/task/message-state"
-import type { ApiConfiguration, ApiProvider } from "@shared/api"
+import {
+	modelSupportsInferenceSpeed,
+	providerSupportsInferenceSpeed,
+	type ApiConfiguration,
+	type ApiProvider,
+} from "@shared/api"
 import { isResumePromptCard } from "@shared/cardIdentity"
 import type { DiracMessage } from "@shared/ExtensionMessage"
 import { CardStatus, DiracMessageType, TaskStatus } from "@shared/ExtensionMessage"
@@ -24,7 +29,12 @@ import { isPlanResponseCard } from "@shared/responseTool"
 import { CLI_ONLY_COMMANDS, VSCODE_ONLY_COMMANDS } from "@shared/slashCommands"
 import { getExplicitDiracSettingsFromEnv, getProviderFromEnv, getSettingsFromEnv } from "@shared/storage/env-config"
 import { getProviderModelIdKey, getProviderModelInfoKey } from "@shared/storage/provider-keys"
-import { isOpenaiReasoningEffort, OPENAI_REASONING_EFFORT_OPTIONS } from "@shared/storage/types"
+import {
+	INFERENCE_SPEED_OPTIONS,
+	isInferenceSpeed,
+	isOpenaiReasoningEffort,
+	OPENAI_REASONING_EFFORT_OPTIONS,
+} from "@shared/storage/types"
 import { DiracAskResponse } from "@shared/WebviewMessage"
 import pWaitFor from "p-wait-for"
 import simpleGit from "simple-git"
@@ -664,7 +674,7 @@ export class DiracAgent implements acp.Agent {
 	}
 
 	private applyStartupProviderInfrastructure(): void {
-		const { provider, model, mode, thinkingBudgetTokens, reasoningEffort } = this.options
+		const { provider, model, mode, thinkingBudgetTokens, reasoningEffort, inferenceSpeed } = this.options
 
 		if (mode && !["plan", "act"].includes(mode)) {
 			throw RequestError.invalidParams(undefined, `Invalid startup mode: ${mode}`)
@@ -676,6 +686,12 @@ export class DiracAgent implements acp.Agent {
 			throw RequestError.invalidParams(
 				undefined,
 				`Invalid --reasoning-effort value: ${reasoningEffort}. Expected one of: ${OPENAI_REASONING_EFFORT_OPTIONS.join(", ")}`,
+			)
+		}
+		if (inferenceSpeed !== undefined && !isInferenceSpeed(inferenceSpeed)) {
+			throw RequestError.invalidParams(
+				undefined,
+				`Invalid --speed value: ${inferenceSpeed}. Expected one of: ${INFERENCE_SPEED_OPTIONS.join(", ")}`,
 			)
 		}
 		if (provider && !model) {
@@ -691,7 +707,8 @@ export class DiracAgent implements acp.Agent {
 	}
 
 	private createStartupSessionOverrides(): Partial<Settings> {
-		const { provider, model, mode: startupMode, autoApprove, yolo, thinkingBudgetTokens, reasoningEffort } = this.options
+		const { provider, model, mode: startupMode, autoApprove, yolo, thinkingBudgetTokens, reasoningEffort, inferenceSpeed } =
+			this.options
 		const stateManager = StateManager.get()
 		const environmentSettings = getSettingsFromEnv()
 		const effectiveDefaults: Partial<Settings> = {}
@@ -742,8 +759,10 @@ export class DiracAgent implements acp.Agent {
 
 			const thinkingKey = mode === "act" ? "actModeThinkingBudgetTokens" : "planModeThinkingBudgetTokens"
 			const reasoningKey = mode === "act" ? "actModeReasoningEffort" : "planModeReasoningEffort"
+			const inferenceSpeedKey = mode === "act" ? "actModeInferenceSpeed" : "planModeInferenceSpeed"
 				; (overrides as Record<string, unknown>)[thinkingKey] ??= 0
 				; (overrides as Record<string, unknown>)[reasoningKey] ??= "medium"
+				; (overrides as Record<string, unknown>)[inferenceSpeedKey] ??= "default"
 		}
 
 		if (model) {
@@ -784,6 +803,20 @@ export class DiracAgent implements acp.Agent {
 			const modes = overrides.planActSeparateModelsSetting ? [overrides.mode] : (["plan", "act"] as const)
 			for (const mode of modes) {
 				overrides[mode === "act" ? "actModeReasoningEffort" : "planModeReasoningEffort"] = reasoningEffort
+			}
+		}
+		if (inferenceSpeed !== undefined) {
+			const modes = overrides.planActSeparateModelsSetting ? [overrides.mode] : (["plan", "act"] as const)
+			for (const mode of modes) {
+				const provider = overrides[mode === "act" ? "actModeApiProvider" : "planModeApiProvider"] as ApiProvider
+				const modelId = overrides[getProviderModelIdKey(provider, mode)] as string
+				if (inferenceSpeed === "standard" && !providerSupportsInferenceSpeed(provider)) {
+					throw new Error(`Provider ${provider} does not support inference speed controls`)
+				}
+				if (inferenceSpeed === "fast" && !modelSupportsInferenceSpeed(provider, modelId)) {
+					throw new Error(`Model ${modelId} does not support Fast mode`)
+				}
+				overrides[mode === "act" ? "actModeInferenceSpeed" : "planModeInferenceSpeed"] = inferenceSpeed
 			}
 		}
 		return overrides
@@ -1487,6 +1520,10 @@ export class DiracAgent implements acp.Agent {
 				case "reasoning_effort":
 					if (typeof params.value !== "string") throw new Error("Reasoning effort must be a select value")
 					this.sessionConfig.applyReasoningEffortConfigOption(session, params.value, nextOverrides)
+					break
+				case "inference_speed":
+					if (typeof params.value !== "string") throw new Error("Inference speed must be a select value")
+					this.sessionConfig.applyInferenceSpeedConfigOption(session, params.value, nextOverrides)
 					break
 				case "thinking_budget":
 					if (typeof params.value !== "string") throw new Error("Thinking budget must be a select value")

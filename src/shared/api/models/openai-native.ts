@@ -3,7 +3,6 @@ import { ApiFormat } from "../../proto/dirac/models"
 import { MODEL_CAPABILITIES } from "./capabilities"
 import { GPT_5_5_TIERS, GPT_5_4_TIERS, GPT_5_4_PRO_TIERS } from "./shared-tiers"
 
-
 /**
  * OpenAI-native-only Responses API capabilities.
  *
@@ -22,6 +21,8 @@ export const openAiNativeModels = {
 	"gpt-5.5": {
 		...MODEL_CAPABILITIES["gpt-5.5"],
 		supportsPromptCache: true,
+		supportsFastMode: true,
+		fastModePriceMultiplier: 2.5,
 		inputPrice: 5.0,
 		outputPrice: 30.0,
 		cacheReadsPrice: 0.5,
@@ -32,6 +33,8 @@ export const openAiNativeModels = {
 	"gpt-5.4": {
 		...MODEL_CAPABILITIES["gpt-5.4"],
 		supportsPromptCache: true,
+		supportsFastMode: true,
+		fastModePriceMultiplier: 2,
 		inputPrice: 2.5,
 		outputPrice: 15,
 		cacheReadsPrice: 0.25,
@@ -42,6 +45,8 @@ export const openAiNativeModels = {
 	"gpt-5.4-mini": {
 		...MODEL_CAPABILITIES["gpt-5.4-mini"],
 		supportsPromptCache: true,
+		supportsFastMode: true,
+		fastModePriceMultiplier: 2,
 		inputPrice: 0.75,
 		outputPrice: 4.5,
 		cacheReadsPrice: 0.075,
@@ -70,6 +75,8 @@ export const openAiNativeModels = {
 	"gpt-5.6-sol": {
 		...MODEL_CAPABILITIES["gpt-5.6-sol"],
 		supportsPromptCache: true,
+		supportsFastMode: true,
+		fastModePriceMultiplier: 2,
 		inputPrice: 5.0,
 		outputPrice: 30.0,
 		cacheReadsPrice: 0.5,
@@ -80,22 +87,25 @@ export const openAiNativeModels = {
 	"gpt-5.6-terra": {
 		...MODEL_CAPABILITIES["gpt-5.6-terra"],
 		supportsPromptCache: true,
-		inputPrice: 2.5,
-		outputPrice: 15.0,
-		cacheReadsPrice: 0.25,
-		cacheWritesPrice: 3.125,
+		supportsFastMode: true,
+		fastModePriceMultiplier: 2.5,
+		inputPrice: 2.0,
+		outputPrice: 12.0,
+		cacheReadsPrice: 0.2,
+		cacheWritesPrice: 2.5,
 		apiFormat: ApiFormat.OPENAI_RESPONSES,
 		supportsPersistedReasoning: true,
 	},
 	"gpt-5.6-luna": {
 		...MODEL_CAPABILITIES["gpt-5.6-luna"],
 		supportsPromptCache: true,
-		inputPrice: 1.0,
-		outputPrice: 6.0,
-		cacheReadsPrice: 0.1,
-		cacheWritesPrice: 1.25,
+		supportsFastMode: true,
+		fastModePriceMultiplier: 10,
+		inputPrice: 0.2,
+		outputPrice: 1.2,
+		cacheReadsPrice: 0.02,
+		cacheWritesPrice: 0.25,
 		apiFormat: ApiFormat.OPENAI_RESPONSES,
 		supportsPersistedReasoning: true,
 	},
-
 } as const satisfies Record<string, OpenAiNativeModelInfo>

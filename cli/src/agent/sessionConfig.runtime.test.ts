@@ -289,6 +289,33 @@ describe("SessionConfigManager task runtime behavior", () => {
 		expect(optionValues(provider)).not.toContain("deepseek")
 	})
 
+	it("advertises, applies, and clears inference speed for supported models", async () => {
+		const manager = new SessionConfigManager()
+		const runtime: Partial<Settings> = {
+			mode: "act",
+			planActSeparateModelsSetting: false,
+			planModeApiProvider: "openai-native",
+			actModeApiProvider: "openai-native",
+			planModeApiModelId: "gpt-5.4",
+			actModeApiModelId: "gpt-5.4",
+		}
+
+		const speed = selectOption(await manager.getSessionConfigOptions(session(), runtime), "inference_speed")
+		expect(optionValues(speed)).toEqual(["default", "standard", "fast"])
+		manager.applyInferenceSpeedConfigOption(session(), "fast", runtime)
+		expect(runtime.planModeInferenceSpeed).toBe("fast")
+		expect(runtime.actModeInferenceSpeed).toBe("fast")
+
+		await manager.applyModelConfigOption(session(), "gpt-5.4-nano", runtime)
+		expect(runtime.planModeInferenceSpeed).toBe("default")
+		expect(runtime.actModeInferenceSpeed).toBe("default")
+		const standardOnlySpeed = selectOption(await manager.getSessionConfigOptions(session(), runtime), "inference_speed")
+		expect(optionValues(standardOnlySpeed)).toEqual(["default", "standard"])
+		manager.applyInferenceSpeedConfigOption(session(), "standard", runtime)
+		expect(runtime.planModeInferenceSpeed).toBe("standard")
+		expect(runtime.actModeInferenceSpeed).toBe("standard")
+	})
+
 	it("uses standard ACP categories with provider before model", async () => {
 		const options = await new SessionConfigManager().getSessionConfigOptions(session(), linkedDeepSeekRuntime())
 		expect(options.map(({ id, category }) => [id, category])).toEqual([

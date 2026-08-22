@@ -1,6 +1,7 @@
 import "should"
 import { DiracAskResponse } from "@shared/WebviewMessage"
 import { CardStatus } from "@shared/ExtensionMessage"
+import { DiracIcon } from "@shared/icons"
 import { expect } from "chai"
 import sinon from "sinon"
 import { Logger } from "@/shared/services/Logger"
@@ -159,10 +160,18 @@ describe("SurfaceAdapter", () => {
 			result.value!.should.equal("new_task")
 		})
 
-		it("uses a Utility approval without creating a permission card", async () => {
+		it("publishes a completed audit card for a permission-agent approval", async () => {
+			const auditCardHandle = {
+				id: "approval-card-1",
+				update: sinon.stub().resolves(),
+				appendBody: sinon.stub().resolves(),
+				finalize: sinon.stub().resolves(),
+				waitForInteraction: sinon.stub(),
+			}
 			const decide = sinon.stub().resolves({ decision: "approve", reason: "Allowed by policy." })
 			config.permissionDecisionBinding = { service: { decide }, configurationRevision: 1 }
 			config.toolUse = { name: "write_to_file", params: { path: "src/index.ts", content: "export {}\n" } }
+			config.taskMessenger.createCard = sinon.stub().resolves(auditCardHandle)
 
 			const handle = await adapter.ui.createCard({
 				header: "Permission",
@@ -172,7 +181,6 @@ describe("SurfaceAdapter", () => {
 			})
 			const result = await handle.waitForInteraction()
 
-			sinon.assert.notCalled(config.taskMessenger.createCard)
 			sinon.assert.calledWithMatch(decide, {
 				toolCall: {
 					name: "write_to_file",
@@ -181,6 +189,19 @@ describe("SurfaceAdapter", () => {
 				permission: { header: "Permission" },
 				runtime: { cwd: "/test", mode: "act", isSubagent: false },
 			})
+			sinon.assert.calledOnceWithExactly(config.taskMessenger.createCard, {
+				header: "Auto Approved · Permission",
+				toolName: "permission_approval",
+				icon: DiracIcon.PERMISSION_APPROVAL,
+				status: CardStatus.SUCCESS,
+				renderType: "markdown",
+				body: "**Result:** Auto Approved by permission agent\n\n**Reason:** Allowed by policy.",
+				rawInput: { tool: "write_to_file" },
+				rawOutput: { decision: "approve", reason: "Allowed by policy.", approvedTool: "write_to_file" },
+				locations: undefined,
+				collapsed: true,
+			})
+			sinon.assert.notCalled(auditCardHandle.waitForInteraction)
 			result.action.should.equal(DiracAskResponse.APPROVE)
 		})
 
@@ -301,10 +322,18 @@ describe("SurfaceAdapter", () => {
 			result.action.should.equal(DiracAskResponse.APPROVE)
 		})
 
-		it("routes subagent permissions through Utility and marks their runtime", async () => {
+		it("routes subagent permissions through the permission agent and publishes their approval", async () => {
+			const auditCardHandle = {
+				id: "approval-card-1",
+				update: sinon.stub().resolves(),
+				appendBody: sinon.stub().resolves(),
+				finalize: sinon.stub().resolves(),
+				waitForInteraction: sinon.stub(),
+			}
 			const decide = sinon.stub().resolves({ decision: "approve", reason: "Allowed." })
 			config.permissionDecisionBinding = { service: { decide }, configurationRevision: 1 }
 			config.isSubagentExecution = true
+			config.taskMessenger.createCard = sinon.stub().resolves(auditCardHandle)
 
 			const result = await (
 				await adapter.ui.createCard({
@@ -315,7 +344,11 @@ describe("SurfaceAdapter", () => {
 			).waitForInteraction()
 
 			sinon.assert.calledWithMatch(decide, { runtime: { cwd: "/test", mode: "act", isSubagent: true } })
-			sinon.assert.notCalled(config.taskMessenger.createCard)
+			sinon.assert.calledWithMatch(config.taskMessenger.createCard, {
+				header: "Auto Approved · Permission",
+				toolName: "permission_approval",
+				status: CardStatus.SUCCESS,
+			})
 			result.action.should.equal(DiracAskResponse.APPROVE)
 		})
 

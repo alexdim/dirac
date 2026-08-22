@@ -22,7 +22,10 @@ function currentCodexResponse(modelId = "gpt-5.6-terra", content: any = "previou
 	} as any
 }
 
-function createHandler(modelId = "gpt-5.6-terra", options: { disableRetries?: boolean } = {}): OpenAiCodexHandler {
+function createHandler(
+	modelId = "gpt-5.6-terra",
+	options: { disableRetries?: boolean; inferenceSpeed?: "default" | "standard" | "fast" } = {},
+): OpenAiCodexHandler {
 	return new OpenAiCodexHandler({ apiModelId: modelId, ...options })
 }
 
@@ -40,6 +43,18 @@ describe("OpenAiCodexHandler persisted reasoning", () => {
 
 	afterEach(() => {
 		sinon.restore()
+	})
+
+	it("sends the priority tier for subscription Fast mode", async () => {
+		const handler = createHandler("gpt-5.6-terra", { inferenceSpeed: "fast" })
+		const requests: any[] = []
+		sinon.stub(handler as any, "createResponseStreamWebsocket").callsFake(async function* (request: any) {
+			requests.push(request)
+		})
+
+		await drain(handler.createMessage("system", [{ role: "user", content: "hello" }] as any, tools))
+
+		requests[0].service_tier.should.equal("priority")
 	})
 
 	it("advertises provider-native web search support", () => {

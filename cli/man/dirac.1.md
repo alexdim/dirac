@@ -166,6 +166,9 @@ These options apply to both **dirac** [*prompt*] and **dirac task** [*prompt*], 
 **--reasoning-effort** *effort*
 : Set reasoning effort to `none`, `low`, `medium`, `high`, or `xhigh`. Matching is case-insensitive.
 
+**--speed** *speed*
+: Set inference speed to `default`, `standard`, or `fast`. Fast is available only for supported Anthropic, OpenAI API, and OpenAI Codex subscription models and may use premium pricing or credits.
+
 **--max-consecutive-mistakes** *count*
 : Stop a yolo task after this many consecutive mistakes. The value must be a positive integer.
 

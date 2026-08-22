@@ -1,5 +1,5 @@
 import type { ApiConfiguration, ModelInfo } from "@shared/api"
-import { buildLegacySynthetic1mStateUpdates } from "@shared/storage/legacy-model-id-migration"
+import { buildLegacyModelIdStateUpdates } from "@shared/storage/legacy-model-id-migration"
 import {
 	type GlobalState,
 	type GlobalStateAndSettings,
@@ -176,7 +176,7 @@ export class StateManager {
 			const rawUtilityModelUseGenerateCommitMessage = storage.globalStateBackingStore.get<boolean>(
 				"utilityModelUseGenerateCommitMessage",
 			)
-			const legacyModelIdUpdates = buildLegacySynthetic1mStateUpdates(globalState)
+			const legacyModelIdUpdates = buildLegacyModelIdStateUpdates(globalState)
 			if (Object.keys(legacyModelIdUpdates).length > 0) {
 				await storage.globalStateBackingStore.setBatch(legacyModelIdUpdates)
 				Object.assign(globalState, legacyModelIdUpdates)

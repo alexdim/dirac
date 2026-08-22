@@ -9,9 +9,9 @@ import { suppressConsoleUnlessVerbose } from "./utils/console"
 import { getCliLogFilePath } from "./vscode-shim"
 import { setupSignalHandlers } from "./utils/errors"
 import { parseTimeoutSeconds } from "./utils/task-timeout"
-import { parsePositiveInteger, parseReasoningEffort, parseThinkingBudget } from "./utils/command-parsers"
+import { parseInferenceSpeed, parsePositiveInteger, parseReasoningEffort, parseThinkingBudget } from "./utils/command-parsers"
 
-import { OPENAI_REASONING_EFFORT_OPTIONS } from "@shared/storage/types"
+import { INFERENCE_SPEED_OPTIONS, OPENAI_REASONING_EFFORT_OPTIONS } from "@shared/storage/types"
 // CLI-only behavior: suppress console output unless verbose mode is enabled.
 // Kept explicit here so importing the library bundle does not mutate global console methods.
 suppressConsoleUnlessVerbose()
@@ -53,6 +53,7 @@ program
 		`Reasoning effort: ${OPENAI_REASONING_EFFORT_OPTIONS.join("|")}`,
 		parseReasoningEffort,
 	)
+	.option("--speed <speed>", `Inference speed: ${INFERENCE_SPEED_OPTIONS.join("|")}`, parseInferenceSpeed)
 	.option(
 		"--max-consecutive-mistakes <count>",
 		"Maximum consecutive mistakes before halting in yolo mode",
@@ -182,6 +183,7 @@ program
 		`Reasoning effort: ${OPENAI_REASONING_EFFORT_OPTIONS.join("|")}`,
 		parseReasoningEffort,
 	)
+	.option("--speed <speed>", `Inference speed: ${INFERENCE_SPEED_OPTIONS.join("|")}`, parseInferenceSpeed)
 	.option(
 		"--max-consecutive-mistakes <count>",
 		"Maximum consecutive mistakes before halting in yolo mode",
@@ -238,6 +240,7 @@ program
 							? 1024
 							: Number(options.thinking),
 				reasoningEffort: options.reasoningEffort,
+				inferenceSpeed: options.speed,
 				hooksDir: options.hooksDir,
 				verbose: options.verbose,
 				listen: options.listen,

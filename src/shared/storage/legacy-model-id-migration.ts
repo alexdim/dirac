@@ -25,6 +25,38 @@ export function normalizeLegacySynthetic1mModelId(modelId: string): string {
 	return `${normalizedModelPart}${presetPart}`
 }
 
+const SUPPORTED_ANTHROPIC_FAST_MODE_MODELS = new Set(["claude-opus-4-8", "claude-opus-5"])
+
+function normalizeLegacyAnthropicFastModeModelId(modelId: string): string {
+	return modelId.startsWith("claude-") && modelId.endsWith(":fast") ? modelId.slice(0, -":fast".length) : modelId
+}
+
+export function buildLegacyAnthropicFastModeStateUpdates(
+	state: Partial<GlobalStateAndSettings>,
+): Partial<GlobalStateAndSettings> {
+	const updates: Partial<GlobalStateAndSettings> = {}
+	for (const mode of ["plan", "act"] as const) {
+		const modelKey = `${mode}ModeApiModelId` as const
+		const speedKey = `${mode}ModeInferenceSpeed` as const
+		const modelId = state[modelKey]
+		if (!modelId?.startsWith("claude-") || !modelId.endsWith(":fast")) continue
+		const baseModelId = modelId.slice(0, -":fast".length)
+		updates[modelKey] = baseModelId
+		updates[speedKey] = SUPPORTED_ANTHROPIC_FAST_MODE_MODELS.has(baseModelId) ? "fast" : "standard"
+	}
+	return updates
+}
+
+export function buildLegacyModelIdStateUpdates(
+	state: Partial<GlobalStateAndSettings>,
+): Partial<GlobalStateAndSettings> {
+	const synthetic1mUpdates = buildLegacySynthetic1mStateUpdates(state)
+	return {
+		...synthetic1mUpdates,
+		...buildLegacyAnthropicFastModeStateUpdates({ ...state, ...synthetic1mUpdates }),
+	}
+}
+
 export function normalizeLegacyOpenRouterPinMap(
 	pins: Record<string, string[]> | undefined,
 ): Record<string, string[]> | undefined {
@@ -97,7 +129,7 @@ export function normalizeLegacyModelProviderPresets(presets: ModelProviderPreset
 }
 
 function normalizeLegacyModelProviderPreset(preset: ModelProviderPreset): ModelProviderPreset {
-	const modelId = normalizeLegacySynthetic1mModelId(preset.modelId)
+	const modelId = normalizeLegacyAnthropicFastModeModelId(normalizeLegacySynthetic1mModelId(preset.modelId))
 	const awsBedrockCustomModelBaseId = preset.awsBedrockCustomModelBaseId
 		? normalizeLegacySynthetic1mModelId(preset.awsBedrockCustomModelBaseId)
 		: undefined

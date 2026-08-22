@@ -1,6 +1,7 @@
 import type { UtilityPermissionRequest } from "@core/permissions/UtilityPermissionDecisionService"
 import { DiracAskResponse } from "@shared/WebviewMessage"
 import { CardStatus } from "@shared/ExtensionMessage"
+import { DiracIcon } from "@shared/icons"
 import type { IUITrait, IInteractionTrait, ICardHandle, CardParams } from "../../interfaces/IToolEnvironment"
 import type { TaskConfig } from "../../types/TaskConfig"
 import { CardHandle } from "../CardHandle"
@@ -73,10 +74,8 @@ export async function createCardFromMessenger(
 	const binding = config.permissionDecisionBinding
 	if (!binding) return createDisplayedCardFromMessenger(config, cardParams, tracker, true, isAutoApproved)
 
-	const decision = await binding.service.decide(
-		createUtilityPermissionRequest(config, cardParams),
-		config.taskState.abortSignal,
-	)
+	const request = createUtilityPermissionRequest(config, cardParams)
+	const decision = await binding.service.decide(request, config.taskState.abortSignal)
 	if (isAutoApproved()) {
 		return new ApprovedPermissionCardHandle(cardParams)
 	}
@@ -88,6 +87,7 @@ export async function createCardFromMessenger(
 	if (decision.decision === "escalate") {
 		return createDisplayedCardFromMessenger(config, cardParams, tracker, true, isAutoApproved)
 	}
+	await publishPermissionApprovalCard(config, cardParams, tracker, request, decision.reason)
 	return new ApprovedPermissionCardHandle(cardParams)
 }
 
@@ -116,6 +116,31 @@ function createUtilityPermissionRequest(config: TaskConfig, params: CardParams):
 	}
 }
 
+async function publishPermissionApprovalCard(
+	config: TaskConfig,
+	params: CardParams,
+	tracker: CardHandle[],
+	request: UtilityPermissionRequest,
+	reason: string,
+): Promise<void> {
+	await createDisplayedCardFromMessenger(
+		config,
+		{
+			header: `Auto Approved · ${params.header}`,
+			toolName: "permission_approval",
+			icon: DiracIcon.PERMISSION_APPROVAL,
+			status: CardStatus.SUCCESS,
+			renderType: "markdown",
+			body: `**Result:** Auto Approved by permission agent\n\n**Reason:** ${reason}`,
+			rawInput: { tool: request.toolCall.name },
+			rawOutput: { decision: "approve", reason, approvedTool: request.toolCall.name },
+			locations: params.locations,
+			collapsed: true,
+		},
+		tracker,
+		false,
+	)
+}
 // Creates a card via taskMessenger and wraps the protocol handle in a CardHandle.
 async function createDisplayedCardFromMessenger(
 	config: TaskConfig,

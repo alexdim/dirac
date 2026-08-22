@@ -1,7 +1,7 @@
 import type { ApiStream, ApiStreamChunk } from "@core/api/transform/stream"
 import {
-    UtilityModelCancelledError,
-    type UtilityModelRequest,
+	UtilityModelCancelledError,
+	type UtilityModelRequest,
 } from "@core/utility-model/UtilityModelRunner"
 
 export type UtilityPermissionDecisionValue = "approve" | "escalate"
@@ -53,6 +53,8 @@ Some operations have unusually broad, irreversible, or system-level consequences
 
 Respond only with JSON matching:
 {"decision":"approve"|"escalate","reason":"short explanation in your own words"}
+
+The reason is displayed directly to the user. Explain the request-specific basis for the decision in plain language without mentioning the Utility model or internal permission mechanisms.
 
 Do not quote or return an excerpt from the user's policy. Do not include additional fields or markdown.`
 

@@ -1,5 +1,5 @@
 import type { Controller } from "@/core/controller"
-import type { OpenaiReasoningEffort } from "@/shared/storage/types"
+import type { InferenceSpeed, OpenaiReasoningEffort } from "@/shared/storage/types"
 
 export enum CliPanelType {
 	SETTINGS = "settings",
@@ -26,6 +26,7 @@ export interface TaskOptions {
 	config?: string
 	thinking?: boolean | string | number
 	reasoningEffort?: OpenaiReasoningEffort
+	speed?: InferenceSpeed
 	maxConsecutiveMistakes?: string | number
 	yolo?: boolean
 	autoApproveAll?: boolean

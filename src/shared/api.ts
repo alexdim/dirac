@@ -208,3 +208,21 @@ export function getModelInfo(modelId: string): ModelInfo | undefined {
 	}
 	return undefined
 }
+
+const INFERENCE_SPEED_PROVIDERS = new Set<ApiProvider>(["anthropic", "openai-native", "openai-codex"])
+
+export function getModelInfoForProvider(provider: ApiProvider, modelId: string): ModelInfo | undefined {
+	const baseModelId = stripOpenRouterPreset(modelId)
+	for (const [registeredProvider, map] of ALL_MODEL_MAPS) {
+		if (registeredProvider === provider && baseModelId in map) return map[baseModelId]
+	}
+	return undefined
+}
+
+export function providerSupportsInferenceSpeed(provider: ApiProvider): boolean {
+	return INFERENCE_SPEED_PROVIDERS.has(provider)
+}
+
+export function modelSupportsInferenceSpeed(provider: ApiProvider, modelId: string): boolean {
+	return providerSupportsInferenceSpeed(provider) && getModelInfoForProvider(provider, modelId)?.supportsFastMode === true
+}

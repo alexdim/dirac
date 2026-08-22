@@ -34,6 +34,7 @@ describe("CLI Commands", () => {
 			.option("--config <path>", "Configuration directory")
 			.option("--thinking [tokens]", "Enable extended thinking")
 			.option("--reasoning-effort <effort>", "Reasoning effort")
+			.option("--speed <speed>", "Inference speed")
 			.option("--max-consecutive-mistakes <count>", "Maximum consecutive mistakes")
 			.option("--double-check-completion", "Reject first completion attempt to force re-verification")
 			.option("--auto-condense", "Enable AI-powered context compaction instead of mechanical truncation")
@@ -83,6 +84,7 @@ describe("CLI Commands", () => {
 			.option("--config <path>", "Configuration directory")
 			.option("--thinking [tokens]", "Enable extended thinking")
 			.option("--reasoning-effort <effort>", "Reasoning effort")
+			.option("--speed <speed>", "Inference speed")
 			.option("--max-consecutive-mistakes <count>", "Maximum consecutive mistakes")
 			.option("--double-check-completion", "Reject first completion attempt to force re-verification")
 			.option("--auto-condense", "Enable AI-powered context compaction instead of mechanical truncation")
@@ -187,6 +189,12 @@ describe("CLI Commands", () => {
 			const args = ["test prompt", "--reasoning-effort", "high"]
 			taskCmd.parse(args, { from: "user" })
 			expect(taskCmd.opts().reasoningEffort).toBe("high")
+		})
+
+		it("should parse --speed option", () => {
+			const taskCmd = program.commands.find((c) => c.name() === "task")!
+			taskCmd.parse(["test prompt", "--speed", "fast"], { from: "user" })
+			expect(taskCmd.opts().speed).toBe("fast")
 		})
 
 		it("should parse --max-consecutive-mistakes option", () => {
@@ -382,6 +390,11 @@ describe("CLI Commands", () => {
 		it("should parse --reasoning-effort option", () => {
 			program.parse(["node", "cli", "--reasoning-effort", "medium"])
 			expect(program.opts().reasoningEffort).toBe("medium")
+		})
+
+		it("should parse --speed option", () => {
+			program.parse(["node", "cli", "--speed", "standard"])
+			expect(program.opts().speed).toBe("standard")
 		})
 
 		it("should parse --max-consecutive-mistakes option", () => {

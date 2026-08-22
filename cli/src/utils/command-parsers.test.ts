@@ -1,6 +1,6 @@
 import { InvalidArgumentError } from "commander"
 import { describe, expect, it } from "vitest"
-import { parsePositiveInteger, parseReasoningEffort, parseThinkingBudget } from "./command-parsers"
+import { parseInferenceSpeed, parsePositiveInteger, parseReasoningEffort, parseThinkingBudget } from "./command-parsers"
 
 describe("parsePositiveInteger", () => {
 	it.each(["1", "20", "9007199254740991"])("accepts %s", (value) => {
@@ -31,5 +31,18 @@ describe("parseThinkingBudget", () => {
 		it("rejects unknown reasoning efforts", () => {
 			expect(() => parseReasoningEffort("extreme")).toThrow("Reasoning effort must be one of")
 		})
+	})
+})
+
+
+describe("parseInferenceSpeed", () => {
+	it("accepts supported speeds case-insensitively", () => {
+		expect(parseInferenceSpeed("DEFAULT")).toBe("default")
+		expect(parseInferenceSpeed("STANDARD")).toBe("standard")
+		expect(parseInferenceSpeed("FAST")).toBe("fast")
+	})
+
+	it("rejects unknown speeds", () => {
+		expect(() => parseInferenceSpeed("turbo")).toThrow("Inference speed must be one of")
 	})
 })

@@ -1,6 +1,6 @@
 import type * as acp from "@agentclientprotocol/sdk"
 import { ApiConfigurationError, ApiConfigurationErrorCode, resolveModelIdForProvider } from "@core/api"
-import type { ApiConfiguration, ApiProvider } from "@shared/api"
+import { modelSupportsInferenceSpeed, providerSupportsInferenceSpeed, type ApiConfiguration, type ApiProvider } from "@shared/api"
 import { getProviderModelIdKey, getProviderModelInfoKey } from "@shared/storage/provider-keys"
 import type { Settings } from "@shared/storage/state-keys"
 import { refreshGithubCopilotModels } from "@/core/controller/models/refreshGithubCopilotModels"
@@ -8,6 +8,9 @@ import { StateManager } from "@/core/storage/StateManager"
 import { Logger } from "@/shared/services/Logger"
 import {
 	DEFAULT_OPENAI_REASONING_EFFORT,
+	DEFAULT_INFERENCE_SPEED,
+	INFERENCE_SPEED_LABELS,
+	INFERENCE_SPEED_OPTIONS,
 	type Mode,
 	OPENAI_REASONING_EFFORT_LABELS,
 	OPENAI_REASONING_EFFORT_OPTIONS,
@@ -30,6 +33,11 @@ const ACP_MODE_OPTIONS: { value: AcpModeId; name: string; description: string }[
 const REASONING_EFFORT_OPTIONS: acp.SessionConfigSelectOption[] = OPENAI_REASONING_EFFORT_OPTIONS.map((value) => ({
 	value,
 	name: OPENAI_REASONING_EFFORT_LABELS[value],
+}))
+
+const ACP_INFERENCE_SPEED_OPTIONS: acp.SessionConfigSelectOption[] = INFERENCE_SPEED_OPTIONS.map((value) => ({
+	value,
+	name: INFERENCE_SPEED_LABELS[value],
 }))
 
 const THINKING_BUDGET_OPTIONS: acp.SessionConfigSelectOption[] = [
@@ -120,6 +128,15 @@ export class SessionConfigManager {
 			modelCandidates,
 		)
 		const currentModelId = await this.getCurrentModeModelId(mode, currentProvider, sessionOverrides)
+		const inferenceSpeedKey = mode === "act" ? "actModeInferenceSpeed" : "planModeInferenceSpeed"
+		const configuredInferenceSpeed = sessionOverrides[inferenceSpeedKey] ?? DEFAULT_INFERENCE_SPEED
+		if (
+			(configuredInferenceSpeed === "fast" && !this.modelSupportsFastMode(currentProvider, currentModelId)) ||
+			(configuredInferenceSpeed === "standard" && !providerSupportsInferenceSpeed(currentProvider))
+		) {
+			sessionOverrides[inferenceSpeedKey] = DEFAULT_INFERENCE_SPEED
+		}
+		const inferenceSpeed = String(sessionOverrides[inferenceSpeedKey] ?? DEFAULT_INFERENCE_SPEED)
 		const thinkingKey = mode === "act" ? "actModeThinkingBudgetTokens" : "planModeThinkingBudgetTokens"
 		const thinkingBudget = String(sessionOverrides[thinkingKey] ?? 0)
 		const reasoningKey = mode === "act" ? "actModeReasoningEffort" : "planModeReasoningEffort"
@@ -170,6 +187,21 @@ export class SessionConfigManager {
 				currentValue: currentModelId,
 				options: currentCatalog.modelIds.map((modelId) => ({ value: modelId, name: modelId })),
 			},
+			...(providerSupportsInferenceSpeed(currentProvider)
+				? [
+						{
+							id: "inference_speed",
+							name: "Inference Speed",
+							description: "Provider processing tier for the current model",
+							type: "select" as const,
+							category: "model",
+							currentValue: inferenceSpeed,
+							options: this.modelSupportsFastMode(currentProvider, currentModelId)
+								? ACP_INFERENCE_SPEED_OPTIONS
+								: ACP_INFERENCE_SPEED_OPTIONS.filter((option) => option.value !== "fast"),
+						},
+					]
+				: []),
 			{
 				id: "reasoning_effort",
 				name: "Reasoning Effort",
@@ -260,6 +292,35 @@ export class SessionConfigManager {
 		})
 	}
 
+	applyInferenceSpeedConfigOption(session: DiracAcpSession, speed: string, sessionOverrides: Partial<Settings>): void {
+		if (!INFERENCE_SPEED_OPTIONS.includes(speed as (typeof INFERENCE_SPEED_OPTIONS)[number])) {
+			throw new Error(`Invalid inference speed: ${speed}`)
+		}
+
+		const mode = this.getSessionMode(session, sessionOverrides)
+		const modes = sessionOverrides.planActSeparateModelsSetting ? [mode] : (["plan", "act"] as const)
+		if (speed !== DEFAULT_INFERENCE_SPEED) {
+			for (const targetMode of modes) {
+				const providerKey = targetMode === "act" ? "actModeApiProvider" : "planModeApiProvider"
+				const provider = sessionOverrides[providerKey] as ApiProvider | undefined
+				const modelId = provider
+					? (sessionOverrides[getProviderModelIdKey(provider, targetMode)] as string | undefined)
+					: undefined
+				if (speed === "standard" && (!provider || !providerSupportsInferenceSpeed(provider))) {
+					throw new Error(`Provider ${provider || "(unconfigured)"} does not support inference speed controls`)
+				}
+				if (speed === "fast" && (!provider || !modelId || !this.modelSupportsFastMode(provider, modelId))) {
+					throw new Error(`Model ${modelId || "(unconfigured)"} does not support Fast mode`)
+				}
+			}
+		}
+
+		for (const targetMode of modes) {
+			const key = targetMode === "act" ? "actModeInferenceSpeed" : "planModeInferenceSpeed"
+			;(sessionOverrides as Record<string, unknown>)[key] = speed
+		}
+	}
+
 	applyThinkingBudgetConfigOption(session: DiracAcpSession, budgetValue: string, sessionOverrides: Partial<Settings>): void {
 		const budget = Number.parseInt(budgetValue, 10)
 		if (Number.isNaN(budget) || budget < 0) {
@@ -294,6 +355,14 @@ export class SessionConfigManager {
 
 			overrides[providerKey] = provider
 			overrides[modelKey] = modelId
+			const inferenceSpeedKey = mode === "act" ? "actModeInferenceSpeed" : "planModeInferenceSpeed"
+			const inferenceSpeed = overrides[inferenceSpeedKey]
+			if (
+				(inferenceSpeed === "fast" && !this.modelSupportsFastMode(provider, modelId)) ||
+				(inferenceSpeed === "standard" && !providerSupportsInferenceSpeed(provider))
+			) {
+				overrides[inferenceSpeedKey] = DEFAULT_INFERENCE_SPEED
+			}
 			if (modelInfoKey) {
 				overrides[modelInfoKey] =
 					provider === "openrouter"
@@ -305,6 +374,10 @@ export class SessionConfigManager {
 				overrides[customBaseModelKey] = undefined
 			}
 		})
+	}
+
+	private modelSupportsFastMode(provider: ApiProvider, modelId: string): boolean {
+		return modelSupportsInferenceSpeed(provider, modelId)
 	}
 
 	async getCurrentModeModelId(mode: Mode, provider?: ApiProvider, sessionOverrides?: Partial<Settings>): Promise<string> {

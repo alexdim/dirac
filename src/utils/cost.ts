@@ -1,4 +1,28 @@
 import { hasPricing, ModelInfo } from "@shared/api"
+import type { InferenceSpeed } from "@shared/storage/types"
+
+export function getModelInfoForInferenceSpeed(modelInfo: ModelInfo, speed?: InferenceSpeed): ModelInfo {
+	const multiplier = speed === "fast" ? modelInfo.fastModePriceMultiplier : undefined
+	if (!multiplier || multiplier === 1) return modelInfo
+	const scale = (price: number | undefined) => (price === undefined ? undefined : price * multiplier)
+	return {
+		...modelInfo,
+		inputPrice: scale(modelInfo.inputPrice),
+		outputPrice: scale(modelInfo.outputPrice),
+		cacheWritesPrice: scale(modelInfo.cacheWritesPrice),
+		cacheReadsPrice: scale(modelInfo.cacheReadsPrice),
+		tiers: modelInfo.tiers?.map((tier) => ({
+			...tier,
+			inputPrice: scale(tier.inputPrice),
+			outputPrice: scale(tier.outputPrice),
+			cacheWritesPrice: scale(tier.cacheWritesPrice),
+			cacheReadsPrice: scale(tier.cacheReadsPrice),
+		})),
+		thinkingConfig: modelInfo.thinkingConfig
+			? { ...modelInfo.thinkingConfig, outputPrice: scale(modelInfo.thinkingConfig.outputPrice) }
+			: undefined,
+	}
+}
 
 function calculateApiCostInternal(
 	modelInfo: ModelInfo,

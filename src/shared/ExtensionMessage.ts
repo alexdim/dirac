@@ -17,18 +17,27 @@ import { HistoryItem } from "./HistoryItem"
 import { DiracMessageModelInfo } from "./messages"
 import { OnboardingModelGroup } from "./proto/dirac/state"
 import {
+	DEFAULT_INFERENCE_SPEED,
 	DEFAULT_OPENAI_REASONING_EFFORT,
+	INFERENCE_SPEED_LABELS,
+	INFERENCE_SPEED_OPTIONS,
+	InferenceSpeed,
+	isInferenceSpeed,
 	isOpenaiReasoningEffort,
 	Mode,
 	OPENAI_REASONING_EFFORT_LABELS,
 	OPENAI_REASONING_EFFORT_OPTIONS,
 	OpenaiReasoningEffort,
 } from "./storage/types"
-export type { Mode, OpenaiReasoningEffort }
+export type { InferenceSpeed, Mode, OpenaiReasoningEffort }
 export {
+	DEFAULT_INFERENCE_SPEED,
 	DEFAULT_OPENAI_REASONING_EFFORT,
+	INFERENCE_SPEED_LABELS,
+	INFERENCE_SPEED_OPTIONS,
 	OPENAI_REASONING_EFFORT_LABELS,
 	OPENAI_REASONING_EFFORT_OPTIONS,
+	isInferenceSpeed,
 	isOpenaiReasoningEffort,
 }
 

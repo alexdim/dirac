@@ -1,6 +1,6 @@
 import { isValidAutoCondenseContextLimit } from "@shared/context-management"
-import type { ApiProvider } from "@shared/api"
-import type { OpenaiReasoningEffort } from "@/shared/storage/types"
+import { modelSupportsInferenceSpeed, providerSupportsInferenceSpeed, type ApiProvider } from "@shared/api"
+import type { InferenceSpeed, OpenaiReasoningEffort } from "@/shared/storage/types"
 import type { TaskOptions } from "../types"
 
 export async function setModeScopedState(currentMode: "act" | "plan", setter: (mode: "act" | "plan") => void): Promise<void> {
@@ -119,6 +119,14 @@ export async function applyTaskOptions(options: TaskOptions): Promise<void> {
 			const modelKey = getProviderModelIdKey(targetProvider, mode)
 			if (modelKey) {
 				stateManager.setSessionOverride(modelKey, options.model!)
+				const speedKey = mode === "act" ? "actModeInferenceSpeed" : "planModeInferenceSpeed"
+				const inferenceSpeed = stateManager.getGlobalSettingsKey(speedKey)
+				if (
+					(inferenceSpeed === "fast" && !modelSupportsInferenceSpeed(targetProvider, options.model!)) ||
+					(inferenceSpeed === "standard" && !providerSupportsInferenceSpeed(targetProvider))
+				) {
+					stateManager.setSessionOverride(speedKey, "default")
+				}
 			}
 		})
 		telemetryService.captureHostEvent("model_flag", options.model)
@@ -155,6 +163,33 @@ export async function applyTaskOptions(options: TaskOptions): Promise<void> {
 			stateManager.setSessionOverride(reasoningKey, reasoningEffort)
 		})
 		telemetryService.captureHostEvent("reasoning_effort_flag", reasoningEffort)
+	}
+
+	if (options.speed !== undefined) {
+		const { isInferenceSpeed, INFERENCE_SPEED_OPTIONS } = await import("@/shared/storage/types")
+		if (!isInferenceSpeed(options.speed)) {
+			throw new Error(`Invalid inference speed '${options.speed}'. Valid values: ${INFERENCE_SPEED_OPTIONS.join(", ")}.`)
+		}
+		const modes = stateManager.getGlobalSettingsKey("planActSeparateModelsSetting")
+			? [currentMode]
+			: (["plan", "act"] as const)
+		for (const mode of modes) {
+			const providerKey = mode === "act" ? "actModeApiProvider" : "planModeApiProvider"
+			const provider = stateManager.getGlobalSettingsKey(providerKey) as ApiProvider | undefined
+			const modelKey = provider ? getProviderModelIdKey(provider, mode) : undefined
+			const modelId = modelKey ? (stateManager.getGlobalSettingsKey(modelKey) as string | undefined) : undefined
+			if (options.speed === "standard" && (!provider || !providerSupportsInferenceSpeed(provider))) {
+				throw new Error(`Provider ${provider || "(unconfigured)"} does not support inference speed controls`)
+			}
+			if (options.speed === "fast" && (!provider || !modelId || !modelSupportsInferenceSpeed(provider, modelId))) {
+				throw new Error(`Model ${modelId || "(unconfigured)"} does not support Fast mode`)
+			}
+		}
+		await setModeScopedState(currentMode, (mode) => {
+			const speedKey = mode === "act" ? "actModeInferenceSpeed" : "planModeInferenceSpeed"
+			stateManager.setSessionOverride(speedKey, options.speed as InferenceSpeed)
+		})
+		telemetryService.captureHostEvent("inference_speed_flag", options.speed)
 	}
 
 	const maxConsecutiveMistakes = await normalizeMaxConsecutiveMistakes(options.maxConsecutiveMistakes)

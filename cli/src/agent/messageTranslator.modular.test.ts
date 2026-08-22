@@ -129,6 +129,42 @@ describe("messageTranslator (Modular Architecture)", () => {
 			expect(sessionState.pendingToolCalls.has("tool-1")).toBe(true)
 		})
 
+		it("emits permission-agent approvals as completed audit tool calls", () => {
+			const result = translateMessage(
+				createCardMessage({
+					id: "permission-approval-1",
+					header: "Auto Approved · Execute: npm run typecheck",
+					toolName: "permission_approval",
+					status: CardStatus.SUCCESS,
+					body: "**Result:** Auto Approved by permission agent\n\n**Reason:** The command is allowed.",
+					rawInput: { tool: "execute_command" },
+					rawOutput: {
+						decision: "approve",
+						reason: "The command is allowed.",
+						approvedTool: "execute_command",
+					},
+				}),
+				sessionState,
+			)
+
+			expect(result.updates).toHaveLength(1)
+			expect(result.updates[0]).toMatchObject({
+				sessionUpdate: "tool_call",
+				name: "permission_approval",
+				title: "Auto Approved · Execute: npm run typecheck",
+				kind: "other",
+				status: "completed",
+				rawOutput: {
+					decision: "approve",
+					reason: "The command is allowed.",
+					approvedTool: "execute_command",
+				},
+			})
+			expect(result.requiresPermission).toBe(false)
+			expect(result.permissionRequest).toBeUndefined()
+		})
+
+
 		it("reports file edits as ACP diff content with before and after text", () => {
 			const result = translateMessage(
 				createCardMessage({

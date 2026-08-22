@@ -1,7 +1,12 @@
 import { describe, it } from "mocha"
 import "should"
-import { isFreeModel, type ModelInfo } from "@shared/api"
-import { calculateApiCostAnthropic, calculateApiCostOpenAI, calculateApiCostQwen } from "@utils/cost"
+import { isFreeModel, openAiNativeModels, type ModelInfo } from "@shared/api"
+import {
+	calculateApiCostAnthropic,
+	calculateApiCostOpenAI,
+	calculateApiCostQwen,
+	getModelInfoForInferenceSpeed,
+} from "@utils/cost"
 
 describe("Cost Utilities", () => {
 	describe("calculateApiCostAnthropic", () => {
@@ -143,6 +148,22 @@ describe("Cost Utilities", () => {
 
 			const cost = calculateApiCostOpenAI(modelInfo, 0, 0, 0, 0)
 			cost!.should.equal(0)
+		})
+	})
+
+	describe("getModelInfoForInferenceSpeed", () => {
+		it("applies model-specific OpenAI Fast pricing multipliers", () => {
+			const terra = getModelInfoForInferenceSpeed(openAiNativeModels["gpt-5.6-terra"], "fast")
+			terra.inputPrice!.should.equal(5)
+			terra.outputPrice!.should.equal(30)
+			terra.cacheReadsPrice!.should.equal(0.5)
+			terra.cacheWritesPrice!.should.equal(6.25)
+
+			const luna = getModelInfoForInferenceSpeed(openAiNativeModels["gpt-5.6-luna"], "fast")
+			luna.inputPrice!.should.equal(2)
+			luna.outputPrice!.should.equal(12)
+			luna.cacheReadsPrice!.should.equal(0.2)
+			luna.cacheWritesPrice!.should.equal(2.5)
 		})
 	})
 
