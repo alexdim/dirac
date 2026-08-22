@@ -62,8 +62,6 @@ export interface ChatViewContext {
 	shouldShowQuickWins: boolean
 	telemetrySetting: string
 	selectedModelInfo: any
-	shouldDisableFilesAndImages: boolean
-	selectFilesAndImages: () => Promise<void>
 	placeholderText: string
 }
 

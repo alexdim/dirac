@@ -8,7 +8,7 @@ vi.mock("../hooks/useTerminalSize", () => ({
 	useTerminalSize: () => ({ columns: 120, rows: 40, resizeKey: 0 }),
 }))
 
-function renderFooter(quietMode: boolean) {
+function renderFooter(quietMode: boolean, fastModeEnabled = false) {
 	return render(
 		<ChatFooter
 			autoApproveAll={false}
@@ -19,6 +19,7 @@ function renderFooter(quietMode: boolean) {
 			lastApiReqTotalTokens={0}
 			mode="act"
 			modelId="test-model"
+			fastModeEnabled={fastModeEnabled}
 			provider="test-provider"
 			quietMode={quietMode}
 			totalCost={0}
@@ -39,5 +40,10 @@ describe("ChatFooter modes", () => {
 	it("shows when quiet mode is enabled", () => {
 		const frame = renderFooter(true).lastFrame() || ""
 		expect(frame).toContain("Quiet mode enabled (/quiet)")
+	})
+
+	it("shows fast mode next to the model when enabled", () => {
+		const frame = renderFooter(false, true).lastFrame() || ""
+		expect(frame).toContain("test-provider: test-model fast")
 	})
 })

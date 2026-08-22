@@ -1,7 +1,6 @@
 import { Mode } from "@shared/ExtensionMessage"
 import { getApiMetrics, getLastApiReqInfo } from "@shared/getApiMetrics"
-import { BooleanRequest } from "@shared/proto/dirac/common"
-import React, { useCallback, useEffect, useMemo } from "react"
+import React, { useEffect, useMemo } from "react"
 import { useMount } from "react-use"
 import { useAppStore } from "@/app/store/appStore"
 import { useShowNavbar } from "@/context/PlatformContext"
@@ -10,11 +9,9 @@ import { useChatStore } from "@/features/chat/store/chatStore"
 import { normalizeApiConfiguration } from "@/features/settings/components/utils/providerUtils"
 import { useSettingsStore } from "@/features/settings/store/settingsStore"
 import { cn } from "@/lib/utils"
-import { FileServiceClient } from "@/shared/api/grpc-client"
 import { useThrottledValue } from "@/shared/lib/useThrottledValue"
 import { Navbar } from "@/shared/ui/Navbar"
 import { ChatLayout } from "./components/ChatLayout"
-import { CHAT_CONSTANTS } from "./constants"
 // Decorators
 import { ActionButtonsDecorator } from "./decorators/view/ActionButtonsDecorator"
 import { AutoApproveDecorator } from "./decorators/view/AutoApproveDecorator"
@@ -29,8 +26,6 @@ import { TaskSection } from "./sections/TaskSection"
 import { WelcomeSection } from "./sections/WelcomeSection"
 import { ChatSection, ChatViewContext, ChatViewDecorator, ChatViewProps } from "./types"
 import { filterVisibleMessages } from "./utils/messageUtils"
-
-const MAX_IMAGES_AND_FILES_PER_MESSAGE = CHAT_CONSTANTS.MAX_IMAGES_AND_FILES_PER_MESSAGE
 
 export const ModularChatView: React.FC<ChatViewProps> = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryView }) => {
 	const showNavbar = useShowNavbar()
@@ -57,10 +52,6 @@ export const ModularChatView: React.FC<ChatViewProps> = ({ isHidden, showAnnounc
 
 	const chatState = useChatState(messages)
 	const {
-		selectedImages,
-		setSelectedImages,
-		selectedFiles,
-		setSelectedFiles,
 		sendingDisabled,
 		uiActionState,
 		expandedRows,
@@ -75,37 +66,6 @@ export const ModularChatView: React.FC<ChatViewProps> = ({ isHidden, showAnnounc
 		return normalizeApiConfiguration(apiConfiguration, mode as Mode)
 	}, [apiConfiguration, mode])
 
-	const selectFilesAndImages = useCallback(async () => {
-		try {
-			const response = await FileServiceClient.selectFiles(
-				BooleanRequest.create({
-					value: selectedModelInfo.supportsImages,
-				}),
-			)
-			if (response?.values1 && response.values2 && (response.values1.length > 0 || response.values2.length > 0)) {
-				const currentTotal = selectedImages.length + selectedFiles.length
-				const availableSlots = MAX_IMAGES_AND_FILES_PER_MESSAGE - currentTotal
-
-				if (availableSlots > 0) {
-					const imagesToAdd = Math.min(response.values1.length, availableSlots)
-					if (imagesToAdd > 0) {
-						setSelectedImages((prevImages) => [...prevImages, ...response.values1.slice(0, imagesToAdd)])
-					}
-
-					const remainingSlots = availableSlots - imagesToAdd
-					if (remainingSlots > 0) {
-						setSelectedFiles((prevFiles) => [...prevFiles, ...response.values2.slice(0, remainingSlots)])
-					}
-				}
-			}
-		} catch (error) {
-			console.error("Error selecting images & files:", error)
-		}
-	}, [selectedModelInfo.supportsImages, selectedImages.length, selectedFiles.length, setSelectedImages, setSelectedFiles])
-
-	const shouldDisableFilesAndImages =
-		interactionState === InteractionState.RUNNING ||
-		selectedImages.length + selectedFiles.length >= MAX_IMAGES_AND_FILES_PER_MESSAGE
 
 	useMount(() => {
 		textAreaRef.current?.focus()
@@ -162,8 +122,6 @@ export const ModularChatView: React.FC<ChatViewProps> = ({ isHidden, showAnnounc
 				selectedProvider,
 				mode,
 			},
-			shouldDisableFilesAndImages,
-			selectFilesAndImages,
 			placeholderText,
 		}),
 		[
@@ -188,8 +146,6 @@ export const ModularChatView: React.FC<ChatViewProps> = ({ isHidden, showAnnounc
 			selectedModelId,
 			selectedProvider,
 			mode,
-			shouldDisableFilesAndImages,
-			selectFilesAndImages,
 			placeholderText,
 		],
 	)

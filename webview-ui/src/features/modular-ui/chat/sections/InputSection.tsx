@@ -1,8 +1,10 @@
 import {
+	DEFAULT_INFERENCE_SPEED,
 	DEFAULT_OPENAI_REASONING_EFFORT,
 	isOpenaiReasoningEffort,
-	OPENAI_REASONING_EFFORT_OPTIONS
+	OPENAI_REASONING_EFFORT_OPTIONS,
 } from "@shared/ExtensionMessage"
+import { modelSupportsInferenceSpeed } from "@shared/api"
 import { StringRequest } from "@shared/proto/dirac/common"
 import React, { useState } from "react"
 import { useAppStore } from "@/app/store/appStore"
@@ -22,13 +24,13 @@ const InputSectionContent: React.FC<{ context: ChatViewContext }> = ({ context }
 	const [isActivatingModelPreset, setIsActivatingModelPreset] = useState(false)
 	const [reasoningEffortError, setReasoningEffortError] = useState<string>()
 	const [isUpdatingReasoningEffort, setIsUpdatingReasoningEffort] = useState(false)
+	const [fastModeError, setFastModeError] = useState<string>()
+	const [isUpdatingFastMode, setIsUpdatingFastMode] = useState(false)
 	const {
 		chatState,
 		messageHandlers,
 		scrollBehavior,
 		placeholderText,
-		shouldDisableFilesAndImages,
-		selectFilesAndImages,
 		selectedModelInfo,
 	} = context
 
@@ -48,6 +50,13 @@ const InputSectionContent: React.FC<{ context: ChatViewContext }> = ({ context }
 	const supportsReasoningEffort = supportsReasoningEffortForModelId(selectedModelInfo.selectedModelId, selectedModelInfo)
 	const configuredReasoningEffort =
 		selectedModelInfo.mode === "plan" ? apiConfiguration?.planModeReasoningEffort : apiConfiguration?.actModeReasoningEffort
+	const configuredInferenceSpeed =
+		selectedModelInfo.mode === "plan" ? apiConfiguration?.planModeInferenceSpeed : apiConfiguration?.actModeInferenceSpeed
+	const fastModeSupported = modelSupportsInferenceSpeed(
+		selectedModelInfo.selectedProvider,
+		selectedModelInfo.selectedModelId,
+	)
+	const fastModeEnabled = configuredInferenceSpeed === "fast" && fastModeSupported
 	const reasoningEffortOptions = OPENAI_REASONING_EFFORT_OPTIONS
 	const reasoningEffort = isOpenaiReasoningEffort(configuredReasoningEffort)
 		? configuredReasoningEffort
@@ -70,14 +79,34 @@ const InputSectionContent: React.FC<{ context: ChatViewContext }> = ({ context }
 				className="mt-2"
 				inputValue={inputValue}
 				isActivatingModelPreset={isActivatingModelPreset}
+				isUpdatingFastMode={isUpdatingFastMode}
 				isUpdatingReasoningEffort={isUpdatingReasoningEffort}
 				mode={selectedModelInfo.mode}
 				modelDisplayName={`${selectedModelInfo.selectedProvider}:${selectedModelInfo.name || selectedModelInfo.selectedModelId}`}
+				fastModeEnabled={fastModeEnabled}
+				fastModeError={fastModeError}
+				fastModeSupported={fastModeSupported}
 				modelPresetError={modelPresetError}
 				modelProviderPresets={modelProviderPresets}
 				onHeightChange={() => {
 					if (isFollowingRef.current) {
 						scrollToBottomAuto()
+					}
+				}}
+				onFastModeToggle={async () => {
+					setFastModeError(undefined)
+					setIsUpdatingFastMode(true)
+					try {
+						const didPersist = await handleModeFieldChange(
+							{ plan: "planModeInferenceSpeed", act: "actModeInferenceSpeed" },
+							fastModeEnabled ? DEFAULT_INFERENCE_SPEED : "fast",
+							selectedModelInfo.mode,
+						)
+						if (!didPersist) {
+							setFastModeError(useSettingsStore.getState().apiConfigurationError || "Failed to update Fast Mode")
+						}
+					} finally {
+						setIsUpdatingFastMode(false)
 					}
 				}}
 				onModelButtonClick={() => {
@@ -112,7 +141,6 @@ const InputSectionContent: React.FC<{ context: ChatViewContext }> = ({ context }
 						setIsUpdatingReasoningEffort(false)
 					}
 				}}
-				onSelectFilesAndImages={selectFilesAndImages}
 				onSend={() => messageHandlers.handleSendMessage(inputValue, selectedImages, selectedFiles)}
 				placeholder={placeholderText}
 				reasoningEffort={reasoningEffort}
@@ -124,7 +152,6 @@ const InputSectionContent: React.FC<{ context: ChatViewContext }> = ({ context }
 				setInputValue={chatState.setInputValue}
 				setSelectedFiles={chatState.setSelectedFiles}
 				setSelectedImages={chatState.setSelectedImages}
-				shouldDisableFilesAndImages={shouldDisableFilesAndImages}
 				supportsReasoningEffort={supportsReasoningEffort}
 				taskStatus={taskStatus}
 			/>

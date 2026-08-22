@@ -115,4 +115,10 @@ export const CLI_ONLY_COMMANDS: SlashCommand[] = [
 		section: "default",
 		cliCompatible: true,
 	},
+	{
+		name: "fast",
+		description: "Enable Fast Mode for the current provider and model",
+		section: "default",
+		cliCompatible: true,
+	},
 ]

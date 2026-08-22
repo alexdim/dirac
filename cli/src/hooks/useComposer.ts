@@ -66,6 +66,7 @@ export interface ComposerActions {
 	) => void
 	toggleMode: () => void
 	toggleAutoApproveAll: () => void
+	enableFastMode: () => void
 	toggleQuietMode: () => void
 }
 
@@ -380,6 +381,7 @@ export function useComposer({
 		insertTextAtCursor,
 		toggleMode: () => actionsRef.current.toggleMode(),
 		toggleAutoApproveAll: () => actionsRef.current.toggleAutoApproveAll(),
+		enableFastMode: () => actionsRef.current.enableFastMode(),
 		toggleQuietMode: () => actionsRef.current.toggleQuietMode(),
 		handleSubmit: (text, images) => actionsRef.current.handleSubmit(text, images),
 		handleExit: () => actionsRef.current.handleExit(),

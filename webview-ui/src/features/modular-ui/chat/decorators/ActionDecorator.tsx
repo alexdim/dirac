@@ -1,5 +1,4 @@
-import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
-import { AtSignIcon, CheckIcon, ChevronDownIcon, PlusIcon } from "lucide-react"
+import { CheckIcon, ChevronDownIcon, FastForwardIcon } from "lucide-react"
 import { motion } from "framer-motion"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/shared/ui/tooltip"
 import { cn } from "@/lib/utils"
@@ -14,6 +13,11 @@ interface ActionDecoratorProps {
 	onModeToggle: (context: ModularInputContext) => void
 	mode: "plan" | "act"
 	modelDisplayName: string
+	fastModeSupported: boolean
+	fastModeEnabled: boolean
+	fastModeError?: string
+	isUpdatingFastMode: boolean
+	onFastModeToggle: () => Promise<void>
 	onModelButtonClick: () => void
 	modelProviderPresets: ModelProviderPreset[]
 	activeModelProviderPresetId?: string
@@ -26,8 +30,6 @@ interface ActionDecoratorProps {
 	onReasoningEffortSelect: (effort: OpenaiReasoningEffort) => Promise<void>
 	reasoningEffortError?: string
 	isUpdatingReasoningEffort: boolean
-	onSelectFilesAndImages: () => void
-	shouldDisableFilesAndImages: boolean
 	sendingDisabled?: boolean
 	taskStatus?: TaskStatus
 	togglePlanActKeys?: string
@@ -43,49 +45,6 @@ export const createActionDecorator = (props: ActionDecoratorProps): InputDecorat
 	renderAction: (context: ModularInputContext) => (
 		<div className="flex justify-between items-center w-full backdrop-blur-sm rounded-md">
 			<div className="flex min-w-0 flex-1 items-center gap-1">
-				<Tooltip>
-					<TooltipContent>Add Context</TooltipContent>
-					<TooltipTrigger>
-						<motion.div whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}>
-							<VSCodeButton
-								appearance="icon"
-								aria-label="Add Context"
-								className="p-0 m-0 flex items-center"
-								data-testid="context-button"
-								onClick={() => {
-									context.textAreaRef.current?.focus()
-									const currentValue = context.inputValue
-									const newValue =
-										currentValue.endsWith(" ") || !currentValue ? currentValue + "@" : currentValue + " @"
-									context.setInputValue(newValue)
-									// Trigger mention trait if needed
-								}}>
-								<div className="flex items-center gap-[3px] text-[10px] whitespace-nowrap min-w-0 w-full">
-									<AtSignIcon size={12} />
-								</div>
-							</VSCodeButton>
-						</motion.div>
-					</TooltipTrigger>
-				</Tooltip>
-
-				<Tooltip>
-					<TooltipContent>Add Files & Images</TooltipContent>
-					<TooltipTrigger>
-						<motion.div whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}>
-							<VSCodeButton
-								appearance="icon"
-								aria-label="Add Files & Images"
-								className="p-0 m-0 flex items-center"
-								data-testid="files-button"
-								disabled={props.shouldDisableFilesAndImages}
-								onClick={props.onSelectFilesAndImages}>
-								<div className="flex items-center gap-[3px] text-[10px] whitespace-nowrap min-w-0 w-full">
-									<PlusIcon size={13} />
-								</div>
-							</VSCodeButton>
-						</motion.div>
-					</TooltipTrigger>
-				</Tooltip>
 
 				<DiracRulesToggleModal />
 
@@ -104,6 +63,30 @@ export const createActionDecorator = (props: ActionDecoratorProps): InputDecorat
 								{props.modelDisplayName}
 							</span>
 						</a>
+						{props.fastModeSupported && (
+							<Tooltip>
+								<TooltipContent>
+									{props.fastModeError || (props.fastModeEnabled ? "Disable Fast Mode" : "Enable Fast Mode")}
+								</TooltipContent>
+								<TooltipTrigger asChild>
+									<button
+										aria-label={props.fastModeEnabled ? "Disable Fast Mode" : "Enable Fast Mode"}
+										aria-pressed={props.fastModeEnabled}
+										className={cn(
+											"flex size-5 shrink-0 items-center justify-center rounded-sm bg-transparent p-0 transition-colors hover:bg-(--vscode-toolbar-hoverBackground) disabled:cursor-wait disabled:opacity-60",
+											props.fastModeEnabled
+												? "text-(--vscode-foreground)"
+												: "text-(--vscode-descriptionForeground) opacity-50 hover:opacity-100",
+										)}
+										data-testid="fast-mode-toggle"
+										disabled={props.isUpdatingFastMode}
+										onClick={() => void props.onFastModeToggle()}
+										type="button">
+										<FastForwardIcon size={13} strokeWidth={2.5} />
+									</button>
+								</TooltipTrigger>
+							</Tooltip>
+						)}
 						<Popover>
 							<PopoverTrigger asChild>
 								<button
@@ -221,9 +204,8 @@ export const createActionDecorator = (props: ActionDecoratorProps): InputDecorat
 
 			<Tooltip>
 				<TooltipContent className="text-xs px-2 flex flex-col gap-1" side="top">
-					{`In ${props.mode === "act" ? "Act" : "Plan"} mode, Dirac will ${
-						props.mode === "act" ? "complete the task immediately" : "gather information to architect a plan"
-					}`}
+					{`In ${props.mode === "act" ? "Act" : "Plan"} mode, Dirac will ${props.mode === "act" ? "complete the task immediately" : "gather information to architect a plan"
+						}`}
 					{props.togglePlanActKeys && (
 						<p className="text-description/80 text-xs mb-0">
 							Toggle w/ <kbd className="text-muted-foreground mx-1">{props.togglePlanActKeys}</kbd>

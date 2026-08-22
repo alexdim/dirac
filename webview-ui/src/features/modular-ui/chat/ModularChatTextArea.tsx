@@ -21,6 +21,11 @@ import type { ModelProviderPreset } from "@shared/api"
 interface ModularChatTextAreaProps {
 	mode: "plan" | "act"
 	modelDisplayName: string
+	fastModeSupported: boolean
+	fastModeEnabled: boolean
+	fastModeError?: string
+	isUpdatingFastMode: boolean
+	onFastModeToggle: () => Promise<void>
 	onModelButtonClick: () => void
 	modelProviderPresets: ModelProviderPreset[]
 	activeModelProviderPresetId?: string
@@ -33,8 +38,6 @@ interface ModularChatTextAreaProps {
 	onReasoningEffortSelect: (effort: OpenaiReasoningEffort) => Promise<void>
 	reasoningEffortError?: string
 	isUpdatingReasoningEffort: boolean
-	onSelectFilesAndImages: () => void
-	shouldDisableFilesAndImages: boolean
 	placeholder?: string
 	onSend?: () => void
 	inputValue?: string
@@ -52,6 +55,11 @@ interface ModularChatTextAreaProps {
 export const ModularChatTextArea: React.FC<ModularChatTextAreaProps> = ({
 	mode,
 	modelDisplayName,
+	fastModeSupported,
+	fastModeEnabled,
+	fastModeError,
+	isUpdatingFastMode,
+	onFastModeToggle,
 	onModelButtonClick,
 	modelProviderPresets,
 	activeModelProviderPresetId,
@@ -64,8 +72,6 @@ export const ModularChatTextArea: React.FC<ModularChatTextAreaProps> = ({
 	onReasoningEffortSelect,
 	reasoningEffortError,
 	isUpdatingReasoningEffort,
-	onSelectFilesAndImages,
-	shouldDisableFilesAndImages,
 	placeholder,
 	inputValue,
 	setInputValue,
@@ -101,6 +107,11 @@ export const ModularChatTextArea: React.FC<ModularChatTextAreaProps> = ({
 			createActionDecorator({
 				mode,
 				modelDisplayName,
+				fastModeSupported,
+				fastModeEnabled,
+				fastModeError,
+				isUpdatingFastMode,
+				onFastModeToggle,
 				onModelButtonClick,
 				modelProviderPresets,
 				activeModelProviderPresetId,
@@ -113,8 +124,6 @@ export const ModularChatTextArea: React.FC<ModularChatTextAreaProps> = ({
 				onReasoningEffortSelect,
 				reasoningEffortError,
 				isUpdatingReasoningEffort,
-				onSelectFilesAndImages,
-				shouldDisableFilesAndImages,
 				sendingDisabled,
 				taskStatus,
 				onModeToggle: modeTrait.onModeToggle,
@@ -123,6 +132,11 @@ export const ModularChatTextArea: React.FC<ModularChatTextAreaProps> = ({
 		[
 			mode,
 			modelDisplayName,
+			fastModeSupported,
+			fastModeEnabled,
+			fastModeError,
+			isUpdatingFastMode,
+			onFastModeToggle,
 			onModelButtonClick,
 			modelProviderPresets,
 			activeModelProviderPresetId,
@@ -135,8 +149,6 @@ export const ModularChatTextArea: React.FC<ModularChatTextAreaProps> = ({
 			onReasoningEffortSelect,
 			reasoningEffortError,
 			isUpdatingReasoningEffort,
-			onSelectFilesAndImages,
-			shouldDisableFilesAndImages,
 			sendingDisabled,
 			taskStatus,
 			modeTrait.onModeToggle,

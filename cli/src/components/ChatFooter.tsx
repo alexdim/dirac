@@ -11,6 +11,7 @@ import { useTerminalSize } from "../hooks/useTerminalSize"
 interface ChatFooterProps {
 	mode: "act" | "plan"
 	modelId: string
+	fastModeEnabled: boolean
 	provider: string
 	lastApiReqTotalTokens: number
 	contextWindowSize: number
@@ -29,6 +30,7 @@ interface ChatFooterProps {
 export const ChatFooter: React.FC<ChatFooterProps> = ({
 	mode,
 	modelId,
+	fastModeEnabled,
 	provider,
 	lastApiReqTotalTokens,
 	contextWindowSize,
@@ -81,7 +83,7 @@ export const ChatFooter: React.FC<ChatFooterProps> = ({
 			{/* Row 2: Model/context/tokens/cost/status */}
 			<Box paddingLeft={1} paddingRight={1}>
 				<Text wrap="truncate-end">
-					{provider}: {modelId} {(() => {
+					{provider}: {modelId}{fastModeEnabled ? " fast" : ""} {(() => {
 						const ratio = contextWindowSize > 0 ? lastApiReqTotalTokens / contextWindowSize : 0
 						const barColor = ratio > theme.contextDanger ? theme.error : ratio > theme.contextWarning ? theme.warning : theme.success
 						const bar = createContextBar(lastApiReqTotalTokens, contextWindowSize)

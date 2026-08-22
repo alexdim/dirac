@@ -41,6 +41,8 @@ import { theme } from "../constants/theme"
  */
 
 import { DiracMessageType, TaskStatus, UIActionButtonType, isFinalStatus } from "@shared/ExtensionMessage"
+import { modelSupportsInferenceSpeed, type ApiProvider } from "@shared/api"
+import type { Settings } from "@shared/storage/state-keys"
 import { DiracAskResponse } from "@shared/WebviewMessage"
 import { getRandomQuote } from "@/shared/quotes"
 import type { Mode } from "@shared/storage/types"
@@ -123,6 +125,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
 		handleButtonAction: () => { },
 		toggleMode: () => { },
 		toggleAutoApproveAll: () => { },
+		enableFastMode: () => { },
 		toggleQuietMode: () => { },
 	})
 
@@ -230,6 +233,40 @@ export const ChatView: React.FC<ChatViewProps> = ({
 		},
 		[onError, setLastError],
 	)
+
+	const enableFastMode = useCallback(async () => {
+		const provider = footerStatus.provider as ApiProvider
+		const modelId = footerStatus.modelId
+		if (!provider || !modelId || !modelSupportsInferenceSpeed(provider, modelId)) {
+			setLastError(
+				`No Fast Mode configuration is available for the current provider/model (${provider || "unconfigured"}:${modelId || "unconfigured"}).`,
+			)
+			return
+		}
+
+		setLastError(null)
+		const stateManager = StateManager.get()
+		const targetModes = taskState.planActSeparateModelsSetting ? [mode] : (["plan", "act"] as const)
+		const settings: Partial<Settings> = {}
+		for (const targetMode of targetModes) {
+			const speedKey = targetMode === "act" ? "actModeInferenceSpeed" : "planModeInferenceSpeed"
+			settings[speedKey] = "fast"
+		}
+		const installSessionOverrides = () => {
+			for (const targetMode of targetModes) {
+				const speedKey = targetMode === "act" ? "actModeInferenceSpeed" : "planModeInferenceSpeed"
+				stateManager.setSessionOverride(speedKey, "fast")
+			}
+		}
+
+		try {
+			if (ctrl?.task) await ctrl.task.applyWorkingConfigurationUpdate({ settings }, installSessionOverrides)
+			else installSessionOverrides()
+			await ctrl?.postStateToWebview()
+		} catch (error) {
+			reportInteractionError("Failed to enable Fast Mode", error)
+		}
+	}, [ctrl, footerStatus.modelId, footerStatus.provider, mode, reportInteractionError, setLastError, taskState.planActSeparateModelsSetting])
 
 	const { isProcessing, setIsProcessing, isExiting, handleCancel, handleExit, clearViewAndResetTask } = useChatTask({
 		ctrl,
@@ -647,6 +684,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
 		clearViewAndResetTask,
 		handleButtonAction,
 		toggleMode,
+		enableFastMode,
 		toggleAutoApproveAll,
 		toggleQuietMode,
 	}
@@ -866,6 +904,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
 					lastApiReqTotalTokens={footerStatus.lastApiReqTotalTokens}
 					mode={mode}
 					modelId={footerStatus.modelId}
+					fastModeEnabled={footerStatus.fastModeEnabled}
 					provider={footerStatus.provider}
 					totalCost={footerStatus.totalCost}
 					cacheHitRate={footerStatus.cacheHitRate}
