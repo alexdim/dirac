@@ -190,13 +190,15 @@ describe("Task steering inbox", () => {
 		assert.equal(task.taskState.status, TaskStatus.EXECUTING_TOOL)
 	})
 
-	it("preserves a follow-up submitted after completion was sealed", async () => {
+	it("preserves completed status while accepting a follow-up after completion was sealed", async () => {
 		const { task } = createSteerableTask()
+		task.taskState.status = TaskStatus.COMPLETED
 		task.taskState.askResponse = "message"
 		task.taskState.askResponseText = "Immediate follow-up"
 
 		const followUp = await task.waitForFollowUp()
 
+		assert.equal(task.taskState.status, TaskStatus.COMPLETED)
 		assert.deepEqual(followUp, [
 			{ type: "text", text: "<feedback>\nImmediate follow-up\n</feedback>", isUserInput: true },
 		])

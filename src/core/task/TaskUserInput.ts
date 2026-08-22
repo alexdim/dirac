@@ -12,7 +12,9 @@ export interface TaskUserInputContext {
 }
 
 export async function waitForFollowUp(ctx: TaskUserInputContext): Promise<DiracContent[] | undefined> {
-	ctx.taskState.status = TaskStatus.AWAITING_USER_INPUT
+	if (ctx.taskState.status !== TaskStatus.COMPLETED) {
+		ctx.taskState.status = TaskStatus.AWAITING_USER_INPUT
+	}
 
 	const messageTs = Date.now()
 	ctx.taskState.lastMessageTs = messageTs
