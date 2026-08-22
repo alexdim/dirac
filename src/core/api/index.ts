@@ -137,7 +137,7 @@ export function resolveModeConfig(options: Omit<ApiConfiguration, "apiProvider">
 	}
 }
 
-const PROVIDER_REGISTRY: Record<
+export const PROVIDER_REGISTRY: Record<
 	string,
 	(config: ApiConfiguration, modeConfig: ReturnType<typeof resolveModeConfig>) => ApiHandler
 > = {
