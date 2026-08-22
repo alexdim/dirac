@@ -787,11 +787,15 @@ describe("disk - core read/write/mkdir operations", () => {
 			result[0].role.should.equal("user")
 		})
 
-		it("saveApiConversationHistory with empty array is a no-op (no file written)", async () => {
+		it("T-EMPTY-HISTORY U11 persists and resumes an empty conversation history", async () => {
 			const taskId = `api-empty-${Date.now()}`
 			await saveApiConversationHistory(taskId, [])
 			const result = await getSavedApiConversationHistory(taskId)
 			result.should.have.length(0)
+			const taskDir = path.join(testGlobalStorageDir, "tasks", taskId)
+			const historyPath = path.join(taskDir, "api_conversation_history.json")
+			const raw = await fs.readFile(historyPath, "utf8")
+			raw.should.equal("[]")
 		})
 
 		it("saveApiConversationHistory does not throw on write failure (swallows error)", async () => {

@@ -160,3 +160,23 @@ describe("Provider contract matrix", () => {
 		})
 	}
 })
+
+describe("Provider abort presence contract (T-ABORT-MATRIX)", () => {
+	for (const provider of Object.keys(PROVIDER_REGISTRY)) {
+		it(`${provider} exposes abort; see review/coverage/algorithms/provider-matrix.md`, () => {
+			const handler = buildApiHandler(testConfiguration(provider), "plan")
+			const abort = handler.abort
+
+			;(typeof abort === "function").should.be.true()
+			if (typeof abort !== "function") {
+				throw new Error(`Provider ${provider} is missing abort; update review/coverage/algorithms/provider-matrix.md`)
+			}
+
+			if (typeof abort === "function") {
+				abort.call(handler)
+				const controller = (handler as any).abortController as AbortController | undefined
+				if (controller) controller.signal.aborted.should.be.true()
+			}
+		})
+	}
+})

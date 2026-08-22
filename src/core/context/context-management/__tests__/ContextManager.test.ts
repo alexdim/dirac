@@ -220,6 +220,27 @@ describe("ContextManager", () => {
 			expect(content[0].type).to.equal("text")
 			expect((content[0] as Anthropic.Messages.TextBlockParam).text).to.equal("Additional user text")
 		})
+
+		it('T-SYNTHETIC-TOOL U27 documents the current "result missing" fabrication', () => {
+			const messages: Anthropic.Messages.MessageParam[] = [
+				{ role: "user", content: "Initial task" },
+				{ role: "assistant", content: "Response 1" },
+				{
+					role: "assistant",
+					content: [{ type: "tool_use", id: "unpaired-tool", name: "read_file", input: { path: "test.ts" } }],
+				},
+				{ role: "user", content: [{ type: "text", text: "Continue" }] },
+			]
+
+			const result = contextManager.getTruncatedMessages(messages, [1, 1])
+			const userMessage = result[3] ?? result[2]
+			const content = userMessage.content as Anthropic.Messages.ContentBlockParam[]
+			const syntheticResult = content.find(
+				(block) => block.type === "tool_result" && block.tool_use_id === "unpaired-tool",
+			)
+
+			expect(syntheticResult).to.deep.include({ type: "tool_result", tool_use_id: "unpaired-tool", content: "result missing" })
+		})
 	})
 
 	describe("shouldCompactContextWindow", () => {
