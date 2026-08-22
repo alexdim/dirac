@@ -71,7 +71,6 @@ function isReadableHistoryItem(value: unknown): value is HistoryItem {
 		item.id.length > 0 &&
 		isFiniteNumber(item.ts) &&
 		typeof item.task === "string" &&
-		item.task.length > 0 &&
 		isOptional(item.tokensIn, isFiniteNumber) &&
 		isOptional(item.tokensOut, isFiniteNumber) &&
 		isOptional(item.cacheWrites, isFiniteNumber) &&

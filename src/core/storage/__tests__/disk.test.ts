@@ -505,6 +505,15 @@ describe("disk - atomic writes", () => {
 			result[0].cacheReads!.should.equal(200)
 		})
 
+		it("should preserve image-only tasks with an empty description", async () => {
+			const imageOnlyItem = createTestHistoryItem("image-only", "")
+
+			await writeTaskHistoryToState([imageOnlyItem])
+			const result = await readTaskHistoryFromState()
+
+			result.should.deepEqual([imageOnlyItem])
+		})
+
 		it("should skip unreadable history records while preserving valid records", async () => {
 			const validItem = createTestHistoryItem("valid-record", "Readable task")
 			const filePath = await getTaskHistoryStateFilePath()

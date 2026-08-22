@@ -212,7 +212,7 @@ describe("Task (original)", () => {
 		assert.equal(task.taskState.pendingCondenseSource, undefined)
 	})
 
-	it("propagates the transaction-built API handler to every task-owned manager", async () => {
+	it("propagates a plan-to-act API handler without dirtying the tool inventory", async () => {
 		const t = new Task({
 			controller: createMockController(),
 			updateTaskHistory: sandbox.stub().resolves([]),
@@ -231,23 +231,27 @@ describe("Task (original)", () => {
 			taskLockAcquired: false,
 			workingConfiguration: StateManager.get().captureEffectiveTaskConfiguration(),
 		}) as any
-		const managers = [
+		await t.applyWorkingConfigurationUpdate({ settings: { mode: "plan" } })
+
+		const markDirty = sandbox.stub(t.toolExecutor, "markToolsDirty")
+		const toolExecutorSetApi = sandbox.spy(t.toolExecutor, "setApi")
+		const setters = [
 			t.taskMessenger,
 			t.hookManager,
-			t.toolExecutor,
 			t.environmentManager,
 			t.lifecycleManager,
 			t.apiConversationManager,
 			t.responseProcessor,
-		]
-		const setters = managers.map((manager) => sandbox.stub(manager, "setApi"))
+		].map((manager) => sandbox.stub(manager, "setApi"))
 
-		const updated = await t.applyWorkingConfigurationUpdate({ settings: { mode: "plan" } })
+		const updated = await t.applyWorkingConfigurationUpdate({ settings: { mode: "act" } })
 		const installed = t.api
 
-		updated.revision.should.equal(2)
-		updated.settings.mode.should.equal("plan")
+		updated.revision.should.equal(3)
+		updated.settings.mode.should.equal("act")
+		sinon.assert.calledOnceWithExactly(toolExecutorSetApi, installed)
 		setters.forEach((setter) => sinon.assert.calledOnceWithExactly(setter, installed))
+		sinon.assert.notCalled(markDirty)
 	})
 
 	it("commits mode, YOLO state, API propagation, and tool inventory only after beforeCommit succeeds", async () => {

@@ -137,7 +137,6 @@ export class ToolExecutor {
 
 	public setApi(api: ApiHandler): void {
 		this.api = api
-		this.markToolsDirty("settings_refresh_detected_change")
 	}
 
 	private requestAutoApprover(): AutoApprove {
