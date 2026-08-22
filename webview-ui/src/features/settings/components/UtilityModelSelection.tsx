@@ -1,6 +1,7 @@
 import { ALL_MODEL_MAPS, ALL_PROVIDERS, type ApiProvider, type ModelInfo, type ModelProviderSelection } from "@shared/api"
 import PROVIDERS from "@shared/providers/providers.json"
 import { convertModelProviderSelectionToProto } from "@shared/proto-conversions/models/api-configuration-conversion"
+import { SETTINGS_HELP } from "@shared/settings-presentation"
 import { VSCodeCheckbox } from "@vscode/webview-ui-toolkit/react"
 import { useEffect, useMemo, useState } from "react"
 import { useSettingsStore } from "@/features/settings/store/settingsStore"
@@ -10,7 +11,7 @@ import { persistSetting, updateSetting } from "./utils/settingsHandlers"
 const USE_CASES = [
 	{
 		field: "utilityModelUseCondense" as const,
-		label: "Condense conversation",
+		label: "Condense conversations",
 		description: "Summarize long conversations before their context limit is reached.",
 	},
 	{
@@ -31,9 +32,10 @@ const USE_CASES = [
 ]
 
 function getProviderModels(provider: ApiProvider, dynamicModels: Record<string, unknown>): Record<string, ModelInfo> {
-	const staticModels = ALL_MODEL_MAPS
-		.filter(([candidate]) => candidate === provider)
-		.reduce<Record<string, ModelInfo>>((models, [, candidateModels]) => ({ ...models, ...candidateModels }), {})
+	const staticModels = ALL_MODEL_MAPS.filter(([candidate]) => candidate === provider).reduce<Record<string, ModelInfo>>(
+		(models, [, candidateModels]) => ({ ...models, ...candidateModels }),
+		{},
+	)
 	const providerModels = dynamicModels[provider]
 	return providerModels && typeof providerModels === "object"
 		? { ...staticModels, ...(providerModels as Record<string, ModelInfo>) }
@@ -139,8 +141,8 @@ const UtilityModelSelection = () => {
 			<div>
 				<div className="text-xs font-medium text-foreground/80 uppercase tracking-wider">Utility model</div>
 				<p className="mt-1 text-xs text-description">
-					Choose a separate, secret-free provider and model for background utility tasks. Its credentials and provider
-					settings are configured in API Configuration.
+					Choose a separate provider and model for supporting operations. It uses credentials already configured for
+					that provider; credentials are not copied into the Utility Model selection.
 				</p>
 			</div>
 
@@ -206,10 +208,7 @@ const UtilityModelSelection = () => {
 						onChange={(event) => setPermissionPolicy(event.target.value)}
 						onBlur={() => void persistPermissionPolicy()}
 					/>
-					<p className="text-xs text-description">
-						Confident approvals bypass the prompt. Policy prohibitions, ambiguity, invalid output, and failures
-						escalate to the normal permission flow; the Utility model never rejects a request.
-					</p>
+					<p className="text-xs text-description">{SETTINGS_HELP.utilityPermissionFallback}</p>
 					{permissionPolicySaving && <p className="text-xs text-description">Saving permission policy...</p>}
 					{permissionPolicySaveError && (
 						<p className="text-xs text-(--vscode-errorForeground)">
@@ -226,13 +225,11 @@ const UtilityModelSelection = () => {
 
 			{anyUseCaseEnabled && !selection?.modelId && (
 				<p className="rounded border border-(--vscode-inputValidation-warningBorder) px-2 py-1 text-xs text-(--vscode-editorWarning-foreground)">
-					Select a provider and model before enabling Utility model use cases.
+					Select a Utility Model provider and model before this use case can run.
 				</p>
 			)}
 
-			<p className="text-xs text-description">
-				Conversation source text, Git diffs, permission policies, and complete permission-request details may be sent to this provider, which can differ from the active task provider.
-			</p>
+			<p className="text-xs text-description">{SETTINGS_HELP.utilityDisclosure}</p>
 		</div>
 	)
 }

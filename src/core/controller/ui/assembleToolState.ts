@@ -7,11 +7,12 @@ import type { ExtensionState } from "@shared/ExtensionMessage"
 export async function assembleToolState(
 	stateManager: StateManager,
 	primaryRootPath: string | undefined,
+	ownerTaskId: string | undefined,
 ): Promise<Pick<ExtensionState, "availableTools" | "toolToggles">> {
 	const toolToggles = stateManager.getGlobalSettingsKey("toolToggles") || {}
 	await refreshToolRegistryForWorkspace({ workspaceRoot: primaryRootPath, includeUserTools: true, toggles: toolToggles })
 	return ToolRegistry.withExclusiveAccess((registry) => {
-		const availableTools = registry.getConfigurableTools().map((tool) => ({
+		const availableTools = registry.getConfigurableTools(ownerTaskId, primaryRootPath).map((tool) => ({
 			id: tool.id,
 			name: tool.name,
 			description: tool.spec.description,

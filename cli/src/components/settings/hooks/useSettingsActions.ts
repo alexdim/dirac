@@ -64,6 +64,8 @@ interface UseSettingsActionsProps {
 	setPlanThinkingEnabled: (value: boolean) => void
 	autoApproveSettings: AutoApprovalSettings
 	setAutoApproveSettings: (settings: AutoApprovalSettings) => void
+	autoApproveAllToggled: boolean
+	setAutoApproveAllToggled: (value: boolean) => void
 	features: Record<FeatureKey, boolean>
 	utilityModelUseCases: UtilityModelUseCases
 	setUtilityModelUseCases: (useCases: UtilityModelUseCases | ((previous: UtilityModelUseCases) => UtilityModelUseCases)) => void
@@ -134,6 +136,8 @@ export function useSettingsActions({
 	setPlanThinkingEnabled,
 	autoApproveSettings,
 	setAutoApproveSettings,
+	autoApproveAllToggled,
+	setAutoApproveAllToggled,
 	features,
 	utilityModelUseCases,
 	setUtilityModelUseCases,
@@ -226,9 +230,9 @@ export function useSettingsActions({
 			const settingsPatch =
 				mode === "act"
 					? {
-						actModeReasoningEffort: effort,
-						...(!separateModels ? { planModeReasoningEffort: effort } : {}),
-					}
+							actModeReasoningEffort: effort,
+							...(!separateModels ? { planModeReasoningEffort: effort } : {}),
+						}
 					: { planModeReasoningEffort: effort }
 			await commitSettings(settingsPatch)
 			if (mode === "act") {
@@ -337,6 +341,14 @@ export function useSettingsActions({
 				setIsPickingUtilityModel(true)
 				return
 			}
+			if (item.key === "documentation") {
+				await openExternal("https://dirac.run/docs/")
+				return
+			}
+			if (item.key === "communitySupport") {
+				await openExternal("https://discord.gg/wcYTx9BGea")
+				return
+			}
 			if (item.key === "codexSignOut") {
 				const previousCredentials = openAiCodexOAuthManager.getCredentials()
 				await rebuildTaskApi({ apiConfiguration: { "openai-codex-oauth-credentials": undefined } }, () =>
@@ -363,6 +375,12 @@ export function useSettingsActions({
 				return
 			}
 			if (item.key === "githubSignIn") await startGithubAuth()
+			return
+		}
+
+		if (item.key === "autoApproveAll") {
+			await commitSettings({ autoApproveAllToggled: !autoApproveAllToggled }, true)
+			setAutoApproveAllToggled(!autoApproveAllToggled)
 			return
 		}
 
@@ -563,6 +581,8 @@ export function useSettingsActions({
 		setActThinkingEnabled,
 		setTelemetry,
 		setAutoApproveSettings,
+		autoApproveAllToggled,
+		setAutoApproveAllToggled,
 		provider,
 		actModelId,
 		planModelId,
@@ -615,8 +635,7 @@ export function useSettingsActions({
 				settingsPatch.preferredLanguage = editValue
 				await commitSettings(settingsPatch)
 				setPreferredLanguage(editValue)
-			}
-			else if (item.key === "utilityModelPermissionPolicy") {
+			} else if (item.key === "utilityModelPermissionPolicy") {
 				settingsPatch.utilityModelPermissionPolicy = editValue
 				await commitSettings(settingsPatch, true)
 				setUtilityPermissionPolicy(editValue)

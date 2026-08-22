@@ -26,13 +26,7 @@ const InputSectionContent: React.FC<{ context: ChatViewContext }> = ({ context }
 	const [isUpdatingReasoningEffort, setIsUpdatingReasoningEffort] = useState(false)
 	const [fastModeError, setFastModeError] = useState<string>()
 	const [isUpdatingFastMode, setIsUpdatingFastMode] = useState(false)
-	const {
-		chatState,
-		messageHandlers,
-		scrollBehavior,
-		placeholderText,
-		selectedModelInfo,
-	} = context
+	const { chatState, messageHandlers, scrollBehavior, placeholderText, selectedModelInfo } = context
 
 	const { activeQuote, setActiveQuote, isTextAreaFocused, inputValue, selectedImages, selectedFiles, taskStatus } = chatState
 
@@ -52,10 +46,7 @@ const InputSectionContent: React.FC<{ context: ChatViewContext }> = ({ context }
 		selectedModelInfo.mode === "plan" ? apiConfiguration?.planModeReasoningEffort : apiConfiguration?.actModeReasoningEffort
 	const configuredInferenceSpeed =
 		selectedModelInfo.mode === "plan" ? apiConfiguration?.planModeInferenceSpeed : apiConfiguration?.actModeInferenceSpeed
-	const fastModeSupported = modelSupportsInferenceSpeed(
-		selectedModelInfo.selectedProvider,
-		selectedModelInfo.selectedModelId,
-	)
+	const fastModeSupported = modelSupportsInferenceSpeed(selectedModelInfo.selectedProvider, selectedModelInfo.selectedModelId)
 	const fastModeEnabled = configuredInferenceSpeed === "fast" && fastModeSupported
 	const reasoningEffortOptions = OPENAI_REASONING_EFFORT_OPTIONS
 	const reasoningEffort = isOpenaiReasoningEffort(configuredReasoningEffort)
@@ -110,7 +101,7 @@ const InputSectionContent: React.FC<{ context: ChatViewContext }> = ({ context }
 					}
 				}}
 				onModelButtonClick={() => {
-					navigateToSettings("api-config")
+					navigateToSettings("models-api")
 				}}
 				onModelProviderPresetSelect={async (presetId) => {
 					setModelPresetError(undefined)

@@ -61,7 +61,7 @@ const agentFeatures: FeatureToggle[] = [
 	},
 	{
 		id: "auto-compact",
-		label: "Auto Compact",
+		label: "Auto-condense conversations",
 		description: "Automatically compress conversation history.",
 		stateKey: "useAutoCondense",
 		settingKey: "useAutoCondense",
@@ -102,7 +102,7 @@ const editorFeatures: FeatureToggle[] = [
 const experimentalFeatures: FeatureToggle[] = [
 	{
 		id: "yolo",
-		label: "Yolo Mode",
+		label: "YOLO Mode",
 		description:
 			"Execute tasks without user's confirmation. Auto-switches from Plan to Act mode and disables the ask question tool. Use with extreme caution.",
 		stateKey: "yoloModeToggled",

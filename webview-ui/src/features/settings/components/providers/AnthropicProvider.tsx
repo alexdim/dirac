@@ -35,6 +35,7 @@ export const AnthropicProvider = ({ showModelOptions, isPopup, currentMode }: An
 	// Get the normalized configuration
 	const { selectedModelId, selectedModelInfo } = normalizeApiConfiguration(apiConfiguration, currentMode)
 	const configuredInferenceSpeed = getModeSpecificFields(apiConfiguration, currentMode).inferenceSpeed
+	const isBaseUrlManaged = remoteConfigSettings?.anthropicBaseUrl !== undefined
 	const setSelectedModel = (modelId: string) => {
 		if (modelSupportsInferenceSpeed("anthropic", modelId) || configuredInferenceSpeed !== "fast") {
 			return handleModeFieldChange({ plan: "planModeApiModelId", act: "actModeApiModelId" }, modelId, currentMode)
@@ -58,14 +59,14 @@ export const AnthropicProvider = ({ showModelOptions, isPopup, currentMode }: An
 				signupUrl="https://console.anthropic.com/settings/keys"
 			/>
 
-			<RemotelyConfiguredInputWrapper hidden={remoteConfigSettings?.anthropicBaseUrl === undefined}>
+			<RemotelyConfiguredInputWrapper hidden={!isBaseUrlManaged}>
 				<BaseUrlField
-					disabled={!!remoteConfigSettings?.anthropicBaseUrl}
+					disabled={isBaseUrlManaged}
 					initialValue={apiConfiguration?.anthropicBaseUrl}
 					label="Use custom base URL"
 					onChange={(value: string) => handleFieldChange("anthropicBaseUrl", value)}
 					placeholder="Default: https://api.anthropic.com"
-					showLockIcon={!!remoteConfigSettings?.anthropicBaseUrl}
+					showLockIcon={isBaseUrlManaged}
 				/>
 			</RemotelyConfiguredInputWrapper>
 

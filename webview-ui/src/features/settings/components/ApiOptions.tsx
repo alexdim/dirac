@@ -48,7 +48,6 @@ import { WandbProvider } from "./providers/WandbProvider"
 import { XaiProvider } from "./providers/XaiProvider"
 import { ZAiProvider } from "./providers/ZAiProvider"
 import { useApiConfigurationHandlers } from "./utils/useApiConfigurationHandlers"
-import { AutoCondenseContextLimitSetting } from "./AutoCondenseContextLimitSetting"
 
 interface ApiOptionsProps {
 	showModelOptions: boolean
@@ -182,27 +181,27 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 		const updates: Partial<ApiConfiguration> = planActSeparateModelsSetting
 			? currentMode === "plan"
 				? {
-					planModeApiProvider: "openrouter",
-					planModeOpenRouterModelId: modelId,
-					planModeOpenRouterModelInfo: modelInfo,
-					planModeInferenceSpeed: "default",
-				}
+						planModeApiProvider: "openrouter",
+						planModeOpenRouterModelId: modelId,
+						planModeOpenRouterModelInfo: modelInfo,
+						planModeInferenceSpeed: "default",
+					}
 				: {
+						actModeApiProvider: "openrouter",
+						actModeOpenRouterModelId: modelId,
+						actModeOpenRouterModelInfo: modelInfo,
+						actModeInferenceSpeed: "default",
+					}
+			: {
+					planModeApiProvider: "openrouter",
 					actModeApiProvider: "openrouter",
+					planModeOpenRouterModelId: modelId,
 					actModeOpenRouterModelId: modelId,
+					planModeOpenRouterModelInfo: modelInfo,
 					actModeOpenRouterModelInfo: modelInfo,
+					planModeInferenceSpeed: "default",
 					actModeInferenceSpeed: "default",
 				}
-			: {
-				planModeApiProvider: "openrouter",
-				actModeApiProvider: "openrouter",
-				planModeOpenRouterModelId: modelId,
-				actModeOpenRouterModelId: modelId,
-				planModeOpenRouterModelInfo: modelInfo,
-				actModeOpenRouterModelInfo: modelInfo,
-				planModeInferenceSpeed: "default",
-				actModeInferenceSpeed: "default",
-			}
 		const saved = await handleFieldsChange(updates)
 		if (saved) setPendingProvider(undefined)
 		return saved
@@ -366,7 +365,6 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 				</ProviderDropdownWrapper>
 			</DropdownContainer>
 
-
 			{apiConfiguration && selectedProvider === "anthropic" && (
 				<AnthropicProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
 			)}
@@ -516,9 +514,6 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 
 			{apiConfiguration && selectedProvider === "aihubmix" && (
 				<AIhubmixProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
-			)}
-			{apiConfiguration && selectedProvider && (
-				<AutoCondenseContextLimitSetting key={selectedProvider} providerId={selectedProvider} />
 			)}
 
 			{apiConfigurationError && (

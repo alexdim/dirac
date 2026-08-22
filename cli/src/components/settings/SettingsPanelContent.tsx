@@ -7,7 +7,7 @@ import { getProviderModelIdKey, isSettingsKey, type UtilityModelUseCases } from 
 import type { OpenaiReasoningEffort } from "@shared/storage/types"
 import type { TelemetrySetting } from "@shared/TelemetrySetting"
 import { normalizeUserApprovedCommands, type UserApprovedCommand } from "@shared/UserApprovedCommand"
-import { Text, useInput } from "ink"
+import { Box, Text, useInput } from "ink"
 import React, { useCallback, useMemo, useState } from "react"
 import { StateManager } from "@/core/storage/StateManager"
 import type { TaskWorkingConfigurationPatch } from "@/core/task/runtime/TaskWorkingConfiguration"
@@ -15,24 +15,34 @@ import { ToolRegistry } from "@/core/task/tools/registry/ToolRegistry"
 import { Logger } from "@/shared/services/Logger"
 import { TerminalColorMode, terminalColorMode, theme } from "../../constants/theme"
 import { useStdinContext } from "../../context/StdinContext"
+import { useTerminalSize } from "../../hooks/useTerminalSize"
 import { copyToClipboardNative } from "../../utils/clipboard"
 import { shouldIgnoreTerminalInput } from "../../utils/input"
 import { usesOpenRouterModels } from "../../utils/openrouter-models"
 import type { ObjectEditorState } from "../ConfigViewComponents"
 import { Panel } from "../Panel"
-import { FEATURE_SETTINGS, type FeatureKey, TABS } from "./constants"
+import { CLI_SETTINGS_DESTINATIONS, FEATURE_SETTINGS, type FeatureKey } from "./constants"
 import { useAuthStatus } from "./hooks/useAuthStatus"
 import { useSettingsActions } from "./hooks/useSettingsActions"
-import { useSettingsItems } from "./hooks/useSettingsItems"
+import { createSettingsSearchResults, useSettingsItems, type UseSettingsItemsProps } from "./hooks/useSettingsItems"
 import { getFirstSelectableSettingsIndex, isSelectableSettingsItem } from "./navigation"
+import { SettingsHomeView } from "./SettingsHomeView"
 import { SettingsListView } from "./SettingsListView"
+import { SettingsSearchView } from "./SettingsSearchView"
 import { commitInteractiveSetting, persistInteractiveSettingWithRollback } from "./settingsTransaction"
 import { AuthErrorPage, CodexAuthPage, GithubAuthPage } from "./subpages/AuthPages"
 import { ApiKeyInputPage, EditValuePage, ObjectEditorPage } from "./subpages/EditPages"
 import { OpenRouterRoutingPage } from "./subpages/OpenRouterRoutingPage"
 import { LanguagePickerPage, ModelPickerPage, ProviderPickerPage, UtilityModelPresetPickerPage } from "./subpages/PickerPages"
 import { BedrockCustomFlowPage, BedrockSetupPage } from "./subpages/SetupPages"
-import { SettingsNavigationDirection, type SettingsPanelContentProps, SettingsTab } from "./types"
+import {
+    SettingsNavigationDirection,
+    type ListItem,
+    type SettingsPanelContentProps,
+    type SettingsSearchResult,
+    SettingsItemType,
+    SettingsTab,
+} from "./types"
 import { UserApprovedCommandsPage } from "./UserApprovedCommandsPage"
 import { normalizeReasoningEffort } from "./utils"
 export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
@@ -42,11 +52,18 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 	initialModelKey,
 }) => {
 	const { isRawModeSupported } = useStdinContext()
+	const { rows: terminalRows } = useTerminalSize()
+	const settingsMaxRows = Math.max(3, terminalRows - 8)
 	const stateManager = StateManager.get()
 
 	// UI state
-	const [currentTab, setCurrentTab] = useState<SettingsTab>(SettingsTab.API)
+	const [currentTab, setCurrentTab] = useState<SettingsTab>(SettingsTab.MODELS_API)
+	const [isAtHome, setIsAtHome] = useState(!initialMode)
+	const [homeSelectedIndex, setHomeSelectedIndex] = useState(0)
 	const [selectedIndex, setSelectedIndex] = useState(0)
+	const [isSearching, setIsSearching] = useState(false)
+	const [helpItem, setHelpItem] = useState<ListItem | null>(null)
+	const [isEditingApprovedCommands, setIsEditingApprovedCommands] = useState(false)
 	const [isEditing, setIsEditing] = useState(false)
 	const [isPickingModel, setIsPickingModel] = useState(initialMode === "model-picker")
 	const [pickingModelKey, setPickingModelKey] = useState<"actModelId" | "planModelId" | null>(
@@ -94,7 +111,7 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 	// Tool toggle state
 	const [availableTools] = useState<ToolMetadata[]>(() => {
 		const registry = ToolRegistry.getInstance()
-		return registry.getConfigurableTools().map((t) => ({
+		return registry.getConfigurableTools(controller?.task?.taskId).map((t) => ({
 			id: t.id,
 			name: t.name,
 			description: t.spec.description,
@@ -154,6 +171,9 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 	const [autoApproveSettings, setAutoApproveSettings] = useState<AutoApprovalSettings>(() => {
 		return stateManager.getGlobalSettingsKey("autoApprovalSettings") ?? DEFAULT_AUTO_APPROVAL_SETTINGS
 	})
+	const [autoApproveAllToggled, setAutoApproveAllToggled] = useState<boolean>(
+		() => stateManager.getGlobalSettingsKey("autoApproveAllToggled") ?? false,
+	)
 	const [userApprovedCommands, setUserApprovedCommands] = useState<UserApprovedCommand[]>(() =>
 		stateManager.getGlobalSettingsKey("userApprovedCommands"),
 	)
@@ -244,7 +264,7 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 		isWaitingForGithubAuth,
 	)
 
-	const items = useSettingsItems({
+	const settingsItemsProps: UseSettingsItemsProps = {
 		currentTab,
 		provider,
 		actModelId,
@@ -255,6 +275,7 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 		actReasoningEffort,
 		planReasoningEffort,
 		autoApproveSettings,
+		autoApproveAllToggled,
 		features,
 		utilityModelUseCases,
 		utilityModelSelection,
@@ -274,7 +295,12 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 		openRouterPreventFallbacks,
 		availableTools,
 		toolToggles,
-	})
+	}
+	const items = useSettingsItems(settingsItemsProps)
+	const settingsSearchResults = createSettingsSearchResults(
+		settingsItemsProps,
+		CLI_SETTINGS_DESTINATIONS.map((destination) => destination.key),
+	)
 
 	React.useEffect(() => {
 		setSelectedIndex((currentIndex) =>
@@ -319,6 +345,8 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 		setPlanThinkingEnabled,
 		autoApproveSettings,
 		setAutoApproveSettings,
+		autoApproveAllToggled,
+		setAutoApproveAllToggled,
 		features,
 		utilityModelUseCases,
 		setUtilityModelUseCases,
@@ -384,10 +412,11 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 			}),
 		[controller, runSettingsAction, stateManager],
 	)
-	const handleTabChange = useCallback((tabKey: string) => {
+	const openDestination = useCallback((destination: SettingsTab, itemIndex = 0) => {
 		setSettingsError(null)
-		setCurrentTab(tabKey as SettingsTab)
-		setSelectedIndex(0)
+		setCurrentTab(destination)
+		setIsAtHome(false)
+		setSelectedIndex(itemIndex)
 		setIsEditing(false)
 		setIsPickingModel(false)
 		setPickingModelKey(null)
@@ -398,33 +427,54 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 		setPendingProvider(null)
 		setApiKeyValue("")
 		setOpenRouterRoutingModelId(null)
+		setIsEditingApprovedCommands(false)
+		setHelpItem(null)
 	}, [])
 
-	const navigateTabs = useCallback(
-		(direction: "left" | "right") => {
-			const tabKeys = TABS.map((t) => t.key)
-			const currentIdx = tabKeys.indexOf(currentTab)
-			const newIdx =
-				direction === "left"
-					? currentIdx > 0
-						? currentIdx - 1
-						: tabKeys.length - 1
-					: currentIdx < tabKeys.length - 1
-						? currentIdx + 1
-						: 0
-			handleTabChange(tabKeys[newIdx])
+	const returnHome = useCallback(() => {
+		setIsAtHome(true)
+		setIsEditingApprovedCommands(false)
+		setHelpItem(null)
+		setSelectedIndex(0)
+		const destinationIndex = CLI_SETTINGS_DESTINATIONS.findIndex((destination) => destination.key === currentTab)
+		setHomeSelectedIndex(Math.max(0, destinationIndex))
+	}, [currentTab])
+
+	const activateSettingsItem = useCallback(() => {
+		const item = items[selectedIndex]
+		if (!item) return
+		if (item.key === "approvedCommandRules") {
+			setIsEditingApprovedCommands(true)
+			return
+		}
+		if (item.key === "utilityApprovalsStatus") {
+			openDestination(SettingsTab.UTILITY_MODEL)
+			return
+		}
+		if (item.key === "advancedConfiguration") {
+			setHelpItem(item)
+			return
+		}
+		void runSettingsAction("update", handleAction)
+	}, [handleAction, items, openDestination, runSettingsAction, selectedIndex])
+
+	const selectSearchResult = useCallback(
+		(result: SettingsSearchResult) => {
+			setIsSearching(false)
+			openDestination(result.destination, result.itemIndex)
 		},
-		[currentTab, handleTabChange],
+		[openDestination],
 	)
+	const showSearchResultHelp = useCallback((result: SettingsSearchResult) => {
+		setHelpItem(result.item)
+	}, [])
 
 	useInput(
 		(input, key) => {
-			if (objectEditor) return
+			if (objectEditor || openRouterRoutingModelId || isEditingApprovedCommands || isSearching) return
 			if (shouldIgnoreTerminalInput(input, key)) return
-			if (openRouterRoutingModelId) return
-			if (currentTab === SettingsTab.USER_APPROVED_COMMANDS) {
-				if (key.leftArrow) navigateTabs("left")
-				if (key.rightArrow) navigateTabs("right")
+			if (helpItem) {
+				if (key.escape || input === "?") setHelpItem(null)
 				return
 			}
 
@@ -435,105 +485,138 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 				}
 				return
 			}
-
 			if (isPickingModel) {
 				if (key.escape) {
 					setIsPickingModel(false)
 					setPickingModelKey(null)
-
 					setPendingProvider(null)
 					if (initialMode) onClose()
 				}
 				return
 			}
-
 			if (isPickingUtilityModel) {
 				if (key.escape) setIsPickingUtilityModel(false)
 				return
 			}
-
 			if (isPickingLanguage) {
 				if (key.escape) setIsPickingLanguage(false)
 				return
 			}
-
 			if (isWaitingForCodexAuth) {
 				if (input === "c" && codexAuthUrl) {
-					const ok = copyToClipboardNative(codexAuthUrl)
-					if (ok) {
+					if (copyToClipboardNative(codexAuthUrl)) {
 						setCopied(true)
 						setTimeout(() => setCopied(false), 2000)
 					}
 					return
 				}
-				if (key.escape) {
-					cancelCodexAuth()
-				}
+				if (key.escape) cancelCodexAuth()
 				return
 			}
-
 			if (isWaitingForGithubAuth) {
-				if (key.escape) {
-					cancelGithubAuth()
-				}
+				if (key.escape) cancelGithubAuth()
 				return
 			}
-
 			if (codexAuthError) {
 				setCodexAuthError(null)
 				return
 			}
-
 			if (isBedrockCustomFlow) return
-
 			if (isEditing) {
-				if (key.escape) {
-					setIsEditing(false)
-					return
-				}
-				if (key.return) {
-					runSettingsAction("save", () => handleSave(editValue))
-					return
-				}
-				if (key.backspace || key.delete) {
-					setEditValue((prev) => prev.slice(0, -1))
-					return
-				}
-				if (input && !key.ctrl && !key.meta) {
-					setEditValue((prev) => prev + input)
-				}
+				if (key.escape) setIsEditing(false)
+				else if (key.return) void runSettingsAction("save", () => handleSave(editValue))
+				else if (key.backspace || key.delete) setEditValue((previous) => previous.slice(0, -1))
+				else if (input && !key.ctrl && !key.meta) setEditValue((previous) => previous + input)
 				return
 			}
 
 			if (key.escape) {
-				onClose()
+				if (isAtHome) onClose()
+				else returnHome()
 				return
 			}
-			if (key.leftArrow) {
-				navigateTabs("left")
+			if (input === "/") {
+				setIsSearching(true)
 				return
 			}
-			if (key.rightArrow) {
-				navigateTabs("right")
+			if (isAtHome) {
+				if (key.upArrow) setHomeSelectedIndex((current) => Math.max(0, current - 1))
+				else if (key.downArrow)
+					setHomeSelectedIndex((current) => Math.min(CLI_SETTINGS_DESTINATIONS.length - 1, current + 1))
+				else if (key.return) {
+					const destination = CLI_SETTINGS_DESTINATIONS[homeSelectedIndex]
+					if (destination) openDestination(destination.key)
+				} else if (/^[1-9]$/.test(input)) {
+					const destination = CLI_SETTINGS_DESTINATIONS[Number(input) - 1]
+					if (destination) openDestination(destination.key)
+				}
 				return
 			}
-			if (key.upArrow) {
-				navigateItems(SettingsNavigationDirection.UP)
-				return
-			}
-			if (key.downArrow) {
-				navigateItems(SettingsNavigationDirection.DOWN)
-				return
-			}
-			if (key.tab || key.return || input === " ") {
-				runSettingsAction("update", handleAction)
-				return
-			}
+			if (key.upArrow) navigateItems(SettingsNavigationDirection.UP)
+			else if (key.downArrow) navigateItems(SettingsNavigationDirection.DOWN)
+			else if (input === "?") {
+				const item = items[selectedIndex]
+				if (item) setHelpItem(item)
+			} else if (key.return || key.tab) activateSettingsItem()
+			else if (input === " " && items[selectedIndex]?.type === SettingsItemType.CHECKBOX) activateSettingsItem()
 		},
-		{ isActive: isRawModeSupported && !isEnteringApiKey && !isConfiguringBedrock },
+		{
+			isActive: isRawModeSupported && !isEnteringApiKey && !isConfiguringBedrock,
+		},
 	)
 
 	const renderContent = () => {
+		if (isSearching) {
+			return (
+				<SettingsSearchView
+					helpItem={helpItem}
+					isActive={isRawModeSupported}
+					maxRows={settingsMaxRows}
+					onCancel={() => {
+						setIsSearching(false)
+						setHelpItem(null)
+					}}
+					onCloseHelp={() => setHelpItem(null)}
+					onHelp={showSearchResultHelp}
+					onSelect={selectSearchResult}
+					results={settingsSearchResults}
+				/>
+			)
+		}
+		if (helpItem) {
+			return (
+				<Box flexDirection="column">
+					<Text bold color={theme.strongText}>
+						{helpItem.label || "Setting help"}
+					</Text>
+					{helpItem.description && <Text color={theme.text}>{helpItem.description}</Text>}
+					{helpItem.value !== "" && !helpItem.description && <Text color={theme.text}>{String(helpItem.value)}</Text>}
+					{helpItem.expandedHelp && <Text color={theme.muted}>{helpItem.expandedHelp}</Text>}
+					{helpItem.persistentHelp && (
+						<Text color={helpItem.helpTone === "error" ? theme.error : theme.warning}>{helpItem.persistentHelp}</Text>
+					)}
+				</Box>
+			)
+		}
+		if (isAtHome)
+			return (
+				<SettingsHomeView
+					destinations={CLI_SETTINGS_DESTINATIONS}
+					maxRows={settingsMaxRows}
+					selectedIndex={homeSelectedIndex}
+				/>
+			)
+		if (isEditingApprovedCommands) {
+			return (
+				<UserApprovedCommandsPage
+					commands={userApprovedCommands}
+					isActive={isRawModeSupported && !isApplyingSetting}
+					maxRows={settingsMaxRows}
+					onChange={updateUserApprovedCommands}
+					onClose={() => setIsEditingApprovedCommands(false)}
+				/>
+			)
+		}
 		if (openRouterRoutingModelId) {
 			return (
 				<OpenRouterRoutingPage
@@ -593,15 +676,9 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 				/>
 			)
 		}
-		if (isWaitingForCodexAuth) {
-			return <CodexAuthPage codexAuthUrl={codexAuthUrl} copied={copied} />
-		}
-		if (isWaitingForGithubAuth && githubAuthData) {
-			return <GithubAuthPage githubAuthData={githubAuthData} />
-		}
-		if (codexAuthError) {
-			return <AuthErrorPage error={codexAuthError} />
-		}
+		if (isWaitingForCodexAuth) return <CodexAuthPage codexAuthUrl={codexAuthUrl} copied={copied} />
+		if (isWaitingForGithubAuth && githubAuthData) return <GithubAuthPage githubAuthData={githubAuthData} />
+		if (codexAuthError) return <AuthErrorPage error={codexAuthError} />
 		if (isPickingModel && pickingModelKey) {
 			const label = pickingModelKey === "actModelId" ? "Model ID (Act)" : "Model ID (Plan)"
 			return (
@@ -625,7 +702,6 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 				/>
 			)
 		}
-
 		if (isPickingLanguage) {
 			return (
 				<LanguagePickerPage
@@ -672,21 +748,10 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 			)
 		}
 
-		if (currentTab === SettingsTab.USER_APPROVED_COMMANDS) {
-			return (
-				<UserApprovedCommandsPage
-					commands={userApprovedCommands}
-					isActive={isRawModeSupported && !isApplyingSetting}
-					onChange={updateUserApprovedCommands}
-					onClose={onClose}
-				/>
-			)
-		}
-
-		return <SettingsListView items={items} selectedIndex={selectedIndex} />
+		return <SettingsListView items={items} maxRows={settingsMaxRows} selectedIndex={selectedIndex} />
 	}
 
-	const isSubpage =
+	const hasNestedPage =
 		isPickingProvider ||
 		isPickingModel ||
 		isPickingLanguage ||
@@ -698,11 +763,27 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 		isBedrockCustomFlow ||
 		isWaitingForGithubAuth ||
 		isEditing ||
+		isEditingApprovedCommands ||
+		isSearching ||
+		!!helpItem ||
 		!!objectEditor ||
 		!!openRouterRoutingModelId
+	const activeDestination = CLI_SETTINGS_DESTINATIONS.find((destination) => destination.key === currentTab)
+	const panelLabel = isSearching ? "Settings / Search" : isAtHome ? "Settings" : `Settings / ${activeDestination?.label ?? ""}`
+	const footer = isSearching
+		? helpItem
+			? "? or Esc Back to search"
+			: "Type to search · ↑/↓ Navigate · Enter Open · ? Help · Esc Back"
+		: helpItem
+			? "? or Esc Back"
+			: isAtHome
+				? "/ Search settings · ↑/↓ Navigate · Enter Open · Esc Close"
+				: isEditingApprovedCommands
+					? "↑/↓ Select · Enter Edit · a Add · d Delete · Esc Back"
+					: "↑/↓ Navigate · Enter Edit · Space Toggle · / Search · ? Help · Esc Back"
 
 	return (
-		<Panel currentTab={currentTab} isSubpage={isSubpage} label="Settings" tabs={TABS}>
+		<Panel footer={footer} isSubpage={hasNestedPage || !isAtHome} label={panelLabel}>
 			{(settingsError || authStatusError) && (
 				<Text color={theme.error}>Settings error: {settingsError || authStatusError}</Text>
 			)}

@@ -204,11 +204,11 @@ const ModularWelcomeSection: React.FC<ModularWelcomeSectionProps> = ({
 							actModeApiProvider: action.arg as any,
 						})
 					}
-					navigateToSettings("api-config")
+					navigateToSettings("models-api")
 					break
 
 				case BannerActionType.ShowFeatureSettings:
-					navigateToSettings("features")
+					navigateToSettings("running-tasks")
 					break
 
 				case BannerActionType.InstallCli:

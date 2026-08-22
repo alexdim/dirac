@@ -115,7 +115,7 @@ export const OpenAiCodexProvider = ({ showModelOptions, isPopup, currentMode }: 
 					isPopup={isPopup}
 					isRefreshing={openAiCodexUsageRefreshing}
 					onRefresh={refreshOpenAiCodexUsage}
-					onViewDetails={isPopup ? () => navigateToSettings("api-config") : undefined}
+					onViewDetails={isPopup ? () => navigateToSettings("models-api") : undefined}
 					refreshError={openAiCodexUsageRefreshError}
 					snapshot={openAiCodexUsage}
 				/>

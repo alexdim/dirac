@@ -79,7 +79,7 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({ task, totalCost, cacheHitRate, 
 	const toggleTaskExpanded = useCallback(() => setIsTaskExpanded(!isTaskExpanded), [setIsTaskExpanded, isTaskExpanded])
 
 	const handleCheckpointSettingsClick = useCallback(() => {
-		navigateToSettings("features")
+		navigateToSettings("checkpoints")
 	}, [navigateToSettings])
 
 	const environmentBorderColor = getEnvironmentColor(environment, "border")
@@ -171,13 +171,13 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({ task, totalCost, cacheHitRate, 
 							(task.content.type === DiracMessageType.MARKDOWN &&
 								task.content.files &&
 								task.content.files.length > 0)) && (
-								<div className="px-1">
-									<Thumbnails
-										files={(task.content.type === DiracMessageType.MARKDOWN ? task.content.files : []) ?? []}
-										images={(task.content.type === DiracMessageType.MARKDOWN ? task.content.images : []) ?? []}
-									/>
-								</div>
-							)}
+							<div className="px-1">
+								<Thumbnails
+									files={(task.content.type === DiracMessageType.MARKDOWN ? task.content.files : []) ?? []}
+									images={(task.content.type === DiracMessageType.MARKDOWN ? task.content.images : []) ?? []}
+								/>
+							</div>
+						)}
 
 						<div className="border-t border-foreground/5 pt-2">
 							<ContextWindow lastApiReqInfo={lastApiReqInfo} onSendMessage={onSendMessage} />

@@ -29,7 +29,7 @@ export async function getStateToPostToWebview(deps: {
 	const modelState = assembleModelState(stateManager)
 	const authState = await assembleAuthState(stateManager)
 	const { latestAnnouncementId, ...runtimeState } = await assembleRuntimeState()
-	const toolState = await assembleToolState(stateManager, primaryRootPath)
+	const toolState = await assembleToolState(stateManager, primaryRootPath, task?.taskId)
 	const apiConfiguration = stateManager.getApiConfiguration()
 	const mode = stateManager.getGlobalSettingsKey("mode")
 	const configuredProviderId =

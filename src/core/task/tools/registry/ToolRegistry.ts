@@ -268,8 +268,10 @@ export class ToolRegistry {
 		return [...ids]
 	}
 
-	getConfigurableTools(): DiscoveredTool[] {
-		return this.getAllTools().filter((tool) => tool.exposure.kind === "configurable")
+	getConfigurableTools(ownerTaskId?: string, workspaceRoot?: string): DiscoveredTool[] {
+		const tools =
+			arguments.length >= 2 ? this.getAllTools(ownerTaskId, workspaceRoot) : this.getAllTools(ownerTaskId)
+		return tools.filter((tool) => tool.exposure.kind === "configurable")
 	}
 
 	resolveSkillDependencyTools(
