@@ -159,6 +159,247 @@ describe("SurfaceAdapter", () => {
 			result.value!.should.equal("new_task")
 		})
 
+		it("uses a Utility approval without creating a permission card", async () => {
+			const decide = sinon.stub().resolves({ decision: "approve", reason: "Allowed by policy." })
+			config.permissionDecisionBinding = { service: { decide }, configurationRevision: 1 }
+			config.toolUse = { name: "write_to_file", params: { path: "src/index.ts", content: "export {}\n" } }
+
+			const handle = await adapter.ui.createCard({
+				header: "Permission",
+				requireApproval: true,
+				permissionRequestKind: "tool",
+				rawInput: { path: "src/index.ts" },
+			})
+			const result = await handle.waitForInteraction()
+
+			sinon.assert.notCalled(config.taskMessenger.createCard)
+			sinon.assert.calledWithMatch(decide, {
+				toolCall: {
+					name: "write_to_file",
+					arguments: { path: "src/index.ts", content: "export {}\n" },
+				},
+				permission: { header: "Permission" },
+				runtime: { cwd: "/test", mode: "act", isSubagent: false },
+			})
+			result.action.should.equal(DiracAskResponse.APPROVE)
+		})
+
+		it("uses the displayed card path for a Utility escalation", async () => {
+			const fakeHandle = {
+				id: "card-1",
+				update: sinon.stub().resolves(),
+				appendBody: sinon.stub().resolves(),
+				finalize: sinon.stub().resolves(),
+				waitForInteraction: sinon.stub().resolves({ action: DiracAskResponse.APPROVE }),
+			}
+			config.permissionDecisionBinding = {
+				service: { decide: sinon.stub().resolves({ decision: "escalate", reason: "User choice." }) },
+				configurationRevision: 1,
+			}
+			config.taskMessenger.createCard = sinon.stub().resolves(fakeHandle)
+
+			const handle = await adapter.ui.createCard({
+				header: "Permission",
+				status: CardStatus.WAITING_FOR_INPUT,
+				requireApproval: true,
+				permissionRequestKind: "tool",
+			})
+			await handle.waitForInteraction()
+
+			sinon.assert.calledWithExactly(config.taskMessenger.createCard, {
+				header: "Permission",
+				toolName: "test-tool",
+				locations: undefined,
+				status: CardStatus.WAITING_FOR_INPUT,
+				requireApproval: true,
+				isAutoApproved: sinon.match.func,
+			})
+			sinon.assert.calledOnce(fakeHandle.waitForInteraction)
+		})
+
+		it("uses the displayed card path when Utility permission handling is disabled", async () => {
+			const fakeHandle = {
+				id: "card-1",
+				update: sinon.stub().resolves(),
+				appendBody: sinon.stub().resolves(),
+				finalize: sinon.stub().resolves(),
+				waitForInteraction: sinon.stub().resolves({ action: DiracAskResponse.APPROVE }),
+			}
+			config.taskMessenger.createCard = sinon.stub().resolves(fakeHandle)
+
+			const handle = await adapter.ui.createCard({
+				header: "Permission",
+				requireApproval: true,
+				permissionRequestKind: "tool",
+			})
+			await handle.waitForInteraction()
+
+			sinon.assert.calledOnce(config.taskMessenger.createCard)
+			sinon.assert.calledOnce(fakeHandle.waitForInteraction)
+		})
+
+		it("preserves legacy YOLO approval when Utility permission handling is disabled", async () => {
+			const fakeHandle = {
+				id: "card-1",
+				update: sinon.stub().resolves(),
+				appendBody: sinon.stub().resolves(),
+				finalize: sinon.stub().resolves(),
+				waitForInteraction: sinon.stub().resolves({ action: DiracAskResponse.REJECT }),
+			}
+			config.yoloModeToggled = true
+			config.autoApprover.isUnrestrictedAutoApprove.returns(true)
+			config.taskMessenger.createCard = sinon.stub().resolves(fakeHandle)
+
+			const result = await (
+				await adapter.ui.createCard({
+					header: "Legacy permission",
+					requireApproval: true,
+					permissionRequestKind: "manual_tool",
+				})
+			).waitForInteraction()
+
+			sinon.assert.calledWithMatch(config.taskMessenger.createCard, { requireApproval: false })
+			sinon.assert.notCalled(fakeHandle.waitForInteraction)
+			result.action.should.equal(DiracAskResponse.APPROVE)
+		})
+
+		it("auto-approves a manual-only tool permission in an unrestricted mode", async () => {
+			config.yoloModeToggled = true
+			config.autoApprover.isUnrestrictedAutoApprove.returns(true)
+			config.permissionDecisionBinding = {
+				service: { decide: sinon.stub().resolves({ decision: "escalate", reason: "User decision required." }) },
+				configurationRevision: 1,
+			}
+
+			const result = await (
+				await adapter.ui.createCard({
+					header: "External write",
+					requireApproval: true,
+					permissionRequestKind: "manual_tool",
+				})
+			).waitForInteraction()
+
+			sinon.assert.notCalled(config.permissionDecisionBinding.service.decide)
+			sinon.assert.notCalled(config.taskMessenger.createCard)
+			result.action.should.equal(DiracAskResponse.APPROVE)
+		})
+
+		it("resolves unrestricted auto-approval before Utility", async () => {
+			const decide = sinon.stub().resolves({ decision: "escalate", reason: "Escalate." })
+			config.permissionDecisionBinding = { service: { decide }, configurationRevision: 1 }
+			config.autoApprover.isUnrestrictedAutoApprove.returns(true)
+
+			const handle = await adapter.ui.createCard({
+				header: "Permission",
+				requireApproval: true,
+				permissionRequestKind: "tool",
+			})
+			const result = await handle.waitForInteraction()
+
+			sinon.assert.notCalled(decide)
+			sinon.assert.notCalled(config.taskMessenger.createCard)
+			result.action.should.equal(DiracAskResponse.APPROVE)
+		})
+
+		it("routes subagent permissions through Utility and marks their runtime", async () => {
+			const decide = sinon.stub().resolves({ decision: "approve", reason: "Allowed." })
+			config.permissionDecisionBinding = { service: { decide }, configurationRevision: 1 }
+			config.isSubagentExecution = true
+
+			const result = await (
+				await adapter.ui.createCard({
+					header: "Permission",
+					requireApproval: true,
+					permissionRequestKind: "tool",
+				})
+			).waitForInteraction()
+
+			sinon.assert.calledWithMatch(decide, { runtime: { cwd: "/test", mode: "act", isSubagent: true } })
+			sinon.assert.notCalled(config.taskMessenger.createCard)
+			result.action.should.equal(DiracAskResponse.APPROVE)
+		})
+
+		it("discards an in-flight Utility approval after its configuration changes", async () => {
+			let resolveDecision!: (decision: { decision: "approve"; reason: string }) => void
+			const decide = sinon.stub().returns(
+				new Promise((resolve) => {
+					resolveDecision = resolve
+				}),
+			)
+			let binding: any = { service: { decide }, configurationRevision: 1 }
+			Object.defineProperty(config, "permissionDecisionBinding", {
+				configurable: true,
+				get: () => binding,
+			})
+			const fakeHandle = {
+				id: "card-1",
+				update: sinon.stub().resolves(),
+				appendBody: sinon.stub().resolves(),
+				finalize: sinon.stub().resolves(),
+				waitForInteraction: sinon.stub().resolves({ action: DiracAskResponse.REJECT }),
+			}
+			config.taskMessenger.createCard = sinon.stub().resolves(fakeHandle)
+
+			const pendingHandle = adapter.ui.createCard({
+				header: "Permission",
+				requireApproval: true,
+				permissionRequestKind: "tool",
+			})
+			await Promise.resolve()
+			binding = undefined
+			resolveDecision({ decision: "approve", reason: "Stale approval." })
+			const result = await (await pendingHandle).waitForInteraction()
+
+			sinon.assert.calledOnce(config.taskMessenger.createCard)
+			result.action.should.equal(DiracAskResponse.REJECT)
+		})
+
+		it("honors auto-approval enabled during an in-flight Utility decision", async () => {
+			let resolveDecision!: (decision: { decision: "escalate"; reason: string }) => void
+			const decide = sinon.stub().returns(
+				new Promise((resolve) => {
+					resolveDecision = resolve
+				}),
+			)
+			config.permissionDecisionBinding = { service: { decide }, configurationRevision: 1 }
+
+			const pendingHandle = adapter.ui.createCard({
+				header: "Permission",
+				requireApproval: true,
+				permissionRequestKind: "tool",
+			})
+			await Promise.resolve()
+			config.autoApprover.isUnrestrictedAutoApprove.returns(true)
+			resolveDecision({ decision: "escalate", reason: "Superseded escalation." })
+			const result = await (await pendingHandle).waitForInteraction()
+
+			sinon.assert.notCalled(config.taskMessenger.createCard)
+			result.action.should.equal(DiracAskResponse.APPROVE)
+		})
+
+		it("never routes an unmarked control-flow approval through Utility or Auto-Approve All", async () => {
+			const decide = sinon.stub().resolves({ decision: "approve", reason: "Must not be called." })
+			const readBinding = sinon.stub().returns({ service: { decide }, configurationRevision: 1 })
+			Object.defineProperty(config, "permissionDecisionBinding", { configurable: true, get: readBinding })
+			config.autoApprover.isUnrestrictedAutoApprove.returns(true)
+			const fakeHandle = {
+				id: "card-1",
+				update: sinon.stub().resolves(),
+				appendBody: sinon.stub().resolves(),
+				finalize: sinon.stub().resolves(),
+				waitForInteraction: sinon.stub().resolves({ action: DiracAskResponse.APPROVE }),
+			}
+			config.taskMessenger.createCard = sinon.stub().resolves(fakeHandle)
+
+			const handle = await adapter.ui.createCard({ header: "New Task", requireApproval: true })
+			await handle.waitForInteraction()
+
+			sinon.assert.notCalled(readBinding)
+			sinon.assert.notCalled(decide)
+			sinon.assert.calledWithMatch(config.taskMessenger.createCard, { requireApproval: true })
+			sinon.assert.calledOnce(fakeHandle.waitForInteraction)
+		})
+
 		it("upsertText delegates to taskMessenger.upsertText", async () => {
 			config.taskMessenger.upsertText = sinon.stub().resolves()
 			await adapter.ui.upsertText("hello", true, "assistant")
@@ -551,7 +792,7 @@ function createMockConfig(): any {
 			contextManager: { getNextTruncationRange: sinon.stub() },
 		},
 		autoApprovalSettings: {},
-		autoApprover: {},
+		autoApprover: { isUnrestrictedAutoApprove: sinon.stub().returns(false) },
 		browserSettings: {},
 		callbacks: {
 			assertMutationAuthorized: sinon.stub(),
@@ -561,6 +802,7 @@ function createMockConfig(): any {
 			doesLatestTaskCompletionHaveNewChanges: sinon.stub(),
 			shouldAutoApproveTool: sinon.stub(),
 			shouldAutoApproveToolWithPath: sinon.stub(),
+			resolveToolPathPermission: sinon.stub().resolves("auto_approve"),
 			postStateToWebview: sinon.stub(),
 			cancelTask: sinon.stub(),
 			getDiracMessages: sinon.stub(),

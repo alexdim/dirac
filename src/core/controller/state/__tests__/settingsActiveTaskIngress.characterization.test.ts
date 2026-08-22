@@ -135,6 +135,47 @@ describe("settings active-task ingress characterization", () => {
 		})
 	})
 
+	it("Utility permission settings persist globally and immediately patch the active task", async () => {
+		await updateSettings(
+			controller,
+			UpdateSettingsRequest.create({
+				utilityModelUsePermissionHandling: true,
+				utilityModelPermissionPolicy: "Allow edits in this repository.",
+			}),
+		)
+
+		expect(settings).to.include({
+			utilityModelUsePermissionHandling: true,
+			utilityModelPermissionPolicy: "Allow edits in this repository.",
+		})
+		expect(task.lastAppliedPatch.settings).to.include({
+			utilityModelUsePermissionHandling: true,
+			utilityModelPermissionPolicy: "Allow edits in this repository.",
+		})
+	})
+
+	it("disabling Utility permission handling restores disabled settings on the active task", async () => {
+		settings.utilityModelUsePermissionHandling = true
+		settings.utilityModelPermissionPolicy = "Allow edits."
+
+		await updateSettings(
+			controller,
+			UpdateSettingsRequest.create({
+				utilityModelUsePermissionHandling: false,
+				utilityModelPermissionPolicy: "",
+			}),
+		)
+
+		expect(settings).to.include({
+			utilityModelUsePermissionHandling: false,
+			utilityModelPermissionPolicy: "",
+		})
+		expect(task.lastAppliedPatch.settings).to.include({
+			utilityModelUsePermissionHandling: false,
+			utilityModelPermissionPolicy: "",
+		})
+	})
+
 	it("tool toggles persist and patch the active task inventory source", async () => {
 		const registry = ToolRegistry.getInstance()
 		sinon.stub(registry, "loadToggles")
@@ -155,6 +196,8 @@ describe("settings active-task ingress characterization", () => {
 					preferredLanguage: "French",
 					autoApproveAllToggled: true,
 					browserSettings: { remoteBrowserEnabled: true } as any,
+					utilityModelUsePermissionHandling: true,
+					utilityModelPermissionPolicy: "Never allow network calls.",
 				} as any,
 			}),
 		)
@@ -165,12 +208,23 @@ describe("settings active-task ingress characterization", () => {
 		expect(
 			stateManager.setTaskSettingsBatch.calledWith("active-task", sinon.match({ browserSettings: sinon.match.object })),
 		).to.equal(true)
+		expect(
+			stateManager.setTaskSettingsBatch.calledWith(
+				"active-task",
+				sinon.match({
+					utilityModelUsePermissionHandling: true,
+					utilityModelPermissionPolicy: "Never allow network calls.",
+				}),
+			),
+		).to.equal(true)
 		expect(task.markToolsDirty.called).to.equal(false)
 		expect(task.applyLatestBrowserSettings.called).to.equal(false)
 		expect(task.applyWorkingConfigurationUpdate.calledOnce).to.equal(true)
 		expect(task.lastAppliedPatch.settings).to.include({
 			preferredLanguage: "French",
 			autoApproveAllToggled: true,
+			utilityModelUsePermissionHandling: true,
+			utilityModelPermissionPolicy: "Never allow network calls.",
 		})
 		expect(task.lastAppliedPatch.settings.browserSettings).to.include({
 			remoteBrowserEnabled: true,

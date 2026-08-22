@@ -756,6 +756,7 @@ export class SubagentRunner {
 
 	private createSubagentTaskConfig(state: TaskState, coordinator: ToolExecutorCoordinator): TaskConfig {
 		const baseCallbacks = this.baseConfig.callbacks
+		const currentPermissionDecisionBinding = () => this.baseConfig.permissionDecisionBinding
 
 		return {
 			...this.baseConfig,
@@ -766,6 +767,9 @@ export class SubagentRunner {
 			coordinator,
 			taskState: state,
 			isSubagentExecution: true,
+			get permissionDecisionBinding() {
+				return currentPermissionDecisionBinding()
+			},
 			agentIdentity: this.options.agentIdentity,
 			vscodeTerminalExecutionMode: "backgroundExec",
 			callbacks: {

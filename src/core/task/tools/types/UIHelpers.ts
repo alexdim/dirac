@@ -15,6 +15,7 @@ export interface StronglyTypedUIHelpers {
 	// Approval methods
 	shouldAutoApproveTool: (toolName: DiracDefaultTool) => boolean | [boolean, boolean]
 	shouldAutoApproveToolWithPath: (toolName: DiracToolSpec["id"], path?: string) => Promise<boolean>
+	resolveToolPathPermission: TaskConfig["callbacks"]["resolveToolPathPermission"]
 
 	// Telemetry and notifications
 	captureTelemetry: (toolName: DiracDefaultTool, autoApproved: boolean, approved: boolean, isNativeToolCall?: boolean) => void
@@ -32,6 +33,7 @@ export function createUIHelpers(config: TaskConfig): StronglyTypedUIHelpers {
 		removeClosingTag: (block: ToolUse, tag: ToolParamName, text?: any) => removeClosingTag(block, tag, text),
 		shouldAutoApproveTool: (toolName: DiracDefaultTool) => config.autoApprover.shouldAutoApproveTool(toolName),
 		shouldAutoApproveToolWithPath: config.callbacks.shouldAutoApproveToolWithPath,
+		resolveToolPathPermission: config.callbacks.resolveToolPathPermission,
 		captureTelemetry: (toolName: DiracDefaultTool, autoApproved: boolean, approved: boolean, isNativeToolCall?: boolean) => {
 			const provider = config.providerId
 

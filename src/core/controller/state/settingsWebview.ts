@@ -22,6 +22,10 @@ export function buildWebviewSettingsPatch(request: UpdateSettingsRequest): Parti
 	if (request.utilityModelUseNewTask !== undefined) settings.utilityModelUseNewTask = request.utilityModelUseNewTask
 	if (request.utilityModelUseGenerateCommitMessage !== undefined)
 		settings.utilityModelUseGenerateCommitMessage = request.utilityModelUseGenerateCommitMessage
+	if (request.utilityModelUsePermissionHandling !== undefined)
+		settings.utilityModelUsePermissionHandling = request.utilityModelUsePermissionHandling
+	if (request.utilityModelPermissionPolicy !== undefined)
+		settings.utilityModelPermissionPolicy = request.utilityModelPermissionPolicy
 	if (request.preferredLanguage !== undefined) settings.preferredLanguage = request.preferredLanguage
 	if (request.shellIntegrationTimeout !== undefined) settings.shellIntegrationTimeout = Number(request.shellIntegrationTimeout)
 	if (request.terminalOutputLineLimit !== undefined) settings.terminalOutputLineLimit = Number(request.terminalOutputLineLimit)

@@ -73,4 +73,36 @@ describe("StatePublicationQueue", () => {
 			{ state: "second", sequenceNumber: 2 },
 		])
 	})
+
+	it("discards a state snapshot superseded during asynchronous assembly", async () => {
+		const firstReadStarted = deferred()
+		const finishFirstRead = deferred()
+		let currentState = "old"
+		let readCount = 0
+		const publications: string[] = []
+		const queue = new StatePublicationQueue(
+			async () => {
+				const capturedState = currentState
+				readCount++
+				if (readCount === 1) {
+					firstReadStarted.resolve()
+					await finishFirstRead.promise
+				}
+				return capturedState
+			},
+			async (state) => {
+				publications.push(state)
+			},
+		)
+
+		const first = queue.requestPublication()
+		await firstReadStarted.promise
+		currentState = "new"
+		const second = queue.requestPublication()
+		finishFirstRead.resolve()
+		await Promise.all([first, second])
+
+		assert.equal(readCount, 2)
+		assert.deepEqual(publications, ["new"])
+	})
 })

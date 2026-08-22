@@ -35,6 +35,7 @@ const utilityModelUseCaseSettings = {
 	utilityModelUseCondense: "condense",
 	utilityModelUseNewTask: "newTask",
 	utilityModelUseGenerateCommitMessage: "generateCommitMessage",
+	utilityModelUsePermissionHandling: "permissionHandling",
 } as const
 
 type UtilityModelUseCaseSetting = keyof typeof utilityModelUseCaseSettings
@@ -66,6 +67,7 @@ interface UseSettingsActionsProps {
 	features: Record<FeatureKey, boolean>
 	utilityModelUseCases: UtilityModelUseCases
 	setUtilityModelUseCases: (useCases: UtilityModelUseCases | ((previous: UtilityModelUseCases) => UtilityModelUseCases)) => void
+	setUtilityPermissionPolicy: (policy: string) => void
 	setFeatures: (
 		features: Record<FeatureKey, boolean> | ((prev: Record<FeatureKey, boolean>) => Record<FeatureKey, boolean>),
 	) => void
@@ -135,6 +137,7 @@ export function useSettingsActions({
 	features,
 	utilityModelUseCases,
 	setUtilityModelUseCases,
+	setUtilityPermissionPolicy,
 	setFeatures,
 	setLightTerminalTheme,
 	preferredLanguage,
@@ -613,7 +616,17 @@ export function useSettingsActions({
 				await commitSettings(settingsPatch)
 				setPreferredLanguage(editValue)
 			}
-			if (Object.keys(settingsPatch).length > 0 && item.key !== "autoCondenseContextLimit" && item.key !== "language") {
+			else if (item.key === "utilityModelPermissionPolicy") {
+				settingsPatch.utilityModelPermissionPolicy = editValue
+				await commitSettings(settingsPatch, true)
+				setUtilityPermissionPolicy(editValue)
+			}
+			if (
+				Object.keys(settingsPatch).length > 0 &&
+				item.key !== "autoCondenseContextLimit" &&
+				item.key !== "language" &&
+				item.key !== "utilityModelPermissionPolicy"
+			) {
 				await commitSettings(settingsPatch)
 			}
 			refreshModelIds()
@@ -625,6 +638,7 @@ export function useSettingsActions({
 			separateModels,
 			stateManager,
 			setPreferredLanguage,
+			setUtilityPermissionPolicy,
 			setAutoCondenseContextLimit,
 			setIsEditing,
 			commitSettings,

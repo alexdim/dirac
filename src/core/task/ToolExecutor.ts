@@ -4,14 +4,21 @@ import { formatResponse } from "@core/formatResponse"
 import { getHooksEnabledSafe } from "@core/hooks/hooks-utils"
 import { DiracIgnoreController } from "@core/ignore/DiracIgnoreController"
 import { CommandPermissionController } from "@core/permissions"
+import {
+	UtilityPermissionDecisionService,
+	type PermissionDecisionServiceBinding,
+} from "@core/permissions/UtilityPermissionDecisionService"
 import type { SystemPromptContext } from "@core/prompts/system-prompt/types"
-import { createUtilityModelRunner } from "@core/utility-model/UtilityModelRunner"
+import { createUtilityModelRunner, type UtilityModelUsageEvent } from "@core/utility-model/UtilityModelRunner"
+import { getConfiguredUtilityModelSelection } from "@core/utility-model/UtilityModelSelection"
 import { DiffViewProvider } from "@integrations/editor/DiffViewProvider"
 import type { CommandExecutionOptions } from "@integrations/terminal"
 import { BrowserSession } from "@services/browser/BrowserSession"
+import { telemetryService } from "@services/telemetry"
 import { UrlContentFetcher } from "@services/browser/UrlContentFetcher"
 import type { ApiConfiguration, ApiProvider, ModelProviderSelection } from "@shared/api"
 import { CardStatus, DiracMessage } from "@shared/ExtensionMessage"
+import { Logger } from "@shared/services/Logger"
 import { DiracContent } from "@shared/messages/content"
 import { canonicalizeResponseToolCall, isCompletionResponseCall } from "@shared/responseTool"
 import { getProviderModelIdKey } from "@shared/storage/provider-keys"
@@ -25,7 +32,7 @@ import { MessageStateHandler } from "./message-state"
 import { assertTaskMutationAuthorized, type TaskRequestRuntime } from "./runtime/TaskRequestRuntime"
 import { deepFreezeConfiguration, type TaskWorkingConfiguration } from "./runtime/TaskWorkingConfiguration"
 import { TaskState } from "./TaskState"
-import { AutoApprove } from "./tools/autoApprove"
+import { AutoApprove, type ToolPermissionDisposition } from "./tools/autoApprove"
 import { IDiracContext } from "./tools/interfaces/IDiracContext"
 import { ToolErrorHandler, ToolHookRunner } from "./tools/runtime/ToolHookRunner"
 import { ToolResultPusher } from "./tools/runtime/ToolResultPusher"
@@ -166,6 +173,19 @@ export class ToolExecutor {
 		return approved
 	}
 
+	private async resolveToolPathPermission(
+		blockname: DiracToolSpec["id"],
+		autoApproveActionpath: string | undefined,
+	): Promise<ToolPermissionDisposition> {
+		if (!Object.values(DiracDefaultTool).includes(blockname as DiracDefaultTool)) return "manual_only"
+		const disposition = await this.requestAutoApprover().resolveToolPathPermission(
+			blockname as DiracDefaultTool,
+			autoApproveActionpath,
+		)
+		this.assertMutationAuthorized(blockname)
+		return disposition
+	}
+
 	private requestRuntime(): TaskRequestRuntime {
 		const runtime = this.buildingRequestRuntime ?? this.activeRequestRuntime
 		if (!runtime) throw new Error("Tool execution has no request-bound runtime")
@@ -183,12 +203,59 @@ export class ToolExecutor {
 			"unknown") as string
 	}
 
-	private createUtilityRunner(selection: ModelProviderSelection, options: Parameters<typeof createUtilityModelRunner>[2] = {}) {
-		return createUtilityModelRunner(
-			this.requestRuntime().workingConfiguration.apiConfiguration as ApiConfiguration,
-			selection,
-			{ ...options, ulid: this.ulid },
+	private createUtilityRunner(
+		selection: ModelProviderSelection,
+		options: Parameters<typeof createUtilityModelRunner>[2] = {},
+		apiConfiguration = this.requestRuntime().workingConfiguration.apiConfiguration,
+	) {
+		return createUtilityModelRunner(apiConfiguration as ApiConfiguration, selection, { ...options, ulid: this.ulid })
+	}
+
+	private captureUtilityPermissionUsage({ selection, usage }: UtilityModelUsageEvent): void {
+		this.taskState.utilityPermissionInputTokens += usage.inputTokens
+		this.taskState.utilityPermissionOutputTokens += usage.outputTokens
+		this.taskState.utilityPermissionCacheWriteTokens += usage.cacheWriteTokens ?? 0
+		this.taskState.utilityPermissionCacheReadTokens += usage.cacheReadTokens ?? 0
+		this.taskState.utilityPermissionCost += usage.totalCost ?? 0
+		telemetryService.captureTokenUsage(
+			this.ulid,
+			usage.inputTokens,
+			usage.outputTokens,
+			selection.provider,
+			selection.modelId,
+			{
+				cacheWriteTokens: usage.cacheWriteTokens,
+				cacheReadTokens: usage.cacheReadTokens,
+				totalCost: usage.totalCost,
+			},
 		)
+	}
+
+
+	private createPermissionDecisionBinding(
+		configuration = this.requestRuntime().workingConfiguration,
+	): PermissionDecisionServiceBinding | undefined {
+		const settings = configuration.settings
+		if (!settings.utilityModelUsePermissionHandling) return undefined
+		if (typeof settings.utilityModelPermissionPolicy !== "string" || settings.utilityModelPermissionPolicy.trim() === "") {
+			return undefined
+		}
+
+		const selection = getConfiguredUtilityModelSelection(settings.utilityModelSelection)
+		if (!selection) return undefined
+
+		return {
+			service: new UtilityPermissionDecisionService(
+				this.createUtilityRunner(
+					selection,
+					{ onUsage: (event) => this.captureUtilityPermissionUsage(event) },
+					configuration.apiConfiguration,
+				),
+				settings.utilityModelPermissionPolicy,
+				(error) => Logger.warn("Utility permission decision failed; escalating to the user", error),
+			),
+			configurationRevision: configuration.revision,
+		}
 	}
 
 	private createSubagentRuntime(options: {
@@ -210,7 +277,7 @@ export class ToolExecutor {
 				"unknown") as string
 			const modelId = options.modelId?.trim()
 			if (modelId && providerId !== "unknown") {
-				;(candidate as Record<string, unknown>)[getProviderModelIdKey(providerId as ApiProvider, mode)] = modelId
+				; (candidate as Record<string, unknown>)[getProviderModelIdKey(providerId as ApiProvider, mode)] = modelId
 			}
 			handler = buildApiHandler(candidate, mode)
 		}
@@ -228,6 +295,8 @@ export class ToolExecutor {
 		const runtime = this.requestRuntime()
 		const settings = runtime.workingConfiguration.settings
 		const currentSettings = () => this.getCurrentWorkingConfiguration().settings
+		const currentPermissionDecisionBinding = () =>
+			this.createPermissionDecisionBinding(this.getCurrentWorkingConfiguration())
 		const autoApprover = this.requestAutoApprover()
 		const config: TaskConfig = {
 			taskId: this.taskId,
@@ -269,6 +338,9 @@ export class ToolExecutor {
 			},
 			autoApprover,
 			browserSettings: settings.browserSettings,
+			get permissionDecisionBinding() {
+				return currentPermissionDecisionBinding()
+			},
 			services: {
 				browserSession: this.browserSession,
 				urlContentFetcher: this.urlContentFetcher,
@@ -300,6 +372,7 @@ export class ToolExecutor {
 				},
 				shouldAutoApproveTool: this.shouldAutoApproveTool.bind(this),
 				shouldAutoApproveToolWithPath: this.shouldAutoApproveToolWithPath.bind(this),
+				resolveToolPathPermission: this.resolveToolPathPermission.bind(this),
 				applyLatestBrowserSettings: this.applyLatestBrowserSettings.bind(this),
 				switchToActMode: this.switchToActMode,
 				setActiveHookExecution: this.setActiveHookExecution,

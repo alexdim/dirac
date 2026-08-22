@@ -117,10 +117,7 @@ export class MessageStateHandler extends EventEmitter<MessageStateHandlerEvents>
 	private scheduleUiFlush(): void {
 		const now = performance.now()
 		this.uiFlushDeadline ??= now + UI_MESSAGES_FLUSH_MAX_DELAY_MS
-		const delay = Math.min(
-			UI_MESSAGES_FLUSH_DEBOUNCE_MS,
-			Math.max(0, this.uiFlushDeadline - now),
-		)
+		const delay = Math.min(UI_MESSAGES_FLUSH_DEBOUNCE_MS, Math.max(0, this.uiFlushDeadline - now))
 		if (this.uiFlushTimeout) clearTimeout(this.uiFlushTimeout)
 		this.uiFlushTimeout = setTimeout(() => {
 			this.uiFlushTimeout = undefined
@@ -249,15 +246,15 @@ export class MessageStateHandler extends EventEmitter<MessageStateHandlerEvents>
 			const taskMessage = messages[0]
 			const lastRelevantMessage =
 				messages[
-				findLastIndex(
-					messages,
-					(message) =>
-						!(
-							message.content.type === "card" &&
-							(message.content.card.header.includes("Resume") ||
-								message.content.card.header.includes("Task Resumed"))
-						),
-				)
+					findLastIndex(
+						messages,
+						(message) =>
+							!(
+								message.content.type === "card" &&
+								(message.content.card.header.includes("Resume") ||
+									message.content.card.header.includes("Task Resumed"))
+							),
+					)
 				] || messages[messages.length - 1]
 
 			const lastModelInfo = [...this.apiConversationHistory].reverse().find((msg) => msg.modelInfo !== undefined)
@@ -279,11 +276,17 @@ export class MessageStateHandler extends EventEmitter<MessageStateHandlerEvents>
 				ulid: this.ulid,
 				ts: lastRelevantMessage.ts,
 				task: taskMessage.content.type === "markdown" ? taskMessage.content.content : "",
-				tokensIn: apiMetrics.totalTokensIn,
-				tokensOut: apiMetrics.totalTokensOut,
-				cacheWrites: apiMetrics.totalCacheWrites,
-				cacheReads: apiMetrics.totalCacheReads,
-				totalCost: apiMetrics.totalCost,
+				tokensIn: apiMetrics.totalTokensIn + this.taskState.utilityPermissionInputTokens,
+				tokensOut: apiMetrics.totalTokensOut + this.taskState.utilityPermissionOutputTokens,
+				cacheWrites:
+					this.taskState.utilityPermissionCacheWriteTokens === 0
+						? apiMetrics.totalCacheWrites
+						: (apiMetrics.totalCacheWrites ?? 0) + this.taskState.utilityPermissionCacheWriteTokens,
+				cacheReads:
+					this.taskState.utilityPermissionCacheReadTokens === 0
+						? apiMetrics.totalCacheReads
+						: (apiMetrics.totalCacheReads ?? 0) + this.taskState.utilityPermissionCacheReadTokens,
+				totalCost: apiMetrics.totalCost + this.taskState.utilityPermissionCost,
 				size: taskDirSize,
 				shadowGitConfigWorkTree,
 				cwdOnTaskInitialization: cwd,

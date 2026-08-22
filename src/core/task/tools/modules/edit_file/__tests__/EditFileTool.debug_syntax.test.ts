@@ -75,6 +75,7 @@ function createConfig() {
 		saveCheckpoint: sinon.stub().resolves(),
 		validation: sinon.stub().resolves(true),
 		shouldAutoApproveToolWithPath: sinon.stub().resolves(true),
+		resolveToolPathPermission: sinon.stub().resolves("auto_approve"),
 		removeLastPartialMessageIfExistsWithType: sinon.stub().resolves(),
 	}
 

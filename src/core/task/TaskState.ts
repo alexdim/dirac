@@ -51,7 +51,6 @@ export class TaskState {
 	askResponseFiles?: string[]
 	lastMessageTs?: number
 	waitingCardIds: string[] = []
-
 	get lastWaitingCardId(): string | undefined {
 		return this.waitingCardIds[0]
 	}
@@ -138,9 +137,15 @@ export class TaskState {
 	totalCacheReadTokens = 0
 	totalCost = 0
 
+	// Utility permission usage is tracked separately from primary context-window metrics.
+	utilityPermissionInputTokens = 0
+	utilityPermissionOutputTokens = 0
+	utilityPermissionCacheWriteTokens = 0
+	utilityPermissionCacheReadTokens = 0
+	utilityPermissionCost = 0
+
 	// Persistent task-owned mid-turn guidance. Never reset with stream-local state.
 	steeringMessages: SteeringMessage[] = []
-
 
 	// Pending user content from a chat-message tool skip.
 	// Set when the user sends text or attachments while a tool is awaiting card input.

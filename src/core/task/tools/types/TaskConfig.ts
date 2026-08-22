@@ -3,6 +3,7 @@ import type { ApiStream } from "@core/api/transform/stream"
 import type { FileContextTracker } from "@core/context/context-tracking/FileContextTracker"
 import type { DiracIgnoreController } from "@core/ignore/DiracIgnoreController"
 import type { CommandPermissionController } from "@core/permissions"
+import type { PermissionDecisionServiceBinding } from "@core/permissions/UtilityPermissionDecisionService"
 import type { BuildUtilityModelRunnerOptions, UtilityModelRunner } from "@core/utility-model/UtilityModelRunner"
 import type { DiffViewProvider } from "@integrations/editor/DiffViewProvider"
 import type { CommandExecutionOptions, CommandExecutionResult } from "@integrations/terminal"
@@ -78,6 +79,8 @@ export interface TaskConfig {
 	autoApprovalSettings: AutoApprovalSettings
 	autoApprover: AutoApprove
 	browserSettings: BrowserSettings
+	/** Present only when Utility-model permission handling is fully configured. */
+	permissionDecisionBinding?: PermissionDecisionServiceBinding
 
 	// Callbacks (strongly typed)
 	callbacks: TaskCallbacks
@@ -148,6 +151,10 @@ export interface TaskCallbacks {
 
 	shouldAutoApproveTool: (toolName: DiracDefaultTool) => boolean | [boolean, boolean]
 	shouldAutoApproveToolWithPath: (toolName: DiracToolSpec["id"], path?: string) => Promise<boolean>
+	resolveToolPathPermission: (
+		toolName: DiracToolSpec["id"],
+		path?: string,
+	) => Promise<import("../autoApprove").ToolPermissionDisposition>
 
 	// Additional callbacks for task management
 	postStateToWebview: () => Promise<void>

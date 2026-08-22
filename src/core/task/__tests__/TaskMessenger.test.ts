@@ -107,4 +107,26 @@ describe("TaskMessenger text authorship", () => {
 		await assert.rejects(interaction, ToolSkippedByUserMessage)
 		assert.deepEqual(taskState.waitingCardIds, [])
 	})
+
+	it("resolves a waiting tool permission when live auto-approval is enabled", async () => {
+		const { messenger, taskState } = createMessenger()
+		let autoApprove = false
+		const card = await messenger.createCard({
+			header: "Permission",
+			requireApproval: true,
+			isAutoApproved: () => autoApprove,
+		})
+
+		const interaction = card.waitForInteraction()
+		await pWaitFor(() => taskState.status === TaskStatus.AWAITING_USER_INPUT)
+		autoApprove = true
+
+		const result = await interaction
+		assert.equal(result.response, DiracAskResponse.APPROVE)
+		assert.equal(result.action, DiracAskResponse.APPROVE)
+		assert.equal(result.value, DiracAskResponse.APPROVE)
+		assert.equal(typeof result.askTs, "number")
+		assert.deepEqual(taskState.waitingCardIds, [])
+	})
+
 })

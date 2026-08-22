@@ -96,6 +96,7 @@ function createTaskConfig(): TaskConfig {
 			updateFCListFromToolResponse: sinon.stub().resolves(),
 			shouldAutoApproveTool: sinon.stub().returns([true, true]),
 			shouldAutoApproveToolWithPath: sinon.stub().resolves(false),
+			resolveToolPathPermission: sinon.stub().resolves("utility_eligible"),
 			postStateToWebview: sinon.stub().resolves(),
 			cancelTask: sinon.stub().resolves(),
 			applyLatestBrowserSettings: sinon.stub().resolves(undefined),
@@ -185,6 +186,42 @@ describe("SubagentRunner", () => {
 	afterEach(() => {
 		sinon.restore()
 		HostProvider.reset()
+	})
+
+	it("keeps inherited Utility permission handling live", () => {
+		let enabled = true
+		const permissionDecisionBinding = {
+			service: { decide: sinon.stub() },
+			configurationRevision: 1,
+		}
+		const baseConfig = createTaskConfig()
+		const taskMessenger = { createCard: sinon.stub() }
+			; (baseConfig as any).taskMessenger = taskMessenger
+		Object.defineProperty(baseConfig, "permissionDecisionBinding", {
+			configurable: true,
+			get: () => (enabled ? permissionDecisionBinding : undefined),
+		})
+		const harness = {
+			baseConfig,
+			runtime: {
+				providerId: baseConfig.providerId,
+				model: baseConfig.model,
+				supportsNativeWebSearch: baseConfig.supportsNativeWebSearch,
+			},
+			options: { agentIdentity: undefined },
+			runState: { activeCommandExecutions: 0 },
+			markActivity: sinon.stub(),
+		}
+		const subagentConfig = (SubagentRunner.prototype as any).createSubagentTaskConfig.call(
+			harness,
+			new TaskState(),
+			baseConfig.coordinator,
+		)
+
+		assert.equal(subagentConfig.permissionDecisionBinding, permissionDecisionBinding)
+		assert.equal(subagentConfig.taskMessenger, taskMessenger)
+		enabled = false
+		assert.equal(subagentConfig.permissionDecisionBinding, undefined)
 	})
 
 	it("emits native tool_use blocks with matching tool_result tool_use_id across turns", async () => {

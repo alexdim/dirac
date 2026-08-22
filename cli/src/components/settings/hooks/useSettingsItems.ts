@@ -29,6 +29,7 @@ interface UseSettingsItemsProps {
 	features: Record<FeatureKey, boolean>
 	utilityModelUseCases: UtilityModelUseCases
 	utilityModelSelection?: ModelProviderSelection
+	utilityPermissionPolicy: string
 	lightTerminalTheme: boolean
 	preferredLanguage: string
 	telemetry: TelemetrySetting
@@ -64,6 +65,7 @@ export function useSettingsItems({
 	features,
 	utilityModelUseCases,
 	utilityModelSelection,
+	utilityPermissionPolicy,
 	lightTerminalTheme,
 	preferredLanguage,
 	telemetry,
@@ -109,26 +111,26 @@ export function useSettingsItems({
 					},
 					...(ProviderToBaseUrlKeyMap[provider as ApiProvider]
 						? [
-								{
-									key: "baseUrl",
-									label: "Base URL",
-									type: SettingsItemType.EDITABLE,
-									value:
-										(stateManager.getGlobalSettingsKey(
-											ProviderToBaseUrlKeyMap[provider as ApiProvider]!,
-										) as string) || "",
-								},
-							]
+							{
+								key: "baseUrl",
+								label: "Base URL",
+								type: SettingsItemType.EDITABLE,
+								value:
+									(stateManager.getGlobalSettingsKey(
+										ProviderToBaseUrlKeyMap[provider as ApiProvider]!,
+									) as string) || "",
+							},
+						]
 						: []),
 					...(provider === "openai"
 						? [
-								{
-									key: "openAiHeaders",
-									label: "Custom Headers",
-									type: SettingsItemType.OBJECT,
-									value: openAiHeaders,
-								},
-							]
+							{
+								key: "openAiHeaders",
+								label: "Custom Headers",
+								type: SettingsItemType.OBJECT,
+								value: openAiHeaders,
+							},
+						]
 						: []),
 					{
 						key: "autoCondenseContextLimit",
@@ -139,211 +141,211 @@ export function useSettingsItems({
 					},
 					...(provider === "openai-codex" && openAiCodexIsAuthenticated
 						? [
-								{
-									key: "codexEmail",
-									label: "Authenticated as",
-									type: SettingsItemType.READONLY,
-									value: openAiCodexEmail || "ChatGPT User",
-								},
-								{
-									key: "codexSignOut",
-									label: "Sign Out",
-									type: SettingsItemType.ACTION,
-									value: "",
-								},
-							]
+							{
+								key: "codexEmail",
+								label: "Authenticated as",
+								type: SettingsItemType.READONLY,
+								value: openAiCodexEmail || "ChatGPT User",
+							},
+							{
+								key: "codexSignOut",
+								label: "Sign Out",
+								type: SettingsItemType.ACTION,
+								value: "",
+							},
+						]
 						: []),
 					...(provider === "github-copilot" && githubIsAuthenticated
 						? [
-								{
-									key: "githubEmail",
-									label: "Authenticated as",
-									type: SettingsItemType.READONLY,
-									value: githubEmail || "GitHub User",
-								},
-								{
-									key: "githubSignOut",
-									label: "Sign Out",
-									type: SettingsItemType.ACTION,
-									value: "",
-								},
-							]
+							{
+								key: "githubEmail",
+								label: "Authenticated as",
+								type: SettingsItemType.READONLY,
+								value: githubEmail || "GitHub User",
+							},
+							{
+								key: "githubSignOut",
+								label: "Sign Out",
+								type: SettingsItemType.ACTION,
+								value: "",
+							},
+						]
 						: []),
 					...(provider === "github-copilot" && !githubIsAuthenticated
 						? [
-								{
-									key: "githubSignIn",
-									label: "Sign In to GitHub Copilot",
-									type: SettingsItemType.ACTION,
-									value: "",
-								},
-							]
+							{
+								key: "githubSignIn",
+								label: "Sign In to GitHub Copilot",
+								type: SettingsItemType.ACTION,
+								value: "",
+							},
+						]
 						: []),
 					...(separateModels
 						? [
-								{ key: "spacer0", label: "", type: SettingsItemType.SPACER, value: "" },
-								{ key: "actHeader", label: "Act Mode", type: SettingsItemType.HEADER, value: "" },
-								{
-									key: "actModelId",
-									label: "Model ID",
-									type: SettingsItemType.EDITABLE,
-									value: isActCustom ? "Custom" : actModelId || "not set",
-								},
-								...(isActCustom
-									? [
-											{
-												key: "actCustomModelId",
-												label: "Preset/Model",
-												type: SettingsItemType.EDITABLE,
-												value: actModelId === CUSTOM_MODEL_ID ? "" : actModelId,
-											},
-										]
-									: []),
-								...(isOpenRouter
-									? [
-											{
-												key: "actOpenRouterProviders",
-												label: "Allowed upstream providers",
-												type: SettingsItemType.EDITABLE,
-												value: formatPinnedProviderCount(actPinnedProviderCount),
-											},
-										]
-									: []),
-								...(showActThinkingOption
-									? [
-											{
-												key: "actThinkingEnabled",
-												label: "Enable thinking",
-												type: SettingsItemType.CHECKBOX,
-												value: actThinkingEnabled,
-											},
-										]
-									: []),
-								...(showActReasoningEffort
-									? [
-											{
-												key: "actReasoningEffort",
-												label: "Reasoning effort",
-												type: SettingsItemType.CYCLE,
-												value: actReasoningEffort,
-											},
-										]
-									: []),
-								{ key: "planHeader", label: "Plan Mode", type: SettingsItemType.HEADER, value: "" },
-								{
-									key: "planModelId",
-									label: "Model ID",
-									type: SettingsItemType.EDITABLE,
-									value: isPlanCustom ? "Custom" : planModelId || "not set",
-								},
-								...(isPlanCustom
-									? [
-											{
-												key: "planCustomModelId",
-												label: "Preset/Model",
-												type: SettingsItemType.EDITABLE,
-												value: planModelId === CUSTOM_MODEL_ID ? "" : planModelId,
-											},
-										]
-									: []),
-								...(isOpenRouter
-									? [
-											{
-												key: "planOpenRouterProviders",
-												label:
-													planModelId === actModelId
-														? "Allowed upstream providers (shared with Act)"
-														: "Allowed upstream providers",
-												type: SettingsItemType.EDITABLE,
-												value: formatPinnedProviderCount(planPinnedProviderCount),
-											},
-										]
-									: []),
-								...(showPlanThinkingOption
-									? [
-											{
-												key: "planThinkingEnabled",
-												label: "Enable thinking",
-												type: SettingsItemType.CHECKBOX,
-												value: planThinkingEnabled,
-											},
-										]
-									: []),
-								...(showPlanReasoningEffort
-									? [
-											{
-												key: "planReasoningEffort",
-												label: "Reasoning effort",
-												type: SettingsItemType.CYCLE,
-												value: planReasoningEffort,
-											},
-										]
-									: []),
-								{ key: "spacer1", label: "", type: SettingsItemType.SPACER, value: "" },
-							]
+							{ key: "spacer0", label: "", type: SettingsItemType.SPACER, value: "" },
+							{ key: "actHeader", label: "Act Mode", type: SettingsItemType.HEADER, value: "" },
+							{
+								key: "actModelId",
+								label: "Model ID",
+								type: SettingsItemType.EDITABLE,
+								value: isActCustom ? "Custom" : actModelId || "not set",
+							},
+							...(isActCustom
+								? [
+									{
+										key: "actCustomModelId",
+										label: "Preset/Model",
+										type: SettingsItemType.EDITABLE,
+										value: actModelId === CUSTOM_MODEL_ID ? "" : actModelId,
+									},
+								]
+								: []),
+							...(isOpenRouter
+								? [
+									{
+										key: "actOpenRouterProviders",
+										label: "Allowed upstream providers",
+										type: SettingsItemType.EDITABLE,
+										value: formatPinnedProviderCount(actPinnedProviderCount),
+									},
+								]
+								: []),
+							...(showActThinkingOption
+								? [
+									{
+										key: "actThinkingEnabled",
+										label: "Enable thinking",
+										type: SettingsItemType.CHECKBOX,
+										value: actThinkingEnabled,
+									},
+								]
+								: []),
+							...(showActReasoningEffort
+								? [
+									{
+										key: "actReasoningEffort",
+										label: "Reasoning effort",
+										type: SettingsItemType.CYCLE,
+										value: actReasoningEffort,
+									},
+								]
+								: []),
+							{ key: "planHeader", label: "Plan Mode", type: SettingsItemType.HEADER, value: "" },
+							{
+								key: "planModelId",
+								label: "Model ID",
+								type: SettingsItemType.EDITABLE,
+								value: isPlanCustom ? "Custom" : planModelId || "not set",
+							},
+							...(isPlanCustom
+								? [
+									{
+										key: "planCustomModelId",
+										label: "Preset/Model",
+										type: SettingsItemType.EDITABLE,
+										value: planModelId === CUSTOM_MODEL_ID ? "" : planModelId,
+									},
+								]
+								: []),
+							...(isOpenRouter
+								? [
+									{
+										key: "planOpenRouterProviders",
+										label:
+											planModelId === actModelId
+												? "Allowed upstream providers (shared with Act)"
+												: "Allowed upstream providers",
+										type: SettingsItemType.EDITABLE,
+										value: formatPinnedProviderCount(planPinnedProviderCount),
+									},
+								]
+								: []),
+							...(showPlanThinkingOption
+								? [
+									{
+										key: "planThinkingEnabled",
+										label: "Enable thinking",
+										type: SettingsItemType.CHECKBOX,
+										value: planThinkingEnabled,
+									},
+								]
+								: []),
+							...(showPlanReasoningEffort
+								? [
+									{
+										key: "planReasoningEffort",
+										label: "Reasoning effort",
+										type: SettingsItemType.CYCLE,
+										value: planReasoningEffort,
+									},
+								]
+								: []),
+							{ key: "spacer1", label: "", type: SettingsItemType.SPACER, value: "" },
+						]
 						: [
-								{
-									key: "actModelId",
-									label: "Model ID",
-									type: SettingsItemType.EDITABLE,
-									value: isActCustom ? "Custom" : actModelId || "not set",
-								},
-								...(isActCustom
-									? [
-											{
-												key: "actCustomModelId",
-												label: "Preset/Model",
-												type: SettingsItemType.EDITABLE,
-												value: actModelId === CUSTOM_MODEL_ID ? "" : actModelId,
-											},
-										]
-									: []),
-								...(isOpenRouter
-									? [
-											{
-												key: "actOpenRouterProviders",
-												label: "Allowed upstream providers",
-												type: SettingsItemType.EDITABLE,
-												value: formatPinnedProviderCount(actPinnedProviderCount),
-											},
-										]
-									: []),
-								...(showActThinkingOption
-									? [
-											{
-												key: "actThinkingEnabled",
-												label: "Enable thinking",
-												type: SettingsItemType.CHECKBOX,
-												value: actThinkingEnabled,
-											},
-										]
-									: []),
-								...(showActReasoningEffort
-									? [
-											{
-												key: "actReasoningEffort",
-												label: "Reasoning effort",
-												type: SettingsItemType.CYCLE,
-												value: actReasoningEffort,
-											},
-										]
-									: []),
-							]),
+							{
+								key: "actModelId",
+								label: "Model ID",
+								type: SettingsItemType.EDITABLE,
+								value: isActCustom ? "Custom" : actModelId || "not set",
+							},
+							...(isActCustom
+								? [
+									{
+										key: "actCustomModelId",
+										label: "Preset/Model",
+										type: SettingsItemType.EDITABLE,
+										value: actModelId === CUSTOM_MODEL_ID ? "" : actModelId,
+									},
+								]
+								: []),
+							...(isOpenRouter
+								? [
+									{
+										key: "actOpenRouterProviders",
+										label: "Allowed upstream providers",
+										type: SettingsItemType.EDITABLE,
+										value: formatPinnedProviderCount(actPinnedProviderCount),
+									},
+								]
+								: []),
+							...(showActThinkingOption
+								? [
+									{
+										key: "actThinkingEnabled",
+										label: "Enable thinking",
+										type: SettingsItemType.CHECKBOX,
+										value: actThinkingEnabled,
+									},
+								]
+								: []),
+							...(showActReasoningEffort
+								? [
+									{
+										key: "actReasoningEffort",
+										label: "Reasoning effort",
+										type: SettingsItemType.CYCLE,
+										value: actReasoningEffort,
+									},
+								]
+								: []),
+						]),
 					...(isOpenRouter
 						? [
-								{
-									key: "openRouterProviderSorting",
-									label: "Provider sorting",
-									type: SettingsItemType.CYCLE,
-									value: providerSortingLabel,
-								},
-								{
-									key: "openRouterPreventFallbacks",
-									label: "Prevent fallbacks",
-									type: SettingsItemType.CHECKBOX,
-									value: openRouterPreventFallbacks,
-								},
-							]
+							{
+								key: "openRouterProviderSorting",
+								label: "Provider sorting",
+								type: SettingsItemType.CYCLE,
+								value: providerSortingLabel,
+							},
+							{
+								key: "openRouterPreventFallbacks",
+								label: "Prevent fallbacks",
+								type: SettingsItemType.CHECKBOX,
+								value: openRouterPreventFallbacks,
+							},
+						]
 						: []),
 					{
 						key: "separateModels",
@@ -375,6 +377,20 @@ export function useSettingsItems({
 						description: "Generate Git commit messages in VS Code",
 					},
 					{
+						key: "utilityModelUsePermissionHandling",
+						label: "Handle permission requests",
+						type: SettingsItemType.CHECKBOX,
+						value: utilityModelUseCases.permissionHandling,
+						description: "Use a policy to approve tool permission requests or escalate them to the user",
+					},
+					{
+						key: "utilityModelPermissionPolicy",
+						label: "Permission policy",
+						type: SettingsItemType.EDITABLE,
+						value: utilityPermissionPolicy,
+						description: "Confident approvals bypass prompts; all other decisions use the normal user permission flow",
+					},
+					{
 						key: "utilityModelSelection",
 						label: "Selection",
 						type: SettingsItemType.ACTION,
@@ -382,19 +398,19 @@ export function useSettingsItems({
 					},
 					...(hasEnabledUtilityUseCase && !utilityModelSelection
 						? [
-								{
-									key: "utilityModelConfigurationWarning",
-									label: "",
-									type: SettingsItemType.READONLY,
-									value: "Configuration required: select a saved provider/model.",
-								},
-							]
+							{
+								key: "utilityModelConfigurationWarning",
+								label: "",
+								type: SettingsItemType.READONLY,
+								value: "Configuration required: select a saved provider/model.",
+							},
+						]
 						: []),
 					{
 						key: "utilityModelDisclosure",
 						label: "",
 						type: SettingsItemType.READONLY,
-						value: "Conversation source text may be sent to this provider, which can differ from the active task provider.",
+						value: "Conversation source text, Git diffs, permission policies, and complete permission-request details may be sent to this provider, which can differ from the active task provider.",
 					},
 				]
 			}
@@ -558,6 +574,7 @@ export function useSettingsItems({
 		features,
 		utilityModelUseCases,
 		utilityModelSelection,
+		utilityPermissionPolicy,
 		lightTerminalTheme,
 		preferredLanguage,
 		telemetry,

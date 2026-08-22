@@ -120,9 +120,13 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 		condense: stateManager.getGlobalSettingsKey("utilityModelUseCondense"),
 		newTask: stateManager.getGlobalSettingsKey("utilityModelUseNewTask"),
 		generateCommitMessage: stateManager.getGlobalSettingsKey("utilityModelUseGenerateCommitMessage"),
+		permissionHandling: stateManager.getGlobalSettingsKey("utilityModelUsePermissionHandling"),
 	}))
 	const [utilityModelSelection, setUtilityModelSelection] = useState<ModelProviderSelection | undefined>(() =>
 		stateManager.getGlobalSettingsKey("utilityModelSelection"),
+	)
+	const [utilityPermissionPolicy, setUtilityPermissionPolicy] = useState<string>(() =>
+		stateManager.getGlobalSettingsKey("utilityModelPermissionPolicy"),
 	)
 	const [modelProviderPresets] = useState<ModelProviderPreset[]>(
 		() => stateManager.getGlobalSettingsKey("modelProviderPresets") ?? [],
@@ -254,6 +258,7 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 		features,
 		utilityModelUseCases,
 		utilityModelSelection,
+		utilityPermissionPolicy,
 		lightTerminalTheme,
 		preferredLanguage,
 		telemetry,
@@ -317,6 +322,7 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 		features,
 		utilityModelUseCases,
 		setUtilityModelUseCases,
+		setUtilityPermissionPolicy,
 		setFeatures,
 		setLightTerminalTheme,
 		preferredLanguage,

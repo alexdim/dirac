@@ -52,6 +52,7 @@ export interface UtilityModelUseCases {
 	condense: boolean
 	newTask: boolean
 	generateCommitMessage: boolean
+	permissionHandling: boolean
 }
 
 const GLOBAL_STATE_FIELDS = {
@@ -220,6 +221,8 @@ const USER_SETTINGS_FIELDS = {
 	utilityModelUseCondense: { default: true as boolean },
 	utilityModelUseNewTask: { default: true as boolean },
 	utilityModelUseGenerateCommitMessage: { default: true as boolean },
+	utilityModelUsePermissionHandling: { default: false as boolean },
+	utilityModelPermissionPolicy: { default: "" as string },
 	utilityModelSelection: { default: undefined as ModelProviderSelection | undefined },
 	autoApprovalSettings: {
 		default: DEFAULT_AUTO_APPROVAL_SETTINGS as AutoApprovalSettings,

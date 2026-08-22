@@ -6,6 +6,7 @@ import { DiracIcon } from "@/shared/icons"
 import { DiracDefaultTool, DiracToolSpec } from "@/shared/tools"
 import { IDiracTool } from "../../interfaces/IDiracTool"
 import { IToolEnvironment } from "../../interfaces/IToolEnvironment"
+import type { ToolPermissionDisposition } from "../../autoApprove"
 import { SurfaceType } from "../../interfaces/SurfaceType"
 import { captureAccepted, captureRejected, getModelInfo } from "../../utils/AiOutputTelemetry"
 import { applyModelContentFixes } from "../../utils/ModelContentProcessor"
@@ -49,7 +50,12 @@ export abstract class BaseWriteFileTool implements IDiracTool<WriteFileArgs> {
 			}
 
 			// 4. Handle approval and save
-			const shouldAutoApprove = await env.config.callbacks.shouldAutoApproveToolWithPath(toolId, relPath)
+			const utilityPermissionHandlingEnabled = env.config.permissionDecisionBinding !== undefined
+			const permissionDisposition = utilityPermissionHandlingEnabled
+				? await env.config.callbacks.resolveToolPathPermission(toolId, relPath)
+				: (await env.config.callbacks.shouldAutoApproveToolWithPath(toolId, relPath))
+					? "auto_approve"
+					: "manual_only"
 			const saveResult = await this.awaitApprovalThenWriteFile(
 				env,
 				absolutePath,
@@ -57,14 +63,22 @@ export abstract class BaseWriteFileTool implements IDiracTool<WriteFileArgs> {
 				content,
 				fileExists,
 				originalContent,
-				shouldAutoApprove,
+				permissionDisposition,
+				utilityPermissionHandlingEnabled,
 				card,
 			)
 
 			if (typeof saveResult === "string") return saveResult // Denied with feedback or error
 
 			// 5. Finalize results
-			return await this.finalizeResults(env, absolutePath, relPath, fileExists, saveResult, shouldAutoApprove)
+			return await this.finalizeResults(
+				env,
+				absolutePath,
+				relPath,
+				fileExists,
+				saveResult,
+				permissionDisposition === "auto_approve",
+			)
 		} catch (error) {
 			return await this.finalizeCardWithError(error, env, card)
 		}
@@ -143,14 +157,15 @@ export abstract class BaseWriteFileTool implements IDiracTool<WriteFileArgs> {
 		content: string,
 		fileExists: boolean,
 		originalContent: string,
-		shouldAutoApprove: boolean,
+		permissionDisposition: ToolPermissionDisposition,
+		utilityPermissionHandlingEnabled: boolean,
 		card?: any,
 	): Promise<any | string> {
 		const toolId = this.spec().id
 		const { modelId, providerId } = getModelInfo(env.config)
 		let saveResult: any
 
-		if (shouldAutoApprove) {
+		if (permissionDisposition === "auto_approve") {
 			if (card) {
 				await card.update({
 					status: CardStatus.RUNNING,
@@ -193,6 +208,12 @@ export abstract class BaseWriteFileTool implements IDiracTool<WriteFileArgs> {
 
 			const permissionMessage = `Dirac wants to ${fileExists ? "edit" : "create"} ${displayPath}`
 			const result = await env.interaction.askPermission(permissionMessage, {
+				...(utilityPermissionHandlingEnabled
+					? {
+						utilityEligible: permissionDisposition === "utility_eligible",
+						manualOnly: permissionDisposition === "manual_only",
+					}
+					: {}),
 				diffs: [{ path: displayPath, oldText: originalContent, newText: content }],
 				rawInput: { path: displayPath, content },
 			})

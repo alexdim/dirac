@@ -17,4 +17,29 @@ describe("low-verbosity settings", () => {
 			lowVerbosityEnabled: false,
 		})
 	})
+
+	it("maps Utility permission enable, disable, and policy clearing exactly", () => {
+		expect(
+			buildWebviewSettingsPatch(
+				UpdateSettingsRequest.create({
+					utilityModelUsePermissionHandling: true,
+					utilityModelPermissionPolicy: "Allow repository edits.",
+				}),
+			),
+		).to.include({
+			utilityModelUsePermissionHandling: true,
+			utilityModelPermissionPolicy: "Allow repository edits.",
+		})
+		expect(
+			buildWebviewSettingsPatch(
+				UpdateSettingsRequest.create({
+					utilityModelUsePermissionHandling: false,
+					utilityModelPermissionPolicy: "",
+				}),
+			),
+		).to.include({
+			utilityModelUsePermissionHandling: false,
+			utilityModelPermissionPolicy: "",
+		})
+	})
 })

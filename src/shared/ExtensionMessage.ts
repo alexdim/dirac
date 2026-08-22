@@ -72,6 +72,8 @@ export interface ExtensionState {
 	utilityModelUseCondense: boolean
 	utilityModelUseNewTask: boolean
 	utilityModelUseGenerateCommitMessage: boolean
+	utilityModelUsePermissionHandling: boolean
+	utilityModelPermissionPolicy: string
 	autoApprovalSettings: AutoApprovalSettings
 	userApprovedCommands: UserApprovedCommand[]
 	browserSettings: BrowserSettings

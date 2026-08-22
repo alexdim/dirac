@@ -48,6 +48,8 @@ interface SettingsState {
 	utilityModelUseCondense: boolean
 	utilityModelUseNewTask: boolean
 	utilityModelUseGenerateCommitMessage: boolean
+	utilityModelUsePermissionHandling: boolean
+	utilityModelPermissionPolicy: string
 	navigateToAccount: () => void
 	setShowWelcome: (show: boolean) => void
 	availableTerminalProfiles: any[]
@@ -103,6 +105,8 @@ interface SettingsState {
 	strictPlanModeEnabled: boolean
 	yoloModeToggled: boolean
 	autoApproveAllToggled: boolean
+	pendingAutoApproveAllToggled?: boolean
+	autoApproveAllUpdateError?: string
 	customPrompt?: string
 	useAutoCondense: boolean
 	autoCondenseContextLimits: Record<string, number>
@@ -164,6 +168,8 @@ interface SettingsState {
 
 	// Actions
 	setSettings: (settings: Partial<SettingsState>) => void
+	beginAutoApproveAllUpdate: (value: boolean) => void
+	finishAutoApproveAllUpdate: (value: boolean, error?: string) => void
 	setDiracMessages: (messages: DiracMessage[]) => void
 	setTaskHistory: (history: any[]) => void
 	setExpandTaskHeader: (expand: boolean) => void
@@ -211,6 +217,8 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
 	strictPlanModeEnabled: false,
 	yoloModeToggled: false,
 	autoApproveAllToggled: false,
+	pendingAutoApproveAllToggled: undefined,
+	autoApproveAllUpdateError: undefined,
 	customPrompt: undefined,
 	useAutoCondense: false,
 	autoCondenseContextLimits: {},
@@ -264,6 +272,8 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
 	utilityModelUseCondense: true,
 	utilityModelUseNewTask: true,
 	utilityModelUseGenerateCommitMessage: true,
+	utilityModelUsePermissionHandling: false,
+	utilityModelPermissionPolicy: "",
 	navigateToAccount: () => { },
 	setShowWelcome: () => { },
 	availableTerminalProfiles: [],
@@ -522,9 +532,26 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
 			console.error("Failed to refresh Requesty models:", error)
 		}
 	},
+	beginAutoApproveAllUpdate: (value) =>
+		set({
+			autoApproveAllToggled: value,
+			pendingAutoApproveAllToggled: value,
+			autoApproveAllUpdateError: undefined,
+		}),
+	finishAutoApproveAllUpdate: (value, error) =>
+		set({
+			autoApproveAllToggled: value,
+			pendingAutoApproveAllToggled: undefined,
+			autoApproveAllUpdateError: error,
+		}),
+
 	setSettings: (settings) =>
 		set((state) => {
 			const pendingApiConfigurationUpdates = settings.pendingApiConfigurationUpdates ?? state.pendingApiConfigurationUpdates
+			const autoApproveAllToggled =
+				state.pendingAutoApproveAllToggled === undefined
+					? (settings.autoApproveAllToggled ?? state.autoApproveAllToggled)
+					: state.autoApproveAllToggled
 			const didSignOutFromOpenAiCodex = settings.openAiCodexIsAuthenticated === false
 			const openAiCodexAccountChanged =
 				settings.openAiCodexEmail !== undefined &&
@@ -546,6 +573,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
 					}
 					: {}),
 				pendingApiConfigurationUpdates,
+				autoApproveAllToggled,
 				apiConfiguration:
 					settings.apiConfiguration !== undefined
 						? { ...settings.apiConfiguration, ...pendingApiConfigurationUpdates }

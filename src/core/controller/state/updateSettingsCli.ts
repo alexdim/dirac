@@ -55,6 +55,8 @@ function buildCliSettingsPersistencePatch(
 		utilityModelUseCondense,
 		utilityModelUseNewTask,
 		utilityModelUseGenerateCommitMessage,
+		utilityModelUsePermissionHandling,
+		utilityModelPermissionPolicy,
 		...simpleSettings
 	} = settings
 	const globalSettings = filterSimpleSettingsBatch(simpleSettings)
@@ -85,6 +87,12 @@ function buildCliSettingsPersistencePatch(
 	if (utilityModelUseNewTask !== undefined) globalSettings.utilityModelUseNewTask = utilityModelUseNewTask
 	if (utilityModelUseGenerateCommitMessage !== undefined) {
 		globalSettings.utilityModelUseGenerateCommitMessage = utilityModelUseGenerateCommitMessage
+	}
+	if (utilityModelUsePermissionHandling !== undefined) {
+		globalSettings.utilityModelUsePermissionHandling = utilityModelUsePermissionHandling
+	}
+	if (utilityModelPermissionPolicy !== undefined) {
+		globalSettings.utilityModelPermissionPolicy = utilityModelPermissionPolicy
 	}
 	if (telemetrySetting) globalSettings.telemetrySetting = telemetrySetting as TelemetrySetting
 	if (yoloModeToggled !== undefined) globalSettings.yoloModeToggled = yoloModeToggled
@@ -217,6 +225,8 @@ function buildActiveTaskPatch(
 			utilityModelUseCondense,
 			utilityModelUseNewTask,
 			utilityModelUseGenerateCommitMessage,
+			utilityModelUsePermissionHandling,
+			utilityModelPermissionPolicy,
 			...simpleSettings
 		} = settings
 
@@ -262,6 +272,9 @@ function buildActiveTaskPatch(
 		if (utilityModelUseNewTask !== undefined) settingsPatch.utilityModelUseNewTask = utilityModelUseNewTask
 		if (utilityModelUseGenerateCommitMessage !== undefined)
 			settingsPatch.utilityModelUseGenerateCommitMessage = utilityModelUseGenerateCommitMessage
+		if (utilityModelUsePermissionHandling !== undefined)
+			settingsPatch.utilityModelUsePermissionHandling = utilityModelUsePermissionHandling
+		if (utilityModelPermissionPolicy !== undefined) settingsPatch.utilityModelPermissionPolicy = utilityModelPermissionPolicy
 	}
 
 	return { settings: settingsPatch, apiConfiguration }

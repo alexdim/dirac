@@ -134,6 +134,38 @@ describe("ToolExecutor request-runtime authorization", () => {
 		assert.equal(autoApprover.isUnrestrictedAutoApprove(), false)
 	})
 
+	it("builds permission handling from the supplied current configuration", () => {
+		const enabled = createTaskWorkingConfiguration({
+			revision: 2,
+			settings: {
+				mode: "act",
+				utilityModelUsePermissionHandling: true,
+				utilityModelPermissionPolicy: "Allow repository edits.",
+				utilityModelSelection: { provider: "openai", modelId: "utility-model" },
+			} as any,
+			apiConfiguration: {} as any,
+			workspaceConfiguration: {} as any,
+			executionOptions: {
+				terminalReuseEnabled: true,
+				vscodeTerminalExecutionMode: "backgroundExec",
+				multiRootEnabled: false,
+			},
+		})
+		const disabled = {
+			...enabled,
+			revision: 3,
+			settings: { ...enabled.settings, utilityModelUsePermissionHandling: false },
+		}
+		const harness = { createUtilityRunner: sinon.stub().returns({ run: sinon.stub() }) }
+		const createBinding = (ToolExecutor.prototype as any).createPermissionDecisionBinding
+
+		const binding = createBinding.call(harness, enabled)
+		assert.ok(binding)
+		assert.equal(binding.configurationRevision, enabled.revision)
+		assert.equal(typeof harness.createUtilityRunner.firstCall.args[1].onUsage, "function")
+		assert.equal(createBinding.call(harness, disabled), undefined)
+	})
+
 	it("keeps concurrent calls bound to the same request runtime", async () => {
 		const { harness, runtime, bufferPartialToolUse } = executionHarness("act", "act")
 		const seenRequestIds: string[] = []

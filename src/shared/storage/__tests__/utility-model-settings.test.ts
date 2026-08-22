@@ -16,6 +16,8 @@ describe("Utility model settings", () => {
 		expect(getDefaultValue("utilityModelUseCondense")).to.equal(true)
 		expect(getDefaultValue("utilityModelUseNewTask")).to.equal(true)
 		expect(getDefaultValue("utilityModelUseGenerateCommitMessage")).to.equal(true)
+		expect(getDefaultValue("utilityModelUsePermissionHandling")).to.equal(false)
+		expect(getDefaultValue("utilityModelPermissionPolicy")).to.equal("")
 		expect(getDefaultValue("utilityModelSelection")).to.be.undefined
 	})
 
@@ -36,6 +38,8 @@ describe("Utility model settings", () => {
 				utilityModelUseCondense: true,
 				utilityModelUseNewTask: false,
 				utilityModelUseGenerateCommitMessage: true,
+				utilityModelUsePermissionHandling: false,
+				utilityModelPermissionPolicy: "Allow edits in this repository.",
 				utilityModelSelection: {
 					...selection,
 					provider: ProtoApiProvider.OPENAI,
@@ -48,6 +52,8 @@ describe("Utility model settings", () => {
 		expect(decoded.utilityModelUseCondense).to.equal(true)
 		expect(decoded.utilityModelUseNewTask).to.equal(false)
 		expect(decoded.utilityModelUseGenerateCommitMessage).to.equal(true)
+		expect(decoded.utilityModelUsePermissionHandling).to.equal(false)
+		expect(decoded.utilityModelPermissionPolicy).to.equal("Allow edits in this repository.")
 		expect(decoded.utilityModelSelection?.provider).to.equal(ProtoApiProvider.OPENAI)
 		expect(decoded.utilityModelSelection?.modelId).to.equal(selection.modelId)
 		expect(decoded.utilityModelSelection?.modelInfo?.contextWindow).to.equal(selection.modelInfo?.contextWindow)

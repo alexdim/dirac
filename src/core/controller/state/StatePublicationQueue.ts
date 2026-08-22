@@ -37,6 +37,9 @@ export class StatePublicationQueue<TState> {
 			while (this.publishedGeneration < this.requestedGeneration) {
 				const targetGeneration = this.requestedGeneration
 				const state = await this.readState()
+				// State assembly is asynchronous. A newer request means this snapshot may
+				// contain settings sampled before that request and must not reach the UI.
+				if (targetGeneration !== this.requestedGeneration) continue
 				const sequenceNumber = ++this.sequenceNumber
 				await this.publishState(state, sequenceNumber)
 				this.publishedGeneration = targetGeneration

@@ -274,7 +274,8 @@ export class TaskMessenger implements ITaskMessenger {
 								return !!(
 									response !== undefined ||
 									this.dependencies.taskState.lastMessageTs !== messageTs ||
-									this.dependencies.taskState.abort
+									this.dependencies.taskState.abort ||
+									params.isAutoApproved?.()
 								)
 							},
 							{ interval: 100 },
@@ -288,10 +289,15 @@ export class TaskMessenger implements ITaskMessenger {
 							throw new Error("Current card interaction promise was ignored")
 						}
 
+						const autoApproved =
+							this.dependencies.taskState.askResponse === undefined && params.isAutoApproved?.() === true
+						const response = autoApproved ? DiracAskResponse.APPROVE : this.dependencies.taskState.askResponse!
 						const result = {
-							response: this.dependencies.taskState.askResponse!,
-							action: this.dependencies.taskState.askResponseAction || this.dependencies.taskState.askResponse!,
-							value: this.dependencies.taskState.askResponseValue,
+							response,
+							action: autoApproved
+								? DiracAskResponse.APPROVE
+								: this.dependencies.taskState.askResponseAction || response,
+							value: autoApproved ? DiracAskResponse.APPROVE : this.dependencies.taskState.askResponseValue,
 
 							text: this.dependencies.taskState.askResponseText,
 							images: this.dependencies.taskState.askResponseImages,

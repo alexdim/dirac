@@ -560,6 +560,8 @@ describe("updateSettings", () => {
 			const request = UpdateSettingsRequestCli.create({
 				settings: {
 					utilityModelEnabled: true,
+					utilityModelUsePermissionHandling: true,
+					utilityModelPermissionPolicy: "Never allow network calls.",
 					utilityModelSelection: {
 						provider: ApiProvider.OPENAI,
 						modelId: "gpt-5-mini",
@@ -574,6 +576,8 @@ describe("updateSettings", () => {
 
 			const batch = controller.stateManager.setGlobalStateBatch.firstCall.args[0]
 			expect(batch.utilityModelEnabled).to.equal(true)
+			expect(batch.utilityModelUsePermissionHandling).to.equal(true)
+			expect(batch.utilityModelPermissionPolicy).to.equal("Never allow network calls.")
 			expect(batch.utilityModelSelection).to.deep.include({
 				provider: "openai",
 				modelId: "gpt-5-mini",

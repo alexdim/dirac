@@ -96,6 +96,13 @@ export interface CardParams {
 	diffs?: import("../../../../shared/ExtensionMessage").CardDiff[]
 	locations?: CardLocation[]
 	requireApproval?: boolean
+	/**
+	 * Classifies tool permissions for the shared approval pipeline.
+	 * Utility may approve `tool`; `manual_tool` requires the user unless an explicit unrestricted mode is active.
+	 */
+	permissionRequestKind?: "tool" | "manual_tool"
+	/** Internal live predicate used to resolve a displayed tool permission after settings change. */
+	isAutoApproved?: () => boolean
 	requireFeedback?: boolean
 	feedbackPlaceholder?: string
 	actions?: ActionButton[]
@@ -153,6 +160,8 @@ export interface IInteractionTrait {
 }
 
 export interface PermissionPreview {
+	utilityEligible?: boolean
+	manualOnly?: boolean
 	diffs?: import("../../../../shared/ExtensionMessage").CardDiff[]
 	rawInput?: import("../../../../shared/ExtensionMessage").CardRawInput
 }

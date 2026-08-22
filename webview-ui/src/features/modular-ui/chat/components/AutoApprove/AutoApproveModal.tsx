@@ -23,12 +23,38 @@ interface AutoApproveModalProps {
 }
 
 const AutoApproveModal: React.FC<AutoApproveModalProps> = ({ isVisible, setIsVisible, buttonRef, ACTION_METADATA }) => {
-	const { autoApprovalSettings, autoApproveAllToggled, remoteConfigSettings, yoloModeToggled } = useSettingsStore()
+	const {
+		autoApprovalSettings,
+		autoApproveAllToggled,
+		autoApproveAllUpdateError,
+		beginAutoApproveAllUpdate,
+		finishAutoApproveAllUpdate,
+		pendingAutoApproveAllToggled,
+		remoteConfigSettings,
+		yoloModeToggled,
+	} = useSettingsStore()
 	const { isChecked, updateAction } = useAutoApproveActions()
 	const modalRef = useRef<HTMLDivElement>(null)
+	const autoApproveAllMutationInProgress = useRef(false)
 	const itemsContainerRef = useRef<HTMLDivElement>(null)
 	const [containerWidth, setContainerWidth] = useState(0)
 	const isYoloRemoteLocked = remoteConfigSettings?.yoloModeToggled !== undefined
+
+	const updateAutoApproveAll = async (checked: boolean) => {
+		if (autoApproveAllMutationInProgress.current || pendingAutoApproveAllToggled !== undefined) return
+		autoApproveAllMutationInProgress.current = true
+		const previousValue = autoApproveAllToggled
+		beginAutoApproveAllUpdate(checked)
+		try {
+			await StateServiceClient.updateSettings({ metadata: {}, autoApproveAllToggled: checked })
+			finishAutoApproveAllUpdate(checked)
+		} catch (error) {
+			const message = error instanceof Error ? error.message : "Failed to update Approve All"
+			finishAutoApproveAllUpdate(previousValue, message)
+		} finally {
+			autoApproveAllMutationInProgress.current = false
+		}
+	}
 
 	useClickAway(modalRef, (e) => {
 		// Skip if click was on the button that toggles the modal
@@ -141,15 +167,15 @@ const AutoApproveModal: React.FC<AutoApproveModalProps> = ({ isVisible, setIsVis
 				<div className="flex items-center gap-2 mb-1">
 					<VSCodeCheckbox
 						checked={autoApproveAllToggled}
-						disabled={yoloModeToggled}
-						onChange={async (e) => {
-							const checked = getCheckboxChecked(e)
-							await StateServiceClient.updateSettings({ metadata: {}, autoApproveAllToggled: checked })
+						disabled={yoloModeToggled || pendingAutoApproveAllToggled !== undefined}
+						onChange={(e) => {
+							void updateAutoApproveAll(getCheckboxChecked(e))
 						}}
 						title="Auto-approve all, including unsafe commands">
 						<span className="text-sm">Approve All</span>
 					</VSCodeCheckbox>
 				</div>
+				{autoApproveAllUpdateError && <div className="mb-1 text-error text-xs">{autoApproveAllUpdateError}</div>}
 
 				<div className="flex items-center gap-2">
 					<VSCodeCheckbox
