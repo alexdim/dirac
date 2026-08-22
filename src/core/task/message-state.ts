@@ -76,6 +76,7 @@ export class MessageStateHandler extends EventEmitter<MessageStateHandlerEvents>
 	// operations try to modify message state simultaneously
 	// This follows the same pattern as Task.stateMutex for consistency
 	private stateMutex = new Mutex()
+	private persistenceMutex = new Mutex()
 
 	// Dirty flags for deferred writes.
 	private diracMessagesDirty = false
@@ -142,29 +143,37 @@ export class MessageStateHandler extends EventEmitter<MessageStateHandlerEvents>
 		this.uiFlushDeadline = undefined
 	}
 
-	/**
-	 * Flush dirty state to disk. Must be called with stateLock held.
-	 */
-	private async flushDirty(): Promise<void> {
-		if (this.diracMessagesDirty) {
-			await saveDiracMessages(this.taskId, this.diracMessages)
+	/** Captures dirty state under the state lock, then persists it without blocking message mutations. */
+	private async persistDirtySnapshot(): Promise<void> {
+		const snapshot = await this.withStateLock(() => {
+			const diracMessages = this.diracMessagesDirty ? structuredClone(this.diracMessages) : undefined
+			const apiConversationHistory = this.apiHistoryDirty ? structuredClone(this.apiConversationHistory) : undefined
 			this.diracMessagesDirty = false
-		}
-		if (this.apiHistoryDirty) {
-			await saveApiConversationHistory(this.taskId, this.apiConversationHistory)
 			this.apiHistoryDirty = false
+			return { diracMessages, apiConversationHistory }
+		})
+
+		try {
+			if (snapshot.diracMessages) await saveDiracMessages(this.taskId, snapshot.diracMessages)
+			if (snapshot.apiConversationHistory) {
+				await saveApiConversationHistory(this.taskId, snapshot.apiConversationHistory)
+			}
+		} catch (error) {
+			await this.withStateLock(() => {
+				if (snapshot.diracMessages) this.diracMessagesDirty = true
+				if (snapshot.apiConversationHistory) this.apiHistoryDirty = true
+			})
+			throw error
 		}
 	}
 
 	/**
-	 * Flush any pending dirty writes to disk with proper locking.
+	 * Flush any pending dirty writes to disk without holding the message-state lock during I/O.
 	 * Safe to call at any time — no-op if nothing is dirty.
 	 */
 	async flushPendingWrites(): Promise<void> {
 		this.cancelScheduledUiFlush()
-		await this.withStateLock(async () => {
-			await this.flushDirty()
-		})
+		await this.persistenceMutex.withLock(() => this.persistDirtySnapshot())
 	}
 
 	/**
@@ -246,15 +255,15 @@ export class MessageStateHandler extends EventEmitter<MessageStateHandlerEvents>
 			const taskMessage = messages[0]
 			const lastRelevantMessage =
 				messages[
-					findLastIndex(
-						messages,
-						(message) =>
-							!(
-								message.content.type === "card" &&
-								(message.content.card.header.includes("Resume") ||
-									message.content.card.header.includes("Task Resumed"))
-							),
-					)
+				findLastIndex(
+					messages,
+					(message) =>
+						!(
+							message.content.type === "card" &&
+							(message.content.card.header.includes("Resume") ||
+								message.content.card.header.includes("Task Resumed"))
+						),
+				)
 				] || messages[messages.length - 1]
 
 			const lastModelInfo = [...this.apiConversationHistory].reverse().find((msg) => msg.modelInfo !== undefined)

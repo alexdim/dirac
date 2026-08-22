@@ -7,6 +7,7 @@ import fs from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
 import { DiracDefaultTool } from "@shared/tools"
+import { CardStatus } from "@shared/ExtensionMessage"
 import { DiracAskResponse } from "@shared/WebviewMessage"
 import { AnchorStateManager } from "@utils/AnchorStateManager"
 import { ANCHOR_DELIMITER } from "@utils/line-hashing"
@@ -24,7 +25,7 @@ import { EditFileTool } from "../EditFileTool"
 
 class EditFileToolHandler {
 	private tool = new EditFileTool()
-	constructor(_validator: any, _forceSyntaxChecker: boolean) { }
+	constructor(_validator: any, _forceSyntaxChecker: boolean) {}
 	async execute(config: TaskConfig, params: any) {
 		const env = new SurfaceAdapter(config)
 		return this.tool.processCall(params, env)
@@ -83,6 +84,7 @@ function createConfig(opts: { isSubagent?: boolean; diracIgnore?: any } = {}) {
 		shouldAutoApproveTool: sinon.stub().returns([true, true]),
 		applyLatestBrowserSettings: sinon.stub().resolves(undefined),
 	}
+	const taskMessenger = createMockTaskMessenger()
 
 	const config = {
 		taskId: "task-1",
@@ -118,11 +120,11 @@ function createConfig(opts: { isSubagent?: boolean; diracIgnore?: any } = {}) {
 		callbacks,
 		coordinator: { getHandler: sinon.stub() },
 		context: createMockContext(),
-		taskMessenger: createMockTaskMessenger(),
+		taskMessenger,
 	} as unknown as TaskConfig
 
 	const validator = new ToolValidator({ validateAccess: () => true } as any)
-	return { config, callbacks, taskState, validator, diffViewProvider }
+	return { config, callbacks, taskState, validator, diffViewProvider, taskMessenger }
 }
 
 function makeBlock(files: any[]) {
@@ -165,7 +167,7 @@ describe("EditFileTool – characterization edge cases", () => {
 	afterEach(async () => {
 		sandbox.restore()
 		HostProvider.reset()
-		await fs.rm(tmpDir, { recursive: true, force: true }).catch(() => { })
+		await fs.rm(tmpDir, { recursive: true, force: true }).catch(() => {})
 	})
 
 	describe("parameter validation edge cases", () => {
@@ -464,6 +466,33 @@ describe("EditFileTool – characterization edge cases", () => {
 			assert.ok(typeof result === "string", `result should be string, got: ${result}`)
 			assert.ok(result.includes("Applied"), `Should mention Applied. Result: ${result}`)
 			assert.ok(result.includes("new a2") || result.includes("new b2"), `Should include edited content. Result: ${result}`)
+		})
+
+		it("finalizes every progress card when a batch save fails", async () => {
+			const { config, taskState, validator, diffViewProvider, taskMessenger } = createConfig({ isSubagent: false })
+			const handler = new EditFileToolHandler(validator, false)
+			const files = ["failed-a.txt", "failed-b.txt"]
+			const blocks = []
+			for (const [index, file] of files.entries()) {
+				const filePath = path.join(tmpDir, file)
+				const content = `line ${index}\noriginal`
+				await fs.writeFile(filePath, content)
+				const anchors = makeAnchors(filePath, content, config.ulid)
+				blocks.push({
+					path: file,
+					edits: [{ edit_type: "replace", anchor: anchors[1], end_anchor: anchors[1], text: "changed" }],
+				})
+			}
+			const block = makeBlock(blocks)
+			taskState.assistantMessageContent = [block]
+				; (diffViewProvider.applyAndSaveBatchSilently as sinon.SinonStub).rejects(new Error("batch save failed"))
+
+			await assert.rejects(handler.execute(config, block.params), /batch save failed/)
+
+			assert.equal(taskMessenger.createCard.callCount, 2)
+			const protocolCard = await taskMessenger.createCard.firstCall.returnValue
+			assert.equal(protocolCard.finalize.callCount, 2)
+			sinon.assert.alwaysCalledWith(protocolCard.finalize, CardStatus.ERROR)
 		})
 
 		it("continues processing other files when one is diracignored", async () => {

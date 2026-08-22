@@ -75,6 +75,7 @@ export class EditFileApplier {
 						},
 					],
 				})
+				await card.finalize(CardStatus.SUCCESS)
 			}),
 		)
 

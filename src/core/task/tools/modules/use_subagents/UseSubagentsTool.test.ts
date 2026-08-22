@@ -164,7 +164,7 @@ describe("UseSubagentsTool", () => {
 
 		assert.ok(agentCard)
 		assert.equal(agentCard.params.header, `${agentCard.params.rawInput.agentName}: Tracking tool progress`)
-		assert.equal(agentCard.updates.length, 3)
+		assert.equal(agentCard.updates.length, 2)
 		assert.equal(finalUpdate.status, CardStatus.SUCCESS)
 		assert.equal(finalUpdate.rawOutput.status, SubagentExecutionStatus.COMPLETED)
 		assert.match(finalUpdate.body, /second_tool/)

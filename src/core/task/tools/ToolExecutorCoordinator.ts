@@ -112,6 +112,7 @@ export class ToolExecutorCoordinator {
 
 		let executionSuccess = false
 		let response!: ToolResponse
+		let executionError: Error | undefined
 
 		const initialMistakeCount = config.taskState.consecutiveMistakeCount
 		const unfinalizedCards: { id: string; status: CardStatus }[] = []
@@ -157,6 +158,7 @@ export class ToolExecutorCoordinator {
 				env.telemetry.captureCustomMetadata({ skippedByUser: true, userMessageLength: error.userMessage.length })
 				response = `[Tool '${block.name}' skipped by user with message: "${error.userMessage}"]`
 			} else {
+				executionError = error instanceof Error ? error : new Error(String(error))
 				config.taskState.consecutiveMistakeCount = initialMistakeCount + 1
 				response = `Execution failed: ${error.message || error}`
 			}
@@ -203,7 +205,7 @@ export class ToolExecutorCoordinator {
 		// Assert tools finalized their own cards — no defensive finalization
 		if (unfinalizedCards.length > 0) {
 			throw new Error(
-				`Tool '${block.name}' did not finalize card(s): ${unfinalizedCards.map((c) => `${c.id} (${c.status})`).join(", ")}`,
+				`Tool '${block.name}' did not finalize card(s): ${unfinalizedCards.map((c) => `${c.id} (${c.status})`).join(", ")}${executionError ? `. Original execution error: ${executionError.message}` : ""}`,
 			)
 		}
 		return response

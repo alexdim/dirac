@@ -28,7 +28,7 @@ export class TaskMessenger implements ITaskMessenger {
 	private activeVoiceStream?: ITextStreamHandle
 	private lastMessageId = 0
 
-	constructor(private dependencies: TaskMessengerDependencies) { }
+	constructor(private dependencies: TaskMessengerDependencies) {}
 
 	public setApi(api: ApiHandler) {
 		this.dependencies.api = api
@@ -125,6 +125,12 @@ export class TaskMessenger implements ITaskMessenger {
 		return handle
 	}
 
+	private scheduleStatePublication(): void {
+		void this.dependencies.postStateToWebview().catch((error) => {
+			Logger.error("Failed to publish card state:", error)
+		})
+	}
+
 	async createCard(params: CardParams): Promise<ICardHandle> {
 		if (this.activeVoiceStream) {
 			await this.activeVoiceStream.close()
@@ -171,7 +177,7 @@ export class TaskMessenger implements ITaskMessenger {
 		}
 
 		await this.dependencies.messageStateHandler.addToDiracMessages(message)
-		await this.dependencies.postStateToWebview()
+		this.scheduleStatePublication()
 
 		const handle: ICardHandle = {
 			id,
@@ -185,7 +191,7 @@ export class TaskMessenger implements ITaskMessenger {
 					msg.content.card = { ...msg.content.card, ...patch }
 					// Cards are never partial in the new architecture
 					await this.dependencies.messageStateHandler.updateDiracMessage(index, msg)
-					await this.dependencies.postStateToWebview()
+					this.scheduleStatePublication()
 				} else {
 					throw new Error(`Message with id ${id} is not a card message`)
 				}
@@ -199,7 +205,7 @@ export class TaskMessenger implements ITaskMessenger {
 				if (msg.content.type === DiracMessageType.CARD) {
 					msg.content.card.body = (msg.content.card.body || "") + chunk
 					await this.dependencies.messageStateHandler.updateDiracMessage(index, msg)
-					await this.dependencies.postStateToWebview()
+					this.scheduleStatePublication()
 				} else {
 					throw new Error(`Message with id ${id} is not a card message`)
 				}
@@ -220,8 +226,8 @@ export class TaskMessenger implements ITaskMessenger {
 						msg.content.card.do_not_auto_collapse = true
 					}
 					await this.dependencies.messageStateHandler.updateDiracMessage(index, msg)
+					this.scheduleStatePublication()
 					await this.dependencies.messageStateHandler.flushPendingWrites()
-					await this.dependencies.postStateToWebview()
 				} else {
 					throw new Error(`Message with id ${id} is not a card message`)
 				}

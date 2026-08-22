@@ -15,11 +15,10 @@ export class EditFileBatchPreparer {
 	constructor(
 		private executor: EditExecutor,
 		private fileFormatter: EditFileFormatter,
-	) { }
+	) {}
 
-	async prepare(files: FileEdit[], env: IToolEnvironment) {
+	async prepare(files: FileEdit[], env: IToolEnvironment, cards: Record<string, any> = {}) {
 		const preparedBatches: PreparedFileBatch[] = []
-		const cards: Record<string, any> = {}
 		const results: ToolResponse[] = []
 		const totalRequestedEdits = files.reduce((count, file) => count + file.edits.length, 0)
 		let totalResolvedEdits = 0

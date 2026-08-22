@@ -7,7 +7,7 @@ import { DiracAskResponse } from "@shared/WebviewMessage"
 import { ToolSkippedByUserMessage } from "../tools/types/ToolSkippedByUserMessage"
 import { TaskMessenger } from "../TaskMessenger"
 
-function createMessenger() {
+function createMessenger(postStateToWebview = sinon.stub().resolves()) {
 	const messages: any[] = []
 	const messageStateHandler = {
 		addToDiracMessages: sinon.stub().callsFake(async (message) => {
@@ -22,12 +22,12 @@ function createMessenger() {
 	const messenger = new TaskMessenger({
 		taskState,
 		messageStateHandler,
-		postStateToWebview: sinon.stub().resolves(),
+		postStateToWebview,
 		getWorkingConfiguration: () => ({ settings: { hooksEnabled: false }, apiConfiguration: {} }) as any,
 		taskId: "task-1",
 		getCurrentProviderInfo: sinon.stub(),
 	} as any)
-	return { messenger, messages, taskState, messageStateHandler }
+	return { messenger, messages, taskState, messageStateHandler, postStateToWebview }
 }
 
 describe("TaskMessenger text authorship", () => {
@@ -71,6 +71,20 @@ describe("TaskMessenger text authorship", () => {
 		assert.equal(messages[0].content.card.status, CardStatus.CANCELLED)
 		assert.equal(messages[0].content.card.collapsed, true)
 		sinon.assert.calledOnce(messageStateHandler.flushPendingWrites)
+	})
+
+	it("does not block card lifecycle operations on state delivery", async () => {
+		const postStateToWebview = sinon.stub().returns(new Promise<void>(() => {}))
+		const { messenger, messages, messageStateHandler } = createMessenger(postStateToWebview)
+
+		const card = await messenger.createCard({ header: "Long-running publication" })
+		await card.update({ body: "updated" })
+		await card.finalize(CardStatus.SUCCESS)
+
+		assert.equal(messages[0].content.card.body, "updated")
+		assert.equal(messages[0].content.card.status, CardStatus.SUCCESS)
+		sinon.assert.calledOnce(messageStateHandler.flushPendingWrites)
+		assert.equal(postStateToWebview.callCount, 3)
 	})
 
 	it("accepts a chat message while awaiting card input and clears the wait", async () => {
