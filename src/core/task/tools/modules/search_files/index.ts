@@ -97,7 +97,10 @@ export class SearchFilesTool implements IDiracTool<SearchFilesArgs, string> {
 			)
 			return `Error: Missing required parameter: regex`
 		}
-		const contextLines = typeof context_lines === "string" ? Number.parseInt(context_lines, 10) : context_lines
+		let contextLines = typeof context_lines === "string" ? Number.parseInt(context_lines, 10) : context_lines
+		if (contextLines !== undefined && (!Number.isInteger(contextLines) || contextLines < 0 || contextLines > 10)) {
+			contextLines = Math.max(0, Math.min(10, Math.trunc(contextLines ?? 0)))
+		}
 		const headerPath = paths.length === 1 ? paths[0] : `${paths[0]} (+${paths.length - 1} more)`
 		const isSubagent = env.config.isSubagentExecution
 		const card = !isSubagent
