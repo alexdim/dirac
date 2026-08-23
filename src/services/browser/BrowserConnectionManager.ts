@@ -353,7 +353,11 @@ export class BrowserConnectionManager {
 
 	// --- disconnect ---
 
-	async closeBrowser(): Promise<BrowserActionResult> {
+	async closeBrowser(expectedUlid?: string): Promise<BrowserActionResult> {
+		// Ownership guard: reject close if caller's ULID doesn't match the session owner
+		if (this.ulid && expectedUlid && this.ulid !== expectedUlid) {
+			throw new Error(`Cannot close browser session owned by ${this.ulid}; caller is ${expectedUlid}`)
+		}
 		if (this.browser || this.page) {
 			// Emit end telemetry for the session
 			if (this.ulid && this.sessionStartTime > 0) {
