@@ -324,6 +324,8 @@ export interface IOrchestrationTrait {
 			allowedTools?: string[]
 			systemSuffix?: string
 			onUpdate?: (update: SubagentProgressUpdate) => void | Promise<void>
+			/** Abort signal to cancel the subagent run (e.g., parent task cancellation). */
+			signal?: AbortSignal
 		},
 	): Promise<SubagentRunResult>
 

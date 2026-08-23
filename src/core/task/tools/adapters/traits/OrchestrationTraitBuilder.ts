@@ -47,6 +47,23 @@ export function buildOrchestrationTrait(config: TaskConfig): IOrchestrationTrait
 				agentIdentity,
 				recorder,
 			})
+
+			// Wire external abort signal to the runner for immediate cancellation
+			const signal = options?.signal
+			if (signal) {
+				if (signal.aborted) {
+					await runner.abort("Aborted by external signal")
+				} else {
+					signal.addEventListener(
+					"abort",
+					() => {
+						void runner.abort(signal.reason ? `Aborted: ${String(signal.reason)}` : "Aborted by external signal")
+					},
+					{ once: true },
+				)
+				}
+			}
+
 			return await runner.run(prompt, options?.onUpdate || (() => {}), options?.timeout, options?.includeHistory)
 		},
 		runHook: async (name, input, options) => {
