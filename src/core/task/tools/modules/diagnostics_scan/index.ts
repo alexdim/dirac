@@ -81,6 +81,8 @@ export class DiagnosticsScanTool implements IDiracTool<DiagnosticsScanArgs, stri
 			const validFiles = fileInfos.filter((f) => !f.error)
 
 			if (validFiles.length === 0) {
+				const currentMistakeCount = env.orchestration.getTaskState("consecutiveMistakeCount")
+				env.orchestration.setTaskState("consecutiveMistakeCount", currentMistakeCount + 1)
 				const result = errorResults.join("\n---\n")
 				if (card) {
 					await card.update({ status: CardStatus.ERROR, body: result })
