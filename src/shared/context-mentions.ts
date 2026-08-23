@@ -55,7 +55,7 @@ export const mentionRegex = new RegExp(
 		`|[\\w-]+:"\\/[^"]*?"` + // Workspace-prefixed quoted file paths
 		`|/[^\\s]*?` + // Simple file paths (can't contain)
 		`|"\\/[^"]*?"` + // Quoted file paths which can contain spaces
-		`|(?:\\w+:\\/\\/)[^\\s]+?` + // URLs
+		`|(?:https?:\\/\\/)[^\\s]+?` + // URLs (https/http only)
 		`|[a-f0-9]{7,40}\\b` + // Git commit hashes
 		`|problems\\b` + // Exact word 'problems'
 		`|terminal\\b` + // Exact word 'terminal'
