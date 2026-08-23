@@ -179,6 +179,25 @@ function getRuntimeOtelConfig(): OpenTelemetryClientConfig {
 	}
 }
 
+/**
+ * Validates that an OTLP endpoint uses a trusted scheme.
+ * Only https: is allowed for remote endpoints; http: is permitted for localhost (dev).
+ */
+function isTrustedOtlpEndpoint(endpoint: string | undefined): boolean {
+	if (!endpoint) return true // No endpoint set - nothing to validate
+	try {
+		const url = new URL(endpoint)
+		if (url.protocol === "https:") return true
+		if (url.protocol === "http:") {
+			// Allow http only for localhost (local development)
+			return url.hostname === "localhost" || url.hostname === "127.0.0.1" || url.hostname === "::1"
+		}
+		return false
+	} catch {
+		return false
+	}
+}
+
 export function isOpenTelemetryConfigValid(config: OpenTelemetryClientConfig): config is OpenTelemetryClientValidConfig {
 	// Disable in test environment to enable mocking and stubbing
 	if (isTestEnv) {
@@ -190,7 +209,14 @@ export function isOpenTelemetryConfigValid(config: OpenTelemetryClientConfig): c
 	}
 
 	const hasOneExporterConfigured = !!(config.metricsExporter || config.logsExporter)
-	return hasOneExporterConfigured
+	if (!hasOneExporterConfigured) return false
+
+	// Validate OTLP endpoints use trusted schemes (https: or http://localhost)
+	if (!isTrustedOtlpEndpoint(config.otlpEndpoint)) return false
+	if (!isTrustedOtlpEndpoint(config.otlpMetricsEndpoint)) return false
+	if (!isTrustedOtlpEndpoint(config.otlpLogsEndpoint)) return false
+
+	return true
 }
 
 /**
