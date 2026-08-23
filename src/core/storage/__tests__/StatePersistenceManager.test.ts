@@ -82,7 +82,7 @@ describe("StatePersistenceManager", () => {
 		;(StateManager as any).instance = undefined
 
 		const reinitialized = await StateManager.initialize(storage)
-		reinitialized.getSecretKey("apiKey").should.equal("secret-before-dispose")
+		reinitialized.getSecretKey("apiKey")!.should.equal("secret-before-dispose")
 	})
 })
 
