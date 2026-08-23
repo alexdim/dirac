@@ -259,6 +259,7 @@ function validateToolDefinitions(tools: unknown): string | undefined {
 	}
 
 	const errors: string[] = []
+	const seenNames = new Map<string, number>() // name -> first index
 	for (let index = 0; index < tools.length; index++) {
 		const tool = tools[index]
 		const prefix = `tools[${index}]`
@@ -266,7 +267,17 @@ function validateToolDefinitions(tools: unknown): string | undefined {
 			errors.push(`${prefix}: tool definition must be an object`)
 			continue
 		}
-		if (!tool.name || typeof tool.name !== "string") errors.push(`${prefix}: Missing required field: name`)
+		if (!tool.name || typeof tool.name !== "string") {
+			errors.push(`${prefix}: Missing required field: name`)
+		} else {
+			// Reject duplicate names within the same call — they would race on finalDir
+			const firstIndex = seenNames.get(tool.name)
+			if (firstIndex !== undefined) {
+				errors.push(`${prefix}: duplicate name '${tool.name}' (already used at tools[${firstIndex}])`)
+			} else {
+				seenNames.set(tool.name, index)
+			}
+		}
 		if (!tool.scope || !["global", "workspace", "task"].includes(tool.scope)) errors.push(`${prefix}: scope must be 'global', 'workspace', or 'task'`)
 		if (!tool.description || typeof tool.description !== "string") errors.push(`${prefix}: Missing required field: description`)
 		if (!tool.requirements || typeof tool.requirements !== "string") errors.push(`${prefix}: Missing required field: requirements`)
