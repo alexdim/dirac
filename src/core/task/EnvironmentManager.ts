@@ -114,8 +114,10 @@ export class EnvironmentManager {
 			const gitIgnoredNames = await this.getGitIgnoredNames()
 			const ignoredDirs = new Set([...ALWAYS_IGNORED_DIRS, ...gitIgnoredNames])
 
+			const MAX_WALK_FILES = 5000
 			const fileStats: { relativePath: string; mtime: Date }[] = []
 			for await (const absPath of this.walkCodeFiles(this.cwd, ignoredDirs)) {
+				if (fileStats.length >= MAX_WALK_FILES) break
 				try {
 					const stat = await fs.stat(absPath)
 					fileStats.push({
