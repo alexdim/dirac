@@ -9,6 +9,24 @@ import { diracTelemetryConfig } from "@/shared/services/config/dirac-telemetry-c
 import type { ITelemetryProvider, TelemetryProperties, TelemetrySettings } from "./ITelemetryProvider"
 import { jsonHeaders } from "@shared/net"
 
+const TELEMETRY_SECRET_PATTERNS = [/(Bearer\s+)[^\s"']+/gi, /\bsk-[A-Za-z0-9_-]{16,}\b/g]
+const MAX_TELEMETRY_STRING_LENGTH = 2000
+
+function scrubTelemetryProperties(value: unknown): unknown {
+	if (typeof value === "string") {
+		let result = TELEMETRY_SECRET_PATTERNS.reduce((redacted, pattern) => redacted.replace(pattern, "$1[REDACTED]"), value)
+		if (result.length > MAX_TELEMETRY_STRING_LENGTH) {
+			result = result.slice(0, MAX_TELEMETRY_STRING_LENGTH) + "…[truncated]"
+		}
+		return result
+	}
+	if (Array.isArray(value)) return value.map(scrubTelemetryProperties)
+	if (value && typeof value === "object") {
+		return Object.fromEntries(Object.entries(value).map(([k, v]) => [k, scrubTelemetryProperties(v)]))
+	}
+	return value
+}
+
 /**
  * Dirac implementation of the telemetry provider interface
  * Handles Dirac-specific analytics tracking
@@ -87,6 +105,7 @@ export class DiracTelemetryProvider implements ITelemetryProvider {
 		}
 
 		try {
+			const scrubbed = properties ? (scrubTelemetryProperties(properties) as TelemetryProperties) : undefined
 			await fetch(diracTelemetryConfig.host, {
 				method: "POST",
 				headers: {
@@ -96,7 +115,7 @@ export class DiracTelemetryProvider implements ITelemetryProvider {
 				body: JSON.stringify({
 					distinctId: getDistinctId(),
 					event,
-					properties,
+					properties: scrubbed,
 					timestamp: new Date().toISOString(),
 				}),
 			})
