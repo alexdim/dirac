@@ -249,8 +249,12 @@ Otherwise, respond with "VERIFICATION: FAILED" followed by all the details on wh
 		if (runResult.status !== SubagentExecutionStatus.COMPLETED) {
 			return `Verification Subagent Failed:\n${runResult.error}\n\nPlease verify the task manually or try again.`
 		}
-		if (runResult.result?.includes("VERIFICATION: SUCCESS")) return undefined
-		return `Verification Subagent Report:\n${runResult.result}\n\nThe solution could not be verified successfully. Please address the issues listed above and try again.`
+		// Check for explicit success marker; a failure response may mention "SUCCESS" in passing
+		const verifierOutput = runResult.result ?? ""
+		const hasSuccess = /VERIFICATION:\s*SUCCESS/.test(verifierOutput)
+		const hasFailure = /VERIFICATION:\s*FAILED/.test(verifierOutput)
+		if (hasSuccess && !hasFailure) return undefined
+		return `Verification Subagent Report:\n${verifierOutput}\n\nThe solution could not be verified successfully. Please address the issues listed above and try again.`
 	}
 
 	private async handleCompletionResult(env: IToolEnvironment, result: string): Promise<void> {
