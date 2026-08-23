@@ -21,6 +21,19 @@ import * as util from "util"
 import { Logger } from "@/shared/services/Logger"
 import { openExternal, writeTextToClipboard } from "@/utils/env"
 
+const execFileAsync = util.promisify(cp.execFile)
+
+const ALLOWED_URL_SCHEMES = ["https:", "http:"]
+
+function isValidHttpUrl(url: string): boolean {
+	try {
+		const parsed = new URL(url)
+		return ALLOWED_URL_SCHEMES.includes(parsed.protocol)
+	} catch {
+		return false
+	}
+}
+
 /**
  * Creates a properly encoded GitHub issue URL.
  *
@@ -79,6 +92,10 @@ export function createGitHubIssueUrl(baseUrl: string, params: Map<string, string
  * @returns A promise that resolves when an attempt to open the URL has completed
  */
 export async function openUrlInBrowser(url: string): Promise<void> {
+	if (!isValidHttpUrl(url)) {
+		throw new Error(`Blocked URL with disallowed scheme: ${url}`)
+	}
+
 	// For debugging
 	Logger.log(`Opening URL: ${url}`)
 
@@ -95,21 +112,18 @@ export async function openUrlInBrowser(url: string): Promise<void> {
 		const platform = os.platform()
 		Logger.log(`Detected platform: ${platform}`)
 
-		// Use promisify for better async error handling
-		const execPromise = util.promisify(cp.exec)
-
-		// Use platform-specific commands
+		// Use platform-specific commands via execFile (no shell, URL is a single argv entry)
 		if (platform === "win32") {
 			// Windows - try multiple approaches
 			try {
-				await execPromise(`start "" "${url}"`)
+				await execFileAsync("cmd.exe", ["/c", "start", "", url])
 				Logger.log("Opened URL with Windows 'start' command")
 				return
 			} catch (winError) {
 				Logger.error(`Error with Windows 'start' command: ${winError}`)
 
 				try {
-					await execPromise(`powershell.exe -Command "Start-Process '${url}'"`)
+					await execFileAsync("powershell.exe", ["-NoProfile", "-Command", "Start-Process", url])
 					Logger.log("Opened URL with PowerShell command")
 					return
 				} catch (psError) {
@@ -119,7 +133,7 @@ export async function openUrlInBrowser(url: string): Promise<void> {
 			}
 		} else if (platform === "darwin") {
 			// macOS
-			await execPromise(`open "${url}"`)
+			await execFileAsync("open", [url])
 			Logger.log("Opened URL with macOS 'open' command")
 			return
 		} else {
@@ -128,7 +142,7 @@ export async function openUrlInBrowser(url: string): Promise<void> {
 
 			for (const cmd of linuxCommands) {
 				try {
-					await execPromise(`${cmd} "${url}"`)
+					await execFileAsync(cmd, [url])
 					Logger.log(`Opened URL with '${cmd}' command`)
 					return
 				} catch (cmdError) {
