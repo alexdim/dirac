@@ -191,17 +191,26 @@ async function prepareTool(
 }
 
 async function resolveToolDirectory(name: string, scope: ToolScope, env: IToolEnvironment): Promise<string> {
+	let dir: string
 	if (scope === "task") {
 		if (!env.config.taskId) {
 			throw new Error("no taskId for task-scoped tool")
 		}
-		return resolveTaskToolDir(name, env.config.taskId)
+		dir = await resolveTaskToolDir(name, env.config.taskId)
+	} else {
+		const home = process.env.DIRAC_DIR || path.join(process.env.HOME || "~", ".dirac")
+		dir = scope === "global"
+			? path.join(home, "tools", name)
+			: path.join(env.config.cwd, ".dirac", "tools", name)
 	}
 
-	const home = process.env.DIRAC_DIR || path.join(process.env.HOME || "~", ".dirac")
-	return scope === "global"
-		? path.join(home, "tools", name)
-		: path.join(env.config.cwd, ".dirac", "tools", name)
+	// Validate the resolved path structure: must be <base>/tools/<name>
+	const resolved = path.resolve(dir)
+	const parentDir = path.dirname(resolved)
+	if (path.basename(parentDir) !== "tools") {
+		throw new Error(`Resolved tool directory '${resolved}' does not follow expected <base>/tools/<name> structure`)
+	}
+	return dir
 }
 
 async function promoteAndActivateTool(
