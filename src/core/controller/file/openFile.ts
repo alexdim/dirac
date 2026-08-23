@@ -1,3 +1,5 @@
+import { readRemoteConfigFromCache } from "@core/storage/disk"
+import { StateManager } from "@core/storage/StateManager"
 import { openFile as openFileIntegration } from "@integrations/misc/open-file"
 import { Empty, StringRequest } from "@shared/proto/dirac/common"
 import { REMOTE_URI_SCHEME } from "@shared/remote-config/constants"
@@ -39,13 +41,23 @@ async function openRemoteFile(uri: string): Promise<void> {
 	}
 
 	const [, type, name] = match
-	const item = undefined as any
+
+	// Look up the item from cached remote config
+	const stateManager = StateManager.get()
+	const organizationId = stateManager.getSecretKey("dirac:diracAccountId")
+	if (!organizationId) {
+		throw new Error(`Not signed in to a Dirac organization; cannot open remote ${type}: ${name}`)
+	}
+
+	const config = await readRemoteConfigFromCache(organizationId)
+	const items = type === "rule" ? config?.globalRules : config?.globalWorkflows
+	const item = items?.find((r) => r.name === name)
 
 	if (!item?.contents) {
 		throw new Error(`Remote ${type} not found: ${name}`)
 	}
 
-	// Create temp file with read-only header comment
+	// Create temp file with read-only header comment (only after validation)
 	const typeLabel = type === "rule" ? "rule" : "workflow"
 	const header = `# ⚠️ READ-ONLY: This ${typeLabel} is managed by your organization.\n# Changes made here will not be saved.\n\n`
 	const content = header + item.contents
