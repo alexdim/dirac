@@ -17,6 +17,9 @@ pnpm-lock.yaml
 .actrc
 CLAUDE.local.md
 
+# Private review notes and non-public docs
+private/
+
 webview-ui/src/**/*.js
 webview-ui/src/**/*.js.map
 
