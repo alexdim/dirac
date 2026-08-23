@@ -22,6 +22,13 @@ export async function refreshOpenAiModels(_controller: Controller, request: Open
 			return StringArray.create({ values: [] })
 		}
 
+		// Only allow https: to prevent key exfiltration via file://, http://, data:, etc.
+		const parsedUrl = new URL(request.baseUrl)
+		if (parsedUrl.protocol !== "https:") {
+			Logger.warn(`[refreshOpenAiModels] rejected non-https baseUrl: ${parsedUrl.protocol}`)
+			return StringArray.create({ values: [] })
+		}
+
 		const config: AxiosRequestConfig = {}
 		if (request.apiKey) {
 			config["headers"] = { Authorization: `Bearer ${request.apiKey}` }
