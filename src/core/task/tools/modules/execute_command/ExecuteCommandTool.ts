@@ -1,6 +1,9 @@
 import { formatResponse } from "@core/formatResponse"
 import { DiracAskResponse } from "@shared/WebviewMessage"
 import { DiracIcon } from "@/shared/icons"
+import * as fs from "fs/promises"
+import * as os from "os"
+import * as path from "path"
 import { truncateHeadTail } from "../../../../../shared/content-limits"
 import { CardStatus } from "../../../../../shared/ExtensionMessage"
 import { DiracDefaultTool, DiracToolSpec } from "../../../../../shared/tools"
@@ -15,6 +18,18 @@ import { shortenCommandForDisplay } from "./path-display"
 
 const MAX_PATH_LENGTH = 255
 const MAX_COMMAND_OUTPUT_SIZE = 10 * 1024
+
+/** Allowed script interpreters — no fallthrough to arbitrary commands */
+const ALLOWED_INTERPRETERS: Record<string, { binary: string; extension: string }> = {
+	bash: { binary: "bash", extension: "sh" },
+	sh: { binary: "sh", extension: "sh" },
+	python: { binary: "python3", extension: "py" },
+	python3: { binary: "python3", extension: "py" },
+	node: { binary: "node", extension: "js" },
+	javascript: { binary: "node", extension: "js" },
+	ruby: { binary: "ruby", extension: "rb" },
+	perl: { binary: "perl", extension: "pl" },
+}
 
 export const execute_command_spec: DiracToolSpec = {
 	id: DiracDefaultTool.BASH,
@@ -64,7 +79,7 @@ export class ExecuteCommandTool implements IDiracTool {
 	}
 
 	public async processCall(args: any, env: IToolEnvironment): Promise<any> {
-		const commands = this.normalizeCommands(args)
+		const commands = await this.normalizeCommands(args)
 		if (commands.length === 0) {
 			throw new Error("Missing required parameter: 'commands' or 'script' must be provided and non-empty.")
 		}
@@ -316,7 +331,7 @@ export class ExecuteCommandTool implements IDiracTool {
 		}
 	}
 
-	private normalizeCommands(args: any): { command: string; displayName: string; language?: string }[] {
+	private async normalizeCommands(args: any): Promise<{ command: string; displayName: string; language?: string }[]> {
 		const commands: { command: string; displayName: string; language?: string }[] = []
 		if (Array.isArray(args.commands)) {
 			args.commands.forEach((cmd: any) => {
@@ -331,8 +346,9 @@ export class ExecuteCommandTool implements IDiracTool {
 		if (args.script) {
 			const language = args.language || "bash"
 			const langDisplay = language.charAt(0).toUpperCase() + language.slice(1)
+			const command = await this.wrapScript(args.script, language)
 			commands.push({
-				command: this.wrapScript(args.script, language),
+				command,
 				displayName: `${langDisplay} script`,
 				language: language,
 			})
@@ -345,25 +361,20 @@ export class ExecuteCommandTool implements IDiracTool {
 		return commandMatch ? commandMatch[2].trim() : cmd
 	}
 
-	private wrapScript(script: string, language: string): string {
-		const delimiter = `EOF_DIRAC_SCRIPT_${Math.random().toString(36).substring(2, 10).toUpperCase()}`
+	private async wrapScript(script: string, language: string): Promise<string> {
 		const normalizedLanguage = language.toLowerCase().trim()
-
-		let interpreter = "bash"
-		if (normalizedLanguage === "python" || normalizedLanguage === "python3") {
-			interpreter = "python3"
-		} else if (normalizedLanguage === "node" || normalizedLanguage === "javascript") {
-			interpreter = "node"
-		} else if (normalizedLanguage === "sh") {
-			interpreter = "sh"
-		} else if (normalizedLanguage === "ruby") {
-			interpreter = "ruby"
-		} else if (normalizedLanguage === "perl") {
-			interpreter = "perl"
-		} else {
-			interpreter = normalizedLanguage
+		const entry = ALLOWED_INTERPRETERS[normalizedLanguage]
+		if (!entry) {
+			throw new Error(
+				`Unsupported script language '${language}'. Allowed: ${Object.keys(ALLOWED_INTERPRETERS).join(", ")}`,
+			)
 		}
 
-		return `${interpreter} << '${delimiter}'\n${script}\n${delimiter}`
+		// Write script to a temp file so its content never enters the shell command string
+		const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "dirac-script-"))
+		const scriptPath = path.join(tmpDir, `script.${entry.extension}`)
+		await fs.writeFile(scriptPath, script, "utf-8")
+
+		return `${entry.binary} ${JSON.stringify(scriptPath)}`
 	}
 }
