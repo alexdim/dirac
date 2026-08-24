@@ -256,7 +256,7 @@ async function resolveToolDirectory(name: string, scope: ToolScope, env: IToolEn
 		}
 		dir = await resolveTaskToolDir(name, env.config.taskId)
 	} else {
-		const home = process.env.DIRAC_DIR || path.join(process.env.HOME || "~", ".dirac")
+		const home = process.env.DIRAC_DIR || path.join(os.homedir(), ".dirac")
 		dir = scope === "global"
 			? path.join(home, "tools", name)
 			: path.join(env.config.cwd, ".dirac", "tools", name)
@@ -265,7 +265,7 @@ async function resolveToolDirectory(name: string, scope: ToolScope, env: IToolEn
 	// Validate the resolved path structure: must be <base>/tools/<name>
 	const resolved = path.resolve(dir)
 	const parentDir = path.dirname(resolved)
-	if (path.basename(parentDir) !== "tools") {
+	if (path.basename(parentDir) !== "tools" || path.basename(resolved) !== name) {
 		throw new Error(`Resolved tool directory '${resolved}' does not follow expected <base>/tools/<name> structure`)
 	}
 	return dir
