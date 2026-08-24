@@ -1,6 +1,7 @@
 import { CardStatus } from "@shared/ExtensionMessage"
 import { allocateSubagentIdentity, type SubagentIdentity } from "@shared/subagents"
 import * as fs from "fs/promises"
+import * as os from "os"
 import * as path from "path"
 import { getErrorMessage } from "@/shared/errors"
 import { Logger } from "@/shared/services/Logger"
