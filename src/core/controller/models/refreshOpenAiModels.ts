@@ -22,9 +22,12 @@ export async function refreshOpenAiModels(_controller: Controller, request: Open
 			return StringArray.create({ values: [] })
 		}
 
-		// Only allow https: to prevent key exfiltration via file://, http://, data:, etc.
+		// Only allow https: (plus http: on loopback for local OpenAI-compatible servers)
+		// to prevent key exfiltration via file://, http://, data:, etc.
 		const parsedUrl = new URL(request.baseUrl)
-		if (parsedUrl.protocol !== "https:") {
+		const isHttps = parsedUrl.protocol === "https:"
+		const isLoopbackHttp = parsedUrl.protocol === "http:" && ["localhost", "127.0.0.1", "::1"].includes(parsedUrl.hostname)
+		if (!isHttps && !isLoopbackHttp) {
 			Logger.warn(`[refreshOpenAiModels] rejected non-https baseUrl: ${parsedUrl.protocol}`)
 			return StringArray.create({ values: [] })
 		}
