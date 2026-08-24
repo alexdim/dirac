@@ -1,15 +1,22 @@
+import { jsonHeaders } from "@shared/net"
 import { StateManager } from "@/core/storage/StateManager"
 import { HostProvider } from "@/hosts/host-provider"
 import { getErrorLevelFromString } from "@/services/error"
 import { getDistinctId } from "@/services/logging/distinctId"
 import { fetch } from "@/shared/net"
 import { Setting } from "@/shared/proto/index.host"
-import { Logger } from "@/shared/services/Logger"
 import { diracTelemetryConfig } from "@/shared/services/config/dirac-telemetry-config"
+import { Logger } from "@/shared/services/Logger"
 import type { ITelemetryProvider, TelemetryProperties, TelemetrySettings } from "./ITelemetryProvider"
-import { jsonHeaders } from "@shared/net"
 
-const TELEMETRY_SECRET_PATTERNS = [/(Bearer\s+)[^\s"']+/gi, /\bsk-[A-Za-z0-9_-]{16,}\b/g]
+const TELEMETRY_SECRET_PATTERNS = [
+	/(Bearer\s+)[^\s"']+/gi,
+	/\bsk-[A-Za-z0-9_-]{16,}\b/g, // OpenAI-style keys (sk-..., sk-ant-...)
+	/\bghp_[A-Za-z0-9]{20,}\b/g, // GitHub PATs
+	/\bxox[baprs]-[A-Za-z0-9-]{10,}\b/g, // Slack tokens
+	/\bAKIA[0-9A-Z]{16}\b/g, // AWS access key IDs
+	/(?:api[_-]?key|token|secret|password)\s*[=:]\s*["']?[^\s"']+/gi, // key=value pairs
+]
 const MAX_TELEMETRY_STRING_LENGTH = 2000
 
 function scrubTelemetryProperties(value: unknown): unknown {
