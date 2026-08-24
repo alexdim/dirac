@@ -115,7 +115,8 @@ export class EnvironmentManager {
 			const gitIgnoredNames = await this.getGitIgnoredNames()
 			const ignoredDirs = new Set([...ALWAYS_IGNORED_DIRS, ...gitIgnoredNames])
 
-			// Cap the walk itself (not just the collection) so huge repos don't pay the full readdir cost
+			// Cap the walk itself (not just the collection) so huge repos don't pay the full readdir cost.
+			// The budget is consumed only by files that survive the stat, so vanished files don't waste it.
 			const remainingFiles = { value: MAX_WALK_FILES }
 			const fileStats: { relativePath: string; mtime: Date }[] = []
 			for await (const absPath of this.walkCodeFiles(this.cwd, ignoredDirs, remainingFiles)) {
@@ -125,6 +126,7 @@ export class EnvironmentManager {
 						relativePath: path.relative(this.cwd, absPath),
 						mtime: stat.mtime,
 					})
+					remainingFiles.value--
 				} catch {
 					// File removed between walk and stat — skip
 				}
@@ -237,7 +239,6 @@ export class EnvironmentManager {
 				}
 			} else if (entry.isFile()) {
 				if (CODE_EXTENSIONS.has(path.extname(entry.name).toLowerCase())) {
-					remaining.value--
 					yield path.join(dir, entry.name)
 				}
 			}
