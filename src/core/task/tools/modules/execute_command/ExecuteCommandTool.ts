@@ -1,9 +1,10 @@
 import { formatResponse } from "@core/formatResponse"
 import { DiracAskResponse } from "@shared/WebviewMessage"
-import { DiracIcon } from "@/shared/icons"
 import * as fs from "fs/promises"
 import * as os from "os"
 import * as path from "path"
+import { DiracIcon } from "@/shared/icons"
+import { Logger } from "@/shared/services/Logger"
 import { truncateHeadTail } from "../../../../../shared/content-limits"
 import { CardStatus } from "../../../../../shared/ExtensionMessage"
 import { DiracDefaultTool, DiracToolSpec } from "../../../../../shared/tools"
@@ -79,32 +80,51 @@ export class ExecuteCommandTool implements IDiracTool {
 	}
 
 	public async processCall(args: any, env: IToolEnvironment): Promise<any> {
-		const commands = await this.normalizeCommands(args)
-		if (commands.length === 0) {
-			throw new Error("Missing required parameter: 'commands' or 'script' must be provided and non-empty.")
-		}
-
-		this.validateCommands(commands)
-
-		const approvalRequired = this.checkSecurity(commands)
-
-		if (approvalRequired) {
-			const { approved, message } = await this.requestApproval(commands, env)
-			if (!approved) {
-				return message ? formatResponse.toolDeniedWithFeedback(message) : formatResponse.toolDenied()
+		try {
+			const commands = await this.normalizeCommands(args)
+			if (commands.length === 0) {
+				throw new Error("Missing required parameter: 'commands' or 'script' must be provided and non-empty.")
 			}
+
+			this.validateCommands(commands)
+
+			const approvalRequired = this.checkSecurity(commands)
+
+			if (approvalRequired) {
+				const { approved, message } = await this.requestApproval(commands, env)
+				if (!approved) {
+					return message ? formatResponse.toolDeniedWithFeedback(message) : formatResponse.toolDenied()
+				}
+			}
+
+			const { results, usedWorkspaceHint, resolvedToNonPrimary } = await this.executeCommands(commands, env)
+
+			env.telemetry.captureCustomMetadata({
+				commandCount: commands.length,
+				usedWorkspaceHint,
+				resolvedToNonPrimary,
+				isMultiRootEnabled: this.isMultiRootEnabled,
+			})
+
+			return results.join("\n\n")
+		} finally {
+			await this.cleanupScriptTempDirs()
 		}
+	}
 
-		const { results, usedWorkspaceHint, resolvedToNonPrimary } = await this.executeCommands(commands, env)
+	// Temp dirs created for script files; removed after the call so no leaked scripts accumulate in the OS temp dir
+	private scriptTempDirs: string[] = []
 
-		env.telemetry.captureCustomMetadata({
-			commandCount: commands.length,
-			usedWorkspaceHint,
-			resolvedToNonPrimary,
-			isMultiRootEnabled: this.isMultiRootEnabled,
-		})
-
-		return results.join("\n\n")
+	private async cleanupScriptTempDirs(): Promise<void> {
+		const dirs = this.scriptTempDirs
+		this.scriptTempDirs = []
+		await Promise.all(
+			dirs.map((dir) =>
+				fs.rm(dir, { recursive: true, force: true }).catch((error) => {
+					Logger.warn(`ExecuteCommandTool: failed to remove script temp dir ${dir}: ${error}`)
+				}),
+			),
+		)
 	}
 
 	private validateCommands(commands: { command: string; displayName: string; language?: string }[]): void {
@@ -372,6 +392,7 @@ export class ExecuteCommandTool implements IDiracTool {
 
 		// Write script to a temp file so its content never enters the shell command string
 		const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "dirac-script-"))
+		this.scriptTempDirs.push(tmpDir)
 		const scriptPath = path.join(tmpDir, `script.${entry.extension}`)
 		await fs.writeFile(scriptPath, script, "utf-8")
 
