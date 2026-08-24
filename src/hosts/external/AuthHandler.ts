@@ -160,6 +160,10 @@ export class AuthHandler {
 			return
 		}
 
+		// Lifecycle: the listener stays up for non-callback probes (404 above) and is
+		// torn down after the first actual auth attempt — success, malformed callback,
+		// or processing error — so the callback port is not left open indefinitely.
+		// SERVER_TIMEOUT is the backstop for the no-callback case.
 		try {
 			const fullUrl = `http://127.0.0.1:${this.port}${req.url}`
 
@@ -168,7 +172,6 @@ export class AuthHandler {
 
 			if (!success) {
 				this.sendResponse(res, 400, "text/plain", "Bad request")
-				// Stop after a failed auth attempt — the callback was malformed
 				this.stop()
 				return
 			}
@@ -191,7 +194,7 @@ export class AuthHandler {
 			this.sendResponse(res, 400, "text/plain", "Bad request")
 		}
 
-		// Stop the server after successfully handling the auth callback
+		// Auth attempt finished (success or error); stop the callback listener
 		this.stop()
 	}
 
