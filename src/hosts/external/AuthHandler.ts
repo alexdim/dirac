@@ -144,10 +144,18 @@ export class AuthHandler {
 			return
 		}
 
-		// Validate that the request path looks like an auth callback (starts with /callback or /auth)
-		const urlPath = req.url.split("?")[0]
-		if (!urlPath.startsWith("/callback") && !urlPath.startsWith("/auth")) {
-			Logger.warn(`AuthHandler: Rejecting unexpected path: ${urlPath}`)
+		// Only accept exact paths SharedUriHandler can route. Prefix matching would
+		// let /callback/../x or /authxyz through, and allowing unhandled paths means
+		// a stray probe tears down the listener instead of getting a 404.
+		const ALLOWED_CALLBACK_PATHS = new Set(["/openrouter", "/requesty", "/task"])
+		let pathname: string
+		try {
+			pathname = new URL(req.url, "http://127.0.0.1").pathname
+		} catch {
+			pathname = ""
+		}
+		if (!ALLOWED_CALLBACK_PATHS.has(pathname)) {
+			Logger.warn(`AuthHandler: Rejecting unexpected path: ${pathname || req.url}`)
 			this.sendResponse(res, 404, "text/plain", "Not found")
 			return
 		}
