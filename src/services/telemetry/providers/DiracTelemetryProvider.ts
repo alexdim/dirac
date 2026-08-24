@@ -9,19 +9,24 @@ import { diracTelemetryConfig } from "@/shared/services/config/dirac-telemetry-c
 import { Logger } from "@/shared/services/Logger"
 import type { ITelemetryProvider, TelemetryProperties, TelemetrySettings } from "./ITelemetryProvider"
 
-const TELEMETRY_SECRET_PATTERNS = [
-	/(Bearer\s+)[^\s"']+/gi,
-	/\bsk-[A-Za-z0-9_-]{16,}\b/g, // OpenAI-style keys (sk-..., sk-ant-...)
-	/\bghp_[A-Za-z0-9]{20,}\b/g, // GitHub PATs
-	/\bxox[baprs]-[A-Za-z0-9-]{10,}\b/g, // Slack tokens
-	/\bAKIA[0-9A-Z]{16}\b/g, // AWS access key IDs
-	/(?:api[_-]?key|token|secret|password)\s*[=:]\s*["']?[^\s"']+/gi, // key=value pairs
+// Each pattern carries its own replacement: patterns with a leading capture group
+// keep that prefix (e.g. "Bearer " or "token="), the rest are fully redacted.
+const TELEMETRY_SECRET_PATTERNS: { pattern: RegExp; replacement: string }[] = [
+	{ pattern: /(Bearer\s+)[^\s"']+/gi, replacement: "$1[REDACTED]" },
+	{ pattern: /\bsk-[A-Za-z0-9_-]{16,}\b/g, replacement: "[REDACTED]" }, // OpenAI-style keys (sk-..., sk-ant-...)
+	{ pattern: /\bghp_[A-Za-z0-9]{20,}\b/g, replacement: "[REDACTED]" }, // GitHub PATs
+	{ pattern: /\bxox[baprs]-[A-Za-z0-9-]{10,}\b/g, replacement: "[REDACTED]" }, // Slack tokens
+	{ pattern: /\bAKIA[0-9A-Z]{16}\b/g, replacement: "[REDACTED]" }, // AWS access key IDs
+	{ pattern: /((?:api[_-]?key|token|secret|password)\s*[=:]\s*["']?)[^\s"']+/gi, replacement: "$1[REDACTED]" }, // key=value pairs
 ]
 const MAX_TELEMETRY_STRING_LENGTH = 2000
 
 function scrubTelemetryProperties(value: unknown): unknown {
 	if (typeof value === "string") {
-		let result = TELEMETRY_SECRET_PATTERNS.reduce((redacted, pattern) => redacted.replace(pattern, "$1[REDACTED]"), value)
+		let result = TELEMETRY_SECRET_PATTERNS.reduce(
+			(redacted, { pattern, replacement }) => redacted.replace(pattern, replacement),
+			value,
+		)
 		if (result.length > MAX_TELEMETRY_STRING_LENGTH) {
 			result = result.slice(0, MAX_TELEMETRY_STRING_LENGTH) + "…[truncated]"
 		}
