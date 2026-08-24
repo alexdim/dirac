@@ -48,23 +48,26 @@ export function buildOrchestrationTrait(config: TaskConfig): IOrchestrationTrait
 				recorder,
 			})
 
-			// Wire external abort signal to the runner for immediate cancellation
+			// Wire external abort signal to the runner for immediate cancellation.
+			// The listener is removed once the run finishes so a late parent abort
+			// doesn't call runner.abort() on a completed run.
 			const signal = options?.signal
+			const onAbort = () => {
+				void runner.abort(signal?.reason ? `Aborted: ${String(signal.reason)}` : "Aborted by external signal")
+			}
 			if (signal) {
 				if (signal.aborted) {
 					await runner.abort("Aborted by external signal")
 				} else {
-					signal.addEventListener(
-					"abort",
-					() => {
-						void runner.abort(signal.reason ? `Aborted: ${String(signal.reason)}` : "Aborted by external signal")
-					},
-					{ once: true },
-				)
+					signal.addEventListener("abort", onAbort, { once: true })
 				}
 			}
 
-			return await runner.run(prompt, options?.onUpdate || (() => {}), options?.timeout, options?.includeHistory)
+			try {
+				return await runner.run(prompt, options?.onUpdate || (() => {}), options?.timeout, options?.includeHistory)
+			} finally {
+				signal?.removeEventListener("abort", onAbort)
+			}
 		},
 		runHook: async (name, input, options) => {
 			const { executeHook } = await import("@core/hooks/hook-executor")
