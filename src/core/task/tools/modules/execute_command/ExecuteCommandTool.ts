@@ -80,8 +80,12 @@ export class ExecuteCommandTool implements IDiracTool {
 	}
 
 	public async processCall(args: any, env: IToolEnvironment): Promise<any> {
+		// Temp dirs created for script files; removed after the call so no leaked
+		// scripts accumulate in the OS temp dir. Kept per-call, not on the instance,
+		// so concurrent/reused tool instances can't interfere.
+		const scriptTempDirs: string[] = []
 		try {
-			const commands = await this.normalizeCommands(args)
+			const commands = await this.normalizeCommands(args, scriptTempDirs)
 			if (commands.length === 0) {
 				throw new Error("Missing required parameter: 'commands' or 'script' must be provided and non-empty.")
 			}
@@ -108,23 +112,14 @@ export class ExecuteCommandTool implements IDiracTool {
 
 			return results.join("\n\n")
 		} finally {
-			await this.cleanupScriptTempDirs()
+			await Promise.all(
+				scriptTempDirs.map((dir) =>
+					fs.rm(dir, { recursive: true, force: true }).catch((error) => {
+						Logger.warn(`ExecuteCommandTool: failed to remove script temp dir ${dir}: ${error}`)
+					}),
+				),
+			)
 		}
-	}
-
-	// Temp dirs created for script files; removed after the call so no leaked scripts accumulate in the OS temp dir
-	private scriptTempDirs: string[] = []
-
-	private async cleanupScriptTempDirs(): Promise<void> {
-		const dirs = this.scriptTempDirs
-		this.scriptTempDirs = []
-		await Promise.all(
-			dirs.map((dir) =>
-				fs.rm(dir, { recursive: true, force: true }).catch((error) => {
-					Logger.warn(`ExecuteCommandTool: failed to remove script temp dir ${dir}: ${error}`)
-				}),
-			),
-		)
 	}
 
 	private validateCommands(commands: { command: string; displayName: string; language?: string }[]): void {
@@ -351,7 +346,10 @@ export class ExecuteCommandTool implements IDiracTool {
 		}
 	}
 
-	private async normalizeCommands(args: any): Promise<{ command: string; displayName: string; language?: string }[]> {
+	private async normalizeCommands(
+		args: any,
+		scriptTempDirs: string[],
+	): Promise<{ command: string; displayName: string; language?: string }[]> {
 		const commands: { command: string; displayName: string; language?: string }[] = []
 		if (Array.isArray(args.commands)) {
 			args.commands.forEach((cmd: any) => {
@@ -366,7 +364,7 @@ export class ExecuteCommandTool implements IDiracTool {
 		if (args.script) {
 			const language = args.language || "bash"
 			const langDisplay = language.charAt(0).toUpperCase() + language.slice(1)
-			const command = await this.wrapScript(args.script, language)
+			const command = await this.wrapScript(args.script, language, scriptTempDirs)
 			commands.push({
 				command,
 				displayName: `${langDisplay} script`,
@@ -381,7 +379,7 @@ export class ExecuteCommandTool implements IDiracTool {
 		return commandMatch ? commandMatch[2].trim() : cmd
 	}
 
-	private async wrapScript(script: string, language: string): Promise<string> {
+	private async wrapScript(script: string, language: string, scriptTempDirs: string[]): Promise<string> {
 		const normalizedLanguage = language.toLowerCase().trim()
 		const entry = ALLOWED_INTERPRETERS[normalizedLanguage]
 		if (!entry) {
@@ -392,7 +390,7 @@ export class ExecuteCommandTool implements IDiracTool {
 
 		// Write script to a temp file so its content never enters the shell command string
 		const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "dirac-script-"))
-		this.scriptTempDirs.push(tmpDir)
+		scriptTempDirs.push(tmpDir)
 		const scriptPath = path.join(tmpDir, `script.${entry.extension}`)
 		await fs.writeFile(scriptPath, script, "utf-8")
 
