@@ -215,7 +215,7 @@ export class EnvironmentManager {
 	}
 
 	private async *walkCodeFiles(dir: string, ignoredDirs: Set<string>, remaining: { value: number }): AsyncGenerator<string> {
-		if (remaining.value <= 0) {
+		if (remaining.value <= 0 || this.taskState.abort) {
 			return
 		}
 		let entries: Dirent[]
@@ -225,7 +225,7 @@ export class EnvironmentManager {
 			return
 		}
 		for (const entry of entries) {
-			if (remaining.value <= 0) {
+			if (remaining.value <= 0 || this.taskState.abort) {
 				return
 			}
 			if (entry.name.startsWith(".")) {
