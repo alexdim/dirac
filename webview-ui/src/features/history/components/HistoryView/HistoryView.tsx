@@ -1,4 +1,5 @@
-import type { HistoryItem } from "@shared/HistoryItem"
+import { isGoalHistoryItem, type HistoryItem } from "@shared/HistoryItem"
+import { historyItemFromProto } from "@shared/historyItemFromProto"
 import { BooleanRequest, EmptyRequest, StringArrayRequest } from "@shared/proto/dirac/common"
 import { GetTaskHistoryRequest, TaskFavoriteRequest } from "@shared/proto/dirac/task"
 import { VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
@@ -73,7 +74,7 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 				}),
 			)
 			if (requestId === loadRequestIdRef.current) {
-				setTasks(response.tasks || [])
+				setTasks((response.tasks || []).map(historyItemFromProto))
 			}
 		} catch (error) {
 			console.error("Error loading task history:", error)
@@ -207,7 +208,7 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 	const fuse = useMemo(
 		() =>
 			new Fuse(tasks, {
-				keys: ["task"],
+				keys: ["task", "objectivePreview"],
 				threshold: 0.6,
 				shouldSort: true,
 				isCaseSensitive: false,
@@ -233,15 +234,9 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 				case "oldest":
 					return a.ts - b.ts
 				case "mostExpensive":
-					return (b.totalCost || 0) - (a.totalCost || 0)
+					return historyCost(b) - historyCost(a)
 				case "mostTokens":
-					return (
-						(b.tokensIn || 0) +
-						(b.tokensOut || 0) +
-						(b.cacheWrites || 0) +
-						(b.cacheReads || 0) -
-						((a.tokensIn || 0) + (a.tokensOut || 0) + (a.cacheWrites || 0) + (a.cacheReads || 0))
-					)
+					return historyTokens(b) - historyTokens(a)
 				default:
 					return b.ts - a.ts
 			}
@@ -476,6 +471,15 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 			</div>
 		</div>
 	)
+}
+
+function historyCost(item: HistoryItem): number {
+	return isGoalHistoryItem(item) ? (item.accounting.cost ?? 0) : item.totalCost
+}
+
+function historyTokens(item: HistoryItem): number {
+	if (isGoalHistoryItem(item)) return item.accounting.totalTokens ?? 0
+	return item.tokensIn + item.tokensOut + (item.cacheWrites ?? 0) + (item.cacheReads ?? 0)
 }
 
 // https://gist.github.com/evenfrost/1ba123656ded32fb7a0cd4651efd4db0

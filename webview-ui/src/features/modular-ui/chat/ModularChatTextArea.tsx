@@ -20,6 +20,8 @@ import type { OpenaiReasoningEffort } from "@shared/ExtensionMessage"
 import type { ModelProviderPreset } from "@shared/api"
 interface ModularChatTextAreaProps {
 	mode: "plan" | "act"
+	modeSwitchingDisabled?: boolean
+	modeSwitchingExplanation?: string
 	modelDisplayName: string
 	fastModeSupported: boolean
 	fastModeEnabled: boolean
@@ -54,6 +56,8 @@ interface ModularChatTextAreaProps {
 
 export const ModularChatTextArea: React.FC<ModularChatTextAreaProps> = ({
 	mode,
+	modeSwitchingDisabled = false,
+	modeSwitchingExplanation,
 	modelDisplayName,
 	fastModeSupported,
 	fastModeEnabled,
@@ -89,7 +93,7 @@ export const ModularChatTextArea: React.FC<ModularChatTextAreaProps> = ({
 	const mentionTrait = useMentionTrait()
 	const slashCommandTrait = useSlashCommandTrait()
 	const fileHandlingTrait = useFileHandlingTrait()
-	const modeTrait = useModeTrait(mode)
+	const modeTrait = useModeTrait(mode, modeSwitchingDisabled)
 
 	const traits = useMemo<InputTrait[]>(
 		() => [mentionTrait, slashCommandTrait, fileHandlingTrait, modeTrait],
@@ -106,6 +110,8 @@ export const ModularChatTextArea: React.FC<ModularChatTextAreaProps> = ({
 		() =>
 			createActionDecorator({
 				mode,
+				modeSwitchingDisabled,
+				modeSwitchingExplanation,
 				modelDisplayName,
 				fastModeSupported,
 				fastModeEnabled,
@@ -131,6 +137,8 @@ export const ModularChatTextArea: React.FC<ModularChatTextAreaProps> = ({
 			}),
 		[
 			mode,
+			modeSwitchingDisabled,
+			modeSwitchingExplanation,
 			modelDisplayName,
 			fastModeSupported,
 			fastModeEnabled,
@@ -173,10 +181,10 @@ export const ModularChatTextArea: React.FC<ModularChatTextAreaProps> = ({
 
 	// Register keyboard shortcut for Plan/Act toggle
 	const handleModeToggleWithInput = useCallback(() => {
-		if (context) {
+		if (context && !modeSwitchingDisabled) {
 			modeTrait.onModeToggle(context)
 		}
-	}, [context, modeTrait])
+	}, [context, modeSwitchingDisabled, modeTrait])
 	useShortcut(platform.togglePlanActKeys, handleModeToggleWithInput, { disableTextInputs: false })
 
 	const onKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {

@@ -22,6 +22,9 @@ import { sendStateUpdate } from "./state/subscribeToState"
 import { StatePublicationQueue } from "./state/StatePublicationQueue"
 import { SkillMetadata } from "@/shared/skills"
 import { TaskController } from "./task/TaskController"
+import { GoalController } from "@core/goal/GoalController"
+import { isGoalHistoryItem, type GoalHistoryItem } from "@shared/HistoryItem"
+import { HostProvider } from "@hosts/host-provider"
 
 import type { TaskInitializationOptions } from "./task/TaskController"
 import { fingerprintAvailableTools } from "@shared/utils/tool-fingerprint"
@@ -31,6 +34,7 @@ import { openAiCodexUsageService } from "@/integrations/openai-codex/OpenAiCodex
 
 export type ControllerOptions = {
 	workspaceCwd?: string
+	goalRoutingEnabled?: boolean
 }
 
 export class Controller {
@@ -47,9 +51,11 @@ export class Controller {
 	private taskController!: TaskController
 	private taskHistoryController!: import("./TaskHistoryController").TaskHistoryController
 	private initializerConfig!: InitializerConfig
+	private readonly goalController: GoalController
+	private goalRoutingEnabled: boolean
 
 	get task(): Task | undefined {
-		return this.taskController?.task
+		return this.goalController?.coordinator ?? this.taskController?.task
 	}
 
 	set task(value: Task | undefined) {
@@ -98,6 +104,15 @@ export class Controller {
 		this.initializerConfig = initializer.createConfig(this, options.workspaceCwd)
 		Object.assign(this, this.initializerConfig)
 		this.stateManager = this.initializerConfig.stateManager
+		this.goalRoutingEnabled = options.goalRoutingEnabled ?? HostProvider.get().diracType === "extension"
+		this.goalController = new GoalController({
+			controller: this,
+			stateManager: this.stateManager,
+			getStandaloneTask: () => this.taskController.task,
+			clearStandaloneTask: () => this.taskController.clearTask(),
+			updateGoalHistory: (item) => this.taskHistoryController.updateGoalHistory(item),
+			postState: () => this.postStateToWebview(),
+		})
 
 		this.openAiCodexUsageUnsubscribe = openAiCodexUsageService.subscribe(() => {
 			void this.postStateToWebview()
@@ -131,7 +146,8 @@ export class Controller {
 	async dispose() {
 		this.openAiCodexUsageUnsubscribe?.()
 		this.openAiCodexUsageUnsubscribe = undefined
-		await this.clearTask()
+		await this.goalController.dispose()
+		await this.taskController.clearTask()
 
 		Logger.error("Controller disposed")
 	}
@@ -148,6 +164,26 @@ export class Controller {
 		_watcherFactory?: any,
 		initializationOptions?: TaskInitializationOptions,
 	): Promise<string> {
+		if (!historyItem && task !== undefined) {
+			const goalRequest = parseGoalRequest(task)
+			if (goalRequest.matched) {
+				if (!this.goalRoutingEnabled) {
+					throw new Error(
+						"Goals require the interactive VS Code or CLI surface; ACP and unattended CLI are unsupported.",
+					)
+				}
+				if (images?.length || files?.length) throw new Error("/goal currently accepts a text objective only")
+				return this.goalController.start(goalRequest.objective)
+			}
+		}
+		if (historyItem && isGoalHistoryItem(historyItem)) {
+			this.assertGoalSurfaceSupported()
+			await this.goalController.select(historyItem.id)
+			return historyItem.id
+		}
+		if (this.goalController.selectedGoalId) {
+			await this.goalController.pauseAndDeselect("Paused after starting another run")
+		}
 		return this.taskController.initTask(
 			task,
 			images,
@@ -161,10 +197,17 @@ export class Controller {
 	}
 
 	async reinitExistingTaskFromId(taskId: string, initializationOptions?: TaskInitializationOptions): Promise<void> {
+		if (this.goalController.selectedGoalId) {
+			await this.goalController.pauseAndDeselect("Paused after loading another run")
+		}
 		return this.taskController.reinitExistingTaskFromId(taskId, initializationOptions)
 	}
 
 	async cancelTask(): Promise<void> {
+		if (this.goalController.active && this.goalController.selectedGoalId) {
+			await this.goalController.pause(this.goalController.selectedGoalId, "Paused by cancel control")
+			return
+		}
 		return this.taskController.cancelTask()
 	}
 
@@ -185,6 +228,10 @@ export class Controller {
 	}
 
 	async clearTask(): Promise<void> {
+		if (this.goalController.selectedGoalId) {
+			await this.goalController.pauseAndDeselect("Paused after leaving the Goal")
+			return
+		}
 		await this.taskController.clearTask()
 	}
 
@@ -246,12 +293,16 @@ export class Controller {
 	async getStateToPostToWebview(): Promise<ExtensionState> {
 		const previousAvailableToolsFingerprint = this.availableToolsFingerprint
 
+		const goal = await this.goalController.inspect()
+		const goalMessages = goal ? await this.goalController.selectedMessages() : undefined
 		const state = await getUiState({
 			stateManager: this.stateManager,
 			task: this.task,
 			workspaceManager: this.workspaceManager,
 			backgroundCommandRunning: this.backgroundCommandRunning,
 			backgroundCommandTaskId: this.backgroundCommandTaskId,
+			goal,
+			goalMessages,
 		})
 
 		const nextAvailableToolsFingerprint = await fingerprintAvailableTools(state.availableTools)
@@ -267,15 +318,72 @@ export class Controller {
 		return this.taskHistoryController.updateTaskHistory(item)
 	}
 
+	async updateGoalHistory(item: GoalHistoryItem): Promise<HistoryItem[]> {
+		return this.taskHistoryController.updateGoalHistory(item)
+	}
+
 	async updateTelemetrySetting(telemetrySetting: TelemetrySetting): Promise<void> {
 		return this.stateController.updateTelemetrySetting(telemetrySetting)
 	}
 
 	async toggleActModeForYoloMode(): Promise<boolean> {
+		if (this.goalController.selectedGoalId) throw new Error("Mode switching is disabled while a Goal is active.")
 		return this.stateController.toggleActModeForYoloMode()
 	}
 
 	async togglePlanActMode(modeToSwitchTo: Mode, chatContent?: ChatContent): Promise<boolean> {
+		if (this.goalController.selectedGoalId) throw new Error("Mode switching is disabled while a Goal is active.")
 		return this.stateController.togglePlanActMode(modeToSwitchTo, chatContent)
 	}
+
+	enableInteractiveGoals(): void {
+		this.goalRoutingEnabled = true
+	}
+
+	get selectedGoalId(): string | undefined {
+		return this.goalController.selectedGoalId
+	}
+
+	get hasActiveGoal(): boolean {
+		return this.goalController.active
+	}
+
+	async selectGoal(goalId: string) {
+		this.assertGoalSurfaceSupported()
+		return this.goalController.select(goalId)
+	}
+
+	async resumeGoal(goalId: string) {
+		this.assertGoalSurfaceSupported()
+		return this.goalController.resume(goalId)
+	}
+
+	async pauseGoal(goalId: string, reason?: string) {
+		this.assertGoalSurfaceSupported()
+		return this.goalController.pause(goalId, reason)
+	}
+
+	async stopGoal(goalId: string, reason?: string) {
+		this.assertGoalSurfaceSupported()
+		return this.goalController.stop(goalId, reason)
+	}
+
+	async steerGoal(goalId: string, message: string): Promise<void> {
+		this.assertGoalSurfaceSupported()
+		return this.goalController.steer(goalId, message)
+	}
+
+	private assertGoalSurfaceSupported(): void {
+		if (!this.goalRoutingEnabled) {
+			throw new Error("Goals require the interactive VS Code or CLI surface; ACP and unattended CLI are unsupported.")
+		}
+	}
+}
+
+function parseGoalRequest(text: string): { matched: false } | { matched: true; objective: string } {
+	const match = text.match(/^\s*\/goal(?:\s+([\s\S]*))?\s*$/)
+	if (!match) return { matched: false }
+	const objective = match[1]?.trim() ?? ""
+	if (!objective) throw new Error("/goal requires a non-empty objective")
+	return { matched: true, objective }
 }

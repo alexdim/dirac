@@ -239,6 +239,37 @@ describe("Controller (original)", () => {
 		await initTask(c, "test")
 		;(c.task !== undefined).should.be.true()
 	})
+	it("routes /goal before ordinary Task construction", async () => {
+		expectLoggerErrors()
+		const c = trackController(new Controller(mockContext, { goalRoutingEnabled: true }))
+		const goalStart = sandbox.stub((c as any).goalController, "start").resolves("goal-id")
+		const ordinaryStart = sandbox.spy((c as any).taskController, "initTask")
+
+		const id = await c.initTask("  /goal   Ship the Goal loop  ")
+
+		id.should.equal("goal-id")
+		goalStart.calledOnceWithExactly("Ship the Goal loop").should.be.true()
+		ordinaryStart.called.should.be.false()
+	})
+	it("rejects an empty /goal without constructing Goal or Task state", async () => {
+		expectLoggerErrors()
+		const c = trackController(new Controller(mockContext, { goalRoutingEnabled: true }))
+		const goalStart = sandbox.spy((c as any).goalController, "start")
+		const ordinaryStart = sandbox.spy((c as any).taskController, "initTask")
+
+		await c.initTask(" /goal   ").should.be.rejectedWith("/goal requires a non-empty objective")
+
+		goalStart.called.should.be.false()
+		ordinaryStart.called.should.be.false()
+	})
+	it("rejects mode switches whenever a Goal is selected", async () => {
+		expectLoggerErrors()
+		const c = trackController(new Controller(mockContext, { goalRoutingEnabled: true }))
+		sandbox.stub((c as any).goalController, "selectedGoalId").get(() => "goal-id")
+
+		await c.togglePlanActMode("act").should.be.rejectedWith("Mode switching is disabled while a Goal is active.")
+		await c.toggleActModeForYoloMode().should.be.rejectedWith("Mode switching is disabled while a Goal is active.")
+	})
 	it("dispose clears task", async () => {
 		expectLoggerErrors()
 		const c = new Controller(mockContext)
@@ -270,9 +301,10 @@ describe("Controller (original)", () => {
 			if (task === "first") {
 				await replacementGate
 				await c.initTask("second")
-				return
+				return { kind: "completed", response: "", completedAt: Date.now() }
 			}
 			replacementStarted = task === "second"
+			return { kind: "completed", response: "", completedAt: Date.now() }
 		})
 
 		c = trackController(new Controller(mockContext))

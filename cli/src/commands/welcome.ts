@@ -28,6 +28,7 @@ export async function showWelcome(options: TaskOptions) {
 
 	let hadError = false
 
+	ctx.controller.enableInteractiveGoals()
 	await runInkApp(
 		React.createElement(App, {
 			// Start with auth view if not configured, otherwise welcome

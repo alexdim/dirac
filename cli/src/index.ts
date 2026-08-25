@@ -8,6 +8,7 @@ import { version as CLI_VERSION } from "../package.json"
 import { suppressConsoleUnlessVerbose } from "./utils/console"
 import { getCliLogFilePath } from "./vscode-shim"
 import { setupSignalHandlers } from "./utils/errors"
+import { isGoalRequest, UNSUPPORTED_GOAL_CLI_MESSAGE } from "./utils/goals"
 import { parseTimeoutSeconds } from "./utils/task-timeout"
 import { parseInferenceSpeed, parsePositiveInteger, parseReasoningEffort, parseThinkingBudget } from "./utils/command-parsers"
 
@@ -223,6 +224,10 @@ program
 		}
 		// Check for ACP mode first - this takes precedence over everything else
 		if (options.acp || options.listen) {
+			if (isGoalRequest(prompt)) {
+				printWarning(UNSUPPORTED_GOAL_CLI_MESSAGE)
+				exit(1)
+			}
 			releaseCliSignalOwnership()
 			const { runAcpMode } = await import("./acp/index.js")
 			await runAcpMode({

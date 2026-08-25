@@ -95,7 +95,7 @@ function createConfig() {
 		createUtilityModelRunner: sinon.stub(),
 		createSubagentRuntime: sinon.stub(),
 		assertMutationAuthorized: sinon.stub(),
-		commitAttemptCompletion: sinon.stub().resolves(true),
+		commitAttemptCompletion: sinon.stub().resolves({ committed: true }),
 		getDiracMessages: sinon.stub().returns([]),
 		updateDiracMessage: sinon.stub().resolves(),
 		resetTransientState: sinon.stub().resolves(),

@@ -9,6 +9,7 @@
  * whole block.
  */
 
+import { CardKind, CardStatus, isFinalStatus } from "@shared/ExtensionMessage"
 import { DiracAskResponse } from "@shared/WebviewMessage"
 import sinon from "sinon"
 import { TaskState } from "../../../TaskState"
@@ -48,6 +49,7 @@ export function createMockContext(): IDiracContext {
 }
 
 export function createMockTaskMessenger() {
+	let nextCardId = 0
 	return {
 		upsertText: sinon.stub().resolves(),
 		streamText: sinon.stub().resolves({
@@ -55,19 +57,42 @@ export function createMockTaskMessenger() {
 			appendReasoning: sinon.stub().resolves(),
 			close: sinon.stub().resolves(),
 		}),
-		createCard: sinon.stub().resolves({
-			id: "mock-card-id",
-			update: sinon.stub().resolves(),
-			appendBody: sinon.stub().resolves(),
-			finalize: sinon.stub().resolves(),
-			waitForInteraction: sinon.stub().resolves({
-				action: DiracAskResponse.APPROVE,
-				value: undefined,
-				text: undefined,
-				images: undefined,
-				files: undefined,
-				userEdits: undefined,
-			}),
+		createCard: sinon.stub().callsFake(async (params: any) => {
+			const id = `mock-card-${++nextCardId}`
+			const now = Date.now()
+			let card: any = {
+				id,
+				kind: params.kind ?? CardKind.GENERIC,
+				header: params.header,
+				status:
+					params.status ??
+					(params.requireApproval || params.requireFeedback ? CardStatus.WAITING_FOR_INPUT : CardStatus.RUNNING),
+				renderType: params.renderType ?? "text",
+				collapsed: params.collapsed,
+				startTime: now,
+				...params,
+			}
+			return {
+				id,
+				getCard: () => card,
+				update: sinon.stub().callsFake(async (patch: any) => {
+					card = { ...card, ...patch }
+				}),
+				appendBody: sinon.stub().callsFake(async (chunk: string) => {
+					card = { ...card, body: `${card.body ?? ""}${chunk}` }
+				}),
+				finalize: sinon.stub().callsFake(async (status: CardStatus) => {
+					card = { ...card, status, ...(isFinalStatus(status) ? { endTime: Date.now() } : {}) }
+				}),
+				waitForInteraction: sinon.stub().resolves({
+					action: DiracAskResponse.APPROVE,
+					value: undefined,
+					text: undefined,
+					images: undefined,
+					files: undefined,
+					userEdits: undefined,
+				}),
+			}
 		}),
 	}
 }
@@ -80,7 +105,7 @@ export function createMockCallbacks(): TaskCallbacks {
 		retainMutationUntil: sinon.stub(),
 		commitEnabledToolToggles: sinon.stub().callsFake(async (_toolIds, finalize) => finalize?.()),
 		saveCheckpoint: sinon.stub().resolves(),
-		commitAttemptCompletion: sinon.stub().resolves(true),
+		commitAttemptCompletion: sinon.stub().resolves({ committed: true }),
 		executeCommandTool: sinon.stub().resolves([false, "ok"]),
 		cancelRunningCommandTool: sinon.stub().resolves(false),
 		doesLatestTaskCompletionHaveNewChanges: sinon.stub().resolves(false),

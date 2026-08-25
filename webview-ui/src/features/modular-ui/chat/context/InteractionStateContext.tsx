@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useMemo } from "react"
-import { CardStatus, DiracMessage, DiracMessageType, TaskStatus } from "@shared/ExtensionMessage"
+import { CardStatus, DiracMessage, DiracMessageType, isFinalStatus, TaskStatus } from "@shared/ExtensionMessage"
 import { isBusyTaskStatus } from "@shared/taskStatusProjection"
 import { useChatStore } from "@/features/chat/store/chatStore"
 import { useSettingsStore } from "@/features/settings/store/settingsStore"
@@ -43,10 +43,11 @@ export function projectInteractionState(params: {
 	if (activeCardMessage?.content.type === DiracMessageType.CARD) {
 		const card = activeCardMessage.content.card
 		if (
-			card.status === CardStatus.WAITING_FOR_INPUT ||
-			card.requireApproval ||
-			card.requireFeedback ||
-			(card.actions?.length ?? 0) > 0
+			!isFinalStatus(card.status) &&
+			(card.status === CardStatus.WAITING_FOR_INPUT ||
+				card.requireApproval ||
+				card.requireFeedback ||
+				(card.actions?.length ?? 0) > 0)
 		) {
 			return InteractionState.AWAITING_RESPONSE
 		}

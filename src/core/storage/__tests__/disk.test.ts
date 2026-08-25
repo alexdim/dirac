@@ -2,7 +2,7 @@ import { expectLoggerErrors } from "@/test/loggerGuard"
 import { Anthropic } from "@anthropic-ai/sdk"
 import { afterEach, beforeEach, describe, it } from "mocha"
 import "should"
-import { HistoryItem } from "@shared/HistoryItem"
+import { type HistoryItem, isTaskHistoryItem } from "@shared/HistoryItem"
 import * as fsUtils from "@utils/fs"
 import fs from "fs/promises"
 import os from "os"
@@ -498,6 +498,8 @@ describe("disk - atomic writes", () => {
 			result[0].id.should.equal("full-test")
 			result[0].ts.should.equal(1234567890)
 			result[0].task.should.equal("Complete task")
+			isTaskHistoryItem(result[0]).should.equal(true)
+			if (!isTaskHistoryItem(result[0])) throw new Error("Expected Task history")
 			result[0].tokensIn.should.equal(500)
 			result[0].tokensOut.should.equal(1000)
 			result[0].totalCost.should.equal(0.15)

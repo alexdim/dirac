@@ -13,6 +13,7 @@ import { Logger } from "@/shared/services/Logger"
 import { getCwd, getDesktopDir } from "@/utils/path"
 import type { StateManager } from "../../storage/StateManager"
 import { Task } from "../../task"
+import type { TaskRunOutcome } from "../../task/TaskRunOutcome"
 import { releaseTaskLock, tryAcquireTaskLockWithRetry } from "../../task/TaskLockUtils"
 import { detectWorkspaceRoots } from "../../workspace/detection"
 import { setupWorkspaceManager } from "../../workspace/setup"
@@ -128,7 +129,7 @@ export class TaskController {
 		}
 	}
 
-	private async runTaskWithReplacement(task: Task, run: Promise<void>): Promise<void> {
+	private async runTaskWithReplacement(task: Task, run: Promise<TaskRunOutcome>): Promise<void> {
 		let runFailure: { error: unknown } | undefined
 		try {
 			await run

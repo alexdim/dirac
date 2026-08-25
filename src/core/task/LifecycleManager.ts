@@ -31,9 +31,17 @@ import { getErrorMessage } from "@/shared/errors"
 import { releaseTaskLock } from "./TaskLockUtils"
 import { LifecycleManagerDependencies } from "./types/lifecycle-manager"
 import { buildUserFeedbackContent } from "./utils/buildUserFeedbackContent"
+import type { TaskRunOutcome } from "./TaskRunOutcome"
+
+export interface ResumeTaskOptions {
+	/** Synthetic context for the first resumed model turn; never rendered or marked as user input. */
+	systemContext?: string
+}
+
 
 export class LifecycleManager {
 	private abortPromise?: Promise<void>
+	private ownedResourceCleanupPromise?: Promise<void>
 
 	constructor(private dependencies: LifecycleManagerDependencies) { }
 
@@ -106,7 +114,7 @@ export class LifecycleManager {
 		}
 	}
 
-	public async startTask(task?: string, images?: string[], files?: string[]): Promise<void> {
+	public async startTask(task?: string, images?: string[], files?: string[]): Promise<TaskRunOutcome | undefined> {
 		try {
 			await this.dependencies.diracIgnoreController.initialize()
 			await this.dependencies.commandPermissionController.initialize(this.dependencies.cwd)
@@ -221,10 +229,13 @@ export class LifecycleManager {
 			Logger.error("Failed to record environment metadata:", error)
 		}
 
-		await this.dependencies.initiateTaskLoop(userContent)
+		return await this.dependencies.initiateTaskLoop(userContent)
 	}
 
-	public async resumeTaskFromHistory(onRestored?: () => void) {
+	public async resumeTaskFromHistory(
+		onRestored?: () => void,
+		options: ResumeTaskOptions = {},
+	): Promise<TaskRunOutcome | undefined> {
 		try {
 			await this.dependencies.diracIgnoreController.initialize()
 			await this.dependencies.commandPermissionController.initialize(this.dependencies.cwd)
@@ -307,9 +318,11 @@ export class LifecycleManager {
 		await this.dependencies.postStateToWebview()
 		onRestored?.()
 
-		await pWaitFor(() => this.dependencies.taskState.askResponse !== undefined || this.dependencies.taskState.abort, {
-			interval: 100,
-		})
+		if (options.systemContext === undefined) {
+			await pWaitFor(() => this.dependencies.taskState.askResponse !== undefined || this.dependencies.taskState.abort, {
+				interval: 100,
+			})
+		}
 
 		if (this.dependencies.taskState.abort) return
 
@@ -320,6 +333,12 @@ export class LifecycleManager {
 
 		const newUserContent: DiracContent[] = []
 
+		if (options.systemContext !== undefined) {
+			newUserContent.push({
+				type: "text",
+				text: `<system_context source="task_resume">\n${options.systemContext}\n</system_context>`,
+			})
+		}
 		const hooksEnabled = getHooksEnabledSafe(this.dependencies.getWorkingConfiguration().settings.hooksEnabled)
 		if (hooksEnabled) {
 			const diracMessages = this.dependencies.messageStateHandler.getDiracMessages()
@@ -480,21 +499,21 @@ export class LifecycleManager {
 			})
 		}
 
-		const userFeedbackContent = await buildUserFeedbackContent(responseText, responseImages, responseFiles)
-		const userPromptHookResult = await this.dependencies.hookManager.runUserPromptSubmitHook(userFeedbackContent, "resume")
+		if (options.systemContext === undefined) {
+			const userFeedbackContent = await buildUserFeedbackContent(responseText, responseImages, responseFiles)
+			const userPromptHookResult = await this.dependencies.hookManager.runUserPromptSubmitHook(userFeedbackContent, "resume")
 
-		if (this.dependencies.taskState.abort) {
-			return
-		}
-		if (userPromptHookResult.cancel === true) {
-			await this.dependencies.cancelTask()
-			return
-		}
-		if (userPromptHookResult.contextModification) {
-			newUserContent.push({
-				type: "text",
-				text: `<hook_context source="UserPromptSubmit">\n${userPromptHookResult.contextModification}\n</hook_context>`,
-			})
+			if (this.dependencies.taskState.abort) return
+			if (userPromptHookResult.cancel === true) {
+				await this.dependencies.cancelTask()
+				return
+			}
+			if (userPromptHookResult.contextModification) {
+				newUserContent.push({
+					type: "text",
+					text: `<hook_context source="UserPromptSubmit">\n${userPromptHookResult.contextModification}\n</hook_context>`,
+				})
+			}
 		}
 
 		try {
@@ -504,27 +523,32 @@ export class LifecycleManager {
 		}
 
 		await this.dependencies.messageStateHandler.overwriteApiConversationHistory(modifiedApiConversationHistory)
-		await this.dependencies.initiateTaskLoop(newUserContent)
+		return await this.dependencies.initiateTaskLoop(newUserContent)
 	}
 
 	public async abortTask() {
-		if (this.abortPromise) {
-			try {
-				await this.abortPromise
-			} finally {
-				await this.dependencies.messageStateHandler.flushPendingWrites()
-			}
-			return
+		this.abortPromise ??= this.performAbortTask()
+		try {
+			await this.abortPromise
+		} finally {
+			await this.dependencies.messageStateHandler.flushPendingWrites()
 		}
+	}
 
-		this.abortPromise = this.performAbortTask()
-		await this.abortPromise
+	/** Await cancellation teardown, or release normal terminal ownership when no abort is active. */
+	public async finalizeTaskRun(): Promise<void> {
+		if (this.abortPromise) {
+			await this.abortPromise
+		} else {
+			await this.releaseOwnedTaskResources()
+		}
+		await this.dependencies.messageStateHandler.flushPendingWrites()
 	}
 
 	private async performAbortTask() {
 		this.dependencies.taskState.abort = true
 		const abortFailures: unknown[] = []
-		let cleanupFailures: unknown[] = []
+		const cleanupFailures: unknown[] = []
 
 		try {
 			this.getOperationalApi().abort?.()
@@ -614,24 +638,9 @@ export class LifecycleManager {
 			abortFailures.push(error)
 		} finally {
 			try {
-				const { ToolRegistry } = await import("@core/task/tools/registry/ToolRegistry")
-				await ToolRegistry.withExclusiveAccess((registry) => {
-					registry.removeTaskTools(this.dependencies.taskId)
-				})
-				this.dependencies.taskState.taskScopedToolIds = []
+				await this.releaseOwnedTaskResources()
 			} catch (error) {
 				cleanupFailures.push(error)
-			}
-			cleanupFailures.push(...(await this.disposeTaskResources()))
-
-			if (this.dependencies.taskState.taskLockAcquired) {
-				try {
-					await releaseTaskLock(this.dependencies.taskId)
-					this.dependencies.taskState.taskLockAcquired = false
-					Logger.info(`[Task ${this.dependencies.taskId}] Task lock released`)
-				} catch (error) {
-					Logger.error(`[Task ${this.dependencies.taskId}] Failed to release task lock:`, error)
-				}
 			}
 
 			this.dependencies.taskState.isApiRequestActive = false
@@ -654,6 +663,39 @@ export class LifecycleManager {
 		if (failures.length > 1) {
 			throw new AggregateError(failures, "Task abort failed")
 		}
+	}
+
+	private releaseOwnedTaskResources(): Promise<void> {
+		this.ownedResourceCleanupPromise ??= this.performOwnedResourceCleanup()
+		return this.ownedResourceCleanupPromise
+	}
+
+	private async performOwnedResourceCleanup(): Promise<void> {
+		const failures: unknown[] = []
+		try {
+			const { ToolRegistry } = await import("@core/task/tools/registry/ToolRegistry")
+			await ToolRegistry.withExclusiveAccess((registry) => {
+				registry.removeTaskTools(this.dependencies.taskId)
+			})
+			this.dependencies.taskState.taskScopedToolIds = []
+		} catch (error) {
+			failures.push(error)
+		}
+
+		failures.push(...(await this.disposeTaskResources()))
+
+		if (this.dependencies.taskState.taskLockAcquired) {
+			try {
+				await releaseTaskLock(this.dependencies.taskId)
+				this.dependencies.taskState.taskLockAcquired = false
+				Logger.info(`[Task ${this.dependencies.taskId}] Task lock released`)
+			} catch (error) {
+				failures.push(error)
+			}
+		}
+
+		if (failures.length === 1) throw failures[0]
+		if (failures.length > 1) throw new AggregateError(failures, "Task resource cleanup failed")
 	}
 
 	private async disposeTaskResources(): Promise<unknown[]> {

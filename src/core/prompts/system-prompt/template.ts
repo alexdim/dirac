@@ -15,6 +15,7 @@ export const SYSTEM_PROMPT = (context: SystemPromptContext) => {
 		enableParallelToolCalling,
 		userInstructions,
 		diracRules,
+		profileInstructions,
 	} = context
 
 	const currentCwd = cwd || process.cwd()
@@ -81,5 +82,6 @@ ${userInstructions ||
 			}`
 			: ""
 		}
+${profileInstructions ? `\n\n${profileInstructions}` : ""}
 `
 }

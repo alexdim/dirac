@@ -148,6 +148,9 @@ function persistTaskSettings(controller: Controller, taskId: string, prepared: P
 
 /** Update persisted task settings and, when addressed, the matching active Task snapshot. */
 export async function updateTaskSettings(controller: Controller, request: UpdateTaskSettingsRequest): Promise<Empty> {
+	if (controller.selectedGoalId && request.settings?.mode !== undefined) {
+		throw new Error("Mode switching is disabled while a Goal is active.")
+	}
 	const taskId = resolveTaskId(controller, request)
 	if (request.settings) {
 		const activeTask = controller.task?.taskId === taskId ? controller.task : undefined

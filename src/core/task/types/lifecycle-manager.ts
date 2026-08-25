@@ -16,6 +16,7 @@ import { HookManager } from "../HookManager"
 import { MessageStateHandler } from "../message-state"
 import { TaskMessenger } from "../TaskMessenger"
 import { TaskState } from "../TaskState"
+import type { TaskRunOutcome } from "../TaskRunOutcome"
 
 export interface LifecycleManagerDependencies {
 	taskState: TaskState
@@ -40,7 +41,7 @@ export interface LifecycleManagerDependencies {
 	commandPermissionController: CommandPermissionController
 	cwd: string
 	hookManager: HookManager
-	initiateTaskLoop: (userContent: DiracContent[]) => Promise<void>
+	initiateTaskLoop: (userContent: DiracContent[]) => Promise<TaskRunOutcome>
 	restoreQueuedSteeringFromTranscript: () => void
 	recordEnvironment: () => Promise<void>
 	time: () => Promise<void>

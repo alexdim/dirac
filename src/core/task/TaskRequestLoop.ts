@@ -33,6 +33,10 @@ import {
 } from "./TaskSteering"
 import type { ApiConversationManager } from "./ApiConversationManager"
 import type { TaskRequestRuntime } from "./runtime/TaskRequestRuntime"
+import {
+	TaskConversationPersistence,
+	type TaskConversationPersistenceHooks,
+} from "./TaskConversationPersistence"
 
 export interface TaskRequestLoopContext extends TaskRequestBuilderContext, TaskRequestOutcomeContext {
 	requestRuntime: TaskRequestRuntime
@@ -48,6 +52,7 @@ export interface TaskRequestLoopContext extends TaskRequestBuilderContext, TaskR
 	modelContextTracker: ModelContextTracker
 	diffViewProvider: DiffViewProvider
 	ulid: string
+	conversationPersistenceHooks?: TaskConversationPersistenceHooks
 }
 
 export async function recursivelyMakeDiracRequests(
@@ -120,6 +125,7 @@ export async function recursivelyMakeDiracRequests(
 
 	let apiRequestData: Awaited<ReturnType<ApiConversationManager["prepareApiRequest"]>>
 	let steeringClaimConsumed = false
+	const conversationPersistence = new TaskConversationPersistence(ctx.conversationPersistenceHooks)
 	try {
 		apiRequestData = await ctx.apiConversationManager.prepareApiRequest({
 			userContent,
@@ -132,11 +138,13 @@ export async function recursivelyMakeDiracRequests(
 			modelId: model.id,
 			mode: modelInfo.mode,
 			afterUserContentPersisted: async () => {
+				await conversationPersistence.persist(() => ctx.messageStateHandler.flushPendingWrites())
 				steeringClaimConsumed = true
 				if (!steeringClaim) return
 				await settleConsumedSteeringClaim(ctx.steeringContext, steeringClaim)
 			},
 		})
+		await conversationPersistence.rollback()
 		if (steeringClaim && !steeringClaimConsumed) {
 			if (apiRequestData.didConsumeUserContent) {
 				steeringClaimConsumed = true
@@ -146,7 +154,14 @@ export async function recursivelyMakeDiracRequests(
 			}
 		}
 	} catch (error) {
+		let rollbackError: unknown
+		try {
+			await conversationPersistence.rollback()
+		} catch (failure) {
+			rollbackError = failure
+		}
 		if (steeringClaim && !steeringClaimConsumed) await rollbackSteeringClaim(ctx.steeringContext, steeringClaim.id)
+		if (rollbackError) throw new AggregateError([error, rollbackError], "Task conversation persistence rollback failed")
 		throw error
 	}
 	userContent = apiRequestData.userContent
@@ -357,6 +372,10 @@ export async function recursivelyMakeDiracRequests(
 
 			const diracError = ErrorService.get().toDiracError(error, ctx.requestRuntime.api.getModel().id)
 			const errorMessage = diracError.serialize()
+			if (ctx.executionProfile !== "standalone") {
+				await abortStream("streaming_failed", errorMessage)
+				throw diracError
+			}
 			await ctx.abortTask()
 			await abortStream("streaming_failed", errorMessage)
 			await ctx.reinitExistingTaskFromId()
@@ -436,6 +455,7 @@ export async function recursivelyMakeDiracRequests(
 		}
 		const diracError = ErrorService.get().toDiracError(error)
 		Logger.error("[Task] Fatal error in task loop:", diracError.serialize())
+		if (ctx.executionProfile !== "standalone") throw diracError
 		try {
 			const card = await ctx.taskMessenger.createCard({
 				status: CardStatus.ERROR,

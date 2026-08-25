@@ -23,6 +23,8 @@ import { parseImagesFromInput } from "../utils/parser"
 import { extractSlashQuery, filterCommands, mergeCliSlashCommands } from "../utils/slash-commands"
 import { getInputStorageKey } from "../utils/chat"
 import { CliPanelType } from "../types"
+import type { GoalStatus } from "@shared/goal"
+import type { GoalLifecycleAction } from "../utils/goals"
 
 export type ActivePanel =
 	| {
@@ -88,6 +90,8 @@ interface UseComposerProps {
 	scrollableCardMaxOffset: number
 	cardScrollOffset: number
 	setCardScrollOffset: (offset: number) => void
+	goalStatus?: GoalStatus
+	handleGoalControl: (action: GoalLifecycleAction) => void
 }
 
 export function useComposer({
@@ -109,6 +113,8 @@ export function useComposer({
 	scrollableCardMaxOffset,
 	cardScrollOffset,
 	setCardScrollOffset,
+	goalStatus,
+	handleGoalControl,
 }: UseComposerProps) {
 	const {
 		text: textInput,
@@ -422,6 +428,8 @@ export function useComposer({
 		scrollableCardMaxOffset,
 		cardScrollOffset,
 		setCardScrollOffset,
+		goalStatus,
+		handleGoalControl,
 
 	})
 

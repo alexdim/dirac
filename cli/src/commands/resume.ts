@@ -72,6 +72,7 @@ export async function resumeTask(
 	// Interactive mode: render the task view with the existing task
 	let taskError = false
 
+	ctx.controller.enableInteractiveGoals()
 	await runInkApp(
 		React.createElement(App, {
 			view: "task",

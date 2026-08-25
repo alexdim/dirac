@@ -174,7 +174,10 @@ describe("Task steering inbox", () => {
 		task.taskState.didAttemptCompletion = true
 		await task.enqueueSteeringMessage("Continue before completing")
 
-		assert.equal(await task.commitAttemptCompletion(), false)
+		assert.deepEqual(await task.commitAttemptCompletion("Done"), {
+			committed: false,
+			error: "Completion was superseded by queued user steering.",
+		})
 		assert.equal(task.taskState.didAttemptCompletion, false)
 		assert.equal(task.taskState.status, TaskStatus.EXECUTING_TOOL)
 	})
@@ -183,8 +186,9 @@ describe("Task steering inbox", () => {
 		const { task } = createSteerableTask()
 		task.taskState.didAttemptCompletion = true
 
-		assert.equal(await task.commitAttemptCompletion(), true)
+		assert.deepEqual(await task.commitAttemptCompletion("Done"), { committed: true })
 		assert.equal(task.taskState.completionCommitted, true)
+		assert.equal(task.taskState.completionResponse, "Done")
 		assert.equal(task.taskState.askResponse, undefined)
 		assert.equal(task.taskState.askResponseText, undefined)
 		assert.equal(task.taskState.status, TaskStatus.EXECUTING_TOOL)

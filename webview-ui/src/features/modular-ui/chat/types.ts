@@ -1,6 +1,7 @@
 import React from "react"
 
 import { DiracMessage } from "@shared/ExtensionMessage"
+import type { GoalViewState } from "@shared/goal"
 import { ChatState, MessageHandlers, ScrollBehavior } from "./types/chatTypes"
 
 export interface ModularInputContext {
@@ -43,6 +44,7 @@ export interface InputDecorator {
 }
 
 export interface ChatViewContext {
+	goal?: GoalViewState
 	task?: DiracMessage
 	messages: DiracMessage[]
 	modifiedMessages: DiracMessage[]

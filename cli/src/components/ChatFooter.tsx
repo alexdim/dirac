@@ -25,6 +25,8 @@ interface ChatFooterProps {
 	quietMode: boolean
 	taskStatus?: TaskStatus
 	show?: boolean
+	modeSwitchingDisabled?: boolean
+	modeSwitchingExplanation?: string
 }
 
 export const ChatFooter: React.FC<ChatFooterProps> = ({
@@ -44,6 +46,8 @@ export const ChatFooter: React.FC<ChatFooterProps> = ({
 	quietMode,
 	taskStatus,
 	show = true,
+	modeSwitchingDisabled = false,
+	modeSwitchingExplanation,
 }) => {
 	const { columns } = useTerminalSize()
 	if (!show) return null
@@ -58,32 +62,40 @@ export const ChatFooter: React.FC<ChatFooterProps> = ({
 				{compact ? (
 					<Text color={theme.muted} wrap="truncate-end">
 						<Text bold color={mode === "plan" ? theme.plan : theme.primary}>{mode === "plan" ? "Plan" : "Act"}</Text>
-						{" · / commands · @ files · Tab mode"}
+						{modeSwitchingDisabled ? " · Goal mode locked" : " · / commands · @ files · Tab mode"}
 					</Text>
 				) : (
 					<Box flexShrink={1} flexWrap="wrap">
-						<Text color={theme.muted}>/ commands · @ files · v details · Shift+↓ newline · Tab mode</Text>
+						<Text color={theme.muted}>
+							{modeSwitchingDisabled
+								? (modeSwitchingExplanation ?? "Mode switching is disabled while a Goal is active.")
+								: "/ commands · @ files · v details · Shift+↓ newline · Tab mode"}
+						</Text>
 					</Box>
 				)}
-				{!compact && <Box flexShrink={0} gap={1}>
-					<Box>
-						<Text bold={mode === "plan"} color={mode === "plan" ? theme.plan : undefined}>
-							{mode === "plan" ? "●" : "○"} Plan
-						</Text>
+				{!compact && (
+					<Box flexShrink={0} gap={1}>
+						<Box>
+							<Text bold={mode === "plan"} color={mode === "plan" ? theme.plan : undefined}>
+								{mode === "plan" ? "●" : "○"} Plan
+							</Text>
+						</Box>
+						<Box>
+							<Text bold={mode === "act"} color={mode === "act" ? theme.primary : theme.muted}>
+								{mode === "act" ? "●" : "○"} Act
+							</Text>
+						</Box>
+						<Text color={theme.muted}>{modeSwitchingDisabled ? "(locked)" : "(Tab)"}</Text>
 					</Box>
-					<Box>
-						<Text bold={mode === "act"} color={mode === "act" ? theme.primary : theme.muted}>
-							{mode === "act" ? "●" : "○"} Act
-						</Text>
-					</Box>
-					<Text color={theme.muted}>(Tab)</Text>
-				</Box>}
+				)}
 			</Box>
 
 			{/* Row 2: Model/context/tokens/cost/status */}
 			<Box paddingLeft={1} paddingRight={1}>
 				<Text wrap="truncate-end">
-					{provider}: {modelId}{fastModeEnabled ? " fast" : ""} {(() => {
+					{provider}: {modelId}{fastModeEnabled ? " fast" : ""} {modeSwitchingDisabled ? (
+						<Text color={theme.muted}>· authoritative usage is shown in the Goal summary</Text>
+					) : <React.Fragment>{(() => {
 						const ratio = contextWindowSize > 0 ? lastApiReqTotalTokens / contextWindowSize : 0
 						const barColor = ratio > theme.contextDanger ? theme.error : ratio > theme.contextWarning ? theme.warning : theme.success
 						const bar = createContextBar(lastApiReqTotalTokens, contextWindowSize)
@@ -105,7 +117,7 @@ export const ChatFooter: React.FC<ChatFooterProps> = ({
 								{(boundedCacheHitRate * 100).toFixed(0)}% cache
 							</Text>{" "}
 						</React.Fragment>
-					)}
+					)}</React.Fragment>}
 				</Text>
 				<TaskStatusIndicator status={taskStatus} />
 			</Box>

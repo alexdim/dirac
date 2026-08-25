@@ -39,6 +39,8 @@ import type { TaskState } from "./TaskState"
 import type { ToolExecutor } from "./ToolExecutor"
 import type { TaskRequestRuntime } from "./runtime/TaskRequestRuntime"
 import { bindToolSnapshotToRequestRuntime } from "./runtime/TaskRequestRuntime"
+import type { TaskExecutionProfile } from "./TaskExecutionProfile"
+import { taskProfileSystemInstructions } from "./TaskExecutionProfile"
 
 export interface TaskRequestBuilderContext {
 	taskId: string
@@ -53,6 +55,8 @@ export interface TaskRequestBuilderContext {
 	diracIgnoreController: DiracIgnoreController
 	workspaceManager?: WorkspaceRootManager
 	taskState: TaskState
+	executionProfile: TaskExecutionProfile
+	getPinnedContext: () => Promise<string | undefined>
 	writePromptMetadataArtifacts: (params: {
 		systemPrompt: string
 		providerInfo: ApiProviderInfo
@@ -73,6 +77,7 @@ export async function buildApiRequestParams(
 	providerInfo: ApiProviderInfo
 }> {
 	const { settings, workspaceConfiguration, executionOptions } = requestRuntime.workingConfiguration
+	if (ctx.executionProfile === "standalone") ctx.taskState.pinnedContext = await ctx.getPinnedContext()
 	const apiConfiguration = requestRuntime.workingConfiguration.apiConfiguration
 	const mode = settings.mode
 	const providerInfo: ApiProviderInfo = {
@@ -180,6 +185,8 @@ export async function buildApiRequestParams(
 	)
 
 	const promptContext: SystemPromptContext = {
+		executionProfile: ctx.executionProfile,
+		profileInstructions: taskProfileSystemInstructions(ctx.executionProfile),
 		cwd: ctx.cwd,
 		ide,
 		providerInfo,
@@ -225,7 +232,12 @@ export async function buildApiRequestParams(
 	}
 
 	const toolSnapshot = await ctx.toolExecutor.getSnapshotForRequest(promptContext, requestRuntime)
-	const { systemPrompt } = await getSystemPrompt(promptContext, toolSnapshot)
+	const { systemPrompt: baseSystemPrompt } = await getSystemPrompt(promptContext, toolSnapshot)
+	const pinnedContext = await ctx.getPinnedContext()
+	const systemPrompt =
+		ctx.executionProfile === "standalone" || !pinnedContext
+			? baseSystemPrompt
+			: `${baseSystemPrompt}\n\n${pinnedContext}`
 	const boundRequestRuntime = bindToolSnapshotToRequestRuntime(requestRuntime, toolSnapshot)
 	ctx.toolExecutor.activateSnapshot(toolSnapshot, boundRequestRuntime)
 	ctx.taskState.useNativeToolCalls = toolSnapshot.nativeTools.length > 0

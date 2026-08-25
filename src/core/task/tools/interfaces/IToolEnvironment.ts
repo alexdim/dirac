@@ -17,6 +17,7 @@ import {
 	ActionButton,
 	BrowserActionResult,
 	Card,
+	CardParams as SharedCardParams,
 	CardLocation,
 	CardStatus,
 	CleanupStrategy,
@@ -25,11 +26,20 @@ import {
 } from "../../../../shared/ExtensionMessage"
 import { SkillContent, SkillMetadata } from "../../../../shared/skills"
 import { DiracAskResponse } from "../../../../shared/WebviewMessage"
+import type { DiracStorageMessage } from "../../../../shared/messages/content"
 import { HookExecutionResult } from "../../../hooks/hook-executor"
 import { TaskState } from "../../TaskState"
 import { SubagentProgressUpdate, SubagentRunResult } from "../subagent/SubagentRunner"
 import { TaskConfig } from "../types/TaskConfig"
 import { IDiracContext } from "./IDiracContext"
+import type {
+	GoalChildRecord,
+	GoalChildRole,
+	GoalChildStatus,
+	GoalObjectiveRevision,
+	GoalTaskSummary,
+} from "@shared/goal"
+import type { ResponseArguments } from "@shared/responseTool"
 
 export interface ICardHandle {
 	readonly collapsed: boolean
@@ -49,6 +59,8 @@ export interface ICardHandle {
 	readonly maxHeight?: number
 	readonly cleanupStrategy?: CleanupStrategy
 	readonly status: CardStatus
+	/** Whether waitForInteraction will actually suspend for user input. */
+	readonly requiresUserInteraction?: boolean
 
 	/**
 	 * Update the card's metadata or state.
@@ -81,21 +93,7 @@ export interface ICardHandle {
 	finalize(status: CardStatus, doNotAutoCollapse?: boolean): Promise<void>
 }
 
-export interface CardParams {
-	header: string
-	kind?: import("../../../../shared/ExtensionMessage").CardKind
-	/** Programmatic name of the tool that created this card. */
-	toolName?: string
-	icon?: string
-	status?: CardStatus
-	renderType?: RenderType
-	body?: string
-
-	rawInput?: import("../../../../shared/ExtensionMessage").CardRawInput
-	rawOutput?: import("../../../../shared/ExtensionMessage").CardRawOutput
-	diffs?: import("../../../../shared/ExtensionMessage").CardDiff[]
-	locations?: CardLocation[]
-	requireApproval?: boolean
+export interface CardParams extends SharedCardParams {
 	/**
 	 * Classifies tool permissions for the shared approval pipeline.
 	 * Utility may approve `tool`; `manual_tool` requires the user unless an explicit unrestricted mode is active.
@@ -103,15 +101,6 @@ export interface CardParams {
 	permissionRequestKind?: "tool" | "manual_tool"
 	/** Internal live predicate used to resolve a displayed tool permission after settings change. */
 	isAutoApproved?: () => boolean
-	requireFeedback?: boolean
-	feedbackPlaceholder?: string
-	actions?: ActionButton[]
-	autoScroll?: boolean
-	collapsed?: boolean
-	maxHeight?: number
-	cleanupStrategy?: CleanupStrategy
-	do_not_auto_collapse?: boolean
-	outcome?: string
 }
 
 export interface IUITrait {
@@ -120,6 +109,9 @@ export interface IUITrait {
 	 * This card is purely for observability.
 	 */
 	createCard(params: CardParams): Promise<ICardHandle>
+
+	/** Creates an interaction that only an explicit user response may resolve. */
+	createManualInteractionCard(params: CardParams): Promise<ICardHandle>
 
 	/**
 	 * Generic upsert for informational messages.
@@ -352,7 +344,7 @@ export interface IOrchestrationTrait {
 	 */
 	saveCheckpoint(isTaskComplete?: boolean, messageId?: string): Promise<void>
 	/** Returns false when queued steering supersedes the current completion attempt. */
-	commitAttemptCompletion(): Promise<boolean>
+	commitAttemptCompletion(response: string): Promise<CompletionCommitResult>
 
 	/**
 	 * Returns the conversation history.
@@ -394,6 +386,41 @@ export interface IOrchestrationTrait {
 	resetTransientState(): Promise<void>
 	/** Reports that conversation truncation state was successfully persisted. */
 	notifyContextCompacted(): void
+}
+
+export type CompletionCommitResult = { committed: true } | { committed: false; error: string }
+
+export interface IResponseObserverTrait {
+	recordResponse(response: ResponseArguments): Promise<void>
+}
+
+export interface TranscriptPage {
+	entries: DiracStorageMessage[]
+	nextCursor?: string
+}
+
+export interface IGoalTrait {
+	startTask(input: { taskTitle: string; prompt: string }): Promise<GoalChildRecord>
+	listTasks(input: {
+		status?: GoalChildStatus[]
+		role?: GoalChildRole
+		cursor?: string
+		limit?: number
+	}): Promise<{ tasks: GoalTaskSummary[]; nextCursor?: string }>
+	sendTaskMessage(input: { taskId: string; message: string }): Promise<GoalChildRecord>
+	cancelTask(input: { taskId: string; reason?: string }): Promise<GoalChildRecord>
+	readTaskTranscript(input: { taskId: string; cursor?: string; limit?: number }): Promise<TranscriptPage>
+	resolveTaskInteraction(input: {
+		taskId: string
+		interactionId: string
+		resolution: "allow" | "reject" | "answer" | "passthrough"
+		answer?: string
+	}): Promise<{ resolved: true; task: GoalChildRecord }>
+	waitForEvents(): Promise<string>
+	startVerification(input: { focus?: string }): Promise<GoalChildRecord>
+	replaceObjective(markdown: string): Promise<GoalObjectiveRevision>
+	blockGoal(reason: string): Promise<void>
+	commitCompletion(result: string): Promise<CompletionCommitResult>
 }
 
 export interface IDiagnosticsTrait {
@@ -469,6 +496,8 @@ export interface IToolEnvironment {
 	readonly browser: IBrowserTrait
 	readonly skills: ISkillsTrait
 	readonly orchestration: IOrchestrationTrait
+	readonly responseObserver: IResponseObserverTrait
+	readonly goal?: IGoalTrait
 	/** Available only to task environments that own their conversation history. */
 	readonly conversationCondensation?: IConversationCondensationTrait
 

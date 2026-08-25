@@ -15,6 +15,7 @@ import * as _paths from "./paths"
 import * as _remoteConfigCache from "./remoteConfigCache"
 import type { SkillsScanDirectory } from "./skillsStorage"
 import * as _skillsStorage from "./skillsStorage"
+import * as _taskDirectory from "./taskDirectory"
 import * as _taskHistory from "./taskHistory"
 import * as _taskStorage from "./taskStorage"
 
@@ -54,6 +55,10 @@ export const getTaskHistoryStateFilePath = _taskHistory.getTaskHistoryStateFileP
 export const readTaskHistoryFromState = _taskHistory.readTaskHistoryFromState
 export const taskHistoryStateFileExists = _taskHistory.taskHistoryStateFileExists
 export const writeTaskHistoryToState = _taskHistory.writeTaskHistoryToState
+export const deleteTaskDirectory = _taskDirectory.deleteTaskDirectory
+export const getTaskDirectoryPath = _taskDirectory.getTaskDirectoryPath
+export const getTasksDirectoryPath = _taskDirectory.getTasksDirectoryPath
+export const listTaskDirectoryIds = _taskDirectory.listTaskDirectoryIds
 export const getTaskMetadata = _taskStorage.getTaskMetadata
 export const readTaskSettingsFromStorage = _taskStorage.readTaskSettingsFromStorage
 export const saveTaskMetadata = _taskStorage.saveTaskMetadata

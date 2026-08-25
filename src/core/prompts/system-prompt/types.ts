@@ -8,11 +8,14 @@ import type { SkillMetadata } from "@/shared/skills"
 import { DiracDefaultTool } from "@/shared/tools"
 import { ShellType } from "@/utils/shell-detection"
 import { SystemPromptSection } from "./templates/placeholders"
+import type { TaskExecutionProfile } from "@core/task/TaskExecutionProfile"
 
 /**
  * Enhanced system prompt context with better typing
  */
 export interface SystemPromptContext {
+	readonly executionProfile?: TaskExecutionProfile
+	readonly profileInstructions?: string
 	readonly providerInfo: ApiProviderInfo
 	readonly cwd?: string
 	readonly ide: string

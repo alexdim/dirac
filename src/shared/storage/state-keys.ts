@@ -4,14 +4,14 @@ import {
 	DEFAULT_API_PROVIDER,
 	LiteLLMModelInfo,
 	ModelInfo,
-	OpenAiCompatibleModelInfo,
 	ModelProviderSelection,
+	OpenAiCompatibleModelInfo,
 	OpenAiCompatibleProfile,
 } from "@shared/api"
 import { BrowserSettings, DEFAULT_BROWSER_SETTINGS } from "@shared/BrowserSettings"
 import { DiracRulesToggles } from "@shared/dirac-rules"
 import { UIActionState } from "@shared/ExtensionMessage"
-import { HistoryItem } from "@shared/HistoryItem"
+import { RunHistoryItem } from "@shared/HistoryItem"
 import { WorkspaceRoot } from "@shared/multi-root/types"
 import { InferenceSpeed, Mode, normalizeInferenceSpeed } from "@shared/storage/types"
 import { TelemetrySetting } from "@shared/TelemetrySetting"
@@ -59,7 +59,7 @@ const GLOBAL_STATE_FIELDS = {
 	diracVersion: { default: undefined as string | undefined },
 	"dirac.generatedMachineId": { default: undefined as string | undefined }, // Note, distinctId reads/writes this directly from/to StorageContext before StateManager is initialized.
 	lastShownAnnouncementId: { default: undefined as string | undefined },
-	taskHistory: { default: [] as HistoryItem[], isAsync: true },
+	taskHistory: { default: [] as RunHistoryItem[], isAsync: true },
 	favoritedModelIds: { default: [] as string[] },
 	terminalReuseEnabled: { default: true as boolean },
 	vscodeTerminalExecutionMode: {

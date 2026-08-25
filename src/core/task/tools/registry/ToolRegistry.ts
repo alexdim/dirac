@@ -359,6 +359,7 @@ export class ToolRegistry {
 	}
 
 	scopeToolForSubagent(tool: DiscoveredTool, allowed: readonly string[]): DiscoveredTool | undefined {
+		if (tool.exposure.kind === "profile_only") return undefined
 		const authorization = resolveToolAuthorization(tool, allowed)
 		if (!authorization.allowed) {
 			return undefined
@@ -568,6 +569,7 @@ export class ToolRegistry {
 
 	private isEnabledTool(tool: DiscoveredTool): boolean {
 		if (tool.exposure.kind === "skill_only") return false
+		if (tool.exposure.kind === "profile_only") return tool.source === "builtin"
 		if (tool.source === "task") return true
 		const override = this.enabledOverrides.get(tool.id)
 		return override ?? tool.source === "builtin"
@@ -645,9 +647,10 @@ export class ToolRegistry {
 
 	private assertConfigurable(toolId: string): void {
 		const tool = this.getTool(toolId)
-		if (tool?.exposure.kind === "skill_only") {
-			throw new Error(`Skill-only tool '${toolId}' cannot be enabled or disabled directly.`)
-		}
+		if (!tool || tool.exposure.kind === "configurable") return
+		throw new Error(
+			`${tool.exposure.kind === "skill_only" ? "Skill-only" : "Profile-only"} tool '${toolId}' cannot be enabled or disabled directly.`,
+		)
 	}
 
 	private findToolByIdOrName(toolName: string): DiscoveredTool | undefined {

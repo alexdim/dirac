@@ -70,6 +70,7 @@ export class RespondTool implements IDiracTool {
 
 	async processCall(args: unknown, env: IToolEnvironment): Promise<any> {
 		const request = validateResponseArguments(args, env)
+		await env.responseObserver.recordResponse(request)
 		env.telemetry.captureCustomMetadata({
 			operation: request.operation,
 			textLength: request.text.length,

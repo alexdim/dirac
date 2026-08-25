@@ -85,6 +85,8 @@ import { cardBodyForDisplay } from "../utils/card-body"
 import { createCardBodySuppressionPolicy } from "../utils/quiet-mode"
 import { clearTaskDeadline, getTaskDeadline, hasTaskTimedOut, markTaskTimedOut } from "../utils/task-timeout"
 import { CliPanelType } from "../types"
+import { GoalSummary } from "./GoalSummary"
+import { type GoalLifecycleAction, isResumableGoalStatus, isRunningGoalStatus } from "../utils/goals"
 
 interface ChatViewProps {
 	controller?: any
@@ -150,6 +152,8 @@ export const ChatView: React.FC<ChatViewProps> = ({
 	)
 
 	const [timelineScrollOffset, setTimelineScrollOffset] = useState(0)
+	const [pendingGoalStopId, setPendingGoalStopId] = useState<string | undefined>()
+	const selectedGoal = taskState.goal
 
 	const layoutRows = calculateChatLayoutRows({
 		terminalRows,
@@ -281,13 +285,46 @@ export const ChatView: React.FC<ChatViewProps> = ({
 		setTaskSwitchKey,
 	})
 
+	useEffect(() => {
+		setPendingGoalStopId(undefined)
+	}, [selectedGoal?.id, selectedGoal?.status])
+
+	const handleGoalControl = useCallback(
+		async (action: GoalLifecycleAction) => {
+			const goal = taskState.goal
+			if (!goal || !ctrl || isProcessing) return
+			if (action === "stop" && pendingGoalStopId !== goal.id) {
+				setPendingGoalStopId(goal.id)
+				return
+			}
+
+			setPendingGoalStopId(undefined)
+			setIsProcessing(true)
+			setLastError(null)
+			try {
+				if (action === "pause") {
+					await ctrl.pauseGoal(goal.id, "Paused from the interactive CLI")
+				} else if (action === "resume") {
+					await ctrl.resumeGoal(goal.id)
+				} else {
+					await ctrl.stopGoal(goal.id, "Stopped from the interactive CLI")
+				}
+			} catch (error) {
+				reportInteractionError(`Failed to ${action} Goal`, error)
+			} finally {
+				setIsProcessing(false)
+			}
+		},
+		[ctrl, isProcessing, pendingGoalStopId, reportInteractionError, setIsProcessing, setLastError, taskState.goal],
+	)
+
 	const activeTaskId = ctrl?.task?.taskId
 	const isTaskActive =
 		taskState.taskStatus !== TaskStatus.IDLE &&
 		taskState.taskStatus !== TaskStatus.COMPLETED &&
 		taskState.taskStatus !== TaskStatus.CANCELLED
 	useEffect(() => {
-		if (!timeoutSeconds || !activeTaskId) return
+		if (!timeoutSeconds || !activeTaskId || selectedGoal) return
 		if (!isTaskActive) {
 			clearTaskDeadline(activeTaskId)
 			return
@@ -305,7 +342,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
 				.catch((error: unknown) => reportInteractionError("Failed to cancel timed-out task", error))
 		}, remainingMs)
 		return () => clearTimeout(timeout)
-	}, [activeTaskId, ctrl, isTaskActive, reportInteractionError, timeoutSeconds])
+	}, [activeTaskId, ctrl, isTaskActive, reportInteractionError, selectedGoal, timeoutSeconds])
 
 	const isEmptyConversation = displayMessages.length === 0
 	const isWelcomeState = isEmptyConversation && !userScrolled && activePanel === null
@@ -315,7 +352,10 @@ export const ChatView: React.FC<ChatViewProps> = ({
 		if (!activeCardId || activeCardId === respondedToAsk) return null
 		return (
 			(taskState.diracMessages || []).find(
-				(message) => message.id === activeCardId && message.content.type === DiracMessageType.CARD,
+				(message) =>
+					message.id === activeCardId &&
+					message.content.type === DiracMessageType.CARD &&
+					!isFinalStatus(message.content.card.status),
 			) || null
 		)
 	}, [activeCardId, respondedToAsk, taskState.diracMessages])
@@ -404,10 +444,16 @@ export const ChatView: React.FC<ChatViewProps> = ({
 		scrollableCardMaxOffset: activeScrollableMaxOffset,
 		cardScrollOffset: activeScrollOffset,
 		setCardScrollOffset: setActiveScrollOffset,
+		goalStatus: selectedGoal?.status,
+		handleGoalControl,
 	})
 	resetComposerInputRef.current = resetInput
 
 	const toggleMode = useCallback(async () => {
+		if (selectedGoal) {
+			setLastError(selectedGoal.modeSwitchingExplanation)
+			return
+		}
 		const newMode: Mode = mode === "act" ? "plan" : "act"
 		setMode(newMode)
 		if (newMode === "act" && textInput.trim()) {
@@ -416,7 +462,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
 		} else {
 			await ctrl.togglePlanActMode(newMode)
 		}
-	}, [mode, ctrl, textInput, pastedTexts])
+	}, [mode, ctrl, textInput, pastedTexts, selectedGoal, setLastError])
 
 	const sendAskResponse = useCallback(
 		async (responseType: DiracAskResponse | string, text?: string, value?: string, images?: string[]) => {
@@ -606,6 +652,31 @@ export const ChatView: React.FC<ChatViewProps> = ({
 		async (text: string, images: string[]) => {
 			if (!ctrl || (!text.trim() && images.length === 0) || isProcessing) return
 			setLastError(null)
+			const goal = taskState.goal
+			const isGoalPassthrough =
+				pendingAsk?.content.type === DiracMessageType.CARD &&
+				pendingAsk.content.card.toolName === "resolve_task_interaction"
+			if (isRunningGoalStatus(goal?.status) && goal && (!pendingAsk || isGoalPassthrough)) {
+				if (images.length > 0) {
+					setLastError("Goal steering currently accepts text only.")
+					return
+				}
+				setIsProcessing(true)
+				try {
+					const expandedText = expandPastedTexts(text, pastedTexts).trim()
+					await ctrl.steerGoal(goal.id, expandedText)
+					resetInput()
+				} catch (error) {
+					reportInteractionError("Failed to steer Goal", error)
+				} finally {
+					setIsProcessing(false)
+				}
+				return
+			}
+			if (isResumableGoalStatus(goal?.status)) {
+				setLastError(`Goal ${goal?.id} is ${goal?.status}; resume it before sending steering.`)
+				return
+			}
 			try {
 				if (await submitResumeTextResponse(text, images)) return
 			} catch (error) {
@@ -666,12 +737,15 @@ export const ChatView: React.FC<ChatViewProps> = ({
 			setLastError,
 			reportInteractionError,
 			footerStatus.workspacePath,
+			taskState.goal,
 		],
 	)
 
 	const borderColor = mode === "act" ? COLORS.primaryBlue : theme.plan
 	let inputPrompt = ""
-	if (pendingAsk && !yolo && askType === "options" && askOptions.length > 0) {
+	if (isRunningGoalStatus(selectedGoal?.status)) {
+		inputPrompt = "(steer Goal)"
+	} else if (pendingAsk && !yolo && askType === "options" && askOptions.length > 0) {
 		inputPrompt = `(1-${askOptions.length} or type)`
 	} else if (isResumeChoiceActive) {
 		inputPrompt = "(type to resume)"
@@ -800,6 +874,13 @@ export const ChatView: React.FC<ChatViewProps> = ({
 
 	const composerFooterContent = (
 		<React.Fragment>
+			{selectedGoal && !activePanel && (
+				<GoalSummary
+					goal={selectedGoal}
+					isProcessing={isProcessing}
+					isStopConfirmationPending={pendingGoalStopId === selectedGoal.id}
+				/>
+			)}
 			{lastError && !activePanel && (
 				<Box paddingLeft={1} paddingRight={1}>
 					<Text color={theme.error}>! {lastError}</Text>
@@ -905,6 +986,8 @@ export const ChatView: React.FC<ChatViewProps> = ({
 					mode={mode}
 					modelId={footerStatus.modelId}
 					fastModeEnabled={footerStatus.fastModeEnabled}
+					modeSwitchingDisabled={selectedGoal?.modeSwitchingDisabled}
+					modeSwitchingExplanation={selectedGoal?.modeSwitchingExplanation}
 					provider={footerStatus.provider}
 					totalCost={footerStatus.totalCost}
 					cacheHitRate={footerStatus.cacheHitRate}

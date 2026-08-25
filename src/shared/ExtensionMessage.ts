@@ -43,6 +43,7 @@ export {
 
 import { TelemetrySetting } from "./TelemetrySetting"
 import type { UserApprovedCommand } from "./UserApprovedCommand"
+import type { GoalViewState } from "./goal"
 // webview will hold state
 export interface ExtensionMessage {
 	type: "grpc_response" // New type for gRPC responses
@@ -71,6 +72,7 @@ export interface ToolMetadata {
 }
 
 export interface ExtensionState {
+	goal?: GoalViewState
 	isNewUser: boolean
 	welcomeViewCompleted: boolean
 	onboardingModels?: OnboardingModelGroup | undefined
@@ -350,6 +352,15 @@ export interface DiracApiReqInfo {
 	reasoningTokens?: number
 	cacheReads?: number
 	cost?: number
+	/** Distinguishes provider-reported or calculable metrics from placeholder zeroes. */
+	usageAvailability?: {
+		inputTokens: boolean
+		outputTokens: boolean
+		reasoningTokens: boolean
+		cacheWrites: boolean
+		cacheReads: boolean
+		cost: boolean
+	}
 	contextWindow?: number
 	contextUsagePercentage?: number
 	/** Aggregate metrics from messages deleted during checkpoint restore. Used for accurate total tracking without inflating per-request counts. */

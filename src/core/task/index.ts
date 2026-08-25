@@ -62,7 +62,7 @@ import { activateTaskSkill } from "./activateTaskSkill"
 import { ContextLoader } from "./ContextLoader"
 import { EnvironmentManager } from "./EnvironmentManager"
 import { HookManager } from "./HookManager"
-import { LifecycleManager } from "./LifecycleManager"
+import { LifecycleManager, type ResumeTaskOptions } from "./LifecycleManager"
 import { LocalConversationCompaction } from "./LocalConversationCompaction"
 import { MessageStateHandler } from "./message-state"
 import { ResponseProcessor } from "./ResponseProcessor"
@@ -81,6 +81,7 @@ import {
 } from "./TaskRequestOutcome"
 import { attemptApiRequest } from "./TaskApiRequestAttempt"
 import { recursivelyMakeDiracRequests, type TaskRequestLoopContext } from "./TaskRequestLoop"
+import type { TaskConversationPersistenceHooks } from "./TaskConversationPersistence"
 import { TaskState } from "./TaskState"
 import {
 	appendQueuedSteeringToNextApiRequest,
@@ -111,10 +112,18 @@ import {
 } from "./runtime/TaskWorkingConfiguration"
 import { extractProviderDomainFromUrl } from "./utils"
 import { submitCardResponse, waitForFollowUp } from "./TaskUserInput"
+import type { TaskExecutionProfile } from "./TaskExecutionProfile"
+import type { ToolEnvironmentFactory } from "./tools/interfaces/ToolEnvironmentFactory"
+import { SurfaceToolEnvironmentFactory } from "./tools/adapters/SurfaceAdapter"
+import {
+	serializeTaskError,
+	type TaskCancellationIntent,
+	type TaskRunOutcome,
+} from "./TaskRunOutcome"
 
 export type ToolResponse = DiracToolResponseContent
 
-type TaskParams = {
+export type TaskParams = {
 	controller: Controller
 	updateTaskHistory: (historyItem: HistoryItem) => Promise<HistoryItem[]>
 	postStateToWebview: () => Promise<void>
@@ -137,9 +146,15 @@ type TaskParams = {
 	conversationUlid?: string
 	taskLockAcquired: boolean
 	pinnedContext?: string
+	getPinnedContext?: () => Promise<string | undefined>
+	executionProfile?: TaskExecutionProfile
+	toolEnvironmentFactory?: ToolEnvironmentFactory
 	onContextCompacted?: () => void
 	switchToActMode?: () => Promise<boolean>
 	enqueuePreRequestSteeringMessages?: () => Promise<void>
+	updateBackgroundCommandState?: (running: boolean, taskId: string) => void
+	conversationPersistenceHooks?: TaskConversationPersistenceHooks
+
 }
 
 export class Task {
@@ -154,6 +169,8 @@ export class Task {
 	taskState: TaskState
 	private workingConfiguration: TaskWorkingConfiguration
 	private activeRequestRuntime?: TaskRequestRuntime
+
+	private readonly conversationPersistenceHooks?: TaskConversationPersistenceHooks
 
 	// ONE mutex for ALL state modifications to prevent race conditions
 	private stateMutex = new Mutex()
@@ -172,6 +189,7 @@ export class Task {
 			taskState: this.taskState,
 			messageStateHandler: this.messageStateHandler,
 			taskMessenger: this.taskMessenger,
+			allowWhileWaitingForInteraction: this.executionProfile === "goal_coordinator",
 			postStateToWebview: () => this.postStateToWebview(),
 			withStateLock: (fn) => this.withStateLock(fn),
 		}
@@ -200,6 +218,8 @@ export class Task {
 			diracIgnoreController: this.diracIgnoreController,
 			workspaceManager: this.workspaceManager,
 			taskState: this.taskState,
+			executionProfile: this.executionProfile,
+			getPinnedContext: this.getPinnedContext,
 			writePromptMetadataArtifacts: (params) =>
 				writePromptMetadataArtifacts(
 					{
@@ -220,6 +240,7 @@ export class Task {
 			taskMessenger: this.taskMessenger,
 			api: requestRuntime.api,
 			taskId: this.taskId,
+			executionProfile: this.executionProfile,
 			checkpointManager: this.checkpointManager,
 			postStateToWebview: () => this.postStateToWebview(),
 			abortTask: () => this.abortTask(),
@@ -250,6 +271,8 @@ export class Task {
 			modelContextTracker: this.modelContextTracker,
 			diffViewProvider: this.diffViewProvider,
 			ulid: this.ulid,
+			conversationPersistenceHooks: this.conversationPersistenceHooks,
+
 		}
 	}
 
@@ -285,8 +308,10 @@ export class Task {
 		return appendQueuedSteeringToNextApiRequest(this.steeringContext, outboundHistory)
 	}
 
-	private async commitAttemptCompletion(): Promise<boolean> {
-		return commitAttemptCompletion(this.steeringContext)
+	private async commitAttemptCompletion(response: string): Promise<
+		import("./tools/interfaces/IToolEnvironment").CompletionCommitResult
+	> {
+		return commitAttemptCompletion(this.steeringContext, response)
 	}
 
 	public async setActiveHookExecution(hookExecution: NonNullable<typeof this.taskState.activeHookExecution>): Promise<void> {
@@ -374,7 +399,8 @@ export class Task {
 	workspaceManager?: WorkspaceRootManager
 
 	// Task Locking (Sqlite)
-	private taskLockAcquired: boolean
+	readonly executionProfile: TaskExecutionProfile
+	private readonly getPinnedContext: () => Promise<string | undefined>
 
 	// Command executor for running shell commands (extracted from executeCommandTool)
 	private commandExecutor!: CommandExecutor
@@ -402,11 +428,17 @@ export class Task {
 			taskId,
 			conversationUlid,
 			taskLockAcquired,
+			updateBackgroundCommandState,
 		} = params
 
 		this.taskInitializationStartTime = performance.now()
 		this.taskState = new TaskState()
 		this.taskState.pinnedContext = params.pinnedContext
+		this.executionProfile = params.executionProfile ?? "standalone"
+		this.getPinnedContext = params.getPinnedContext ?? (() => Promise.resolve(params.pinnedContext))
+		if (this.executionProfile !== "standalone" && workingConfiguration.settings.mode !== "act") {
+			throw new Error(`${this.executionProfile} Tasks require an Act-mode working configuration`)
+		}
 		this.contextCompactionObserver = params.onContextCompacted
 		this.controller = controller
 		this.updateTaskHistory = updateTaskHistory
@@ -418,10 +450,11 @@ export class Task {
 		this.workspaceManager = workspaceManager
 		this.cwd = cwd
 		this.taskId = taskId
-		this.taskLockAcquired = taskLockAcquired
+		this.taskState.taskLockAcquired = taskLockAcquired
 		this.terminalExecutionMode = vscodeTerminalExecutionMode || "vscodeTerminal"
 		this.switchToActMode = params.switchToActMode ?? (() => this.controller.toggleActModeForYoloMode())
 		this.enqueuePreRequestSteeringMessages = params.enqueuePreRequestSteeringMessages ?? (async () => undefined)
+		this.conversationPersistenceHooks = params.conversationPersistenceHooks
 
 		if (workingConfiguration.settings.mode === "act") {
 			this.taskState.didSwitchToActMode = true
@@ -633,7 +666,10 @@ export class Task {
 		const commandExecutorCallbacks: CommandExecutorCallbacks = {
 			taskMessenger: this.taskMessenger,
 			updateBackgroundCommandState: (isRunning: boolean) =>
-				this.controller.updateBackgroundCommandState(isRunning, this.taskId),
+				(updateBackgroundCommandState ?? this.controller.updateBackgroundCommandState.bind(this.controller))(
+					isRunning,
+					this.taskId,
+				),
 			updateDiracMessage: async (index: number, updates: Partial<import("@shared/ExtensionMessage").DiracMessage>) => {
 				await this.messageStateHandler.updateDiracMessage(index, updates)
 				await this.postStateToWebview()
@@ -692,6 +728,8 @@ export class Task {
 			this.diracContext,
 			this.resetTransientState.bind(this),
 			this.notifyContextCompacted.bind(this),
+			this.executionProfile,
+			params.toolEnvironmentFactory ?? new SurfaceToolEnvironmentFactory(),
 		)
 		this.environmentManager = new EnvironmentManager({
 			cwd: this.cwd,
@@ -1041,35 +1079,45 @@ export class Task {
 		return this.hookManager.runUserPromptSubmitHook(userContent, context)
 	}
 
-	public async startTask(task?: string, images?: string[], files?: string[]): Promise<void> {
-		await this.toolExecutor.refreshToolsForTask()
-		return this.lifecycleManager.startTask(task, images, files)
+	public async startTask(task?: string, images?: string[], files?: string[]): Promise<TaskRunOutcome> {
+		return this.runTaskLifecycle(async () => {
+			await this.toolExecutor.refreshToolsForTask()
+			return this.lifecycleManager.startTask(task, images, files)
+		})
 	}
 
 	public restoreQueuedSteeringFromTranscript(): void {
 		restoreQueuedSteeringFromTranscript(this.steeringContext)
 	}
 
-	public async resumeTaskFromHistory(onRestored?: () => void) {
-		await this.toolExecutor.refreshToolsForTask()
-		return this.lifecycleManager.resumeTaskFromHistory(onRestored)
+	public async resumeTaskFromHistory(
+		onRestored?: () => void,
+		options: ResumeTaskOptions = {},
+	): Promise<TaskRunOutcome> {
+		return this.runTaskLifecycle(async () => {
+			await this.toolExecutor.refreshToolsForTask()
+			return this.lifecycleManager.resumeTaskFromHistory(onRestored, options)
+		})
 	}
 
 	public markToolsDirty(reason: ToolSnapshotDirtyReason): void {
 		this.toolExecutor.markToolsDirty(reason)
 	}
 
-	private async initiateTaskLoop(userContent: DiracContent[]): Promise<void> {
-		let nextUserContent = userContent
-		let includeFileDetails = true
-		while (!this.taskState.abort) {
-			const didEndLoop = await this.recursivelyMakeDiracRequests(nextUserContent, includeFileDetails)
-			includeFileDetails = false // we only need file details the first time
+	private async initiateTaskLoop(userContent: DiracContent[]): Promise<TaskRunOutcome> {
+		let outcome: TaskRunOutcome | undefined
+		try {
+			let nextUserContent = userContent
+			let includeFileDetails = true
+			while (!this.taskState.abort) {
+				const didEndLoop = await this.recursivelyMakeDiracRequests(nextUserContent, includeFileDetails)
+				includeFileDetails = false // we only need file details the first time
 
-			if (didEndLoop) {
+				if (!didEndLoop) continue
+
 				// Automatic-condense state survives in-request retries, but not a terminal turn boundary.
 				this.taskState.pendingCondenseSource = undefined
-				if (this.taskState.didAttemptCompletion) {
+				if (this.executionProfile === "standalone" && this.taskState.didAttemptCompletion) {
 					const followUp = await this.waitForFollowUp()
 					if (followUp) {
 						await this.taskMessenger.upsertText(
@@ -1081,21 +1129,106 @@ export class Task {
 						)
 						nextUserContent = [...this.taskState.userMessageContent, ...followUp]
 						this.taskState.didAttemptCompletion = false
+						this.taskState.completionResponse = undefined
 						continue
 					}
 				}
 				break
 			}
+			outcome = this.taskRunOutcomeFromState()
+		} catch (error) {
+			outcome = this.taskState.abort
+				? this.taskRunOutcomeFromState()
+				: { kind: "failed", error: serializeTaskError(error), failedAt: Date.now() }
 		}
-		// Flush task history at the end of the task loop (turn boundary)
-		await this.messageStateHandler.flushTaskHistory()
+
+		try {
+			// Flush task history at the end of the task loop (turn boundary).
+			await this.messageStateHandler.flushTaskHistory()
+		} catch (error) {
+			outcome = { kind: "failed", error: serializeTaskError(error), failedAt: Date.now() }
+		}
+
+		return outcome
+	}
+
+	private async runTaskLifecycle(
+		run: () => Promise<TaskRunOutcome | undefined>,
+	): Promise<TaskRunOutcome> {
+		let outcome: TaskRunOutcome
+		try {
+			outcome = (await run()) ?? this.taskRunOutcomeFromState()
+		} catch (error) {
+			outcome = { kind: "failed", error: serializeTaskError(error), failedAt: Date.now() }
+		}
+		return this.settleTaskRun(outcome)
+	}
+
+	private taskRunOutcomeFromState(): TaskRunOutcome {
+		const intent = this.taskState.cancellationIntent
+		if (intent?.kind === "interrupted") {
+			return {
+				kind: "interrupted",
+				reason: intent.reason ?? "Interrupted by Task owner",
+				interruptedAt: Date.now(),
+			}
+		}
+		if (intent?.kind === "cancelled" || this.taskState.abort) {
+			return { kind: "cancelled", reason: intent?.reason, cancelledAt: Date.now() }
+		}
+		if (this.taskState.completionResponse !== undefined) {
+			return { kind: "completed", response: this.taskState.completionResponse, completedAt: Date.now() }
+		}
+		if (this.taskState.terminalError) {
+			return { kind: "failed", error: this.taskState.terminalError, failedAt: Date.now() }
+		}
+		return {
+			kind: "failed",
+			error: serializeTaskError(new Error("Task run ended without a terminal response")),
+			failedAt: Date.now(),
+		}
+	}
+
+	private async settleTaskRun(candidate: TaskRunOutcome): Promise<TaskRunOutcome> {
+		let outcome = candidate
+		if (this.executionProfile !== "standalone") {
+			try {
+				await this.lifecycleManager.finalizeTaskRun()
+			} catch (error) {
+				const failures: unknown[] = [error]
+				if (candidate.kind === "failed") {
+					failures.unshift(new Error(`${candidate.error.name}: ${candidate.error.message}`))
+				}
+				outcome = {
+					kind: "failed",
+					error: serializeTaskError(new AggregateError(failures, "Task termination failed")),
+					failedAt: Date.now(),
+				}
+			}
+		}
+
+		return this.withStateLock(() => {
+			if (this.taskState.runOutcome) return this.taskState.runOutcome
+			this.taskState.runOutcome = outcome
+			if (outcome.kind === "failed") this.taskState.terminalError = outcome.error
+			if (outcome.kind === "cancelled") {
+				this.taskState.cancellationIntent ??= { kind: "cancelled", reason: outcome.reason }
+			}
+			if (outcome.kind === "interrupted") {
+				this.taskState.cancellationIntent ??= { kind: "interrupted", reason: outcome.reason }
+			}
+			return outcome
+		})
 	}
 
 	private async shouldRunTaskCancelHook(): Promise<boolean> {
 		return this.hookManager.shouldRunTaskCancelHook()
 	}
 
-	async abortTask() {
+	async abortTask(intent: TaskCancellationIntent = { kind: "cancelled" }): Promise<void> {
+		await this.withStateLock(() => {
+			if (!this.taskState.runOutcome) this.taskState.cancellationIntent ??= intent
+		})
 		if (this.taskState.status !== TaskStatus.CANCELLED) {
 			this.taskState.status = TaskStatus.CANCELLING
 		}

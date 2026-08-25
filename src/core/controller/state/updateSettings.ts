@@ -238,6 +238,9 @@ function publishSettingTelemetry(
 /** Update webview settings while keeping persisted defaults and an active Task in one explicit transition. */
 export async function updateSettings(controller: Controller, request: UpdateSettingsRequest): Promise<Empty> {
 	try {
+		if (controller.selectedGoalId && convertMode(request.mode) !== undefined) {
+			throw new Error("Mode switching is disabled while a Goal is active.")
+		}
 		const previousActiveSettings = structuredClone(
 			controller.task?.getWorkingConfiguration().settings ?? {
 				hooksEnabled: controller.stateManager.getGlobalSettingsKey("hooksEnabled") ?? true,

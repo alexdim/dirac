@@ -283,6 +283,9 @@ function buildActiveTaskPatch(
 /** Update CLI defaults and explicitly transition the active Task using the same normalized values. */
 export async function updateSettingsCli(controller: Controller, request: UpdateSettingsRequestCli): Promise<Empty> {
 	const settings = request.settings
+	if (controller.selectedGoalId && settings?.mode !== undefined) {
+		throw new Error("Mode switching is disabled while a Goal is active.")
+	}
 	const secrets: Partial<Secrets> = request.secrets
 		? Object.fromEntries(Object.entries(request.secrets).filter(([, value]) => value !== undefined))
 		: {}

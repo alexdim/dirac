@@ -6,6 +6,7 @@ import type { HookExecution } from "./types/HookExecution"
 import type { SteeringMessage } from "./steering"
 import { SkillMetadata } from "@/shared/skills"
 import { TaskStatus } from "@shared/ExtensionMessage"
+import type { SerializedTaskError, TaskCancellationIntent, TaskRunOutcome } from "./TaskRunOutcome"
 
 export interface TaskReplacementRequest {
 	context: string
@@ -86,6 +87,14 @@ export class TaskState {
 	isInitialized = false
 
 	// Task Abort / Cancellation
+	/** Owner intent captured before teardown begins. The first terminal intent wins. */
+	cancellationIntent?: TaskCancellationIntent
+	/** Response accepted by the Task completion commit. */
+	completionResponse?: string
+	/** Fatal error preserved for the Task owner. */
+	terminalError?: SerializedTaskError
+	/** Task-owned, single-assignment terminal result. */
+	runOutcome?: TaskRunOutcome
 	#abortController = new AbortController()
 
 	get abort(): boolean {
@@ -143,6 +152,12 @@ export class TaskState {
 	utilityPermissionCacheWriteTokens = 0
 	utilityPermissionCacheReadTokens = 0
 	utilityPermissionCost = 0
+	utilityModelReasoningTokens = 0
+	utilityModelUsageObserved = false
+	utilityModelReasoningAvailable = true
+	utilityModelCacheWriteAvailable = true
+	utilityModelCacheReadAvailable = true
+	utilityModelCostAvailable = true
 
 	// Persistent task-owned mid-turn guidance. Never reset with stream-local state.
 	steeringMessages: SteeringMessage[] = []

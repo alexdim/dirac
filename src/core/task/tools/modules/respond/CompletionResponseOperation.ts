@@ -25,45 +25,57 @@ export class CompletionResponseOperation {
 
 		env.orchestration.setTaskState("doubleCheckCompletionPending", false)
 
-		if (!(await env.orchestration.commitAttemptCompletion())) {
-			return result
+		const completion = env.goal
+			? await env.goal.commitCompletion(result)
+			: await env.orchestration.commitAttemptCompletion(result)
+		if (!completion.committed) {
+			return `Completion rejected: ${completion.error}`
 		}
+		env.orchestration.setTaskState("completionCommitted", true)
+		env.orchestration.setTaskState("didAttemptCompletion", true)
+		env.orchestration.setTaskState("completionResponse", result)
 
-		try {
-			await this.handleCompletionResult(env, result)
-			await env.orchestration.runHook("TaskComplete", {
-				taskComplete: {
-					taskMetadata: {
-						taskId: env.config.taskId,
-						ulid: env.config.ulid,
-						result,
-					},
-				},
-			})
-		} catch (error) {
-			env.logging.warn("Completion was committed, but a completion artifact failed", error)
-		}
+		if (env.config.executionProfile !== "goal_child") {
+			try {
+				await this.handleCompletionResult(env, result)
+				if (env.config.executionProfile === "standalone") {
+					await env.orchestration.runHook("TaskComplete", {
+						taskComplete: {
+							taskMetadata: {
+								taskId: env.config.taskId,
+								ulid: env.config.ulid,
+								result,
+							},
+						},
+					})
+				}
+			} catch (error) {
+				env.logging.warn("Completion was committed, but a completion artifact failed", error)
+			}
 
-		try {
-			if (!env.config.isSubagentExecution && env.config.autoApprovalSettings.enableNotifications) {
-				env.system.showNotification({
-					subtitle: "Task Completed",
-					message: result.replace(/\n/g, " "),
-				})
+			try {
+				if (!env.config.isSubagentExecution && env.config.autoApprovalSettings.enableNotifications) {
+					env.system.showNotification({
+						subtitle: "Task Completed",
+						message: result.replace(/\n/g, " "),
+					})
+				}
+				if (!env.config.isSubagentExecution) {
+					env.telemetry.captureTaskCompleted()
+					if (env.config.executionProfile === "standalone") {
+						await env.orchestration.runHook("Notification", {
+							notification: {
+								event: "task_completed",
+								source: `${DiracDefaultTool.RESPOND}:${ResponseOperation.COMPLETE}`,
+								message: result,
+								waitingForUserInput: true,
+							},
+						})
+					}
+				}
+			} catch (error) {
+				env.logging.warn("Completion succeeded, but a completion notification failed", error)
 			}
-			if (!env.config.isSubagentExecution) {
-				env.telemetry.captureTaskCompleted()
-				await env.orchestration.runHook("Notification", {
-					notification: {
-						event: "task_completed",
-						source: `${DiracDefaultTool.RESPOND}:${ResponseOperation.COMPLETE}`,
-						message: result,
-						waitingForUserInput: true,
-					},
-				})
-			}
-		} catch (error) {
-			env.logging.warn("Completion succeeded, but a completion notification failed", error)
 		}
 		env.telemetry.captureCustomMetadata({ operation: ResponseOperation.COMPLETE, mode: env.config.mode })
 

@@ -129,7 +129,7 @@ export class SubagentContextBuilder {
 		return [...tools.values()]
 	}
 	private buildSubagentCoordinator(enabledTools: DiscoveredTool[]): ToolExecutorCoordinator {
-		const coordinator = new ToolExecutorCoordinator()
+		const coordinator = this.baseConfig.coordinator.createEmptySibling()
 		for (const tool of enabledTools) coordinator.registerModularTool(tool.factory(this.baseConfig))
 		return coordinator
 	}

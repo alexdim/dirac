@@ -49,4 +49,14 @@ describe("projectInteractionState", () => {
 			}),
 		).toBe(InteractionState.COMPLETED)
 	})
+
+	it("does not treat a terminal active card as an outstanding response", () => {
+		expect(
+			projectInteractionState({
+				messages: [markdownMessage("task"), cardMessage(CardStatus.SUCCESS)],
+				activeCardId: "card-message",
+				taskStatus: TaskStatus.EXECUTING_TOOL,
+			}),
+		).toBe(InteractionState.RUNNING)
+	})
 })

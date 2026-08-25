@@ -9,12 +9,11 @@ import {
 	type PermissionDecisionServiceBinding,
 } from "@core/permissions/UtilityPermissionDecisionService"
 import type { SystemPromptContext } from "@core/prompts/system-prompt/types"
-import { createUtilityModelRunner, type UtilityModelUsageEvent } from "@core/utility-model/UtilityModelRunner"
+import { createUtilityModelRunner } from "@core/utility-model/UtilityModelRunner"
 import { getConfiguredUtilityModelSelection } from "@core/utility-model/UtilityModelSelection"
 import { DiffViewProvider } from "@integrations/editor/DiffViewProvider"
 import type { CommandExecutionOptions } from "@integrations/terminal"
 import { BrowserSession } from "@services/browser/BrowserSession"
-import { telemetryService } from "@services/telemetry"
 import { UrlContentFetcher } from "@services/browser/UrlContentFetcher"
 import type { ApiConfiguration, ApiProvider, ModelProviderSelection } from "@shared/api"
 import { CardStatus, DiracMessage } from "@shared/ExtensionMessage"
@@ -32,6 +31,7 @@ import { MessageStateHandler } from "./message-state"
 import { assertTaskMutationAuthorized, type TaskRequestRuntime } from "./runtime/TaskRequestRuntime"
 import { deepFreezeConfiguration, type TaskWorkingConfiguration } from "./runtime/TaskWorkingConfiguration"
 import { TaskState } from "./TaskState"
+import { recordUtilityModelUsage } from "./recordUtilityModelUsage"
 import { AutoApprove, type ToolPermissionDisposition } from "./tools/autoApprove"
 import { IDiracContext } from "./tools/interfaces/IDiracContext"
 import { ToolErrorHandler, ToolHookRunner } from "./tools/runtime/ToolHookRunner"
@@ -39,8 +39,11 @@ import { ToolResultPusher } from "./tools/runtime/ToolResultPusher"
 import type { ToolRequestSnapshot, ToolSnapshotDirtyReason } from "./tools/runtime/ToolSnapshot"
 import { ToolSnapshotManager } from "./tools/runtime/ToolSnapshotManager"
 import { ToolExecutorCoordinator } from "./tools/ToolExecutorCoordinator"
+import type { ToolEnvironmentFactory } from "./tools/interfaces/ToolEnvironmentFactory"
 import { type SubagentRuntime, TaskConfig, validateTaskConfig } from "./tools/types/TaskConfig"
 import { ToolDisplayUtils } from "./tools/utils/ToolDisplayUtils"
+import type { TaskExecutionProfile } from "./TaskExecutionProfile"
+import { isDiscoveredToolAvailableToTaskProfile } from "./TaskExecutionProfile"
 
 export { canonicalizeResponseToolCall }
 
@@ -90,7 +93,9 @@ export class ToolExecutor {
 		private retainMutationUntil: (completion: Promise<void>) => void,
 		private commitEnabledToolToggles: (toolIds: readonly string[], finalize?: () => Promise<void>) => Promise<void>,
 		private saveCheckpoint: (isAttemptCompletionMessage?: boolean, completionMessageId?: string) => Promise<void>,
-		private commitAttemptCompletion: () => Promise<boolean>,
+		private commitAttemptCompletion: (response: string) => Promise<
+			import("./tools/interfaces/IToolEnvironment").CompletionCommitResult
+		>,
 		private executeCommandTool: (
 			command: string,
 			timeoutSeconds: number | undefined,
@@ -111,8 +116,10 @@ export class ToolExecutor {
 		private diracContext: IDiracContext,
 		private resetTransientState: () => Promise<void>,
 		private notifyContextCompacted: () => void,
+		private executionProfile: TaskExecutionProfile,
+		private environmentFactory: ToolEnvironmentFactory,
 	) {
-		this.coordinator = new ToolExecutorCoordinator()
+		this.coordinator = new ToolExecutorCoordinator(environmentFactory)
 		this.snapshotManager = new ToolSnapshotManager({
 			createTaskConfig: (coordinator) => this.asToolConfig(coordinator),
 			getTaskId: () => this.taskId,
@@ -122,6 +129,8 @@ export class ToolExecutor {
 				const activeIds = new Set(this.taskState.activeSkillIds)
 				return this.taskState.availableSkills.filter((skill) => activeIds.has(skill.name))
 			},
+			isToolAvailable: (tool) => isDiscoveredToolAvailableToTaskProfile(this.executionProfile, tool),
+			environmentFactory: this.environmentFactory,
 		})
 		this.hookRunner = new ToolHookRunner(
 			taskState,
@@ -207,27 +216,15 @@ export class ToolExecutor {
 		options: Parameters<typeof createUtilityModelRunner>[2] = {},
 		apiConfiguration = this.requestRuntime().workingConfiguration.apiConfiguration,
 	) {
-		return createUtilityModelRunner(apiConfiguration as ApiConfiguration, selection, { ...options, ulid: this.ulid })
-	}
-
-	private captureUtilityPermissionUsage({ selection, usage }: UtilityModelUsageEvent): void {
-		this.taskState.utilityPermissionInputTokens += usage.inputTokens
-		this.taskState.utilityPermissionOutputTokens += usage.outputTokens
-		this.taskState.utilityPermissionCacheWriteTokens += usage.cacheWriteTokens ?? 0
-		this.taskState.utilityPermissionCacheReadTokens += usage.cacheReadTokens ?? 0
-		this.taskState.utilityPermissionCost += usage.totalCost ?? 0
-		telemetryService.captureTokenUsage(
-			this.ulid,
-			usage.inputTokens,
-			usage.outputTokens,
-			selection.provider,
-			selection.modelId,
-			{
-				cacheWriteTokens: usage.cacheWriteTokens,
-				cacheReadTokens: usage.cacheReadTokens,
-				totalCost: usage.totalCost,
+		const observer = options.onUsage
+		return createUtilityModelRunner(apiConfiguration as ApiConfiguration, selection, {
+			...options,
+			ulid: this.ulid,
+			onUsage: (event) => {
+				recordUtilityModelUsage(this.taskState, this.ulid, event)
+				observer?.(event)
 			},
-		)
+		})
 	}
 
 
@@ -245,11 +242,7 @@ export class ToolExecutor {
 
 		return {
 			service: new UtilityPermissionDecisionService(
-				this.createUtilityRunner(
-					selection,
-					{ onUsage: (event) => this.captureUtilityPermissionUsage(event) },
-					configuration.apiConfiguration,
-				),
+				this.createUtilityRunner(selection, {}, configuration.apiConfiguration),
 				settings.utilityModelPermissionPolicy,
 				(error) => Logger.warn("Utility permission decision failed; escalating to the user", error),
 			),
@@ -298,6 +291,7 @@ export class ToolExecutor {
 			this.createPermissionDecisionBinding(this.getCurrentWorkingConfiguration())
 		const autoApprover = this.requestAutoApprover()
 		const config: TaskConfig = {
+			executionProfile: this.executionProfile,
 			taskId: this.taskId,
 			ulid: this.ulid,
 			mode: settings.mode,
@@ -358,7 +352,7 @@ export class ToolExecutor {
 				saveCheckpoint: async (isAttemptCompletionMessage?: boolean, completionMessageId?: string) => {
 					await this.saveCheckpoint(isAttemptCompletionMessage, completionMessageId)
 				},
-				commitAttemptCompletion: () => this.commitAttemptCompletion(),
+				commitAttemptCompletion: (response) => this.commitAttemptCompletion(response),
 				postStateToWebview: this.postStateToWebview.bind(this),
 				cancelTask: this.cancelTask,
 				executeCommandTool: this.executeCommandTool,

@@ -29,11 +29,13 @@ import type { IDiracContext } from "../interfaces/IDiracContext"
 import type { ToolRequestSnapshot } from "../runtime/ToolSnapshot"
 import type { ToolExecutorCoordinator } from "../ToolExecutorCoordinator"
 import { TASK_CALLBACKS_KEYS, TASK_CONFIG_KEYS, TASK_SERVICES_KEYS } from "../utils/ToolConstants"
+import type { TaskExecutionProfile } from "../../TaskExecutionProfile"
 
 /**
  * Strongly-typed configuration object passed to tool handlers
  */
 export interface TaskConfig {
+	executionProfile: TaskExecutionProfile
 	// Core identifiers
 	taskId: string
 	ulid: string
@@ -138,7 +140,7 @@ export interface TaskCallbacks {
 	/** Commit newly enabled shared tools to the task-owned toggles and persisted defaults. */
 	commitEnabledToolToggles: (toolIds: readonly string[], finalize?: () => Promise<void>) => Promise<void>
 	saveCheckpoint: (isAttemptCompletionMessage?: boolean, completionMessageId?: string) => Promise<void>
-	commitAttemptCompletion: () => Promise<boolean>
+	commitAttemptCompletion: (response: string) => Promise<import("../interfaces/IToolEnvironment").CompletionCommitResult>
 
 	executeCommandTool: (
 		command: string,

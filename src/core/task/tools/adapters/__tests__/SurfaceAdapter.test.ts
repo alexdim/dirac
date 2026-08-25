@@ -94,7 +94,7 @@ describe("SurfaceAdapter", () => {
 				finalize: sinon.stub().resolves(),
 				waitForInteraction: sinon.stub().resolves({ action: "approve" }),
 			}
-			config.taskMessenger.createCard = sinon.stub().resolves(fakeHandle)
+			config.taskMessenger.createCard = sinon.stub().resolves(attachCardState(fakeHandle))
 			const handle = await adapter.ui.createCard({ header: "Test" })
 			handle.id.should.equal("card-1")
 			sinon.assert.calledOnce(config.taskMessenger.createCard)
@@ -110,7 +110,7 @@ describe("SurfaceAdapter", () => {
 				waitForInteraction: sinon.stub().resolves({ action: DiracAskResponse.REJECT }),
 			}
 			config.yoloModeToggled = true
-			config.taskMessenger.createCard = sinon.stub().resolves(fakeHandle)
+			config.taskMessenger.createCard = sinon.stub().resolves(attachCardState(fakeHandle))
 
 			const handle = await adapter.ui.createCard({
 				header: "Permission",
@@ -130,6 +130,40 @@ describe("SurfaceAdapter", () => {
 			result.value!.should.equal(DiracAskResponse.APPROVE)
 		})
 
+		it("requires a real user response for manual interactions even when every auto-approval path is enabled", async () => {
+			const fakeHandle = {
+				id: "card-1",
+				update: sinon.stub().resolves(),
+				appendBody: sinon.stub().resolves(),
+				finalize: sinon.stub().resolves(),
+				waitForInteraction: sinon.stub().resolves({
+					action: DiracAskResponse.REJECT,
+					response: DiracAskResponse.REJECT,
+				}),
+			}
+			const decide = sinon.stub().resolves({ decision: "approve", reason: "Allowed by policy." })
+			config.yoloModeToggled = true
+			config.autoApprover.isUnrestrictedAutoApprove.returns(true)
+			config.permissionDecisionBinding = { service: { decide }, configurationRevision: 1 }
+			config.taskMessenger.createCard = sinon.stub().resolves(attachCardState(fakeHandle))
+
+			const card = await adapter.ui.createManualInteractionCard({
+				header: "Contained Task approval",
+				status: CardStatus.WAITING_FOR_INPUT,
+				requireApproval: true,
+				permissionRequestKind: "tool",
+			})
+			const result = await card.waitForInteraction()
+
+			sinon.assert.notCalled(decide)
+			sinon.assert.calledWithMatch(config.taskMessenger.createCard, {
+				status: CardStatus.WAITING_FOR_INPUT,
+				requireApproval: true,
+			})
+			sinon.assert.calledOnce(fakeHandle.waitForInteraction)
+			result.response.should.equal(DiracAskResponse.REJECT)
+		})
+
 		it("uses the primary custom action for an auto-approved card", async () => {
 			const fakeHandle = {
 				id: "card-1",
@@ -139,7 +173,7 @@ describe("SurfaceAdapter", () => {
 				waitForInteraction: sinon.stub(),
 			}
 			config.yoloModeToggled = true
-			config.taskMessenger.createCard = sinon.stub().resolves(fakeHandle)
+			config.taskMessenger.createCard = sinon.stub().resolves(attachCardState(fakeHandle))
 
 			const handle = await adapter.ui.createCard({
 				header: "New Task",
@@ -171,7 +205,7 @@ describe("SurfaceAdapter", () => {
 			const decide = sinon.stub().resolves({ decision: "approve", reason: "Allowed by policy." })
 			config.permissionDecisionBinding = { service: { decide }, configurationRevision: 1 }
 			config.toolUse = { name: "write_to_file", params: { path: "src/index.ts", content: "export {}\n" } }
-			config.taskMessenger.createCard = sinon.stub().resolves(auditCardHandle)
+			config.taskMessenger.createCard = sinon.stub().resolves(attachCardState(auditCardHandle))
 
 			const handle = await adapter.ui.createCard({
 				header: "Permission",
@@ -217,7 +251,7 @@ describe("SurfaceAdapter", () => {
 				service: { decide: sinon.stub().resolves({ decision: "escalate", reason: "User choice." }) },
 				configurationRevision: 1,
 			}
-			config.taskMessenger.createCard = sinon.stub().resolves(fakeHandle)
+			config.taskMessenger.createCard = sinon.stub().resolves(attachCardState(fakeHandle))
 
 			const handle = await adapter.ui.createCard({
 				header: "Permission",
@@ -246,7 +280,7 @@ describe("SurfaceAdapter", () => {
 				finalize: sinon.stub().resolves(),
 				waitForInteraction: sinon.stub().resolves({ action: DiracAskResponse.APPROVE }),
 			}
-			config.taskMessenger.createCard = sinon.stub().resolves(fakeHandle)
+			config.taskMessenger.createCard = sinon.stub().resolves(attachCardState(fakeHandle))
 
 			const handle = await adapter.ui.createCard({
 				header: "Permission",
@@ -269,7 +303,7 @@ describe("SurfaceAdapter", () => {
 			}
 			config.yoloModeToggled = true
 			config.autoApprover.isUnrestrictedAutoApprove.returns(true)
-			config.taskMessenger.createCard = sinon.stub().resolves(fakeHandle)
+			config.taskMessenger.createCard = sinon.stub().resolves(attachCardState(fakeHandle))
 
 			const result = await (
 				await adapter.ui.createCard({
@@ -333,7 +367,7 @@ describe("SurfaceAdapter", () => {
 			const decide = sinon.stub().resolves({ decision: "approve", reason: "Allowed." })
 			config.permissionDecisionBinding = { service: { decide }, configurationRevision: 1 }
 			config.isSubagentExecution = true
-			config.taskMessenger.createCard = sinon.stub().resolves(auditCardHandle)
+			config.taskMessenger.createCard = sinon.stub().resolves(attachCardState(auditCardHandle))
 
 			const result = await (
 				await adapter.ui.createCard({
@@ -371,7 +405,7 @@ describe("SurfaceAdapter", () => {
 				finalize: sinon.stub().resolves(),
 				waitForInteraction: sinon.stub().resolves({ action: DiracAskResponse.REJECT }),
 			}
-			config.taskMessenger.createCard = sinon.stub().resolves(fakeHandle)
+			config.taskMessenger.createCard = sinon.stub().resolves(attachCardState(fakeHandle))
 
 			const pendingHandle = adapter.ui.createCard({
 				header: "Permission",
@@ -422,7 +456,7 @@ describe("SurfaceAdapter", () => {
 				finalize: sinon.stub().resolves(),
 				waitForInteraction: sinon.stub().resolves({ action: DiracAskResponse.APPROVE }),
 			}
-			config.taskMessenger.createCard = sinon.stub().resolves(fakeHandle)
+			config.taskMessenger.createCard = sinon.stub().resolves(attachCardState(fakeHandle))
 
 			const handle = await adapter.ui.createCard({ header: "New Task", requireApproval: true })
 			await handle.waitForInteraction()
@@ -480,7 +514,7 @@ describe("SurfaceAdapter", () => {
 					userEdits: {},
 				}),
 			}
-			config.taskMessenger.createCard = sinon.stub().resolves(fakeHandle)
+			config.taskMessenger.createCard = sinon.stub().resolves(attachCardState(fakeHandle))
 			const result = await adapter.interaction.askPermission("May I?")
 			result.approved.should.equal(true)
 			result.action.should.equal(DiracAskResponse.APPROVE)
@@ -498,7 +532,7 @@ describe("SurfaceAdapter", () => {
 				finalize: sinon.stub().resolves(),
 				waitForInteraction: sinon.stub().resolves({ action: DiracAskResponse.REJECT }),
 			}
-			config.taskMessenger.createCard = sinon.stub().resolves(fakeHandle)
+			config.taskMessenger.createCard = sinon.stub().resolves(attachCardState(fakeHandle))
 			const result = await adapter.interaction.askPermission("May I?")
 			result.approved.should.equal(false)
 		})
@@ -511,7 +545,7 @@ describe("SurfaceAdapter", () => {
 				finalize: sinon.stub().resolves(),
 				waitForInteraction: sinon.stub().resolves({ action: DiracAskResponse.APPROVE }),
 			}
-			config.taskMessenger.createCard = sinon.stub().resolves(fakeHandle)
+			config.taskMessenger.createCard = sinon.stub().resolves(attachCardState(fakeHandle))
 
 			await adapter.interaction.askPermission("May I?", {
 				diffs: [{ path: "new.ts", oldText: "", newText: "export {}\n" }],
@@ -754,13 +788,23 @@ describe("SurfaceAdapter", () => {
 				finalize: sinon.stub().resolves(),
 				waitForInteraction: sinon.stub().resolves({ action: "approve" }),
 			}
-			config.taskMessenger.createCard = sinon.stub().resolves(fakeHandle)
+			config.taskMessenger.createCard = sinon.stub().resolves(attachCardState(fakeHandle))
 			await adapter.createCard({ header: "Test 1" })
 			await adapter.createCard({ header: "Test 2" })
 			adapter.getCreatedCards().should.have.length(2)
 		})
 	})
 })
+
+function attachCardState<T extends { id: string }>(handle: T): T & { getCard: () => any } {
+	const card = {
+		id: handle.id,
+		header: "Test card",
+		status: CardStatus.RUNNING,
+		renderType: "text" as const,
+	}
+	return Object.assign(handle, { getCard: () => card })
+}
 
 // Stubs HostProvider static getters with the given workspace/env methods.
 function stubHostProvider(workspaceMethods: any) {

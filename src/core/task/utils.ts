@@ -4,6 +4,7 @@ import { showSystemNotification } from "@/integrations/notifications"
 import { DiracApiReqCancelReason, DiracApiReqInfo, DiracMessageType } from "@/shared/ExtensionMessage"
 import { calculateApiCostAnthropic, calculateApiCostOpenAI, calculateApiCostQwen } from "@/utils/cost"
 import { MessageStateHandler } from "./message-state"
+import type { UsageMetricAvailability } from "./StreamingMetricsManager"
 
 export const showNotificationForApproval = (message: string, notificationsEnabled: boolean) => {
 	if (notificationsEnabled) {
@@ -23,6 +24,7 @@ type UpdateApiReqMsgParams = {
 	cacheWriteTokens: number
 	cacheReadTokens: number
 	totalCost?: number
+	usageAvailability?: UsageMetricAvailability
 	api: ApiHandler
 	cancelReason?: DiracApiReqCancelReason
 	streamingFailedMessage?: string
@@ -85,6 +87,16 @@ export const updateApiReqMsg = async (params: UpdateApiReqMsgParams) => {
 	const currentApiReqInfo: DiracApiReqInfo = msg.content.status
 	delete currentApiReqInfo.retryStatus // Clear retry status when request is finalized
 
+	const cost =
+		params.totalCost ??
+		calculateCost({
+			inputTokens: params.inputTokens,
+			outputTokens: params.outputTokens,
+			cacheWriteTokens: params.cacheWriteTokens,
+			cacheReadTokens: params.cacheReadTokens,
+			reasoningTokens: params.reasoningTokens,
+			api: params.api,
+		})
 	await params.messageStateHandler.updateDiracMessage(params.lastApiReqIndex, {
 		content: {
 			type: DiracMessageType.API_STATUS,
@@ -96,16 +108,10 @@ export const updateApiReqMsg = async (params: UpdateApiReqMsgParams) => {
 				reasoningTokens: Math.max(params.reasoningTokens, currentApiReqInfo.reasoningTokens ?? 0),
 				cacheWrites: Math.max(params.cacheWriteTokens, currentApiReqInfo.cacheWrites ?? 0),
 				cacheReads: Math.max(params.cacheReadTokens, currentApiReqInfo.cacheReads ?? 0),
-				cost:
-					params.totalCost ??
-					calculateCost({
-						inputTokens: params.inputTokens,
-						outputTokens: params.outputTokens,
-						cacheWriteTokens: params.cacheWriteTokens,
-						cacheReadTokens: params.cacheReadTokens,
-						reasoningTokens: params.reasoningTokens,
-						api: params.api,
-					}),
+				cost,
+				...(params.usageAvailability
+					? { usageAvailability: { ...params.usageAvailability, cost: cost !== undefined } }
+					: {}),
 				cancelReason: params.cancelReason,
 				streamingFailedMessage: params.streamingFailedMessage,
 				contextWindow: params.contextWindow ?? currentApiReqInfo.contextWindow,

@@ -5,7 +5,7 @@ import getFolderSize from "get-folder-size"
 import Mutex from "p-mutex"
 import { findLastIndex } from "@/shared/array"
 import { combineCardSequences } from "@/shared/combineCardSequences"
-import { DiracMessage } from "@/shared/ExtensionMessage"
+import { Card, DiracMessage, DiracMessageType } from "@/shared/ExtensionMessage"
 import { getApiMetrics } from "@/shared/getApiMetrics"
 import { HistoryItem } from "@/shared/HistoryItem"
 import {
@@ -235,6 +235,7 @@ export class MessageStateHandler extends EventEmitter<MessageStateHandlerEvents>
 			await saveDiracMessages(this.taskId, this.diracMessages)
 		} catch (error) {
 			Logger.error("Failed to save dirac messages:", error)
+			throw error
 		}
 	}
 
@@ -307,6 +308,7 @@ export class MessageStateHandler extends EventEmitter<MessageStateHandlerEvents>
 			})
 		} catch (error) {
 			Logger.error("Failed to update task history:", error)
+			throw error
 		}
 	}
 
@@ -420,6 +422,41 @@ export class MessageStateHandler extends EventEmitter<MessageStateHandlerEvents>
 	 */
 	findMessageIndexByCardId(cardId: string): number {
 		return this.diracMessages.findIndex((m) => m.content.type === "card" && m.content.card.id === cardId)
+	}
+
+	/** Atomically replaces one card while preserving message-state serialization. */
+	async updateCardById(cardId: string, update: (card: Readonly<Card>) => Card): Promise<Card> {
+		const updatedCard = await this.withStateLock(() => {
+			const index = this.diracMessages.findIndex(
+				(message) => message.content.type === DiracMessageType.CARD && message.content.card.id === cardId,
+			)
+			if (index === -1) throw new Error(`Card with id ${cardId} not found`)
+
+			const message = this.diracMessages[index]
+			if (message.content.type !== DiracMessageType.CARD) {
+				throw new Error(`Message with card id ${cardId} is not a card`)
+			}
+
+			const previousMessage = structuredClone(message)
+			const card = update(structuredClone(message.content.card))
+			if (card.id !== cardId) throw new Error(`Card update cannot change identity ${cardId} to ${card.id}`)
+			const updatedMessage: DiracMessage = {
+				...message,
+				content: { type: DiracMessageType.CARD, card },
+			}
+			this.diracMessages[index] = updatedMessage
+			this.diracMessagesDirty = true
+			this.emitDiracMessagesChanged({
+				type: "update",
+				messages: this.diracMessages,
+				index,
+				previousMessage,
+				message: updatedMessage,
+			})
+			return structuredClone(card)
+		})
+		this.scheduleUiFlush()
+		return updatedCard
 	}
 	/**
 	 * Update a specific message in the diracMessages array

@@ -12,6 +12,8 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/shared/ui/popover"
 interface ActionDecoratorProps {
 	onModeToggle: (context: ModularInputContext) => void
 	mode: "plan" | "act"
+	modeSwitchingDisabled?: boolean
+	modeSwitchingExplanation?: string
 	modelDisplayName: string
 	fastModeSupported: boolean
 	fastModeEnabled: boolean
@@ -45,7 +47,6 @@ export const createActionDecorator = (props: ActionDecoratorProps): InputDecorat
 	renderAction: (context: ModularInputContext) => (
 		<div className="flex justify-between items-center w-full backdrop-blur-sm rounded-md">
 			<div className="flex min-w-0 flex-1 items-center gap-1">
-
 				<DiracRulesToggleModal />
 
 				<div className="relative flex min-w-0 flex-1 items-center gap-1 ml-2 mr-2">
@@ -204,16 +205,27 @@ export const createActionDecorator = (props: ActionDecoratorProps): InputDecorat
 
 			<Tooltip>
 				<TooltipContent className="text-xs px-2 flex flex-col gap-1" side="top">
-					{`In ${props.mode === "act" ? "Act" : "Plan"} mode, Dirac will ${props.mode === "act" ? "complete the task immediately" : "gather information to architect a plan"
-						}`}
-					{props.togglePlanActKeys && (
+					{props.modeSwitchingDisabled
+						? props.modeSwitchingExplanation
+						: `In ${props.mode === "act" ? "Act" : "Plan"} mode, Dirac will ${props.mode === "act" ? "complete the task immediately" : "gather information to architect a plan"}`}
+					{!props.modeSwitchingDisabled && props.togglePlanActKeys && (
 						<p className="text-description/80 text-xs mb-0">
 							Toggle w/ <kbd className="text-muted-foreground mx-1">{props.togglePlanActKeys}</kbd>
 						</p>
 					)}
 				</TooltipContent>
 				<TooltipTrigger>
-					<div className={modeSwitchClasses} data-testid="mode-switch" onClick={() => props.onModeToggle(context)}>
+					<div
+						aria-disabled={props.modeSwitchingDisabled}
+						className={cn(
+							modeSwitchClasses,
+							props.modeSwitchingDisabled && "cursor-not-allowed opacity-60 hover:border-input-border",
+						)}
+						data-testid="mode-switch"
+						onClick={() => {
+							if (!props.modeSwitchingDisabled) props.onModeToggle(context)
+						}}
+						title={props.modeSwitchingDisabled ? props.modeSwitchingExplanation : undefined}>
 						<motion.div
 							animate={{
 								x: props.mode === "act" ? "100%" : "0%",

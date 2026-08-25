@@ -21,6 +21,7 @@ import { InteractionState, useInteractionState } from "./context/InteractionStat
 import { useScrollBehavior } from "./hooks/useScrollBehavior"
 // Sections
 import { InputSection } from "./sections/InputSection"
+import { GoalSection } from "./sections/GoalSection"
 import { MessagesSection } from "./sections/MessagesSection"
 import { TaskSection } from "./sections/TaskSection"
 import { WelcomeSection } from "./sections/WelcomeSection"
@@ -31,12 +32,14 @@ export const ModularChatView: React.FC<ChatViewProps> = ({ isHidden, showAnnounc
 	const showNavbar = useShowNavbar()
 	const version = useAppStore((state) => state.version)
 	const messages = useChatStore((state) => state.diracMessages)
+	const goal = useChatStore((state) => state.goal)
 	const activeVoiceStreamId = useChatStore((state) => state.activeVoiceStreamId)
 	const isApiRequestActive = useChatStore((state) => state.isApiRequestActive)
 	const taskHistory = useTaskStore((state) => state.taskHistory)
 	const apiConfiguration = useSettingsStore((state) => state.apiConfiguration)
 	const telemetrySetting = useSettingsStore((state) => state.telemetrySetting)
 	const mode = useSettingsStore((state) => state.mode)
+	const effectiveMode = goal?.mode ?? mode
 	const shouldShowQuickWins = !!taskHistory && taskHistory.length > 0
 
 	const task = useMemo(() => messages.at(0), [messages])
@@ -51,21 +54,14 @@ export const ModularChatView: React.FC<ChatViewProps> = ({ isHidden, showAnnounc
 	const lastApiReqInfo = useMemo(() => getLastApiReqInfo(modifiedMessages), [modifiedMessages])
 
 	const chatState = useChatState(messages)
-	const {
-		sendingDisabled,
-		uiActionState,
-		expandedRows,
-		setExpandedRows,
-		textAreaRef,
-	} = chatState
+	const { sendingDisabled, uiActionState, expandedRows, setExpandedRows, textAreaRef } = chatState
 
 	const messageHandlers = useMessageHandlers(chatState)
 
 	const { state: interactionState } = useInteractionState()
 	const { selectedModelInfo, selectedModelId, selectedProvider } = useMemo(() => {
-		return normalizeApiConfiguration(apiConfiguration, mode as Mode)
-	}, [apiConfiguration, mode])
-
+		return normalizeApiConfiguration(apiConfiguration, effectiveMode as Mode)
+	}, [apiConfiguration, effectiveMode])
 
 	useMount(() => {
 		textAreaRef.current?.focus()
@@ -92,13 +88,17 @@ export const ModularChatView: React.FC<ChatViewProps> = ({ isHidden, showAnnounc
 	const scrollBehavior = useScrollBehavior(messages, visibleMessages, renderedMessages, expandedRows, setExpandedRows)
 
 	const placeholderText = useMemo(() => {
+		if (goal?.status === "working" || goal?.status === "waiting") return "Steer this Goal…"
+		if (goal?.status === "paused" || goal?.status === "blocked") return "Resume this Goal to continue…"
+		if (goal) return "Type a new task…"
 		if (!task) return "Type your task here..."
 		if (interactionState === InteractionState.RUNNING) return "Send guidance for the next turn without interrupting…"
 		return "Type a message..."
-	}, [task, interactionState])
+	}, [goal, task, interactionState])
 
 	const context = useMemo<ChatViewContext>(
 		() => ({
+			goal,
 			task,
 			messages,
 			modifiedMessages,
@@ -120,11 +120,12 @@ export const ModularChatView: React.FC<ChatViewProps> = ({ isHidden, showAnnounc
 				...selectedModelInfo,
 				selectedModelId,
 				selectedProvider,
-				mode,
+				mode: effectiveMode,
 			},
 			placeholderText,
 		}),
 		[
+			goal,
 			task,
 			messages,
 			modifiedMessages,
@@ -145,19 +146,23 @@ export const ModularChatView: React.FC<ChatViewProps> = ({ isHidden, showAnnounc
 			selectedModelInfo,
 			selectedModelId,
 			selectedProvider,
-			mode,
+			effectiveMode,
 			placeholderText,
 		],
 	)
 
-	const sections = useMemo<ChatSection[]>(() => [WelcomeSection, TaskSection, MessagesSection, InputSection], [])
+	const sections = useMemo<ChatSection[]>(() => [WelcomeSection, GoalSection, TaskSection, MessagesSection, InputSection], [])
 
 	const decorators = useMemo<ChatViewDecorator[]>(() => [AutoApproveDecorator, ActionButtonsDecorator], [])
 
 	return (
 		<ChatLayout isHidden={isHidden}>
 			<div className="modular-chat-shell flex flex-col flex-1 overflow-hidden relative">
-				<div className={cn("modular-chat-shell flex flex-col flex-1 overflow-hidden", mode === "plan" ? "bg-grid-plan" : "")}>
+				<div
+					className={cn(
+						"modular-chat-shell flex flex-col flex-1 overflow-hidden",
+						effectiveMode === "plan" ? "bg-grid-plan" : "",
+					)}>
 					{showNavbar && <Navbar />}
 					<div className="flex-1 flex flex-col overflow-hidden relative">
 						{sections.map((section) => (

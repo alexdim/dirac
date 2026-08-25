@@ -13,6 +13,8 @@ import { parseImagesFromInput } from "../utils/parser"
 import { readImageFromClipboard } from "../utils/clipboard-image"
 import { getVisibleGlobalActionButtons } from "../utils/action-buttons"
 import { DiracMessageType, UIActionButtonType } from "@shared/ExtensionMessage"
+import type { GoalStatus } from "@shared/goal"
+import type { GoalLifecycleAction } from "../utils/goals"
 
 interface UseChatInputHandlerProps {
 	workspacePath: string
@@ -76,6 +78,8 @@ interface UseChatInputHandlerProps {
 	scrollableCardMaxOffset: number
 	cardScrollOffset: number
 	setCardScrollOffset: (offset: number) => void
+	goalStatus?: GoalStatus
+	handleGoalControl: (action: GoalLifecycleAction) => void
 }
 
 export function useChatInputHandler({
@@ -133,6 +137,8 @@ export function useChatInputHandler({
 	scrollableCardMaxOffset,
 	cardScrollOffset,
 	setCardScrollOffset,
+	goalStatus,
+	handleGoalControl,
 }: UseChatInputHandlerProps) {
 	useInput((input, key) => {
 		if (isMouseEscapeSequence(input) || isTerminalResponseSequence(input, key)) return
@@ -156,6 +162,24 @@ export function useChatInputHandler({
 		}
 
 		if (handleAskShortcuts(input, key, currentTextInput)) return
+		if (key.ctrl && (input === "p" || input === "\u0010") && (goalStatus === "working" || goalStatus === "waiting")) {
+			handleGoalControl("pause")
+			return
+		}
+		if (key.ctrl && (input === "r" || input === "\u0012") && (goalStatus === "paused" || goalStatus === "blocked")) {
+			handleGoalControl("resume")
+			return
+		}
+		if (
+			key.ctrl &&
+			(input === "x" || input === "\u0018") &&
+			goalStatus !== undefined &&
+			goalStatus !== "achieved" &&
+			goalStatus !== "stopped"
+		) {
+			handleGoalControl("stop")
+			return
+		}
 		if (handleKeyboardSequence(input)) return
 
 		if (key.meta) {
@@ -414,7 +438,7 @@ export function useChatInputHandler({
 			!key.meta &&
 			input !== "\n" &&
 			!currentMentionInfo.inMentionMode &&
-			!isSpinnerActive &&
+			(!isSpinnerActive || goalStatus === "working" || goalStatus === "waiting") &&
 			!isProcessing
 		) {
 			if (executeStandaloneLocalSlashCommand(currentTextInput, localSlashCommandContext)) {

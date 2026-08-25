@@ -11,6 +11,7 @@ import { create } from "zustand"
 
 interface ChatState {
 	diracMessages: DiracMessage[]
+	goal?: ExtensionState["goal"]
 	uiActionState?: ExtensionState["uiActionState"]
 	activeVoiceStreamId?: string
 	isApiRequestActive?: boolean
@@ -64,6 +65,7 @@ function synchronizeResolvedCardCollapse(state: ChatState, messages: DiracMessag
 
 export const useChatStore = create<ChatState>((set) => ({
 	diracMessages: [],
+	goal: undefined,
 	uiActionState: undefined,
 	activeVoiceStreamId: undefined,
 	isApiRequestActive: false,
@@ -82,6 +84,7 @@ export const useChatStore = create<ChatState>((set) => ({
 	applyExtensionState: (extensionState) =>
 		set((state) => ({
 			...synchronizeResolvedCardCollapse(state, extensionState.diracMessages),
+			goal: extensionState.goal,
 			uiActionState: extensionState.uiActionState,
 			activeVoiceStreamId: extensionState.activeVoiceStreamId,
 			isApiRequestActive: extensionState.isApiRequestActive,

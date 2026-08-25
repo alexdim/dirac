@@ -7,6 +7,7 @@ let nextApprovedPermissionId = 1
 /** Invisible card-shaped result used when a tool permission is approved without interaction. */
 export class ApprovedPermissionCardHandle implements ICardHandle {
 	public readonly id = `approved-permission-${nextApprovedPermissionId++}`
+	public readonly requiresUserInteraction = false
 	public header: string
 	public icon?: string
 	public status: CardStatus

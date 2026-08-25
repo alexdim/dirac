@@ -4,6 +4,8 @@ import {
 	getTaskMetadata,
 	writeTaskHistoryToState,
 } from "@core/storage/disk"
+import { createGoalHistoryItem } from "@core/goal/GoalHistory"
+import { GoalStore } from "@core/goal/GoalStore"
 import type { TaskMetadata } from "@core/context/context-tracking/ContextTrackerTypes"
 import { HostProvider } from "@hosts/host-provider"
 import { DiracMessage, DiracMessageType } from "@shared/ExtensionMessage"
@@ -104,16 +106,24 @@ async function performTaskHistoryReconstruction(): Promise<TaskReconstructionRes
 
 	// Scan for task directories
 	const taskIds = await scanTaskDirectories(tasksDir)
-	result.totalTasks = taskIds.length
+	const goals = await new GoalStore().list()
+	const goalOwnedDirectoryIds = new Set(goals.flatMap((goal) => [goal.id, ...goal.children.map((child) => child.id)]))
+	const ordinaryTaskIds = taskIds.filter((taskId) => !goalOwnedDirectoryIds.has(taskId))
+	result.totalTasks = ordinaryTaskIds.length + goals.length
 
-	if (taskIds.length === 0) {
+	if (result.totalTasks === 0) {
 		throw new Error("No task directories found. Nothing to reconstruct.")
 	}
 
 	// Process each task
 	const reconstructedItems: HistoryItem[] = []
+	for (const goal of goals) {
+		const messages = await getSavedDiracMessages(goal.id)
+		reconstructedItems.push(createGoalHistoryItem(goal, initialGoalDisplayText(messages, goal.objective.markdown)))
+		result.reconstructedTasks++
+	}
 
-	for (const taskId of taskIds) {
+	for (const taskId of ordinaryTaskIds) {
 		try {
 			const historyItem = await reconstructTaskHistoryItem(taskId)
 			if (historyItem) {
@@ -136,6 +146,17 @@ async function performTaskHistoryReconstruction(): Promise<TaskReconstructionRes
 	await writeTaskHistoryToState(reconstructedItems)
 
 	return result
+}
+
+function initialGoalDisplayText(messages: DiracMessage[], fallback: string): string {
+	const initialUserMessage = messages.find(
+		(message) =>
+			message.content.type === DiracMessageType.MARKDOWN &&
+			message.content.role === "user" &&
+			message.content.content.trim().length > 0,
+	)
+	if (!initialUserMessage || initialUserMessage.content.type !== DiracMessageType.MARKDOWN) return fallback
+	return initialUserMessage.content.content.trim()
 }
 
 async function backupExistingTaskHistory(): Promise<void> {

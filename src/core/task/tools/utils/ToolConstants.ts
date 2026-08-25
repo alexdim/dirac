@@ -10,6 +10,7 @@ import type { ToolParamName, ToolUse } from "@core/assistant-message"
  * Keep this in sync with the TaskConfig interface
  */
 export const TASK_CONFIG_KEYS = [
+	"executionProfile",
 	"taskId",
 	"ulid",
 	"cwd",

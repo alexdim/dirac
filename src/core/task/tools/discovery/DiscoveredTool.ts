@@ -1,12 +1,18 @@
 import type { DiracToolSpec } from "@/shared/tools";
+import type { TaskExecutionProfile } from "../../TaskExecutionProfile";
 import type { IDiracTool } from "../interfaces/IDiracTool";
 import type { TaskConfig } from "../types/TaskConfig";
 
 export type ToolExposure =
 	| { kind: "configurable" }
 	| { kind: "skill_only"; authorizedSkillIds: readonly string[] }
+	| { kind: "profile_only"; profiles: readonly TaskExecutionProfile[] }
 
 export const CONFIGURABLE_TOOL_EXPOSURE: ToolExposure = { kind: "configurable" }
+export const GOAL_COORDINATOR_TOOL_EXPOSURE: ToolExposure = {
+	kind: "profile_only",
+	profiles: ["goal_coordinator"],
+}
 
 export type ToolSource = "builtin" | "global" | "workspace" | "task"
 
@@ -19,7 +25,7 @@ export interface DiscoveredTool {
 	source: ToolSource
 	/** Owning Task for task-scoped tools. Required when source is "task". */
 	ownerTaskId?: string
-	/** Controls whether this tool is user-configurable or only available through an authorized skill. */
+	/** Controls whether this tool is user-configurable, skill-only, or restricted to execution profiles. */
 	exposure: ToolExposure
 	/** For LLM API schema generation */
 	spec: DiracToolSpec

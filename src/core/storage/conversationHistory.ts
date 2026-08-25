@@ -49,6 +49,7 @@ export async function saveApiConversationHistory(taskId: string, apiConversation
 		await atomicWriteFile(filePath, data)
 	} catch (error) {
 		Logger.error("Failed to save API conversation history:", error)
+		throw error
 	}
 }
 
@@ -168,6 +169,7 @@ function isReadableApiStatus(value: unknown): boolean {
 		isOptional(value.reasoningTokens, isFiniteNumber) &&
 		isOptional(value.cacheReads, isFiniteNumber) &&
 		isOptional(value.cost, isFiniteNumber) &&
+		isOptional(value.usageAvailability, isReadableUsageAvailability) &&
 		isOptional(value.contextWindow, isFiniteNumber) &&
 		isOptional(value.contextUsagePercentage, isFiniteNumber) &&
 		isOptional(value.deletedMetrics, isReadableDeletedMetrics) &&
@@ -175,6 +177,18 @@ function isReadableApiStatus(value: unknown): boolean {
 		isOptional(value.streamingFailedMessage, isString) &&
 		isOptional(value.stopReason, isString) &&
 		isOptional(value.retryStatus, isReadableRetryStatus)
+	)
+}
+
+function isReadableUsageAvailability(value: unknown): boolean {
+	if (!isRecord(value)) return false
+	return (
+		isBoolean(value.inputTokens) &&
+		isBoolean(value.outputTokens) &&
+		isBoolean(value.reasoningTokens) &&
+		isBoolean(value.cacheWrites) &&
+		isBoolean(value.cacheReads) &&
+		isBoolean(value.cost)
 	)
 }
 
@@ -302,5 +316,6 @@ export async function saveDiracMessages(taskId: string, uiMessages: DiracMessage
 		await atomicWriteFile(filePath, JSON.stringify(uiMessages))
 	} catch (error) {
 		Logger.error("Failed to save ui messages:", error)
+		throw error
 	}
 }

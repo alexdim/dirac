@@ -25,6 +25,7 @@ import { getErrorMessage } from "@/shared/errors"
 import type { MessageStateHandler } from "./message-state"
 import type { TaskMessenger } from "./TaskMessenger"
 import type { TaskState } from "./TaskState"
+import { recordUtilityModelUsage } from "./recordUtilityModelUsage"
 import type { HookExecution } from "./types/HookExecution"
 
 export type LocalConversationCompactionSource = "automatic" | "user"
@@ -180,7 +181,9 @@ export class LocalConversationCompaction {
 		handler: ApiHandler,
 		templates: ReturnType<typeof createDefaultTextCondensationTemplateRegistry>,
 	): Promise<string> {
-		const runner = new UtilityModelRunner(selection, () => handler)
+		const runner = new UtilityModelRunner(selection, () => handler, {
+			onUsage: (event) => recordUtilityModelUsage(this.dependencies.taskState, this.dependencies.ulid, event),
+		})
 		const textCondenser = new UtilityModelTextCondenser(runner, templates)
 		const service = new ConversationCondensationService({
 			messageState: this.dependencies.messageStateHandler,

@@ -18,6 +18,7 @@ import type { TaskMessenger } from "./TaskMessenger"
 import type { TaskState } from "./TaskState"
 import { ToolSkippedByUserMessage } from "./tools/types/ToolSkippedByUserMessage"
 import { updateApiReqMsg } from "./utils"
+import type { TaskExecutionProfile } from "./TaskExecutionProfile"
 
 export interface TaskRequestOutcomeContext {
 	taskState: TaskState
@@ -25,6 +26,7 @@ export interface TaskRequestOutcomeContext {
 	taskMessenger: TaskMessenger
 	api: ApiHandler
 	taskId: string
+	executionProfile: TaskExecutionProfile
 	checkpointManager?: ICheckpointManager
 	postStateToWebview: () => Promise<void>
 	abortTask: () => Promise<void>
@@ -195,6 +197,9 @@ export async function handleApiRequestError(
 		try {
 			const askResult = await cardHandle.waitForInteraction()
 			response = askResult.response
+			await cardHandle.finalize(
+				response === DiracAskResponse.APPROVE ? CardStatus.SUCCESS : CardStatus.CANCELLED,
+			)
 		} catch (error) {
 			if (error instanceof ToolSkippedByUserMessage) {
 				await cardHandle.finalize(CardStatus.SKIPPED)
@@ -213,7 +218,7 @@ export async function handleApiRequestError(
 
 	if (response !== DiracAskResponse.APPROVE) {
 		await ctx.abortTask()
-		await ctx.reinitExistingTaskFromId()
+		if (ctx.executionProfile === "standalone") await ctx.reinitExistingTaskFromId()
 		return false
 	}
 

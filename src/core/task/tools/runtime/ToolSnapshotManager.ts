@@ -2,6 +2,7 @@ import { DiracToolSet } from "@core/prompts/system-prompt/registry/DiracToolSet"
 import type { SystemPromptContext } from "@core/prompts/system-prompt/types"
 import { DiracDefaultTool } from "@/shared/tools"
 import { ToolExecutorCoordinator } from "../ToolExecutorCoordinator"
+import { SurfaceToolEnvironmentFactory } from "../adapters/SurfaceAdapter"
 import { ToolRegistry } from "../registry/ToolRegistry"
 import { refreshToolRegistryForWorkspace } from "../registry/refreshToolRegistry"
 import type { TaskConfig } from "../types/TaskConfig"
@@ -17,6 +18,8 @@ interface ToolSnapshotManagerOptions {
 	getWorkspaceRoot: () => string | undefined
 	getToggles: () => Record<string, boolean>
 	getActiveSkills: () => readonly SkillMetadata[]
+	isToolAvailable?: (tool: DiscoveredTool) => boolean
+	environmentFactory?: import("../interfaces/ToolEnvironmentFactory").ToolEnvironmentFactory
 }
 
 export class ToolSnapshotManager {
@@ -62,7 +65,9 @@ export class ToolSnapshotManager {
 				this.options.getTaskId(),
 				this.options.getWorkspaceRoot(),
 			)
-			const effectiveTools = this.mergeTools(inventory.enabledTools, skillTools)
+			const effectiveTools = this.mergeTools(inventory.enabledTools, skillTools).filter(
+				(tool) => this.options.isToolAvailable?.(tool) ?? true,
+			)
 			const promptVisibleSpecs = this.buildPromptVisibleSpecs(effectiveTools, context)
 			const nativeTools = DiracToolSet.convertSpecsToNativeTools(promptVisibleSpecs, context)
 			const dynamicSubagentToolNames = new Set(
@@ -116,7 +121,9 @@ export class ToolSnapshotManager {
 		const ownerTaskId = this.options.getTaskId()
 		const workspaceRoot = this.options.getWorkspaceRoot()
 		const tools = [...registry.getAllTools(ownerTaskId, workspaceRoot)]
-		const enabledTools = [...registry.getEnabledTools(ownerTaskId, workspaceRoot)]
+		const enabledTools = [...registry.getEnabledTools(ownerTaskId, workspaceRoot)].filter(
+			(tool) => this.options.isToolAvailable?.(tool) ?? true,
+		)
 		const coordinator = this.buildCoordinator(enabledTools)
 		this.validateInventoryCoordinator(enabledTools, coordinator)
 		const executableToolNames = new Set(enabledTools.map((tool) => tool.spec.name))
@@ -148,7 +155,9 @@ export class ToolSnapshotManager {
 	}
 
 	private buildCoordinator(enabledTools: DiscoveredTool[]): ToolExecutorCoordinator {
-		const coordinator = new ToolExecutorCoordinator()
+		const coordinator = new ToolExecutorCoordinator(
+			this.options.environmentFactory ?? new SurfaceToolEnvironmentFactory(),
+		)
 		const config = this.options.createTaskConfig(coordinator)
 
 		for (const tool of enabledTools) {

@@ -104,7 +104,12 @@ export class ToolErrorHandler {
 		pushToolResult: (content: any, block: ToolUse) => Promise<void>,
 	): Promise<void> {
 		const errorString = `Error ${action}: ${error.message}`
-		await this.taskMessenger.createCard({ header: "Tool Error", body: errorString, status: CardStatus.ERROR })
-		pushToolResult(formatResponse.toolError(errorString), block)
+		await this.taskMessenger.createCard({
+			header: "Tool Error",
+			toolName: block.name,
+			body: errorString,
+			status: CardStatus.ERROR,
+		})
+		await pushToolResult(formatResponse.toolError(errorString), block)
 	}
 }

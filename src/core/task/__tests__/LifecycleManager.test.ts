@@ -207,6 +207,21 @@ describe("LifecycleManager", () => {
 			await resume
 		})
 
+		it("injects synthetic resume context without adding a visible user transcript message", async () => {
+			setupDiskMocks([], [{ role: "assistant", content: "Previous response" }])
+
+			await manager.resumeTaskFromHistory(undefined, {
+				systemContext: "Resume the Goal from durable state.",
+			})
+
+			sinon.assert.notCalled(deps.taskMessenger.upsertText)
+			sinon.assert.notCalled(deps.hookManager.runUserPromptSubmitHook)
+			const resumedContent = deps.initiateTaskLoop.firstCall.args[0]
+			const systemContext = resumedContent.find((block: any) => block.text?.includes("<system_context"))
+			systemContext.text.should.contain("Resume the Goal from durable state.")
+				; (systemContext.isUserInput === undefined).should.equal(true)
+		})
+
 		it("does not finish restoration after the task is aborted during a storage read", async () => {
 			const diskModule = require("@core/storage/disk")
 			let releaseMessages!: (messages: any[]) => void

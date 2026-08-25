@@ -1,7 +1,8 @@
 import type { ToolUse } from "@core/assistant-message"
 import { DiracDefaultTool } from "@/shared/tools"
-import { CardStatus } from "../../../shared/ExtensionMessage"
-import { SurfaceAdapter } from "./adapters/SurfaceAdapter"
+import { CardStatus, isFinalStatus } from "../../../shared/ExtensionMessage"
+import { SurfaceToolEnvironmentFactory } from "./adapters/SurfaceAdapter"
+import type { ToolEnvironmentFactory } from "./interfaces/ToolEnvironmentFactory"
 
 import { IDiracTool } from "./interfaces/IDiracTool"
 import { SurfaceType } from "./interfaces/SurfaceType"
@@ -22,7 +23,11 @@ interface PartialToolUseHandler extends IDiracTool {
  * Throws an error for unregistered tools.
  */
 export class ToolExecutorCoordinator {
-	constructor() {}
+	constructor(private readonly environmentFactory: ToolEnvironmentFactory = new SurfaceToolEnvironmentFactory()) {}
+
+	createEmptySibling(): ToolExecutorCoordinator {
+		return new ToolExecutorCoordinator(this.environmentFactory)
+	}
 
 	private modularTools = new Map<string, IDiracTool>()
 
@@ -85,7 +90,7 @@ export class ToolExecutorCoordinator {
 		// Preserve live task-setting accessors while adding call-specific metadata.
 		const toolConfig = Object.create(Object.getPrototypeOf(config), Object.getOwnPropertyDescriptors(config)) as TaskConfig
 		toolConfig.toolUse = { name: block.name, params: block.params }
-		const env = new SurfaceAdapter(toolConfig, block.name)
+		const env = this.environmentFactory.create(toolConfig, block.name)
 
 		// 2. Filter (Surface Check)
 		const supported = tool.supportedSurfaces()
@@ -142,15 +147,8 @@ export class ToolExecutorCoordinator {
 				config.taskState.pendingUserImages = error.userImages
 				config.taskState.pendingUserFiles = error.userFiles
 
-				const finalStates: CardStatus[] = [
-					CardStatus.SUCCESS,
-					CardStatus.ERROR,
-					CardStatus.SKIPPED,
-					CardStatus.ABANDONED,
-					CardStatus.CANCELLED,
-				]
 				for (const card of env.getCreatedCards()) {
-					if (!finalStates.includes(card.status)) {
+					if (!isFinalStatus(card.status)) {
 						await card.finalize(CardStatus.SKIPPED)
 					}
 				}
@@ -188,15 +186,8 @@ export class ToolExecutorCoordinator {
 			)
 
 			// 13. Collect unfinalized cards — assert after finally to avoid unsafe throw
-			const finalStates: CardStatus[] = [
-				CardStatus.SUCCESS,
-				CardStatus.ERROR,
-				CardStatus.SKIPPED,
-				CardStatus.ABANDONED,
-				CardStatus.CANCELLED,
-			]
 			for (const card of env.getCreatedCards()) {
-				if (!finalStates.includes(card.status) && card.cleanupStrategy !== "keep_running") {
+				if (!isFinalStatus(card.status) && card.cleanupStrategy !== "keep_running") {
 					unfinalizedCards.push({ id: card.id, status: card.status })
 				}
 			}
@@ -205,7 +196,7 @@ export class ToolExecutorCoordinator {
 		// Assert tools finalized their own cards — no defensive finalization
 		if (unfinalizedCards.length > 0) {
 			throw new Error(
-				`Tool '${block.name}' did not finalize card(s): ${unfinalizedCards.map((c) => `${c.id} (${c.status})`).join(", ")}${executionError ? `. Original execution error: ${executionError.message}` : ""}`,
+				`Tool '${block.name}' left nonterminal card(s): ${unfinalizedCards.map((c) => `${c.id} (${c.status})`).join(", ")}${executionError ? `. Original execution error: ${executionError.message}` : ""}`,
 			)
 		}
 		return response

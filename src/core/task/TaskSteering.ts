@@ -19,6 +19,7 @@ export interface TaskSteeringContext {
 	taskState: TaskState
 	messageStateHandler: MessageStateHandler
 	taskMessenger: TaskMessenger
+	allowWhileWaitingForInteraction?: boolean
 	postStateToWebview: () => void | Promise<void>
 	withStateLock: <T>(fn: () => T | Promise<T>) => Promise<T>
 }
@@ -26,7 +27,7 @@ export interface TaskSteeringContext {
 export function canAcceptSteeringMessage(ctx: TaskSteeringContext): boolean {
 	if (ctx.taskState.completionCommitted) return false
 	if (ctx.taskState.abort || ctx.taskState.pendingTaskReplacement) return false
-	if (ctx.taskState.waitingCardIds.length > 0) return false
+	if (ctx.taskState.waitingCardIds.length > 0 && !ctx.allowWhileWaitingForInteraction) return false
 	return ![TaskStatus.IDLE, TaskStatus.COMPLETED, TaskStatus.CANCELLED, TaskStatus.CANCELLING].includes(ctx.taskState.status)
 }
 
@@ -239,18 +240,22 @@ export async function appendQueuedSteeringToNextApiRequest(
 	}
 }
 
-export async function commitAttemptCompletion(ctx: TaskSteeringContext): Promise<boolean> {
+export async function commitAttemptCompletion(
+	ctx: TaskSteeringContext,
+	response: string,
+): Promise<import("./tools/interfaces/IToolEnvironment").CompletionCommitResult> {
 	return ctx.withStateLock(() => {
 		const hasQueuedSteering = ctx.taskState.steeringMessages.some(
 			(message) => message.deliveryState === SteeringDeliveryState.QUEUED,
 		)
 		if (hasQueuedSteering) {
 			ctx.taskState.didAttemptCompletion = false
-			return false
+			return { committed: false, error: "Completion was superseded by queued user steering." }
 		}
 		ctx.taskState.completionCommitted = true
 		ctx.taskState.didAttemptCompletion = true
-		return true
+		ctx.taskState.completionResponse = response
+		return { committed: true }
 	})
 }
 

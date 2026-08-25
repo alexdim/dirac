@@ -578,7 +578,10 @@ describe("Task (original)", () => {
 				if (!options.requireApproval) {
 					return {}
 				}
-				return { waitForInteraction: sandbox.stub().resolves({ response: DiracAskResponse.REJECT }) }
+				return {
+					waitForInteraction: sandbox.stub().resolves({ response: DiracAskResponse.REJECT }),
+					finalize: sandbox.stub().resolves(),
+				}
 			}),
 		}
 

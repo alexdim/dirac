@@ -8,9 +8,14 @@ import { CardHandle } from "../CardHandle"
 import { ApprovedPermissionCardHandle } from "../ApprovedPermissionCardHandle"
 
 // Builds the UI trait — text streaming and card creation.
-export function buildUiTrait(config: TaskConfig, createCardFn: (params: CardParams) => Promise<ICardHandle>): IUITrait {
+export function buildUiTrait(
+	config: TaskConfig,
+	createCardFn: (params: CardParams) => Promise<ICardHandle>,
+	createManualInteractionCardFn: (params: CardParams) => Promise<ICardHandle>,
+): IUITrait {
 	return {
 		createCard: createCardFn,
+		createManualInteractionCard: createManualInteractionCardFn,
 		upsertText: async (text: string, isReasoning?: boolean, role?: "user" | "assistant") => {
 			const visibleText = config.agentIdentity && role !== "user" ? `**${config.agentIdentity.name}:** ${text}` : text
 			await config.taskMessenger.upsertText(visibleText, isReasoning, undefined, undefined, role, config.agentIdentity)
@@ -141,6 +146,16 @@ async function publishPermissionApprovalCard(
 		false,
 	)
 }
+/** Creates a displayed interaction that bypasses every automatic approval policy. */
+export async function createManualInteractionCardFromMessenger(
+	config: TaskConfig,
+	params: CardParams,
+	tracker: CardHandle[],
+): Promise<ICardHandle> {
+	const { permissionRequestKind: _permissionRequestKind, ...cardParams } = params
+	return createDisplayedCardFromMessenger(config, cardParams, tracker, false)
+}
+
 // Creates a card via taskMessenger and wraps the protocol handle in a CardHandle.
 async function createDisplayedCardFromMessenger(
 	config: TaskConfig,
@@ -153,6 +168,12 @@ async function createDisplayedCardFromMessenger(
 		params.requireApproval && ((allowYoloAutoApproval && config.yoloModeToggled) || isAutoApproved?.())
 			? (params.actions?.find((candidate) => candidate.primary)?.value ?? DiracAskResponse.APPROVE)
 			: undefined
+	const liveAutoApprovedAction = isAutoApproved
+		? () =>
+			isAutoApproved()
+				? (params.actions?.find((candidate) => candidate.primary)?.value ?? DiracAskResponse.APPROVE)
+				: undefined
+		: undefined
 	const displayedParams = autoApprovedAction
 		? {
 			...params,
@@ -165,7 +186,7 @@ async function createDisplayedCardFromMessenger(
 		: params
 	const messengerParams = !autoApprovedAction && isAutoApproved ? { ...displayedParams, isAutoApproved } : displayedParams
 	const handle = await config.taskMessenger.createCard(messengerParams)
-	const adapterHandle = new CardHandle(handle, displayedParams, autoApprovedAction)
+	const adapterHandle = new CardHandle(handle, autoApprovedAction, liveAutoApprovedAction)
 	tracker.push(adapterHandle)
 	return adapterHandle
 }

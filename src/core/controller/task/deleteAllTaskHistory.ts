@@ -1,3 +1,6 @@
+import { GoalStore } from "@core/goal/GoalStore"
+import { deleteTaskDirectory, getTasksDirectoryPath, listTaskDirectoryIds } from "@core/storage/disk"
+import { isGoalHistoryItem, type RunHistoryItem } from "@shared/HistoryItem"
 import { DeleteAllTaskHistoryCount } from "@shared/proto/dirac/task"
 import fs from "fs/promises"
 import path from "path"
@@ -50,7 +53,8 @@ export async function deleteAllTaskHistory(controller: Controller): Promise<Dele
 			const favoritedTasks = currentTaskHistory.filter((task) => task.isFavorited === true)
 			if (favoritedTasks.length > 0) {
 				controller.stateManager.setGlobalState("taskHistory", favoritedTasks)
-				await cleanupTaskFiles(favoritedTasks.map((task) => task.id))
+				await cleanupRunFiles(favoritedTasks)
+				await controller.stateManager.flushPendingState()
 
 				try {
 					await controller.postStateToWebview()
@@ -71,7 +75,7 @@ export async function deleteAllTaskHistory(controller: Controller): Promise<Dele
 		controller.stateManager.setGlobalState("taskHistory", [])
 
 		try {
-			const taskDirPath = path.join(HostProvider.get().globalStorageFsPath, "tasks")
+			const taskDirPath = getTasksDirectoryPath()
 			if (await fileExistsAtPath(taskDirPath)) {
 				await fs.rm(taskDirPath, { recursive: true, force: true })
 			}
@@ -86,6 +90,7 @@ export async function deleteAllTaskHistory(controller: Controller): Promise<Dele
 				message: `Encountered error while deleting task history, there may be some files left behind. Error: ${getErrorMessage(error)}`,
 			})
 		}
+		await controller.stateManager.flushPendingState()
 
 		try {
 			await controller.postStateToWebview()
@@ -118,28 +123,16 @@ async function confirmDeleteAllTasks(): Promise<boolean> {
 /**
  * Helper function to cleanup task files while preserving specified tasks
  */
-async function cleanupTaskFiles(preserveTaskIds: string[]) {
-	const taskDirPath = path.join(HostProvider.get().globalStorageFsPath, "tasks")
-
-	try {
-		if (await fileExistsAtPath(taskDirPath)) {
-			const taskDirs = await fs.readdir(taskDirPath)
-			Logger.debug(`[cleanupTaskFiles] Found ${taskDirs.length} task directories`)
-
-			// Delete only non-preserved task directories
-			for (const dir of taskDirs) {
-				if (!preserveTaskIds.includes(dir)) {
-					// Task dir path is not workspace specific
-					await fs.rm(path.join(taskDirPath, dir), {
-						recursive: true,
-						force: true,
-					})
-				}
-			}
-		}
-	} catch (error) {
-		Logger.error("Error cleaning up task files:", error)
+async function cleanupRunFiles(preservedItems: RunHistoryItem[]): Promise<void> {
+	const preservedDirectoryIds = new Set(preservedItems.map((item) => item.id))
+	const goalStore = new GoalStore()
+	for (const item of preservedItems) {
+		if (!isGoalHistoryItem(item)) continue
+		const goal = await goalStore.read(item.id)
+		for (const child of goal.children) preservedDirectoryIds.add(child.id)
 	}
 
-	return true
+	const taskDirectoryIds = await listTaskDirectoryIds()
+	Logger.debug(`[cleanupRunFiles] Found ${taskDirectoryIds.length} task directories`)
+	await Promise.all(taskDirectoryIds.filter((id) => !preservedDirectoryIds.has(id)).map((id) => deleteTaskDirectory(id)))
 }
