@@ -25,6 +25,9 @@ export const formatResponse = {
 
 	toolError: (error?: string) => `The tool execution failed with the following error:\n<error>\n${error}\n</error>`,
 
+	toolTimeout: (toolName: string, operation: string, timeoutMs: number) =>
+		`The tool execution timed out:\n<timeout>\nTool: ${toolName}\nLimit: ${timeoutMs / 1_000} seconds\nOperation: ${operation}\n</timeout>`,
+
 	diracIgnoreError: (path: string) =>
 		`Access to ${path} is blocked by the .diracignore file settings. You must try to continue in the task without using this file, or ask the user to update the .diracignore file.`,
 

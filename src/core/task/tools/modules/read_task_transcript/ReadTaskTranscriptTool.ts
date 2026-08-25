@@ -9,6 +9,8 @@ import {
 } from "../../goal/GoalToolInput"
 import type { IDiracTool } from "../../interfaces/IDiracTool"
 import type { IToolEnvironment } from "../../interfaces/IToolEnvironment"
+import { ToolExecutionDeadline, ToolTimeoutError } from "../../runtime/ToolExecutionDeadline"
+import { presentToolTimeout } from "../../runtime/ToolTimeoutPresentation"
 
 const DEFAULT_TRANSCRIPT_LIMIT = 50
 const MAXIMUM_TRANSCRIPT_LIMIT = 200
@@ -54,6 +56,14 @@ export class ReadTaskTranscriptTool implements IDiracTool {
 		const taskId = requireNonEmptyString(args, "task_id")
 		const cursor = optionalNonEmptyString(args, "cursor")
 		const limit = boundedLimit(args, DEFAULT_TRANSCRIPT_LIMIT, MAXIMUM_TRANSCRIPT_LIMIT)
-		return goalToolJson(await requireGoalTrait(environment).readTaskTranscript({ taskId, cursor, limit }))
+		const deadline = new ToolExecutionDeadline(this.spec().name)
+		try {
+			const result = await deadline.run(`reading transcript for ${taskId}`, async () =>
+				await requireGoalTrait(environment).readTaskTranscript({ taskId, cursor, limit }))
+			return goalToolJson(result)
+		} catch (error) {
+			if (error instanceof ToolTimeoutError) return await presentToolTimeout(environment, error)
+			throw error
+		}
 	}
 }

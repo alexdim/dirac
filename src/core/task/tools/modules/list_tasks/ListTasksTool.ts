@@ -10,6 +10,8 @@ import {
 } from "../../goal/GoalToolInput"
 import type { IDiracTool } from "../../interfaces/IDiracTool"
 import type { IToolEnvironment } from "../../interfaces/IToolEnvironment"
+import { ToolExecutionDeadline, ToolTimeoutError } from "../../runtime/ToolExecutionDeadline"
+import { presentToolTimeout } from "../../runtime/ToolTimeoutPresentation"
 
 const DEFAULT_TASK_LIMIT = 20
 const MAXIMUM_TASK_LIMIT = 100
@@ -66,6 +68,14 @@ export class ListTasksTool implements IDiracTool {
 		const role = optionalGoalChildRole(args)
 		const cursor = optionalNonEmptyString(args, "cursor")
 		const limit = boundedLimit(args, DEFAULT_TASK_LIMIT, MAXIMUM_TASK_LIMIT)
-		return goalToolJson(await requireGoalTrait(environment).listTasks({ status, role, cursor, limit }))
+		const deadline = new ToolExecutionDeadline(this.spec().name)
+		try {
+			const result = await deadline.run("listing contained tasks", async () =>
+				await requireGoalTrait(environment).listTasks({ status, role, cursor, limit }))
+			return goalToolJson(result)
+		} catch (error) {
+			if (error instanceof ToolTimeoutError) return await presentToolTimeout(environment, error)
+			throw error
+		}
 	}
 }

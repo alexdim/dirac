@@ -13,6 +13,8 @@ import type { TaskConfig } from "./types/TaskConfig"
 import type { ToolResponse } from "./types/ToolResponse"
 import { ToolSkippedByUserMessage } from "./types/ToolSkippedByUserMessage"
 import { createUIHelpers } from "./types/UIHelpers"
+import { formatResponse } from "@core/formatResponse"
+import { ToolTimeoutError } from "./runtime/ToolExecutionDeadline"
 
 interface PartialToolUseHandler extends IDiracTool {
 	bufferPartialToolUse(block: ToolUse, uiHelpers: ReturnType<typeof createUIHelpers>): Promise<void>
@@ -158,7 +160,20 @@ export class ToolExecutorCoordinator {
 			} else {
 				executionError = error instanceof Error ? error : new Error(String(error))
 				config.taskState.consecutiveMistakeCount = initialMistakeCount + 1
-				response = `Execution failed: ${error.message || error}`
+				if (executionError instanceof ToolTimeoutError) {
+					env.telemetry.captureCustomMetadata({
+						timedOut: true,
+						timeoutMs: executionError.timeoutMs,
+						timeoutOperation: executionError.operation,
+					})
+					response = formatResponse.toolTimeout(
+						executionError.toolName,
+						executionError.operation,
+						executionError.timeoutMs,
+					)
+				} else {
+					response = `Execution failed: ${error.message || error}`
+				}
 			}
 		} finally {
 			// 12. Telemetry

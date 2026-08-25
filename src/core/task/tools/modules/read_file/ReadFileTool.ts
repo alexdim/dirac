@@ -8,6 +8,8 @@ import { DiracDefaultTool, DiracToolSpec } from "@/shared/tools"
 import { IDiracTool } from "../../interfaces/IDiracTool"
 import { IToolEnvironment } from "../../interfaces/IToolEnvironment"
 import { SurfaceType } from "../../interfaces/SurfaceType"
+import { ToolExecutionDeadline, ToolTimeoutError } from "../../runtime/ToolExecutionDeadline"
+import { presentToolTimeout } from "../../runtime/ToolTimeoutPresentation"
 
 export interface ReadFileArgs {
 	paths: string[]
@@ -94,8 +96,19 @@ export class ReadFileTool implements IDiracTool<ReadFileArgs> {
 		const results: string[] = []
 		const contentBlocks: any[] = []
 		const includeAnchors = args.include_anchors === true
-		if (includeAnchors) await env.context.ensureAnchorState()
-		const fileHashes = await env.context.task.get<Record<string, string | FullReadCacheRecord>>("fileHashes") || {}
+		const deadline = new ToolExecutionDeadline(this.spec().name)
+		let fileHashes: Record<string, string | FullReadCacheRecord>
+		try {
+			if (includeAnchors) {
+				await deadline.run("preparing source anchors", async () => await env.context.ensureAnchorState())
+			}
+			fileHashes =
+				(await deadline.run("loading the file-read cache", async () =>
+					await env.context.task.get<Record<string, string | FullReadCacheRecord>>("fileHashes"))) || {}
+		} catch (error) {
+			if (error instanceof ToolTimeoutError) return await presentToolTimeout(env, error)
+			throw error
+		}
 		const cacheUpdates: Record<string, string | FullReadCacheRecord> = {}
 		let anySucceeded = false
 
@@ -108,6 +121,7 @@ export class ReadFileTool implements IDiracTool<ReadFileArgs> {
 				cacheUpdates,
 				env,
 				includeAnchors,
+				deadline,
 			)
 			anySucceeded ||= success
 			results.push(result)
@@ -118,10 +132,16 @@ export class ReadFileTool implements IDiracTool<ReadFileArgs> {
 
 		this.updateTaskState(anySucceeded, env)
 		if (Object.keys(cacheUpdates).length > 0) {
-			await env.context.task.update<Record<string, string | FullReadCacheRecord>>("fileHashes", (current) => ({
-				...current,
-				...cacheUpdates,
-			}))
+			try {
+				await deadline.run("saving the file-read cache", async () =>
+					await env.context.task.update<Record<string, string | FullReadCacheRecord>>("fileHashes", (current) => ({
+						...current,
+						...cacheUpdates,
+					})))
+			} catch (error) {
+				if (error instanceof ToolTimeoutError) return await presentToolTimeout(env, error)
+				throw error
+			}
 		}
 
 		const finalResultText = results.join("\n\n")
@@ -140,6 +160,7 @@ export class ReadFileTool implements IDiracTool<ReadFileArgs> {
 		cacheUpdates: Record<string, string | FullReadCacheRecord>,
 		env: IToolEnvironment,
 		includeAnchors: boolean,
+		deadline: ToolExecutionDeadline,
 	): Promise<{ success: boolean; result: string; contentBlock?: any }> {
 		const header = isMultiFile ? `--- ${relPath} ---\n` : ""
 		let absolutePath = ""
@@ -148,7 +169,7 @@ export class ReadFileTool implements IDiracTool<ReadFileArgs> {
 		let card: any | undefined
 
 		try {
-			const resolved = await env.workspace.resolvePath(relPath)
+			const resolved = await deadline.run(`resolving ${relPath}`, async () => await env.workspace.resolvePath(relPath))
 			absolutePath = resolved.absolutePath
 			displayPath = resolved.displayPath
 			usedWorkspaceHint = displayPath !== relPath
@@ -166,9 +187,10 @@ export class ReadFileTool implements IDiracTool<ReadFileArgs> {
 			if (includeAnchors && NON_EDITABLE_RICH_EXTENSIONS.has(extension)) {
 				throw new Error("Line anchors are unavailable for extracted rich-file or image content. Read the editable source file that will actually be changed.")
 			}
-			const fileContent = includeAnchors
-				? { text: await env.workspace.readFile(absolutePath) }
-				: await env.workspace.readRichFile(absolutePath)
+			const fileContent = await deadline.run(`reading ${displayPath}`, async () =>
+				includeAnchors
+					? { text: await env.workspace.readFile(absolutePath) }
+					: await env.workspace.readRichFile(absolutePath))
 			if (fileContent.imageBlock) {
 				if (card) {
 					await card.update({
@@ -247,6 +269,9 @@ export class ReadFileTool implements IDiracTool<ReadFileArgs> {
 			this.captureReadTelemetry(relPath, usedWorkspaceHint, env)
 			return { success: true, result }
 		} catch (error: any) {
+			if (error instanceof ToolTimeoutError) {
+				return await presentToolTimeout(env, error, card ? [card] : [])
+			}
 			const errorMessage = getErrorMessage(error)
 			const normalizedMessage = errorMessage.startsWith("Error reading file:")
 				? errorMessage

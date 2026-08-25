@@ -65,13 +65,25 @@ interface FileSearchResult {
 const MAX_RESULTS = 30
 
 type RipgrepDebugLog = (info: Record<string, any>) => Promise<void>
+function spawnRipgrepProcess(binPath: string, args: string[]) {
+	return childProcess.spawn(binPath, args, { stdio: ["ignore", "pipe", "pipe"] })
+}
+export type RipgrepProcessSpawner = typeof spawnRipgrepProcess
 
-async function execRipgrep(args: string[], debugLog?: RipgrepDebugLog): Promise<string> {
+export async function execRipgrep(
+	args: string[],
+	debugLog?: RipgrepDebugLog,
+	signal?: AbortSignal,
+	spawnProcess: RipgrepProcessSpawner = spawnRipgrepProcess,
+): Promise<string> {
 	const binPath: string = await getBinaryLocation("rg")
 	await debugLog?.({ info: "execRipgrep start", binPath, args })
+	if (signal?.aborted) {
+		throw signal.reason instanceof Error ? signal.reason : new Error("Ripgrep search aborted")
+	}
 
 	return new Promise((resolve, reject) => {
-		const rgProcess = childProcess.spawn(binPath, args, { stdio: ["ignore", "pipe", "pipe"] })
+		const rgProcess = spawnProcess(binPath, args)
 		// cross-platform alternative to head, which is ripgrep author's recommendation for limiting output.
 		const rl = readline.createInterface({
 			input: rgProcess.stdout,
@@ -83,11 +95,13 @@ async function execRipgrep(args: string[], debugLog?: RipgrepDebugLog): Promise<
 		let errorOutput = ""
 		let settled = false
 		let killedAfterOutputLimit = false
+		let killedAfterAbort = false
 		const maxLines = MAX_RESULTS * 5 // limiting ripgrep output with max lines since there's no other way to limit results. it's okay that we're outputting as json, since we're parsing it line by line and ignore anything that's not part of a match. This assumes each result is at most 5 lines.
 
 		const finish = (error: Error | undefined, value?: string) => {
 			if (settled) return
 			settled = true
+			signal?.removeEventListener("abort", abortSearch)
 			if (error) {
 				reject(error)
 				return
@@ -103,6 +117,7 @@ async function execRipgrep(args: string[], debugLog?: RipgrepDebugLog): Promise<
 		}
 
 		rl.on("line", (line) => {
+			if (killedAfterOutputLimit || killedAfterAbort) return
 			if (lineCount < maxLines) {
 				output += line + "\n"
 				lineCount++
@@ -110,9 +125,33 @@ async function execRipgrep(args: string[], debugLog?: RipgrepDebugLog): Promise<
 			}
 
 			killedAfterOutputLimit = true
-			rl.close()
-			rgProcess.kill()
+			const killRequested = rgProcess.kill()
+			void debugLog?.({
+				info: "execRipgrep output limit reached",
+				binPath,
+				args,
+				lineCount,
+				killRequested,
+			})
+			finish(undefined, output)
 		})
+
+		const abortSearch = () => {
+			killedAfterAbort = true
+			const killRequested = rgProcess.kill()
+			const reason = signal?.reason instanceof Error ? signal.reason : new Error("Ripgrep search aborted")
+			void debugLog?.({
+				info: "execRipgrep aborted",
+				binPath,
+				args,
+				lineCount,
+				killRequested,
+				errorMessage: reason.message,
+			})
+			finish(reason)
+		}
+		signal?.addEventListener("abort", abortSearch, { once: true })
+		if (signal?.aborted) abortSearch()
 
 		rgProcess.stderr.on("data", (data) => {
 			errorOutput += data.toString()
@@ -139,6 +178,7 @@ async function execRipgrep(args: string[], debugLog?: RipgrepDebugLog): Promise<
 				exitCode: code,
 				signal,
 				killedAfterOutputLimit,
+				killedAfterAbort,
 				outputLength: output.length,
 				outputPreview: output.substring(0, 300),
 			}
@@ -148,6 +188,7 @@ async function execRipgrep(args: string[], debugLog?: RipgrepDebugLog): Promise<
 				finish(undefined, output)
 				return
 			}
+			if (killedAfterAbort) return
 
 			if (code !== 0 && code !== 1) {
 				finish(new Error(buildFailureMessage(`ripgrep exited with code ${code}${signal ? ` and signal ${signal}` : ""}`)))
@@ -174,6 +215,7 @@ export async function regexSearchFiles(
 	debugLog?: RipgrepDebugLog,
 	includeAnchors?: boolean,
 	onAnchorStateChanged?: () => void,
+	signal?: AbortSignal,
 ): Promise<string> {
 	// Limit context lines to 10
 	const cappedContextLines = Math.max(0, Math.min(10, contextLines || 0))
@@ -197,7 +239,7 @@ export async function regexSearchFiles(
 
 	let output: string
 	try {
-		output = await execRipgrep(args, debugLog)
+		output = await execRipgrep(args, debugLog, signal)
 	} catch (error) {
 		await debugLog?.({
 			info: "regexSearchFiles execRipgrep error",

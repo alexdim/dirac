@@ -7,6 +7,8 @@ import { DiracDefaultTool, DiracToolSpec } from "../../../../../shared/tools"
 import { IDiracTool } from "../../interfaces/IDiracTool"
 import { IToolEnvironment } from "../../interfaces/IToolEnvironment"
 import { SurfaceType } from "../../interfaces/SurfaceType"
+import { ToolExecutionDeadline, ToolTimeoutError } from "../../runtime/ToolExecutionDeadline"
+import { presentToolTimeout } from "../../runtime/ToolTimeoutPresentation"
 import { DiagnosticFormatter } from "../../utils/DiagnosticFormatter"
 
 export const diagnostics_scan_spec: DiracToolSpec = {
@@ -49,6 +51,7 @@ export class DiagnosticsScanTool implements IDiracTool<DiagnosticsScanArgs, stri
 			env.orchestration.setTaskState("consecutiveMistakeCount", currentMistakeCount + 1)
 			return "Error: Missing required parameter 'paths' or 'paths' is empty."
 		}
+		const deadline = new ToolExecutionDeadline(this.spec().name)
 
 		const isSubagent = env.config.isSubagentExecution
 		const card = !isSubagent
@@ -60,22 +63,23 @@ export class DiagnosticsScanTool implements IDiracTool<DiagnosticsScanArgs, stri
 			: undefined
 
 		try {
-			const fileInfos = await Promise.all(
-				relPaths.map(async (relPath) => {
-					const { absolutePath, displayPath } = await env.workspace.resolvePath(relPath)
-					try {
-						const content = await env.workspace.readFile(absolutePath)
-						return { absolutePath, displayPath, content, error: undefined }
-					} catch (error) {
-						return {
-							absolutePath,
-							displayPath,
-							content: "",
-							error: getErrorMessage(error),
+			const fileInfos = await deadline.run("reading files for diagnostics", async () =>
+				await Promise.all(
+					relPaths.map(async (relPath) => {
+						const { absolutePath, displayPath } = await env.workspace.resolvePath(relPath)
+						try {
+							const content = await env.workspace.readFile(absolutePath)
+							return { absolutePath, displayPath, content, error: undefined }
+						} catch (error) {
+							return {
+								absolutePath,
+								displayPath,
+								content: "",
+								error: getErrorMessage(error),
+							}
 						}
-					}
-				}),
-			)
+					}),
+				))
 
 			const errorResults = fileInfos.filter((f) => f.error).map((f) => `- file: ${f.displayPath}\n  error: ${f.error}`)
 			const validFiles = fileInfos.filter((f) => !f.error)
@@ -90,7 +94,8 @@ export class DiagnosticsScanTool implements IDiracTool<DiagnosticsScanArgs, stri
 			}
 
 			// Prepare diagnostics
-			await env.diagnostics.prepare(validFiles.map((f) => f.absolutePath))
+			await deadline.run("preparing diagnostics", async () =>
+				await env.diagnostics.prepare(validFiles.map((f) => f.absolutePath)))
 
 			// Polling logic
 			const totalLines = validFiles.reduce((sum, f) => sum + f.content.split(/\r?\n/).length, 0)
@@ -100,7 +105,8 @@ export class DiagnosticsScanTool implements IDiracTool<DiagnosticsScanArgs, stri
 			let foundDiagnostics = false
 
 			while (Date.now() - startTime < timeoutMs) {
-				allDiagnostics = await env.diagnostics.getRaw(validFiles.map((f) => f.absolutePath))
+				allDiagnostics = await deadline.run("collecting diagnostics", async () =>
+					await env.diagnostics.getRaw(validFiles.map((f) => f.absolutePath)))
 
 				foundDiagnostics = validFiles.some((f) => {
 					const fileDiags = allDiagnostics.find(
@@ -138,6 +144,9 @@ export class DiagnosticsScanTool implements IDiracTool<DiagnosticsScanArgs, stri
 
 			return finalResult
 		} catch (error) {
+			if (error instanceof ToolTimeoutError) {
+				return await presentToolTimeout(env, error, card ? [card] : [])
+			}
 			const errorMessage = getErrorMessage(error)
 			if (card) {
 				await card.update({

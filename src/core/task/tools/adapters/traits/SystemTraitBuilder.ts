@@ -46,6 +46,7 @@ export function buildSystemTrait(
 				options?.debugLog,
 				options?.includeAnchors,
 				() => config.context.markAnchorStateDirty(),
+				options?.signal,
 			)
 		},
 		getSystemInfo: async () => {
