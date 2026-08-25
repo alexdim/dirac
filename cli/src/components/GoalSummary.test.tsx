@@ -1,6 +1,6 @@
 import type { GoalTaskSummary, GoalViewState } from "@shared/goal"
 import { render } from "ink-testing-library"
-import { act } from "react"
+import React, { act } from "react"
 import { describe, expect, it, vi } from "vitest"
 
 type InputHandler = (input: string, key: import("ink").Key) => void
@@ -84,7 +84,11 @@ async function pressPageKey(key: "pageUp" | "pageDown") {
 describe("GoalSummary child inspection", () => {
 	it("pages from active and recent children to the oldest child", async () => {
 		const view = render(
-			<GoalSummary goal={goalWithOlderChildren()} isProcessing={false} isStopConfirmationPending={false} />,
+			React.createElement(GoalSummary, {
+				goal: goalWithOlderChildren(),
+				isProcessing: false,
+				isStopConfirmationPending: false,
+			}),
 		)
 
 		expect(capturedInput.options?.isActive).toBe(true)
