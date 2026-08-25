@@ -1,4 +1,4 @@
-import type { GoalStatus } from "@shared/goal"
+import { type GoalStatus, isResumableGoalStatus as isResumableStatus } from "@shared/goal"
 
 export const UNSUPPORTED_GOAL_CLI_MESSAGE = "Goals require the interactive Ink CLI; plain-text CLI and ACP are unsupported."
 
@@ -13,5 +13,5 @@ export function isRunningGoalStatus(status: GoalStatus | undefined): boolean {
 }
 
 export function isResumableGoalStatus(status: GoalStatus | undefined): boolean {
-	return status === "paused" || status === "blocked"
+	return status !== undefined && isResumableStatus(status)
 }

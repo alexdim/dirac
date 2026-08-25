@@ -86,7 +86,7 @@ import { createCardBodySuppressionPolicy } from "../utils/quiet-mode"
 import { clearTaskDeadline, getTaskDeadline, hasTaskTimedOut, markTaskTimedOut } from "../utils/task-timeout"
 import { CliPanelType } from "../types"
 import { GoalSummary } from "./GoalSummary"
-import { type GoalLifecycleAction, isResumableGoalStatus, isRunningGoalStatus } from "../utils/goals"
+import { type GoalLifecycleAction, isRunningGoalStatus } from "../utils/goals"
 
 interface ChatViewProps {
 	controller?: any
@@ -656,25 +656,21 @@ export const ChatView: React.FC<ChatViewProps> = ({
 			const isGoalPassthrough =
 				pendingAsk?.content.type === DiracMessageType.CARD &&
 				pendingAsk.content.card.toolName === "resolve_task_interaction"
-			if (isRunningGoalStatus(goal?.status) && goal && (!pendingAsk || isGoalPassthrough)) {
+			if (goal && (!pendingAsk || isGoalPassthrough)) {
 				if (images.length > 0) {
-					setLastError("Goal steering currently accepts text only.")
+					setLastError("Goal messages currently accept text only.")
 					return
 				}
 				setIsProcessing(true)
 				try {
 					const expandedText = expandPastedTexts(text, pastedTexts).trim()
-					await ctrl.steerGoal(goal.id, expandedText)
+					await ctrl.sendGoalMessage(goal.id, expandedText)
 					resetInput()
 				} catch (error) {
-					reportInteractionError("Failed to steer Goal", error)
+					reportInteractionError("Failed to send Goal message", error)
 				} finally {
 					setIsProcessing(false)
 				}
-				return
-			}
-			if (isResumableGoalStatus(goal?.status)) {
-				setLastError(`Goal ${goal?.id} is ${goal?.status}; resume it before sending steering.`)
 				return
 			}
 			try {
@@ -743,8 +739,12 @@ export const ChatView: React.FC<ChatViewProps> = ({
 
 	const borderColor = mode === "act" ? COLORS.primaryBlue : theme.plan
 	let inputPrompt = ""
-	if (isRunningGoalStatus(selectedGoal?.status)) {
+	if (selectedGoal?.followUpActive) {
+		inputPrompt = "(steer follow-up)"
+	} else if (isRunningGoalStatus(selectedGoal?.status)) {
 		inputPrompt = "(steer Goal)"
+	} else if (selectedGoal) {
+		inputPrompt = "(follow up Goal)"
 	} else if (pendingAsk && !yolo && askType === "options" && askOptions.length > 0) {
 		inputPrompt = `(1-${askOptions.length} or type)`
 	} else if (isResumeChoiceActive) {

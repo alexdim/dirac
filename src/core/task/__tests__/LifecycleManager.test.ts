@@ -222,6 +222,30 @@ describe("LifecycleManager", () => {
 				; (systemContext.isUserInput === undefined).should.equal(true)
 		})
 
+		it("starts a resumed turn from explicit user input without waiting for an interaction callback", async () => {
+			setupDiskMocks([], [{ role: "assistant", content: "Previous response" }])
+
+			await manager.resumeTaskFromHistory(undefined, {
+				systemContext: "Keep the durable Goal status unchanged.",
+				initialUserInput: { text: "Explain what changed" },
+			})
+
+			sinon.assert.calledWith(
+				deps.taskMessenger.upsertText,
+				"Explain what changed",
+				false,
+				undefined,
+				undefined,
+				"user",
+			)
+			sinon.assert.calledOnce(deps.hookManager.runUserPromptSubmitHook)
+			const resumedContent = deps.initiateTaskLoop.firstCall.args[0]
+			resumedContent.some((block: any) => block.text?.includes("Keep the durable Goal status unchanged.")).should.equal(true)
+			const userResponse = resumedContent.find((block: any) => block.text?.includes("<user_message>"))
+			userResponse.text.should.contain("Explain what changed")
+			userResponse.isUserInput.should.equal(true)
+		})
+
 		it("does not finish restoration after the task is aborted during a storage read", async () => {
 			const diskModule = require("@core/storage/disk")
 			let releaseMessages!: (messages: any[]) => void

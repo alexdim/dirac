@@ -36,6 +36,12 @@ import type { TaskRunOutcome } from "./TaskRunOutcome"
 export interface ResumeTaskOptions {
 	/** Synthetic context for the first resumed model turn; never rendered or marked as user input. */
 	systemContext?: string
+	/** User-authored content that starts the resumed turn without waiting for an interaction callback. */
+	initialUserInput?: {
+		text: string
+		images?: string[]
+		files?: string[]
+	}
 }
 
 
@@ -318,7 +324,7 @@ export class LifecycleManager {
 		await this.dependencies.postStateToWebview()
 		onRestored?.()
 
-		if (options.systemContext === undefined) {
+		if (options.systemContext === undefined && options.initialUserInput === undefined) {
 			await pWaitFor(() => this.dependencies.taskState.askResponse !== undefined || this.dependencies.taskState.abort, {
 				interval: 100,
 			})
@@ -326,10 +332,10 @@ export class LifecycleManager {
 
 		if (this.dependencies.taskState.abort) return
 
-		const response = this.dependencies.taskState.askResponse as DiracAskResponse | undefined
-		const text = this.dependencies.taskState.askResponseText as string | undefined
-		const images = this.dependencies.taskState.askResponseImages as string[] | undefined
-		const files = this.dependencies.taskState.askResponseFiles as string[] | undefined
+		const response = options.initialUserInput ? DiracAskResponse.MESSAGE : this.dependencies.taskState.askResponse
+		const text = options.initialUserInput?.text ?? this.dependencies.taskState.askResponseText
+		const images = options.initialUserInput?.images ?? this.dependencies.taskState.askResponseImages
+		const files = options.initialUserInput?.files ?? this.dependencies.taskState.askResponseFiles
 
 		const newUserContent: DiracContent[] = []
 
@@ -499,7 +505,7 @@ export class LifecycleManager {
 			})
 		}
 
-		if (options.systemContext === undefined) {
+		if (options.systemContext === undefined || options.initialUserInput !== undefined) {
 			const userFeedbackContent = await buildUserFeedbackContent(responseText, responseImages, responseFiles)
 			const userPromptHookResult = await this.dependencies.hookManager.runUserPromptSubmitHook(userFeedbackContent, "resume")
 

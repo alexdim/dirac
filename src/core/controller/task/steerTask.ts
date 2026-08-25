@@ -3,8 +3,8 @@ import { SteerTaskRequest } from "@shared/proto/dirac/task"
 import { Controller } from ".."
 
 export async function steerTask(controller: Controller, request: SteerTaskRequest): Promise<Empty> {
-	if (controller.hasActiveGoal && controller.selectedGoalId) {
-		await controller.steerGoal(controller.selectedGoalId, request.text)
+	if (controller.selectedGoalId) {
+		await controller.sendGoalMessage(controller.selectedGoalId, request.text)
 		return Empty.create()
 	}
 	const task = controller.task

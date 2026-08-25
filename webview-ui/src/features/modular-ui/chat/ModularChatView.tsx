@@ -89,8 +89,8 @@ export const ModularChatView: React.FC<ChatViewProps> = ({ isHidden, showAnnounc
 
 	const placeholderText = useMemo(() => {
 		if (goal?.status === "working" || goal?.status === "waiting") return "Steer this Goal…"
-		if (goal?.status === "paused" || goal?.status === "blocked") return "Resume this Goal to continue…"
-		if (goal) return "Type a new task…"
+		if (goal?.followUpActive) return "Steer this follow-up…"
+		if (goal) return "Follow up with this Goal…"
 		if (!task) return "Type your task here..."
 		if (interactionState === InteractionState.RUNNING) return "Send guidance for the next turn without interrupting…"
 		return "Type a message..."

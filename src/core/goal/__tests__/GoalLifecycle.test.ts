@@ -68,6 +68,15 @@ describe("Goal lifecycle", () => {
 		assert.throws(() => applyGoalStatusTransition(record(), { status: "paused" }, 99), /predates its last update/)
 	})
 
+	it("allows an explicitly stopped Goal to resume", () => {
+		const goal = record({ status: "stopped", lastActivatedAt: undefined, updatedAt: 180 })
+
+		assert.equal(applyGoalStatusTransition(goal, { status: "working", statusReason: "Resumed by user" }, 220), true)
+		assert.equal(goal.status, "working")
+		assert.equal(goal.lastActivatedAt, 220)
+		assert.equal(goal.statusReason, "Resumed by user")
+	})
+
 	it("interrupts every nonterminal child and invalidates interactions", () => {
 		const goal = record({
 			children: [

@@ -48,6 +48,7 @@ function goalWithOlderChildren(): GoalViewState {
 	return {
 		id: "goal-1",
 		status: "working",
+		followUpActive: false,
 		objective: { markdown: "Inspect every child", revision: 1, updatedAt: 1 },
 		createdAt: 1,
 		updatedAt: 1,
@@ -105,5 +106,35 @@ describe("GoalSummary child inspection", () => {
 
 		expect(view.lastFrame()).toContain("page 1/2")
 		expect(view.lastFrame()).not.toContain("(terminal-1)")
+	})
+
+	it("shows follow-up execution separately from the durable Goal status", () => {
+		const goal = goalWithOlderChildren()
+		goal.status = "achieved"
+		goal.followUpActive = true
+		const view = render(
+			React.createElement(GoalSummary, {
+				goal,
+				isProcessing: false,
+				isStopConfirmationPending: false,
+			}),
+		)
+
+		expect(view.lastFrame()).toContain("ACHIEVED")
+		expect(view.lastFrame()).toContain("Follow-up running · Esc cancels this turn")
+	})
+
+	it("offers explicit resume and follow-up chat for a stopped Goal", () => {
+		const goal = goalWithOlderChildren()
+		goal.status = "stopped"
+		const view = render(
+			React.createElement(GoalSummary, {
+				goal,
+				isProcessing: false,
+				isStopConfirmationPending: false,
+			}),
+		)
+
+		expect(view.lastFrame()).toContain("Ctrl+R resume · follow-up chat available")
 	})
 })

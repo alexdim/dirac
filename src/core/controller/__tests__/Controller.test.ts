@@ -262,6 +262,29 @@ describe("Controller (original)", () => {
 		goalStart.called.should.be.false()
 		ordinaryStart.called.should.be.false()
 	})
+	it("requires a selected Goal for the literal resume command", async () => {
+		expectLoggerErrors()
+		const c = trackController(new Controller(mockContext, { goalRoutingEnabled: true }))
+		const goalStart = sandbox.spy((c as any).goalController, "start")
+		const ordinaryStart = sandbox.spy((c as any).taskController, "initTask")
+
+		await c.initTask(" /goal resume ").should.be.rejectedWith("Select a Goal before using /goal resume")
+
+		goalStart.called.should.be.false()
+		ordinaryStart.called.should.be.false()
+	})
+	it("routes selected Goal messages and the literal resume command separately", async () => {
+		expectLoggerErrors()
+		const c = trackController(new Controller(mockContext, { goalRoutingEnabled: true }))
+		const sendMessage = sandbox.stub((c as any).goalController, "sendMessage").resolves()
+		const resume = sandbox.stub((c as any).goalController, "resume").resolves()
+
+		await c.sendGoalMessage("goal-id", "What happened?")
+		await c.sendGoalMessage("goal-id", "  /goal resume  ")
+
+		sendMessage.calledOnceWithExactly("goal-id", "What happened?").should.be.true()
+		resume.calledOnceWithExactly("goal-id").should.be.true()
+	})
 	it("rejects mode switches whenever a Goal is selected", async () => {
 		expectLoggerErrors()
 		const c = trackController(new Controller(mockContext, { goalRoutingEnabled: true }))

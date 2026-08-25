@@ -189,7 +189,8 @@ export class Task {
 			taskState: this.taskState,
 			messageStateHandler: this.messageStateHandler,
 			taskMessenger: this.taskMessenger,
-			allowWhileWaitingForInteraction: this.executionProfile === "goal_coordinator",
+			allowWhileWaitingForInteraction:
+				this.executionProfile === "goal_coordinator" || this.executionProfile === "goal_followup",
 			postStateToWebview: () => this.postStateToWebview(),
 			withStateLock: (fn) => this.withStateLock(fn),
 		}

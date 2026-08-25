@@ -97,6 +97,7 @@ export interface GoalTaskSummary extends GoalChildRecord {
 export interface GoalViewState {
 	id: string
 	status: GoalStatus
+	followUpActive: boolean
 	statusReason?: string
 	objective: GoalObjectiveRevision
 	createdAt: number
@@ -114,12 +115,16 @@ export interface GoalViewState {
 
 export const GOAL_MODE_SWITCHING_EXPLANATION = "Mode switching is disabled while a Goal is active."
 
-export function isTerminalGoalStatus(status: GoalStatus): boolean {
+export function isSettledGoalStatus(status: GoalStatus): boolean {
 	return status === "achieved" || status === "stopped"
 }
 
 export function isActiveGoalStatus(status: GoalStatus): boolean {
 	return status === "working" || status === "waiting"
+}
+
+export function isResumableGoalStatus(status: GoalStatus): boolean {
+	return status === "paused" || status === "blocked" || status === "stopped"
 }
 
 export function isTerminalGoalChildStatus(status: GoalChildStatus): boolean {

@@ -44,6 +44,10 @@ export class GoalController {
 		return this.selectedLoop?.isActive === true
 	}
 
+	get hasRunningCoordinator(): boolean {
+		return this.selectedLoop?.hasRunningCoordinator === true
+	}
+
 	get coordinator(): Task | undefined {
 		return this.selectedLoop?.coordinator
 	}
@@ -82,8 +86,8 @@ export class GoalController {
 
 	private async selectSerial(goalId: string): Promise<GoalViewState> {
 		await this.ready
-		if (this.selectedLoop?.isActive) {
-			await this.selectedLoop.pause("Paused after selecting another run")
+		if (this.selectedLoop?.hasRunningCoordinator) {
+			await this.selectedLoop.cancelCurrentExecution("Interrupted after selecting another run")
 		}
 		await this.dependencies.clearStandaloneTask()
 		const historyItem = this.goalHistoryItem(goalId)
@@ -100,6 +104,9 @@ export class GoalController {
 	private async resumeSerial(goalId: string): Promise<GoalViewState> {
 		await this.ready
 		if (this.selectedLoop?.goalId === goalId && this.selectedLoop.isActive) return this.selectedLoop.inspect()
+		if (this.selectedLoop?.hasRunningCoordinator) {
+			throw new Error(`Finish or cancel the current Goal conversation before resuming Goal ${goalId}`)
+		}
 		await this.assertNoActiveGoal()
 		this.assertNoActiveStandaloneTask()
 		await this.dependencies.clearStandaloneTask()
@@ -116,6 +123,18 @@ export class GoalController {
 		await this.ready
 		this.requireSelectedLoop(goalId)
 		await this.selectedLoop!.steer(message)
+	}
+
+	async sendMessage(goalId: string, message: string): Promise<void> {
+		await this.ready
+		this.requireSelectedLoop(goalId)
+		await this.selectedLoop!.sendMessage(message)
+	}
+
+	async cancelCurrentExecution(reason?: string): Promise<void> {
+		await this.ready
+		if (!this.selectedLoop) return
+		await this.selectedLoop.cancelCurrentExecution(reason)
 	}
 
 	async pause(goalId: string, reason?: string): Promise<GoalViewState> {
@@ -135,8 +154,8 @@ export class GoalController {
 
 	private async stopSerial(goalId: string, reason?: string): Promise<GoalViewState> {
 		await this.ready
-		if (this.selectedLoop?.isActive && this.selectedLoop.goalId !== goalId) {
-			throw new Error(`Goal control for ${goalId} is stale; active Goal is ${this.selectedLoop.goalId}`)
+		if (this.selectedLoop?.hasRunningCoordinator && this.selectedLoop.goalId !== goalId) {
+			throw new Error(`Goal control for ${goalId} is stale; running Goal conversation is ${this.selectedLoop.goalId}`)
 		}
 		if (this.selectedLoop?.goalId !== goalId) {
 			const historyItem = this.goalHistoryItem(goalId)
@@ -168,7 +187,7 @@ export class GoalController {
 
 	private async pauseAndDeselectSerial(reason: string): Promise<void> {
 		await this.ready
-		if (this.selectedLoop?.isActive) await this.selectedLoop.pause(reason)
+		if (this.selectedLoop?.hasRunningCoordinator) await this.selectedLoop.cancelCurrentExecution(reason)
 		this.selectedLoop = undefined
 		await this.dependencies.postState()
 	}
@@ -222,8 +241,8 @@ export class GoalController {
 	}
 
 	private async assertNoActiveGoal(): Promise<void> {
-		if (this.selectedLoop?.isActive) {
-			throw new Error(`Goal ${this.selectedLoop.goalId} is already active`)
+		if (this.selectedLoop?.hasRunningCoordinator) {
+			throw new Error(`Goal ${this.selectedLoop.goalId} already has a running coordinator`)
 		}
 		const active = (await this.store.list()).find((record) => isActiveGoalStatus(record.status))
 		if (active) throw new Error(`Goal ${active.id} is already active`)

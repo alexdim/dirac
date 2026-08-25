@@ -1,7 +1,7 @@
 import { atomicWriteFile } from "@core/storage/atomicWrite"
 import { ensureTaskDirectoryExists } from "@core/storage/directoryEnsurers"
 import { getTaskDirectoryPath, listTaskDirectoryIds } from "@core/storage/taskDirectory"
-import { type GoalRecord, type GoalStatusTransition, isActiveGoalStatus, isTerminalGoalStatus } from "@shared/goal"
+import { type GoalRecord, type GoalStatusTransition, isActiveGoalStatus, isSettledGoalStatus } from "@shared/goal"
 import { fileExistsAtPath } from "@utils/fs"
 import fs from "fs/promises"
 import Mutex from "p-mutex"
@@ -174,7 +174,7 @@ export class GoalStore {
 			if (mutate) await mutate(record, now)
 			assertLifecycleUnchanged(record, before)
 			applyGoalStatusTransition(record, transition, now)
-			if (isTerminalGoalStatus(record.status)) record.events = []
+			if (isSettledGoalStatus(record.status)) record.events = []
 			await writeGoalRecord(record)
 			return structuredClone(record)
 		})

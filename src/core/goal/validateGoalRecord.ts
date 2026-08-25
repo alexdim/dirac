@@ -1,5 +1,5 @@
 import type { GoalAccounting, GoalChildRecord, GoalEvent, GoalPendingInteraction, GoalRecord } from "@shared/goal"
-import { isActiveGoalStatus, isTerminalGoalChildStatus, isTerminalGoalStatus } from "@shared/goal"
+import { isActiveGoalStatus, isTerminalGoalChildStatus } from "@shared/goal"
 import { calculateGoalAccounting } from "./GoalAccounting"
 
 type JsonRecord = Record<string, unknown>
@@ -398,14 +398,7 @@ export function assertGoalRecord(value: unknown, expectedGoalId: string): assert
 		if (childIds.has(childId)) invalid(`Goal(${expectedGoalId}).children[${index}].id`, "duplicate child identity")
 		childIds.add(childId)
 	})
-	if (!isActiveGoalStatus(status as GoalRecord["status"])) {
-		const liveChild = typedRecord.children.find((child) => !isTerminalGoalChildStatus(child.status))
-		if (liveChild) invalid(`Goal(${expectedGoalId}).children`, `${status} Goal contains live child ${liveChild.id}`)
-	}
 	const events = arrayAt(record.events, `Goal(${expectedGoalId}).events`)
-	if (isTerminalGoalStatus(status as GoalRecord["status"]) && events.length > 0) {
-		invalid(`Goal(${expectedGoalId}).events`, "terminal Goal must not retain pending wake events")
-	}
 
 	let priorSequence = 0
 	events.forEach((event, index) => {

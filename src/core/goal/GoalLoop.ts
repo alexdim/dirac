@@ -14,6 +14,7 @@ import type { GoalAccounting, GoalRecord, GoalViewState } from "@shared/goal"
 import {
 	GOAL_MODE_SWITCHING_EXPLANATION,
 	isActiveGoalStatus,
+	isResumableGoalStatus,
 } from "@shared/goal"
 import {
 	isGoalHistoryItem,
@@ -32,8 +33,10 @@ import { GoalTaskFactory } from "./GoalTaskFactory"
 import { GoalTaskHost, GoalTerminalGuardError } from "./GoalTaskHost"
 
 type RequestedEnd = "paused" | "blocked" | "stopped" | "achieved"
+type GoalRuntimeKind = "goal" | "followup"
 
 interface LiveGoalRuntime {
+	kind: GoalRuntimeKind
 	coordinator: Task
 	host: GoalTaskHost
 	run: Promise<TaskRunOutcome>
@@ -57,6 +60,7 @@ export class GoalLoop {
 	private readonly interactionMutex = new Mutex()
 	private runtime?: LiveGoalRuntime
 	private requestedEnd?: { status: RequestedEnd; reason?: string }
+	private followUpEndReason?: string
 	private coordinatorInteractionCount = 0
 
 	constructor(private readonly dependencies: GoalLoopDependencies) { }
@@ -70,7 +74,15 @@ export class GoalLoop {
 	}
 
 	get isActive(): boolean {
+		return this.runtime?.kind === "goal"
+	}
+
+	get hasRunningCoordinator(): boolean {
 		return this.runtime !== undefined
+	}
+
+	get isFollowUpActive(): boolean {
+		return this.runtime?.kind === "followup"
 	}
 
 	async start(): Promise<void> {
@@ -81,16 +93,50 @@ export class GoalLoop {
 		await this.activate(true)
 	}
 
+	async sendMessage(message: string): Promise<void> {
+		const text = message.trim()
+		if (!text) throw new Error("A Goal message cannot be empty")
+
+		let running: LiveGoalRuntime | undefined
+		await this.lifecycleMutex.withLock(async () => {
+			if (this.runtime) {
+				running = this.runtime
+				return
+			}
+			const record = await this.dependencies.store.read(this.goalId)
+			if (isActiveGoalStatus(record.status)) {
+				throw new Error(`Goal ${this.goalId} is ${record.status} without a running coordinator`)
+			}
+			this.requestedEnd = undefined
+			this.followUpEndReason = undefined
+			const runtime = await this.constructRuntime(record, "followup", false, text)
+			this.runtime = runtime
+			runtime.settlement = this.settleCoordinatorRun(runtime)
+		})
+
+		if (running) {
+			await this.enqueueMessage(running, text)
+			return
+		}
+		await this.dependencies.postState()
+	}
+
 	async steer(message: string): Promise<void> {
 		const text = message.trim()
 		if (!text) throw new Error("Goal steering cannot be empty")
 		const record = await this.dependencies.store.read(this.goalId)
-		if (!isActiveGoalStatus(record.status) || !this.runtime) {
+		if (!isActiveGoalStatus(record.status) || this.runtime?.kind !== "goal") {
 			throw new Error(`Goal ${this.goalId} is ${record.status} and cannot accept steering`)
 		}
-		await this.runtime.coordinator.enqueueSteeringMessage(text)
-		await this.runtime.host.recordUserSteering()
-		await this.dependencies.postState()
+		await this.enqueueMessage(this.runtime, text)
+	}
+
+	async cancelCurrentExecution(reason = "Cancelled by user"): Promise<void> {
+		if (this.runtime?.kind === "goal") {
+			await this.pause(reason)
+			return
+		}
+		await this.cancelFollowUp(reason)
 	}
 
 	async pause(reason = "Paused by user"): Promise<GoalRecord> {
@@ -110,7 +156,7 @@ export class GoalLoop {
 	}
 
 	async inspect(): Promise<GoalViewState> {
-		return goalViewState(await this.dependencies.store.read(this.goalId))
+		return goalViewState(await this.dependencies.store.read(this.goalId), this.isFollowUpActive)
 	}
 
 	async publishHistory(): Promise<void> {
@@ -132,9 +178,9 @@ export class GoalLoop {
 	}
 
 	private async activateSerial(resume: boolean): Promise<void> {
-		if (this.runtime) throw new Error(`Goal ${this.goalId} is already active`)
+		if (this.runtime) throw new Error(`Goal ${this.goalId} already has a running coordinator`)
 		const current = await this.dependencies.store.read(this.goalId)
-		if (resume && current.status !== "paused" && current.status !== "blocked") {
+		if (resume && !isResumableGoalStatus(current.status)) {
 			throw new Error(`Goal ${this.goalId} cannot resume from ${current.status}`)
 		}
 		if (!resume && (current.status !== "paused" || current.statusReason !== "Created")) {
@@ -142,6 +188,7 @@ export class GoalLoop {
 		}
 
 		this.requestedEnd = undefined
+		this.followUpEndReason = undefined
 		const working = await this.dependencies.store.transition(this.goalId, {
 			status: "working",
 			statusReason: resume ? "Resumed by user" : "Started",
@@ -149,7 +196,7 @@ export class GoalLoop {
 		await this.syncHistory(working)
 
 		try {
-			const runtime = await this.constructRuntime(working, resume)
+			const runtime = await this.constructRuntime(working, "goal", resume)
 			this.runtime = runtime
 			runtime.settlement = this.settleCoordinatorRun(runtime)
 		} catch (error) {
@@ -162,7 +209,12 @@ export class GoalLoop {
 		}
 	}
 
-	private async constructRuntime(record: GoalRecord, resume: boolean): Promise<LiveGoalRuntime> {
+	private async constructRuntime(
+		record: GoalRecord,
+		kind: GoalRuntimeKind,
+		resume: boolean,
+		followUpMessage?: string,
+	): Promise<LiveGoalRuntime> {
 		const coordinatorAuxiliarySourceId = `goal/aux:${ulid()}`
 		let host!: GoalTaskHost
 		host = new GoalTaskHost(this.goalId, this.dependencies.store, async (input) =>
@@ -192,8 +244,10 @@ export class GoalLoop {
 		const coordinator = await this.dependencies.taskFactory.create({
 			id: this.goalId,
 			conversationUlid: record.conversationUlid,
-			...(resume ? { historyItem: this.requireHistoryItem() } : { prompt: this.dependencies.initialDisplayText }),
-			executionProfile: "goal_coordinator",
+			...(resume || kind === "followup"
+				? { historyItem: this.requireHistoryItem() }
+				: { prompt: this.dependencies.initialDisplayText }),
+			executionProfile: kind === "followup" ? "goal_followup" : "goal_coordinator",
 			environmentFactory,
 			conversationPersistenceHooks: {
 				onUserContentPersisted: () => host.acknowledgePersistedWake(),
@@ -204,17 +258,27 @@ export class GoalLoop {
 		})
 
 		let run: Promise<TaskRunOutcome>
-		if (resume) {
+		if (kind === "followup") {
+			if (!followUpMessage) throw new Error(`Goal ${this.goalId} follow-up is missing user input`)
+			run = coordinator.resumeTaskFromHistory(undefined, {
+				systemContext: goalFollowUpWake(record),
+				initialUserInput: { text: followUpMessage },
+			})
+		} else if (resume) {
 			run = coordinator.resumeTaskFromHistory(undefined, { systemContext: goalResumeWake(record) })
 		} else {
 			run = coordinator.startTask(this.dependencies.initialDisplayText)
 		}
 
-		return { coordinator, host, run }
+		return { kind, coordinator, host, run }
 	}
 
 	private async settleCoordinatorRun(runtime: LiveGoalRuntime): Promise<void> {
 		const outcome = await runtime.run
+		if (runtime.kind === "followup") {
+			await this.settleFollowUpRun(runtime, outcome)
+			return
+		}
 		await this.lifecycleMutex.withLock(async () => {
 			if (this.runtime !== runtime) return
 			const requested = this.requestedEnd
@@ -237,6 +301,55 @@ export class GoalLoop {
 			await this.syncHistory(record)
 		})
 		await this.dependencies.postState()
+	}
+
+	private async settleFollowUpRun(runtime: LiveGoalRuntime, outcome: TaskRunOutcome): Promise<void> {
+		const reason = this.followUpEndReason ?? followUpOutcomeReason(outcome)
+		const childEnd = outcome.kind === "cancelled" ? "cancelled" : "interrupted"
+		let shutdownError: unknown
+		try {
+			await runtime.host.shutdown(childEnd, reason)
+		} catch (error) {
+			shutdownError = error
+		}
+
+		await this.lifecycleMutex.withLock(async () => {
+			if (this.runtime !== runtime) return
+			this.runtime = undefined
+			this.followUpEndReason = undefined
+			await this.syncHistory(await this.dependencies.store.read(this.goalId))
+		})
+		await this.dependencies.postState()
+		if (shutdownError) throw shutdownError
+	}
+
+	private async enqueueMessage(runtime: LiveGoalRuntime, text: string): Promise<void> {
+		if (this.runtime !== runtime) throw new Error(`Goal ${this.goalId} coordinator changed before message delivery`)
+		await runtime.coordinator.enqueueSteeringMessage(text)
+		await runtime.host.recordUserSteering()
+		await this.dependencies.postState()
+	}
+
+	private async cancelFollowUp(reason: string): Promise<void> {
+		let runtime: LiveGoalRuntime | undefined
+		await this.lifecycleMutex.withLock(async () => {
+			if (this.runtime?.kind === "followup") {
+				runtime = this.runtime
+				this.followUpEndReason = reason
+			}
+		})
+		if (!runtime) return
+
+		const controls = await Promise.allSettled([
+			runtime.coordinator.abortTask({ kind: "cancelled", reason }),
+			runtime.host.shutdown("cancelled", reason),
+		])
+		await runtime.settlement
+		const failures = controls
+			.filter((result): result is PromiseRejectedResult => result.status === "rejected")
+			.map((result) => result.reason)
+		if (failures.length === 1) throw failures[0]
+		if (failures.length > 1) throw new AggregateError(failures, `Goal ${this.goalId} follow-up cancellation failed`)
 	}
 
 	private async endActiveRun(
@@ -387,6 +500,9 @@ export class GoalLoop {
 		const objective = markdown.trim()
 		if (!objective) throw new Error("A Goal objective cannot be empty")
 		const record = await this.dependencies.store.update(this.goalId, (goal, now) => {
+			if (goal.status === "achieved") {
+				throw new Error(`Goal ${this.goalId} is achieved; its completed objective cannot be revised`)
+			}
 			goal.objective = {
 				markdown: objective,
 				revision: goal.objective.revision + 1,
@@ -403,7 +519,8 @@ export class GoalLoop {
 		if (!detail) throw new Error("A blocked Goal requires a non-empty reason")
 		await host.guardTerminalTransition()
 		await this.lifecycleMutex.withLock(async () => {
-			this.requestedEnd ??= { status: "blocked", reason: detail }
+			if (this.runtime?.kind === "followup") this.followUpEndReason ??= detail
+			else this.requestedEnd ??= { status: "blocked", reason: detail }
 		})
 		surface.orchestration.setTaskState("abort", true)
 	}
@@ -422,7 +539,7 @@ export class GoalLoop {
 		}
 		if (completion.committed) {
 			await this.lifecycleMutex.withLock(async () => {
-				this.requestedEnd ??= { status: "achieved" }
+				if (this.runtime?.kind === "goal") this.requestedEnd ??= { status: "achieved" }
 			})
 		}
 		return completion
@@ -454,7 +571,7 @@ export class GoalLoop {
 
 	private async acquireCoordinatorInteraction(): Promise<void> {
 		await this.interactionMutex.withLock(async () => {
-			if (this.coordinatorInteractionCount > 0 || this.requestedEnd) {
+			if (this.coordinatorInteractionCount > 0 || this.requestedEnd || this.followUpEndReason) {
 				this.coordinatorInteractionCount += 1
 				return
 			}
@@ -472,7 +589,7 @@ export class GoalLoop {
 				}
 				this.coordinatorInteractionCount = 1
 			} catch (error) {
-				if (!transitioned || this.requestedEnd) throw error
+				if (!transitioned || this.requestedEnd || this.followUpEndReason) throw error
 				try {
 					await this.dependencies.store.transition(this.goalId, { status: "working" })
 					await this.dependencies.postState()
@@ -488,7 +605,7 @@ export class GoalLoop {
 		await this.interactionMutex.withLock(async () => {
 			if (this.coordinatorInteractionCount === 0) throw new Error("Goal interaction ownership is unbalanced")
 			this.coordinatorInteractionCount -= 1
-			if (this.coordinatorInteractionCount !== 0 || this.requestedEnd) return
+			if (this.coordinatorInteractionCount !== 0 || this.requestedEnd || this.followUpEndReason) return
 			const current = await this.dependencies.store.read(this.goalId)
 			if (current.status !== "waiting") return
 			await this.dependencies.store.transition(this.goalId, { status: "working" })
@@ -500,6 +617,10 @@ export class GoalLoop {
 		const record = await this.dependencies.store.read(this.goalId)
 		const active = record.children.filter((child) => child.status === "starting" || child.status === "running" || child.status === "waiting")
 		return [
+			`<goal_lifecycle status="${record.status}" coordinator="${this.runtime?.kind ?? "idle"}">`,
+			`Follow-up conversation turns do not change this lifecycle status.`,
+			"</goal_lifecycle>",
+			"",
 			`<goal_objective revision="${record.objective.revision}">`,
 			record.objective.markdown,
 			"</goal_objective>",
@@ -684,7 +805,7 @@ function transitionForOutcome(outcome: TaskRunOutcome): { status: RequestedEnd; 
 	}
 }
 
-function goalViewState(record: GoalRecord): GoalViewState {
+function goalViewState(record: GoalRecord, followUpActive: boolean): GoalViewState {
 	const now = Date.now()
 	const children = record.children.map((child) => ({
 		...child,
@@ -695,6 +816,7 @@ function goalViewState(record: GoalRecord): GoalViewState {
 	return {
 		id: record.id,
 		status: record.status,
+		followUpActive,
 		...(record.statusReason ? { statusReason: record.statusReason } : {}),
 		objective: record.objective,
 		createdAt: record.createdAt,
@@ -716,6 +838,23 @@ function goalResumeWake(record: GoalRecord): string {
 		? record.children.map((child) => `- ${child.id} | ${child.title} | ${child.role} | ${child.status}`).join("\n")
 		: "- none"
 	return `Resume Goal ${record.id}. Re-evaluate the current workspace before acting. The current objective is supplied separately in pinned Goal context. Interrupted contained Tasks are terminal and must not be resumed in place.\n\nContained Tasks at resume:\n${tasks}`
+}
+
+function goalFollowUpWake(record: GoalRecord): string {
+	return `Continue Goal ${record.id} for one user-initiated follow-up turn. The durable Goal status remains ${record.status}. Completing or blocking this turn must not change that status. The current objective and live contained Tasks are supplied separately in pinned Goal context.`
+}
+
+function followUpOutcomeReason(outcome: TaskRunOutcome): string {
+	switch (outcome.kind) {
+		case "completed":
+			return "Follow-up completed"
+		case "failed":
+			return `Follow-up failed: ${outcome.error.name}: ${outcome.error.message}`
+		case "cancelled":
+			return outcome.reason ?? "Follow-up cancelled"
+		case "interrupted":
+			return outcome.reason
+	}
 }
 
 function errorMessage(error: unknown): string {

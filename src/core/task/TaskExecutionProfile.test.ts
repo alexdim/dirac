@@ -23,15 +23,17 @@ function profileTool(profiles: readonly TaskExecutionProfile[]): DiscoveredTool 
 }
 
 describe("Task execution profiles", () => {
-	it("centrally excludes new_task from both Goal-owned profiles", () => {
+	it("centrally excludes new_task from every Goal-owned profile", () => {
 		assert.equal(isToolAvailableToTaskProfile("standalone", "new_task"), true)
 		assert.equal(isToolAvailableToTaskProfile("goal_coordinator", "new_task"), false)
+		assert.equal(isToolAvailableToTaskProfile("goal_followup", "new_task"), false)
 		assert.equal(isToolAvailableToTaskProfile("goal_child", "new_task"), false)
 	})
 
-	it("keeps Goal tools exclusive to the coordinator", () => {
+	it("makes Goal tools available to coordinator and follow-up turns", () => {
 		assert.equal(isToolAvailableToTaskProfile("standalone", "start_task"), false)
 		assert.equal(isToolAvailableToTaskProfile("goal_coordinator", "start_task"), true)
+		assert.equal(isToolAvailableToTaskProfile("goal_followup", "start_task"), true)
 		assert.equal(isToolAvailableToTaskProfile("goal_child", "start_task"), false)
 	})
 
@@ -58,6 +60,16 @@ describe("Task execution profiles", () => {
 		assert.match(instructions ?? "", /Most should remain private; synthesize only information/)
 		assert.match(instructions ?? "", /post merely because a heartbeat occurred/)
 		assert.match(instructions ?? "", /normally one sentence, sometimes two, and only rarely three/)
+	})
+
+	it("keeps follow-up completion separate from durable Goal lifecycle", () => {
+		const instructions = taskProfileSystemInstructions("goal_followup")
+
+		assert.match(instructions ?? "", /durable Goal lifecycle status is authoritative/)
+		assert.match(instructions ?? "", /respond with complete finishes only this follow-up turn/)
+		assert.match(instructions ?? "", /block_goal ends only this follow-up turn/)
+		assert.match(instructions ?? "", /explicitly resume paused, blocked, or stopped Goal pursuit/)
+		assert.match(instructions ?? "", /An achieved Goal cannot be resumed/)
 	})
 
 	it("does not add Goal progress guidance to standalone Tasks", () => {

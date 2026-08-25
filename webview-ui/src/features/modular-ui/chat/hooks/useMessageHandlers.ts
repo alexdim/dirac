@@ -1,10 +1,9 @@
 import { CardKind, DiracMessageType, isFinalStatus, UIActionButtonType } from "@shared/ExtensionMessage"
 import { getCardKind } from "@shared/cardIdentity"
-import { isActiveGoalStatus, isTerminalGoalStatus } from "@shared/goal"
 import { DiracAskResponse } from "@shared/WebviewMessage"
 
 import { EmptyRequest, StringRequest } from "@shared/proto/dirac/common"
-import { GoalSteerRequest } from "@shared/proto/dirac/goal"
+import { GoalMessageRequest } from "@shared/proto/dirac/goal"
 import { AskResponseRequest, NewTaskRequest, SteerTaskRequest } from "@shared/proto/dirac/task"
 import { useCallback, useRef } from "react"
 import { useSettingsStore } from "@/features/settings/store/settingsStore"
@@ -62,16 +61,12 @@ export function useMessageHandlers(chatState: ChatState): MessageHandlers {
 
 			try {
 				setExpandTaskHeader(false)
-				if (
-					goal &&
-					isActiveGoalStatus(goal.status) &&
-					(interactionState !== InteractionState.AWAITING_RESPONSE || isGoalPassthrough)
-				) {
+				if (goal && (interactionState !== InteractionState.AWAITING_RESPONSE || isGoalPassthrough)) {
 					if (images.length > 0 || files.length > 0) {
-						throw new Error("Goal steering currently supports text only")
+						throw new Error("Goal messages currently support text only")
 					}
-					await GoalServiceClient.steerGoal(GoalSteerRequest.create({ goalId: goal.id, message: finalMessage }))
-				} else if (goal && isActiveGoalStatus(goal.status)) {
+					await GoalServiceClient.sendGoalMessage(GoalMessageRequest.create({ goalId: goal.id, message: finalMessage }))
+				} else if (goal) {
 					const isResume =
 						activeCardKind === CardKind.RESUME_TASK ||
 						activeCardKind === CardKind.RESUME_COMPLETED_TASK ||
@@ -91,10 +86,6 @@ export function useMessageHandlers(chatState: ChatState): MessageHandlers {
 							files,
 						}),
 					)
-				} else if (goal && !isTerminalGoalStatus(goal.status)) {
-					throw new Error(`Goal ${goal.id} is ${goal.status}; resume it before sending steering`)
-				} else if (goal) {
-					await TaskServiceClient.newTask(NewTaskRequest.create({ text: finalMessage, images, files }))
 				} else
 					switch (interactionState) {
 						case InteractionState.IDLE:
@@ -142,7 +133,7 @@ export function useMessageHandlers(chatState: ChatState): MessageHandlers {
 				// Clear local input state immediately on success
 				setInputValue("")
 				setActiveQuote(null)
-				setSendingDisabled(goal && isActiveGoalStatus(goal.status) ? false : interactionState !== InteractionState.RUNNING)
+				setSendingDisabled(goal ? false : interactionState !== InteractionState.RUNNING)
 				setSelectedImages([])
 				setSelectedFiles([])
 			} catch (error) {

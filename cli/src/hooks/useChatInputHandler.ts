@@ -166,7 +166,11 @@ export function useChatInputHandler({
 			handleGoalControl("pause")
 			return
 		}
-		if (key.ctrl && (input === "r" || input === "\u0012") && (goalStatus === "paused" || goalStatus === "blocked")) {
+		if (
+			key.ctrl &&
+			(input === "r" || input === "\u0012") &&
+			(goalStatus === "paused" || goalStatus === "blocked" || goalStatus === "stopped")
+		) {
 			handleGoalControl("resume")
 			return
 		}
@@ -438,7 +442,7 @@ export function useChatInputHandler({
 			!key.meta &&
 			input !== "\n" &&
 			!currentMentionInfo.inMentionMode &&
-			(!isSpinnerActive || goalStatus === "working" || goalStatus === "waiting") &&
+			(!isSpinnerActive || goalStatus !== undefined) &&
 			!isProcessing
 		) {
 			if (executeStandaloneLocalSlashCommand(currentTextInput, localSlashCommandContext)) {

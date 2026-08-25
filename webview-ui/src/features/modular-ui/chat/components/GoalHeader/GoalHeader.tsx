@@ -93,7 +93,7 @@ const GoalHeader = ({ goal }: GoalHeaderProps) => {
 	const [pendingAction, setPendingAction] = useState<GoalAction>()
 	const [controlError, setControlError] = useState<string>()
 	const detailsId = `goal-details-${goal.id}`
-	const canResume = goal.status === "paused" || goal.status === "blocked"
+	const canResume = goal.status === "paused" || goal.status === "blocked" || goal.status === "stopped"
 	const canPause = goal.status === "working" || goal.status === "waiting"
 	const canStop = goal.status !== "achieved" && goal.status !== "stopped"
 
@@ -145,6 +145,11 @@ const GoalHeader = ({ goal }: GoalHeaderProps) => {
 						<Badge className="shrink-0 capitalize" variant={STATUS_VARIANTS[goal.status]}>
 							{goal.status}
 						</Badge>
+						{goal.followUpActive && (
+							<Badge className="shrink-0" variant="info">
+								Follow-up running
+							</Badge>
+						)}
 					</button>
 				</div>
 
@@ -161,7 +166,7 @@ const GoalHeader = ({ goal }: GoalHeaderProps) => {
 						{canResume && (
 							<Button
 								aria-label="Resume Goal"
-								disabled={pendingAction !== undefined}
+								disabled={pendingAction !== undefined || goal.followUpActive}
 								onClick={() => void runControl("resume")}
 								size="xs"
 								title={`Resume Goal ${goal.id}`}

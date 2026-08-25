@@ -204,8 +204,8 @@ export class Controller {
 	}
 
 	async cancelTask(): Promise<void> {
-		if (this.goalController.active && this.goalController.selectedGoalId) {
-			await this.goalController.pause(this.goalController.selectedGoalId, "Paused by cancel control")
+		if (this.goalController.hasRunningCoordinator) {
+			await this.goalController.cancelCurrentExecution("Cancelled by user")
 			return
 		}
 		return this.taskController.cancelTask()
@@ -373,6 +373,15 @@ export class Controller {
 		return this.goalController.steer(goalId, message)
 	}
 
+	async sendGoalMessage(goalId: string, message: string): Promise<void> {
+		this.assertGoalSurfaceSupported()
+		if (isGoalResumeCommand(message)) {
+			await this.goalController.resume(goalId)
+			return
+		}
+		return this.goalController.sendMessage(goalId, message)
+	}
+
 	private assertGoalSurfaceSupported(): void {
 		if (!this.goalRoutingEnabled) {
 			throw new Error("Goals require the interactive VS Code or CLI surface; ACP and unattended CLI are unsupported.")
@@ -385,5 +394,10 @@ function parseGoalRequest(text: string): { matched: false } | { matched: true; o
 	if (!match) return { matched: false }
 	const objective = match[1]?.trim() ?? ""
 	if (!objective) throw new Error("/goal requires a non-empty objective")
+	if (objective.toLowerCase() === "resume") throw new Error("Select a Goal before using /goal resume")
 	return { matched: true, objective }
+}
+
+function isGoalResumeCommand(text: string): boolean {
+	return /^\s*\/goal\s+resume\s*$/i.test(text)
 }

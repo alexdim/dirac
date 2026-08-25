@@ -4,7 +4,7 @@ import {
 	type GoalStatusTransition,
 	isActiveGoalStatus,
 	isTerminalGoalChildStatus,
-	isTerminalGoalStatus,
+	isSettledGoalStatus,
 } from "@shared/goal"
 
 const ALLOWED_STATUS_TRANSITIONS: Record<GoalStatus, ReadonlySet<GoalStatus>> = {
@@ -13,7 +13,7 @@ const ALLOWED_STATUS_TRANSITIONS: Record<GoalStatus, ReadonlySet<GoalStatus>> = 
 	paused: new Set(["working", "stopped"]),
 	blocked: new Set(["working", "stopped"]),
 	achieved: new Set(),
-	stopped: new Set(),
+	stopped: new Set(["working"]),
 }
 
 function assertTransitionTime(record: GoalRecord, now: number): void {
@@ -32,7 +32,7 @@ export function goalActiveDurationAt(record: GoalRecord, now: number): number {
 
 export function goalWallDurationAt(record: GoalRecord, now: number): number {
 	assertTransitionTime(record, now)
-	const end = isTerminalGoalStatus(record.status) ? record.updatedAt : now
+	const end = isSettledGoalStatus(record.status) ? record.updatedAt : now
 	return end - record.createdAt
 }
 

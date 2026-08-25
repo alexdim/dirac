@@ -14,12 +14,11 @@ import { Controller } from ".."
 export async function askResponse(controller: Controller, request: AskResponseRequest): Promise<Empty> {
 	try {
 		if (
-			controller.hasActiveGoal &&
 			controller.selectedGoalId &&
 			!request.cardId &&
 			(request.responseType === DiracAskResponse.MESSAGE || request.responseType === "messageResponse")
 		) {
-			await controller.steerGoal(controller.selectedGoalId, request.text)
+			await controller.sendGoalMessage(controller.selectedGoalId, request.text)
 			return Empty.create()
 		}
 		if (!controller.task) {

@@ -153,6 +153,9 @@ export class GoalServiceClient extends ProtoBusClient {
 	static async steerGoal(request: proto.dirac.GoalSteerRequest): Promise<proto.dirac.Empty> {
 		return this.makeUnaryRequest("steerGoal", request, proto.dirac.GoalSteerRequest.toJSON, proto.dirac.Empty.fromJSON)
 	}
+	static async sendGoalMessage(request: proto.dirac.GoalMessageRequest): Promise<proto.dirac.Empty> {
+		return this.makeUnaryRequest("sendGoalMessage", request, proto.dirac.GoalMessageRequest.toJSON, proto.dirac.Empty.fromJSON)
+	}
 }
 export class ModelsServiceClient extends ProtoBusClient {
 	static override serviceName: string = "dirac.ModelsService"

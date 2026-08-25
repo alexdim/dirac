@@ -18,7 +18,7 @@ export interface GoalTaskConstruction {
 	conversationUlid: string
 	prompt?: string
 	historyItem?: HistoryItem
-	executionProfile: Extract<TaskExecutionProfile, "goal_coordinator" | "goal_child">
+	executionProfile: Extract<TaskExecutionProfile, "goal_coordinator" | "goal_followup" | "goal_child">
 	environmentFactory: ToolEnvironmentFactory
 	getPinnedContext?: () => Promise<string | undefined>
 	onHistorySnapshot: (item: HistoryItem, task: Task) => Promise<void>
@@ -58,7 +58,7 @@ export class GoalTaskFactory {
 					return this.dependencies.stateManager.getGlobalStateKey("taskHistory")
 				},
 				postStateToWebview:
-					input.executionProfile === "goal_coordinator"
+					input.executionProfile === "goal_coordinator" || input.executionProfile === "goal_followup"
 						? this.dependencies.postCoordinatorState
 						: async () => undefined,
 				reinitExistingTaskFromId: async () => {
@@ -87,7 +87,7 @@ export class GoalTaskFactory {
 				toolEnvironmentFactory: input.environmentFactory,
 				conversationPersistenceHooks: input.conversationPersistenceHooks,
 				updateBackgroundCommandState:
-					input.executionProfile === "goal_coordinator"
+					input.executionProfile === "goal_coordinator" || input.executionProfile === "goal_followup"
 						? (running, taskId) => this.dependencies.controller.updateBackgroundCommandState(running, taskId)
 						: () => undefined,
 			}
@@ -101,7 +101,7 @@ export class GoalTaskFactory {
 
 	private workingConfiguration(executionProfile: GoalTaskConstruction["executionProfile"]): TaskWorkingConfiguration {
 		const source = this.dependencies.workingConfiguration
-		if (executionProfile === "goal_coordinator" || !source.settings.hooksEnabled) return source
+		if (executionProfile !== "goal_child" || !source.settings.hooksEnabled) return source
 		return createTaskWorkingConfiguration({
 			revision: source.revision,
 			settings: { ...(structuredClone(source.settings) as Settings), hooksEnabled: false },

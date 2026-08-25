@@ -79,11 +79,15 @@ export const GoalSummary: React.FC<{
 		},
 		{ isActive: isRawModeSupported && childPageCount > 1 },
 	)
-	const controls = isRunningGoalStatus(goal.status)
-		? "Ctrl+P pause · Ctrl+X stop"
+	const controls = goal.followUpActive
+		? "Follow-up running · Esc cancels this turn"
+		: isRunningGoalStatus(goal.status)
+			? "Ctrl+P pause · Ctrl+X stop"
 		: isResumableGoalStatus(goal.status)
-			? "Ctrl+R resume · Ctrl+X stop"
-			: "Goal is terminal"
+			? goal.status === "stopped"
+				? "Ctrl+R resume · follow-up chat available"
+				: "Ctrl+R resume · Ctrl+X stop · follow-up chat available"
+			: "Follow-up chat available"
 
 	return (
 		<Box borderColor={theme.border} borderStyle="round" flexDirection="column" paddingX={1} width="100%">
@@ -154,7 +158,7 @@ export const GoalSummary: React.FC<{
 				{isProcessing
 					? "Applying Goal control…"
 					: isStopConfirmationPending
-						? "Press Ctrl+X again to permanently stop this Goal"
+						? "Press Ctrl+X again to stop autonomous Goal execution"
 						: controls}
 			</Text>
 		</Box>

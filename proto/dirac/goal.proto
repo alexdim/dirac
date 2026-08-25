@@ -14,6 +14,7 @@ service GoalService {
   rpc pauseGoal(GoalControlRequest) returns (Empty);
   rpc stopGoal(GoalControlRequest) returns (Empty);
   rpc steerGoal(GoalSteerRequest) returns (Empty);
+  rpc sendGoalMessage(GoalMessageRequest) returns (Empty);
 }
 
 message GoalControlRequest {
@@ -23,6 +24,12 @@ message GoalControlRequest {
 }
 
 message GoalSteerRequest {
+  Metadata metadata = 1;
+  string goal_id = 2;
+  string message = 3;
+}
+
+message GoalMessageRequest {
   Metadata metadata = 1;
   string goal_id = 2;
   string message = 3;
