@@ -8,7 +8,7 @@ vi.mock("../hooks/useTerminalSize", () => ({
 	useTerminalSize: () => ({ columns: 120, rows: 40, resizeKey: 0 }),
 }))
 
-function renderFooter(quietMode: boolean, fastModeEnabled = false) {
+function renderFooter(quietMode: boolean, fastModeEnabled = false, isGoalActive = false) {
 	return render(
 		<ChatFooter
 			autoApproveAll={false}
@@ -20,6 +20,7 @@ function renderFooter(quietMode: boolean, fastModeEnabled = false) {
 			mode="act"
 			modelId="test-model"
 			fastModeEnabled={fastModeEnabled}
+			isGoalActive={isGoalActive}
 			provider="test-provider"
 			quietMode={quietMode}
 			totalCost={0}
@@ -32,9 +33,7 @@ function renderFooter(quietMode: boolean, fastModeEnabled = false) {
 describe("ChatFooter modes", () => {
 	it("separates auto-approve, YOLO, and quiet mode with middle dots", () => {
 		const frame = renderFooter(false).lastFrame() || ""
-		expect(frame).toContain(
-			"Auto-approve all disabled (Shift+Tab) · YOLO mode disabled · Quiet mode disabled (/quiet)",
-		)
+		expect(frame).toContain("Auto-approve all disabled (Shift+Tab) · YOLO mode disabled · Quiet mode disabled (/quiet)")
 	})
 
 	it("shows when quiet mode is enabled", () => {
@@ -45,5 +44,15 @@ describe("ChatFooter modes", () => {
 	it("shows fast mode next to the model when enabled", () => {
 		const frame = renderFooter(false, true).lastFrame() || ""
 		expect(frame).toContain("test-provider: test-model fast")
+	})
+
+	it("uses a compact Goal marker without mode-lock or accounting duplication", () => {
+		const frame = renderFooter(false, false, true).lastFrame() || ""
+		expect(frame).toContain("Act (Goal)")
+		expect(frame).toContain("Ctrl+G details")
+		expect(frame).toContain("test-provider: test-model · project · Auto off · YOLO off · Quiet off")
+		expect(frame).not.toContain("locked")
+		expect(frame).not.toContain("usage")
+		expect(frame.split("\n")).toHaveLength(2)
 	})
 })

@@ -28,10 +28,10 @@ import type { GoalLifecycleAction } from "../utils/goals"
 
 export type ActivePanel =
 	| {
-		type: CliPanelType.SETTINGS
-		initialMode?: "model-picker" | "featured-models" | "provider-picker"
-		initialModelKey?: "actModelId" | "planModelId"
-	}
+			type: CliPanelType.SETTINGS
+			initialMode?: "model-picker" | "featured-models" | "provider-picker"
+			initialModelKey?: "actModelId" | "planModelId"
+	  }
 	| { type: CliPanelType.HISTORY }
 	| { type: CliPanelType.HELP }
 	| { type: CliPanelType.SKILLS }
@@ -92,6 +92,8 @@ interface UseComposerProps {
 	setCardScrollOffset: (offset: number) => void
 	goalStatus?: GoalStatus
 	handleGoalControl: (action: GoalLifecycleAction) => void
+	toggleGoalDetails: () => void
+	disarmGoalStopConfirmation: () => void
 }
 
 export function useComposer({
@@ -115,6 +117,8 @@ export function useComposer({
 	setCardScrollOffset,
 	goalStatus,
 	handleGoalControl,
+	toggleGoalDetails,
+	disarmGoalStopConfirmation,
 }: UseComposerProps) {
 	const {
 		text: textInput,
@@ -288,8 +292,8 @@ export function useComposer({
 			.filter((item) =>
 				Boolean(
 					(item.cwdOnTaskInitialization && arePathsEqual(item.cwdOnTaskInitialization, workspacePath)) ||
-					(item.workspaceRootPath && arePathsEqual(item.workspaceRootPath, workspacePath)) ||
-					(item.shadowGitConfigWorkTree && arePathsEqual(item.shadowGitConfigWorkTree, workspacePath)),
+						(item.workspaceRootPath && arePathsEqual(item.workspaceRootPath, workspacePath)) ||
+						(item.shadowGitConfigWorkTree && arePathsEqual(item.shadowGitConfigWorkTree, workspacePath)),
 				),
 			)
 			.reverse()
@@ -318,10 +322,7 @@ export function useComposer({
 			r.hasCheckedRipgrep = true
 			if (checkAndWarnRipgrepMissing()) {
 				setShowRipgrepWarning(true)
-				ripgrepWarningTimeoutRef.current = setTimeout(
-					() => setShowRipgrepWarning(false),
-					RIPGREP_WARNING_DURATION_MS,
-				)
+				ripgrepWarningTimeoutRef.current = setTimeout(() => setShowRipgrepWarning(false), RIPGREP_WARNING_DURATION_MS)
 			}
 		}
 		const { query } = mentionInfo
@@ -411,8 +412,7 @@ export function useComposer({
 		uiActionState,
 		yolo,
 		pendingAsk,
-		handleButtonAction: (action, isPrimary, value) =>
-			actionsRef.current.handleButtonAction(action, isPrimary, value),
+		handleButtonAction: (action, isPrimary, value) => actionsRef.current.handleButtonAction(action, isPrimary, value),
 		isYoloSuppressed,
 		lastPasteTimeRef,
 		activePasteNumRef,
@@ -430,7 +430,8 @@ export function useComposer({
 		setCardScrollOffset,
 		goalStatus,
 		handleGoalControl,
-
+		toggleGoalDetails,
+		disarmGoalStopConfirmation,
 	})
 
 	const resetInput = useCallback(() => {

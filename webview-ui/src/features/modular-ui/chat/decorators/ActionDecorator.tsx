@@ -1,14 +1,15 @@
-import { CheckIcon, ChevronDownIcon, FastForwardIcon } from "lucide-react"
-import { motion } from "framer-motion"
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/shared/ui/tooltip"
-import { cn } from "@/lib/utils"
-import DiracRulesToggleModal from "@/features/dirac-rules/components/DiracRulesToggleModal"
-import { InputDecorator, ModularInputContext } from "../types"
+import type { ModelProviderPreset } from "@shared/api"
 import type { TaskStatus } from "@shared/ExtensionMessage"
 import { OPENAI_REASONING_EFFORT_LABELS, type OpenaiReasoningEffort } from "@shared/ExtensionMessage"
-import { TaskStatusIndicator } from "../components/TaskStatusIndicator"
-import type { ModelProviderPreset } from "@shared/api"
+import { motion } from "framer-motion"
+import { CheckIcon, ChevronDownIcon, FastForwardIcon, LockKeyholeIcon } from "lucide-react"
+import DiracRulesToggleModal from "@/features/dirac-rules/components/DiracRulesToggleModal"
+import { cn } from "@/lib/utils"
 import { Popover, PopoverContent, PopoverTrigger } from "@/shared/ui/popover"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/shared/ui/tooltip"
+import { TaskStatusIndicator } from "../components/TaskStatusIndicator"
+import { InputDecorator, ModularInputContext } from "../types"
+
 interface ActionDecoratorProps {
 	onModeToggle: (context: ModularInputContext) => void
 	mode: "plan" | "act"
@@ -51,19 +52,18 @@ export const createActionDecorator = (props: ActionDecoratorProps): InputDecorat
 
 				<div className="relative flex min-w-0 flex-1 items-center gap-1 ml-2 mr-2">
 					<div className="flex min-w-0 max-w-full items-center gap-1">
-						<a
+						<button
 							className={cn(
-								"flex h-5 min-w-0 max-w-full items-center px-0 text-xs outline-none select-none",
+								"flex h-5 min-w-0 max-w-full select-none items-center border-0 bg-transparent px-0 text-xs outline-none",
 								"text-(--vscode-descriptionForeground) hover:text-(--vscode-foreground) hover:underline focus:text-(--vscode-foreground) focus:underline active:text-(--vscode-foreground) active:underline",
 							)}
 							onClick={props.onModelButtonClick}
-							role="button"
-							tabIndex={0}
-							title="Open API Settings">
+							title="Open API Settings"
+							type="button">
 							<span className="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-xs">
 								{props.modelDisplayName}
 							</span>
-						</a>
+						</button>
 						{props.fastModeSupported && (
 							<Tooltip>
 								<TooltipContent>
@@ -203,66 +203,78 @@ export const createActionDecorator = (props: ActionDecoratorProps): InputDecorat
 				</div>
 			</div>
 
-			<Tooltip>
-				<TooltipContent className="text-xs px-2 flex flex-col gap-1" side="top">
-					{props.modeSwitchingDisabled
-						? props.modeSwitchingExplanation
-						: `In ${props.mode === "act" ? "Act" : "Plan"} mode, Dirac will ${props.mode === "act" ? "complete the task immediately" : "gather information to architect a plan"}`}
-					{!props.modeSwitchingDisabled && props.togglePlanActKeys && (
-						<p className="text-description/80 text-xs mb-0">
-							Toggle w/ <kbd className="text-muted-foreground mx-1">{props.togglePlanActKeys}</kbd>
-						</p>
-					)}
-				</TooltipContent>
-				<TooltipTrigger>
-					<div
-						aria-disabled={props.modeSwitchingDisabled}
-						className={cn(
-							modeSwitchClasses,
-							props.modeSwitchingDisabled && "cursor-not-allowed opacity-60 hover:border-input-border",
+			{props.modeSwitchingDisabled && props.mode === "act" ? (
+				<Tooltip>
+					<TooltipContent className="px-2 text-xs" side="top">
+						{props.modeSwitchingExplanation}
+					</TooltipContent>
+					<TooltipTrigger asChild>
+						<button
+							aria-disabled="true"
+							aria-label={`Act mode locked. ${props.modeSwitchingExplanation ?? "Mode switching is unavailable."}`}
+							className="flex h-6 shrink-0 cursor-default items-center gap-1.5 rounded-md border border-input-border bg-transparent px-2 font-mono text-xs text-(--vscode-descriptionForeground)"
+							data-testid="mode-switch"
+							title={props.modeSwitchingExplanation}
+							type="button">
+							<LockKeyholeIcon aria-hidden="true" size={11} />
+							Act
+						</button>
+					</TooltipTrigger>
+				</Tooltip>
+			) : (
+				<Tooltip>
+					<TooltipContent className="flex flex-col gap-1 px-2 text-xs" side="top">
+						{`In ${props.mode === "act" ? "Act" : "Plan"} mode, Dirac will ${props.mode === "act" ? "complete the task immediately" : "gather information to architect a plan"}`}
+						{props.togglePlanActKeys && (
+							<p className="mb-0 text-xs text-description/80">
+								Toggle w/ <kbd className="mx-1 text-muted-foreground">{props.togglePlanActKeys}</kbd>
+							</p>
 						)}
-						data-testid="mode-switch"
-						onClick={() => {
-							if (!props.modeSwitchingDisabled) props.onModeToggle(context)
-						}}
-						title={props.modeSwitchingDisabled ? props.modeSwitchingExplanation : undefined}>
-						<motion.div
-							animate={{
-								x: props.mode === "act" ? "100%" : "0%",
-								backgroundColor:
-									props.mode === "plan"
-										? "var(--vscode-activityWarningBadge-background)"
-										: "var(--vscode-focusBorder)",
-							}}
-							className="absolute h-full w-1/2 opacity-90"
-							initial={false}
-							transition={{ bounce: 0, duration: 0.15, type: "spring" }}
-						/>
-						{["Plan", "Act"].map((m) => {
-							const isSelected = props.mode === m.toLowerCase()
-							return (
-								<div
-									aria-checked={isSelected}
-									className={cn(
-										"flex-1 z-10 text-center transition-colors duration-150 flex items-center justify-center gap-1.5 px-3",
-										isSelected
-											? "text-white font-bold"
-											: "text-(--vscode-input-placeholderForeground) hover:text-(--vscode-input-foreground)",
-									)}
-									key={m}
-									role="switch">
-									{m === "Plan" ? (
-										<span className="codicon codicon-lightbulb text-[10px]" />
-									) : (
-										<span className="codicon codicon-zap text-[10px]" />
-									)}
-									{m}
-								</div>
-							)
-						})}
-					</div>
-				</TooltipTrigger>
-			</Tooltip>
+					</TooltipContent>
+					<TooltipTrigger asChild>
+						<button
+							aria-label={`Switch to ${props.mode === "act" ? "Plan" : "Act"} mode`}
+							className={modeSwitchClasses}
+							data-testid="mode-switch"
+							onClick={() => props.onModeToggle(context)}
+							type="button">
+							<motion.div
+								animate={{
+									x: props.mode === "act" ? "100%" : "0%",
+									backgroundColor:
+										props.mode === "plan"
+											? "var(--vscode-activityWarningBadge-background)"
+											: "var(--vscode-focusBorder)",
+								}}
+								className="absolute h-full w-1/2 opacity-90"
+								initial={false}
+								transition={{ bounce: 0, duration: 0.15, type: "spring" }}
+							/>
+							{["Plan", "Act"].map((m) => {
+								const isSelected = props.mode === m.toLowerCase()
+								return (
+									<div
+										aria-hidden="true"
+										className={cn(
+											"z-10 flex flex-1 items-center justify-center gap-1.5 px-3 text-center transition-colors duration-150",
+											isSelected
+												? "text-white font-bold"
+												: "text-(--vscode-input-placeholderForeground) hover:text-(--vscode-input-foreground)",
+										)}
+										key={m}>
+										{m === "Plan" ? (
+											<span className="codicon codicon-lightbulb text-[10px]" />
+										) : (
+											<span className="codicon codicon-zap text-[10px]" />
+										)}
+										{m}
+									</div>
+								)
+							})}
+						</button>
+					</TooltipTrigger>
+				</Tooltip>
+			)}
 		</div>
 	),
 })

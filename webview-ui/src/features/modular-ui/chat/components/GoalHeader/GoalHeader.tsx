@@ -1,22 +1,55 @@
 import type { GoalAccounting, GoalStatus, GoalTaskSummary, GoalViewState } from "@shared/goal"
 import { GoalControlRequest } from "@shared/proto/dirac/goal"
-import { ChevronDownIcon, ChevronRightIcon, CirclePauseIcon, CirclePlayIcon, CircleStopIcon, GoalIcon } from "lucide-react"
-import { useCallback, useState } from "react"
-import { useSettingsStore } from "@/features/settings/store/settingsStore"
+import {
+	AlertTriangleIcon,
+	ChevronDownIcon,
+	ChevronRightIcon,
+	CirclePauseIcon,
+	CirclePlayIcon,
+	CircleStopIcon,
+	GoalIcon,
+	MoreHorizontalIcon,
+} from "lucide-react"
+import { useCallback, useId, useMemo, useRef, useState } from "react"
 import { GoalServiceClient } from "@/shared/api/grpc-client"
+import MarkdownBlock from "@/shared/ui/MarkdownBlock"
 import { formatLargeNumber } from "@/shared/lib/format"
-import { Badge, type BadgeProps } from "@/shared/ui/badge"
+import { Badge } from "@/shared/ui/badge"
 import { Button } from "@/shared/ui/button"
+import {
+	Dialog,
+	DialogClose,
+	DialogContent,
+	DialogDescription,
+	DialogFooter,
+	DialogHeader,
+	DialogTitle,
+} from "@/shared/ui/dialog"
+import { Popover, PopoverContent, PopoverTrigger } from "@/shared/ui/popover"
 
 type GoalAction = "resume" | "pause" | "stop"
 
-const STATUS_VARIANTS: Record<GoalStatus, BadgeProps["variant"]> = {
-	working: "info",
-	waiting: "warning",
-	paused: "outline",
-	blocked: "danger",
-	achieved: "success",
-	stopped: "outline",
+const STATUS_CLASSES: Record<GoalStatus, string> = {
+	working: "border-(--vscode-textLink-foreground) text-(--vscode-textLink-foreground)",
+	waiting: "border-(--vscode-editorWarning-foreground) text-(--vscode-editorWarning-foreground)",
+	paused: "border-(--vscode-descriptionForeground) text-(--vscode-descriptionForeground)",
+	blocked: "border-(--vscode-errorForeground) text-(--vscode-errorForeground)",
+	achieved: "border-(--vscode-testing-iconPassed) text-(--vscode-testing-iconPassed)",
+	stopped: "border-(--vscode-descriptionForeground) text-(--vscode-descriptionForeground)",
+}
+
+export function plainTextObjective(markdown: string): string {
+	return markdown
+		.replace(/!\[([^\]]*)\]\([^)]*\)/g, "$1")
+		.replace(/\[([^\]]+)\]\([^)]*\)/g, "$1")
+		.replace(/```[^\n]*\n?/g, "")
+		.replace(/`([^`]+)`/g, "$1")
+		.replace(/<[^>]+>/g, "")
+		.replace(/(^|\n)\s{0,3}(?:#{1,6}\s+|>\s?|[-+*]\s+|\d+[.)]\s+)/g, "$1")
+		.replace(/\*\*|~~|\*/g, "")
+		.replace(/\\([\\`*_[\]{}()#+.!-])/g, "$1")
+		.replace(/\s+/g, " ")
+		.trim()
 }
 
 function formatDuration(durationMs: number | undefined): string {
@@ -49,7 +82,7 @@ function Metric({ label, value }: { label: string; value: string }) {
 
 function AccountingMetrics({ accounting }: { accounting: GoalAccounting }) {
 	return (
-		<div className="grid grid-cols-2 gap-x-4 gap-y-1 rounded-sm border border-foreground/5 bg-foreground/5 p-2 text-xs">
+		<div className="grid grid-cols-1 gap-x-4 gap-y-1 rounded-sm border border-foreground/5 bg-foreground/5 p-2 text-xs min-[360px]:grid-cols-2">
 			<Metric label="Tokens" value={formatTokens(accounting.totalTokens)} />
 			<Metric label="Input" value={formatTokens(accounting.inputTokens)} />
 			<Metric label="Output" value={formatTokens(accounting.outputTokens)} />
@@ -64,11 +97,8 @@ function AccountingMetrics({ accounting }: { accounting: GoalAccounting }) {
 function ChildSummary({ child }: { child: GoalTaskSummary }) {
 	return (
 		<li className="rounded-sm border border-foreground/5 bg-foreground/5 px-2 py-1.5">
-			<div className="flex min-w-0 items-center gap-2">
+			<div className="flex min-w-0 flex-wrap items-center gap-1.5">
 				<span className="min-w-0 flex-1 truncate text-xs font-medium">{child.title}</span>
-				<Badge className="shrink-0 capitalize" type="default" variant="outline">
-					{child.role}
-				</Badge>
 				<Badge className="shrink-0 capitalize" type="default" variant="outline">
 					{child.status}
 				</Badge>
@@ -88,12 +118,19 @@ interface GoalHeaderProps {
 }
 
 const GoalHeader = ({ goal }: GoalHeaderProps) => {
-	const isExpanded = useSettingsStore((state) => state.expandTaskHeader)
-	const setIsExpanded = useSettingsStore((state) => state.setExpandTaskHeader)
+	const [isExpanded, setIsExpanded] = useState(false)
+	const [isOverflowOpen, setIsOverflowOpen] = useState(false)
+	const [isStopDialogOpen, setIsStopDialogOpen] = useState(false)
 	const [pendingAction, setPendingAction] = useState<GoalAction>()
 	const [controlError, setControlError] = useState<string>()
-	const detailsId = `goal-details-${goal.id}`
-	const canResume = goal.status === "paused" || goal.status === "blocked" || goal.status === "stopped"
+	const detailsId = useId()
+	const overflowTriggerRef = useRef<HTMLButtonElement>(null)
+	const stopMenuItemRef = useRef<HTMLButtonElement>(null)
+	const cancelStopRef = useRef<HTMLButtonElement>(null)
+	const objectivePreview = useMemo(() => plainTextObjective(goal.objective.markdown), [goal.objective.markdown])
+	const taskChildren = useMemo(() => goal.children.filter((child) => child.role === "task"), [goal.children])
+	const pendingChildren = useMemo(() => goal.children.filter((child) => child.pendingInteraction), [goal.children])
+	const canResume = goal.status === "paused" || goal.status === "blocked"
 	const canPause = goal.status === "working" || goal.status === "waiting"
 	const canStop = goal.status !== "achieved" && goal.status !== "stopped"
 
@@ -121,85 +158,123 @@ const GoalHeader = ({ goal }: GoalHeaderProps) => {
 		[goal.id],
 	)
 
+	const confirmStop = useCallback(async () => {
+		await runControl("stop")
+		setIsStopDialogOpen(false)
+		window.setTimeout(() => overflowTriggerRef.current?.focus(), 0)
+	}, [runControl])
+
 	return (
-		<div className="flex flex-col gap-1 px-4 py-2">
-			<div className="relative z-10 flex flex-col gap-2 overflow-hidden rounded-md border border-foreground/10 bg-(--vscode-toolbar-hoverBackground)/40 px-3 py-2.5">
-				<div className="flex min-w-0 items-center gap-2">
+		<div className="flex flex-col px-3 py-1.5 min-[420px]:px-4">
+			<div className="relative z-10 flex flex-col gap-1.5 rounded-md border border-foreground/10 bg-(--vscode-toolbar-hoverBackground)/40 px-2.5 py-2">
+				<div className="flex min-w-0 items-center gap-1.5">
 					<button
 						aria-controls={detailsId}
 						aria-expanded={isExpanded}
 						aria-label={isExpanded ? "Collapse Goal details" : "Expand Goal details"}
-						className="flex min-w-0 flex-1 cursor-pointer items-center gap-2 rounded-sm bg-transparent text-left focus-visible:outline-2 focus-visible:outline-ring"
-						onClick={() => setIsExpanded(!isExpanded)}
+						className="flex min-w-0 flex-1 cursor-pointer items-center gap-1.5 rounded-sm bg-transparent text-left text-inherit focus-visible:outline-2 focus-visible:outline-ring"
+						onClick={() => setIsExpanded((expanded) => !expanded)}
 						type="button">
 						{isExpanded ? (
-							<ChevronDownIcon className="shrink-0" size={16} />
+							<ChevronDownIcon aria-hidden="true" className="shrink-0 text-description" size={14} />
 						) : (
-							<ChevronRightIcon className="shrink-0" size={16} />
+							<ChevronRightIcon aria-hidden="true" className="shrink-0 text-description" size={14} />
 						)}
-						<GoalIcon className="shrink-0 text-link" size={15} />
-						<span className="min-w-0 flex-1 truncate text-sm font-medium ph-no-capture">
-							{goal.objective.markdown}
+						<GoalIcon aria-hidden="true" className="shrink-0 text-link" size={14} />
+						<span className="min-w-0 flex-1 truncate text-sm font-medium ph-no-capture" title={objectivePreview}>
+							{objectivePreview || "Untitled Goal"}
 						</span>
-						<Badge className="shrink-0">Goal · r{goal.objective.revision}</Badge>
-						<Badge className="shrink-0 capitalize" variant={STATUS_VARIANTS[goal.status]}>
-							{goal.status}
-						</Badge>
-						{goal.followUpActive && (
-							<Badge className="shrink-0" variant="info">
-								Follow-up running
-							</Badge>
-						)}
+						<Badge className="hidden shrink-0 min-[460px]:inline-flex">r{goal.objective.revision}</Badge>
 					</button>
-				</div>
 
-				<div className="flex flex-wrap items-center gap-x-3 gap-y-1 pl-6 text-[10px] text-description">
-					<span>Active {formatDuration(goal.activeDurationMs)}</span>
-					<span>Wall {formatDuration(goal.wallDurationMs)}</span>
-					<span>{formatCost(goal.accounting.cost)}</span>
-					{goal.pendingInteractionCount > 0 && (
-						<span className="text-warning">
-							{goal.pendingInteractionCount} pending interaction{goal.pendingInteractionCount === 1 ? "" : "s"}
+					<output
+						aria-atomic="true"
+						aria-label={`Goal status: ${goal.status}${goal.statusReason ? `. ${goal.statusReason}` : ""}`}
+						aria-live="polite"
+						className="shrink-0"
+						title={goal.statusReason}>
+						<span
+							className={`inline-flex items-center rounded border bg-transparent px-1.5 py-0.5 text-xs font-medium capitalize ${STATUS_CLASSES[goal.status]}`}>
+							{goal.status}
 						</span>
+					</output>
+
+					{goal.followUpActive && (
+						<Badge className="hidden shrink-0 min-[520px]:inline-flex" variant="info">
+							Follow-up
+						</Badge>
 					)}
-					<div className="ml-auto flex shrink-0 items-center gap-1">
-						{canResume && (
-							<Button
-								aria-label="Resume Goal"
-								disabled={pendingAction !== undefined || goal.followUpActive}
-								onClick={() => void runControl("resume")}
-								size="xs"
-								title={`Resume Goal ${goal.id}`}
-								variant="success">
-								<CirclePlayIcon /> Resume
-							</Button>
-						)}
-						{canPause && (
-							<Button
-								aria-label="Pause Goal"
-								disabled={pendingAction !== undefined}
-								onClick={() => void runControl("pause")}
-								size="xs"
-								title={`Pause Goal ${goal.id}`}
-								variant="outline">
-								<CirclePauseIcon /> Pause
-							</Button>
-						)}
-						{canStop && (
-							<Button
-								aria-label="Stop Goal"
-								disabled={pendingAction !== undefined}
-								onClick={() => void runControl("stop")}
-								size="xs"
-								title={`Stop Goal ${goal.id}`}
-								variant="danger">
-								<CircleStopIcon /> Stop
-							</Button>
-						)}
-					</div>
+
+					{canResume && (
+						<Button
+							aria-label="Resume Goal"
+							className="shrink-0"
+							disabled={pendingAction !== undefined || goal.followUpActive}
+							onClick={() => void runControl("resume")}
+							size="xs"
+							title={`Resume Goal ${goal.id}`}
+							variant="success">
+							<CirclePlayIcon aria-hidden="true" />
+							<span className="hidden min-[300px]:inline">
+								{pendingAction === "resume" ? "Resuming…" : "Resume"}
+							</span>
+						</Button>
+					)}
+
+					{canPause && (
+						<Button
+							aria-label="Pause Goal"
+							className="shrink-0"
+							disabled={pendingAction !== undefined}
+							onClick={() => void runControl("pause")}
+							size="xs"
+							title={`Pause Goal ${goal.id}`}
+							variant="outline">
+							<CirclePauseIcon aria-hidden="true" />
+							<span className="hidden min-[300px]:inline">{pendingAction === "pause" ? "Pausing…" : "Pause"}</span>
+						</Button>
+					)}
+
+					{canStop && (
+						<Popover onOpenChange={setIsOverflowOpen} open={isOverflowOpen}>
+							<PopoverTrigger asChild>
+								<Button
+									aria-label="More Goal actions"
+									className="shrink-0"
+									disabled={pendingAction !== undefined}
+									ref={overflowTriggerRef}
+									size="icon"
+									title="More Goal actions"
+									variant="ghost">
+									<MoreHorizontalIcon aria-hidden="true" />
+								</Button>
+							</PopoverTrigger>
+							<PopoverContent
+								align="end"
+								aria-label="Goal actions"
+								className="w-44 p-1"
+								onOpenAutoFocus={(event) => {
+									event.preventDefault()
+									stopMenuItemRef.current?.focus()
+								}}
+								role="menu">
+								<button
+									className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left text-xs text-(--vscode-errorForeground) hover:bg-(--vscode-list-hoverBackground) focus-visible:outline-2 focus-visible:outline-ring"
+									onClick={() => {
+										setIsOverflowOpen(false)
+										setIsStopDialogOpen(true)
+									}}
+									ref={stopMenuItemRef}
+									role="menuitem"
+									type="button">
+									<CircleStopIcon aria-hidden="true" size={13} />
+									Stop Goal…
+								</button>
+							</PopoverContent>
+						</Popover>
+					)}
 				</div>
 
-				{goal.statusReason && <p className="mb-0 mt-0 pl-6 text-xs text-description">{goal.statusReason}</p>}
 				{controlError && (
 					<p className="mb-0 mt-0 text-xs text-error" role="alert">
 						{controlError}
@@ -207,44 +282,59 @@ const GoalHeader = ({ goal }: GoalHeaderProps) => {
 				)}
 
 				{isExpanded && (
-					<div className="flex max-h-[48vh] flex-col gap-3 overflow-y-auto pt-1 custom-scrollbar" id={detailsId}>
-						<section>
+					<section
+						aria-label="Goal operational details"
+						className="flex max-h-[45vh] flex-col gap-3 overflow-y-auto border-t border-foreground/10 pt-2 custom-scrollbar"
+						id={detailsId}>
+						<section aria-labelledby={`${detailsId}-status`}>
+							<h3 className="mb-1 mt-0 text-xs font-medium" id={`${detailsId}-status`}>
+								Status and pending work
+							</h3>
+							<div className="rounded-sm border border-foreground/5 bg-foreground/5 p-2 text-xs">
+								<p className="m-0 text-description">
+									<span className="font-medium text-foreground">Reason: </span>
+									{goal.statusReason ?? `Goal is ${goal.status}.`}
+								</p>
+								<p className="mb-0 mt-1 text-description">
+									<span className="font-medium text-foreground">Pending: </span>
+									{goal.pendingInteractionCount === 0
+										? "No user interactions."
+										: `${goal.pendingInteractionCount} user interaction${goal.pendingInteractionCount === 1 ? "" : "s"}.`}
+								</p>
+								{pendingChildren.length > 0 && (
+									<ul className="mb-0 mt-1 list-none space-y-0.5 p-0 text-description">
+										{pendingChildren.map((child) => (
+											<li key={child.id}>
+												{child.title} · {child.pendingInteraction?.kind}
+											</li>
+										))}
+									</ul>
+								)}
+							</div>
+						</section>
+
+						<section aria-labelledby={`${detailsId}-objective`}>
 							<div className="mb-1 flex items-center justify-between gap-2 text-xs font-medium">
-								<span>Objective</span>
+								<h3 className="m-0 text-xs font-medium" id={`${detailsId}-objective`}>
+									Objective
+								</h3>
 								<span className="font-normal text-description">Revision {goal.objective.revision}</span>
 							</div>
-							<p className="mb-0 whitespace-pre-wrap break-words rounded-sm border border-foreground/5 bg-foreground/5 p-2 text-sm ph-no-capture">
-								{goal.objective.markdown}
-							</p>
-						</section>
-
-						<section>
-							<h3 className="mb-1 mt-0 text-xs font-medium">Authoritative accounting</h3>
-							<AccountingMetrics accounting={goal.accounting} />
-						</section>
-
-						{goal.latestVerification && (
-							<section className="rounded-sm border border-foreground/10 p-2 text-xs">
-								<div className="flex items-center justify-between gap-2">
-									<span className="font-medium">Latest verification</span>
-									<Badge className="capitalize" variant="outline">
-										{goal.latestVerification.status}
-									</Badge>
-								</div>
-								<p className="mb-0 mt-1 text-description">
-									{goal.latestVerification.terminalSummary ?? goal.latestVerification.title}
-								</p>
-							</section>
-						)}
-
-						<section>
-							<div className="mb-1 flex items-center justify-between gap-2">
-								<h3 className="m-0 text-xs font-medium">Contained Tasks</h3>
-								<span className="text-[10px] text-description">{goal.children.length} total</span>
+							<div className="rounded-sm border border-foreground/5 bg-foreground/5 p-2 text-sm ph-no-capture">
+								<MarkdownBlock compact markdown={goal.objective.markdown} />
 							</div>
-							{goal.children.length > 0 ? (
+						</section>
+
+						<section aria-labelledby={`${detailsId}-tasks`}>
+							<div className="mb-1 flex items-center justify-between gap-2">
+								<h3 className="m-0 text-xs font-medium" id={`${detailsId}-tasks`}>
+									Contained Tasks
+								</h3>
+								<span className="text-[10px] text-description">{taskChildren.length} total</span>
+							</div>
+							{taskChildren.length > 0 ? (
 								<ul className="m-0 flex list-none flex-col gap-1 p-0">
-									{goal.children.map((child) => (
+									{taskChildren.map((child) => (
 										<ChildSummary child={child} key={child.id} />
 									))}
 								</ul>
@@ -252,9 +342,74 @@ const GoalHeader = ({ goal }: GoalHeaderProps) => {
 								<p className="mb-0 mt-0 text-xs text-description">No contained Tasks yet.</p>
 							)}
 						</section>
-					</div>
+
+						<section aria-labelledby={`${detailsId}-verification`}>
+							<h3 className="mb-1 mt-0 text-xs font-medium" id={`${detailsId}-verification`}>
+								Latest verification
+							</h3>
+							{goal.latestVerification ? (
+								<ul className="m-0 list-none p-0">
+									<ChildSummary child={goal.latestVerification} />
+								</ul>
+							) : (
+								<p className="mb-0 mt-0 text-xs text-description">No verification result recorded.</p>
+							)}
+						</section>
+
+						<section aria-labelledby={`${detailsId}-timing`}>
+							<h3 className="mb-1 mt-0 text-xs font-medium" id={`${detailsId}-timing`}>
+								Timing and accounting
+							</h3>
+							<div className="mb-1 grid grid-cols-1 gap-x-4 gap-y-1 rounded-sm border border-foreground/5 bg-foreground/5 p-2 text-xs min-[360px]:grid-cols-2">
+								<Metric label="Active" value={formatDuration(goal.activeDurationMs)} />
+								<Metric label="Elapsed" value={formatDuration(goal.wallDurationMs)} />
+							</div>
+							<AccountingMetrics accounting={goal.accounting} />
+						</section>
+					</section>
 				)}
 			</div>
+
+			<Dialog
+				onOpenChange={(open) => {
+					setIsStopDialogOpen(open)
+					if (!open) window.setTimeout(() => overflowTriggerRef.current?.focus(), 0)
+				}}
+				open={isStopDialogOpen}>
+				<DialogContent
+					hideClose
+					onCloseAutoFocus={(event) => event.preventDefault()}
+					onOpenAutoFocus={(event) => {
+						event.preventDefault()
+						cancelStopRef.current?.focus()
+					}}
+					role="alertdialog">
+					<DialogHeader>
+						<DialogTitle className="flex items-center gap-2 text-base">
+							<AlertTriangleIcon
+								aria-hidden="true"
+								className="shrink-0 text-(--vscode-errorForeground)"
+								size={18}
+							/>
+							Stop this Goal permanently?
+						</DialogTitle>
+						<DialogDescription>
+							Stopping cancels the coordinator and contained Tasks permanently. This Goal cannot be resumed. Changes
+							already made in your workspace remain; stopping does not revert them.
+						</DialogDescription>
+					</DialogHeader>
+					<DialogFooter className="gap-2">
+						<DialogClose asChild>
+							<Button ref={cancelStopRef} variant="secondary">
+								Cancel
+							</Button>
+						</DialogClose>
+						<Button disabled={pendingAction !== undefined} onClick={() => void confirmStop()} variant="danger">
+							{pendingAction === "stop" ? "Stopping…" : "Stop Goal permanently"}
+						</Button>
+					</DialogFooter>
+				</DialogContent>
+			</Dialog>
 		</div>
 	)
 }

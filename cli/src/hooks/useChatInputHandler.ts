@@ -16,6 +16,21 @@ import { DiracMessageType, UIActionButtonType } from "@shared/ExtensionMessage"
 import type { GoalStatus } from "@shared/goal"
 import type { GoalLifecycleAction } from "../utils/goals"
 
+export type GoalKeyboardShortcut = GoalLifecycleAction | "details"
+
+export function getGoalKeyboardShortcut(
+	input: string,
+	key: { ctrl?: boolean },
+	status?: GoalStatus,
+): GoalKeyboardShortcut | undefined {
+	if (!key.ctrl || status === undefined) return undefined
+	if (input === "g" || input === "\u0007") return "details"
+	if ((input === "p" || input === "\u0010") && (status === "working" || status === "waiting")) return "pause"
+	if ((input === "r" || input === "\u0012") && (status === "paused" || status === "blocked")) return "resume"
+	if ((input === "x" || input === "\u0018") && status !== "achieved" && status !== "stopped") return "stop"
+	return undefined
+}
+
 interface UseChatInputHandlerProps {
 	workspacePath: string
 	textInputRef: React.MutableRefObject<string>
@@ -80,6 +95,8 @@ interface UseChatInputHandlerProps {
 	setCardScrollOffset: (offset: number) => void
 	goalStatus?: GoalStatus
 	handleGoalControl: (action: GoalLifecycleAction) => void
+	toggleGoalDetails: () => void
+	disarmGoalStopConfirmation: () => void
 }
 
 export function useChatInputHandler({
@@ -139,10 +156,15 @@ export function useChatInputHandler({
 	setCardScrollOffset,
 	goalStatus,
 	handleGoalControl,
+	toggleGoalDetails,
+	disarmGoalStopConfirmation,
 }: UseChatInputHandlerProps) {
 	useInput((input, key) => {
 		if (isMouseEscapeSequence(input) || isTerminalResponseSequence(input, key)) return
-		if (activePanel) return
+		if (activePanel) {
+			disarmGoalStopConfirmation()
+			return
+		}
 
 		const currentTextInput = textInputRef.current
 		const currentCursorPos = cursorPosRef.current
@@ -161,29 +183,18 @@ export function useChatInputHandler({
 			toggleQuietMode,
 		}
 
+		const goalShortcut = getGoalKeyboardShortcut(input, key, goalStatus)
+		if (goalShortcut === "details") {
+			toggleGoalDetails()
+			return
+		}
+		if (goalShortcut) {
+			handleGoalControl(goalShortcut)
+			return
+		}
+		disarmGoalStopConfirmation()
+
 		if (handleAskShortcuts(input, key, currentTextInput)) return
-		if (key.ctrl && (input === "p" || input === "\u0010") && (goalStatus === "working" || goalStatus === "waiting")) {
-			handleGoalControl("pause")
-			return
-		}
-		if (
-			key.ctrl &&
-			(input === "r" || input === "\u0012") &&
-			(goalStatus === "paused" || goalStatus === "blocked" || goalStatus === "stopped")
-		) {
-			handleGoalControl("resume")
-			return
-		}
-		if (
-			key.ctrl &&
-			(input === "x" || input === "\u0018") &&
-			goalStatus !== undefined &&
-			goalStatus !== "achieved" &&
-			goalStatus !== "stopped"
-		) {
-			handleGoalControl("stop")
-			return
-		}
 		if (handleKeyboardSequence(input)) return
 
 		if (key.meta) {
@@ -251,12 +262,7 @@ export function useChatInputHandler({
 			if (key.tab || key.return) {
 				const file = fileResults[selectedIndex]
 				if (file) {
-					const insertion = insertMention(
-						currentTextInput,
-						currentMentionInfo.atIndex,
-						file.path,
-						currentCursorPos,
-					)
+					const insertion = insertMention(currentTextInput, currentMentionInfo.atIndex, file.path, currentCursorPos)
 					setTextInput(insertion.text)
 					setCursorPos(insertion.cursorPosition)
 					setFileResults([])
@@ -451,10 +457,7 @@ export function useChatInputHandler({
 				return
 			}
 			if (currentSlashInfo.inSlashMode) return
-			const { prompt: currentPrompt, imagePaths: currentImagePaths } = parseImagesFromInput(
-				currentTextInput,
-				workspacePath,
-			)
+			const { prompt: currentPrompt, imagePaths: currentImagePaths } = parseImagesFromInput(currentTextInput, workspacePath)
 			if (currentPrompt.trim() || currentImagePaths.length > 0) {
 				handleSubmit(currentPrompt.trim(), currentImagePaths)
 			}

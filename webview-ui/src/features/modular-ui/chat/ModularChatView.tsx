@@ -12,16 +12,16 @@ import { cn } from "@/lib/utils"
 import { useThrottledValue } from "@/shared/lib/useThrottledValue"
 import { Navbar } from "@/shared/ui/Navbar"
 import { ChatLayout } from "./components/ChatLayout"
+import { InteractionState, useInteractionState } from "./context/InteractionStateContext"
 // Decorators
 import { ActionButtonsDecorator } from "./decorators/view/ActionButtonsDecorator"
 import { AutoApproveDecorator } from "./decorators/view/AutoApproveDecorator"
 import { useChatState } from "./hooks/useChatState"
 import { useMessageHandlers } from "./hooks/useMessageHandlers"
-import { InteractionState, useInteractionState } from "./context/InteractionStateContext"
 import { useScrollBehavior } from "./hooks/useScrollBehavior"
+import { GoalSection } from "./sections/GoalSection"
 // Sections
 import { InputSection } from "./sections/InputSection"
-import { GoalSection } from "./sections/GoalSection"
 import { MessagesSection } from "./sections/MessagesSection"
 import { TaskSection } from "./sections/TaskSection"
 import { WelcomeSection } from "./sections/WelcomeSection"
@@ -88,9 +88,12 @@ export const ModularChatView: React.FC<ChatViewProps> = ({ isHidden, showAnnounc
 	const scrollBehavior = useScrollBehavior(messages, visibleMessages, renderedMessages, expandedRows, setExpandedRows)
 
 	const placeholderText = useMemo(() => {
-		if (goal?.status === "working" || goal?.status === "waiting") return "Steer this Goal…"
 		if (goal?.followUpActive) return "Steer this follow-up…"
-		if (goal) return "Follow up with this Goal…"
+		if (goal?.status === "working") return "Steer this Goal…"
+		if (goal?.status === "waiting") return "Steer this Goal while requests await a response…"
+		if (goal?.status === "paused") return "Ask a follow-up (Goal stays paused)…"
+		if (goal?.status === "blocked") return "Ask a follow-up (Goal stays blocked)…"
+		if (goal?.status === "achieved" || goal?.status === "stopped") return "Ask a follow-up…"
 		if (!task) return "Type your task here..."
 		if (interactionState === InteractionState.RUNNING) return "Send guidance for the next turn without interrupting…"
 		return "Type a message..."

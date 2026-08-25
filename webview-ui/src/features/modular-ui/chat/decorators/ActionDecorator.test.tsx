@@ -27,10 +27,14 @@ function renderActions({
 	fastModeEnabled = false,
 	isUpdatingFastMode = false,
 	onFastModeToggle = vi.fn().mockResolvedValue(undefined),
+	modeSwitchingDisabled = false,
+	onModeToggle = vi.fn(),
 } = {}) {
 	const decorator = createActionDecorator({
-		onModeToggle: vi.fn(),
+		onModeToggle,
 		mode: "act",
+		modeSwitchingDisabled,
+		modeSwitchingExplanation: modeSwitchingDisabled ? "Mode switching is disabled while a Goal is active." : undefined,
 		modelDisplayName: "anthropic:Claude Opus",
 		fastModeSupported,
 		fastModeEnabled,
@@ -47,8 +51,8 @@ function renderActions({
 		isUpdatingReasoningEffort: false,
 	})
 
-	render(<>{decorator.renderAction?.(inputContext)}</>)
-	return { onFastModeToggle }
+	render(decorator.renderAction?.(inputContext) ?? null)
+	return { onFastModeToggle, onModeToggle }
 }
 
 describe("ActionDecorator Fast Mode toggle", () => {
@@ -78,5 +82,18 @@ describe("ActionDecorator Fast Mode toggle", () => {
 	it("disables the toggle while the setting is being persisted", () => {
 		renderActions({ isUpdatingFastMode: true })
 		expect(screen.getByRole("button", { name: "Enable Fast Mode" })).toBeDisabled()
+	})
+
+	it("replaces the mode toggle with a compact locked Act indicator for Goals", () => {
+		const onModeToggle = vi.fn()
+		renderActions({ modeSwitchingDisabled: true, onModeToggle })
+
+		const lockedMode = screen.getByRole("button", {
+			name: "Act mode locked. Mode switching is disabled while a Goal is active.",
+		})
+		expect(lockedMode).toHaveTextContent("Act")
+		expect(lockedMode).toHaveAttribute("aria-disabled", "true")
+		fireEvent.click(lockedMode)
+		expect(onModeToggle).not.toHaveBeenCalled()
 	})
 })
