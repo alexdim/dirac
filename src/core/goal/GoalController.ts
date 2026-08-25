@@ -60,12 +60,12 @@ export class GoalController {
 		this.assertNoActiveStandaloneTask()
 		await this.dependencies.clearStandaloneTask()
 
-		const goalId = ulid()
-		const record = await this.store.create(goalId, ulid(), objective)
+		const goalId = Date.now().toString()
+		await this.store.create(goalId, ulid(), objective)
 		let loop: GoalLoop
 		try {
 			loop = await this.createLoop(goalId, objective)
-			await this.dependencies.updateGoalHistory(createGoalHistoryItem(record, objective))
+			await loop.publishHistory()
 		} catch (error) {
 			await this.store.delete(goalId)
 			throw error
@@ -73,7 +73,7 @@ export class GoalController {
 
 		this.selectedLoop = loop
 		await loop.start()
-		return record.id
+		return goalId
 	}
 
 	async select(goalId: string): Promise<GoalViewState> {
@@ -186,8 +186,9 @@ export class GoalController {
 			if (!historyItem || !isGoalHistoryItem(historyItem)) {
 				throw new Error(`Goal ${record.id} is missing its top-level history entry`)
 			}
-			const loop = await this.createLoop(record.id, historyItem.initialDisplayText)
-			await loop.publishHistory()
+			await this.dependencies.updateGoalHistory(
+				createGoalHistoryItem(record, historyItem.initialDisplayText, historyItem.workspaceRootPath),
+			)
 		}
 	}
 
