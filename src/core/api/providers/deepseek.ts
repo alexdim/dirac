@@ -121,7 +121,7 @@ export class DeepSeekHandler implements ApiHandler {
 		const stream = await client.chat.completions.create(
 			{
 				model: model.id,
-				max_completion_tokens: model.info.maxTokens,
+				max_tokens: model.info.maxTokens,
 				messages: deepSeekMessages as any,
 				stream: true,
 				stream_options: { include_usage: true },

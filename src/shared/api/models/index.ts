@@ -74,12 +74,16 @@ export {
 	type LiteLLMModelInfo,
 	type ModelCapabilities,
 	type ModelInfo,
+	type ModelPricing,
+	type ModelPricingSchedule,
 	type ModelProviderPreset,
 	type ModelProviderSelection,
 	type OcaModelInfo,
 	type OpenAiCompatibleModelInfo,
 	type OpenAiCompatibleProfile,
 	type PriceTier,
+	type PricingSchedulePeriod,
+	type UtcWeekday,
 } from "./types"
 // Google Vertex AI
 export { type VertexModelId, vertexDefaultModelId, vertexGlobalModels, vertexModels } from "./vertex"

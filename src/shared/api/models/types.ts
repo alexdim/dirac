@@ -5,6 +5,29 @@ export interface PriceTier {
 	price: number
 }
 
+export interface ModelPricing {
+	inputPrice?: number
+	outputPrice?: number
+	cacheWritesPrice?: number
+	cacheReadsPrice?: number
+}
+
+export type UtcWeekday = "sunday" | "monday" | "tuesday" | "wednesday" | "thursday" | "friday" | "saturday"
+
+export interface PricingSchedulePeriod {
+	label: string
+	weekdays: readonly UtcWeekday[]
+	startMinuteUtc: number
+	endMinuteUtc: number
+	prices: ModelPricing
+}
+
+export interface ModelPricingSchedule {
+	timeZone: "UTC"
+	defaultLabel: string
+	periods: readonly PricingSchedulePeriod[]
+}
+
 /**
  * Model-intrinsic capabilities that don't vary across providers.
  * These describe what a model CAN do, not how much it costs.
@@ -28,14 +51,11 @@ export interface ModelCapabilities {
 	}
 }
 
-export interface ModelInfo extends ModelCapabilities {
+export interface ModelInfo extends ModelCapabilities, ModelPricing {
 	supportsPromptCache: boolean
 	supportsFastMode?: boolean
 	fastModePriceMultiplier?: number
-	inputPrice?: number
-	outputPrice?: number
-	cacheWritesPrice?: number
-	cacheReadsPrice?: number
+	pricingSchedule?: ModelPricingSchedule
 	supportsGlobalEndpoint?: boolean
 	tiers?: {
 		contextWindow: number
@@ -134,7 +154,19 @@ export interface BasetenModelInfo extends ModelInfo {
 
 // True when the model has any pricing data (even $0); false when pricing is unknown.
 export function hasPricing(modelInfo: ModelInfo): boolean {
-	return modelInfo.inputPrice !== undefined || modelInfo.outputPrice !== undefined
+	const prices = [
+		modelInfo.inputPrice,
+		modelInfo.outputPrice,
+		modelInfo.cacheWritesPrice,
+		modelInfo.cacheReadsPrice,
+		...(modelInfo.pricingSchedule?.periods.flatMap((period) => [
+			period.prices.inputPrice,
+			period.prices.outputPrice,
+			period.prices.cacheWritesPrice,
+			period.prices.cacheReadsPrice,
+		]) ?? []),
+	]
+	return prices.some((price) => price !== undefined)
 }
 
 // True only when base prices are explicitly zero and no pricing override can add a charge.
@@ -145,6 +177,12 @@ export function isFreeModel(modelInfo: ModelInfo): boolean {
 		modelInfo.cacheWritesPrice,
 		modelInfo.cacheReadsPrice,
 		modelInfo.thinkingConfig?.outputPrice,
+		...(modelInfo.pricingSchedule?.periods.flatMap((period) => [
+			period.prices.inputPrice,
+			period.prices.outputPrice,
+			period.prices.cacheWritesPrice,
+			period.prices.cacheReadsPrice,
+		]) ?? []),
 		...(modelInfo.tiers?.flatMap((tier) => [
 			tier.inputPrice,
 			tier.outputPrice,

@@ -1,5 +1,31 @@
-import type { OpenAiCompatibleModelInfo } from "./types"
+import { MODEL_CAPABILITIES } from "./capabilities"
+import type { ModelPricing, OpenAiCompatibleModelInfo } from "./types"
 
+const DEEPSEEK_V4_PEAK_WEEKDAYS = ["monday", "tuesday", "wednesday", "thursday", "friday"] as const
+
+const withDeepSeekV4Pricing = (offPeak: ModelPricing, peak: ModelPricing) => ({
+	...offPeak,
+	pricingSchedule: {
+		timeZone: "UTC" as const,
+		defaultLabel: "Off-peak",
+		periods: [
+			{
+				label: "Peak",
+				weekdays: DEEPSEEK_V4_PEAK_WEEKDAYS,
+				startMinuteUtc: 60,
+				endMinuteUtc: 240,
+				prices: peak,
+			},
+			{
+				label: "Peak",
+				weekdays: DEEPSEEK_V4_PEAK_WEEKDAYS,
+				startMinuteUtc: 360,
+				endMinuteUtc: 600,
+				prices: peak,
+			},
+		],
+	},
+})
 export type DeepSeekModelId = keyof typeof deepSeekModels
 
 export const deepSeekDefaultModelId: DeepSeekModelId = "deepseek-v4-flash"
@@ -13,10 +39,18 @@ export const deepSeekModels = {
 		supportsReasoning: true,
 		supportsReasoningEffort: true,
 		supportsTools: true,
-		inputPrice: 0,
-		outputPrice: 0.28,
-		cacheWritesPrice: 0.14,
-		cacheReadsPrice: 0.0028,
+		...withDeepSeekV4Pricing(
+			{ inputPrice: 0, outputPrice: 0.66, cacheWritesPrice: 0.22, cacheReadsPrice: 0.007 },
+			{ inputPrice: 0, outputPrice: 1.32, cacheWritesPrice: 0.44, cacheReadsPrice: 0.014 },
+		),
+	},
+	"deepseek-v4-flash-vision-exp": {
+		...MODEL_CAPABILITIES["deepseek-v4-flash-vision-exp"],
+		supportsPromptCache: true,
+		...withDeepSeekV4Pricing(
+			{ inputPrice: 0, outputPrice: 0.66, cacheWritesPrice: 0.22, cacheReadsPrice: 0.007 },
+			{ inputPrice: 0, outputPrice: 1.32, cacheWritesPrice: 0.44, cacheReadsPrice: 0.014 },
+		),
 	},
 	"deepseek-v4-pro": {
 		maxTokens: 384_000,
@@ -26,10 +60,10 @@ export const deepSeekModels = {
 		supportsReasoning: true,
 		supportsReasoningEffort: true,
 		supportsTools: true,
-		inputPrice: 0,
-		outputPrice: 3.48,
-		cacheWritesPrice: 1.74,
-		cacheReadsPrice: 0.0145,
+		...withDeepSeekV4Pricing(
+			{ inputPrice: 0, outputPrice: 1.98, cacheWritesPrice: 0.66, cacheReadsPrice: 0.022 },
+			{ inputPrice: 0, outputPrice: 3.96, cacheWritesPrice: 1.32, cacheReadsPrice: 0.044 },
+		),
 	},
 	"deepseek-chat": {
 		maxTokens: 8_000,

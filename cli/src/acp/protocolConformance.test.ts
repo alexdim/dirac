@@ -236,7 +236,10 @@ describe("ACP protocol conformance over raw stdio", () => {
 			id: "model",
 			category: "model",
 			currentValue: "deepseek-v4-flash",
-			options: expect.arrayContaining([expect.objectContaining({ value: "deepseek-v4-flash" })]),
+			options: expect.arrayContaining([
+				expect.objectContaining({ value: "deepseek-v4-flash" }),
+				expect.objectContaining({ value: "deepseek-v4-flash-vision-exp" }),
+			]),
 		})
 		expect((modelOptions[0].options as Array<Record<string, unknown>>).map((option) => option.value)).not.toContain(
 			"deepseek",
@@ -258,10 +261,10 @@ describe("ACP protocol conformance over raw stdio", () => {
 		const configured = await client.request("session/set_config_option", {
 			sessionId,
 			configId: "model",
-			value: "deepseek-v4-pro",
+			value: "deepseek-v4-flash-vision-exp",
 		})
 		expect(configured.result?.configOptions).toEqual(
-			expect.arrayContaining([expect.objectContaining({ id: "model", currentValue: "deepseek-v4-pro" })]),
+			expect.arrayContaining([expect.objectContaining({ id: "model", currentValue: "deepseek-v4-flash-vision-exp" })]),
 		)
 
 		await client.request("session/set_config_option", {

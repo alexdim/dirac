@@ -1,6 +1,6 @@
 import { describe, it } from "mocha"
 import "should"
-import { isFreeModel, openAiNativeModels, type ModelInfo } from "@shared/api"
+import { deepSeekModels, isFreeModel, type ModelInfo, openAiNativeModels } from "@shared/api"
 import {
 	calculateApiCostAnthropic,
 	calculateApiCostOpenAI,
@@ -148,6 +148,35 @@ describe("Cost Utilities", () => {
 
 			const cost = calculateApiCostOpenAI(modelInfo, 0, 0, 0, 0)
 			cost!.should.equal(0)
+		})
+
+		it("applies DeepSeek V4 peak pricing only during the published UTC windows", () => {
+			const modelInfo = deepSeekModels["deepseek-v4-flash"]
+			const examples = [
+				["2025-01-10T00:59:00Z", 0.7735],
+				["2025-01-10T01:00:00Z", 1.547],
+				["2025-01-10T03:59:00Z", 1.547],
+				["2025-01-10T04:00:00Z", 0.7735],
+				["2025-01-10T05:59:00Z", 0.7735],
+				["2025-01-10T06:00:00Z", 1.547],
+				["2025-01-10T09:59:00Z", 1.547],
+				["2025-01-10T10:00:00Z", 0.7735],
+				["2025-01-11T07:00:00Z", 0.7735],
+			] as const
+
+			for (const [timestamp, expectedCost] of examples) {
+				const cost = calculateApiCostOpenAI(
+					modelInfo,
+					1_000_000,
+					1_000_000,
+					500_000,
+					500_000,
+					undefined,
+					undefined,
+					new Date(timestamp),
+				)
+				cost!.should.equal(expectedCost)
+			}
 		})
 	})
 
