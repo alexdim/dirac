@@ -84,6 +84,7 @@ describe("GoalHeader", () => {
 		expect(screen.getByText("Ship Goal UI with accessible controls")).toBeInTheDocument()
 		expect(screen.queryByText(/\*\*Goal UI\*\*/)).not.toBeInTheDocument()
 		expect(screen.getByRole("status", { name: "Goal status: working" })).toBeInTheDocument()
+		expect(screen.queryByText("r3")).not.toBeInTheDocument()
 
 		await user.click(disclosure)
 		expect(disclosure).toHaveAttribute("aria-expanded", "true")
@@ -95,6 +96,7 @@ describe("GoalHeader", () => {
 				.map((heading) => heading.textContent),
 		).toEqual(["Status and pending work", "Objective", "Contained Tasks", "Latest verification", "Timing and accounting"])
 		expect(within(details).getByText("All checks passed.")).toBeInTheDocument()
+		expect(within(details).queryByText("Revision 3")).not.toBeInTheDocument()
 	})
 
 	it("shows only the contextual primary lifecycle action", () => {

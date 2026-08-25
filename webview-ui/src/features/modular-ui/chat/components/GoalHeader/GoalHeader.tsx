@@ -184,7 +184,6 @@ const GoalHeader = ({ goal }: GoalHeaderProps) => {
 						<span className="min-w-0 flex-1 truncate text-sm font-medium ph-no-capture" title={objectivePreview}>
 							{objectivePreview || "Untitled Goal"}
 						</span>
-						<Badge className="hidden shrink-0 min-[460px]:inline-flex">r{goal.objective.revision}</Badge>
 					</button>
 
 					<output
@@ -314,12 +313,9 @@ const GoalHeader = ({ goal }: GoalHeaderProps) => {
 						</section>
 
 						<section aria-labelledby={`${detailsId}-objective`}>
-							<div className="mb-1 flex items-center justify-between gap-2 text-xs font-medium">
-								<h3 className="m-0 text-xs font-medium" id={`${detailsId}-objective`}>
-									Objective
-								</h3>
-								<span className="font-normal text-description">Revision {goal.objective.revision}</span>
-							</div>
+							<h3 className="mb-1 mt-0 text-xs font-medium" id={`${detailsId}-objective`}>
+								Objective
+							</h3>
 							<div className="rounded-sm border border-foreground/5 bg-foreground/5 p-2 text-sm ph-no-capture">
 								<MarkdownBlock compact markdown={goal.objective.markdown} />
 							</div>

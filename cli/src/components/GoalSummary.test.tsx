@@ -115,6 +115,7 @@ describe("GoalSummary", () => {
 		const view = renderSummary(goalWithOlderChildren(), true, false, onPageNavigation)
 
 		expect(capturedInput.options?.isActive).toBe(true)
+		expect(view.lastFrame()).not.toContain("Objective r1")
 		expect(view.lastFrame()).toContain("page 1/2")
 		expect(view.lastFrame()).toContain("(active)")
 		expect(view.lastFrame()).not.toContain("(terminal-1)")

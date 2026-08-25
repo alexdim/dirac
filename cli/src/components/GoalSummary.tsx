@@ -159,7 +159,7 @@ export const GoalSummary: React.FC<{
 					)}
 					<Text color={theme.text} wrap="truncate-end">
 						<Text bold color={theme.strongText}>
-							Objective r{goal.objective.revision}
+							Objective
 						</Text>
 						{` ${theme.symbols.separator} ${plainTextObjective(goal.objective.markdown)}`}
 					</Text>
