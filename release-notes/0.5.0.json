@@ -1,90 +1,85 @@
 {
-  "schemaVersion": 1,
-  "version": "0.5.0",
-  "kind": "minor",
-  "announce": true,
-  "sourceTag": "v0.4.37",
-  "analyzedCommit": "4a83971e0a369fb15610da2d354793d0478de88d",
-  "headline": "Dirac 0.5.0 introduces Goals for coordinated autonomous work, policy-guided permissions, faster inference, and task settings that stay put.",
-  "summaryMd": "Delegate longer-running outcomes to a Goal, steer progress as it works, and let the Utility Model handle routine permissions under your policy. This release also adds model speed controls, clearer settings, concise responses, stronger task isolation, and broader support for visual tool workflows.",
-  "highlights": [
-    {
-      "id": "goal-mode",
-      "title": "Delegate outcomes with Goals",
-      "bodyMd": "Start a Goal with `/goal <objective>` in the interactive CLI or VS Code, then let a visible coordinator create contained Tasks and verify the result. You can steer active Goals, pause or resume them, stop them permanently with confirmation, inspect their progress, and continue follow-up conversations after they settle; status, history, timing, token use, and cost remain available across restarts.",
-      "evidence": [
-        "d64ae38589c21a1548e8b49447f6cfddb5ca9570",
-        "3b7b6f91fb439940878fefbc61437fbf00ffa9af",
-        "644118b2b09922f7bcd98f349a9e1a53d8785c85",
-        "07ab1b1cc2a907188af11a196d409dbe8bb95832"
-      ]
-    },
-    {
-      "id": "ai-assisted-permissions",
-      "title": "Spend less time answering permission prompts",
-      "bodyMd": "Optionally give the Utility Model a permission policy so it can approve clearly allowed requests while ambiguous or risky cases still come to you; it never rejects on your behalf. Auto-approved cards show what was allowed and why, and the chat Autonomy menu again puts file, safe-command, browser, anchored-edit, notification, Strict Plan, Approve All, and YOLO controls close at hand.",
-      "evidence": [
-        "8d6c4ede0720040b35189938c3e9cd17c52f4c78",
-        "b7d7cc57687742e03da082253ba2b5e4b0be151f",
-        "d4ddbc91137d3b0d8db2cde0020ad811e3f3ecc8"
-      ]
-    },
-    {
-      "id": "inference-speed-controls",
-      "title": "Control inference speed",
-      "bodyMd": "Anthropic, OpenAI API, and Codex now offer persisted Default and Standard inference settings for Plan and Act, with Fast available on supported models. Choose speeds in settings or ACP, toggle Fast in VS Code chat, use `--speed` at CLI startup, or enable it with `/fast` in the interactive CLI; unsupported combinations are rejected or reset, and Fast may use premium pricing or credits.",
-      "evidence": [
-        "b7d7cc57687742e03da082253ba2b5e4b0be151f",
-        "321437ca6bdd17d793a6a5de5340c8024caaf526"
-      ]
-    },
-    {
-      "id": "task-scoped-configuration",
-      "title": "Keep every task's configuration independent",
-      "bodyMd": "Each task and ACP session now keeps its own model, mode, approvals, rules, tools, browser, and related settings. Changes take effect consistently in the active task—even during a turn—while resumed and concurrent tasks keep their own configuration instead of inheriting unrelated changes or partial updates.",
-      "evidence": [
-        "2931e0adca98221e3bf0ec32991f1f11ae764213",
-        "00aea5aa80497d76a4d89ed185bd6707c511f361"
-      ]
-    },
-    {
-      "id": "unified-settings",
-      "title": "Find and understand settings more easily",
-      "bodyMd": "CLI and webview settings now share task-oriented destinations for models, approvals, responses, running tasks, tools, terminal, browser, and general options. The CLI adds a settings home, search, help, and keyboard navigation, while the webview gains clearer grouping, tooltips, direct links, responsive navigation, and accessible tabs.",
-      "evidence": [
-        "de5fc3eb0ceb31ef780b1510d13a64fcabaf7b76"
-      ]
-    },
-    {
-      "id": "low-verbosity-responses",
-      "title": "Get concise responses by default",
-      "bodyMd": "A new Low-verbosity responses setting, enabled by default in the CLI and webview, keeps progress, questions, plans, and completion messages focused across providers, ACP sessions, and subagents. Material caveats, failures, uncertainty, verification, and explicitly requested formats are still preserved.",
-      "evidence": [
-        "34e8be89aff27c65b54cd1a13b68dc0a407b21d5"
-      ]
-    },
-    {
-      "id": "multimodal-tool-results",
-      "title": "Carry images reliably through tool workflows",
-      "bodyMd": "OpenAI Responses, Gemini and AIhubmix, Mistral, and Dify now receive image-bearing prompts and tool results in their native multimodal formats instead of flattened or stringified content. Screenshots and mixed text-and-image results also survive tool and subagent handoffs, making visual workflows dependable across more providers.",
-      "evidence": [
-        "86a3b6104651d524cef549a520aae430693ee99e"
-      ]
-    }
-  ],
-  "fixes": [
-    "Search and indexing are more dependable: ACP repository search works again; `--no-index` reliably prevents indexing; ignore and explicit-include rules are applied consistently; and lower-overhead watchers recover cleanly without restarting after disposal.",
-    "Path-targeted rules now match tools using structured file paths, so the right instructions are applied reliably.",
-    "Selected discovery tools—diagnostics, AST inspection, file and task listing, file and transcript reads, search, and skill loading—now share a 30-second execution budget and clearly report timeouts instead of blocking a task indefinitely.",
-    "OpenRouter now preserves provider-reported token, cache, and cost data—including genuine zero-cost responses—without substituting local cost estimates; a single two-second billing lookup prevents accounting from delaying a completed response. ACP retains selected-model context and pricing metadata, and failed catalog fetches remain retryable.",
-    "DeepSeek gains the `deepseek-v4-flash-vision-exp` vision model, and displayed DeepSeek costs now account for peak and off-peak pricing.",
-    "Malformed task history is validated, backed up, and reconstructed automatically where possible, with clearer errors when an item cannot be recovered.",
-    "Long user-authored messages can be expanded and collapsed without changing assistant-message rendering.",
-    "Completed tasks remain marked Completed while awaiting follow-up.",
-    "Valid history entries with empty task text no longer trigger false recovery warnings.",
-    "Tool-card updates no longer wait for webview state delivery, keeping progress responsive when UI delivery is slow.",
-    "Goal controls now keep the default view compact, move status, pending work, contained Tasks, verification, timing, and accounting into expandable details, avoid duplicate accounting in the CLI footer, and hide internal objective-revision labels.",
-    "The refreshed VS Code walkthrough introduces Goals, token efficiency, parallel work, precise edits, Utility Model features, continuous steering, and model routing with visual examples.",
-    "After a forward extension upgrade, announced bundled notes for the current and any skipped releases remain pending across restarts until dismissed; dismissal acknowledges the release span and included welcome notices so the What's New modal does not reopen."
-  ]
+	"schemaVersion": 1,
+	"version": "0.5.0",
+	"kind": "minor",
+	"announce": true,
+	"sourceTag": "v0.4.37",
+	"analyzedCommit": "4a83971e0a369fb15610da2d354793d0478de88d",
+	"headline": "Dirac 0.5.0 introduces Goals, smarter permissions, faster inference, and task-scoped settings.",
+	"summaryMd": "Delegate long-running work to a Goal, steer it while it runs, and let the Utility Model handle routine permission requests under your policy. This release also adds model speed controls, clearer settings, concise responses, stronger task isolation, and more reliable image-based workflows.",
+	"highlights": [
+		{
+			"id": "goal-mode",
+			"title": "Delegate outcomes with Goals",
+			"bodyMd": "Start a Goal with `/goal <objective>` in the interactive CLI or VS Code, then let Dirac coordinate focused Tasks and verify the outcome. You can steer, pause, resume, or stop the Goal at any time, while progress, history, timing, token use, and cost remain visible across restarts.",
+			"evidence": [
+				"d64ae38589c21a1548e8b49447f6cfddb5ca9570",
+				"3b7b6f91fb439940878fefbc61437fbf00ffa9af",
+				"644118b2b09922f7bcd98f349a9e1a53d8785c85",
+				"07ab1b1cc2a907188af11a196d409dbe8bb95832"
+			]
+		},
+		{
+			"id": "ai-assisted-permissions",
+			"title": "Spend less time answering permission prompts",
+			"bodyMd": "Give the Utility Model an optional permission policy so it can approve clearly allowed requests while ambiguous or risky cases still come to you. It never rejects on your behalf, and approved actions explain what was allowed and why.",
+			"evidence": [
+				"8d6c4ede0720040b35189938c3e9cd17c52f4c78",
+				"b7d7cc57687742e03da082253ba2b5e4b0be151f",
+				"d4ddbc91137d3b0d8db2cde0020ad811e3f3ecc8"
+			]
+		},
+		{
+			"id": "inference-speed-controls",
+			"title": "Control inference speed",
+			"bodyMd": "Choose a persisted inference speed for Plan and Act when using Anthropic, OpenAI API, or Codex, including Fast mode on supported models. Controls are available in settings, VS Code chat, and the CLI; unsupported combinations are rejected or reset, and Fast may use premium pricing or credits.",
+			"evidence": [
+				"b7d7cc57687742e03da082253ba2b5e4b0be151f",
+				"321437ca6bdd17d793a6a5de5340c8024caaf526"
+			]
+		},
+		{
+			"id": "task-scoped-configuration",
+			"title": "Keep every task's configuration independent",
+			"bodyMd": "Each task and ACP session now keeps its own model, mode, approvals, rules, tools, browser, and related settings. Changes apply consistently to the active task—even during a turn—without leaking into resumed or concurrent work.",
+			"evidence": [
+				"2931e0adca98221e3bf0ec32991f1f11ae764213",
+				"00aea5aa80497d76a4d89ed185bd6707c511f361"
+			]
+		},
+		{
+			"id": "unified-settings",
+			"title": "Find and understand settings more easily",
+			"bodyMd": "CLI and webview settings now share clearer, task-oriented sections. The CLI adds a settings home, search, help, and keyboard navigation, while the webview gains improved grouping, tooltips, direct links, responsive navigation, and accessible tabs.",
+			"evidence": [
+				"de5fc3eb0ceb31ef780b1510d13a64fcabaf7b76"
+			]
+		},
+		{
+			"id": "low-verbosity-responses",
+			"title": "Get concise responses by default",
+			"bodyMd": "Low-verbosity responses, enabled by default in the CLI and webview, keep progress, questions, plans, and completion messages concise across providers, ACP sessions, and subagents. Important caveats, failures, uncertainty, verification results, and requested formats are still preserved.",
+			"evidence": [
+				"34e8be89aff27c65b54cd1a13b68dc0a407b21d5"
+			]
+		},
+		{
+			"id": "multimodal-tool-results",
+			"title": "Carry images reliably through tool workflows",
+			"bodyMd": "Images and screenshots now remain intact as they move through prompts, tool results, and subagent handoffs. Visual workflows are more dependable across OpenAI Responses, Gemini, AIhubmix, Mistral, and Dify.",
+			"evidence": [
+				"86a3b6104651d524cef549a520aae430693ee99e"
+			]
+		}
+	],
+	"fixes": [
+		"Search and indexing are more dependable: ACP repository search works again, `--no-index` is honored, ignore rules are applied consistently, and file watchers recover cleanly.",
+		"Path-targeted rules now match structured tool paths, so the right instructions are applied reliably.",
+		"Read-only discovery tools now time out clearly instead of blocking a task indefinitely.",
+		"Usage and cost reporting is more accurate across OpenRouter and ACP, including cached tokens, zero-cost responses, model context, and pricing metadata.",
+		"DeepSeek gains the `deepseek-v4-flash-vision-exp` vision model, with displayed costs that account for peak and off-peak pricing.",
+		"Task history recovery now validates and backs up malformed data, avoids false warnings for valid entries, and preserves completed status during follow-up.",
+		"Long user messages can be expanded or collapsed, and tool-card updates stay responsive even when webview state delivery is slow.",
+		"Goal controls are more compact, with detailed status, Tasks, verification, timing, and accounting moved into expandable sections."
+	]
 }
