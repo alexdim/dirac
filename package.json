@@ -62,42 +62,63 @@
         "walkthroughs": [
             {
                 "id": "DiracWalkthrough",
-                "title": "Dirac, the most token efficient and accurate AI Agent",
-                "description": "Dirac improves the dev speed and accuracy while consuming 50-80% less tokens compared to other agents.",
+                "title": "What Dirac is built to do",
+                "description": "Seven capabilities that shape how Dirac works on real coding tasks.",
                 "steps": [
                     {
-                        "id": "hash-anchored-edits",
-                        "title": "Line-Anchored MultiFile Edits",
-                        "description": "Dirac targets exact source lines with opaque stateful IDs, batching multiple changes across files in a single shot.",
+                        "id": "goal",
+                        "title": "Give Dirac a Goal, walk away",
+                        "description": "Dirac can stay on the same goal for hours or days without drifting while you check in and steer it.",
                         "media": {
-                            "markdown": "walkthrough/step1.md"
+                            "markdown": "walkthrough/goal.md"
                         }
                     },
                     {
-                        "id": "ast-precision",
-                        "title": "AST Precision",
-                        "description": "Dirac understands language syntax directly, allowing for precise structural manipulations like function extraction or replacement.",
+                        "id": "token-efficiency",
+                        "title": "Obsessively optimized for token efficiency",
+                        "description": "Context, output, compaction, and model calls are designed to minimize token use while preserving relevant code and evidence.",
                         "media": {
-                            "markdown": "walkthrough/step2.md"
+                            "markdown": "walkthrough/token-efficiency.md"
                         }
                     },
                     {
-                        "id": "minimal-roundtrips",
-                        "title": "Minimal Roundtrips",
-                        "description": "Dirac processes multiple files and runs parallel commands to minimize latency and API costs.",
+                        "id": "parallel-work",
+                        "title": "Get work done a lot faster",
+                        "description": "Independent reads, searches, edits, commands, and coding work happen together whenever they safely can.",
                         "media": {
-                            "markdown": "walkthrough/step3.md"
+                            "markdown": "walkthrough/parallel-work.md"
                         }
                     },
                     {
-                        "id": "speed-and-performance",
-                        "title": "Speed and Performance",
-                        "description": "Context curation optimizations keep Dirac lean and fast, significantly improving LLM performance.",
+                        "id": "precise-codebase-edits",
+                        "title": "Make precise changes in large codebases",
+                        "description": "Hash-anchored edits and AST-based understanding keep large refactors attached to the intended source and symbols.",
                         "media": {
-                            "markdown": "walkthrough/step4.md"
-                        },
-                        "content": {
-                            "path": "walkthrough/step4.md"
+                            "markdown": "walkthrough/precise-edits.md"
+                        }
+                    },
+                    {
+                        "id": "utility-model",
+                        "title": "No permission fatigue",
+                        "description": "A separate Utility model handles routine permissions and context compaction while escalating sensitive decisions to you.",
+                        "media": {
+                            "markdown": "walkthrough/utility-model.md"
+                        }
+                    },
+                    {
+                        "id": "continuous-steering",
+                        "title": "Continuous steering",
+                        "description": "Send new direction during Goal or regular work without cancelling the task in progress.",
+                        "media": {
+                            "markdown": "walkthrough/continuous-steering.md"
+                        }
+                    },
+                    {
+                        "id": "model-routing",
+                        "title": "Choose from hundreds of models across dozens of providers",
+                        "description": "Assign different models to planning, coding, and permission handling, then use them together in one task.",
+                        "media": {
+                            "markdown": "walkthrough/model-routing.md"
                         }
                     }
                 ]
