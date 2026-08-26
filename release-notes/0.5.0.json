@@ -4,7 +4,7 @@
 	"kind": "minor",
 	"announce": true,
 	"sourceTag": "v0.4.37",
-	"analyzedCommit": "4a83971e0a369fb15610da2d354793d0478de88d",
+	"analyzedCommit": "c8722e71ae33eda3ed07f96b025dd65cd1058720",
 	"headline": "Dirac 0.5.0 introduces Goals, smarter permissions, faster inference, and task-scoped settings.",
 	"summaryMd": "Delegate long-running work to a Goal, steer it while it runs, and let the Utility Model handle routine permission requests under your policy. This release also adds model speed controls, clearer settings, concise responses, stronger task isolation, and more reliable image-based workflows.",
 	"highlights": [
