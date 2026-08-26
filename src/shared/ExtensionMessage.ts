@@ -15,6 +15,7 @@ import { DiracIcon } from "./icons"
 import { DiracRulesToggles } from "./dirac-rules"
 import { HistoryItem } from "./HistoryItem"
 import { DiracMessageModelInfo } from "./messages"
+import type { ReleaseNotesView } from "./release-notes"
 import { OnboardingModelGroup } from "./proto/dirac/state"
 import {
 	DEFAULT_INFERENCE_SPEED,
@@ -99,6 +100,7 @@ export interface ExtensionState {
 	platform: Platform
 	environment?: Environment
 	shouldShowAnnouncement: boolean
+	releaseNotes?: ReleaseNotesView
 	taskHistory: HistoryItem[]
 	telemetrySetting: TelemetrySetting
 	shellIntegrationTimeout: number

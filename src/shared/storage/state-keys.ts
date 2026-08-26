@@ -57,6 +57,7 @@ export interface UtilityModelUseCases {
 
 const GLOBAL_STATE_FIELDS = {
 	diracVersion: { default: undefined as string | undefined },
+	pendingReleaseNotesFromVersion: { default: undefined as string | undefined },
 	"dirac.generatedMachineId": { default: undefined as string | undefined }, // Note, distinctId reads/writes this directly from/to StorageContext before StateManager is initialized.
 	lastShownAnnouncementId: { default: undefined as string | undefined },
 	taskHistory: { default: [] as RunHistoryItem[], isAsync: true },

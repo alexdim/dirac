@@ -1,5 +1,6 @@
 import { Environment } from "@shared/config-types"
 import type { ExtensionState } from "@shared/ExtensionMessage"
+import type { ReleaseNotesView } from "@shared/release-notes"
 import { EmptyRequest } from "@shared/proto/dirac/common"
 import { create } from "zustand"
 import { useTaskStore } from "@/entities/task/store/taskStore"
@@ -10,6 +11,7 @@ import { StateServiceClient, UiServiceClient } from "@/shared/api/grpc-client"
 interface AppState {
 	version: string
 	shouldShowAnnouncement: boolean
+	releaseNotes?: ReleaseNotesView
 	setShouldShowAnnouncement: (show: boolean) => void
 	onboardingModels?: any
 	environment: Environment
@@ -63,6 +65,7 @@ export const useAppStore = create<AppState>((set) => ({
 	showAccount: false,
 	version: "0.0.0",
 	shouldShowAnnouncement: false,
+	releaseNotes: undefined,
 	onboardingModels: undefined,
 	showWorktrees: false,
 	showAnnouncement: false,
@@ -154,6 +157,7 @@ export const useAppStore = create<AppState>((set) => ({
 				set({
 					version: parsedState.version,
 					shouldShowAnnouncement: parsedState.shouldShowAnnouncement,
+					releaseNotes: parsedState.releaseNotes,
 					onboardingModels: parsedState.onboardingModels,
 					showWelcome: !parsedState.welcomeViewCompleted,
 				})

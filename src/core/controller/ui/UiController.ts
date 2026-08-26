@@ -32,7 +32,7 @@ export async function getStateToPostToWebview(deps: {
 
 	const modelState = assembleModelState(stateManager)
 	const authState = await assembleAuthState(stateManager)
-	const { latestAnnouncementId, ...runtimeState } = await assembleRuntimeState()
+	const { latestAnnouncementId, ...runtimeState } = await assembleRuntimeState(stateManager)
 	const toolState = await assembleToolState(stateManager, primaryRootPath, task?.taskId)
 	const apiConfiguration = stateManager.getApiConfiguration()
 	const mode = stateManager.getGlobalSettingsKey("mode")
@@ -64,7 +64,7 @@ export async function getStateToPostToWebview(deps: {
 		diracMessages,
 		checkpointManagerErrorMessage: task?.taskState?.checkpointManagerErrorMessage,
 		taskHistory: processTaskHistory(taskHistory, primaryRootPath),
-		shouldShowAnnouncement: lastShownAnnouncementId !== latestAnnouncementId,
+		shouldShowAnnouncement: runtimeState.releaseNotes !== undefined || lastShownAnnouncementId !== latestAnnouncementId,
 		backgroundCommandRunning,
 		backgroundCommandTaskId,
 		workspaceRoots: resolvedWorkspaceManager?.getRoots() ?? [],
