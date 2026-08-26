@@ -75,7 +75,6 @@ const AutoApproveBar = ({ style }: AutoApproveBarProps) => {
 				buttonRef={buttonRef}
 				isVisible={isModalVisible}
 				setIsVisible={setIsModalVisible}
-				summary={summary}
 			/>
 		</div>
 	)

@@ -1,10 +1,9 @@
 import { SETTINGS_HELP } from "@shared/settings-presentation"
 import { useAppStore } from "@/app/store/appStore"
 import { VSCodeCheckbox } from "@vscode/webview-ui-toolkit/react"
-import { useRef } from "react"
 import { useSettingsStore } from "@/features/settings/store/settingsStore"
-import { StateServiceClient } from "@/shared/api/grpc-client"
 import { useAutoApproveActions } from "@/shared/hooks/useAutoApproveActions"
+import { useAutoApproveAll } from "@/shared/hooks/useAutoApproveAll"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/shared/ui/tooltip"
 import AutoApproveMenuItem from "@/features/modular-ui/chat/components/AutoApprove/AutoApproveMenuItem"
 import { ACTION_METADATA, NOTIFICATIONS_SETTING } from "@/features/modular-ui/chat/components/AutoApprove/constants"
@@ -21,8 +20,6 @@ const ApprovalsSettingsSection = ({ renderSectionHeader }: ApprovalsSettingsSect
 	const {
 		autoApproveAllToggled,
 		autoApproveAllUpdateError,
-		beginAutoApproveAllUpdate,
-		finishAutoApproveAllUpdate,
 		pendingAutoApproveAllToggled,
 		remoteConfigSettings,
 		strictPlanModeEnabled,
@@ -32,29 +29,12 @@ const ApprovalsSettingsSection = ({ renderSectionHeader }: ApprovalsSettingsSect
 		yoloModeToggled,
 	} = useSettingsStore()
 	const { isChecked, updateAction, updateNotifications } = useAutoApproveActions()
-	const mutationInProgress = useRef(false)
+	const { updateAutoApproveAll } = useAutoApproveAll()
 	const isYoloRemoteLocked = remoteConfigSettings?.yoloModeToggled !== undefined
 	const effectiveYoloMode = isYoloRemoteLocked ? remoteConfigSettings.yoloModeToggled : yoloModeToggled
 	const utilityApprovalEnabled =
 		utilityModelUsePermissionHandling && Boolean(utilityModelSelection?.modelId) && utilityModelPermissionPolicy.trim() !== ""
 
-	const updateApproveAll = async (checked: boolean) => {
-		if (mutationInProgress.current || pendingAutoApproveAllToggled !== undefined) return
-		mutationInProgress.current = true
-		const previous = autoApproveAllToggled
-		beginAutoApproveAllUpdate(checked)
-		try {
-			await StateServiceClient.updateSettings({
-				metadata: {},
-				autoApproveAllToggled: checked,
-			})
-			finishAutoApproveAllUpdate(checked)
-		} catch (error) {
-			finishAutoApproveAllUpdate(previous, error instanceof Error ? error.message : "Failed to update Approve All")
-		} finally {
-			mutationInProgress.current = false
-		}
-	}
 
 	return (
 		<div className="mb-2">
@@ -117,7 +97,7 @@ const ApprovalsSettingsSection = ({ renderSectionHeader }: ApprovalsSettingsSect
 								<VSCodeCheckbox
 									checked={autoApproveAllToggled}
 									disabled={effectiveYoloMode || pendingAutoApproveAllToggled !== undefined}
-									onChange={(event: any) => void updateApproveAll(event.target.checked === true)}>
+									onChange={(event: any) => void updateAutoApproveAll(event.target.checked === true)}>
 									Approve All
 								</VSCodeCheckbox>
 							</div>
