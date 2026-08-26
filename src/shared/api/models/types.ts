@@ -1,4 +1,5 @@
 import { ApiFormat } from "../../proto/dirac/models"
+import type { OpenaiReasoningEffort } from "../../storage/types"
 
 export interface PriceTier {
 	tokenLimit: number
@@ -40,6 +41,8 @@ export interface ModelCapabilities {
 	supportsImages?: boolean
 	supportsReasoning?: boolean
 	supportsReasoningEffort?: boolean
+	reasoningEffortOptions?: OpenaiReasoningEffort[]
+	defaultReasoningEffort?: OpenaiReasoningEffort
 	supportsAdaptiveThinking?: boolean
 	supportsTools?: boolean
 	supportsStrictTools?: boolean
@@ -141,7 +144,7 @@ export interface OcaModelInfo extends OpenAiCompatibleModelInfo {
 	banner?: string
 	surveyContent?: string
 	supportsReasoning?: boolean
-	reasoningEffortOptions: string[]
+	reasoningEffortOptions: OpenaiReasoningEffort[]
 }
 
 export interface LiteLLMModelInfo extends ModelInfo {

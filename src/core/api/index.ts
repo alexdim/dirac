@@ -1,24 +1,25 @@
 import {
 	ApiConfiguration,
-	getModelInfo,
-	modelSupportsInferenceSpeed,
-	providerSupportsInferenceSpeed,
-	ModelInfo,
-	openAiModelInfoSaneDefaults,
-	QwenApiRegions,
 	type ApiProvider,
+	getModelInfo,
+	ModelInfo,
 	type ModelProviderSelection,
+	modelSupportsInferenceSpeed,
+	openAiModelInfoSaneDefaults,
+	providerSupportsInferenceSpeed,
+	QwenApiRegions,
 } from "@shared/api"
-import { modelProviderSelectionUpdates } from "./modelProviderSelection"
 import { DEFAULT_INFERENCE_SPEED, type InferenceSpeed, isInferenceSpeed, type Mode } from "@shared/storage/types"
 import { DiracStorageMessage } from "@/shared/messages/content"
+import { Logger } from "@/shared/services/Logger"
+import { DiracTool } from "@/shared/tools"
+import { ApiConfigurationError, ApiConfigurationErrorCode } from "./ApiConfigurationError"
 import type {
 	ApiConversationCompactionRequest,
 	ApiConversationCompactionResult,
 	ApiConversationRequestOptions,
 } from "./conversation"
-import { Logger } from "@/shared/services/Logger"
-import { DiracTool } from "@/shared/tools"
+import { modelProviderSelectionUpdates } from "./modelProviderSelection"
 import { AIhubmixHandler } from "./providers/aihubmix"
 import { AnthropicHandler } from "./providers/anthropic"
 import { BasetenHandler } from "./providers/baseten"
@@ -59,7 +60,6 @@ import { XAIHandler } from "./providers/xai"
 import { ZAiHandler } from "./providers/zai"
 import { ApiStream, ApiStreamUsageChunk } from "./transform/stream"
 
-import { ApiConfigurationError, ApiConfigurationErrorCode } from "./ApiConfigurationError"
 export { ApiConfigurationError, ApiConfigurationErrorCode } from "./ApiConfigurationError"
 export type {
 	ApiConversationCheckpoint,
@@ -492,7 +492,7 @@ const PROVIDER_REGISTRY: Record<
 			disableRetries: cfg.disableRetries,
 			zaiApiLine: cfg.zaiApiLine,
 			zaiApiKey: cfg.zaiApiKey,
-			thinkingBudgetTokens: mc.thinkingBudgetTokens,
+			reasoningEffort: mc.reasoningEffort,
 			apiModelId: mc.apiModelId,
 		}),
 	aihubmix: (cfg, mc) =>

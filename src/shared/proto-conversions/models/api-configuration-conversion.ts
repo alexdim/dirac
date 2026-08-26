@@ -1,27 +1,36 @@
 import {
 	LiteLLMModelInfo,
 	OpenAiCompatibleModelInfo,
+	OpenAiCompatibleProfile,
 	OpenRouterModelInfo,
 	ModelsApiConfiguration as ProtoApiConfiguration,
 	ApiProvider as ProtoApiProvider,
 	OcaModelInfo as ProtoOcaModelInfo,
 	ThinkingConfig,
-	OpenAiCompatibleProfile,
 } from "@shared/proto/dirac/models"
 import type { ModelProviderSelection as ProtoModelProviderSelection } from "@shared/proto/dirac/state"
 import {
 	ApiConfiguration,
 	ApiProvider,
 	LiteLLMModelInfo as AppLiteLLMModelInfo,
+	ModelProviderSelection as AppModelProviderSelection,
 	OpenAiCompatibleModelInfo as AppOpenAiCompatibleModelInfo,
 	OpenAiCompatibleProfile as AppOpenAiCompatibleProfile,
 	BedrockModelId,
 	ModelInfo,
-	openAiModelInfoSaneDefaults,
 	OcaModelInfo,
-	ModelProviderSelection as AppModelProviderSelection,
+	openAiModelInfoSaneDefaults,
 } from "../../api"
-import { normalizeInferenceSpeed, OpenaiReasoningEffort } from "../../storage/types"
+import { isOpenaiReasoningEffort, normalizeInferenceSpeed, type OpenaiReasoningEffort } from "../../storage/types"
+
+function parseReasoningEffortOptions(values: readonly string[]): OpenaiReasoningEffort[] | undefined {
+	const options = values.filter(isOpenaiReasoningEffort)
+	return options.length > 0 ? options : undefined
+}
+
+function parseReasoningEffort(value: string | undefined): OpenaiReasoningEffort | undefined {
+	return isOpenaiReasoningEffort(value) ? value : undefined
+}
 
 // Convert application ThinkingConfig to proto ThinkingConfig
 function convertThinkingConfigToProto(config: ModelInfo["thinkingConfig"]): ThinkingConfig | undefined {
@@ -73,6 +82,8 @@ function convertModelInfoToProtoOpenRouter(info: ModelInfo | undefined): OpenRou
 		supportsPromptCache: info.supportsPromptCache ?? false,
 		supportsReasoning: info.supportsReasoning,
 		supportsReasoningEffort: info.supportsReasoningEffort,
+		reasoningEffortOptions: info.reasoningEffortOptions || [],
+		defaultReasoningEffort: info.defaultReasoningEffort,
 		supportsFastMode: info.supportsFastMode,
 		fastModePriceMultiplier: info.fastModePriceMultiplier,
 		inputPrice: info.inputPrice,
@@ -99,6 +110,8 @@ function convertProtoToModelInfo(info: OpenRouterModelInfo | undefined): ModelIn
 		supportsPromptCache: info.supportsPromptCache,
 		supportsReasoning: info.supportsReasoning,
 		supportsReasoningEffort: info.supportsReasoningEffort,
+		reasoningEffortOptions: parseReasoningEffortOptions(info.reasoningEffortOptions),
+		defaultReasoningEffort: parseReasoningEffort(info.defaultReasoningEffort),
 		supportsFastMode: info.supportsFastMode,
 		fastModePriceMultiplier: info.fastModePriceMultiplier,
 		inputPrice: info.inputPrice,
@@ -135,7 +148,7 @@ function convertOcaModelInfoToProtoOcaModelInfo(info: OcaModelInfo | undefined):
 		modelName: info.modelName,
 		apiFormat: info.apiFormat,
 		supportsReasoning: info.supportsReasoning,
-		reasoningEffortOptions: info.reasoningEffortOptions,
+		reasoningEffortOptions: parseReasoningEffortOptions(info.reasoningEffortOptions) || [],
 	}
 }
 
@@ -161,7 +174,7 @@ function convertProtoOcaModelInfoToOcaModelInfo(info: ProtoOcaModelInfo | undefi
 		modelName: info.modelName,
 		apiFormat: info.apiFormat,
 		supportsReasoning: info.supportsReasoning,
-		reasoningEffortOptions: info.reasoningEffortOptions,
+		reasoningEffortOptions: parseReasoningEffortOptions(info.reasoningEffortOptions) || [],
 	}
 }
 
@@ -380,9 +393,7 @@ export function convertApiProviderToProto(provider: ApiProvider | undefined): Pr
 	throw new Error(`Unsupported API provider: ${provider}`)
 }
 
-export function convertModelProviderSelectionToProto(
-	selection: AppModelProviderSelection,
-): ProtoModelProviderSelection {
+export function convertModelProviderSelectionToProto(selection: AppModelProviderSelection): ProtoModelProviderSelection {
 	return {
 		provider: convertApiProviderToProto(selection.provider),
 		modelId: selection.modelId,
@@ -394,9 +405,7 @@ export function convertModelProviderSelectionToProto(
 	}
 }
 
-export function convertProtoToModelProviderSelection(
-	selection: ProtoModelProviderSelection,
-): AppModelProviderSelection {
+export function convertProtoToModelProviderSelection(selection: ProtoModelProviderSelection): AppModelProviderSelection {
 	return {
 		provider: convertProtoToApiProvider(selection.provider),
 		modelId: selection.modelId,

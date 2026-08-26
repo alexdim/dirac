@@ -177,6 +177,8 @@ message OpenRouterModelInfo {
   optional string canonical_slug = 21;
   optional bool supports_fast_mode = 22;
   optional double fast_mode_price_multiplier = 23;
+  repeated string reasoning_effort_options = 24;
+  optional string default_reasoning_effort = 25;
 }
 
 // Shared response message for model information

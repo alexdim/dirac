@@ -268,9 +268,10 @@ export const MODEL_CAPABILITIES: Record<string, ModelCapabilities> = {
 	},
 	"glm-5": {
 		supportsTools: true,
-		maxTokens: 8_192,
+		maxTokens: 128_000,
 		contextWindow: 200_000,
 		supportsImages: false,
+		supportsReasoning: true,
 	},
 	"glm-5.1": {
 		supportsTools: true,
@@ -278,9 +279,6 @@ export const MODEL_CAPABILITIES: Record<string, ModelCapabilities> = {
 		contextWindow: 200_000,
 		supportsImages: false,
 		supportsReasoning: true,
-		thinkingConfig: {
-			maxBudget: 128_000,
-		},
 	},
 	"glm-5.2": {
 		supportsTools: true,
@@ -288,9 +286,26 @@ export const MODEL_CAPABILITIES: Record<string, ModelCapabilities> = {
 		contextWindow: 1_000_000,
 		supportsImages: false,
 		supportsReasoning: true,
-		thinkingConfig: {
-			maxBudget: 128_000,
-		},
+	},
+	"glm-5.3": {
+		supportsTools: true,
+		maxTokens: 128_000,
+		contextWindow: 1_000_000,
+		supportsImages: false,
+		supportsReasoning: true,
+		supportsReasoningEffort: true,
+		reasoningEffortOptions: ["low", "high", "max"],
+		defaultReasoningEffort: "max",
+	},
+	"glm-5.3-flash": {
+		supportsTools: true,
+		maxTokens: 128_000,
+		contextWindow: 1_000_000,
+		supportsImages: true,
+		supportsReasoning: true,
+		supportsReasoningEffort: true,
+		reasoningEffortOptions: ["low", "high", "max"],
+		defaultReasoningEffort: "max",
 	},
 	"gpt-5.4": {
 		name: "GPT-5.4",

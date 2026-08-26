@@ -33,6 +33,7 @@ export interface ListItem {
 	label: string
 	type: SettingsItemType
 	value: any
+	cycleOptions?: readonly string[]
 	description?: string
 	expandedHelp?: string
 	keywords?: string[]

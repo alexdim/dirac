@@ -31,8 +31,6 @@ import {
 	internationalZAiModels,
 	liteLlmModelInfoSaneDefaults,
 	ModelInfo,
-	modelSupportsInferenceSpeed,
-	providerSupportsInferenceSpeed,
 	mainlandQwenDefaultModelId,
 	mainlandQwenModels,
 	mainlandZAiDefaultModelId,
@@ -41,6 +39,7 @@ import {
 	minimaxModels,
 	mistralDefaultModelId,
 	mistralModels,
+	modelSupportsInferenceSpeed,
 	moonshotDefaultModelId,
 	moonshotModels,
 	nebiusDefaultModelId,
@@ -52,6 +51,7 @@ import {
 	openAiModelInfoSaneDefaults,
 	openAiNativeDefaultModelId,
 	openAiNativeModels,
+	providerSupportsInferenceSpeed,
 	qwenCodeDefaultModelId,
 	qwenCodeModels,
 	requestyDefaultModelId,
@@ -65,14 +65,23 @@ import {
 	xaiDefaultModelId,
 	xaiModels,
 } from "@shared/api"
-import { Mode } from "@shared/ExtensionMessage"
+import { Mode, type OpenaiReasoningEffort } from "@shared/ExtensionMessage"
 import * as reasoningSupport from "@shared/utils/reasoning-support"
 
+export function getReasoningEffortOptionsForModelId(modelId?: string, modelInfo?: ModelInfo): readonly OpenaiReasoningEffort[] {
+	return reasoningSupport.getReasoningEffortOptionsForModel(modelId, modelInfo)
+}
+
+export function resolveReasoningEffortForModelId(
+	modelId: string | undefined,
+	modelInfo: ModelInfo | undefined,
+	requestedEffort?: string,
+): OpenaiReasoningEffort | undefined {
+	return reasoningSupport.resolveReasoningEffortForModel(modelId, modelInfo, requestedEffort)
+}
+
 export function supportsReasoningEffortForModelId(modelId?: string, modelInfo?: ModelInfo): boolean {
-	if ((modelInfo as any)?.supportsReasoningEffort) {
-		return true
-	}
-	return reasoningSupport.supportsReasoningEffortForModel(modelId)
+	return reasoningSupport.supportsReasoningEffortForModel(modelId, modelInfo)
 }
 
 /**

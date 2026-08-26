@@ -1,14 +1,12 @@
-import {
-	DEFAULT_INFERENCE_SPEED,
-	DEFAULT_OPENAI_REASONING_EFFORT,
-	isOpenaiReasoningEffort,
-	OPENAI_REASONING_EFFORT_OPTIONS,
-} from "@shared/ExtensionMessage"
 import { modelSupportsInferenceSpeed } from "@shared/api"
+import { DEFAULT_INFERENCE_SPEED, DEFAULT_OPENAI_REASONING_EFFORT } from "@shared/ExtensionMessage"
 import { StringRequest } from "@shared/proto/dirac/common"
 import React, { useState } from "react"
 import { useAppStore } from "@/app/store/appStore"
-import { supportsReasoningEffortForModelId } from "@/features/settings/components/utils/providerUtils"
+import {
+	getReasoningEffortOptionsForModelId,
+	resolveReasoningEffortForModelId,
+} from "@/features/settings/components/utils/providerUtils"
 import { useApiConfigurationHandlers } from "@/features/settings/components/utils/useApiConfigurationHandlers"
 import { useSettingsStore } from "@/features/settings/store/settingsStore"
 import { StateServiceClient } from "@/shared/api/grpc-client"
@@ -41,17 +39,17 @@ const InputSectionContent: React.FC<{ context: ChatViewContext }> = ({ context }
 			preset.modelId === selectedModelInfo.selectedModelId &&
 			(preset.provider !== "openai" || preset.openAiProfileName === activeProfileName),
 	)?.id
-	const supportsReasoningEffort = supportsReasoningEffortForModelId(selectedModelInfo.selectedModelId, selectedModelInfo)
+	const reasoningEffortOptions = getReasoningEffortOptionsForModelId(selectedModelInfo.selectedModelId, selectedModelInfo)
+	const supportsReasoningEffort = reasoningEffortOptions.length > 0
 	const configuredReasoningEffort =
 		selectedModelInfo.mode === "plan" ? apiConfiguration?.planModeReasoningEffort : apiConfiguration?.actModeReasoningEffort
 	const configuredInferenceSpeed =
 		selectedModelInfo.mode === "plan" ? apiConfiguration?.planModeInferenceSpeed : apiConfiguration?.actModeInferenceSpeed
 	const fastModeSupported = modelSupportsInferenceSpeed(selectedModelInfo.selectedProvider, selectedModelInfo.selectedModelId)
 	const fastModeEnabled = configuredInferenceSpeed === "fast" && fastModeSupported
-	const reasoningEffortOptions = OPENAI_REASONING_EFFORT_OPTIONS
-	const reasoningEffort = isOpenaiReasoningEffort(configuredReasoningEffort)
-		? configuredReasoningEffort
-		: DEFAULT_OPENAI_REASONING_EFFORT
+	const reasoningEffort =
+		resolveReasoningEffortForModelId(selectedModelInfo.selectedModelId, selectedModelInfo, configuredReasoningEffort) ??
+		DEFAULT_OPENAI_REASONING_EFFORT
 
 	return (
 		<>
@@ -68,24 +66,19 @@ const InputSectionContent: React.FC<{ context: ChatViewContext }> = ({ context }
 			<ModularChatTextArea
 				activeModelProviderPresetId={activeModelProviderPresetId}
 				className="mt-2"
+				fastModeEnabled={fastModeEnabled}
+				fastModeError={fastModeError}
+				fastModeSupported={fastModeSupported}
 				inputValue={inputValue}
 				isActivatingModelPreset={isActivatingModelPreset}
 				isUpdatingFastMode={isUpdatingFastMode}
 				isUpdatingReasoningEffort={isUpdatingReasoningEffort}
 				mode={selectedModelInfo.mode}
-				modeSwitchingDisabled={context.goal?.modeSwitchingDisabled}
-				modeSwitchingExplanation={context.goal?.modeSwitchingExplanation}
 				modelDisplayName={`${selectedModelInfo.selectedProvider}:${selectedModelInfo.name || selectedModelInfo.selectedModelId}`}
-				fastModeEnabled={fastModeEnabled}
-				fastModeError={fastModeError}
-				fastModeSupported={fastModeSupported}
 				modelPresetError={modelPresetError}
 				modelProviderPresets={modelProviderPresets}
-				onHeightChange={() => {
-					if (isFollowingRef.current) {
-						scrollToBottomAuto()
-					}
-				}}
+				modeSwitchingDisabled={context.goal?.modeSwitchingDisabled}
+				modeSwitchingExplanation={context.goal?.modeSwitchingExplanation}
 				onFastModeToggle={async () => {
 					setFastModeError(undefined)
 					setIsUpdatingFastMode(true)
@@ -100,6 +93,11 @@ const InputSectionContent: React.FC<{ context: ChatViewContext }> = ({ context }
 						}
 					} finally {
 						setIsUpdatingFastMode(false)
+					}
+				}}
+				onHeightChange={() => {
+					if (isFollowingRef.current) {
+						scrollToBottomAuto()
 					}
 				}}
 				onModelButtonClick={() => {

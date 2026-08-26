@@ -1,19 +1,19 @@
 import type { AutoApprovalSettings } from "@shared/AutoApprovalSettings"
-import type { ApiProvider, ModelProviderSelection } from "@shared/api"
+import { type ApiProvider, getModelInfoForProvider, type ModelProviderSelection } from "@shared/api"
 import type { ToolMetadata } from "@shared/ExtensionMessage"
 import { SETTINGS_DESTINATIONS, SETTINGS_HELP, TOOL_SOURCE_HELP } from "@shared/settings-presentation"
 import { ProviderToBaseUrlKeyMap, type UtilityModelUseCases } from "@shared/storage"
 import type { OpenaiReasoningEffort } from "@shared/storage/types"
 import type { TelemetrySetting } from "@shared/TelemetrySetting"
+import { getReasoningEffortOptionsForModel, resolveReasoningEffortForModel } from "@shared/utils/reasoning-support"
 import { useMemo } from "react"
 import { StateManager } from "@/core/storage/StateManager"
-import { supportsReasoningEffortForModel } from "@/utils/model-utils"
 import { version as CLI_VERSION } from "../../../../package.json"
-import { getProviderLabel } from "../../../utils/providers"
 import { usesOpenRouterModels } from "../../../utils/openrouter-models"
+import { getProviderLabel } from "../../../utils/providers"
 import { CUSTOM_MODEL_ID, getModelList } from "../../ModelPicker"
 import { FEATURE_SETTINGS, type FeatureKey } from "../constants"
-import { SettingsItemType, SettingsTab, type ListItem } from "../types"
+import { type ListItem, SettingsItemType, SettingsTab } from "../types"
 
 export interface UseSettingsItemsProps {
 	currentTab: SettingsTab
@@ -95,11 +95,20 @@ function createModelItems(props: UseSettingsItemsProps): ListItem[] {
 	const modelList = usesOpenRouterModels(provider) ? openRouterModels || [] : getModelList(provider)
 	const isActCustom = actModelId === CUSTOM_MODEL_ID || Boolean(actModelId && !modelList.includes(actModelId))
 	const isPlanCustom = planModelId === CUSTOM_MODEL_ID || Boolean(planModelId && !modelList.includes(planModelId))
-	const providerUsesReasoningEffort = provider === "openai-native" || provider === "openai-codex"
-	const showActReasoningEffort = supportsReasoningEffortForModel(actModelId || "")
-	const showPlanReasoningEffort = supportsReasoningEffortForModel(planModelId || "")
-	const showActThinkingOption = !providerUsesReasoningEffort && !showActReasoningEffort
-	const showPlanThinkingOption = !providerUsesReasoningEffort && !showPlanReasoningEffort
+	const providerId = provider as ApiProvider
+	const actModelInfo = getModelInfoForProvider(providerId, actModelId)
+	const planModelInfo = getModelInfoForProvider(providerId, planModelId)
+	const actReasoningEffortOptions = getReasoningEffortOptionsForModel(actModelId, actModelInfo)
+	const planReasoningEffortOptions = getReasoningEffortOptionsForModel(planModelId, planModelInfo)
+	const showActReasoningEffort = actReasoningEffortOptions.length > 0
+	const showPlanReasoningEffort = planReasoningEffortOptions.length > 0
+	const providerHidesThinkingBudget = provider === "openai-native" || provider === "openai-codex" || provider === "zai"
+	const showActThinkingOption = !providerHidesThinkingBudget && !showActReasoningEffort
+	const showPlanThinkingOption = !providerHidesThinkingBudget && !showPlanReasoningEffort
+	const displayedActReasoningEffort =
+		resolveReasoningEffortForModel(actModelId, actModelInfo, actReasoningEffort) ?? actReasoningEffort
+	const displayedPlanReasoningEffort =
+		resolveReasoningEffortForModel(planModelId, planModelInfo, planReasoningEffort) ?? planReasoningEffort
 	const isOpenRouter = provider === "openrouter"
 	const formatPinnedProviderCount = (modelId: string) => {
 		const count = openRouterPinnedProviders[modelId]?.length || 0
@@ -114,6 +123,7 @@ function createModelItems(props: UseSettingsItemsProps): ListItem[] {
 		isCustom: boolean,
 		thinkingEnabled: boolean,
 		reasoningEffort: OpenaiReasoningEffort,
+		reasoningEffortOptions: readonly OpenaiReasoningEffort[],
 		showThinking: boolean,
 		showReasoning: boolean,
 	): ListItem[] => {
@@ -157,6 +167,7 @@ function createModelItems(props: UseSettingsItemsProps): ListItem[] {
 							label: "Reasoning effort",
 							type: SettingsItemType.CYCLE,
 							value: reasoningEffort,
+							cycleOptions: reasoningEffortOptions,
 							description: "Higher effort can improve depth but usually increases latency and token usage.",
 						},
 					]
@@ -247,7 +258,8 @@ function createModelItems(props: UseSettingsItemsProps): ListItem[] {
 						actModelId,
 						isActCustom,
 						actThinkingEnabled,
-						actReasoningEffort,
+						displayedActReasoningEffort,
+						actReasoningEffortOptions,
 						showActThinkingOption,
 						showActReasoningEffort,
 					),
@@ -262,7 +274,8 @@ function createModelItems(props: UseSettingsItemsProps): ListItem[] {
 						planModelId,
 						isPlanCustom,
 						planThinkingEnabled,
-						planReasoningEffort,
+						displayedPlanReasoningEffort,
+						planReasoningEffortOptions,
 						showPlanThinkingOption,
 						showPlanReasoningEffort,
 					),
@@ -272,7 +285,8 @@ function createModelItems(props: UseSettingsItemsProps): ListItem[] {
 					actModelId,
 					isActCustom,
 					actThinkingEnabled,
-					actReasoningEffort,
+					displayedActReasoningEffort,
+					actReasoningEffortOptions,
 					showActThinkingOption,
 					showActReasoningEffort,
 				)),

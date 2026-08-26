@@ -9,7 +9,7 @@ import {
 import { isValidAutoCondenseContextLimit } from "@shared/context-management"
 import type { ToolMetadata } from "@shared/ExtensionMessage"
 import { getProviderModelIdKey, ProviderToApiKeyMap, type UtilityModelUseCases } from "@shared/storage"
-import type { OpenaiReasoningEffort } from "@shared/storage/types"
+import { isOpenaiReasoningEffort, type OpenaiReasoningEffort } from "@shared/storage/types"
 import type { TelemetrySetting } from "@shared/TelemetrySetting"
 import { useCallback, useRef } from "react"
 import type { Controller } from "@/core/controller"
@@ -409,8 +409,9 @@ export function useSettingsActions({
 			}
 			const targetMode = item.key === "actReasoningEffort" ? "act" : item.key === "planReasoningEffort" ? "plan" : undefined
 			if (targetMode) {
-				const currentEffort = targetMode === "act" ? actReasoningEffort : planReasoningEffort
-				await setReasoningEffortForMode(targetMode, nextReasoningEffort(currentEffort))
+				const currentEffort = normalizeReasoningEffort(item.value)
+				const options = item.cycleOptions?.filter(isOpenaiReasoningEffort)
+				await setReasoningEffortForMode(targetMode, nextReasoningEffort(currentEffort, options))
 			}
 			return
 		}

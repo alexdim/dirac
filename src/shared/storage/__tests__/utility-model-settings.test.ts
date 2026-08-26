@@ -28,6 +28,10 @@ describe("Utility model settings", () => {
 			modelInfo: {
 				contextWindow: 128_000,
 				supportsPromptCache: true,
+				supportsReasoning: true,
+				supportsReasoningEffort: true,
+				reasoningEffortOptions: ["low", "high", "max"],
+				defaultReasoningEffort: "max",
 			},
 			openAiProfileName: "utility-profile",
 			awsBedrockCustomSelected: false,
@@ -40,13 +44,11 @@ describe("Utility model settings", () => {
 				utilityModelUseGenerateCommitMessage: true,
 				utilityModelUsePermissionHandling: false,
 				utilityModelPermissionPolicy: "Allow edits in this repository.",
-				utilityModelSelection: {
-					...selection,
-					provider: ProtoApiProvider.OPENAI,
-				},
+				utilityModelSelection: convertModelProviderSelectionToProto(selection),
 			}),
 		).finish()
 		const decoded = Settings.decode(encoded)
+		const restoredSelection = convertProtoToModelProviderSelection(decoded.utilityModelSelection!)
 
 		expect(decoded.utilityModelEnabled).to.equal(true)
 		expect(decoded.utilityModelUseCondense).to.equal(true)
@@ -57,6 +59,8 @@ describe("Utility model settings", () => {
 		expect(decoded.utilityModelSelection?.provider).to.equal(ProtoApiProvider.OPENAI)
 		expect(decoded.utilityModelSelection?.modelId).to.equal(selection.modelId)
 		expect(decoded.utilityModelSelection?.modelInfo?.contextWindow).to.equal(selection.modelInfo?.contextWindow)
+		expect(restoredSelection.modelInfo?.reasoningEffortOptions).to.deep.equal(["low", "high", "max"])
+		expect(restoredSelection.modelInfo?.defaultReasoningEffort).to.equal("max")
 		expect(decoded.utilityModelSelection?.openAiProfileName).to.equal(selection.openAiProfileName)
 		expect(decoded.utilityModelSelection?.awsBedrockCustomSelected).to.equal(false)
 		expect(Object.keys(decoded.utilityModelSelection!)).to.not.include.members(["apiKey", "accessToken", "secret"])
