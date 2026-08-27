@@ -34,7 +34,7 @@ export function createToolConfiguration(
 
 export function formatToolConfiguration(configuration: ToolConfiguration): string {
 	return [
-		"current config:",
+		"Current config:",
 		"",
 		`--enable-tool ${configuration.enabledToolIds.join(",")}`,
 		`--disable-tool ${configuration.disabledToolIds.join(",")}`,
