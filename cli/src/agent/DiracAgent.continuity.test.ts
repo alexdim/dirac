@@ -211,9 +211,6 @@ describe("DiracAgent ACP conversation continuity", () => {
 		const originalTask = controller.task
 
 		mocks.task.taskState.status = TaskStatus.COMPLETED
-		setTimeout(() => {
-			mocks.task.taskState.status = TaskStatus.AWAITING_USER_INPUT
-		}, 20)
 
 		await expect(
 			agent.prompt({ sessionId, prompt: [{ type: "text", text: "what was my last message?" }] } as any),
@@ -228,7 +225,42 @@ describe("DiracAgent ACP conversation continuity", () => {
 			[],
 			[],
 		)
-		expect(mocks.task.taskState.status).toBe(TaskStatus.AWAITING_USER_INPUT)
+		expect(mocks.task.taskState.status).toBe(TaskStatus.COMPLETED)
+	})
+
+	it("waits for completion publication before forwarding a follow-up", async () => {
+		const agent = new DiracAgent({ cwd: "/tmp/workspace" })
+			; (agent as any).ctx = { extensionContext: {}, DATA_DIR: "/tmp/dirac-test-data" }
+			; (agent as any).providerConfiguration.assertProviderEnabled = vi.fn()
+			; (agent as any).sessionConfig.getSessionConfigOptions = vi.fn(async () => [])
+			; (agent as any).sessionConfig.getSessionModeState = vi.fn(() => ({ currentModeId: "act", availableModes: [] }))
+
+		let setupCallCount = 0
+		let markSecondTurnSetup!: () => void
+		const secondTurnSetup = new Promise<void>((resolve) => {
+			markSecondTurnSetup = resolve
+		})
+			; (agent as any).sendAvailableCommands = vi.fn(async () => {
+				setupCallCount++
+				if (setupCallCount === 2) markSecondTurnSetup()
+			})
+			; (agent as any).setSessionTitleFromFirstExchange = vi.fn(async () => undefined)
+
+		const { sessionId } = await agent.newSession({ cwd: "/tmp/workspace", mcpServers: [] } as any)
+		await expect(agent.prompt({ sessionId, prompt: [{ type: "text", text: "execute ls" }] } as any)).resolves.toEqual({
+			stopReason: "end_turn",
+		})
+
+		mocks.task.taskState.status = TaskStatus.EXECUTING_TOOL
+		const followUp = agent.prompt({ sessionId, prompt: [{ type: "text", text: "continue" }] } as any)
+		await secondTurnSetup
+		await new Promise<void>((resolve) => setImmediate(resolve))
+
+		expect(mocks.task.submitCardResponse).not.toHaveBeenCalled()
+
+		mocks.task.taskState.status = TaskStatus.COMPLETED
+		await expect(followUp).resolves.toEqual({ stopReason: "end_turn" })
+		expect(mocks.task.submitCardResponse).toHaveBeenCalledWith("", DiracAskResponse.MESSAGE, "continue", [], [])
 	})
 
 	it("starts a new task for the first prompt after loading completed history", async () => {

@@ -1824,9 +1824,16 @@ export class DiracAgent implements acp.Agent {
 					)
 				} else if (controller.task.taskState.didAttemptCompletion) {
 					// The completion card resolves session/prompt slightly before the core task
-					// reaches waitForFollowUp(). Wait for that handoff so submitCardResponse
-					// cannot be cleared by waitForFollowUp() resetting stale response state.
-					await pWaitFor(() => controller.task?.taskState.status === TaskStatus.AWAITING_USER_INPUT, { interval: 10 })
+					// finishes publishing its terminal state. Wait until that handoff clears stale
+					// response fields before submitting the follow-up. Completed tasks intentionally
+					// retain COMPLETED while waitForFollowUp() accepts the next message.
+					await pWaitFor(
+						() => {
+							const status = controller.task?.taskState.status
+							return status === TaskStatus.COMPLETED || status === TaskStatus.AWAITING_USER_INPUT
+						},
+						{ interval: 10 },
+					)
 
 					// A completion response ends the ACP turn, not the conversation. The core
 					// task remains alive in waitForFollowUp() so the next session/prompt can
