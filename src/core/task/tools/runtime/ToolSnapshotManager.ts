@@ -9,6 +9,7 @@ import type { TaskConfig } from "../types/TaskConfig"
 import type { DiscoveredTool } from "../discovery/DiscoveredTool"
 import type { SkillMetadata } from "@shared/skills"
 import { ToolInventorySnapshot, ToolRequestSnapshot, ToolSnapshotDirtyReason, validateToolRequestSnapshot } from "./ToolSnapshot"
+import { applyToolSelectionPolicy, type ToolSelectionPolicy } from "./ToolSelectionPolicy"
 
 import { Logger } from "@/shared/services/Logger"
 
@@ -17,6 +18,7 @@ interface ToolSnapshotManagerOptions {
 	getTaskId: () => string
 	getWorkspaceRoot: () => string | undefined
 	getToggles: () => Record<string, boolean>
+	getSelectionPolicy: () => ToolSelectionPolicy | undefined
 	getActiveSkills: () => readonly SkillMetadata[]
 	isToolAvailable?: (tool: DiscoveredTool) => boolean
 	environmentFactory?: import("../interfaces/ToolEnvironmentFactory").ToolEnvironmentFactory
@@ -65,7 +67,12 @@ export class ToolSnapshotManager {
 				this.options.getTaskId(),
 				this.options.getWorkspaceRoot(),
 			)
-			const effectiveTools = this.mergeTools(inventory.enabledTools, skillTools).filter(
+			const selectedConfiguredTools = applyToolSelectionPolicy(
+				inventory.tools,
+				inventory.enabledTools,
+				this.options.getSelectionPolicy(),
+			)
+			const effectiveTools = this.mergeTools(selectedConfiguredTools, skillTools).filter(
 				(tool) => this.options.isToolAvailable?.(tool) ?? true,
 			)
 			const promptVisibleSpecs = this.buildPromptVisibleSpecs(effectiveTools, context)

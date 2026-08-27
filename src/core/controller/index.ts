@@ -53,6 +53,7 @@ export class Controller {
 	private initializerConfig!: InitializerConfig
 	private readonly goalController: GoalController
 	private goalRoutingEnabled: boolean
+	private taskInitializationDefaults?: TaskInitializationOptions
 
 	get task(): Task | undefined {
 		return this.goalController?.coordinator ?? this.taskController?.task
@@ -154,6 +155,15 @@ export class Controller {
 
 	// Task lifecycle delegation (via TaskController)
 
+	setTaskInitializationDefaults(options: TaskInitializationOptions): void {
+		this.taskInitializationDefaults = options
+	}
+
+	private resolveTaskInitializationOptions(options?: TaskInitializationOptions): TaskInitializationOptions | undefined {
+		if (!this.taskInitializationDefaults) return options
+		return { ...this.taskInitializationDefaults, ...options }
+	}
+
 	async initTask(
 		task?: string,
 		images?: string[],
@@ -167,11 +177,7 @@ export class Controller {
 		if (!historyItem && task !== undefined) {
 			const goalRequest = parseGoalRequest(task)
 			if (goalRequest.matched) {
-				if (!this.goalRoutingEnabled) {
-					throw new Error(
-						"Goals require the interactive VS Code or CLI surface; ACP and unattended CLI are unsupported.",
-					)
-				}
+				this.assertGoalSurfaceSupported(initializationOptions)
 				if (images?.length || files?.length) throw new Error("/goal currently accepts a text objective only")
 				return this.goalController.start(goalRequest.objective)
 			}
@@ -192,7 +198,7 @@ export class Controller {
 			taskSettings,
 			conversationUlid,
 			_watcherFactory,
-			initializationOptions,
+			this.resolveTaskInitializationOptions(initializationOptions),
 		)
 	}
 
@@ -200,7 +206,7 @@ export class Controller {
 		if (this.goalController.selectedGoalId) {
 			await this.goalController.pauseAndDeselect("Paused after loading another run")
 		}
-		return this.taskController.reinitExistingTaskFromId(taskId, initializationOptions)
+		return this.taskController.reinitExistingTaskFromId(taskId, this.resolveTaskInitializationOptions(initializationOptions))
 	}
 
 	async cancelTask(): Promise<void> {
@@ -382,7 +388,11 @@ export class Controller {
 		return this.goalController.sendMessage(goalId, message)
 	}
 
-	private assertGoalSurfaceSupported(): void {
+	private assertGoalSurfaceSupported(initializationOptions?: TaskInitializationOptions): void {
+		const effectiveOptions = this.resolveTaskInitializationOptions(initializationOptions)
+		if (effectiveOptions?.toolSelectionPolicy) {
+			throw new Error("Invocation tool-selection options cannot be used with Goals.")
+		}
 		if (!this.goalRoutingEnabled) {
 			throw new Error("Goals require the interactive VS Code or CLI surface; ACP and unattended CLI are unsupported.")
 		}

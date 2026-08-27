@@ -251,6 +251,17 @@ describe("Controller (original)", () => {
 		goalStart.calledOnceWithExactly("Ship the Goal loop").should.be.true()
 		ordinaryStart.called.should.be.false()
 	})
+	it("rejects Goals when invocation tool selection is active", async () => {
+		expectLoggerErrors()
+		const c = trackController(new Controller(mockContext, { goalRoutingEnabled: true }))
+		const goalStart = sandbox.spy((c as any).goalController, "start")
+		c.setTaskInitializationDefaults({
+			toolSelectionPolicy: { mode: "exact", toolIds: ["read_file"] },
+		})
+
+		await c.initTask("/goal Ship it").should.be.rejectedWith("cannot be used with Goals")
+		goalStart.called.should.be.false()
+	})
 	it("rejects an empty /goal without constructing Goal or Task state", async () => {
 		expectLoggerErrors()
 		const c = trackController(new Controller(mockContext, { goalRoutingEnabled: true }))

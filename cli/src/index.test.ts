@@ -1,6 +1,7 @@
-import { Command } from "commander"
+import { Command, Option } from "commander"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import { captureUnhandledException, hasExplicitAuthQuickSetupFlags, shouldDoQuickAuth } from "."
+import { parseToolIdentifiers } from "./utils/command-parsers"
 
 /**
  * Tests for CLI command parsing and structure
@@ -39,6 +40,13 @@ describe("CLI Commands", () => {
 			.option("--double-check-completion", "Reject first completion attempt to force re-verification")
 			.option("--auto-condense", "Enable AI-powered context compaction instead of mechanical truncation")
 			.option("--auto-condense-at <tokens>", "Auto-condense at a token count", Number)
+			.addOption(new Option("--enable-tool <tools>").argParser(parseToolIdentifiers).conflicts("onlyTools"))
+			.addOption(new Option("--disable-tool <tools>").argParser(parseToolIdentifiers).conflicts("onlyTools"))
+			.addOption(
+				new Option("--only-tools <tools>")
+					.argParser(parseToolIdentifiers)
+					.conflicts(["enableTool", "disableTool"]),
+			)
 			.option("--hooks-dir <path>", "Additional hooks directory")
 			.option("--no-index", "Disable symbol indexing for the workspace")
 			.action(() => { })
@@ -55,6 +63,13 @@ describe("CLI Commands", () => {
 		program
 			.command("config")
 			.description("Show current configuration")
+			.option("--config <path>", "Configuration directory")
+			.action(() => { })
+
+		program
+			.command("tools")
+			.description("List effective tools for the current workspace")
+			.option("-c, --cwd <path>", "Workspace used to discover tools")
 			.option("--config <path>", "Configuration directory")
 			.action(() => { })
 
@@ -88,6 +103,13 @@ describe("CLI Commands", () => {
 			.option("--max-consecutive-mistakes <count>", "Maximum consecutive mistakes")
 			.option("--double-check-completion", "Reject first completion attempt to force re-verification")
 			.option("--auto-condense", "Enable AI-powered context compaction instead of mechanical truncation")
+			.addOption(new Option("--enable-tool <tools>").argParser(parseToolIdentifiers).conflicts("onlyTools"))
+			.addOption(new Option("--disable-tool <tools>").argParser(parseToolIdentifiers).conflicts("onlyTools"))
+			.addOption(
+				new Option("--only-tools <tools>")
+					.argParser(parseToolIdentifiers)
+					.conflicts(["enableTool", "disableTool"]),
+			)
 			.option("--hooks-dir <path>", "Additional hooks directory")
 			.option("--no-index", "Disable symbol indexing for the workspace")
 			.option("--auto-approve-all", "Enable auto-approve all")
@@ -133,6 +155,26 @@ describe("CLI Commands", () => {
 			const args = ["test prompt", "--auto-approve-all"]
 			taskCmd.parse(args, { from: "user" })
 			expect(taskCmd.opts().autoApproveAll).toBe(true)
+		})
+
+		it("should parse repeated comma-separated tool deltas", () => {
+			const taskCmd = program.commands.find((c) => c.name() === "task")!
+			taskCmd.parse(
+				["test prompt", "--enable-tool", "read_file, edit_file", "--enable-tool", "search_files", "--disable-tool", "use_subagents"],
+				{ from: "user" },
+			)
+			expect(taskCmd.opts().enableTool).toEqual(["read_file", "edit_file", "search_files"])
+			expect(taskCmd.opts().disableTool).toEqual(["use_subagents"])
+		})
+
+		it("should reject only-tools with delta options", () => {
+			const taskCmd = program.commands.find((c) => c.name() === "task")!
+			taskCmd.exitOverride()
+			expect(() =>
+				taskCmd.parse(["test prompt", "--only-tools", "read_file", "--enable-tool", "edit_file"], {
+					from: "user",
+				}),
+			).toThrow("cannot be used with option")
 		})
 
 		it("should parse --model option", () => {
@@ -302,6 +344,14 @@ describe("CLI Commands", () => {
 			const args = ["--config", "/custom/path"]
 			configCmd.parse(args, { from: "user" })
 			expect(configCmd.opts().config).toBe("/custom/path")
+		})
+	})
+
+	describe("tools command", () => {
+		it("parses workspace and configuration options", () => {
+			const toolsCmd = program.commands.find((command) => command.name() === "tools")!
+			toolsCmd.parse(["--cwd", "/workspace", "--config", "/config"], { from: "user" })
+			expect(toolsCmd.opts()).toMatchObject({ cwd: "/workspace", config: "/config" })
 		})
 	})
 

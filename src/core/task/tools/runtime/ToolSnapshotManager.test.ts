@@ -8,6 +8,7 @@ import type { DiscoveredTool } from "../discovery/DiscoveredTool"
 import { ToolRegistry } from "../registry/ToolRegistry"
 import { refreshTaskTools } from "../registry/refreshToolRegistry"
 import { ToolSnapshotManager } from "./ToolSnapshotManager"
+import type { ToolSelectionPolicy } from "./ToolSelectionPolicy"
 
 function makeTool(id: string): DiscoveredTool {
 	return {
@@ -25,12 +26,18 @@ function makeTool(id: string): DiscoveredTool {
 	}
 }
 
-function createManager(toggles: Record<string, boolean>, taskId = "task-id", workspaceRoot = "/test-workspace") {
+function createManager(
+	toggles: Record<string, boolean>,
+	taskId = "task-id",
+	workspaceRoot = "/test-workspace",
+	selectionPolicy?: ToolSelectionPolicy,
+) {
 	return new ToolSnapshotManager({
 		createTaskConfig: () => ({}) as never,
 		getTaskId: () => taskId,
 		getWorkspaceRoot: () => workspaceRoot,
 		getToggles: () => toggles,
+		getSelectionPolicy: () => selectionPolicy,
 		getActiveSkills: () => [],
 	})
 }
@@ -49,6 +56,26 @@ describe("ToolSnapshotManager task isolation", () => {
 	})
 
 	afterEach(() => sinon.restore())
+
+	it("applies invocation selection after configured toggles", async () => {
+		const exact = createManager(
+			{ alpha: true, beta: true },
+			"task-id",
+			"/test-workspace",
+			{ mode: "exact", toolIds: ["beta"] },
+		)
+		const delta = createManager(
+			{ alpha: false, beta: true },
+			"task-id",
+			"/test-workspace",
+			{ mode: "delta", enabledToolIds: ["alpha"], disabledToolIds: ["beta"] },
+		)
+
+		const exactSnapshot = await exact.getSnapshotForRequest(context, { requestId: "exact", configurationRevision: 1 })
+		const deltaSnapshot = await delta.getSnapshotForRequest(context, { requestId: "delta", configurationRevision: 1 })
+		assert.deepEqual(exactSnapshot.inventoryEnabledTools.map((tool) => tool.id), ["beta"])
+		assert.deepEqual(deltaSnapshot.inventoryEnabledTools.map((tool) => tool.id), ["alpha"])
+	})
 
 	it("serializes process-global registry mutation into detached per-Task snapshots", async () => {
 		const managerA = createManager({ alpha: true, beta: false })

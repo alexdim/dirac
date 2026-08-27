@@ -41,6 +41,8 @@ export async function initializeCli(options: InitOptions): Promise<CliContext> {
 	const { telemetryService } = await import("@/services/telemetry")
 	const { SymbolIndexService } = await import("@/services/symbol-index/SymbolIndexService")
 
+	if (options.config) process.env.DIRAC_DIR = options.config
+
 	const workspacePath = options.cwd || process.cwd()
 	setRuntimeHooksDir(options.hooksDir)
 	const { extensionContext, storageContext, DATA_DIR, EXTENSION_DIR } = initializeCliContext({

@@ -8,6 +8,14 @@ import {
 	type OpenaiReasoningEffort,
 } from "@/shared/storage/types"
 
+export function parseToolIdentifiers(value: string, previous: string[] = []): string[] {
+	const identifiers = value.split(",").map((identifier) => identifier.trim())
+	if (identifiers.some((identifier) => identifier.length === 0)) {
+		throw new InvalidArgumentError("Tool lists must contain non-empty comma-separated identifiers")
+	}
+	return [...new Set([...previous, ...identifiers])]
+}
+
 export function parsePositiveInteger(value: string): number {
 	const parsed = Number(value)
 	if (value.trim() === "" || !Number.isSafeInteger(parsed) || parsed < 1) {

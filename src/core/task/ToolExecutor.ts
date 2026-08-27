@@ -118,6 +118,7 @@ export class ToolExecutor {
 		private notifyContextCompacted: () => void,
 		private executionProfile: TaskExecutionProfile,
 		private environmentFactory: ToolEnvironmentFactory,
+		private toolSelectionPolicy: import("./tools/runtime/ToolSelectionPolicy").ToolSelectionPolicy | undefined,
 	) {
 		this.coordinator = new ToolExecutorCoordinator(environmentFactory)
 		this.snapshotManager = new ToolSnapshotManager({
@@ -125,6 +126,7 @@ export class ToolExecutor {
 			getTaskId: () => this.taskId,
 			getWorkspaceRoot: () => this.workspaceManager?.getPrimaryRoot()?.path,
 			getToggles: () => this.requestRuntime().workingConfiguration.settings.toolToggles || {},
+			getSelectionPolicy: () => this.toolSelectionPolicy,
 			getActiveSkills: () => {
 				const activeIds = new Set(this.taskState.activeSkillIds)
 				return this.taskState.availableSkills.filter((skill) => activeIds.has(skill.name))

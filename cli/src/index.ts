@@ -10,7 +10,13 @@ import { getCliLogFilePath } from "./vscode-shim"
 import { setupSignalHandlers } from "./utils/errors"
 import { isGoalRequest, UNSUPPORTED_GOAL_CLI_MESSAGE } from "./utils/goals"
 import { parseTimeoutSeconds } from "./utils/task-timeout"
-import { parseInferenceSpeed, parsePositiveInteger, parseReasoningEffort, parseThinkingBudget } from "./utils/command-parsers"
+import {
+	parseInferenceSpeed,
+	parsePositiveInteger,
+	parseReasoningEffort,
+	parseThinkingBudget,
+	parseToolIdentifiers,
+} from "./utils/command-parsers"
 
 import { INFERENCE_SPEED_OPTIONS, OPENAI_REASONING_EFFORT_OPTIONS } from "@shared/storage/types"
 // CLI-only behavior: suppress console output unless verbose mode is enabled.
@@ -65,6 +71,21 @@ program
 	.option("--auto-condense", "Enable AI-powered context compaction instead of mechanical truncation")
 	.option("--auto-condense-at <tokens>", "Auto-condense when provider context reaches this token count", parsePositiveInteger)
 	.option("--subagents", "Enable subagents for the task")
+	.addOption(
+		new Option("--enable-tool <tools>", "Enable comma-separated tools for this invocation")
+			.argParser(parseToolIdentifiers)
+			.conflicts("onlyTools"),
+	)
+	.addOption(
+		new Option("--disable-tool <tools>", "Disable comma-separated tools for this invocation")
+			.argParser(parseToolIdentifiers)
+			.conflicts("onlyTools"),
+	)
+	.addOption(
+		new Option("--only-tools <tools>", "Use only these comma-separated configurable tools")
+			.argParser(parseToolIdentifiers)
+			.conflicts(["enableTool", "disableTool"]),
+	)
 	.option("--hooks-dir <path>", "Path to additional hooks directory for runtime hook injection")
 	.option("--no-index", "Disable symbol indexing for the workspace")
 	.option("--no-emoji", "Disable emoji icons (use unicode/ascii fallbacks)")
@@ -107,6 +128,16 @@ program
 	.action(async (options) => {
 		const { showConfig } = await import("./commands/config")
 		return showConfig(options)
+	})
+
+program
+	.command("tools")
+	.description("List effective tools for the current workspace")
+	.option("-c, --cwd <path>", "Workspace used to discover tools")
+	.option("--config <path>", "Path to Dirac configuration directory")
+	.action(async (options) => {
+		const { listTools } = await import("./commands/tools")
+		return listTools(options)
 	})
 
 program
@@ -195,6 +226,21 @@ program
 	.option("--auto-condense", "Enable AI-powered context compaction instead of mechanical truncation")
 	.option("--auto-condense-at <tokens>", "Auto-condense when provider context reaches this token count", parsePositiveInteger)
 	.option("--subagents", "Enable subagents for the task")
+	.addOption(
+		new Option("--enable-tool <tools>", "Enable comma-separated tools for this invocation")
+			.argParser(parseToolIdentifiers)
+			.conflicts("onlyTools"),
+	)
+	.addOption(
+		new Option("--disable-tool <tools>", "Disable comma-separated tools for this invocation")
+			.argParser(parseToolIdentifiers)
+			.conflicts("onlyTools"),
+	)
+	.addOption(
+		new Option("--only-tools <tools>", "Use only these comma-separated configurable tools")
+			.argParser(parseToolIdentifiers)
+			.conflicts(["enableTool", "disableTool"]),
+	)
 	.option("--headers <headers>", "Custom headers for OpenAI-compatible provider (key1=value1,key2=value2 or JSON)")
 	.option("--hooks-dir <path>", "Path to additional hooks directory for runtime hook injection")
 	.option("--no-index", "Disable symbol indexing for the workspace")
@@ -207,6 +253,11 @@ program
 	.option("--continue", "Resume the most recent task from the current working directory")
 	.action(async (prompt, options) => {
 		const { printWarning } = await import("./utils/display")
+		const { hasToolSelectionOptions } = await import("./utils/tool-options")
+		if (hasToolSelectionOptions(options) && (options.kanban || options.acpAuth || options.acp || options.listen)) {
+			printWarning("Tool-selection options can only be used with ordinary CLI tasks.")
+			exit(1)
+		}
 		if (options.kanban) {
 			if (prompt) {
 				printWarning("Use --kanban without a prompt.")

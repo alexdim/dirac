@@ -1,7 +1,9 @@
 import { isValidAutoCondenseContextLimit } from "@shared/context-management"
 import { modelSupportsInferenceSpeed, providerSupportsInferenceSpeed, type ApiProvider } from "@shared/api"
 import type { InferenceSpeed, OpenaiReasoningEffort } from "@/shared/storage/types"
+import type { Controller } from "@/core/controller"
 import type { TaskOptions } from "../types"
+import { applyToolSelectionOptions } from "./tool-options"
 
 export async function setModeScopedState(currentMode: "act" | "plan", setter: (mode: "act" | "plan") => void): Promise<void> {
 	const { StateManager } = await import("@/core/storage/StateManager")
@@ -53,7 +55,7 @@ export async function normalizeMaxConsecutiveMistakes(value?: string | number): 
 	return parsed
 }
 
-export async function applyTaskOptions(options: TaskOptions): Promise<void> {
+export async function applyTaskOptions(options: TaskOptions, workspaceRoot: string, controller: Controller): Promise<void> {
 	const { StateManager } = await import("@/core/storage/StateManager")
 	const { telemetryService } = await import("@/services/telemetry")
 	const { getProviderModelIdKey } = await import("@/shared/storage")
@@ -61,6 +63,14 @@ export async function applyTaskOptions(options: TaskOptions): Promise<void> {
 	const { exit } = await import("node:process")
 
 	const stateManager = StateManager.get()
+
+	try {
+		const toolSelectionPolicy = await applyToolSelectionOptions(options, workspaceRoot)
+		if (toolSelectionPolicy) controller.setTaskInitializationDefaults({ toolSelectionPolicy })
+	} catch (error) {
+		printError(`Error: ${error instanceof Error ? error.message : String(error)}`)
+		exit(1)
+	}
 
 	if (process.env.OPENAI_COMPATIBLE_CUSTOM_KEY) {
 		if (!options.provider && !process.env.OPENAI_API_BASE && !stateManager.getGlobalSettingsKey("openAiBaseUrl")) {

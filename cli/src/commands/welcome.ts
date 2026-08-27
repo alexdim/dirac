@@ -23,7 +23,7 @@ export async function showWelcome(options: TaskOptions) {
 
 	// Apply CLI task options in interactive startup too, so flags like
 	// --auto-approve-all and --yolo affect the initial TUI state.
-	await applyTaskOptions(options)
+	await applyTaskOptions(options, ctx.workspacePath, ctx.controller)
 	await StateManager.get().flushPendingState()
 
 	let hadError = false

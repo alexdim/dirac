@@ -39,6 +39,9 @@ export interface TaskOptions {
 	hooksDir?: string
 	subagents?: boolean
 	headers?: string
+	enableTool?: string[]
+	disableTool?: string[]
+	onlyTools?: string[]
 	index?: boolean
 
 	noEmoji?: boolean

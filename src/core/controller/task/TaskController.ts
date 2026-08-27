@@ -25,6 +25,7 @@ export type TaskInitializationOptions = {
 	onContextCompacted?: () => void
 	switchToActMode?: () => Promise<boolean>
 	enqueueSteeringMessages?: (task: Task) => Promise<void>
+	toolSelectionPolicy?: import("../../task/tools/runtime/ToolSelectionPolicy").ToolSelectionPolicy
 	/** Host/session-owned runtime values; capture input only and never task-settings persistence. */
 	runtimeConfigurationOverrides?: Partial<Settings>
 	/** Exact immutable runtime used only when reconstructing an existing active Task. */
@@ -331,6 +332,7 @@ export class TaskController {
 				pinnedContext: initializationOptions?.pinnedContext,
 				onContextCompacted: initializationOptions?.onContextCompacted,
 				switchToActMode: initializationOptions?.switchToActMode,
+				toolSelectionPolicy: initializationOptions?.toolSelectionPolicy,
 				enqueuePreRequestSteeringMessages: async () => initializationOptions?.enqueueSteeringMessages?.(this._task!),
 			})
 		} catch (error) {

@@ -29,8 +29,8 @@ export async function runTaskInPlainTextMode(
 	const { runPlainTextTask } = await import("../utils/plain-text-task")
 	const historyItem = taskConfig.taskId
 		? ctx.controller.stateManager
-				.getGlobalStateKey("taskHistory")
-				.find((item: { id: string }) => item.id === taskConfig.taskId)
+			.getGlobalStateKey("taskHistory")
+			.find((item: { id: string }) => item.id === taskConfig.taskId)
 		: undefined
 	if (isGoalRequest(taskConfig.prompt) || (historyItem && isGoalHistoryItem(historyItem))) {
 		printWarning(UNSUPPORTED_GOAL_CLI_MESSAGE)
@@ -113,7 +113,7 @@ export async function runTask(prompt: string, options: TaskOptions, existingCont
 	}
 
 	// Apply shared task options (mode, model, thinking, yolo)
-	await applyTaskOptions(options)
+	await applyTaskOptions(options, workspacePath, ctx.controller)
 	await StateManager.get().flushPendingState()
 
 	// Use plain text mode when output is redirected, stdin was piped, JSON mode is enabled, or --yolo flag is used

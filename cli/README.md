@@ -138,6 +138,7 @@ dirac auth                         # Configure a provider and model
 dirac --acp                        # Run as an ACP agent for an editor
 dirac history                      # Browse and resume prior tasks
 dirac config                       # Show active configuration
+dirac tools                        # List effective workspace tools
 dirac update                       # Check for a newer CLI release
 dirac --continue                   # Resume this workspace's latest task
 dirac --taskId <id> "Follow up"    # Resume a specific task
@@ -155,12 +156,24 @@ Frequently used task options include:
 | `--auto-approve-all` | Auto-approve actions while retaining the interactive interface. |
 | `--model <id>` | Override the configured model. |
 | `--provider <id-or-url>` | Override the provider; requires `--model`. |
+| `--enable-tool <ids>` | Enable comma-separated tool IDs over the saved configuration. Repeatable. |
+| `--disable-tool <ids>` | Disable comma-separated tool IDs over the saved configuration. Repeatable. |
+| `--only-tools <ids>` | Use exactly these configurable tool IDs; cannot be combined with either delta option. |
 | `--images <paths...>` | Attach PNG, JPEG, GIF, or WebP images. |
 | `--thinking [tokens]` | Enable extended thinking; the default budget is 1024. |
 | `--reasoning-effort <level>` | Set `none`, `low`, `medium`, `high`, or `xhigh`. |
 | `--timeout <seconds>` | Stop a standalone task after a positive number of seconds. |
 | `--verbose` | Expand reasoning and task diagnostics. |
 | `--json` | Emit newline-delimited JSON events. |
+
+Tool selections apply only to ordinary CLI tasks for the current invocation and are never persisted. They cannot be used with ACP, detached listen mode, Kanban, or Goals, and they never alter task-scoped tools. `--enable-tool` and `--disable-tool` may be combined when their resolved tool sets are disjoint. Lists accept canonical tool IDs or unambiguous tool names separated by commas, and each option may be repeated. Unknown, non-configurable, or conflicting tools stop startup with an error.
+
+```bash
+dirac --yolo --enable-tool read_file,edit_file --disable-tool use_subagents "Fix the issue"
+dirac --only-tools read_file,search_files,respond "Analyze the workspace"
+```
+
+Run `dirac tools` to print the current configuration as copy-pasteable comma-separated `--enable-tool` and `--disable-tool` options.
 
 Images can also be mentioned inline. `@/images/screenshot.png` is relative to the selected workspace; ordinary absolute and `./relative` paths are also accepted when the file exists.
 

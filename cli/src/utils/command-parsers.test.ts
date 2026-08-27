@@ -1,6 +1,27 @@
 import { InvalidArgumentError } from "commander"
 import { describe, expect, it } from "vitest"
-import { parseInferenceSpeed, parsePositiveInteger, parseReasoningEffort, parseThinkingBudget } from "./command-parsers"
+import {
+	parseInferenceSpeed,
+	parsePositiveInteger,
+	parseReasoningEffort,
+	parseThinkingBudget,
+	parseToolIdentifiers,
+} from "./command-parsers"
+
+describe("parseToolIdentifiers", () => {
+	it("parses CSV values, trims whitespace, deduplicates, and accumulates repeated options", () => {
+		expect(parseToolIdentifiers("read_file, edit_file,read_file", ["search_files"])).toEqual([
+			"search_files",
+			"read_file",
+			"edit_file",
+		])
+	})
+
+	it.each(["", " ", ",", "read_file,", ",read_file", "read_file,,edit_file"])("rejects %j", (value) => {
+		expect(() => parseToolIdentifiers(value)).toThrow(InvalidArgumentError)
+	})
+})
+
 
 describe("parsePositiveInteger", () => {
 	it.each(["1", "20", "9007199254740991"])("accepts %s", (value) => {

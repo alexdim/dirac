@@ -149,6 +149,7 @@ export type TaskParams = {
 	getPinnedContext?: () => Promise<string | undefined>
 	executionProfile?: TaskExecutionProfile
 	toolEnvironmentFactory?: ToolEnvironmentFactory
+	toolSelectionPolicy?: import("./tools/runtime/ToolSelectionPolicy").ToolSelectionPolicy
 	onContextCompacted?: () => void
 	switchToActMode?: () => Promise<boolean>
 	enqueuePreRequestSteeringMessages?: () => Promise<void>
@@ -731,6 +732,7 @@ export class Task {
 			this.notifyContextCompacted.bind(this),
 			this.executionProfile,
 			params.toolEnvironmentFactory ?? new SurfaceToolEnvironmentFactory(),
+			params.toolSelectionPolicy,
 		)
 		this.environmentManager = new EnvironmentManager({
 			cwd: this.cwd,

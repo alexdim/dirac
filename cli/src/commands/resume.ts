@@ -56,7 +56,7 @@ export async function resumeTask(
 	}
 
 	// Apply shared task options (mode, model, thinking, yolo)
-	await applyTaskOptions(options)
+	await applyTaskOptions(options, workspacePath, ctx.controller)
 	await StateManager.get().flushPendingState()
 
 	// Use plain text mode for non-interactive scenarios
