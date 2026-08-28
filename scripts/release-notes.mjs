@@ -91,7 +91,7 @@ function generatePatch(options) {
 		announce: highlights.length > 0,
 		sourceTag: previousTag,
 		analyzedCommit,
-		headline: highlights[0]?.title ?? "Bug fixes and improvements",
+		headline: "Updates and improvements",
 		highlights,
 	})
 }

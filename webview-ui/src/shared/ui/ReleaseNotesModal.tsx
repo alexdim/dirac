@@ -69,9 +69,11 @@ export const ReleaseNotesModal: React.FC<ReleaseNotesModalProps> = ({
 						{releaseNotes.releases.map((release) => (
 							<section key={release.version}>
 								{multipleReleases && <div className="text-xs opacity-80 mb-1">Dirac v{release.version}</div>}
-								<h3 className="text-base font-semibold text-[var(--vscode-foreground)] mt-0 mb-2">
-									{release.headline}
-								</h3>
+								{release.headline !== release.highlights[0]?.title && (
+									<h3 className="text-base font-semibold text-[var(--vscode-foreground)] mt-0 mb-2">
+										{release.headline}
+									</h3>
+								)}
 								{release.summaryMd && (
 									<div className="mb-3">
 										<Markdown components={markdownComponents}>{release.summaryMd}</Markdown>
