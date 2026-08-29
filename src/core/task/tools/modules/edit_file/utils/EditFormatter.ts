@@ -74,48 +74,55 @@ export class EditFormatter {
 	createResultsResponse(
 		prepared: PreparedEdits,
 		finalLines: string[],
-		newLineHashes: string[],
+		newLineHashes: string[] | undefined,
 		diagnosticsResult: { newProblemsMessage: string; fixedCount: number },
 		diffMode: "full" | "additions-only",
 		autoFormattingEdits?: string,
 		userEdits?: string,
 		wasStringified?: boolean,
+		postSaveWarning?: string,
 	): ToolResponse {
 		const { resolvedEdits, failedEdits, appliedEdits, lines, lineHashes } = prepared
-		const appliedDiffs: string[] = []
-
+		const results: string[] = []
 		let totalAdded = 0
 		let totalRemoved = 0
 
-		for (const applied of appliedEdits) {
-			const { originalStartIdx, originalEndIdx, startIdx, endIdx } = applied
-			const originalHashesSet = new Set(lineHashes.slice(originalStartIdx, originalEndIdx + 1))
-			const finalHashesSet = new Set(newLineHashes.slice(startIdx, endIdx + 1))
+		if (newLineHashes) {
+			const appliedDiffs: string[] = []
+			for (const applied of appliedEdits) {
+				const { originalStartIdx, originalEndIdx, startIdx, endIdx } = applied
+				const originalHashesSet = new Set(lineHashes.slice(originalStartIdx, originalEndIdx + 1))
+				const finalHashesSet = new Set(newLineHashes.slice(startIdx, endIdx + 1))
 
-			for (let i = originalStartIdx; i <= originalEndIdx; i++) {
-				if (!finalHashesSet.has(lineHashes[i])) totalRemoved++
+				for (let i = originalStartIdx; i <= originalEndIdx; i++) {
+					if (!finalHashesSet.has(lineHashes[i])) totalRemoved++
+				}
+				for (let i = startIdx; i <= endIdx; i++) {
+					if (!originalHashesSet.has(newLineHashes[i])) totalAdded++
+				}
+
+				const diffBlock =
+					diffMode === "additions-only"
+						? this.getAdditionOnlyDiffBlock(lines, lineHashes, finalLines, newLineHashes, applied)
+						: this.getDiffBlock(lines, lineHashes, finalLines, newLineHashes, applied)
+				appliedDiffs.push(diffBlock)
 			}
-			for (let i = startIdx; i <= endIdx; i++) {
-				if (!originalHashesSet.has(newLineHashes[i])) totalAdded++
+
+			const totalDiffLines = appliedDiffs.reduce((acc, diff) => acc + diff.split("\n").length, 0)
+			const useFullFile = totalDiffLines > finalLines.length * 0.7 && finalLines.length > 0
+			if (useFullFile) {
+				results.push(
+					`Because the changes were extensive, the full updated file content is provided below for review. This plain output is not an edit_file coordinate; reread with include_anchors: true before another edit:\n\n${finalLines.join("\n")}`,
+				)
+			} else {
+				results.push(...appliedDiffs)
 			}
-
-			const diffBlock =
-				diffMode === "additions-only"
-					? this.getAdditionOnlyDiffBlock(lines, lineHashes, finalLines, newLineHashes, applied)
-					: this.getDiffBlock(lines, lineHashes, finalLines, newLineHashes, applied)
-			appliedDiffs.push(diffBlock)
-		}
-
-		const totalDiffLines = appliedDiffs.reduce((acc, diff) => acc + diff.split("\n").length, 0)
-		const useFullFile = totalDiffLines > finalLines.length * 0.7 && finalLines.length > 0
-		const results: string[] = []
-
-		if (useFullFile) {
-			results.push(
-				`Because the changes were extensive, the full updated file content is provided below for review. This plain output is not an edit_file coordinate; reread with include_anchors: true before another edit:\n\n${finalLines.join("\n")}`,
-			)
 		} else {
-			results.push(...appliedDiffs)
+			for (const applied of appliedEdits) {
+				totalAdded += applied.linesAdded
+				totalRemoved += applied.linesDeleted
+			}
+			results.push(`Warning after saving: ${postSaveWarning ?? "Hash anchors are unavailable for the saved file."}`)
 		}
 
 		for (const failed of failedEdits) {
@@ -151,10 +158,12 @@ export class EditFormatter {
 		}
 
 		const lineChanges = ` (+${totalAdded}, -${totalRemoved} lines)`
-		const summary =
-			failedEdits.length > 0
-				? `Partial success in files[${prepared.fileIndex}] (${prepared.displayPath}): ${resolvedEdits.length} edit(s) applied${lineChanges}; ${failedEdits.length} failed. Do not retry the applied edits; retry only the indexed failures below. Diff lines are presentation-only, not edit_file coordinates; reread the smallest relevant range with include_anchors: true before retrying.`
-				: `Applied ${resolvedEdits.length} edit(s) successfully${lineChanges}. Diff lines are presentation-only, not edit_file coordinates; reread with include_anchors: true before another edit.`
+		const followUp = newLineHashes
+			? "Diff lines are presentation-only, not edit_file coordinates; reread with include_anchors: true before another edit."
+			: "The saved file no longer supports hash-anchored edit_file calls; use execute_command for further changes."
+		const summary = failedEdits.length > 0
+			? `Partial success in files[${prepared.fileIndex}] (${prepared.displayPath}): ${resolvedEdits.length} edit(s) applied${lineChanges}; ${failedEdits.length} failed. Do not retry the applied edits; retry only the indexed failures below. ${followUp}`
+			: `Applied ${resolvedEdits.length} edit(s) successfully${lineChanges}. ${followUp}`
 		if (wasStringified) {
 			results.push(
 				`Note: You provided the 'files' parameter as a stringified JSON array. While this was successfully parsed and applied, you should provide it as a native JSON array in the future.`,

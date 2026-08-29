@@ -92,6 +92,10 @@ export class SurfaceAdapter implements ToolExecutionEnvironment {
 			},
 			getDocumentFingerprint: (absolutePath) =>
 				AnchorStateManager.getDocumentFingerprint(absolutePath, config.ulid),
+			clear: (absolutePath) => {
+				AnchorStateManager.clearState(absolutePath, config.ulid)
+				config.context.markAnchorStateDirty()
+			},
 		}
 		this.diagnostics = buildDiagnosticsTrait()
 		this.editor = buildEditorTrait(config)

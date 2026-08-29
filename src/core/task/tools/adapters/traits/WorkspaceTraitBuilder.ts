@@ -1,6 +1,7 @@
 import { resolveWorkspacePath } from "@core/workspace"
 import { extractFileContent } from "@integrations/misc/extract-file-content"
 import { processFilesIntoText } from "@integrations/misc/extract-text"
+import { countTextFileLines, readTextFileWindow } from "@integrations/misc/read-text-file-window"
 import { listFiles } from "@services/glob/list-files"
 import * as fs from "fs/promises"
 import { HostProvider } from "@/hosts/host-provider"
@@ -15,6 +16,8 @@ export function buildWorkspaceTrait(config: TaskConfig): IWorkspaceTrait {
 			return typeof result === "string" ? { absolutePath: result, displayPath: relPath } : result
 		},
 		readFile: async (path) => await fs.readFile(path, "utf8"),
+		readTextFileWindow: async (path, options) => await readTextFileWindow(path, options),
+		countTextFileLines: async (path, signal) => await countTextFileLines(path, signal),
 		readRichFile: async (path) => {
 			const supportsImages = config.model.info.supportsImages ?? false
 			return await extractFileContent(path, supportsImages)

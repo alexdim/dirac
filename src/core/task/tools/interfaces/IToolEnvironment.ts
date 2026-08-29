@@ -1,4 +1,5 @@
 import type { TextCondensationTemplateId } from "@core/text-condensation/TextCondenser"
+import type { TextFileWindow, TextFileWindowOptions } from "@shared/text-file-window"
 import type {
 	AstImplementationRequest,
 	AstImplementationResult,
@@ -249,6 +250,10 @@ export interface IWorkspaceTrait {
 	 * Reads the content of a file.
 	 */
 	readFile(path: string): Promise<string>
+	/** Streams a text range while retaining a complete snapshot only below a caller-supplied line limit. */
+	readTextFileWindow(path: string, options: TextFileWindowOptions): Promise<TextFileWindow>
+	/** Counts text lines without retaining file content. */
+	countTextFileLines(path: string, signal?: AbortSignal): Promise<number>
 	/**
 	 * Reads the content of a file, handling rich formats (PDF, DOCX, images).
 	 */
@@ -457,6 +462,7 @@ export interface ILoggingTrait {
 export interface IAnchorTrait {
 	reconcile(absolutePath: string, lines: string[]): string[]
 	getDocumentFingerprint(absolutePath: string): string | null
+	clear(absolutePath: string): void
 }
 
 /**

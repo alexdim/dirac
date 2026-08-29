@@ -3,6 +3,7 @@ import * as path from "node:path"
 import { createHash } from "node:crypto"
 import * as diff from "diff"
 import { isValidAnchorId } from "../shared/utils/line-hashing"
+import { MAX_ANCHORED_FILE_LINES } from "../shared/anchor-limits"
 
 interface TrackedDocument {
 	hashes: Uint32Array
@@ -124,6 +125,11 @@ export class AnchorStateManager {
 		currentLines: string[],
 		taskId?: string,
 	): { anchors: string[]; changed: boolean } {
+		if (currentLines.length > MAX_ANCHORED_FILE_LINES) {
+			throw new Error(
+				`Cannot create hash anchors for ${currentLines.length.toLocaleString()} lines; the limit is ${MAX_ANCHORED_FILE_LINES.toLocaleString()} lines.`,
+			)
+		}
 		const state = AnchorStateManager.getTaskState(taskId)
 		const currentHashes = AnchorStateManager.computeHashes(currentLines)
 		let tracked = state.get(absolutePath)
