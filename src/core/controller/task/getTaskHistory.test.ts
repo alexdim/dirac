@@ -3,6 +3,7 @@ import { GetTaskHistoryRequest } from "@shared/proto/dirac/task"
 import { expect } from "chai"
 import { describe, it } from "mocha"
 import type { Controller } from ".."
+import { processTaskHistory } from "../ui/processTaskHistory"
 import { getTaskHistory } from "./getTaskHistory"
 
 function task(id: string, workspace: Partial<TaskHistoryItem> = {}): TaskHistoryItem {
@@ -57,5 +58,28 @@ describe("getTaskHistory workspace filtering", () => {
 		)
 
 		expect(result.tasks.map((item) => item.id)).to.have.members(history.map((item) => item.id))
+	})
+
+	it("keeps preview and full workspace history aligned newest-first", async () => {
+		const currentWorkspace = "/workspace/current"
+		const taskHistory = [
+			task("current-middle", { ts: 30, workspaceRootPath: currentWorkspace }),
+			task("other-newest", { ts: 50, workspaceRootPath: "/workspace/other" }),
+			task("current-newest", { ts: 40, cwdOnTaskInitialization: currentWorkspace }),
+			task("current-oldest", { ts: 20, shadowGitConfigWorkTree: currentWorkspace }),
+			task("unattributed-newest", { ts: 60 }),
+		]
+
+		const previewHistory = processTaskHistory(taskHistory, currentWorkspace)
+		const fullHistory = await getTaskHistory(
+			controllerWithHistory(taskHistory, currentWorkspace),
+			GetTaskHistoryRequest.create({ currentWorkspaceOnly: true, sortBy: "newest" }),
+		)
+
+		expect(previewHistory.map((item) => item.id)).to.deep.equal(["current-newest", "current-middle", "current-oldest"])
+		expect(fullHistory.tasks.map((item) => item.id)).to.deep.equal(previewHistory.map((item) => item.id))
+		expect(fullHistory.tasks.slice(0, 3).map((item) => item.id)).to.deep.equal(
+			previewHistory.slice(0, 3).map((item) => item.id),
+		)
 	})
 })

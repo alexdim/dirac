@@ -1,11 +1,11 @@
-import { isGoalHistoryItem, type HistoryItem } from "@shared/HistoryItem"
+import { type HistoryItem, isGoalHistoryItem } from "@shared/HistoryItem"
 import { historyItemFromProto } from "@shared/historyItemFromProto"
 import { BooleanRequest, EmptyRequest, StringArrayRequest } from "@shared/proto/dirac/common"
 import { GetTaskHistoryRequest, TaskFavoriteRequest } from "@shared/proto/dirac/task"
 import { VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
 import Fuse, { type FuseResult } from "fuse.js"
 import { FunnelIcon } from "lucide-react"
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { memo, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { GroupedVirtuoso, Virtuoso } from "react-virtuoso"
 import { useAppStore } from "@/app/store/appStore"
 import { useTaskStore } from "@/entities/task/store/taskStore"
@@ -37,6 +37,30 @@ const HISTORY_FILTERS = {
 	workspaceOnly: "Workspace Only",
 	favoritesOnly: "Favorites Only",
 }
+
+type DateGroupedHistoryListProps = {
+	groupedTasks: HistoryItem[]
+	groupCounts: number[]
+	groupLabels: string[]
+	renderHistoryItem: (item: HistoryItem) => ReactNode
+}
+
+export const DateGroupedHistoryList = ({
+	groupedTasks,
+	groupCounts,
+	groupLabels,
+	renderHistoryItem,
+}: DateGroupedHistoryListProps) => (
+	<GroupedVirtuoso
+		groupContent={(index) => (
+			<div className="sticky top-0 z-10 border-b border-border-panel bg-sidebar-background px-4 py-2 text-xs font-bold uppercase tracking-wide text-description">
+				{groupLabels[index]}
+			</div>
+		)}
+		groupCounts={groupCounts}
+		itemContent={(index) => renderHistoryItem(groupedTasks[index])}
+	/>
+)
 
 const HistoryView = ({ onDone }: HistoryViewProps) => {
 	const taskHistory = useTaskStore((state) => state.taskHistory)
@@ -333,16 +357,11 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 			)
 		}
 		return (
-			<GroupedVirtuoso
-				computeItemKey={(index) => groupedTasks[index].id}
-				data={groupedTasks}
-				groupContent={(index) => (
-					<div className="sticky top-0 z-10 border-b border-border-panel bg-sidebar-background px-4 py-2 text-xs font-bold uppercase tracking-wide text-description">
-						{groupLabels[index]}
-					</div>
-				)}
+			<DateGroupedHistoryList
 				groupCounts={groupCounts}
-				itemContent={(_, __, item) => renderHistoryItem(item)}
+				groupedTasks={groupedTasks}
+				groupLabels={groupLabels}
+				renderHistoryItem={renderHistoryItem}
 			/>
 		)
 	})()
