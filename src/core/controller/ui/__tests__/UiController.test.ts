@@ -456,16 +456,18 @@ describe("getStateToPostToWebview", () => {
 			expect(state.taskHistory[99].ts).to.equal(5)
 		})
 
-		it("filters task history by primary root when present", async () => {
+		it("filters task history by primary root and supported legacy workspace fields", async () => {
 			const items = [
-				{ id: "t1", ts: 3, task: "x", workspaceRootPath: "/test/workspace" },
-				{ id: "t2", ts: 2, task: "x", workspaceRootPath: "/other/workspace" },
-				{ id: "t3", ts: 1, task: "x" }, // no root -> kept when primary exists
+				{ id: "t1", ts: 5, task: "x", workspaceRootPath: "/test/workspace/" },
+				{ id: "t2", ts: 4, task: "x", workspaceRootPath: "/other/workspace" },
+				{ id: "t3", ts: 3, task: "x", cwdOnTaskInitialization: "/test/workspace" },
+				{ id: "t4", ts: 2, task: "x", shadowGitConfigWorkTree: "/test/workspace" },
+				{ id: "t5", ts: 1, task: "x" },
 			]
 			const stateManager = makeFakeStateManager({ globalState: { taskHistory: items } })
 			const state = await getStateToPostToWebview({ stateManager, backgroundCommandRunning: false })
 			const ids = state.taskHistory.map((h: any) => h.id)
-			expect(ids).to.deep.equal(["t1", "t3"])
+			expect(ids).to.deep.equal(["t1", "t3", "t4"])
 		})
 
 		it("resolves currentTaskItem from taskHistory matching task.taskId", async () => {

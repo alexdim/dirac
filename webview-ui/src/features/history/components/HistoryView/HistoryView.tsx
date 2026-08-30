@@ -50,7 +50,7 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 	const [lastNonRelevantSort, setLastNonRelevantSort] = useState<SortOption>("newest")
 	const [selectedItems, setSelectedItems] = useState<string[]>([])
 	const [showFavoritesOnly, setShowFavoritesOnly] = useState(false)
-	const [showCurrentWorkspaceOnly, setShowCurrentWorkspaceOnly] = useState(false)
+	const [showCurrentWorkspaceOnly, setShowCurrentWorkspaceOnly] = useState(true)
 	const [pendingFavoriteToggles, setPendingFavoriteToggles] = useState<Record<string, boolean>>({})
 	const [deletingTaskIds, setDeletingTaskIds] = useState<Set<string>>(() => new Set())
 	const [isDeletingAll, setIsDeletingAll] = useState(false)

@@ -15,6 +15,7 @@ import { fileExistsAtPath } from "@utils/fs"
 import fs from "fs/promises"
 import * as path from "path"
 import { Logger } from "@/shared/services/Logger"
+import { withTaskHistoryInventoryLock } from "@core/storage/taskHistory"
 
 export async function deleteRunStorage(item: RunHistoryItem, goalStore = new GoalStore()): Promise<void> {
 	if (!isGoalHistoryItem(item)) {
@@ -107,26 +108,11 @@ export class TaskHistoryController {
 	}
 
 	async deleteTaskFromState(id: string): Promise<RunHistoryItem[]> {
-		const taskHistory = this.stateManager.getGlobalStateKey("taskHistory")
-		const updatedTaskHistory = taskHistory.filter((task) => task.id !== id)
-		this.stateManager.setGlobalState("taskHistory", updatedTaskHistory)
-		return updatedTaskHistory
+		return this.stateManager.removeTaskHistoryItems([id])
 	}
 
 	async updateRunHistory(item: RunHistoryItem): Promise<RunHistoryItem[]> {
-		const history = [...this.stateManager.getGlobalStateKey("taskHistory")]
-		const existingItemIndex = history.findIndex((h) => h.id === item.id)
-		if (existingItemIndex !== -1) {
-			const existing = history[existingItemIndex]
-			history[existingItemIndex] = {
-				...item,
-				...(existing.isFavorited !== undefined ? { isFavorited: existing.isFavorited } : {}),
-			}
-		} else {
-			history.push(item)
-		}
-		this.stateManager.setGlobalState("taskHistory", history)
-		return history
+		return this.stateManager.upsertTaskHistoryItem(item)
 	}
 
 	async updateTaskHistory(item: HistoryItem): Promise<RunHistoryItem[]> {
@@ -144,9 +130,11 @@ export class TaskHistoryController {
 	}
 
 	async deleteRunWithId(id: string): Promise<RunHistoryItem[]> {
-		await this.deleteRunStorage(id)
-		const history = await this.deleteTaskFromState(id)
-		await this.stateManager.flushPendingState()
-		return history
+		return withTaskHistoryInventoryLock(async () => {
+			await this.deleteRunStorage(id)
+			const history = await this.deleteTaskFromState(id)
+			await this.stateManager.flushPendingState()
+			return history
+		})
 	}
 }

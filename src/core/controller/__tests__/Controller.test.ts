@@ -136,6 +136,17 @@ describe("Controller (original)", () => {
 			setGlobalStateBatch: sandbox.stub().callsFake((updates: Record<string, any>) => {
 				Object.assign(globalState, updates)
 			}),
+			upsertTaskHistoryItem: sandbox.stub().callsFake((item: any) => {
+				const index = globalState.taskHistory.findIndex((candidate: any) => candidate.id === item.id)
+				if (index === -1) globalState.taskHistory.push(item)
+				else globalState.taskHistory[index] = item
+				return globalState.taskHistory
+			}),
+			removeTaskHistoryItems: sandbox.stub().callsFake((ids: string[]) => {
+				const removedIds = new Set(ids)
+				globalState.taskHistory = globalState.taskHistory.filter((item: any) => !removedIds.has(item.id))
+				return globalState.taskHistory
+			}),
 			setTaskSettingsBatch: sandbox.stub(),
 			loadTaskSettings: sandbox.stub().resolves(),
 			clearTaskSettings: sandbox.stub().resolves(),

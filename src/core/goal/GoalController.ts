@@ -10,6 +10,7 @@ import { type GoalHistoryItem, type HistoryItem, isGoalHistoryItem } from "@shar
 import { getCwd, getDesktopDir } from "@utils/path"
 import Mutex from "p-mutex"
 import { ulid } from "ulid"
+import { Logger } from "@/shared/services/Logger"
 import { createGoalHistoryItem } from "./GoalHistory"
 import { GoalLoop } from "./GoalLoop"
 import { GoalStore } from "./GoalStore"
@@ -50,6 +51,10 @@ export class GoalController {
 
 	get coordinator(): Task | undefined {
 		return this.selectedLoop?.coordinator
+	}
+
+	async waitForStartupReconciliation(): Promise<void> {
+		await this.ready
 	}
 
 	async start(objectiveMarkdown: string): Promise<string> {
@@ -197,17 +202,37 @@ export class GoalController {
 	}
 
 	private async reconcilePersistedGoals(): Promise<void> {
-		const records = await this.store.reconcileOnStartup()
-		for (const record of records) {
+		try {
+			const report = await this.store.reconcileOnStartup()
+			for (const failure of report.failures) {
+				Logger.error(`[GoalController] Failed to reconcile persisted Goal ${failure.goalId}:`, failure.error)
+			}
+			for (const record of report.records) {
+				await this.reconcilePersistedGoalHistory(record)
+			}
+		} catch (error) {
+			Logger.error("[GoalController] Failed to scan persisted Goals during startup:", error)
+		}
+	}
+
+	private async reconcilePersistedGoalHistory(record: import("@shared/goal").GoalRecord): Promise<void> {
+		try {
 			const historyItem = this.dependencies.stateManager
 				.getGlobalStateKey("taskHistory")
 				.find((item) => item.id === record.id)
-			if (!historyItem || !isGoalHistoryItem(historyItem)) {
-				throw new Error(`Goal ${record.id} is missing its top-level history entry`)
+			if (!historyItem) {
+				Logger.warn(`[GoalController] Goal ${record.id} is missing its top-level history entry; preserving loaded history`)
+				return
+			}
+			if (!isGoalHistoryItem(historyItem)) {
+				Logger.warn(`[GoalController] Run ${record.id} is a Task in history but a Goal on disk; preserving loaded history`)
+				return
 			}
 			await this.dependencies.updateGoalHistory(
 				createGoalHistoryItem(record, historyItem.initialDisplayText, historyItem.workspaceRootPath),
 			)
+		} catch (error) {
+			Logger.error(`[GoalController] Failed to refresh Goal history ${record.id}:`, error)
 		}
 	}
 

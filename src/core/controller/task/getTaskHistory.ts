@@ -2,7 +2,7 @@ import type { HistoryItem } from "@shared/HistoryItem"
 import { isGoalHistoryItem } from "@shared/HistoryItem"
 import { GetTaskHistoryRequest, TaskHistoryArray, TaskItem } from "@shared/proto/dirac/task"
 import { Logger } from "@/shared/services/Logger"
-import { arePathsEqual, getWorkspacePath } from "../../../utils/path"
+import { historyItemBelongsToWorkspace } from "../historyItemWorkspace"
 import { Controller } from ".."
 
 export function historyItemToTaskItem(item: HistoryItem): TaskItem {
@@ -52,46 +52,15 @@ export async function getTaskHistory(controller: Controller, request: GetTaskHis
 
 		// Get task history from global state
 		const taskHistory = controller.stateManager.getGlobalStateKey("taskHistory")
-		const workspacePath = await getWorkspacePath()
+		const primaryRootPath = currentWorkspaceOnly
+			? (await controller.ensureWorkspaceManager())?.getPrimaryRoot()?.path
+			: undefined
 
 		// Apply filters
 		let filteredTasks = taskHistory.filter((item) => {
-			const primaryRootPath = controller.getWorkspaceManager()?.getPrimaryRoot()?.path
-			// Basic filter: must have timestamp and task content
-			const hasRequiredFields = item.ts && item.task
-			const isInCurrentWorkspace = !primaryRootPath || !item.workspaceRootPath || item.workspaceRootPath === primaryRootPath
-			if (!hasRequiredFields || !isInCurrentWorkspace) {
-				return false
-			}
-
-			// Apply favorites filter if requested
-			if (favoritesOnly && !item.isFavorited) {
-				return false
-			}
-
-			// Apply current workspace filter if requested
-			if (currentWorkspaceOnly) {
-				let isInWorkspace = item.workspaceRootPath ? arePathsEqual(item.workspaceRootPath, workspacePath) : false
-
-				// First check the cwdOnTaskInitialization property - Only present on tasks from this change forward
-				if (!isInWorkspace && item.cwdOnTaskInitialization) {
-					if (arePathsEqual(item.cwdOnTaskInitialization, workspacePath)) {
-						isInWorkspace = true
-					}
-				}
-
-				// For tasks without cwdOnTaskInitialization, check the older shadowGitConfigWorkTree property
-				if (!isInWorkspace && item.shadowGitConfigWorkTree) {
-					if (arePathsEqual(item.shadowGitConfigWorkTree, workspacePath)) {
-						isInWorkspace = true
-					}
-				}
-
-				if (!isInWorkspace) {
-					return false
-				}
-			}
-
+			if (!item.ts || !item.task) return false
+			if (favoritesOnly && !item.isFavorited) return false
+			if (currentWorkspaceOnly && !historyItemBelongsToWorkspace(item, primaryRootPath)) return false
 			return true
 		})
 

@@ -8,6 +8,7 @@ import { HostProvider } from "@/hosts/host-provider"
 import { getErrorMessage } from "@/shared/errors"
 import { ShowMessageRequest, ShowMessageType } from "@/shared/proto/host/window"
 import { Logger } from "@/shared/services/Logger"
+import { withTaskHistoryInventoryLock } from "@core/storage/taskHistory"
 import { fileExistsAtPath } from "../../../utils/fs"
 import { Controller } from ".."
 
@@ -45,60 +46,62 @@ export async function deleteAllTaskHistory(controller: Controller): Promise<Dele
 			}
 		}
 
-		await controller.clearTask()
-		const currentTaskHistory = controller.stateManager.getGlobalStateKey("taskHistory")
-		const totalTasks = currentTaskHistory.length
+		return withTaskHistoryInventoryLock(async () => {
+			await controller.clearTask()
+			const currentTaskHistory = controller.stateManager.getGlobalStateKey("taskHistory")
+			const totalTasks = currentTaskHistory.length
 
-		if (preserveFavorites) {
-			const favoritedTasks = currentTaskHistory.filter((task) => task.isFavorited === true)
-			if (favoritedTasks.length > 0) {
-				controller.stateManager.setGlobalState("taskHistory", favoritedTasks)
-				await cleanupRunFiles(favoritedTasks)
-				await controller.stateManager.flushPendingState()
+			if (preserveFavorites) {
+				const favoritedTasks = currentTaskHistory.filter((task) => task.isFavorited === true)
+				if (favoritedTasks.length > 0) {
+					await cleanupRunFiles(favoritedTasks)
+					controller.stateManager.replaceTaskHistory(favoritedTasks)
+					await controller.stateManager.flushPendingState()
 
-				try {
+					try {
+						await controller.postStateToWebview()
+					} catch (webviewErr) {
+						Logger.error("Error posting to webview:", webviewErr)
+					}
+
+					return DeleteAllTaskHistoryCount.create({
+						tasksDeleted: totalTasks - favoritedTasks.length,
+					})
+				}
+				if (!deleteEverythingConfirmed && !(await confirmDeleteAllTasks())) {
 					await controller.postStateToWebview()
-				} catch (webviewErr) {
-					Logger.error("Error posting to webview:", webviewErr)
+					return DeleteAllTaskHistoryCount.create({ tasksDeleted: 0 })
+				}
+			}
+
+			try {
+				const taskDirPath = getTasksDirectoryPath()
+				if (await fileExistsAtPath(taskDirPath)) {
+					await fs.rm(taskDirPath, { recursive: true, force: true })
 				}
 
-				return DeleteAllTaskHistoryCount.create({
-					tasksDeleted: totalTasks - favoritedTasks.length,
+				const checkpointsDirPath = path.join(HostProvider.get().globalStorageFsPath, "checkpoints")
+				if (await fileExistsAtPath(checkpointsDirPath)) {
+					await fs.rm(checkpointsDirPath, { recursive: true, force: true })
+				}
+			} catch (error) {
+				HostProvider.window.showMessage({
+					type: ShowMessageType.ERROR,
+					message: `Encountered error while deleting task history, there may be some files left behind. Error: ${getErrorMessage(error)}`,
 				})
+				throw error
 			}
-			if (!deleteEverythingConfirmed && !(await confirmDeleteAllTasks())) {
+			controller.stateManager.replaceTaskHistory([])
+			await controller.stateManager.flushPendingState()
+
+			try {
 				await controller.postStateToWebview()
-				return DeleteAllTaskHistoryCount.create({ tasksDeleted: 0 })
-			}
-		}
-
-		controller.stateManager.setGlobalState("taskHistory", [])
-
-		try {
-			const taskDirPath = getTasksDirectoryPath()
-			if (await fileExistsAtPath(taskDirPath)) {
-				await fs.rm(taskDirPath, { recursive: true, force: true })
+			} catch (webviewErr) {
+				Logger.error("Error posting to webview:", webviewErr)
 			}
 
-			const checkpointsDirPath = path.join(HostProvider.get().globalStorageFsPath, "checkpoints")
-			if (await fileExistsAtPath(checkpointsDirPath)) {
-				await fs.rm(checkpointsDirPath, { recursive: true, force: true })
-			}
-		} catch (error) {
-			HostProvider.window.showMessage({
-				type: ShowMessageType.ERROR,
-				message: `Encountered error while deleting task history, there may be some files left behind. Error: ${getErrorMessage(error)}`,
-			})
-		}
-		await controller.stateManager.flushPendingState()
-
-		try {
-			await controller.postStateToWebview()
-		} catch (webviewErr) {
-			Logger.error("Error posting to webview:", webviewErr)
-		}
-
-		return DeleteAllTaskHistoryCount.create({ tasksDeleted: totalTasks })
+			return DeleteAllTaskHistoryCount.create({ tasksDeleted: totalTasks })
+		})
 	} catch (error) {
 		Logger.error("Error in deleteAllTaskHistory:", error)
 		throw error

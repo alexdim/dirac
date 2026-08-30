@@ -10,6 +10,7 @@ import { FileContextTracker } from "./core/context/context-tracking/FileContextT
 import { HookDiscoveryCache } from "./core/hooks/HookDiscoveryCache"
 import { HookProcessRegistry } from "./core/hooks/HookProcessRegistry"
 import { StateManager } from "./core/storage/StateManager"
+import { repairMissingTaskHistory } from "./core/commands/repairMissingTaskHistory"
 import { AgentConfigLoader } from "./core/task/tools/subagent/AgentConfigLoader"
 import { ErrorService } from "./services/error"
 import { featureFlagsService } from "./services/feature-flags"
@@ -89,6 +90,15 @@ async function initializeServices(storageContext: StorageContext): Promise<Dirac
 
 	// =============== Webview services ===============
 	const webview = HostProvider.get().createDiracWebviewProvider()
+	void webview.controller
+		.waitForGoalStartupReconciliation()
+		.then(() => repairMissingTaskHistory(stateManager))
+		.then(async (result) => {
+			if (result.recovered > 0) await stateManager.onSyncExternalChange?.()
+		})
+		.catch((error) => {
+			Logger.error("[Task History Repair] Background repair failed:", error)
+		})
 	// Check if this workspace was opened from worktree quick launch
 	await checkWorktreeAutoOpen(stateManager)
 
@@ -175,6 +185,7 @@ async function tearDownServices(): Promise<void> {
 	featureFlagsService.dispose()
 	// Dispose all webview instances
 	await DiracWebviewProvider.disposeAllInstances()
+	if (StateManager.isInitialized()) await StateManager.get().flushPendingState()
 	syncWorker().dispose()
 
 	// Kill any running hook processes to prevent zombies

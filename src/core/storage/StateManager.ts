@@ -1,4 +1,5 @@
 import type { ApiConfiguration, ModelInfo } from "@shared/api"
+import type { RunHistoryItem } from "@shared/HistoryItem"
 import { buildLegacyModelIdStateUpdates } from "@shared/storage/legacy-model-id-migration"
 import {
 	type GlobalState,
@@ -32,6 +33,7 @@ import {
 	clearTaskSettings,
 	clearSessionOverride,
 	loadTaskSettings,
+	mutateTaskHistory,
 	hasSessionOverride,
 	refreshModelProviderPresetsFromDisk,
 	type StateManagerSettersContext,
@@ -67,14 +69,15 @@ export type { PersistenceErrorEvent }
  * This is shared across all platforms (VSCode, CLI, JetBrains).
  *
  * MULTI-INSTANCE BEHAVIOR:
- * StateManager reads from disk ONLY during initialize(). After that, all reads come from
- * the in-memory cache. Writes update both the cache and disk, but other running instances
- * won't see those changes because they don't re-read from disk.
+ * Settings are read from disk during initialize() and then remain isolated in each
+ * instance's cache. Task history is the exception: it is a shared multi-writer index,
+ * synchronized through ID-scoped transactions and a file watcher.
  *
  * This means: If you have multiple VS Code windows open, each has its own StateManager
  * instance with its own cache. Changing a setting (like plan/act mode) in Window A writes
  * to disk, but Window B keeps using its cached value. Window B only sees the change after
- * restart (when it re-initializes from disk).
+ * restart (when it re-initializes from disk). Task-history changes are merged and become
+ * visible in every running instance without a restart.
  *
  * This is intentional for performance (avoids constant disk reads) and provides natural
  * isolation between concurrent instances. Task-specific state is independent anyway since
@@ -120,6 +123,12 @@ export class StateManager {
 			getWorkspaceStateValue: (key) => this.workspaceStateCache[key],
 			setTaskHistoryInCache: (value) => {
 				this.globalStateCache.taskHistory = value
+			},
+			onTaskHistoryCommitMerged: () => {
+				this.notifyStateChange()
+				void Promise.resolve(this.onSyncExternalChange?.()).catch((error) => {
+					Logger.error("[StateManager] Failed to publish merged task history:", error)
+				})
 			},
 		})
 	}
@@ -224,7 +233,7 @@ export class StateManager {
 	}
 
 	public static isInitialized(): boolean {
-		return StateManager.instance != null
+		return StateManager.instance?.isInitialized === true
 	}
 
 	public static get(): StateManager {
@@ -251,7 +260,7 @@ export class StateManager {
 
 	/**
 	 * Subscribe to global state changes. The listener is called whenever global state
-	 * is modified via setGlobalState or setGlobalStateBatch. Returns an unsubscribe function.
+	 * is modified through StateManager setters. Returns an unsubscribe function.
 	 */
 	public subscribe(listener: () => void): () => void {
 		this.stateChangeListeners.add(listener)
@@ -276,6 +285,26 @@ export class StateManager {
 
 	setGlobalStateBatch(updates: Partial<GlobalStateAndSettings>): void {
 		setGlobalStateBatch(this.settersContext, updates)
+	}
+
+	upsertTaskHistoryItem(item: RunHistoryItem): RunHistoryItem[] {
+		return mutateTaskHistory(this.settersContext, { kind: "upsert", item })
+	}
+
+	setTaskHistoryFavorite(id: string, isFavorited: boolean): RunHistoryItem[] {
+		return mutateTaskHistory(this.settersContext, { kind: "setFavorite", id, isFavorited })
+	}
+
+	removeTaskHistoryItems(ids: string[]): RunHistoryItem[] {
+		return mutateTaskHistory(this.settersContext, { kind: "remove", ids })
+	}
+
+	insertMissingTaskHistoryItems(items: RunHistoryItem[]): RunHistoryItem[] {
+		return mutateTaskHistory(this.settersContext, { kind: "insertMissing", items })
+	}
+
+	replaceTaskHistory(items: RunHistoryItem[]): RunHistoryItem[] {
+		return mutateTaskHistory(this.settersContext, { kind: "replace", items })
 	}
 
 	setTaskSettings<K extends keyof Settings>(taskId: string, key: K, value: Settings[K]): void {
@@ -410,9 +439,7 @@ export class StateManager {
 	}
 
 	async reInitialize(currentTaskId?: string): Promise<void> {
-		if (this.persistence.hasPendingTimeout()) {
-			await this.persistence.persistPendingState()
-		}
+		await this.persistence.flushPendingState()
 		await this.dispose()
 		await StateManager.initialize(this.storage)
 		if (currentTaskId) await this.loadTaskSettings(currentTaskId)

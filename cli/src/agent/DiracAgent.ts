@@ -45,6 +45,7 @@ import { CommandPermissionController } from "@/core/permissions/CommandPermissio
 import type { ToolPermissionRule } from "@/core/permissions/types.js"
 import { setRuntimeHooksDir } from "@/core/storage/disk"
 import { StateManager } from "@/core/storage/StateManager"
+import { withTaskHistoryInventoryLock } from "@/core/storage/taskHistory"
 import { AuthHandler } from "@/hosts/external/AuthHandler.js"
 import { ExternalCommentReviewController } from "@/hosts/external/ExternalCommentReviewController.js"
 import { ExternalDiracWebviewProvider } from "@/hosts/external/ExternalWebviewProvider.js"
@@ -231,19 +232,16 @@ export class DiracAgent implements acp.Agent {
 
 		const taskIds = getTaskIdsForSession(sessionId)
 		const stateManager = StateManager.get()
-		const taskHistory = stateManager.getGlobalStateKey("taskHistory")
-		stateManager.setGlobalState(
-			"taskHistory",
-			taskHistory.filter((item) => !taskIds.includes(item.id)),
-		)
-		await stateManager.flushPendingState()
-
-		for (const taskId of taskIds) {
-			await fs.rm(`${this.ctx.DATA_DIR}/tasks/${taskId}`, {
-				recursive: true,
-				force: true,
-			})
-		}
+		await withTaskHistoryInventoryLock(async () => {
+			for (const taskId of taskIds) {
+				await fs.rm(`${this.ctx.DATA_DIR}/tasks/${taskId}`, {
+					recursive: true,
+					force: true,
+				})
+			}
+			stateManager.removeTaskHistoryItems(taskIds)
+			await stateManager.flushPendingState()
+		})
 		deleteTasksForSession(sessionId)
 		deleteSessionUpdates(sessionId)
 		deletePinnedSessionMessages(sessionId)

@@ -12,6 +12,7 @@ import { HostProvider } from "@/hosts/host-provider"
 import { setVscodeHostProviderMock } from "@/test/host-provider-test-utils"
 import {
 	cleanupConversationHistoryFile,
+	commitTaskHistoryMutations,
 	ensureCacheDirectoryExists,
 	ensureSettingsDirectoryExists,
 	ensureStateDirectoryExists,
@@ -416,6 +417,36 @@ describe("disk - atomic writes", () => {
 			// Verify the data is valid (not corrupted)
 			result[0].should.have.property("id")
 			result[0].should.have.property("task")
+		})
+
+		it("should merge concurrent ID-scoped upserts instead of losing writers", async function () {
+			this.timeout(30000)
+			const base = createTestHistoryItem("transaction-base", "Base")
+			await writeTaskHistoryToState([base])
+			const additions = Array.from({ length: 5 }, (_, index) =>
+				createTestHistoryItem(`transaction-${index}`, `Task ${index}`),
+			)
+
+			await Promise.all(
+				additions.map((item) => commitTaskHistoryMutations([{ kind: "upsert", item }])),
+			)
+
+			const resultIds = new Set((await readTaskHistoryFromState()).map((item) => item.id))
+			resultIds.has(base.id).should.be.true()
+			for (const item of additions) resultIds.has(item.id).should.be.true()
+		})
+
+		it("should preserve a concurrent favorite flag while refreshing a run summary", async () => {
+			const initial = createTestHistoryItem("favorite-merge", "Initial")
+			await writeTaskHistoryToState([initial])
+			await commitTaskHistoryMutations([{ kind: "setFavorite", id: initial.id, isFavorited: true }])
+			await commitTaskHistoryMutations([
+				{ kind: "upsert", item: { ...initial, task: "Refreshed", ts: initial.ts + 1 } },
+			])
+
+			const [result] = await readTaskHistoryFromState()
+			result.task.should.equal("Refreshed")
+			;(result.isFavorited === true).should.be.true()
 		})
 
 		it("should preserve data integrity with special characters", async () => {

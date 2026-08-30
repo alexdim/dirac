@@ -1,4 +1,5 @@
 import type { ApiConfiguration, ModelProviderPreset } from "@shared/api"
+import type { RunHistoryItem } from "@shared/HistoryItem"
 import {
 	type GlobalStateAndSettings,
 	type GlobalStateAndSettingsKey,
@@ -14,6 +15,7 @@ import {
 import { STATE_MANAGER_NOT_INITIALIZED } from "./error-messages"
 import { normalizeLoadedSetting, normalizeLoadedSettings } from "./StateManagerSettings"
 import type { StatePersistenceManager } from "./StatePersistenceManager"
+import { applyTaskHistoryMutations, type TaskHistoryMutation } from "./taskHistory"
 
 export interface StateManagerSettersContext {
 	isInitialized: boolean
@@ -36,6 +38,7 @@ export function setGlobalState<K extends keyof GlobalStateAndSettings>(
 	value: GlobalStateAndSettings[K],
 ): void {
 	guardInitialized(ctx)
+	if (key === "taskHistory") throw new Error("Task history requires an ID-scoped mutation")
 	const normalizedValue = isSettingsKey(key) ? normalizeLoadedSetting(key as SettingsKey, value as never) : value
 		; (ctx.globalStateCache as Record<string, unknown>)[key] = normalizedValue
 	ctx.persistence.addPendingGlobalState(key)
@@ -44,10 +47,24 @@ export function setGlobalState<K extends keyof GlobalStateAndSettings>(
 
 export function setGlobalStateBatch(ctx: StateManagerSettersContext, updates: Partial<GlobalStateAndSettings>): void {
 	guardInitialized(ctx)
+	if (Object.hasOwn(updates, "taskHistory")) throw new Error("Task history requires an ID-scoped mutation")
 	const normalizedUpdates = normalizeLoadedSettings(updates as Partial<Settings>) as Partial<GlobalStateAndSettings>
 	Object.assign(ctx.globalStateCache, normalizedUpdates)
 	ctx.persistence.addPendingGlobalStateBatch(Object.keys(normalizedUpdates) as GlobalStateAndSettingsKey[])
 	ctx.notifyStateChange()
+}
+
+export function mutateTaskHistory(
+	ctx: StateManagerSettersContext,
+	mutation: TaskHistoryMutation,
+): RunHistoryItem[] {
+	guardInitialized(ctx)
+	const immutableMutation = structuredClone(mutation)
+	const updated = applyTaskHistoryMutations(ctx.globalStateCache.taskHistory, [immutableMutation])
+	ctx.globalStateCache.taskHistory = updated
+	ctx.persistence.addPendingTaskHistoryMutation(immutableMutation)
+	ctx.notifyStateChange()
+	return updated
 }
 
 export function setTaskSettings<K extends keyof Settings>(

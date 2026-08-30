@@ -60,6 +60,7 @@
 	},
 	"include": [
 		"src/**/*",
+		"../src/types/**/*.d.ts",
 		"esbuild.mts"
 	],
 	"exclude": [

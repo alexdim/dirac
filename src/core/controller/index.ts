@@ -296,6 +296,10 @@ export class Controller {
 		await this.statePublicationQueue.requestPublication()
 	}
 
+	async waitForGoalStartupReconciliation(): Promise<void> {
+		await this.goalController.waitForStartupReconciliation()
+	}
+
 	async getStateToPostToWebview(): Promise<ExtensionState> {
 		const previousAvailableToolsFingerprint = this.availableToolsFingerprint
 

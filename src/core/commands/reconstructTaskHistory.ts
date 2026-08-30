@@ -16,8 +16,9 @@ import * as path from "path"
 import { ulid } from "ulid"
 import { getErrorMessage } from "@/shared/errors"
 import { Logger } from "@/shared/services/Logger"
+import { withTaskHistoryInventoryLock } from "@core/storage/taskHistory"
 
-interface TaskReconstructionResult {
+export interface TaskReconstructionResult {
 	totalTasks: number
 	reconstructedTasks: number
 	skippedTasks: number
@@ -52,7 +53,7 @@ export async function reconstructTaskHistory(showNotifications = true): Promise<
 			})
 		}
 
-		const result = await performTaskHistoryReconstruction()
+		const result = await withTaskHistoryInventoryLock(() => performTaskHistoryReconstruction())
 
 		if (showNotifications) {
 			if (result.errors.length > 0) {
@@ -148,7 +149,7 @@ async function performTaskHistoryReconstruction(): Promise<TaskReconstructionRes
 	return result
 }
 
-function initialGoalDisplayText(messages: DiracMessage[], fallback: string): string {
+export function initialGoalDisplayText(messages: DiracMessage[], fallback: string): string {
 	const initialUserMessage = messages.find(
 		(message) =>
 			message.content.type === DiracMessageType.MARKDOWN &&
@@ -186,7 +187,7 @@ async function scanTaskDirectories(tasksDir: string): Promise<string[]> {
 	}
 }
 
-async function reconstructTaskHistoryItem(taskId: string): Promise<HistoryItem | null> {
+export async function reconstructTaskHistoryItem(taskId: string): Promise<HistoryItem | null> {
 	try {
 		// Load UI messages to extract task info
 		const diracMessages = await getSavedDiracMessages(taskId)

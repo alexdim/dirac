@@ -1,4 +1,5 @@
 import { getTasksDirectoryPath } from "@core/storage/disk"
+import { withTaskHistoryInventoryLock } from "@core/storage/taskHistory"
 import { Empty, StringArrayRequest } from "@shared/proto/dirac/common"
 import fs from "fs/promises"
 import path from "path"
@@ -37,9 +38,9 @@ export async function deleteTasksWithIds(controller: Controller, request: String
 		return Empty.create()
 	}
 
-	for (const id of request.value) {
-		await deleteTaskWithId(controller, id)
-	}
+	await withTaskHistoryInventoryLock(async () => {
+		for (const id of request.value) await deleteTaskWithId(controller, id)
+	})
 
 	return Empty.create()
 }

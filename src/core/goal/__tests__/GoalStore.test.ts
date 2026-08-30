@@ -29,15 +29,19 @@ describe("GoalStore discovery", () => {
 		}
 		await fs.writeFile(path.join(legacyDirectory, "goal.json"), JSON.stringify(legacyRecord))
 
-		assert.deepEqual(await new GoalStore().reconcileOnStartup(), [])
+		assert.deepEqual(await new GoalStore().reconcileOnStartup(), { records: [], failures: [] })
 		assert.deepEqual(JSON.parse(await fs.readFile(path.join(legacyDirectory, "goal.json"), "utf8")), legacyRecord)
 	})
 
-	it("still rejects an invalid current Goal record", async () => {
+	it("reports an invalid current Goal record without failing the complete startup scan", async () => {
 		const invalidDirectory = path.join(storagePath, "tasks", "current-goal")
 		await fs.mkdir(invalidDirectory, { recursive: true })
 		await fs.writeFile(path.join(invalidDirectory, "goal.json"), JSON.stringify({ version: 1 }))
 
-		await assert.rejects(new GoalStore().list(), /Invalid Goal state/)
+		const report = await new GoalStore().reconcileOnStartup()
+		assert.deepEqual(report.records, [])
+		assert.equal(report.failures.length, 1)
+		assert.equal(report.failures[0].goalId, "current-goal")
+		assert.match(report.failures[0].error.message, /Invalid Goal state/)
 	})
 })

@@ -139,4 +139,28 @@ describe("GoalController startup transaction", () => {
 		assert.equal(history[0].isFavorited, true)
 		assert.equal(history[0].runKind === "goal" ? history[0].status : undefined, "paused")
 	})
+
+	it("loads with the existing task history when a persisted Goal has no matching entry", async () => {
+		const store = new GoalStore()
+		await store.create("1787700000999", "01M0TW092EXA0KHTW38ZXJ1GCQ", "Missing summary")
+		const history: HistoryItem[] = [
+			{ id: "existing-task", ts: 1, task: "Keep me", tokensIn: 0, tokensOut: 0, totalCost: 0 },
+		]
+		const stateManager = {
+			getGlobalStateKey: () => history,
+		} as unknown as StateManager
+		const goalController = new GoalController({
+			controller: {} as Controller,
+			stateManager,
+			getStandaloneTask: () => undefined,
+			clearStandaloneTask: async () => {},
+			updateGoalHistory: async () => {
+				throw new Error("Missing Goal history must not be updated")
+			},
+			postState: async () => {},
+		})
+
+		assert.equal(await goalController.inspect(), undefined)
+		assert.deepEqual(history.map((item) => item.id), ["existing-task"])
+	})
 })

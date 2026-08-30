@@ -14,6 +14,16 @@ const goalLocks = new Map<string, Mutex>()
 
 export type GoalRecordUpdate = (record: GoalRecord, now: number) => void | Promise<void>
 
+export interface GoalStartupReconciliationFailure {
+	goalId: string
+	error: Error
+}
+
+export interface GoalStartupReconciliationReport {
+	records: GoalRecord[]
+	failures: GoalStartupReconciliationFailure[]
+}
+
 interface GoalLifecycleSnapshot {
 	status: GoalRecord["status"]
 	statusReason?: string
@@ -187,36 +197,45 @@ export class GoalStore {
 		})
 	}
 
-	async reconcileOnStartup(): Promise<GoalRecord[]> {
+	async reconcileOnStartup(): Promise<GoalStartupReconciliationReport> {
 		const taskIds = await listTaskDirectoryIds()
 		const goalIds: string[] = []
+		const failures: GoalStartupReconciliationFailure[] = []
 		for (const taskId of taskIds) {
-			if (await containsCurrentGoalRecord(taskId)) goalIds.push(taskId)
+			try {
+				if (await containsCurrentGoalRecord(taskId)) goalIds.push(taskId)
+			} catch (error) {
+				failures.push({ goalId: taskId, error: error instanceof Error ? error : new Error(String(error)) })
+			}
 		}
 		const now = this.clock()
 		assertClockTime(now)
 
 		const records: GoalRecord[] = []
 		for (const goalId of goalIds) {
-			const record = await withGoalLock(goalId, async () => {
-				const current = await readGoalRecord(goalId)
-				if (now < current.updatedAt) throw new Error(`Goal ${goalId} recovery time predates its persisted state`)
-				const interruptedChildren = interruptNonterminalGoalChildren(current, now)
-				const wasActive = isActiveGoalStatus(current.status)
-				if (wasActive) {
-					applyGoalStatusTransition(
-						current,
-						{ status: "paused", statusReason: "Paused after interrupted process restart" },
-						now,
-					)
-				}
-				if (interruptedChildren || wasActive) current.events = []
-				if (interruptedChildren && !wasActive) current.updatedAt = now
-				if (interruptedChildren || wasActive) await writeGoalRecord(current)
-				return structuredClone(current)
-			})
-			records.push(record)
+			try {
+				const record = await withGoalLock(goalId, async () => {
+					const current = await readGoalRecord(goalId)
+					if (now < current.updatedAt) throw new Error(`Goal ${goalId} recovery time predates its persisted state`)
+					const interruptedChildren = interruptNonterminalGoalChildren(current, now)
+					const wasActive = isActiveGoalStatus(current.status)
+					if (wasActive) {
+						applyGoalStatusTransition(
+							current,
+							{ status: "paused", statusReason: "Paused after interrupted process restart" },
+							now,
+						)
+					}
+					if (interruptedChildren || wasActive) current.events = []
+					if (interruptedChildren && !wasActive) current.updatedAt = now
+					if (interruptedChildren || wasActive) await writeGoalRecord(current)
+					return structuredClone(current)
+				})
+				records.push(record)
+			} catch (error) {
+				failures.push({ goalId, error: error instanceof Error ? error : new Error(String(error)) })
+			}
 		}
-		return records.sort((left, right) => left.createdAt - right.createdAt)
+		return { records: records.sort((left, right) => left.createdAt - right.createdAt), failures }
 	}
 }
