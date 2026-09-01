@@ -12,7 +12,7 @@
 
 ## What is Dirac?
 
-Dirac is an open-source coding agent for the terminal and ACP-compatible editors. It supports **dozens of providers and hundreds of models**, and combines long-running autonomous work with hash-anchored editing, AST inspection and refactoring, parallel operations, subagents, continuous steering, and configurable permission controls.
+Dirac is an efficiency-focused open-source coding agent built for complex, real-world codebases. It supports **dozens of providers and hundreds of models**, and combines long-running autonomous work with hash-anchored editing, AST inspection and refactoring, parallel operations, subagents, continuous steering, and configurable permission controls.
 
 The CLI provides an interactive terminal UI as well as scriptable plain-text and JSON modes. See the [full Dirac overview](https://github.com/dirac-run/dirac#what-is-dirac) for the feature walkthrough and reproducible harness comparison.
 
