@@ -1,4 +1,4 @@
-# Dirac, An Open-source AI coding agent for efficiently doing complex work 
+# Dirac, an Open-source AI coding agent for efficiently doing complex work 
 
 Dirac is built for long-running software-engineering work, precise codebase changes, and efficient model use.
 
