@@ -10,11 +10,11 @@
   <a href="https://discord.gg/wcYTx9BGea"><strong>Discord</strong></a>
 </p>
 
-It is a well studied phenomenon that any given model's reasoning ability degrades with the context length. If we can keep context tightly curated, we improve both accuracy and cost while making larger changes tractable in a single task.
+## What is Dirac?
 
-Dirac is an open-source coding agent built with this in mind. It reduces API costs by **64.8%** on average while producing better and faster work through hash-anchored parallel edits, AST manipulation, and a suite of advanced optimizations. Oh, and no MCP.
+Dirac is an open-source coding agent for the terminal and ACP-compatible editors. It supports **dozens of providers and hundreds of models**, and combines long-running autonomous work with hash-anchored editing, AST inspection and refactoring, parallel operations, subagents, continuous steering, and configurable permission controls.
 
-Our goal: Optimize for bang-for-the-buck on tooling with bare minimum prompting instead of going blindly minimalistic.
+The CLI provides an interactive terminal UI as well as scriptable plain-text and JSON modes. See the [full Dirac overview](https://github.com/dirac-run/dirac#what-is-dirac) for the feature walkthrough and reproducible harness comparison.
 
 ## Requirements
 
@@ -53,6 +53,26 @@ dirac --plan "Design an implementation"
 ```
 
 Interactive mode supports task approvals, follow-up messages, history, settings, model selection, skills, file mentions, image paste, and task resumption. `--auto-approve-all` keeps this interface while automatically approving actions.
+
+### Goals, custom tools, and steering
+
+Start a long-running Goal directly from an interactive terminal:
+
+```bash
+dirac "/goal Upgrade the application to the next major framework version"
+```
+
+Dirac can continue working toward that objective for hours or days, create and coordinate its own tasks, and pause when it needs input. Goals require the interactive Ink CLI; plain-text mode and ACP do not support them.
+
+Build a reusable tool without leaving the conversation:
+
+```bash
+dirac "/new-tool Build a workspace-scoped tool that checks our deployment status"
+```
+
+Dirac generates, compiles, validates, and smoke-tests the tool. Task-scoped tools are immediately available; workspace and global tools appear in the **Tools** settings and default to disabled until you enable them.
+
+While a regular task or Goal is working, type and submit another message to steer it. Dirac queues the message for the next safe model turn instead of cancelling the active work. Use `/settings` to configure low-verbosity responses, the Utility model, approval behavior, subagents, and other task features.
 
 ### Standalone mode
 
@@ -136,6 +156,7 @@ Use the executable's absolute path if the editor cannot resolve `dirac` from `PA
 ```bash
 dirac auth                         # Configure a provider and model
 dirac --acp                        # Run as an ACP agent for an editor
+dirac "/askDirac How does edit_file work?" # Ask about this installed Dirac build
 dirac history                      # Browse and resume prior tasks
 dirac config                       # Show active configuration
 dirac tools                        # List effective workspace tools
