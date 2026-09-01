@@ -29,6 +29,13 @@ const DEFAULT_TRANSCRIPT_LIMIT = 50
 const MAX_TRANSCRIPT_LIMIT = 200
 const HEARTBEAT_MS = 60_000
 
+function nextGoalChildTaskId(goal: GoalRecord, now: number): string {
+	const timestampIds = [goal.id, ...goal.children.map((child) => child.id)]
+		.filter((id) => /^\d+$/.test(id))
+		.map(Number)
+	return String(Math.max(now - 1, ...timestampIds) + 1)
+}
+
 interface LiveChild {
 	task: Task
 	run: Promise<TaskRunOutcome>
@@ -55,6 +62,7 @@ export class GoalTerminalGuardError extends Error {
 
 export interface GoalChildTaskFactoryInput {
 	id: string
+	conversationUlid: string
 	prompt: string
 	role: GoalChildRole
 	environmentFactory: ToolEnvironmentFactory
@@ -86,9 +94,11 @@ export class GoalTaskHost implements GoalChildSurfaceOwner {
 
 		return this.registryMutex.withLock(async () => {
 			if (!this.acceptingWork || this.closed) throw new Error("Goal Task host is shutting down")
-			const taskId = ulid()
+			const conversationUlid = ulid()
+			let taskId!: string
 			let record!: GoalChildRecord
 			await this.store.update(this.goalId, (goal, now) => {
+				taskId = nextGoalChildTaskId(goal, now)
 				record = {
 					id: taskId,
 					title,
@@ -105,6 +115,7 @@ export class GoalTaskHost implements GoalChildSurfaceOwner {
 			try {
 				task = await this.createTask({
 					id: taskId,
+					conversationUlid,
 					prompt,
 					role,
 					environmentFactory: new GoalChildToolEnvironmentFactory(taskId, role, this),

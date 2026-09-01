@@ -27,7 +27,7 @@ class MemoryGoalStore {
 	private now = 100
 
 	private nextUpdateFailure?: Error
-	constructor(private record: GoalRecord) { }
+	constructor(private record: GoalRecord, private readonly clockStepMs = 1) { }
 
 	failNextUpdate(error: Error): void {
 		this.nextUpdateFailure = error
@@ -45,7 +45,7 @@ class MemoryGoalStore {
 			this.nextUpdateFailure = undefined
 			throw error
 		}
-		this.now += 1
+		this.now += this.clockStepMs
 		await update(this.record, this.now)
 		this.record.updatedAt = this.now
 		return structuredClone(this.record)
@@ -113,16 +113,18 @@ function goalRecord(): GoalRecord {
 	}
 }
 
-function createHarness(heartbeatMs = 5) {
-	const store = new MemoryGoalStore(goalRecord())
+function createHarness(heartbeatMs = 5, clockStepMs = 1) {
+	const store = new MemoryGoalStore(goalRecord(), clockStepMs)
 	const tasks = new Map<string, ControlledTask>()
+	const taskInputs = new Map<string, GoalChildTaskFactoryInput>()
 	const createTask = async (input: GoalChildTaskFactoryInput): Promise<Task> => {
 		const task = new ControlledTask()
 		tasks.set(input.id, task)
+		taskInputs.set(input.id, input)
 		return task as unknown as Task
 	}
 	const host = new GoalTaskHost("goal", store as unknown as GoalStore, createTask, heartbeatMs)
-	return { host, store, tasks }
+	return { host, store, tasks, taskInputs }
 }
 
 function responseMessage(
@@ -174,14 +176,26 @@ function interactionCard(params: CardParams): ICardHandle {
 }
 
 describe("GoalTaskHost", () => {
-	it("runs children concurrently and guards terminal Goal completion with every live child", async () => {
-		const { host } = createHarness()
+	it("runs children concurrently with unique same-millisecond timestamp IDs and distinct conversation ULIDs", async () => {
+		const { host, taskInputs } = createHarness(5, 0)
 		const [first, second] = await Promise.all([
 			host.startTask({ taskTitle: "First", prompt: "Do first" }),
 			host.startTask({ taskTitle: "Second", prompt: "Do second" }),
 		])
 
+		assert.match(first.id, /^\d+$/)
+		assert.match(second.id, /^\d+$/)
 		assert.notEqual(first.id, second.id)
+		const firstInput = taskInputs.get(first.id)
+		const secondInput = taskInputs.get(second.id)
+		assert.ok(firstInput)
+		assert.ok(secondInput)
+		assert.match(firstInput.conversationUlid, /^[0-9A-HJKMNP-TV-Z]{26}$/)
+		assert.match(secondInput.conversationUlid, /^[0-9A-HJKMNP-TV-Z]{26}$/)
+		assert.notEqual(firstInput.conversationUlid, first.id)
+		assert.notEqual(secondInput.conversationUlid, second.id)
+		assert.notEqual(firstInput.conversationUlid, secondInput.conversationUlid)
+
 		await assert.rejects(
 			host.commitTerminalAttempt(async () => ({ committed: true })),
 			(error: unknown) =>

@@ -220,7 +220,7 @@ export class GoalLoop {
 		host = new GoalTaskHost(this.goalId, this.dependencies.store, async (input) =>
 			this.dependencies.taskFactory.create({
 				id: input.id,
-				conversationUlid: input.id,
+				conversationUlid: input.conversationUlid,
 				prompt: input.prompt,
 				executionProfile: "goal_child",
 				environmentFactory: input.environmentFactory,
