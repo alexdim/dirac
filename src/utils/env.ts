@@ -41,7 +41,19 @@ export async function readTextFromClipboard(): Promise<string> {
  * @param url The URL to open
  * @returns Promise that resolves when the operation is complete
  */
+const ALLOWED_OPEN_SCHEMES = ["https:", "http:"]
+
 export async function openExternal(url: string): Promise<void> {
+	let parsed: URL
+	try {
+		parsed = new URL(url)
+	} catch {
+		throw new Error(`Invalid URL: ${url}`)
+	}
+	if (!ALLOWED_OPEN_SCHEMES.includes(parsed.protocol)) {
+		throw new Error(`Blocked URL with disallowed scheme '${parsed.protocol}'`)
+	}
+
 	Logger.log("Opening browser:", url)
 	try {
 		await HostProvider.env.openExternal(StringRequest.create({ value: url }))
