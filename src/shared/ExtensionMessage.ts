@@ -73,6 +73,9 @@ export interface ToolMetadata {
 }
 
 export interface ExtensionState {
+	/** Selected presentation surface and the last operation included in a full hydration. */
+	presentationSurfaceId?: string
+	presentationOffset?: number
 	goal?: GoalViewState
 	isNewUser: boolean
 	welcomeViewCompleted: boolean

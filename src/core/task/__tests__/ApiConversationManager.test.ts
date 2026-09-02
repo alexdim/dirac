@@ -18,8 +18,8 @@ describe("ApiConversationManager steering delivery", () => {
 			taskMessenger: { upsertApiStatus: sinon.stub().resolves(), createCard: sinon.stub() },
 			messageStateHandler: {
 				addToApiConversationHistory: sinon.stub().resolves(),
-				getDiracMessages: sinon.stub().returns([]),
-				updateDiracMessage: sinon.stub().resolves(),
+				findMessageIndexById: sinon.stub().returns(0),
+				patchApiStatusById: sinon.stub().resolves(),
 			},
 			postStateToWebview: sinon.stub().resolves(),
 			onContextCompacted: sinon.stub(),
@@ -59,8 +59,8 @@ describe("ApiConversationManager steering delivery", () => {
 			taskMessenger: { upsertApiStatus: sinon.stub().resolves(), createCard: sinon.stub() },
 			messageStateHandler: {
 				addToApiConversationHistory: sinon.stub().resolves(),
-				getDiracMessages: sinon.stub().returns([]),
-				updateDiracMessage: sinon.stub().resolves(),
+				findMessageIndexById: sinon.stub().returns(0),
+				patchApiStatusById: sinon.stub().resolves(),
 			},
 			postStateToWebview: sinon.stub().resolves(),
 			taskInitializationStartTime: performance.now(),
@@ -129,8 +129,8 @@ describe("ApiConversationManager steering delivery", () => {
 			taskMessenger: { upsertApiStatus: sinon.stub().resolves(), createCard: sinon.stub() },
 			messageStateHandler: {
 				addToApiConversationHistory: sinon.stub().callsFake(async () => events.push("persisted")),
-				getDiracMessages: sinon.stub().returns([]),
-				updateDiracMessage: sinon.stub().resolves(),
+				findMessageIndexById: sinon.stub().returns(0),
+				patchApiStatusById: sinon.stub().resolves(),
 			},
 			postStateToWebview: sinon.stub().resolves(),
 			taskInitializationStartTime: performance.now(),
@@ -171,8 +171,8 @@ describe("ApiConversationManager steering delivery", () => {
 			taskMessenger: { upsertApiStatus: sinon.stub().resolves(), createCard },
 			messageStateHandler: {
 				addToApiConversationHistory,
-				getDiracMessages: sinon.stub().returns([]),
-				updateDiracMessage: sinon.stub().resolves(),
+				findMessageIndexById: sinon.stub().returns(0),
+				patchApiStatusById: sinon.stub().resolves(),
 			},
 			getPinnedContext: () => "retain this pinned context",
 			postStateToWebview: sinon.stub().resolves(),
@@ -322,8 +322,8 @@ describe("ApiConversationManager steering delivery", () => {
 				overwriteApiConversationProviderState: sinon.stub().callsFake(async (state: any) => {
 					providerState = state
 				}),
-				getDiracMessages: sinon.stub().returns([]),
-				updateDiracMessage: sinon.stub().resolves(),
+				findMessageIndexById: sinon.stub().returns(0),
+				patchApiStatusById: sinon.stub().resolves(),
 			},
 			postStateToWebview: sinon.stub().resolves(),
 			taskInitializationStartTime: performance.now(),

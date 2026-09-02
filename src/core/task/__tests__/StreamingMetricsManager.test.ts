@@ -22,6 +22,14 @@ describe("StreamingMetricsManager", () => {
 			cacheWriteTokens: 3,
 			cacheReadTokens: 4,
 			totalCost: undefined,
+			availability: {
+				inputTokens: true,
+				outputTokens: true,
+				reasoningTokens: true,
+				cacheWrites: true,
+				cacheReads: true,
+				cost: false,
+			},
 		})
 	})
 
@@ -81,7 +89,10 @@ describe("StreamingMetricsManager", () => {
 		}
 		const messageStateHandler = {
 			getDiracMessages: () => [message],
-			updateDiracMessage: async (_index: number, update: object) => Object.assign(message, update),
+			patchApiStatusById: async (_id: string, patch: object, deletions: string[]) => {
+				Object.assign(message.content.status, patch)
+				for (const key of deletions) delete (message.content.status as Record<string, unknown>)[key]
+			},
 		} as any
 		const api = {
 			getModel: () => ({ info: { contextWindow: 1_048_576 } }),

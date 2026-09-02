@@ -19,11 +19,14 @@ import { Task } from "../index"
 describe("Task (original)", () => {
 	let sandbox: sinon.SinonSandbox
 	let tempDir: string
+	let previousDiracDir: string | undefined
 
 	beforeEach(async () => {
 		sandbox = sinon.createSandbox()
 		tempDir = path.join(os.tmpdir(), `dirac-test-${Date.now()}-${Math.random().toString(36).slice(2)}`)
 		await fs.mkdir(tempDir, { recursive: true })
+		previousDiracDir = process.env.DIRAC_DIR
+		process.env.DIRAC_DIR = tempDir
 
 		sandbox.stub(HostProvider, "get").returns({
 			createDiffViewProvider: () => null,
@@ -60,6 +63,7 @@ describe("Task (original)", () => {
 			getWorkspaceStateKey: sandbox.stub().returns(undefined),
 			setGlobalState: sandbox.stub(),
 			setTaskSettingsBatch: sandbox.stub(),
+			flushPendingState: sandbox.stub().resolves(),
 			loadTaskSettings: sandbox.stub().resolves(),
 			getApiConfiguration: sandbox.stub().returns({
 				planModeApiProvider: "anthropic",
@@ -82,6 +86,8 @@ describe("Task (original)", () => {
 
 	afterEach(async () => {
 		sandbox.restore()
+		if (previousDiracDir === undefined) delete process.env.DIRAC_DIR
+		else process.env.DIRAC_DIR = previousDiracDir
 		try {
 			await fs.rm(tempDir, { recursive: true, force: true })
 		} catch { }
@@ -472,7 +478,7 @@ describe("Task (original)", () => {
 			taskLockAcquired: false,
 			workingConfiguration: StateManager.get().captureEffectiveTaskConfiguration(),
 		})
-		await t.resetTransientState().should.not.be.rejected()
+		await t.resetTransientState()
 	})
 
 	it("executeCommandTool does not throw for valid command", () => {
@@ -571,6 +577,7 @@ describe("Task (original)", () => {
 		task.taskState.apiErrorRetryAttempts = 3
 		task.messageStateHandler = {
 			getDiracMessages: () => [],
+			getLatestApiStatusMessage: () => undefined,
 			updateDiracMessage: sandbox.stub().resolves(),
 		}
 		task.taskMessenger = {

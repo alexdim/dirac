@@ -1,4 +1,5 @@
 import { sendRelinquishControlEvent } from "@core/controller/ui/subscribeToRelinquishControl"
+import { getPresentationHistoryAtMessage } from "@core/storage/disk"
 import { findLastIndex } from "@shared/array"
 import { combineCardSequences } from "@shared/combineCardSequences"
 import { DiracMessage } from "@shared/ExtensionMessage"
@@ -258,7 +259,12 @@ export class CheckpointRestoreHandler {
 					}
 				}
 
-				const newDiracMessages = diracMessages.slice(0, messageIndex + 1)
+				const newDiracMessages = await getPresentationHistoryAtMessage(this.config.taskId, message.id)
+				const restoredCheckpointMessage = newDiracMessages.at(-1)
+				if (restoredCheckpointMessage?.id === message.id) {
+					restoredCheckpointMessage.lastCheckpointHash = message.lastCheckpointHash
+					restoredCheckpointMessage.isCheckpointCheckedOut = message.isCheckpointCheckedOut
+				}
 				await this.services.messageStateHandler.overwriteDiracMessages(newDiracMessages)
 
 				await this.callbacks.taskMessenger.upsertApiStatus({
@@ -304,9 +310,13 @@ export class CheckpointRestoreHandler {
 			// Set isCheckpointCheckedOut flag on the message
 			const checkpointMessages = this.services.messageStateHandler.getDiracMessages().filter((m) => m.lastCheckpointHash)
 			const currentMessageIndex = checkpointMessages.findIndex((m) => m.id === messageId)
-			checkpointMessages.forEach((m, i) => {
-				m.isCheckpointCheckedOut = i === currentMessageIndex
-			})
+			for (let index = 0; index < checkpointMessages.length; index++) {
+				const checkpointMessage = checkpointMessages[index]
+				const isCheckpointCheckedOut = index === currentMessageIndex
+				if (checkpointMessage.isCheckpointCheckedOut !== isCheckpointCheckedOut) {
+					await this.services.messageStateHandler.patchMessageById(checkpointMessage.id, { isCheckpointCheckedOut })
+				}
+			}
 		}
 
 		await this.services.messageStateHandler.saveDiracMessagesAndUpdateHistory()

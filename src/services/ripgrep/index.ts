@@ -214,7 +214,7 @@ export async function regexSearchFiles(
 	excludeFilePatterns?: string[],
 	debugLog?: RipgrepDebugLog,
 	includeAnchors?: boolean,
-	onAnchorStateChanged?: () => void,
+	onAnchorStateChanged?: (absolutePath: string) => void,
 	signal?: AbortSignal,
 ): Promise<string> {
 	// Limit context lines to 10
@@ -338,7 +338,7 @@ export async function formatResults(
 	cwd: string,
 	anchorTaskId?: string,
 	includeAnchors?: boolean,
-	onAnchorStateChanged?: () => void,
+	onAnchorStateChanged?: (absolutePath: string) => void,
 ): Promise<string> {
 	let output = matchCount >= MAX_RESULTS
 		? `Showing first ${MAX_RESULTS} of ${matchCount.toLocaleString()}+ results. Use a more specific search if necessary.\n\n`
@@ -357,7 +357,7 @@ export async function formatResults(
 				currentLines = (await fs.readFile(absoluteFilePath, "utf8")).split(/\r?\n/)
 				const result = AnchorStateManager.reconcileWithChanges(absoluteFilePath, currentLines, anchorTaskId)
 				anchors = result.anchors
-				if (result.changed) onAnchorStateChanged?.()
+				if (result.changed) onAnchorStateChanged?.(absoluteFilePath)
 			} catch (error) {
 				Logger.error(`Error reading file for search anchors: ${absoluteFilePath}`, error)
 				const message = `${relPath}\n[Anchored results unavailable because the file could not be reread. Rerun search_files.]\n\n`

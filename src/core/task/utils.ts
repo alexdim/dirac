@@ -85,7 +85,6 @@ export const updateApiReqMsg = async (params: UpdateApiReqMsgParams) => {
 	}
 
 	const currentApiReqInfo: DiracApiReqInfo = msg.content.status
-	delete currentApiReqInfo.retryStatus // Clear retry status when request is finalized
 
 	const cost =
 		params.totalCost ??
@@ -97,31 +96,28 @@ export const updateApiReqMsg = async (params: UpdateApiReqMsgParams) => {
 			reasoningTokens: params.reasoningTokens,
 			api: params.api,
 		})
-	await params.messageStateHandler.updateDiracMessage(params.lastApiReqIndex, {
-		content: {
-			type: DiracMessageType.API_STATUS,
+	const patch: Partial<DiracApiReqInfo> = {
+		tokensIn: Math.max(params.inputTokens, currentApiReqInfo.tokensIn ?? 0),
+		tokensOut: Math.max(params.outputTokens, currentApiReqInfo.tokensOut ?? 0),
+		reasoningTokens: Math.max(params.reasoningTokens, currentApiReqInfo.reasoningTokens ?? 0),
+		cacheWrites: Math.max(params.cacheWriteTokens, currentApiReqInfo.cacheWrites ?? 0),
+		cacheReads: Math.max(params.cacheReadTokens, currentApiReqInfo.cacheReads ?? 0),
+	}
+	const deletions: (keyof DiracApiReqInfo)[] = ["retryStatus"]
 
-			status: {
-				...currentApiReqInfo, // Spread the modified info (with retryStatus removed)
-				tokensIn: Math.max(params.inputTokens, currentApiReqInfo.tokensIn ?? 0),
-				tokensOut: Math.max(params.outputTokens, currentApiReqInfo.tokensOut ?? 0),
-				reasoningTokens: Math.max(params.reasoningTokens, currentApiReqInfo.reasoningTokens ?? 0),
-				cacheWrites: Math.max(params.cacheWriteTokens, currentApiReqInfo.cacheWrites ?? 0),
-				cacheReads: Math.max(params.cacheReadTokens, currentApiReqInfo.cacheReads ?? 0),
-				cost,
-				...(params.usageAvailability
-					? { usageAvailability: { ...params.usageAvailability, cost: cost !== undefined } }
-					: {}),
-				cancelReason: params.cancelReason,
-				streamingFailedMessage: params.streamingFailedMessage,
-				contextWindow: params.contextWindow ?? currentApiReqInfo.contextWindow,
-				contextUsagePercentage: params.contextUsagePercentage ?? currentApiReqInfo.contextUsagePercentage,
-			} satisfies DiracApiReqInfo,
-		},
-	})
+	if (cost === undefined) deletions.push("cost")
+	else patch.cost = cost
+	if (params.usageAvailability) {
+		patch.usageAvailability = { ...params.usageAvailability, cost: cost !== undefined }
+	}
+	if (params.cancelReason === undefined) deletions.push("cancelReason")
+	else patch.cancelReason = params.cancelReason
+	if (params.streamingFailedMessage === undefined) deletions.push("streamingFailedMessage")
+	else patch.streamingFailedMessage = params.streamingFailedMessage
+	if (params.contextWindow !== undefined) patch.contextWindow = params.contextWindow
+	if (params.contextUsagePercentage !== undefined) patch.contextUsagePercentage = params.contextUsagePercentage
 
-	// Ensure UI is updated
-	const updatedMsg = params.messageStateHandler.getDiracMessages()[params.lastApiReqIndex]
+	await params.messageStateHandler.patchApiStatusById(msg.id, patch, deletions)
 }
 
 /**

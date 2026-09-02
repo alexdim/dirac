@@ -8,6 +8,7 @@ export interface TaskMessengerDependencies {
 	taskState: TaskState
 	messageStateHandler: MessageStateHandler
 	postStateToWebview: () => Promise<void>
+	postPresentationToWebview?: () => Promise<void>
 	getWorkingConfiguration: () => TaskWorkingConfiguration
 	getRequestRuntime?: () => TaskRequestRuntime | undefined
 	taskId: string

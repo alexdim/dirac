@@ -592,8 +592,7 @@ describe("disk - atomic writes", () => {
 
 			const filePath = await getTaskHistoryStateFilePath()
 			await fs.writeFile(filePath, "{not-json", "utf8")
-			const showMessage = HostProvider.window.showMessage as sinon.SinonStub
-			showMessage.resetHistory()
+			const showMessage = sandbox.stub(HostProvider.window, "showMessage").resolves(undefined as any)
 
 			const result = await readTaskHistoryFromState()
 
@@ -896,12 +895,11 @@ describe("disk - core read/write/mkdir operations", () => {
 			result.should.have.length(0)
 		})
 
-		it("saveApiConversationHistory does not throw on write failure (swallows error)", async () => {
+		it("saveApiConversationHistory propagates write failures", async () => {
 			expectLoggerErrors()
 			const taskId = `api-fail-${Date.now()}`
 			sandbox.stub(fs, "writeFile").rejects(new Error("disk full"))
-			// Should not throw - error is logged and swallowed
-			await saveApiConversationHistory(taskId, [{ role: "user", content: "x" }])
+			await saveApiConversationHistory(taskId, [{ role: "user", content: "x" }]).should.be.rejectedWith("disk full")
 		})
 	})
 
@@ -926,11 +924,11 @@ describe("disk - core read/write/mkdir operations", () => {
 			result.should.deepEqual(messages)
 		})
 
-		it("saveDiracMessages does not throw on write failure (swallows error)", async () => {
+		it("saveDiracMessages propagates write failures", async () => {
 			expectLoggerErrors()
 			const taskId = `dirac-fail-${Date.now()}`
 			sandbox.stub(fs, "writeFile").rejects(new Error("disk full"))
-			await saveDiracMessages(taskId, [{ ask: "test" } as any])
+			await saveDiracMessages(taskId, [{ ask: "test" } as any]).should.be.rejectedWith("disk full")
 		})
 
 		it("migrates a readable transcript from the legacy filename", async () => {
@@ -961,7 +959,13 @@ describe("disk - core read/write/mkdir operations", () => {
 			const newPath = path.join(taskDir, "ui_messages.json")
 			await fs.writeFile(oldPath, JSON.stringify([{ ts: Date.now(), type: "say", say: "task", text: "old task" }]))
 
-			await getSavedDiracMessages(taskId).should.be.rejectedWith("unsupported or unreadable format")
+			let failure: unknown
+			try {
+				await getSavedDiracMessages(taskId)
+			} catch (error) {
+				failure = error
+			}
+			String(failure).should.containEql("unsupported or unreadable format")
 			await fs.access(oldPath)
 			await fs.access(newPath).should.be.rejected()
 		})

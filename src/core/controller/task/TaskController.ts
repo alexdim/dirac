@@ -13,7 +13,7 @@ import { Logger } from "@/shared/services/Logger"
 import { getCwd, getDesktopDir } from "@/utils/path"
 import type { StateManager } from "../../storage/StateManager"
 import { Task } from "../../task"
-import type { TaskRunOutcome } from "../../task/TaskRunOutcome"
+import { deserializeTaskError, type TaskRunOutcome } from "../../task/TaskRunOutcome"
 import { releaseTaskLock, tryAcquireTaskLockWithRetry } from "../../task/TaskLockUtils"
 import { detectWorkspaceRoots } from "../../workspace/detection"
 import { setupWorkspaceManager } from "../../workspace/setup"
@@ -42,6 +42,7 @@ export interface ITaskControllerDependencies {
 	backgroundCommandTaskId?: string
 	cancelInProgress: boolean
 	postStateToWebview: () => Promise<void>
+	postPresentationToWebview?: () => Promise<void>
 	updateTaskHistory: (item: HistoryItem) => Promise<HistoryItem[]>
 	deleteTaskFromState: (id: string) => Promise<any>
 	getTaskWithId: (id: string) => Promise<{
@@ -177,21 +178,22 @@ export class TaskController {
 			rejectRestore = reject
 		})
 
-		const run = this.runTaskWithReplacement(
-			task,
-			task.resumeTaskFromHistory(() => {
-				didRestore = true
-				resolveRestore()
-			}),
-		)
+		const taskRun = task.resumeTaskFromHistory(() => {
+			didRestore = true
+			resolveRestore()
+		})
+		const run = this.runTaskWithReplacement(task, taskRun)
 		this.trackTaskRun(run)
-		void run.then(
-			() => {
-				if (!didRestore) rejectRestore(new Error(`Task ${task.taskId} ended before its history was restored`))
+		void taskRun.then(
+			(outcome) => {
+				if (didRestore) return
+				if (outcome.kind === "failed") {
+					rejectRestore(deserializeTaskError(outcome.error))
+					return
+				}
+				rejectRestore(new Error(`Task ${task.taskId} ended before its history was restored`))
 			},
-			(error) => {
-				if (!didRestore) rejectRestore(error)
-			},
+			(error) => rejectRestore(error),
 		)
 
 		try {
@@ -311,6 +313,7 @@ export class TaskController {
 				controller,
 				updateTaskHistory: (historyItem) => this.deps.updateTaskHistory(historyItem),
 				postStateToWebview: () => this.deps.postStateToWebview(),
+				postPresentationToWebview: () => (this.deps.postPresentationToWebview ?? this.deps.postStateToWebview)(),
 				reinitExistingTaskFromId: (taskId) => this.reinitExistingTaskFromId(taskId),
 				cancelTask: () => this.cancelTask(),
 				shellIntegrationTimeout: settings.shellIntegrationTimeout,

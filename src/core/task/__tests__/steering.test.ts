@@ -17,8 +17,14 @@ function createSteerableTask() {
 	task.messageStateHandler = {
 		addToDiracMessages: sinon.stub().callsFake(async (message) => messages.push(message)),
 		findMessageIndexById: sinon.stub().callsFake((id: string) => messages.findIndex((message) => message.id === id)),
+		getMessageById: sinon.stub().callsFake((id: string) => messages.find((message) => message.id === id)),
 		getDiracMessages: sinon.stub().callsFake(() => messages),
 		updateDiracMessage: sinon.stub().callsFake(async (index: number, update: any) => Object.assign(messages[index], update)),
+		patchMarkdownById: sinon.stub().callsFake(async (id: string, patch: any) => {
+			const message = messages.find((candidate) => candidate.id === id)
+			if (!message || message.content.type !== DiracMessageType.MARKDOWN) throw new Error(`Markdown ${id} not found`)
+			Object.assign(message.content, patch)
+		}),
 	}
 	task.messageStateHandler.getApiConversationHistory = sinon.stub().callsFake(() => task.apiConversationHistory)
 	task.messageStateHandler.getApiConversationProviderState = sinon.stub().returns({})
@@ -316,7 +322,7 @@ describe("Task steering inbox", () => {
 		const outboundUserMessage = { role: "user", content: [toolResult] }
 		task.apiConversationHistory.push(persistedUserMessage)
 		await task.enqueueSteeringMessage("Persist exactly once")
-		task.messageStateHandler.updateDiracMessage.rejects(new Error("transcript update failed"))
+		task.messageStateHandler.patchMarkdownById.rejects(new Error("transcript update failed"))
 
 		await assert.rejects(task.appendQueuedSteeringToNextApiRequest([outboundUserMessage]), /transcript update failed/)
 

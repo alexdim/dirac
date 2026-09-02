@@ -17,6 +17,7 @@ interface ModularMarkdownProps {
 	images?: string[]
 	files?: string[]
 	partial?: boolean
+	streamingMessageId?: string
 	isExpanded?: boolean
 	onToggleExpand?: () => void
 	onAskForUpdate?: () => void
@@ -32,6 +33,7 @@ export const ModularMarkdown = memo(
 		images,
 		files,
 		partial,
+		streamingMessageId,
 		isExpanded,
 		onToggleExpand,
 		onAskForUpdate,
@@ -51,6 +53,7 @@ export const ModularMarkdown = memo(
 					reasoningContent={content}
 					showChevron={true}
 					showTitle={true}
+					streamingMessageId={streamingMessageId}
 					onAskForUpdate={onAskForUpdate}
 					title={partial ? "Thinking..." : "Thinking"}
 				/>

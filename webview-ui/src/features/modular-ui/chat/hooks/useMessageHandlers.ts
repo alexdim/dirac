@@ -26,8 +26,15 @@ export function useMessageHandlers(chatState: ChatState): MessageHandlers {
 		setSendingDisabled,
 		uiActionState,
 		lastMessage,
-		messages,
 	} = chatState
+	const activeCard = useChatStore((state) => {
+		const activeCardId = state.uiActionState?.activeCardId
+		const activeCardIndex = activeCardId ? state.messageIndexById.get(activeCardId) : undefined
+		const message = activeCardIndex === undefined ? undefined : state.diracMessages[activeCardIndex]
+		return message?.content.type === DiracMessageType.CARD && !isFinalStatus(message.content.card.status)
+			? message
+			: undefined
+	})
 	const cancelInFlightRef = useRef(false)
 
 	// Handle sending a message
@@ -45,12 +52,6 @@ export function useMessageHandlers(chatState: ChatState): MessageHandlers {
 				const suffix = "\n[/context] \n\n"
 				finalMessage = `${prefix} ${formattedQuote} ${suffix} ${messageToSend}`
 			}
-			const activeCard = messages.find(
-				(message) =>
-					message.id === uiActionState?.activeCardId &&
-					message.content.type === DiracMessageType.CARD &&
-					!isFinalStatus(message.content.card.status),
-			)
 			const activeCardKind =
 				activeCard?.content.type === DiracMessageType.CARD
 					? getCardKind(activeCard.content.card)
@@ -151,7 +152,7 @@ export function useMessageHandlers(chatState: ChatState): MessageHandlers {
 			setSelectedFiles,
 			setExpandTaskHeader,
 			uiActionState,
-			messages,
+			activeCard,
 		],
 	)
 

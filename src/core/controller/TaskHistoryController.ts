@@ -1,6 +1,12 @@
 import type { Anthropic } from "@anthropic-ai/sdk"
 import { GoalStore } from "@core/goal/GoalStore"
-import { deleteTaskDirectory, ensureCacheDirectoryExists, GlobalFileNames, getTaskDirectoryPath } from "@core/storage/disk"
+import {
+	deleteTaskDirectory,
+	ensureCacheDirectoryExists,
+	GlobalFileNames,
+	getSavedApiConversationHistory,
+	getTaskDirectoryPath,
+} from "@core/storage/disk"
 import { isActiveGoalStatus } from "@shared/goal"
 import {
 	type GoalHistoryItem,
@@ -70,9 +76,15 @@ export class TaskHistoryController {
 			const uiMessagesFilePath = path.join(taskDirPath, GlobalFileNames.uiMessages)
 			const contextHistoryFilePath = path.join(taskDirPath, GlobalFileNames.contextHistory)
 			const taskMetadataFilePath = path.join(taskDirPath, GlobalFileNames.taskMetadata)
-			const fileExists = await fileExistsAtPath(apiConversationHistoryFilePath)
-			if (fileExists) {
-				const apiConversationHistory = JSON.parse(await fs.readFile(apiConversationHistoryFilePath, "utf8"))
+			const hasConversationHistory = (
+				await Promise.all([
+					fileExistsAtPath(apiConversationHistoryFilePath),
+					fileExistsAtPath(path.join(taskDirPath, GlobalFileNames.apiConversationHistoryBaseline)),
+					fileExistsAtPath(path.join(taskDirPath, GlobalFileNames.apiConversationHistoryOperations)),
+				])
+			).some(Boolean)
+			if (hasConversationHistory) {
+				const apiConversationHistory = await getSavedApiConversationHistory(id)
 				return {
 					historyItem,
 					taskDirPath,

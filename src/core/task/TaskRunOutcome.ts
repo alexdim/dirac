@@ -17,3 +17,10 @@ export function serializeTaskError(error: unknown): SerializedTaskError {
 		return { name: error.name, message: error.message, ...(error.stack ? { stack: error.stack } : {}) }
 	return { name: "Error", message: String(error) }
 }
+
+export function deserializeTaskError(serialized: SerializedTaskError): Error {
+	const error = new Error(serialized.message)
+	error.name = serialized.name
+	if (serialized.stack !== undefined) error.stack = serialized.stack
+	return error
+}

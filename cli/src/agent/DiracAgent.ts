@@ -43,7 +43,7 @@ import { Controller } from "@/core/controller"
 import { getAvailableSlashCommands } from "@/core/controller/slash/getAvailableSlashCommands"
 import { CommandPermissionController } from "@/core/permissions/CommandPermissionController.js"
 import type { ToolPermissionRule } from "@/core/permissions/types.js"
-import { setRuntimeHooksDir } from "@/core/storage/disk"
+import { getSavedDiracMessages, setRuntimeHooksDir } from "@/core/storage/disk"
 import { StateManager } from "@/core/storage/StateManager"
 import { withTaskHistoryInventoryLock } from "@/core/storage/taskHistory"
 import { AuthHandler } from "@/hosts/external/AuthHandler.js"
@@ -472,7 +472,7 @@ export class DiracAgent implements acp.Agent {
 		const controller =
 			this.#sessionControllers.get(session) ?? (session as DiracAcpSession & { controller?: Controller }).controller
 		const task = controller?.task
-		const message = task?.messageStateHandler.getDiracMessages().find((candidate) => candidate.id === messageId)
+		const message = task?.messageStateHandler.getMessageById(messageId)
 		if (!message) throw new Error(`Message not found: ${messageId}`)
 		const content = this.pinnedContentFromMessage(message)
 		if (!content) throw new Error(`Message cannot be pinned: ${messageId}`)
@@ -589,8 +589,8 @@ export class DiracAgent implements acp.Agent {
 		}
 
 		const taskId = session.loadedTaskId ?? getLatestTaskIdForSession(sessionId) ?? sessionId
-		const { uiMessagesFilePath } = await controller.getTaskWithId(taskId)
-		const messages: DiracMessage[] = JSON.parse(await fs.readFile(uiMessagesFilePath, "utf8"))
+		await controller.getTaskWithId(taskId)
+		const messages = await getSavedDiracMessages(taskId)
 		return workspaceCheckpointsFromMessages(messages)
 	}
 
@@ -2254,9 +2254,8 @@ export class DiracAgent implements acp.Agent {
 		if (!taskId) return
 		let uiMessages: DiracMessage[]
 		try {
-			const { uiMessagesFilePath } = await controller.getTaskWithId(taskId)
-			const raw = await fs.readFile(uiMessagesFilePath, "utf8")
-			uiMessages = JSON.parse(raw)
+			await controller.getTaskWithId(taskId)
+			uiMessages = await getSavedDiracMessages(taskId)
 		} catch (error) {
 			Logger.debug("[DiracAgent] replayLoadedSessionHistory: could not read ui_messages:", error)
 			return
@@ -2486,7 +2485,7 @@ export class DiracAgent implements acp.Agent {
 		})
 
 		// Find the message matching the checkpoint ID (DiracMessage.id / toolCallId)
-		const message = controller.task?.messageStateHandler.getDiracMessages().find((m) => m.id === checkpointId)
+		const message = controller.task?.messageStateHandler.getMessageById(checkpointId)
 
 		if (message && controller.task?.checkpointManager) {
 			await controller.task.checkpointManager.restoreCheckpoint(message.id, restoreType as any, offset)

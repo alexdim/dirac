@@ -165,8 +165,8 @@ describe("LifecycleManager", () => {
 	describe("resumeTaskFromHistory", () => {
 		function setupDiskMocks(messages: any[] = [], history: any[] = [], providerState: any = {}) {
 			const diskModule = require("@core/storage/disk")
-			sinon.stub(diskModule, "getSavedDiracMessages").resolves(messages)
-			sinon.stub(diskModule, "getSavedApiConversationHistory").resolves(history)
+			sinon.stub(diskModule, "getSavedPresentationHistory").resolves({ messages, lastOffset: -1 })
+			sinon.stub(diskModule, "getSavedApiConversationState").resolves({ messages: history, lastOffset: -1 })
 			sinon.stub(diskModule, "getSavedApiConversationProviderState").resolves(providerState)
 			sinon.stub(diskModule, "ensureTaskDirectoryExists").resolves("/test/task")
 			sinon.stub(diskModule, "getTaskMetadata").resolves({
@@ -218,7 +218,7 @@ describe("LifecycleManager", () => {
 			sinon.assert.notCalled(deps.hookManager.runUserPromptSubmitHook)
 			const resumedContent = deps.initiateTaskLoop.firstCall.args[0]
 			const systemContext = resumedContent.find((block: any) => block.text?.includes("<system_context"))
-			systemContext.text.should.contain("Resume the Goal from durable state.")
+			String(systemContext.text).should.containEql("Resume the Goal from durable state.")
 				; (systemContext.isUserInput === undefined).should.equal(true)
 		})
 
@@ -242,7 +242,7 @@ describe("LifecycleManager", () => {
 			const resumedContent = deps.initiateTaskLoop.firstCall.args[0]
 			resumedContent.some((block: any) => block.text?.includes("Keep the durable Goal status unchanged.")).should.equal(true)
 			const userResponse = resumedContent.find((block: any) => block.text?.includes("<user_message>"))
-			userResponse.text.should.contain("Explain what changed")
+			String(userResponse.text).should.containEql("Explain what changed")
 			userResponse.isUserInput.should.equal(true)
 		})
 
@@ -252,8 +252,8 @@ describe("LifecycleManager", () => {
 			const messages = new Promise<any[]>((resolve) => {
 				releaseMessages = resolve
 			})
-			sinon.stub(diskModule, "getSavedDiracMessages").returns(messages)
-			sinon.stub(diskModule, "getSavedApiConversationHistory").resolves([])
+			sinon.stub(diskModule, "getSavedPresentationHistory").returns(Promise.resolve({ messages, lastOffset: -1 }))
+			sinon.stub(diskModule, "getSavedApiConversationState").resolves({ messages: [], lastOffset: -1 })
 			sinon.stub(diskModule, "getSavedApiConversationProviderState").resolves({})
 			sinon.stub(diskModule, "ensureTaskDirectoryExists").resolves("/test/task")
 			sinon.stub(diskModule, "getTaskMetadata").resolves({
@@ -342,7 +342,6 @@ describe("LifecycleManager", () => {
 		it("sets taskState to initialized and not aborted", async () => {
 			setupDiskMocks()
 			unblockWaitFor()
-			deps.taskState.abort = true
 			await manager.resumeTaskFromHistory()
 			deps.taskState.isInitialized.should.equal(true)
 		})
@@ -570,9 +569,11 @@ describe("LifecycleManager", () => {
 		it("persists retry-card cancellation through the message state API", async () => {
 			deps.messageStateHandler.setDiracMessages([
 				{
+					id: "retry-message",
 					content: {
 						type: DiracMessageType.CARD,
 						card: {
+							id: "retry-card",
 							header: "API Error (Retrying)",
 							body: "API Error (attempt 2/3). Retrying in 2s...",
 							status: CardStatus.PENDING,
@@ -583,10 +584,11 @@ describe("LifecycleManager", () => {
 
 			await manager.abortTask()
 
-			sinon.assert.calledOnce(deps.messageStateHandler.updateDiracMessage)
-			const update = deps.messageStateHandler.updateDiracMessage.firstCall.args[1]
-			update.content.card.header.should.equal("API Error (Cancelled)")
-			update.content.card.status.should.equal(CardStatus.CANCELLED)
+			sinon.assert.calledOnceWithExactly(
+				deps.messageStateHandler.patchCardById,
+				"retry-card",
+				sinon.match({ header: "API Error (Cancelled)", status: CardStatus.CANCELLED }),
+			)
 		})
 
 		it("runs the abort lifecycle once and preserves the later persistence barrier", async () => {
@@ -595,7 +597,7 @@ describe("LifecycleManager", () => {
 
 			sinon.assert.calledOnce(deps.hookManager.shouldRunTaskCancelHook)
 			sinon.assert.calledOnce(deps.terminalManager.disposeAll)
-			sinon.assert.calledOnce(deps.messageStateHandler.flushPendingWrites)
+			sinon.assert.callCount(deps.messageStateHandler.flushPendingWrites, 2)
 		})
 	})
 })
@@ -635,6 +637,7 @@ function createMockDeps(): any {
 				apiConversationProviderState = state
 			}),
 			updateDiracMessage: sinon.stub(),
+			patchCardById: sinon.stub(),
 			saveDiracMessagesAndUpdateHistory: sinon.stub(),
 			flushPendingWrites: sinon.stub().resolves(),
 		},

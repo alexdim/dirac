@@ -114,6 +114,8 @@ function makeFakeTask(overrides?: { taskId?: string; cwd?: string; diracMessages
 		},
 		messageStateHandler: {
 			getDiracMessages: () => overrides?.diracMessages ?? [],
+			getMessageById: (id: string) => overrides?.diracMessages?.find((message) => message.id === id),
+			getPresentationOffset: () => 0,
 		},
 	}
 }
@@ -551,7 +553,7 @@ describe("getStateToPostToWebview", () => {
 			stateManager.getGlobalStateKey = sinon.stub().callsFake((key: string) => {
 				if (key === "lastDismissedInfoBannerVersion") return undefined
 				if (key === "taskHistory") return []
-				return {}
+				return undefined
 			})
 			const state = await getStateToPostToWebview({ stateManager, backgroundCommandRunning: false })
 			expect(state.lastDismissedInfoBannerVersion).to.equal(0)
@@ -562,7 +564,7 @@ describe("getStateToPostToWebview", () => {
 			stateManager.getGlobalStateKey = sinon.stub().callsFake((key: string) => {
 				if (key === "welcomeViewCompleted") return "truthy"
 				if (key === "taskHistory") return []
-				return {}
+				return undefined
 			})
 			const state = await getStateToPostToWebview({ stateManager, backgroundCommandRunning: false })
 			expect(state.welcomeViewCompleted).to.equal(true)

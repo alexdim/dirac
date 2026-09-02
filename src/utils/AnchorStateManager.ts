@@ -28,7 +28,7 @@ export interface PersistedAnchorState {
 export class AnchorStateManager {
 	private static storage = new Map<string, Map<string, TrackedDocument>>()
 	private static dictionary: string[] = []
-	private static readonly MAX_TRACKED_FILES = 1024
+	public static readonly MAX_TRACKED_FILES = 1024
 	private static readonly MAX_TRACKED_TASKS = 50
 
 	private static computeHashes(lines: string[]): Uint32Array {
@@ -238,6 +238,19 @@ export class AnchorStateManager {
 			availablePool: [...document.availablePool],
 		}))
 		return { version: 1, documents }
+	}
+
+	/** Serializes one tracked file without visiting unrelated anchor documents. */
+	public static exportDocument(absolutePath: string, taskId = "default"): PersistedAnchorDocument | undefined {
+		const document = AnchorStateManager.getTaskState(taskId).get(absolutePath)
+		if (!document) return undefined
+		return {
+			absolutePath,
+			hashes: Array.from(document.hashes),
+			anchors: [...document.anchors],
+			usedWords: Array.from(document.usedWords),
+			availablePool: [...document.availablePool],
+		}
 	}
 
 	private static validatePersistedDocument(document: PersistedAnchorDocument, seenPaths: Set<string>): void {

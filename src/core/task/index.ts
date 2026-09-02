@@ -127,6 +127,7 @@ export type TaskParams = {
 	controller: Controller
 	updateTaskHistory: (historyItem: HistoryItem) => Promise<HistoryItem[]>
 	postStateToWebview: () => Promise<void>
+	postPresentationToWebview?: () => Promise<void>
 	reinitExistingTaskFromId: (taskId: string) => Promise<void>
 	cancelTask: () => Promise<void>
 	shellIntegrationTimeout: number
@@ -388,6 +389,7 @@ export class Task {
 	// Callbacks
 	private updateTaskHistory: (historyItem: HistoryItem) => Promise<HistoryItem[]>
 	private postStateToWebview: () => Promise<void>
+	private postPresentationToWebview: () => Promise<void>
 	private reinitExistingTaskFromId: (taskId: string) => Promise<void>
 	private cancelTask: () => Promise<void>
 
@@ -412,6 +414,7 @@ export class Task {
 			controller,
 			updateTaskHistory,
 			postStateToWebview,
+			postPresentationToWebview,
 			reinitExistingTaskFromId,
 			cancelTask,
 			shellIntegrationTimeout,
@@ -445,6 +448,7 @@ export class Task {
 		this.controller = controller
 		this.updateTaskHistory = updateTaskHistory
 		this.postStateToWebview = postStateToWebview
+		this.postPresentationToWebview = postPresentationToWebview ?? postStateToWebview
 		this.reinitExistingTaskFromId = reinitExistingTaskFromId
 		this.cancelTask = cancelTask
 		this.stateManager = stateManager
@@ -489,6 +493,7 @@ export class Task {
 			taskState: this.taskState,
 			messageStateHandler: this.messageStateHandler,
 			postStateToWebview: this.postStateToWebview,
+			postPresentationToWebview: this.postPresentationToWebview,
 			getWorkingConfiguration: () => this.activeRequestRuntime?.workingConfiguration ?? this.workingConfiguration,
 			getRequestRuntime: () => this.activeRequestRuntime,
 			taskId: this.taskId,

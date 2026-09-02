@@ -45,7 +45,7 @@ export function buildSystemTrait(
 				options?.excludeFilePatterns,
 				options?.debugLog,
 				options?.includeAnchors,
-				() => config.context.markAnchorStateDirty(),
+				(absolutePath) => config.context.markAnchorStateDirty(absolutePath),
 				options?.signal,
 			)
 		},

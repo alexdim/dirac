@@ -19,6 +19,7 @@ import { presentToolTimeout } from "../../runtime/ToolTimeoutPresentation"
 import {
 	type FormattedInspectAstResult,
 	type ImplementationCacheRecord,
+	implementationCacheKey,
 	InspectAstFormatter,
 } from "./InspectAstFormatter"
 import {
@@ -82,7 +83,7 @@ interface InspectCardRecord {
 	finalized: boolean
 }
 
-type InspectionExecution =
+type InspectionExecution = (
 	| {
 		operation: "outline"
 		result: AstOutlineResult
@@ -101,6 +102,7 @@ type InspectionExecution =
 		groups: InspectAstOccurrenceGroup[]
 		formatted: FormattedInspectAstResult
 	}
+) & { warnings?: string[] }
 
 /** Orchestrates read-only AST execution, logical result reduction, cards, formatting, and telemetry. */
 export class InspectAstTool implements IDiracTool<InspectAstArgs, string> {
@@ -136,7 +138,7 @@ export class InspectAstTool implements IDiracTool<InspectAstArgs, string> {
 			throw error
 		}
 		const cards: InspectCardRecord[] = []
-		const observabilityFailures: string[] = []
+		const observabilityFailures: string[] = [...(execution.warnings ?? [])]
 		if (!env.config.isSubagentExecution) {
 			observabilityFailures.push(...await this.createCards(args, execution.groups, env, cards))
 		}
@@ -187,14 +189,19 @@ export class InspectAstTool implements IDiracTool<InspectAstArgs, string> {
 					includeAnchors: args.includeAnchors,
 				}))
 			const groups = this.reducer.reduceImplementations(args.paths, args.symbols, result)
+			const cacheKeys = groups.flatMap((group) =>
+				group.status === "success" ? group.matches.map(implementationCacheKey) : [],
+			)
+			const warnings: string[] = []
 			let cache: Record<string, ImplementationCacheRecord | string> = {}
-			try {
-				cache =
-					(await deadline.run("loading the implementation cache", async () =>
-						await env.context.task.get<Record<string, ImplementationCacheRecord | string>>(IMPLEMENTATION_CACHE_KEY))) ?? {}
-			} catch (error) {
-				if (error instanceof ToolTimeoutError) throw error
-				// Cache availability must not affect the source result.
+			if (cacheKeys.length > 0) {
+				try {
+					cache = await deadline.run("loading implementation cache entries", async () =>
+						await env.context.task.getEntries<ImplementationCacheRecord | string>(IMPLEMENTATION_CACHE_KEY, cacheKeys))
+				} catch (error) {
+					if (error instanceof ToolTimeoutError) throw error
+					warnings.push(`implementation cache load failed: ${this.errorMessage(error)}.`)
+				}
 			}
 			const cacheBeforeFormatting = structuredClone(cache)
 			const formatted = this.formatter.formatImplementations(
@@ -206,19 +213,16 @@ export class InspectAstTool implements IDiracTool<InspectAstArgs, string> {
 			const cacheUpdates = Object.fromEntries(
 				Object.entries(cache).filter(([key, value]) => !isDeepStrictEqual(cacheBeforeFormatting[key], value)),
 			)
-			try {
-				if (Object.keys(cacheUpdates).length > 0) {
+			if (Object.keys(cacheUpdates).length > 0) {
+				try {
 					await deadline.run("saving the implementation cache", async () =>
-						await env.context.task.update<Record<string, ImplementationCacheRecord | string>>(
-							IMPLEMENTATION_CACHE_KEY,
-							(current) => ({ ...current, ...cacheUpdates }),
-						))
+						await env.context.task.updateEntries(IMPLEMENTATION_CACHE_KEY, cacheUpdates))
+				} catch (error) {
+					if (error instanceof ToolTimeoutError) throw error
+					warnings.push(`implementation cache save failed: ${this.errorMessage(error)}.`)
 				}
-			} catch (error) {
-				if (error instanceof ToolTimeoutError) throw error
-				// Cache persistence must not affect the source result.
 			}
-			return { operation: args.operation, result, groups, formatted }
+			return { operation: args.operation, result, groups, formatted, warnings }
 		}
 
 		const kind = args.operation === "definitions"

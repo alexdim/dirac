@@ -1,8 +1,7 @@
 import { ErrorService } from "@services/error"
 import { telemetryService } from "@services/telemetry"
 
-import { findLastIndex } from "@shared/array"
-import type { DiracApiReqCancelReason, DiracMessageContent } from "@shared/ExtensionMessage"
+import type { DiracApiReqCancelReason } from "@shared/ExtensionMessage"
 import { CardStatus, DiracMessageType, TaskStatus } from "@shared/ExtensionMessage"
 import { Session } from "@shared/services/Session"
 import { isLocalModel } from "@utils/model-utils"
@@ -92,12 +91,11 @@ export async function recursivelyMakeDiracRequests(
 	}
 	userContent = mistakeResult.userContent
 
-	const previousApiReqIndex = findLastIndex(
-		ctx.messageStateHandler.getDiracMessages(),
-		(m) => m.content.type === DiracMessageType.API_STATUS
-	)
-	const isFirstRequest =
-		ctx.messageStateHandler.getDiracMessages().filter((m) => m.content.type === DiracMessageType.API_STATUS).length === 0
+	const previousApiStatus = ctx.messageStateHandler.getLatestApiStatusMessage()
+	const previousApiReqIndex = previousApiStatus
+		? ctx.messageStateHandler.findMessageIndexById(previousApiStatus.id)
+		: -1
+	const isFirstRequest = previousApiStatus === undefined
 
 	await ctx.initializeCheckpoints(isFirstRequest)
 
@@ -216,11 +214,7 @@ export async function recursivelyMakeDiracRequests(
 			const cost = metricsManager.getTotalCost()
 			if (cost !== undefined) ctx.taskState.totalCost += cost
 
-			const currentApiReqIndex = findLastIndex(
-				ctx.messageStateHandler.getDiracMessages(),
-				(m) => m.content.type === DiracMessageType.API_STATUS,
-			)
-			if (currentApiReqIndex !== -1) {
+			if (ctx.messageStateHandler.getLatestApiStatusMessage()) {
 				ctx.taskState.isApiRequestActive = false
 				ctx.taskState.activeVoiceStreamId = undefined
 			}
@@ -297,24 +291,22 @@ export async function recursivelyMakeDiracRequests(
 				return false
 			}
 
-			const messages = ctx.messageStateHandler.getDiracMessages()
-			const pendingReasoningIndex = messages.findIndex((m) => m.id === activeVoiceStreamId)
+			const message = ctx.messageStateHandler.getMessageById(activeVoiceStreamId)
+			if (message?.content.type !== DiracMessageType.MARKDOWN || !message.content.isReasoning) return false
 
-			if (pendingReasoningIndex !== -1) {
-				const msg = messages[pendingReasoningIndex]
-				if (msg.content.type === DiracMessageType.MARKDOWN && msg.content.isReasoning) {
-					await ctx.messageStateHandler.updateDiracMessage(pendingReasoningIndex, {
-						content: { type: DiracMessageType.MARKDOWN, content: thinking, isReasoning: true },
-					})
-					const completedReasoning = ctx.messageStateHandler.getDiracMessages()[pendingReasoningIndex]
-					if (completedReasoning) {
-						await ctx.postStateToWebview()
-					}
-					ctx.taskState.activeVoiceStreamId = undefined
-					return true
-				}
+			const previousThinking = message.content.content
+			if (thinking.startsWith(previousThinking)) {
+				const suffix = thinking.slice(previousThinking.length)
+				if (suffix) await ctx.messageStateHandler.appendMarkdownById(activeVoiceStreamId, suffix)
+			} else if (thinking !== previousThinking) {
+				const index = ctx.messageStateHandler.findMessageIndexById(activeVoiceStreamId)
+				await ctx.messageStateHandler.updateDiracMessage(index, {
+					content: { type: DiracMessageType.MARKDOWN, content: thinking, isReasoning: true },
+				})
 			}
-			return false
+			await ctx.postStateToWebview()
+			ctx.taskState.activeVoiceStreamId = undefined
+			return true
 		}
 
 		Session.get().startApiCall()
@@ -397,24 +389,9 @@ export async function recursivelyMakeDiracRequests(
 			}
 		}
 
-		const autoRetryApiReqIndex = findLastIndex(
-			ctx.messageStateHandler.getDiracMessages(),
-			(m) => m.content.type === DiracMessageType.API_STATUS,
-		)
-		if (autoRetryApiReqIndex !== -1) {
-			const diracMessages = ctx.messageStateHandler.getDiracMessages()
-			const msg = diracMessages[autoRetryApiReqIndex]
-			if (msg.content.type === DiracMessageType.API_STATUS) {
-				const content = msg.content as Extract<DiracMessageContent, { type: DiracMessageType.API_STATUS }>
-				const currentApiReqInfo = { ...content.status }
-				delete currentApiReqInfo.retryStatus
-				await ctx.messageStateHandler.updateDiracMessage(autoRetryApiReqIndex, {
-					content: {
-						type: DiracMessageType.API_STATUS,
-						status: currentApiReqInfo,
-					},
-				})
-			}
+		const autoRetryApiStatus = ctx.messageStateHandler.getLatestApiStatusMessage()
+		if (autoRetryApiStatus?.content.type === DiracMessageType.API_STATUS) {
+			await ctx.messageStateHandler.patchApiStatusById(autoRetryApiStatus.id, {}, ["retryStatus"])
 		}
 
 		await finalizeApiReqMsg()

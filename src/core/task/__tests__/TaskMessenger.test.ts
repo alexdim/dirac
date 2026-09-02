@@ -19,6 +19,36 @@ function createMessenger(postStateToWebview = sinon.stub().resolves()) {
 		),
 		getDiracMessages: sinon.stub().callsFake(() => messages),
 		updateDiracMessage: sinon.stub().resolves(),
+		appendMarkdownById: sinon.stub().callsFake(async (id: string, text: string) => {
+			const message = messages.find((candidate) => candidate.id === id)
+			if (!message || message.content.type !== DiracMessageType.MARKDOWN) throw new Error(`Markdown ${id} not found`)
+			message.content.content += text
+		}),
+		patchMarkdownById: sinon.stub().callsFake(async (id: string, patch: Record<string, unknown>) => {
+			const message = messages.find((candidate) => candidate.id === id)
+			if (!message || message.content.type !== DiracMessageType.MARKDOWN) throw new Error(`Markdown ${id} not found`)
+			Object.assign(message.content, patch)
+		}),
+		patchApiStatusById: sinon.stub().callsFake(async (id: string, patch: Record<string, unknown>) => {
+			const message = messages.find((candidate) => candidate.id === id)
+			if (!message || message.content.type !== DiracMessageType.API_STATUS) throw new Error(`API status ${id} not found`)
+			Object.assign(message.content.status, patch)
+		}),
+		appendCardBodyById: sinon.stub().callsFake(async (id: string, text: string) => {
+			const message = messages.find(
+				(candidate) => candidate.content.type === DiracMessageType.CARD && candidate.content.card.id === id,
+			)
+			if (!message) throw new Error(`Card with id ${id} not found`)
+			message.content.card.body = `${message.content.card.body ?? ""}${text}`
+		}),
+		patchCardById: sinon.stub().callsFake(async (id: string, patch: Record<string, unknown>) => {
+			const message = messages.find(
+				(candidate) => candidate.content.type === DiracMessageType.CARD && candidate.content.card.id === id,
+			)
+			if (!message) throw new Error(`Card with id ${id} not found`)
+			Object.assign(message.content.card, patch)
+			return message.content.card
+		}),
 		updateCardById: sinon.stub().callsFake(async (id: string, update: (card: any) => any) => {
 			const message = messages.find(
 				(candidate) => candidate.content.type === DiracMessageType.CARD && candidate.content.card.id === id,
@@ -29,7 +59,10 @@ function createMessenger(postStateToWebview = sinon.stub().resolves()) {
 		}),
 		flushPendingWrites: sinon.stub().resolves(),
 	}
-	const taskState: any = { waitingCardIds: [] }
+	const taskState: any = { waitingCardIds: [], status: TaskStatus.IDLE }
+	Object.defineProperty(taskState, "lastWaitingCardId", {
+		get: () => taskState.waitingCardIds[0],
+	})
 	const messenger = new TaskMessenger({
 		taskState,
 		messageStateHandler,

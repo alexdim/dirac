@@ -48,6 +48,7 @@ describe("Controller (original)", () => {
 
 		sandbox.stub(checkpointFactory, "buildCheckpointManager").returns({
 			initialize: sandbox.stub().resolves(),
+			setEnabled: sandbox.stub(),
 			save: sandbox.stub().resolves(),
 			restore: sandbox.stub().resolves(),
 			getCheckpoints: sandbox.stub().returns([]),
@@ -128,6 +129,9 @@ describe("Controller (original)", () => {
 		}
 		const mockSM = {
 			getGlobalSettingsKey: sandbox.stub().callsFake((key: string) => globalSettings[key] ?? undefined),
+			getSystemDefaultSettingsKey: sandbox
+				.stub()
+				.callsFake((key: string) => globalSettings[key] ?? globalState[key] ?? undefined),
 			getGlobalStateKey: sandbox.stub().callsFake((key: string) => globalState[key] ?? undefined),
 			getWorkspaceStateKey: sandbox.stub().returns(undefined),
 			setGlobalState: sandbox.stub().callsFake((key: string, value: any) => {
@@ -156,8 +160,43 @@ describe("Controller (original)", () => {
 				planModeApiModelId: "claude-sonnet-4-20250514",
 				actModeApiModelId: "claude-sonnet-4-20250514",
 			}),
+			captureEffectiveTaskConfiguration: sandbox.stub().callsFake(() => ({
+				revision: 1,
+				settings: new Proxy(
+					{},
+					{
+						get: (_target, key) =>
+							(
+								({
+									mode: "plan",
+									enableCheckpointsSetting: false,
+									shellIntegrationTimeout: 5000,
+									terminalOutputLineLimit: 500,
+									defaultTerminalProfile: "default",
+									autoApprovalSettings: {},
+									browserSettings: {},
+									toolToggles: {},
+								}) as any
+							)[key as any],
+					},
+				),
+				apiConfiguration: {
+					planModeApiProvider: "anthropic",
+					actModeApiProvider: "anthropic",
+					planModeApiModelId: "claude-sonnet-4-20250514",
+					actModeApiModelId: "claude-sonnet-4-20250514",
+				},
+				workspaceConfiguration: {},
+				executionOptions: {
+					terminalReuseEnabled: true,
+					vscodeTerminalExecutionMode: "vscodeTerminal",
+					multiRootEnabled: false,
+				},
+			})),
 			setApiConfiguration: sandbox.stub(),
 			setSessionOverride: sandbox.stub(),
+			hasSessionOverride: sandbox.stub().returns(false),
+			clearSessionOverride: sandbox.stub(),
 			getModelsCache: sandbox.stub().returns(null),
 			setModelsCache: sandbox.stub(),
 			registerCallbacks: sandbox.stub(),
@@ -270,12 +309,12 @@ describe("Controller (original)", () => {
 			toolSelectionPolicy: { mode: "exact", toolIds: ["read_file"] },
 		})
 
-		await c.initTask("/goal Ship it").should.be.rejectedWith("cannot be used with Goals")
+		await c.initTask("/goal Ship it").should.be.rejectedWith("Invocation tool-selection options cannot be used with Goals.")
 		goalStart.called.should.be.false()
 	})
 	it("rejects an empty /goal without constructing Goal or Task state", async () => {
 		expectLoggerErrors()
-		const c = trackController(new Controller(mockContext, { goalRoutingEnabled: true }))
+		const c = new Controller(mockContext, { goalRoutingEnabled: true })
 		const goalStart = sandbox.spy((c as any).goalController, "start")
 		const ordinaryStart = sandbox.spy((c as any).taskController, "initTask")
 
@@ -309,7 +348,7 @@ describe("Controller (original)", () => {
 	})
 	it("rejects mode switches whenever a Goal is selected", async () => {
 		expectLoggerErrors()
-		const c = trackController(new Controller(mockContext, { goalRoutingEnabled: true }))
+		const c = new Controller(mockContext, { goalRoutingEnabled: true })
 		sandbox.stub((c as any).goalController, "selectedGoalId").get(() => "goal-id")
 
 		await c.togglePlanActMode("act").should.be.rejectedWith("Mode switching is disabled while a Goal is active.")

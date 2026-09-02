@@ -95,6 +95,7 @@ describe("GeminiHandler", () => {
 			[Symbol.asyncIterator]()
 			.next()
 
+		await new Promise((resolve) => setImmediate(resolve))
 		sinon.assert.calledOnce(generateContentStream)
 		handler.abort()
 

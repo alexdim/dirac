@@ -1,8 +1,8 @@
 import type { Controller } from "@core/controller"
-import { getSavedDiracMessages } from "@core/storage/disk"
+import { getSavedPresentationHistory } from "@core/storage/disk"
 import type { StateManager } from "@core/storage/StateManager"
 import type { Task } from "@core/task"
-import type { DiracMessage } from "@shared/ExtensionMessage"
+import type { PresentationSnapshot } from "@core/task/message-state"
 import { TaskStatus } from "@shared/ExtensionMessage"
 import type { GoalViewState } from "@shared/goal"
 import { isActiveGoalStatus } from "@shared/goal"
@@ -178,12 +178,17 @@ export class GoalController {
 		return (await this.createLoop(goalId, historyItem.initialDisplayText)).inspect()
 	}
 
-	async selectedMessages(): Promise<DiracMessage[]> {
+	async selectedPresentationSnapshot(): Promise<PresentationSnapshot> {
 		await this.ready
-		if (!this.selectedLoop) return []
-		return this.selectedLoop.coordinator
-			? [...this.selectedLoop.coordinator.messageStateHandler.getDiracMessages()]
-			: getSavedDiracMessages(this.selectedLoop.goalId)
+		if (!this.selectedLoop) return { messages: [], offset: -1, generation: 0 }
+		const coordinator = this.selectedLoop.coordinator
+		if (coordinator) return coordinator.messageStateHandler.capturePresentationSnapshot()
+		const saved = await getSavedPresentationHistory(this.selectedLoop.goalId)
+		return {
+			messages: saved.messages,
+			offset: saved.lastOffset,
+			generation: 0,
+		}
 	}
 
 	async pauseAndDeselect(reason: string): Promise<void> {
@@ -221,11 +226,15 @@ export class GoalController {
 				.getGlobalStateKey("taskHistory")
 				.find((item) => item.id === record.id)
 			if (!historyItem) {
-				Logger.warn(`[GoalController] Goal ${record.id} is missing its top-level history entry; preserving loaded history`)
+				Logger.warn(
+					`[GoalController] Goal ${record.id} is missing its top-level history entry; preserving loaded history`,
+				)
 				return
 			}
 			if (!isGoalHistoryItem(historyItem)) {
-				Logger.warn(`[GoalController] Run ${record.id} is a Task in history but a Goal on disk; preserving loaded history`)
+				Logger.warn(
+					`[GoalController] Run ${record.id} is a Task in history but a Goal on disk; preserving loaded history`,
+				)
 				return
 			}
 			await this.dependencies.updateGoalHistory(
@@ -241,7 +250,9 @@ export class GoalController {
 		const workspaceManager = await this.dependencies.controller.ensureWorkspaceManager()
 		if (!workspaceManager) throw new Error("A Goal requires an initialized workspace manager")
 		const cwd = workspaceManager.getPrimaryRoot()?.path ?? (await getCwd(getDesktopDir()))
-		const workingConfiguration = this.dependencies.stateManager.captureEffectiveTaskConfiguration({ mode: "act" })
+		const workingConfiguration = this.dependencies.stateManager.captureEffectiveTaskConfiguration({
+			mode: "act",
+		})
 		const taskFactory = new GoalTaskFactory({
 			controller: this.dependencies.controller,
 			stateManager: this.dependencies.stateManager,
