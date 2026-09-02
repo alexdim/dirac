@@ -131,6 +131,37 @@ describe("Task (original)", () => {
 		})
 		t.should.not.be.undefined()
 		t.taskId.should.equal("test-123")
+		assert.equal(t.taskState.initialTask, "test task")
+	})
+
+	it("restores canonical initial task text from task history", () => {
+		const task = new Task({
+			controller: createMockController(),
+			updateTaskHistory: sandbox.stub().resolves([]),
+			postStateToWebview: sandbox.stub().resolves(),
+			reinitExistingTaskFromId: sandbox.stub().resolves(),
+			cancelTask: sandbox.stub().resolves(),
+			shellIntegrationTimeout: 5000,
+			terminalReuseEnabled: true,
+			terminalOutputLineLimit: 500,
+			defaultTerminalProfile: "default",
+			vscodeTerminalExecutionMode: "vscodeTerminal",
+			cwd: tempDir,
+			stateManager: StateManager.get(),
+			historyItem: {
+				id: "history-task",
+				ts: Date.now(),
+				task: "persisted initial task",
+				tokensIn: 0,
+				tokensOut: 0,
+				totalCost: 0,
+			},
+			taskId: "history-task",
+			taskLockAcquired: false,
+			workingConfiguration: StateManager.get().captureEffectiveTaskConfiguration(),
+		})
+
+		assert.equal(task.taskState.initialTask, "persisted initial task")
 	})
 
 	it("routes automatic compaction to the active model when Utility condensation is unavailable", async () => {

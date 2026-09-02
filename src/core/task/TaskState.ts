@@ -8,6 +8,12 @@ import { SkillMetadata } from "@/shared/skills"
 import { TaskStatus } from "@shared/ExtensionMessage"
 import type { SerializedTaskError, TaskCancellationIntent, TaskRunOutcome } from "./TaskRunOutcome"
 
+export interface CompletionVerificationFailure {
+	candidateFingerprint?: string
+	reports: string[]
+}
+
+
 export interface TaskReplacementRequest {
 	context: string
 	images?: string[]
@@ -65,6 +71,8 @@ export class TaskState {
 	conversationHistoryDeletedRange?: [number, number]
 	/** Session-owned snapshots injected into every compacted request. */
 	pinnedContext?: string
+	/** Canonical task text supplied when this Task lifecycle was created. */
+	initialTask?: string
 
 	// Tool execution flags
 	didRejectTool = false
@@ -78,6 +86,8 @@ export class TaskState {
 	/** Completion side effects are committed; steering is sealed until the task loop publishes completion. */
 	completionCommitted = false
 	checkpointManagerErrorMessage?: string
+	/** Last rejected completion candidate and all verifier reports that it must address. */
+	completionVerificationFailure?: CompletionVerificationFailure
 
 	// Retry tracking — separate counters for independent failure modes
 	apiErrorRetryAttempts = 0
