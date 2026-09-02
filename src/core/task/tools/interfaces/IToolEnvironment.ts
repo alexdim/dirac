@@ -196,7 +196,6 @@ export interface ISystemTrait {
 			filePattern?: string
 			contextLines?: number
 			excludeFilePatterns?: string[]
-			debugLog?: (info: Record<string, any>) => Promise<void>
 			includeAnchors?: boolean
 			signal?: AbortSignal
 		},

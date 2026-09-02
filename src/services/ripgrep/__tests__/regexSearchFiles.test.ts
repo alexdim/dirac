@@ -29,7 +29,7 @@ describe("Ripgrep process lifecycle", () => {
 	it("resolves capped output without waiting for child close", async () => {
 		const { process: child, stdout, kill } = fakeRipgrepProcess()
 		const spawnProcess: RipgrepProcessSpawner = () => child
-		const pending = execRipgrep(["--json", "needle", "."], undefined, undefined, spawnProcess)
+		const pending = execRipgrep(["--json", "needle", "."], undefined, spawnProcess)
 
 		for (let line = 1; line <= 151; line++) stdout.write(`line ${line}\n`)
 		const output = await pending
@@ -50,7 +50,7 @@ describe("Ripgrep process lifecycle", () => {
 		}
 		const controller = new AbortController()
 		const reason = new Error("search deadline expired")
-		const pending = execRipgrep(["--json", "needle", "."], undefined, controller.signal, spawnProcess)
+		const pending = execRipgrep(["--json", "needle", "."], controller.signal, spawnProcess)
 		await spawned
 
 		controller.abort(reason)

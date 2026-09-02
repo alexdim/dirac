@@ -289,7 +289,6 @@ export class SearchFilesTool implements IDiracTool<SearchFilesArgs, string> {
 						excludeFilePatterns: ["!.*", "!**/.*"],
 						includeAnchors,
 						signal,
-						debugLog: async (info) => env.logging.debug("[search_files]", info),
 					}),
 				)
 
