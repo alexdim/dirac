@@ -4,17 +4,43 @@ import { ACPHostBridgeClientProvider } from "./ACPHostBridgeClientProvider.js"
 
 function createProvider(options?: {
 	sessionId?: string
+	clientCapabilities?: acp.ClientCapabilities
 	emitSessionUpdate?: (sessionId: string, update: acp.SessionUpdate) => Promise<void>
 }) {
 	return new ACPHostBridgeClientProvider(
 		undefined,
-		{},
+		options?.clientCapabilities ?? {},
 		() => options?.sessionId,
 		() => "/workspace",
 		options?.emitSessionUpdate,
 		"1.2.3",
 	)
 }
+
+describe("ACPHostBridgeClientProvider workspace service", () => {
+	it("allows the edit preflight when ACP file reads and writes are negotiated", async () => {
+		const workspace = createProvider({
+			clientCapabilities: { fs: { readTextFile: true, writeTextFile: true } },
+		}).workspaceClient
+
+		await expect(workspace.saveOpenDocumentIfDirty({ filePath: "/workspace/file.ts" })).resolves.toEqual({})
+	})
+
+	it("rejects the edit preflight without complete ACP file access", async () => {
+		const incompleteCapabilities: acp.ClientCapabilities[] = [
+			{},
+			{ fs: { readTextFile: true, writeTextFile: false } },
+			{ fs: { readTextFile: false, writeTextFile: true } },
+		]
+
+		for (const clientCapabilities of incompleteCapabilities) {
+			const workspace = createProvider({ clientCapabilities }).workspaceClient
+			await expect(workspace.saveOpenDocumentIfDirty({ filePath: "/workspace/file.ts" })).rejects.toThrow(
+				"fs.readTextFile and fs.writeTextFile",
+			)
+		}
+	})
+})
 
 describe("ACPHostBridgeClientProvider diff service", () => {
 	it("rejects every legacy ACP diff document operation with actionable guidance", async () => {
