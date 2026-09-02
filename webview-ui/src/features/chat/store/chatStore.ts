@@ -28,7 +28,7 @@ interface ChatState {
 	taskMessage?: DiracMessage
 	lastMessage?: DiracMessage
 	secondLastMessage?: DiracMessage
-	goal?: ExtensionState["goal"]
+	goal?: NonNullable<ExtensionState["goal"]>
 	uiActionState?: ExtensionState["uiActionState"]
 	activeVoiceStreamId?: string
 	isApiRequestActive?: boolean
