@@ -1,5 +1,5 @@
 import { ApiHandler } from "@core/api"
-import { execSync } from "child_process"
+import { execFileSync } from "child_process"
 import { showSystemNotification } from "@/integrations/notifications"
 import { DiracApiReqCancelReason, DiracApiReqInfo, DiracMessageType } from "@/shared/ExtensionMessage"
 import { calculateApiCostAnthropic, calculateApiCostOpenAI, calculateApiCostQwen } from "@/utils/cost"
@@ -183,13 +183,13 @@ export async function detectAvailableCliTools(): Promise<string[]> {
 
 	for (const command of CLI_TOOLS) {
 		try {
-			// Use execSync to check if the command exists
-			execSync(`${checkCommand} ${command}`, {
+			// Use execFileSync to check if the command exists (no shell interpolation)
+			execFileSync(checkCommand, [command], {
 				stdio: "ignore", // Don't output to console
 				timeout: 1000, // 1 second timeout to avoid hanging
 			})
 			availableCommands.push(command)
-		} catch (error) {
+		} catch {
 			// Command not found, skip it
 		}
 	}
