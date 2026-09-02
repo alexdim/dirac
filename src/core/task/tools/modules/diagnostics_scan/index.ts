@@ -85,6 +85,8 @@ export class DiagnosticsScanTool implements IDiracTool<DiagnosticsScanArgs, stri
 			const validFiles = fileInfos.filter((f) => !f.error)
 
 			if (validFiles.length === 0) {
+				const currentMistakeCount = env.orchestration.getTaskState("consecutiveMistakeCount")
+				env.orchestration.setTaskState("consecutiveMistakeCount", currentMistakeCount + 1)
 				const result = errorResults.join("\n---\n")
 				if (card) {
 					await card.update({ status: CardStatus.ERROR, body: result })
@@ -101,10 +103,11 @@ export class DiagnosticsScanTool implements IDiracTool<DiagnosticsScanArgs, stri
 			const totalLines = validFiles.reduce((sum, f) => sum + f.content.split(/\r?\n/).length, 0)
 			const timeoutMs = Math.min(this.baseDiagnosticsTimeoutMs + Math.floor(totalLines / 1000) * 1000, 10000)
 			const startTime = Date.now()
+			const abortSignal = env.orchestration.getTaskState("abortSignal")
 			let allDiagnostics: FileDiagnostics[] = []
 			let foundDiagnostics = false
 
-			while (Date.now() - startTime < timeoutMs) {
+			while (Date.now() - startTime < timeoutMs && !abortSignal?.aborted) {
 				allDiagnostics = await deadline.run("collecting diagnostics", async () =>
 					await env.diagnostics.getRaw(validFiles.map((f) => f.absolutePath)))
 
@@ -125,7 +128,18 @@ export class DiagnosticsScanTool implements IDiracTool<DiagnosticsScanArgs, stri
 					break
 				}
 
-				await new Promise((resolve) => setTimeout(resolve, this.diagnosticsDelayMs))
+				// Interruptible sleep: resolve early if abort fires
+				await new Promise<void>((resolve) => {
+					const timer = setTimeout(resolve, this.diagnosticsDelayMs)
+					abortSignal?.addEventListener(
+						"abort",
+						() => {
+							clearTimeout(timer)
+							resolve()
+						},
+						{ once: true },
+					)
+				})
 			}
 
 			const results = validFiles.map((f) => {
