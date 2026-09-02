@@ -33,6 +33,7 @@ describe("useChatStore", () => {
 			presentationAppends: new Map(),
 			visibleMessageIds: [],
 			visibleMessageIdSet: new Set(),
+			goal: undefined,
 			uiActionState: undefined,
 			activeVoiceStreamId: undefined,
 			isApiRequestActive: false,
@@ -87,6 +88,17 @@ describe("useChatStore", () => {
 			isApiRequestActive: true,
 			taskStatus: "streaming_text",
 		})
+	})
+
+	it("preserves Goal state in partial updates and clears it from an explicit tombstone", () => {
+		const goal = { id: "goal-1" } as ExtensionState["goal"]
+		useChatStore.getState().applyExtensionState({ goal })
+
+		useChatStore.getState().applyExtensionState({ taskStatus: "streaming_text" })
+		expect(useChatStore.getState().goal).toBe(goal)
+
+		useChatStore.getState().applyExtensionState({ goal: null })
+		expect(useChatStore.getState().goal).toBeUndefined()
 	})
 
 	it("should track collapsed cards and user toggles", () => {

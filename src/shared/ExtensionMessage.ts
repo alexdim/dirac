@@ -76,7 +76,8 @@ export interface ExtensionState {
 	/** Selected presentation surface and the last operation included in a full hydration. */
 	presentationSurfaceId?: string
 	presentationOffset?: number
-	goal?: GoalViewState
+	/** Explicit null clears a previously selected Goal in partial state consumers. */
+	goal?: GoalViewState | null
 	isNewUser: boolean
 	welcomeViewCompleted: boolean
 	onboardingModels?: OnboardingModelGroup | undefined

@@ -357,6 +357,14 @@ describe("getStateToPostToWebview", () => {
 			expect(state.taskStatus).to.equal(TaskStatus.IDLE)
 		})
 
+		it("publishes an explicit tombstone when no Goal is selected", async () => {
+			const stateManager = makeFakeStateManager()
+			const state = await getStateToPostToWebview({ stateManager, backgroundCommandRunning: false })
+
+			expect(state).to.have.property("goal", null)
+			expect(JSON.parse(JSON.stringify(state))).to.have.property("goal", null)
+		})
+
 		it("projects taskStatus from an active task", async () => {
 			const stateManager = makeFakeStateManager()
 			const task = makeFakeTask({ taskState: { status: TaskStatus.STREAMING_TEXT } })

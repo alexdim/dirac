@@ -435,7 +435,7 @@ export const useChatStore = create<ChatState>((set) => ({
 				update.presentationOffset = extensionState.presentationOffset ?? -1
 				update.presentationRevision = state.presentationRevision + 1
 			}
-			if ("goal" in extensionState) update.goal = extensionState.goal
+			if ("goal" in extensionState) update.goal = extensionState.goal ?? undefined
 			if ("uiActionState" in extensionState) update.uiActionState = extensionState.uiActionState
 			update.activeVoiceStreamId = extensionState.activeVoiceStreamId
 			if ("isApiRequestActive" in extensionState) update.isApiRequestActive = extensionState.isApiRequestActive
