@@ -1,6 +1,10 @@
 import { formatResponse } from "@core/formatResponse"
 import { DiracAskResponse } from "@shared/WebviewMessage"
+import * as fs from "fs/promises"
+import * as os from "os"
+import * as path from "path"
 import { DiracIcon } from "@/shared/icons"
+import { Logger } from "@/shared/services/Logger"
 import { truncateHeadTail } from "../../../../../shared/content-limits"
 import { CardStatus } from "../../../../../shared/ExtensionMessage"
 import { DiracDefaultTool, DiracToolSpec } from "../../../../../shared/tools"
@@ -19,6 +23,18 @@ const MAX_COMMAND_OUTPUT_SIZE = 10 * 1024
 interface CommandApprovalRequirement {
 	required: boolean
 	utilityEligible: boolean
+}
+
+/** Allowed script interpreters — no fallthrough to arbitrary commands */
+const ALLOWED_INTERPRETERS: Record<string, { binary: string; extension: string }> = {
+	bash: { binary: "bash", extension: "sh" },
+	sh: { binary: "sh", extension: "sh" },
+	python: { binary: "python3", extension: "py" },
+	python3: { binary: "python3", extension: "py" },
+	node: { binary: "node", extension: "js" },
+	javascript: { binary: "node", extension: "js" },
+	ruby: { binary: "ruby", extension: "rb" },
+	perl: { binary: "perl", extension: "pl" },
 }
 
 export const execute_command_spec: DiracToolSpec = {
@@ -69,38 +85,52 @@ export class ExecuteCommandTool implements IDiracTool {
 	}
 
 	public async processCall(args: any, env: IToolEnvironment): Promise<any> {
-		const commands = this.normalizeCommands(args)
-		if (commands.length === 0) {
-			throw new Error("Missing required parameter: 'commands' or 'script' must be provided and non-empty.")
-		}
-
-		this.validateCommands(commands)
-
-		const utilityPermissionHandlingEnabled = env.config.permissionDecisionBinding !== undefined
-		const approval = this.getCommandApprovalRequirement(commands, utilityPermissionHandlingEnabled)
-
-		if (approval.required) {
-			const { approved, message } = await this.requestApproval(
-				commands,
-				env,
-				approval.utilityEligible,
-				utilityPermissionHandlingEnabled,
-			)
-			if (!approved) {
-				return message ? formatResponse.toolDeniedWithFeedback(message) : formatResponse.toolDenied()
+		// Temp dirs created for script files; removed after the call so no leaked
+		// scripts accumulate in the OS temp dir. Kept per-call, not on the instance,
+		// so concurrent/reused tool instances can't interfere.
+		const scriptTempDirs: string[] = []
+		try {
+			const commands = await this.normalizeCommands(args, scriptTempDirs)
+			if (commands.length === 0) {
+				throw new Error("Missing required parameter: 'commands' or 'script' must be provided and non-empty.")
 			}
+
+			this.validateCommands(commands)
+
+			const utilityPermissionHandlingEnabled = env.config.permissionDecisionBinding !== undefined
+			const approval = this.getCommandApprovalRequirement(commands, utilityPermissionHandlingEnabled)
+
+			if (approval.required) {
+				const { approved, message } = await this.requestApproval(
+					commands,
+					env,
+					approval.utilityEligible,
+					utilityPermissionHandlingEnabled,
+				)
+				if (!approved) {
+					return message ? formatResponse.toolDeniedWithFeedback(message) : formatResponse.toolDenied()
+				}
+			}
+
+			const { results, usedWorkspaceHint, resolvedToNonPrimary } = await this.executeCommands(commands, env)
+
+			env.telemetry.captureCustomMetadata({
+				commandCount: commands.length,
+				usedWorkspaceHint,
+				resolvedToNonPrimary,
+				isMultiRootEnabled: this.isMultiRootEnabled,
+			})
+
+			return results.join("\n\n")
+		} finally {
+			await Promise.all(
+				scriptTempDirs.map((dir) =>
+					fs.rm(dir, { recursive: true, force: true }).catch((error) => {
+						Logger.warn(`ExecuteCommandTool: failed to remove script temp dir ${dir}: ${error}`)
+					}),
+				),
+			)
 		}
-
-		const { results, usedWorkspaceHint, resolvedToNonPrimary } = await this.executeCommands(commands, env)
-
-		env.telemetry.captureCustomMetadata({
-			commandCount: commands.length,
-			usedWorkspaceHint,
-			resolvedToNonPrimary,
-			isMultiRootEnabled: this.isMultiRootEnabled,
-		})
-
-		return results.join("\n\n")
 	}
 
 	private validateCommands(commands: { command: string; displayName: string; language?: string }[]): void {
@@ -352,7 +382,10 @@ export class ExecuteCommandTool implements IDiracTool {
 		}
 	}
 
-	private normalizeCommands(args: any): { command: string; displayName: string; language?: string }[] {
+	private async normalizeCommands(
+		args: any,
+		scriptTempDirs: string[],
+	): Promise<{ command: string; displayName: string; language?: string }[]> {
 		const commands: { command: string; displayName: string; language?: string }[] = []
 		if (Array.isArray(args.commands)) {
 			args.commands.forEach((cmd: any) => {
@@ -367,8 +400,9 @@ export class ExecuteCommandTool implements IDiracTool {
 		if (args.script) {
 			const language = args.language || "bash"
 			const langDisplay = language.charAt(0).toUpperCase() + language.slice(1)
+			const command = await this.wrapScript(args.script, language, scriptTempDirs)
 			commands.push({
-				command: this.wrapScript(args.script, language),
+				command,
 				displayName: `${langDisplay} script`,
 				language: language,
 			})
@@ -381,25 +415,19 @@ export class ExecuteCommandTool implements IDiracTool {
 		return commandMatch ? commandMatch[2].trim() : cmd
 	}
 
-	private wrapScript(script: string, language: string): string {
-		const delimiter = `EOF_DIRAC_SCRIPT_${Math.random().toString(36).substring(2, 10).toUpperCase()}`
+	private async wrapScript(script: string, language: string, scriptTempDirs: string[]): Promise<string> {
 		const normalizedLanguage = language.toLowerCase().trim()
-
-		let interpreter = "bash"
-		if (normalizedLanguage === "python" || normalizedLanguage === "python3") {
-			interpreter = "python3"
-		} else if (normalizedLanguage === "node" || normalizedLanguage === "javascript") {
-			interpreter = "node"
-		} else if (normalizedLanguage === "sh") {
-			interpreter = "sh"
-		} else if (normalizedLanguage === "ruby") {
-			interpreter = "ruby"
-		} else if (normalizedLanguage === "perl") {
-			interpreter = "perl"
-		} else {
-			interpreter = normalizedLanguage
+		const entry = ALLOWED_INTERPRETERS[normalizedLanguage]
+		if (!entry) {
+			throw new Error(`Unsupported script language '${language}'. Allowed: ${Object.keys(ALLOWED_INTERPRETERS).join(", ")}`)
 		}
 
-		return `${interpreter} << '${delimiter}'\n${script}\n${delimiter}`
+		// Write script to a temp file so its content never enters the shell command string
+		const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "dirac-script-"))
+		scriptTempDirs.push(tmpDir)
+		const scriptPath = path.join(tmpDir, `script.${entry.extension}`)
+		await fs.writeFile(scriptPath, script, "utf-8")
+
+		return `${entry.binary} ${JSON.stringify(scriptPath)}`
 	}
 }
