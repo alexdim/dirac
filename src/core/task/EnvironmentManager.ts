@@ -107,19 +107,24 @@ export class EnvironmentManager {
 
 		if (includeFileDetails) {
 			const MAX_RECENT_FILES = 10
+			const MAX_WALK_FILES = 5000
 
 			// Merge hardcoded ignores with .gitignore entries so we skip generated/vendor dirs
 			const gitIgnoredNames = await this.getGitIgnoredNames()
 			const ignoredDirs = new Set([...ALWAYS_IGNORED_DIRS, ...gitIgnoredNames])
 
+			// Cap the walk itself (not just the collection) so huge repos don't pay the full readdir cost.
+			// The budget is consumed only by files that survive the stat, so vanished files don't waste it.
+			const remainingFiles = { value: MAX_WALK_FILES }
 			const fileStats: { relativePath: string; mtime: Date }[] = []
-			for await (const absPath of this.walkCodeFiles(this.cwd, ignoredDirs)) {
+			for await (const absPath of this.walkCodeFiles(this.cwd, ignoredDirs, remainingFiles)) {
 				try {
 					const stat = await fs.stat(absPath)
 					fileStats.push({
 						relativePath: path.relative(this.cwd, absPath),
 						mtime: stat.mtime,
 					})
+					remainingFiles.value--
 				} catch {
 					// File removed between walk and stat — skip
 				}
@@ -210,7 +215,10 @@ export class EnvironmentManager {
 		return ignored
 	}
 
-	private async *walkCodeFiles(dir: string, ignoredDirs: Set<string>): AsyncGenerator<string> {
+	private async *walkCodeFiles(dir: string, ignoredDirs: Set<string>, remaining: { value: number }): AsyncGenerator<string> {
+		if (remaining.value <= 0 || this.taskState.abort) {
+			return
+		}
 		let entries: Dirent[]
 		try {
 			entries = await fs.readdir(dir, { withFileTypes: true })
@@ -218,12 +226,15 @@ export class EnvironmentManager {
 			return
 		}
 		for (const entry of entries) {
+			if (remaining.value <= 0 || this.taskState.abort) {
+				return
+			}
 			if (entry.name.startsWith(".")) {
 				continue
 			}
 			if (entry.isDirectory()) {
 				if (!ignoredDirs.has(entry.name)) {
-					yield* this.walkCodeFiles(path.join(dir, entry.name), ignoredDirs)
+					yield* this.walkCodeFiles(path.join(dir, entry.name), ignoredDirs, remaining)
 				}
 			} else if (entry.isFile()) {
 				if (CODE_EXTENSIONS.has(path.extname(entry.name).toLowerCase())) {
