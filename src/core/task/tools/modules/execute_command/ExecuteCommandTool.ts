@@ -133,7 +133,7 @@ export class ExecuteCommandTool implements IDiracTool {
 		}
 	}
 
-	private validateCommands(commands: { command: string; displayName: string; language?: string }[]): void {
+	private validateCommands(commands: { command: string; displayName: string; language?: string; script?: string }[]): void {
 		for (const cmd of commands) {
 			const parts = cmd.command.split(/\s+/)
 			for (const part of parts) {
@@ -153,7 +153,7 @@ export class ExecuteCommandTool implements IDiracTool {
 	}
 
 	private getCommandApprovalRequirement(
-		commands: { command: string; displayName: string; language?: string }[],
+		commands: { command: string; displayName: string; language?: string; script?: string }[],
 		utilityPermissionHandlingEnabled: boolean,
 	): CommandApprovalRequirement {
 		if (!utilityPermissionHandlingEnabled) {
@@ -192,7 +192,7 @@ export class ExecuteCommandTool implements IDiracTool {
 	}
 
 	private async requestApproval(
-		commands: { command: string; displayName: string; language?: string }[],
+		commands: { command: string; displayName: string; language?: string; script?: string }[],
 		env: IToolEnvironment,
 		utilityEligible: boolean,
 		utilityPermissionHandlingEnabled: boolean,
@@ -210,13 +210,16 @@ export class ExecuteCommandTool implements IDiracTool {
 					renderType: "markdown",
 					maxHeight: 10000,
 					rawInput: {
-						commands: commands.map(({ command, displayName, language }) => ({ command, displayName, language })),
+						commands: commands.map(({ command, displayName, language, script }) => ({ command, displayName, language, script })),
 					},
 					body: commands
 						.map((command) => {
 							const language = command.language || "bash"
 							const header = command.displayName !== command.command ? `**${command.displayName}**\n` : ""
-							return `${header}\`\`\`${language}\n${shortenCommandForDisplay(command.command, env.config.cwd)}\n\`\`\``
+							// Scripts execute from a temp file, so show the script content to
+							// approve, not just the interpreter + temp path command line.
+							const display = command.script ?? shortenCommandForDisplay(command.command, env.config.cwd)
+							return `${header}\`\`\`${language}\n${display}\n\`\`\``
 						})
 						.join("\n"),
 					collapsed: false,
@@ -252,7 +255,7 @@ export class ExecuteCommandTool implements IDiracTool {
 		return { approved: true }
 	}
 
-	private permissionCardLabel(commands: { command: string; displayName: string; language?: string }[], cwd?: string): string {
+	private permissionCardLabel(commands: { command: string; displayName: string; language?: string; script?: string }[], cwd?: string): string {
 		return commands.length === 1 ? shortenCommandForDisplay(commands[0].displayName, cwd) : `${commands.length} commands`
 	}
 
@@ -272,7 +275,7 @@ export class ExecuteCommandTool implements IDiracTool {
 	}
 
 	private async executeCommands(
-		commands: { command: string; displayName: string; language?: string }[],
+		commands: { command: string; displayName: string; language?: string; script?: string }[],
 		env: IToolEnvironment,
 	): Promise<{ results: string[]; usedWorkspaceHint: boolean; resolvedToNonPrimary: boolean }> {
 		const results: string[] = []
@@ -296,7 +299,7 @@ export class ExecuteCommandTool implements IDiracTool {
 	}
 
 	private async executeSingleCommand(
-		cmd: { command: string; displayName: string; language?: string },
+		cmd: { command: string; displayName: string; language?: string; script?: string },
 		index: number,
 		total: number,
 		env: IToolEnvironment,
@@ -308,7 +311,7 @@ export class ExecuteCommandTool implements IDiracTool {
 				header: header.replace("Executing command", "Executing"),
 				icon: DiracIcon.COMMAND,
 				collapsed: true,
-				rawInput: { command: cmd.command, displayName: cmd.displayName, language: cmd.language ?? "bash" },
+				rawInput: { command: cmd.command, displayName: cmd.displayName, language: cmd.language ?? "bash", script: cmd.script },
 			})
 			: null
 
@@ -385,8 +388,8 @@ export class ExecuteCommandTool implements IDiracTool {
 	private async normalizeCommands(
 		args: any,
 		scriptTempDirs: string[],
-	): Promise<{ command: string; displayName: string; language?: string }[]> {
-		const commands: { command: string; displayName: string; language?: string }[] = []
+	): Promise<{ command: string; displayName: string; language?: string; script?: string }[]> {
+		const commands: { command: string; displayName: string; language?: string; script?: string }[] = []
 		if (Array.isArray(args.commands)) {
 			args.commands.forEach((cmd: any) => {
 				if (typeof cmd === "string" && cmd.trim() !== "") {
@@ -405,6 +408,10 @@ export class ExecuteCommandTool implements IDiracTool {
 				command,
 				displayName: `${langDisplay} script`,
 				language: language,
+				// Original content kept for the approval card: the executed command only
+				// references the temp file path, so without this the card would show a
+				// path with no visible script to approve.
+				script: args.script,
 			})
 		}
 		return commands
