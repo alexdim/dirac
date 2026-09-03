@@ -21,7 +21,14 @@ const TELEMETRY_SECRET_PATTERNS: { pattern: RegExp; replacement: string }[] = [
 ]
 const MAX_TELEMETRY_STRING_LENGTH = 2000
 
-function scrubTelemetryProperties(value: unknown): unknown {
+const SENSITIVE_KEY_PATTERN =
+	/(?:api[-_]?key|authorization|cookie|password|passwd|secret|token|credential|private[-_]?key)/i
+
+export function isSensitiveKey(key: string): boolean {
+	return SENSITIVE_KEY_PATTERN.test(key)
+}
+
+export function scrubTelemetryProperties(value: unknown): unknown {
 	if (typeof value === "string") {
 		let result = TELEMETRY_SECRET_PATTERNS.reduce(
 			(redacted, { pattern, replacement }) => redacted.replace(pattern, replacement),
@@ -34,7 +41,16 @@ function scrubTelemetryProperties(value: unknown): unknown {
 	}
 	if (Array.isArray(value)) return value.map(scrubTelemetryProperties)
 	if (value && typeof value === "object") {
-		return Object.fromEntries(Object.entries(value).map(([k, v]) => [k, scrubTelemetryProperties(v)]))
+		return Object.fromEntries(
+			Object.entries(value).map(([k, v]) => {
+				if (isSensitiveKey(k)) {
+					if (typeof v !== "object" || v === null) {
+						return [k, "[REDACTED]"]
+					}
+				}
+				return [k, scrubTelemetryProperties(v)]
+			}),
+		)
 	}
 	return value
 }
