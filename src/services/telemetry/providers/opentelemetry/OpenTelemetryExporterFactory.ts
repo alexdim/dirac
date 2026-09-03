@@ -76,27 +76,25 @@ export function createOTLPLogExporter(
 		}
 
 		let exporter: any = null
-		const logsUrl = new URL(endpoint)
-		ensurePathSuffix(logsUrl, "/v1/logs")
+		const url = new URL(endpoint)
 
 		switch (protocol) {
 			case "grpc": {
-				const grpcEndpoint = logsUrl.host || endpoint.replace(/^https?:\/\//, "")
-				const credentials = resolveGrpcCredentials(logsUrl, insecure)
-
 				exporter = new OTLPLogExporterGRPC({
-					url: grpcEndpoint,
-					credentials: credentials,
+					url: url.host,
+					credentials: resolveGrpcCredentials(url, insecure),
 					headers,
 				})
 				break
 			}
 			case "http/json": {
-				exporter = new OTLPLogExporterHTTP({ url: logsUrl.toString(), headers })
+				ensurePathSuffix(url, "/v1/logs")
+				exporter = new OTLPLogExporterHTTP({ url: url.toString(), headers })
 				break
 			}
 			case "http/protobuf": {
-				exporter = new OTLPLogExporterProto({ url: logsUrl.toString(), headers })
+				ensurePathSuffix(url, "/v1/logs")
+				exporter = new OTLPLogExporterProto({ url: url.toString(), headers })
 				break
 			}
 			default:
@@ -106,7 +104,7 @@ export function createOTLPLogExporter(
 
 		// Wrap with diagnostics if debug is enabled
 		if (isDebugEnabled()) {
-			wrapLogsExporterWithDiagnostics(exporter, protocol, logsUrl.toString())
+			wrapLogsExporterWithDiagnostics(exporter, protocol, url.toString())
 		}
 
 		return exporter
@@ -146,28 +144,25 @@ export function createOTLPMetricReader(
 		}
 
 		let exporter: any = null
-
-		const metricsUrl = new URL(endpoint)
-		ensurePathSuffix(metricsUrl, "/v1/metrics")
+		const url = new URL(endpoint)
 
 		switch (protocol) {
 			case "grpc": {
-				const grpcEndpoint = metricsUrl.host || endpoint.replace(/^https?:\/\//, "")
-				const credentials = resolveGrpcCredentials(metricsUrl, insecure)
-
 				exporter = new OTLPMetricExporterGRPC({
-					url: grpcEndpoint,
-					credentials: credentials,
+					url: url.host,
+					credentials: resolveGrpcCredentials(url, insecure),
 					headers,
 				})
 				break
 			}
 			case "http/json": {
-				exporter = new OTLPMetricExporterHTTP({ url: metricsUrl.toString(), headers })
+				ensurePathSuffix(url, "/v1/metrics")
+				exporter = new OTLPMetricExporterHTTP({ url: url.toString(), headers })
 				break
 			}
 			case "http/protobuf": {
-				exporter = new OTLPMetricExporterProto({ url: metricsUrl.toString(), headers })
+				ensurePathSuffix(url, "/v1/metrics")
+				exporter = new OTLPMetricExporterProto({ url: url.toString(), headers })
 				break
 			}
 			default:
@@ -177,7 +172,7 @@ export function createOTLPMetricReader(
 
 		// Wrap with diagnostics if debug is enabled
 		if (isDebugEnabled()) {
-			wrapMetricsExporterWithDiagnostics(exporter, protocol, metricsUrl.toString())
+			wrapMetricsExporterWithDiagnostics(exporter, protocol, url.toString())
 		}
 
 		return new PeriodicExportingMetricReader({
