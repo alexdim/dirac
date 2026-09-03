@@ -463,9 +463,7 @@ export class Task {
 		this.enqueuePreRequestSteeringMessages = params.enqueuePreRequestSteeringMessages ?? (async () => undefined)
 		this.conversationPersistenceHooks = params.conversationPersistenceHooks
 
-		if (workingConfiguration.settings.mode === "act") {
-			this.taskState.didSwitchToActMode = true
-		}
+		this.taskState.pendingModeNotice = { mode: workingConfiguration.settings.mode }
 
 		// Initialize ULID and task state from history or new task params
 		if (historyItem) {
@@ -989,9 +987,9 @@ export class Task {
 	}
 
 	private applyCommittedModeEffects(previousMode: Mode, nextMode: Mode): void {
-		if (previousMode !== "plan" || nextMode !== "act") return
-		this.taskState.didSwitchToActMode = true
-		if (this.taskState.isAwaitingPlanResponse) {
+		if (previousMode === nextMode) return
+		this.taskState.pendingModeNotice = { mode: nextMode }
+		if (previousMode === "plan" && nextMode === "act" && this.taskState.isAwaitingPlanResponse) {
 			this.taskState.didRespondToPlanAskBySwitchingMode = true
 		}
 	}

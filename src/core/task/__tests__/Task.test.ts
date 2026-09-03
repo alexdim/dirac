@@ -130,8 +130,40 @@ describe("Task (original)", () => {
 			workingConfiguration: StateManager.get().captureEffectiveTaskConfiguration(),
 		})
 		t.should.not.be.undefined()
+		assert.equal(t.taskState.pendingModeNotice?.mode, "act")
 		t.taskId.should.equal("test-123")
 		assert.equal(t.taskState.initialTask, "test task")
+	})
+
+	it("initializes a pending Plan notice from the working configuration", () => {
+		const workingConfiguration = StateManager.get().captureEffectiveTaskConfiguration()
+		const planConfiguration = {
+			...workingConfiguration,
+			settings: new Proxy(workingConfiguration.settings, {
+				get: (target, property, receiver) =>
+					property === "mode" ? "plan" : Reflect.get(target, property, receiver),
+			}),
+		}
+		const task = new Task({
+			controller: createMockController(),
+			updateTaskHistory: sandbox.stub().resolves([]),
+			postStateToWebview: sandbox.stub().resolves(),
+			reinitExistingTaskFromId: sandbox.stub().resolves(),
+			cancelTask: sandbox.stub().resolves(),
+			shellIntegrationTimeout: 5000,
+			terminalReuseEnabled: true,
+			terminalOutputLineLimit: 500,
+			defaultTerminalProfile: "default",
+			vscodeTerminalExecutionMode: "vscodeTerminal",
+			cwd: tempDir,
+			stateManager: StateManager.get(),
+			task: "plan task",
+			taskId: "test-plan-notice",
+			taskLockAcquired: false,
+			workingConfiguration: planConfiguration,
+		})
+
+		assert.equal(task.taskState.pendingModeNotice?.mode, "plan")
 	})
 
 	it("restores canonical initial task text from task history", () => {
@@ -269,6 +301,7 @@ describe("Task (original)", () => {
 			workingConfiguration: StateManager.get().captureEffectiveTaskConfiguration(),
 		}) as any
 		await t.applyWorkingConfigurationUpdate({ settings: { mode: "plan" } })
+		assert.equal(t.taskState.pendingModeNotice?.mode, "plan")
 
 		const markDirty = sandbox.stub(t.toolExecutor, "markToolsDirty")
 		const toolExecutorSetApi = sandbox.spy(t.toolExecutor, "setApi")
@@ -286,9 +319,36 @@ describe("Task (original)", () => {
 
 		updated.revision.should.equal(3)
 		updated.settings.mode.should.equal("act")
+		assert.equal(t.taskState.pendingModeNotice?.mode, "act")
 		sinon.assert.calledOnceWithExactly(toolExecutorSetApi, installed)
 		setters.forEach((setter) => sinon.assert.calledOnceWithExactly(setter, installed))
 		sinon.assert.notCalled(markDirty)
+	})
+
+	it("records notices only for actual mode transitions", () => {
+		const taskState = {
+			pendingModeNotice: undefined as { mode: "plan" | "act" } | undefined,
+			isAwaitingPlanResponse: false,
+			didRespondToPlanAskBySwitchingMode: false,
+		}
+		const task = { taskState }
+		const applyEffects = (previousMode: "plan" | "act", nextMode: "plan" | "act") =>
+			(Task.prototype as any).applyCommittedModeEffects.call(task, previousMode, nextMode)
+
+		applyEffects("act", "act")
+		assert.equal(taskState.pendingModeNotice, undefined)
+
+		applyEffects("act", "plan")
+		assert.deepEqual(taskState.pendingModeNotice, { mode: "plan" })
+
+		taskState.pendingModeNotice = undefined
+		applyEffects("plan", "plan")
+		assert.equal(taskState.pendingModeNotice, undefined)
+
+		taskState.isAwaitingPlanResponse = true
+		applyEffects("plan", "act")
+		assert.deepEqual(taskState.pendingModeNotice, { mode: "act" })
+		assert.equal(taskState.didRespondToPlanAskBySwitchingMode, true)
 	})
 
 	it("commits mode, YOLO state, API propagation, and tool inventory only after beforeCommit succeeds", async () => {

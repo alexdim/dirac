@@ -14,7 +14,7 @@ describe("StateController", () => {
 			}),
 			taskState: {
 				status,
-				didSwitchToActMode: false,
+				pendingModeNotice: undefined,
 				isAwaitingPlanResponse: false,
 			},
 		} as any

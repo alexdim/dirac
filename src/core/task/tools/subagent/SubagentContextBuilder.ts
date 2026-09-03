@@ -54,7 +54,6 @@ export class SubagentContextBuilder {
 			browserSettings: this.baseConfig.browserSettings,
 			yoloModeToggled: false,
 			lowVerbosityEnabled: this.baseConfig.lowVerbosityEnabled,
-			enableParallelToolCalling: false,
 			isSubagentRun: true,
 			isMultiRootEnabled: this.baseConfig.isMultiRootEnabled,
 			workspaceRoots: this.baseConfig.workspaceManager

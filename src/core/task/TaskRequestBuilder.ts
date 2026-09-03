@@ -23,7 +23,6 @@ import * as path from "path"
 import { filterSkillsByProviderCapabilities } from "@/shared/skills"
 import { getAvailableCores } from "@/utils/os"
 import { detectBestShell } from "@/utils/shell-detection"
-import { isParallelToolCallingEnabled } from "@/utils/model-utils"
 import type { ContextManager } from "../context/context-management/ContextManager"
 import { RuleContextBuilder } from "../context/instructions/user-instructions/RuleContextBuilder"
 import { getOrDiscoverSkills } from "../context/instructions/user-instructions/skills"
@@ -212,7 +211,6 @@ export async function buildApiRequestParams(
 		workspaceRoots,
 		isSubagentRun: false,
 		isCliEnvironment,
-		enableParallelToolCalling: isParallelToolCallingEnabled(settings.enableParallelToolCalling, providerInfo),
 		terminalExecutionMode: ctx.terminalExecutionMode,
 		activeShellType: shellInfo.type,
 		activeShellPath: shellInfo.path,

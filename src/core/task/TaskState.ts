@@ -62,10 +62,11 @@ export class TaskState {
 		return this.waitingCardIds[0]
 	}
 
-	// Plan mode specific state
+	// Plan interaction and mode-entry state
 	isAwaitingPlanResponse = false
 	didRespondToPlanAskBySwitchingMode = false
-	didSwitchToActMode = false
+	/** Remains pending until the exact request that includes the notice is persisted. */
+	pendingModeNotice?: { mode: "plan" | "act"; includedInRequestId?: string }
 
 	// Context and history
 	conversationHistoryDeletedRange?: [number, number]

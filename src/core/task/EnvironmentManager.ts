@@ -136,18 +136,22 @@ export class EnvironmentManager {
 			}
 		}
 
-		details += "\n\n# Current Mode"
-		const mode = (this.dependencies.getRequestRuntime()?.workingConfiguration ?? this.dependencies.getWorkingConfiguration()).settings.mode
-		if (mode === "plan") {
-			details += `\nPLAN MODE\n${formatResponse.planModeInstructions()}`
-		} else {
-			details += "\nACT MODE"
-			if (this.taskState.didSwitchToActMode) {
-				details += `\n${getEditingFilesInstructions()}\n`
+		const requestRuntime = this.dependencies.getRequestRuntime()
+		const mode = (requestRuntime?.workingConfiguration ?? this.dependencies.getWorkingConfiguration()).settings.mode
+		const modeNotice = this.taskState.pendingModeNotice
+		if (modeNotice?.mode === mode) {
+			if (requestRuntime) modeNotice.includedInRequestId = requestRuntime.requestId
+			details += "\n\n# Current Mode"
+			if (mode === "plan") {
+				details += `\nPLAN MODE\n${formatResponse.planModeInstructions()}`
+			} else {
+				details += `\nACT MODE\n${getEditingFilesInstructions()}`
 			}
 		}
 
-		return `<environment_details>\n${details.trim()}\n</environment_details>`
+		const content = details.trim()
+		if (!content) return ""
+		return `<environment_details>\n${content}\n</environment_details>`
 	}
 
 	private formatWorkspaceRootsSection(): string {

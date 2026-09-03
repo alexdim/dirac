@@ -135,6 +135,7 @@ export async function recursivelyMakeDiracRequests(
 			providerId,
 			modelId: model.id,
 			mode: modelInfo.mode,
+			requestId: ctx.requestRuntime.requestId,
 			afterUserContentPersisted: async () => {
 				await conversationPersistence.persist(() => ctx.messageStateHandler.flushPendingWrites())
 				steeringClaimConsumed = true

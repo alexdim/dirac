@@ -44,7 +44,6 @@ export class PromptRegistry {
 			context.cwd,
 			context.yoloModeToggled ? 1 : 0,
 			context.utilityModelConfigured ? 1 : 0,
-			context.enableParallelToolCalling ? 1 : 0,
 			context.activeShellIsPosix ? 1 : 0,
 			context.activeShellType,
 			context.activeShellPath,

@@ -333,6 +333,7 @@ export class ApiConversationManager {
 		providerId: string
 		modelId: string
 		mode: string
+		requestId: string
 		afterUserContentPersisted?: () => Promise<void>
 	}): Promise<{
 		userContent: DiracContent[]
@@ -492,8 +493,13 @@ export class ApiConversationManager {
 			content: userContent,
 			ts: Date.now(),
 		})
-		if (!params.shouldCompact && params.mode === "act") {
-			this.dependencies.taskState.didSwitchToActMode = false
+		const modeNotice = this.dependencies.taskState.pendingModeNotice
+		if (
+			!params.shouldCompact &&
+			modeNotice?.mode === params.mode &&
+			modeNotice.includedInRequestId === params.requestId
+		) {
+			this.dependencies.taskState.pendingModeNotice = undefined
 		}
 		await params.afterUserContentPersisted?.()
 

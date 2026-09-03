@@ -83,6 +83,27 @@ function executionHarness(requestMode: "plan" | "act", currentMode: "plan" | "ac
 }
 
 describe("ToolExecutor request-runtime authorization", () => {
+	it("restricts file-writing tools in Plan Mode while allowing execute_command", async () => {
+		const isRestricted = (toolName: DiracDefaultTool) =>
+			(ToolExecutor.prototype as any).isPlanModeToolRestricted.call({}, toolName)
+
+		assert.equal(isRestricted(DiracDefaultTool.FILE_NEW), true)
+		assert.equal(isRestricted(DiracDefaultTool.EDIT_FILE), true)
+		assert.equal(isRestricted(DiracDefaultTool.EDIT_AST), true)
+		assert.equal(isRestricted(DiracDefaultTool.BASH), false)
+
+		const { harness, createCard, closeBrowser } = executionHarness("plan", "plan")
+		await (ToolExecutor.prototype as any).execute.call(
+			harness,
+			{ type: "tool_use", name: DiracDefaultTool.BASH, params: {}, isComplete: true },
+			true,
+		)
+
+		sinon.assert.notCalled(createCard)
+		sinon.assert.calledOnce(closeBrowser)
+		sinon.assert.calledOnce(harness.handleCompleteBlock)
+	})
+
 	it("enforces both originating and current mode while ignoring unrelated Act revisions", () => {
 		const planToAct = authorizationHarness("plan", "act")
 		assert.throws(
