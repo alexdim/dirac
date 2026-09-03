@@ -161,7 +161,7 @@ export const MODEL_CAPABILITIES: Record<string, ModelCapabilities> = {
 		supportsImages: true,
 	},
 	"gemini-2.5-flash": {
-		maxTokens: 65536,
+		maxTokens: 65_536,
 		contextWindow: 1_048_576,
 		supportsImages: true,
 		thinkingConfig: {
@@ -177,7 +177,7 @@ export const MODEL_CAPABILITIES: Record<string, ModelCapabilities> = {
 		},
 	},
 	"gemini-2.5-pro": {
-		maxTokens: 65536,
+		maxTokens: 65_536,
 		contextWindow: 1_048_576,
 		supportsImages: true,
 		thinkingConfig: {
@@ -185,12 +185,12 @@ export const MODEL_CAPABILITIES: Record<string, ModelCapabilities> = {
 		},
 	},
 	"gemini-2.5-pro-exp-03-25": {
-		maxTokens: 65536,
+		maxTokens: 65_536,
 		contextWindow: 1_048_576,
 		supportsImages: true,
 	},
 	"gemini-3-flash-preview": {
-		maxTokens: 65536,
+		maxTokens: 65_536,
 		contextWindow: 1_048_576,
 		supportsImages: true,
 		supportsReasoning: true,
@@ -200,7 +200,27 @@ export const MODEL_CAPABILITIES: Record<string, ModelCapabilities> = {
 		},
 	},
 	"gemini-3.5-flash": {
-		maxTokens: 65536,
+		maxTokens: 65_536,
+		contextWindow: 1_048_576,
+		supportsImages: true,
+		supportsReasoning: true,
+		thinkingConfig: {
+			geminiThinkingLevel: "high",
+			supportsThinkingLevel: true,
+		},
+	},
+	"gemini-3.5-flash-lite": {
+		maxTokens: 65_536,
+		contextWindow: 1_048_576,
+		supportsImages: true,
+		supportsReasoning: true,
+		thinkingConfig: {
+			geminiThinkingLevel: "high",
+			supportsThinkingLevel: true,
+		},
+	},
+	"gemini-3.6-flash": {
+		maxTokens: 65_536,
 		contextWindow: 1_048_576,
 		supportsImages: true,
 		supportsReasoning: true,
@@ -219,18 +239,8 @@ export const MODEL_CAPABILITIES: Record<string, ModelCapabilities> = {
 			supportsThinkingLevel: true,
 		},
 	},
-	"gemini-3.6-flash": {
-		maxTokens: 65536,
-		contextWindow: 1_048_576,
-		supportsImages: true,
-		supportsReasoning: true,
-		thinkingConfig: {
-			geminiThinkingLevel: "high",
-			supportsThinkingLevel: true,
-		},
-	},
-	"gemini-3.5-flash-lite": {
-		maxTokens: 65536,
+	"gemini-3.8-flash": {
+		maxTokens: 65_536,
 		contextWindow: 1_048_576,
 		supportsImages: true,
 		supportsReasoning: true,
@@ -240,7 +250,7 @@ export const MODEL_CAPABILITIES: Record<string, ModelCapabilities> = {
 		},
 	},
 	"gemini-3-pro-preview": {
-		maxTokens: 8192,
+		maxTokens: 65_536,
 		contextWindow: 1_048_576,
 		supportsImages: true,
 		supportsReasoning: true,
@@ -250,7 +260,7 @@ export const MODEL_CAPABILITIES: Record<string, ModelCapabilities> = {
 		},
 	},
 	"gemini-3.1-pro-preview": {
-		maxTokens: 8192,
+		maxTokens: 65_536,
 		contextWindow: 1_048_576,
 		supportsImages: true,
 		supportsReasoning: true,
