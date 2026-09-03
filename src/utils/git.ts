@@ -1,9 +1,8 @@
-import { exec, execFile } from "child_process"
+import { execFile } from "child_process"
 import { promisify } from "util"
 import { getErrorMessage } from "@/shared/errors"
 import { Logger } from "@/shared/services/Logger"
 
-const execAsync = promisify(exec)
 const execFileAsync = promisify(execFile)
 const GIT_OUTPUT_LINE_LIMIT = 500
 
@@ -17,7 +16,7 @@ export interface GitCommit {
 
 async function checkGitRepo(cwd: string): Promise<boolean> {
 	try {
-		await execAsync("git rev-parse --git-dir", { cwd })
+		await execFileAsync("git", ["rev-parse", "--git-dir"], { cwd })
 		return true
 	} catch (_error) {
 		return false
@@ -26,7 +25,7 @@ async function checkGitRepo(cwd: string): Promise<boolean> {
 
 async function checkGitInstalled(): Promise<boolean> {
 	try {
-		await execAsync("git --version")
+		await execFileAsync("git", ["--version"])
 		return true
 	} catch (_error) {
 		return false
@@ -35,7 +34,7 @@ async function checkGitInstalled(): Promise<boolean> {
 
 async function checkGitRepoHasCommits(cwd: string): Promise<boolean> {
 	try {
-		await execAsync("git rev-parse HEAD", { cwd })
+		await execFileAsync("git", ["rev-parse", "HEAD"], { cwd })
 		return true
 	} catch (_error) {
 		return false
@@ -83,6 +82,10 @@ export async function searchCommits(query: string, cwd: string): Promise<GitComm
 			}
 
 			output = hashStdout
+		}
+
+		if (!output.trim()) {
+			return []
 		}
 
 		const commits: GitCommit[] = []
@@ -167,7 +170,7 @@ export async function getWorkingState(cwd: string): Promise<string> {
 		}
 
 		// Get status of working directory
-		const { stdout: status } = await execAsync("git status --short", { cwd })
+		const { stdout: status } = await execFileAsync("git", ["status", "--short"], { cwd })
 		if (!status.trim()) {
 			return "No changes in working directory"
 		}
@@ -176,7 +179,7 @@ export async function getWorkingState(cwd: string): Promise<string> {
 		let diff = ""
 		if (await checkGitRepoHasCommits(cwd)) {
 			// Only run git diff if there are commits
-			const { stdout: diffOutput } = await execAsync("git diff HEAD", { cwd })
+			const { stdout: diffOutput } = await execFileAsync("git", ["diff", "HEAD"], { cwd })
 			diff = diffOutput
 		} else {
 			// No commits yet, use status output only
@@ -206,13 +209,13 @@ export async function getGitDiff(cwd: string, stagedOnly = false): Promise<strin
 		let command = "git --no-pager diff --staged --diff-filter=d"
 		if (await checkGitRepoHasCommits(cwd)) {
 			// Only run git diff if there are commits
-			const { stdout: staged } = await execAsync(command, { cwd })
+			const { stdout: staged } = await execFileAsync("git", ["--no-pager", "diff", "--staged", "--diff-filter=d"], { cwd })
 			diff = staged.trim()
 		}
 
 		if (!stagedOnly && !diff) {
 			command = "git --no-pager diff HEAD --diff-filter=d"
-			const { stdout: unstaged } = await execAsync(command, { cwd })
+			const { stdout: unstaged } = await execFileAsync("git", ["--no-pager", "diff", "HEAD", "--diff-filter=d"], { cwd })
 			diff = unstaged.trim()
 		}
 
@@ -238,7 +241,7 @@ export async function getGitRemoteUrls(cwd: string): Promise<string[]> {
 			return []
 		}
 
-		const { stdout } = await execAsync("git remote -v", { cwd })
+		const { stdout } = await execFileAsync("git", ["remote", "-v"], { cwd })
 		if (!stdout.trim()) {
 			return []
 		}
@@ -274,7 +277,7 @@ export async function getLatestGitCommitHash(cwd: string): Promise<string | null
 			return null
 		}
 
-		const { stdout } = await execAsync("git rev-parse HEAD", { cwd })
+		const { stdout } = await execFileAsync("git", ["rev-parse", "HEAD"], { cwd })
 		return stdout.trim() || null
 	} catch (error) {
 		Logger.error("Error getting latest git commit hash:", error)

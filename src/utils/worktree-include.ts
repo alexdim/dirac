@@ -48,14 +48,14 @@ async function isDirectoryPattern(sourceDir: string, pattern: string): Promise<s
 }
 
 /**
- * Copy a directory recursively using fs.cp (no process spawn, safe with any path characters)
+ * Copy a directory recursively using fs.cp (no process spawn, safe with any path characters, preserves relative symlinks)
  */
 async function copyDirectoryNative(source: string, target: string): Promise<void> {
 	// Create parent directory if needed
 	await fs.mkdir(path.dirname(target), { recursive: true })
 
-	// Use fs.cp for safe recursive copy (no shell, no injection risk)
-	await fs.cp(source, target, { recursive: true })
+	// Use fs.cp with verbatimSymlinks to preserve relative symlinks without resolving to source absolute paths
+	await fs.cp(source, target, { recursive: true, verbatimSymlinks: true })
 }
 
 /**
@@ -109,8 +109,8 @@ async function copyFilesInBatches(
 				// Create target directory if it doesn't exist
 				await fs.mkdir(path.dirname(targetPath), { recursive: true })
 
-				// Copy the file
-				await fs.copyFile(sourcePath, targetPath)
+				// Copy the file or symlink verbatim
+				await fs.cp(sourcePath, targetPath, { verbatimSymlinks: true })
 				return file
 			}),
 		)
