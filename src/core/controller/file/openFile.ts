@@ -1,5 +1,4 @@
 import { readRemoteConfigFromCache } from "@core/storage/disk"
-import { StateManager } from "@core/storage/StateManager"
 import { openFile as openFileIntegration } from "@integrations/misc/open-file"
 import { Empty, StringRequest } from "@shared/proto/dirac/common"
 import { REMOTE_URI_SCHEME } from "@shared/remote-config/constants"
@@ -17,11 +16,11 @@ import { Controller } from ".."
  *                - remote://workflow/{workflowName}
  * @returns Empty response
  */
-export async function openFile(_controller: Controller, request: StringRequest): Promise<Empty> {
+export async function openFile(controller: Controller, request: StringRequest): Promise<Empty> {
 	if (request.value) {
 		// Check for remote:// prefix for remote rules/workflows
 		if (request.value.startsWith(REMOTE_URI_SCHEME)) {
-			await openRemoteFile(request.value)
+			await openRemoteFile(controller, request.value)
 		} else {
 			await openFileIntegration(request.value)
 		}
@@ -31,9 +30,10 @@ export async function openFile(_controller: Controller, request: StringRequest):
 
 /**
  * Opens a remote rule or workflow file by creating a temp file with its contents
+ * @param controller The controller instance
  * @param uri The remote URI in format: remote://rule/{name} or remote://workflow/{name}
  */
-async function openRemoteFile(uri: string): Promise<void> {
+async function openRemoteFile(controller: Controller, uri: string): Promise<void> {
 	// Parse: remote://rule/{name} or remote://workflow/{name}
 	const match = uri.match(/^remote:\/\/(rule|workflow)\/(.+)$/)
 	if (!match) {
@@ -42,9 +42,8 @@ async function openRemoteFile(uri: string): Promise<void> {
 
 	const [, type, name] = match
 
-	// Look up the item from cached remote config
-	const stateManager = StateManager.get()
-	const organizationId = stateManager.getSecretKey("dirac:diracAccountId")
+	// Look up the item from cached remote config via controller's state manager
+	const organizationId = controller.stateManager.getSecretKey("dirac:diracAccountId")
 	if (!organizationId) {
 		throw new Error(`Not signed in to a Dirac organization; cannot open remote ${type}: ${name}`)
 	}
