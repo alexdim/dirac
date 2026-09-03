@@ -33,9 +33,15 @@ export function isAnthropicModelId(modelId: string): modelId is AnthropicModelId
 	return modelId in anthropicModels || CLAUDE_MODELS.some((substring) => modelId.includes(substring))
 }
 
-export function isGPT5(id: string): boolean {
-	const modelId = normalize(id)
-	return modelId.includes("gpt-5") || modelId.includes("gpt5")
+const GPT_GENERATION_REGEX = /(?:^|[^a-z0-9])gpt-?(\d+)(?=$|[^0-9])/i
+
+export function isGptGenerationAtLeast(id: string, minimumGeneration: number): boolean {
+	const match = normalize(id).match(GPT_GENERATION_REGEX)
+	return match !== null && Number.parseInt(match[1], 10) >= minimumGeneration
+}
+
+export function supportsOpenAiPersistedReasoning(modelId: string, explicitlySupported?: boolean): boolean {
+	return explicitlySupported === true || isGptGenerationAtLeast(modelId, 6)
 }
 
 export function isLocalModel(providerInfo: ApiProviderInfo): boolean {

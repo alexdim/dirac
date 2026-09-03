@@ -22,7 +22,7 @@ import { fetch } from "@/shared/net"
 import { ApiFormat } from "@/shared/proto/dirac/models"
 import { FeatureFlag } from "@/shared/services/feature-flags/feature-flags"
 import { Logger } from "@/shared/services/Logger"
-import { isParallelToolCallingEnabled } from "@/utils/model-utils"
+import { isParallelToolCallingEnabled, supportsOpenAiPersistedReasoning } from "@/utils/model-utils"
 import {
 	type ApiConversationCompactionRequest,
 	type ApiConversationCompactionResult,
@@ -185,10 +185,11 @@ export class OpenAiCodexHandler implements ApiHandler {
 
 	async compactConversation(request: ApiConversationCompactionRequest): Promise<ApiConversationCompactionResult> {
 		const model = this.getModel()
+		const usePersistedReasoning = supportsOpenAiPersistedReasoning(model.id, model.info.supportsPersistedReasoning)
 		const finalTools: CodexTool[] = [...((request.tools ?? []) as ChatCompletionTool[])]
 		const input = [...(request.checkpoint?.input ?? []), ...convertToOpenAIResponsesInput(request.messages).input]
 		const fullBody = this.buildRequestBody(model, input, request.systemPrompt, finalTools, {
-			usePersistedReasoning: model.info.supportsPersistedReasoning === true,
+			usePersistedReasoning,
 		})
 		const { stream, store, tool_choice, include, previous_response_id, ...compactBody } = fullBody
 		void stream
@@ -258,7 +259,7 @@ export class OpenAiCodexHandler implements ApiHandler {
 		const finalTools: CodexTool[] = [...(tools || [])]
 		if (options?.enableNativeWebSearch) finalTools.push({ type: "web_search" })
 		const model = this.getModel()
-		const usePersistedReasoning = model.info.supportsPersistedReasoning === true
+		const usePersistedReasoning = supportsOpenAiPersistedReasoning(model.id, model.info.supportsPersistedReasoning)
 		const useWebsocketMode = this.useWebsocketMode(model.info.apiFormat) || usePersistedReasoning
 
 		this.pendingToolCallId = undefined

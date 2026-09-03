@@ -194,7 +194,7 @@ describe("SessionConfigManager task runtime behavior", () => {
 		await manager.applyProviderConfigOption(session(), "openai-native", runtime)
 
 		expect(runtime.actModeApiProvider).toBe("openai-native")
-		expect(runtime.actModeApiModelId).toBe("gpt-5.6-terra")
+		expect(runtime.actModeApiModelId).toBe("gpt-6-astra")
 	})
 
 	it("does not carry a source model into a permissive target provider catalog", async () => {

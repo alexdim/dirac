@@ -359,6 +359,13 @@ export const MODEL_CAPABILITIES: Record<string, ModelCapabilities> = {
 		supportsImages: true,
 		supportsReasoning: true,
 	},
+	"gpt-6-astra": {
+		name: "GPT-6 Astra",
+		maxTokens: 128_000,
+		contextWindow: 1_000_000,
+		supportsImages: true,
+		supportsReasoning: true,
+	},
 	"gpt-5.6-terra": {
 		name: "GPT-5.6 Terra",
 		maxTokens: 128_000,

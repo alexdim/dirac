@@ -6,16 +6,15 @@ import { GPT_5_5_TIERS, GPT_5_4_TIERS, GPT_5_4_PRO_TIERS } from "./shared-tiers"
 /**
  * OpenAI-native-only Responses API capabilities.
  *
- * IMPORTANT: Future OpenAI-native models, including GPT-6+, must explicitly
- * opt in only after the Responses API behavior has been verified. Unknown
- * models remain disabled so Dirac never sends unsupported request fields.
+ * Known GPT-5 models opt in explicitly. Registered GPT generations after GPT-5
+ * inherit Responses API persisted-reasoning compatibility.
  */
 export interface OpenAiNativeModelInfo extends OpenAiCompatibleModelInfo {
 	supportsPersistedReasoning?: boolean
 }
 export type OpenAiNativeModelId = keyof typeof openAiNativeModels
 
-export const openAiNativeDefaultModelId: OpenAiNativeModelId = "gpt-5.6-terra"
+export const openAiNativeDefaultModelId: OpenAiNativeModelId = "gpt-6-astra"
 
 export const openAiNativeModels = {
 	"gpt-5.5": {
@@ -81,6 +80,18 @@ export const openAiNativeModels = {
 		outputPrice: 30.0,
 		cacheReadsPrice: 0.5,
 		cacheWritesPrice: 6.25,
+		apiFormat: ApiFormat.OPENAI_RESPONSES,
+		supportsPersistedReasoning: true,
+	},
+	"gpt-6-astra": {
+		...MODEL_CAPABILITIES["gpt-6-astra"],
+		supportsPromptCache: true,
+		supportsFastMode: true,
+		fastModePriceMultiplier: 2,
+		inputPrice: 10.0,
+		outputPrice: 50.0,
+		cacheReadsPrice: 1.0,
+		cacheWritesPrice: 12.50,
 		apiFormat: ApiFormat.OPENAI_RESPONSES,
 		supportsPersistedReasoning: true,
 	},

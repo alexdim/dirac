@@ -84,6 +84,28 @@ describe("OpenAiNativeHandler persisted reasoning", () => {
 		params.input.should.have.length(1)
 	})
 
+	it("sends GPT-6 Astra with persisted reasoning", async () => {
+		const createStub = sinon.stub().resolves(createAsyncIterable())
+		const handler = createHandler(createStub, { modelId: "gpt-6-astra" })
+
+		await drain(
+			handler.createMessage(
+				"system",
+				[
+					{ role: "user", content: "old question" },
+					currentModelResponse("gpt-6-astra"),
+					{ role: "user", content: "new question" },
+				] as any,
+				tools,
+			),
+		)
+
+		const params = createStub.firstCall.args[0]
+		params.model.should.equal("gpt-6-astra")
+		params.previous_response_id.should.equal("resp_123")
+		params.reasoning.context.should.equal("all_turns")
+	})
+
 	it("preserves Responses call IDs for persisted-reasoning tool results", async () => {
 		const createStub = sinon.stub().resolves(createAsyncIterable())
 		const handler = createHandler(createStub)
