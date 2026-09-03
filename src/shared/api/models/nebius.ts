@@ -1,5 +1,5 @@
-import type { ModelInfo } from "./types"
 import { MODEL_CAPABILITIES } from "./capabilities"
+import type { OpenAiCompatibleModelInfo } from "./types"
 
 export type NebiusModelId = keyof typeof nebiusModels
 export const nebiusDefaultModelId = "openai/gpt-oss-120b" satisfies NebiusModelId
@@ -48,11 +48,13 @@ export const nebiusModels = {
 		supportsPromptCache: false,
 		inputPrice: 0.95,
 		outputPrice: 4,
+		isR1FormatRequired: true,
 	},
 	"moonshotai/Kimi-K3": {
 		...MODEL_CAPABILITIES["kimi-k3"],
 		supportsPromptCache: false,
 		inputPrice: 3,
 		outputPrice: 15,
+		isR1FormatRequired: true,
 	},
-} as const satisfies Record<string, ModelInfo>
+} as const satisfies Record<string, OpenAiCompatibleModelInfo>
