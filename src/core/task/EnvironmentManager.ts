@@ -53,6 +53,19 @@ const CODE_EXTENSIONS = new Set([
 ])
 
 const ALWAYS_IGNORED_DIRS = new Set(["node_modules", ".git", ".next", "dist", "build", "__pycache__", ".venv", "venv", ".cache"])
+const MAX_WALK_ENTRIES = 5000
+
+function isCodeFile(filename: string): boolean {
+	return CODE_EXTENSIONS.has(path.extname(filename).toLowerCase())
+}
+
+async function readDirEntries(dir: string): Promise<Dirent[]> {
+	try {
+		return await fs.readdir(dir, { withFileTypes: true })
+	} catch {
+		return []
+	}
+}
 
 export interface EnvironmentManagerDependencies {
 	cwd: string
@@ -107,24 +120,19 @@ export class EnvironmentManager {
 
 		if (includeFileDetails) {
 			const MAX_RECENT_FILES = 10
-			const MAX_WALK_FILES = 5000
 
 			// Merge hardcoded ignores with .gitignore entries so we skip generated/vendor dirs
 			const gitIgnoredNames = await this.getGitIgnoredNames()
 			const ignoredDirs = new Set([...ALWAYS_IGNORED_DIRS, ...gitIgnoredNames])
 
-			// Cap the walk itself (not just the collection) so huge repos don't pay the full readdir cost.
-			// The budget is consumed only by files that survive the stat, so vanished files don't waste it.
-			const remainingFiles = { value: MAX_WALK_FILES }
 			const fileStats: { relativePath: string; mtime: Date }[] = []
-			for await (const absPath of this.walkCodeFiles(this.cwd, ignoredDirs, remainingFiles)) {
+			for await (const absPath of this.walkCodeFiles(this.cwd, ignoredDirs)) {
 				try {
 					const stat = await fs.stat(absPath)
 					fileStats.push({
 						relativePath: path.relative(this.cwd, absPath),
 						mtime: stat.mtime,
 					})
-					remainingFiles.value--
 				} catch {
 					// File removed between walk and stat — skip
 				}
@@ -215,30 +223,31 @@ export class EnvironmentManager {
 		return ignored
 	}
 
-	private async *walkCodeFiles(dir: string, ignoredDirs: Set<string>, remaining: { value: number }): AsyncGenerator<string> {
-		if (remaining.value <= 0 || this.taskState.abort) {
-			return
-		}
-		let entries: Dirent[]
-		try {
-			entries = await fs.readdir(dir, { withFileTypes: true })
-		} catch {
-			return
-		}
-		for (const entry of entries) {
-			if (remaining.value <= 0 || this.taskState.abort) {
-				return
-			}
-			if (entry.name.startsWith(".")) {
-				continue
-			}
-			if (entry.isDirectory()) {
-				if (!ignoredDirs.has(entry.name)) {
-					yield* this.walkCodeFiles(path.join(dir, entry.name), ignoredDirs, remaining)
+	private async *walkCodeFiles(
+		root: string,
+		ignoredDirs: Set<string>,
+		maxEntries = MAX_WALK_ENTRIES,
+	): AsyncGenerator<string> {
+		const queue: string[] = [root]
+		let inspected = 0
+
+		while (queue.length > 0 && !this.taskState.abort) {
+			const dir = queue.shift()!
+			const entries = await readDirEntries(dir)
+
+			for (const entry of entries) {
+				if (this.taskState.abort || ++inspected > maxEntries) {
+					return
 				}
-			} else if (entry.isFile()) {
-				if (CODE_EXTENSIONS.has(path.extname(entry.name).toLowerCase())) {
-					yield path.join(dir, entry.name)
+				if (entry.name.startsWith(".")) {
+					continue
+				}
+
+				const fullPath = path.join(dir, entry.name)
+				if (entry.isDirectory() && !ignoredDirs.has(entry.name)) {
+					queue.push(fullPath)
+				} else if (entry.isFile() && isCodeFile(entry.name)) {
+					yield fullPath
 				}
 			}
 		}
