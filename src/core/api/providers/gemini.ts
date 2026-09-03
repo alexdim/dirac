@@ -9,7 +9,7 @@ import {
 } from "@google/genai"
 import { GeminiModelId, geminiDefaultModelId, geminiModels, ModelInfo } from "@shared/api"
 import { isRateLimited } from "@shared/net"
-import { GEMINI_MAX_OUTPUT_TOKENS } from "@utils/model-utils"
+import { GEMINI_DEFAULT_MAX_OUTPUT_TOKENS } from "@utils/model-utils"
 import { buildExternalBasicHeaders } from "@/services/EnvUtils"
 import { telemetryService } from "@/services/telemetry"
 import { DiracStorageMessage } from "@/shared/messages/content"
@@ -54,10 +54,10 @@ function mapReasoningEffortToGeminiThinkingLevel(effort: string): ThinkingLevel 
 
 function getGeminiMaxOutputTokens(modelId: string, modelMaxTokens?: number): number | undefined {
 	if (modelMaxTokens && modelMaxTokens > 0) {
-		return Math.min(modelMaxTokens, GEMINI_MAX_OUTPUT_TOKENS)
+		return modelMaxTokens
 	}
 
-	return GEMINI_MAX_OUTPUT_TOKENS
+	return GEMINI_DEFAULT_MAX_OUTPUT_TOKENS
 }
 
 /**
