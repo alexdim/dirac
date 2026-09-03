@@ -4,7 +4,7 @@ import { AnthropicModelId, anthropicModels, getProviderForModel } from "@/shared
 export { supportsReasoningEffortForModel } from "@shared/utils/reasoning-support"
 
 const CLAUDE_VERSION_MATCH_REGEX = /[-_ ]([\d](?:\.[05])?)[-_ ]?/
-export const GEMINI_MAX_OUTPUT_TOKENS = 32_768
+export const GEMINI_DEFAULT_MAX_OUTPUT_TOKENS = 32_768
 
 export function modelDoesntSupportWebp(apiHandlerModel: ApiHandlerModel): boolean {
 	const modelId = apiHandlerModel.id.toLowerCase()

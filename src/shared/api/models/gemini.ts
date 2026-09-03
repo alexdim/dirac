@@ -8,7 +8,6 @@ export const geminiDefaultModelId: GeminiModelId = "gemini-3.1-pro-preview"
 export const geminiModels = {
 	"gemini-3.1-pro-preview": {
 		...MODEL_CAPABILITIES["gemini-3.1-pro-preview"],
-		maxTokens: 65536,
 		supportsPromptCache: true,
 		inputPrice: 4.0,
 		outputPrice: 18.0,
@@ -36,7 +35,6 @@ export const geminiModels = {
 	},
 	"gemini-3-pro-preview": {
 		...MODEL_CAPABILITIES["gemini-3-pro-preview"],
-		maxTokens: 65536,
 		supportsPromptCache: true,
 		inputPrice: 4.0,
 		outputPrice: 18.0,
@@ -88,19 +86,17 @@ export const geminiModels = {
 			supportsThinkingLevel: true,
 		},
 	},
-	"gemini-3.7-flash": {
-		...MODEL_CAPABILITIES["gemini-3.7-flash"],
+	"gemini-3.5-flash-lite": {
+		...MODEL_CAPABILITIES["gemini-3.5-flash-lite"],
 		supportsPromptCache: true,
 		supportsGlobalEndpoint: true,
-		inputPrice: 0.75,
-		outputPrice: 3.75,
-		cacheReadsPrice: 0.075,
+		inputPrice: 0.3,
+		outputPrice: 2.5,
+		cacheReadsPrice: 0.03,
 		cacheWritesPrice: 0.0,
 		temperature: 1.0,
-		description:
-			"Google's most capable Flash model for agentic workflows and multimodal reasoning. Introductory pricing applies through December 31, 2026.",
 		thinkingConfig: {
-			geminiThinkingLevel: "medium" as const,
+			geminiThinkingLevel: "high" as const,
 			supportsThinkingLevel: true,
 		},
 	},
@@ -118,15 +114,33 @@ export const geminiModels = {
 			supportsThinkingLevel: true,
 		},
 	},
-	"gemini-3.5-flash-lite": {
-		...MODEL_CAPABILITIES["gemini-3.5-flash-lite"],
+	"gemini-3.7-flash": {
+		...MODEL_CAPABILITIES["gemini-3.7-flash"],
 		supportsPromptCache: true,
 		supportsGlobalEndpoint: true,
-		inputPrice: 0.3,
-		outputPrice: 2.5,
-		cacheReadsPrice: 0.03,
+		inputPrice: 0.75,
+		outputPrice: 3.75,
+		cacheReadsPrice: 0.075,
 		cacheWritesPrice: 0.0,
 		temperature: 1.0,
+		description:
+			"Google's most capable Flash model for agentic workflows and multimodal reasoning. Introductory pricing applies through December 31, 2026.",
+		thinkingConfig: {
+			geminiThinkingLevel: "medium" as const,
+			supportsThinkingLevel: true,
+		},
+	},
+	"gemini-3.8-flash": {
+		...MODEL_CAPABILITIES["gemini-3.8-flash"],
+		supportsPromptCache: true,
+		supportsGlobalEndpoint: true,
+		inputPrice: 0.75,
+		outputPrice: 3.75,
+		cacheReadsPrice: 0.075,
+		cacheWritesPrice: 0.0,
+		temperature: 1.0,
+		description:
+			"Google's Gemini 3.8 Flash model for agentic workflows and multimodal reasoning. Introductory pricing applies through December 31, 2026.",
 		thinkingConfig: {
 			geminiThinkingLevel: "high" as const,
 			supportsThinkingLevel: true,
