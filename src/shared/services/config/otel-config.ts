@@ -179,18 +179,23 @@ function getRuntimeOtelConfig(): OpenTelemetryClientConfig {
 	}
 }
 
+export function isLoopbackHost(hostname: string): boolean {
+	const normalized = hostname.startsWith("[") && hostname.endsWith("]") ? hostname.slice(1, -1) : hostname
+	return normalized === "localhost" || normalized === "127.0.0.1" || normalized === "::1"
+}
+
 /**
  * Validates that an OTLP endpoint uses a trusted scheme.
  * Only https: is allowed for remote endpoints; http: is permitted for localhost (dev).
  */
-function isTrustedOtlpEndpoint(endpoint: string | undefined): boolean {
+export function isTrustedOtlpEndpoint(endpoint: string | undefined): boolean {
 	if (!endpoint) return true // No endpoint set - nothing to validate
 	try {
 		const url = new URL(endpoint)
 		if (url.protocol === "https:") return true
 		if (url.protocol === "http:") {
 			// Allow http only for localhost (local development)
-			return url.hostname === "localhost" || url.hostname === "127.0.0.1" || url.hostname === "::1"
+			return isLoopbackHost(url.hostname)
 		}
 		return false
 	} catch {

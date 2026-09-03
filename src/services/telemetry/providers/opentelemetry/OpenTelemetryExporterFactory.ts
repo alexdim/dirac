@@ -1,4 +1,4 @@
-import { credentials as grpcCredentials } from "@grpc/grpc-js"
+import { type ChannelCredentials, credentials as grpcCredentials } from "@grpc/grpc-js"
 import { OTLPLogExporter as OTLPLogExporterGRPC } from "@opentelemetry/exporter-logs-otlp-grpc"
 import { OTLPLogExporter as OTLPLogExporterHTTP } from "@opentelemetry/exporter-logs-otlp-http"
 import { OTLPLogExporter as OTLPLogExporterProto } from "@opentelemetry/exporter-logs-otlp-proto"
@@ -8,6 +8,7 @@ import { OTLPMetricExporter as OTLPMetricExporterProto } from "@opentelemetry/ex
 import { ConsoleLogRecordExporter, LogRecordExporter } from "@opentelemetry/sdk-logs"
 import { ConsoleMetricExporter, MetricReader, PeriodicExportingMetricReader } from "@opentelemetry/sdk-metrics"
 import { Logger } from "@/shared/services/Logger"
+import { isLoopbackHost, isTrustedOtlpEndpoint } from "@/shared/services/config/otel-config"
 import { wrapLogsExporterWithDiagnostics, wrapMetricsExporterWithDiagnostics } from "./otel-exporter-diagnostics"
 import { isDev } from "@shared/config/environment"
 
@@ -34,6 +35,31 @@ export function ensurePathSuffix(url: URL, suffix: string): void {
 	}
 }
 
+function sanitizeEndpointForLogging(endpoint: string): string {
+	try {
+		const url = new URL(endpoint)
+		return `${url.protocol}//${url.host}${url.pathname}`
+	} catch {
+		return "[invalid-url]"
+	}
+}
+
+/**
+ * Resolves gRPC credentials according to transport security policy.
+ * Only loopback endpoints (localhost, 127.0.0.1, [::1]) may use insecure credentials.
+ * Remote endpoints and HTTPS endpoints must always use SSL credentials.
+ */
+export function resolveGrpcCredentials(url: URL, insecure: boolean): ChannelCredentials {
+	if (url.protocol === "https:" || !isLoopbackHost(url.hostname)) {
+		if (insecure) {
+			Logger.warn(`[OTEL] Insecure transport requested for remote/HTTPS endpoint '${url.host}', enforcing SSL`)
+		}
+		return grpcCredentials.createSsl()
+	}
+
+	return grpcCredentials.createInsecure()
+}
+
 /**
  * Create an OTLP log exporter based on protocol
  */
@@ -44,14 +70,19 @@ export function createOTLPLogExporter(
 	headers?: Record<string, string>,
 ): LogRecordExporter | null {
 	try {
+		if (!isTrustedOtlpEndpoint(endpoint)) {
+			Logger.warn(`[OTEL] Untrusted OTLP logs endpoint rejected: ${sanitizeEndpointForLogging(endpoint)}`)
+			return null
+		}
+
 		let exporter: any = null
 		const logsUrl = new URL(endpoint)
 		ensurePathSuffix(logsUrl, "/v1/logs")
 
 		switch (protocol) {
 			case "grpc": {
-				const grpcEndpoint = endpoint.replace(/^https?:\/\//, "")
-				const credentials = insecure ? grpcCredentials.createInsecure() : grpcCredentials.createSsl()
+				const grpcEndpoint = logsUrl.host || endpoint.replace(/^https?:\/\//, "")
+				const credentials = resolveGrpcCredentials(logsUrl, insecure)
 
 				exporter = new OTLPLogExporterGRPC({
 					url: grpcEndpoint,
@@ -109,6 +140,11 @@ export function createOTLPMetricReader(
 	headers?: Record<string, string>,
 ): MetricReader | null {
 	try {
+		if (!isTrustedOtlpEndpoint(endpoint)) {
+			Logger.warn(`[OTEL] Untrusted OTLP metrics endpoint rejected: ${sanitizeEndpointForLogging(endpoint)}`)
+			return null
+		}
+
 		let exporter: any = null
 
 		const metricsUrl = new URL(endpoint)
@@ -116,8 +152,8 @@ export function createOTLPMetricReader(
 
 		switch (protocol) {
 			case "grpc": {
-				const grpcEndpoint = endpoint.replace(/^https?:\/\//, "")
-				const credentials = insecure ? grpcCredentials.createInsecure() : grpcCredentials.createSsl()
+				const grpcEndpoint = metricsUrl.host || endpoint.replace(/^https?:\/\//, "")
+				const credentials = resolveGrpcCredentials(metricsUrl, insecure)
 
 				exporter = new OTLPMetricExporterGRPC({
 					url: grpcEndpoint,
