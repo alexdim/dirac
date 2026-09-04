@@ -3,6 +3,48 @@ import { describe, it } from "mocha"
 import { convertAnthropicMessagesToGemini } from "../gemini-format"
 
 describe("convertAnthropicMessagesToGemini", () => {
+	it("preserves string tool results in function responses", () => {
+		const result = convertAnthropicMessagesToGemini([
+			{
+				role: "assistant",
+				content: [{ type: "tool_use", id: "call-1", name: "read_file", input: { path: "file.txt" } }],
+			},
+			{
+				role: "user",
+				content: [{ type: "tool_result", tool_use_id: "call-1", content: "actual output" }],
+			},
+		] as any)
+
+		assert.deepEqual(result[1].parts?.[0], {
+			functionResponse: {
+				id: "call-1",
+				name: "read_file",
+				response: { result: "actual output" },
+			},
+		})
+	})
+
+	it("preserves empty string tool results in function responses", () => {
+		const result = convertAnthropicMessagesToGemini([
+			{
+				role: "assistant",
+				content: [{ type: "tool_use", id: "call-1", name: "read_file", input: { path: "empty.txt" } }],
+			},
+			{
+				role: "user",
+				content: [{ type: "tool_result", tool_use_id: "call-1", content: "" }],
+			},
+		] as any)
+
+		assert.deepEqual(result[1].parts?.[0], {
+			functionResponse: {
+				id: "call-1",
+				name: "read_file",
+				response: { result: "" },
+			},
+		})
+	})
+
 	it("keeps image-bearing tool results out of function response JSON", () => {
 		const result = convertAnthropicMessagesToGemini(
 			[
