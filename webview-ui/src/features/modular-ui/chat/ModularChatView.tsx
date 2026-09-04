@@ -1,5 +1,4 @@
 import { Mode } from "@shared/ExtensionMessage"
-import { getApiMetrics, getLastApiReqInfo } from "@shared/getApiMetrics"
 import React, { useEffect, useMemo } from "react"
 import { useMount } from "react-use"
 import { useAppStore } from "@/app/store/appStore"
@@ -9,7 +8,6 @@ import { useChatStore } from "@/features/chat/store/chatStore"
 import { normalizeApiConfiguration } from "@/features/settings/components/utils/providerUtils"
 import { useSettingsStore } from "@/features/settings/store/settingsStore"
 import { cn } from "@/lib/utils"
-import { useThrottledValue } from "@/shared/lib/useThrottledValue"
 import { Navbar } from "@/shared/ui/Navbar"
 import { ChatLayout } from "./components/ChatLayout"
 import { InteractionState, useInteractionState } from "./context/InteractionStateContext"
@@ -26,15 +24,21 @@ import { MessagesSection } from "./sections/MessagesSection"
 import { TaskSection } from "./sections/TaskSection"
 import { WelcomeSection } from "./sections/WelcomeSection"
 import { ChatSection, ChatViewContext, ChatViewDecorator, ChatViewProps } from "./types"
-import { filterVisibleMessages } from "./utils/messageUtils"
+import { useShallow } from "zustand/react/shallow"
 
 export const ModularChatView: React.FC<ChatViewProps> = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryView }) => {
 	const showNavbar = useShowNavbar()
 	const version = useAppStore((state) => state.version)
-	const messages = useChatStore((state) => state.diracMessages)
+	const { messages, task, renderedMessageIds, apiMetrics, lastApiReqInfo } = useChatStore(
+		useShallow((state) => ({
+			messages: state.diracMessages,
+			task: state.taskMessage,
+			renderedMessageIds: state.visibleMessageIds,
+			apiMetrics: state.apiMetrics,
+			lastApiReqInfo: state.lastApiReqInfo,
+		})),
+	)
 	const goal = useChatStore((state) => state.goal)
-	const activeVoiceStreamId = useChatStore((state) => state.activeVoiceStreamId)
-	const isApiRequestActive = useChatStore((state) => state.isApiRequestActive)
 	const taskHistory = useTaskStore((state) => state.taskHistory)
 	const apiConfiguration = useSettingsStore((state) => state.apiConfiguration)
 	const telemetrySetting = useSettingsStore((state) => state.telemetrySetting)
@@ -42,18 +46,7 @@ export const ModularChatView: React.FC<ChatViewProps> = ({ isHidden, showAnnounc
 	const effectiveMode = goal?.mode ?? mode
 	const shouldShowQuickWins = !!taskHistory && taskHistory.length > 0
 
-	const task = useMemo(() => messages.at(0), [messages])
-	const streamingActive = isApiRequestActive || !!activeVoiceStreamId
-	const renderedMessageSource = useThrottledValue(messages, streamingActive ? 100 : 0)
-
-	const modifiedMessages = useMemo(() => {
-		return renderedMessageSource.slice(1)
-	}, [renderedMessageSource])
-
-	const apiMetrics = useMemo(() => getApiMetrics(modifiedMessages), [modifiedMessages])
-	const lastApiReqInfo = useMemo(() => getLastApiReqInfo(modifiedMessages), [modifiedMessages])
-
-	const chatState = useChatState(messages)
+	const chatState = useChatState()
 	const { sendingDisabled, uiActionState, expandedRows, setExpandedRows, textAreaRef } = chatState
 
 	const messageHandlers = useMessageHandlers(chatState)
@@ -79,13 +72,7 @@ export const ModularChatView: React.FC<ChatViewProps> = ({ isHidden, showAnnounc
 		}
 	}, [isHidden, sendingDisabled, hasButtons, textAreaRef])
 
-	const visibleMessages = useMemo(() => {
-		return filterVisibleMessages(modifiedMessages)
-	}, [modifiedMessages])
-
-	const renderedMessages = visibleMessages
-
-	const scrollBehavior = useScrollBehavior(messages, visibleMessages, renderedMessages, expandedRows, setExpandedRows)
+	const scrollBehavior = useScrollBehavior(messages, renderedMessageIds, renderedMessageIds, expandedRows, setExpandedRows)
 
 	const placeholderText = useMemo(() => {
 		if (goal?.followUpActive) return "Steer this follow-up…"
@@ -103,9 +90,7 @@ export const ModularChatView: React.FC<ChatViewProps> = ({ isHidden, showAnnounc
 		() => ({
 			goal,
 			task,
-			messages,
-			modifiedMessages,
-			renderedMessages,
+			renderedMessageIds,
 			apiMetrics,
 			lastApiReqInfo,
 			chatState,
@@ -130,9 +115,7 @@ export const ModularChatView: React.FC<ChatViewProps> = ({ isHidden, showAnnounc
 		[
 			goal,
 			task,
-			messages,
-			modifiedMessages,
-			renderedMessages,
+			renderedMessageIds,
 			apiMetrics,
 			lastApiReqInfo,
 			chatState,

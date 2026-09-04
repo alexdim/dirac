@@ -107,15 +107,15 @@ export class ReadFileTool implements IDiracTool<ReadFileArgs> {
 		const contentBlocks: any[] = []
 		const cacheUpdates: FileReadCache = {}
 		const cacheDeletions = new Set<string>()
-		let loadedCache: FileReadCache | undefined
+		const loadedCache = new Map<string, FileReadCache[string] | undefined>()
 		let anySucceeded = false
 
-		const getFileHashes = async (): Promise<FileReadCache> => {
-			if (loadedCache) return loadedCache
-			loadedCache =
-				(await deadline.run("loading the file-read cache", async () =>
-					await env.context.task.get<FileReadCache>("fileHashes"))) || {}
-			return loadedCache
+		const getFileHash = async (cacheKey: string): Promise<FileReadCache[string] | undefined> => {
+			if (loadedCache.has(cacheKey)) return loadedCache.get(cacheKey)
+			const value = await deadline.run("loading the file-read cache entry", async () =>
+				await env.context.task.getEntry<FileReadCache[string]>("fileHashes", cacheKey))
+			loadedCache.set(cacheKey, value)
+			return value
 		}
 
 		for (const relPath of paths) {
@@ -123,7 +123,7 @@ export class ReadFileTool implements IDiracTool<ReadFileArgs> {
 				relPath,
 				paths.length > 1,
 				lineRange,
-				getFileHashes,
+				getFileHash,
 				cacheUpdates,
 				cacheDeletions,
 				env,
@@ -139,11 +139,7 @@ export class ReadFileTool implements IDiracTool<ReadFileArgs> {
 		if (Object.keys(cacheUpdates).length > 0 || cacheDeletions.size > 0) {
 			try {
 				await deadline.run("saving the file-read cache", async () =>
-					await env.context.task.update<FileReadCache>("fileHashes", (current) => {
-						const next = { ...(current ?? {}), ...cacheUpdates }
-						for (const cacheKey of cacheDeletions) delete next[cacheKey]
-						return next
-					}))
+					await env.context.task.updateEntries("fileHashes", cacheUpdates, [...cacheDeletions]))
 			} catch (error) {
 				if (error instanceof ToolTimeoutError) return await presentToolTimeout(env, error)
 				throw error
@@ -160,7 +156,7 @@ export class ReadFileTool implements IDiracTool<ReadFileArgs> {
 		relPath: string,
 		isMultiFile: boolean,
 		lineRange: LineRange | undefined,
-		getFileHashes: () => Promise<FileReadCache>,
+		getFileHash: (cacheKey: string) => Promise<FileReadCache[string] | undefined>,
 		cacheUpdates: FileReadCache,
 		cacheDeletions: Set<string>,
 		env: IToolEnvironment,
@@ -200,7 +196,7 @@ export class ReadFileTool implements IDiracTool<ReadFileArgs> {
 					displayPath,
 					header,
 					lineRange,
-					getFileHashes,
+					getFileHash,
 					cacheUpdates,
 					cacheDeletions,
 					env,
@@ -212,7 +208,7 @@ export class ReadFileTool implements IDiracTool<ReadFileArgs> {
 					displayPath,
 					header,
 					lineRange,
-					getFileHashes,
+					getFileHash,
 					cacheUpdates,
 					cacheDeletions,
 					env,
@@ -254,7 +250,7 @@ export class ReadFileTool implements IDiracTool<ReadFileArgs> {
 		displayPath: string,
 		header: string,
 		lineRange: LineRange | undefined,
-		getFileHashes: () => Promise<FileReadCache>,
+		getFileHash: (cacheKey: string) => Promise<FileReadCache[string] | undefined>,
 		cacheUpdates: FileReadCache,
 		cacheDeletions: Set<string>,
 		env: IToolEnvironment,
@@ -331,8 +327,7 @@ export class ReadFileTool implements IDiracTool<ReadFileArgs> {
 
 		const cacheKey = `${absolutePath}#${includeAnchors ? "anchored" : "plain"}`
 		if (selection.coversWholeFile) {
-			const fileHashes = await getFileHashes()
-			const cachedRead = fileHashes[cacheKey]
+			const cachedRead = await getFileHash(cacheKey)
 			const contentMatches =
 				typeof cachedRead === "string" ? cachedRead === currentHash : cachedRead?.contentHash === currentHash
 			if (!includeAnchors && contentMatches) {
@@ -355,7 +350,7 @@ export class ReadFileTool implements IDiracTool<ReadFileArgs> {
 		displayPath: string,
 		header: string,
 		lineRange: LineRange | undefined,
-		getFileHashes: () => Promise<FileReadCache>,
+		getFileHash: (cacheKey: string) => Promise<FileReadCache[string] | undefined>,
 		cacheUpdates: FileReadCache,
 		cacheDeletions: Set<string>,
 		env: IToolEnvironment,
@@ -378,8 +373,7 @@ export class ReadFileTool implements IDiracTool<ReadFileArgs> {
 		const currentHash = contentHash(fileContent.text)
 		const cacheKey = `${absolutePath}#plain`
 		if (selection.coversWholeFile) {
-			const fileHashes = await getFileHashes()
-			const cachedRead = fileHashes[cacheKey]
+			const cachedRead = await getFileHash(cacheKey)
 			const contentMatches =
 				typeof cachedRead === "string" ? cachedRead === currentHash : cachedRead?.contentHash === currentHash
 			if (contentMatches) {

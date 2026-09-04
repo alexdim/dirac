@@ -6,8 +6,7 @@ import type { SlashCommandDirectAction } from "@core/slash-commands"
 import type { ApiConversationCheckpoint, ApiConversationRequestOptions } from "@core/api/conversation"
 import { formatContentBlockToMarkdown } from "@integrations/misc/export-markdown"
 import { telemetryService } from "@services/telemetry"
-import { findLastIndex } from "@shared/array"
-import { CardStatus, DiracMessageType, Mode } from "@shared/ExtensionMessage"
+import { CardStatus, Mode } from "@shared/ExtensionMessage"
 import { DiracContent, DiracStorageMessage, removeProviderBoundaryMetadataFromMessage } from "@shared/messages/content"
 import type { DiracTool } from "@shared/tools"
 import { NATIVE_WEB_SEARCH_SKILL_NAME } from "@shared/skills"
@@ -334,6 +333,7 @@ export class ApiConversationManager {
 		providerId: string
 		modelId: string
 		mode: string
+		requestId: string
 		afterUserContentPersisted?: () => Promise<void>
 	}): Promise<{
 		userContent: DiracContent[]
@@ -480,23 +480,11 @@ export class ApiConversationManager {
 		}
 
 		// since we sent off a placeholder api_req_started message to update the webview while waiting to actually start the API request (to load potential details for example), we need to update the text of that message
-		const diracMessages = this.dependencies.messageStateHandler.getDiracMessages()
-		const lastApiReqIndex = findLastIndex(diracMessages, (m) => m.id === apiReqId)
-
-		if (lastApiReqIndex !== -1) {
-			const msg = diracMessages[lastApiReqIndex]
-			if (msg.content.type === "api_status") {
-				await this.dependencies.messageStateHandler.updateDiracMessage(lastApiReqIndex, {
-					content: {
-						type: DiracMessageType.API_STATUS,
-						status: {
-							...msg.content.status,
-							request: userContent.map((block) => formatContentBlockToMarkdown(block)).join("\n\n"),
-						},
-					},
-				})
-			}
-		}
+		const lastApiReqIndex = this.dependencies.messageStateHandler.findMessageIndexById(apiReqId)
+		if (lastApiReqIndex === -1) throw new Error(`API status ${apiReqId} not found`)
+		await this.dependencies.messageStateHandler.patchApiStatusById(apiReqId, {
+			request: userContent.map((block) => formatContentBlockToMarkdown(block)).join("\n\n"),
+		})
 
 		await this.dependencies.postStateToWebview()
 
@@ -505,8 +493,13 @@ export class ApiConversationManager {
 			content: userContent,
 			ts: Date.now(),
 		})
-		if (!params.shouldCompact && params.mode === "act") {
-			this.dependencies.taskState.didSwitchToActMode = false
+		const modeNotice = this.dependencies.taskState.pendingModeNotice
+		if (
+			!params.shouldCompact &&
+			modeNotice?.mode === params.mode &&
+			modeNotice.includedInRequestId === params.requestId
+		) {
+			this.dependencies.taskState.pendingModeNotice = undefined
 		}
 		await params.afterUserContentPersisted?.()
 

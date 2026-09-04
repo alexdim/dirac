@@ -15,7 +15,7 @@ import { createOpenAIClient } from "@/shared/net"
 import { ApiFormat } from "@/shared/proto/dirac/models"
 import { FeatureFlag } from "@/shared/services/feature-flags/feature-flags"
 import { Logger } from "@/shared/services/Logger"
-import { isParallelToolCallingEnabled } from "@/utils/model-utils"
+import { isParallelToolCallingEnabled, supportsOpenAiPersistedReasoning } from "@/utils/model-utils"
 import {
 	type ApiConversationCompactionRequest,
 	type ApiConversationCompactionResult,
@@ -116,6 +116,7 @@ export class OpenAiNativeHandler implements ApiHandler {
 
 	async compactConversation(request: ApiConversationCompactionRequest): Promise<ApiConversationCompactionResult> {
 		const model = this.getModel()
+		const usePersistedReasoning = supportsOpenAiPersistedReasoning(model.id, model.info.supportsPersistedReasoning)
 		const apiFormat = model.info.apiFormat
 		if (apiFormat !== ApiFormat.OPENAI_RESPONSES && apiFormat !== ApiFormat.OPENAI_RESPONSES_WEBSOCKET_MODE) {
 			throw new Error("OpenAI Native conversation compaction requires the Responses API")
@@ -133,7 +134,7 @@ export class OpenAiNativeHandler implements ApiHandler {
 			input: input as any,
 			tools: responseTools,
 			reasoningEffort: this.options.reasoningEffort,
-			reasoningContext: model.info.supportsPersistedReasoning ? "all_turns" : undefined,
+			reasoningContext: usePersistedReasoning ? "all_turns" : undefined,
 			enableParallelToolCalling: this.shouldEnableParallelToolCalling(),
 		})
 		const { stream, store, previous_response_id, ...compactParams } = fullParams as any
@@ -260,7 +261,7 @@ export class OpenAiNativeHandler implements ApiHandler {
 	): ApiStream {
 		const model = this.getModel()
 		const serviceTier = this.resolveServiceTier(model.info)
-		const usePersistedReasoning = model.info.supportsPersistedReasoning === true
+		const usePersistedReasoning = supportsOpenAiPersistedReasoning(model.id, model.info.supportsPersistedReasoning)
 		const useWebsocket = this.useWebsocketMode(model.info.apiFormat) && !usePersistedReasoning
 		const usePreviousResponseId = !options?.breakProviderContinuation && (usePersistedReasoning || useWebsocket)
 

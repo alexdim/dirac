@@ -154,6 +154,33 @@ describe("TaskController task replacement", () => {
 		assert.equal(controller.task, undefined)
 	})
 
+	it("surfaces a task failure that occurs before historical restoration", async () => {
+		const clearTaskSettings = sinon.stub().resolves()
+		const controller = new (TaskController as any)({ clearTaskSettings }) as TaskController
+		const stack = "StorageReplayError: Invalid operation record\n    at replayOperationRecords"
+		const task = {
+			taskId: "invalid-operation-history-task",
+			taskState: { pendingTaskReplacement: undefined },
+			resumeTaskFromHistory: sinon.stub().resolves({
+				kind: "failed",
+				error: { name: "StorageReplayError", message: "Invalid operation record", stack },
+				failedAt: 1,
+			}),
+			abortTask: sinon.stub().resolves(),
+		} as any
+		controller.task = task
+
+		await assert.rejects(
+			() => (controller as any).startHistoricalTaskAndWaitForRestore(task),
+			(error: Error) =>
+				error.name === "StorageReplayError" && error.message === "Invalid operation record" && error.stack === stack,
+		)
+
+		sinon.assert.calledOnce(clearTaskSettings)
+		sinon.assert.calledOnce(task.abortTask)
+		assert.equal(controller.task, undefined)
+	})
+
 	it("times out a historical task that never reaches restoration readiness", async () => {
 		const clock = sinon.useFakeTimers()
 		const clearTaskSettings = sinon.stub().resolves()

@@ -14,9 +14,10 @@ describe("StateController active-task characterization", () => {
 		awaitingPlanResponse?: boolean
 		lastWaitingCardId?: string
 		withoutTask?: boolean
+		initialMode?: "plan" | "act"
 	}) {
 		const events: string[] = []
-		let mode = "act"
+		let mode = options?.initialMode ?? "act"
 		const task = options?.withoutTask
 			? undefined
 			: ({
@@ -27,11 +28,12 @@ describe("StateController active-task characterization", () => {
 							apiModule.buildApiHandler({}, (patch.settings?.mode ?? mode) as "plan" | "act")
 							events.push("validate-runtime")
 							await beforeCommit?.()
+							const previousMode = mode
 							mode = patch.settings?.mode ?? mode
 							events.push("commit-runtime")
-							if (mode === "act") {
-								task!.taskState.didSwitchToActMode = true
-								if (task!.taskState.isAwaitingPlanResponse) {
+							if (previousMode !== mode) {
+								task!.taskState.pendingModeNotice = { mode }
+								if (previousMode === "plan" && mode === "act" && task!.taskState.isAwaitingPlanResponse) {
 									task!.taskState.didRespondToPlanAskBySwitchingMode = true
 								}
 							}
@@ -39,7 +41,7 @@ describe("StateController active-task characterization", () => {
 					submitCardResponse: sinon.stub().callsFake(async () => events.push("submit-card")),
 					taskState: {
 						status: options?.status ?? TaskStatus.COMPLETED,
-						didSwitchToActMode: false,
+						pendingModeNotice: undefined,
 						isAwaitingPlanResponse: options?.awaitingPlanResponse ?? false,
 						didRespondToPlanAskBySwitchingMode: false,
 						lastWaitingCardId: options?.lastWaitingCardId,
@@ -88,6 +90,7 @@ describe("StateController active-task characterization", () => {
 
 		result.should.equal(false)
 		sinon.assert.calledOnce(harness.task!.applyWorkingConfigurationUpdate)
+		harness.task!.taskState.pendingModeNotice.mode.should.equal("plan")
 		sinon.assert.calledOnce(harness.cancelTaskFn)
 		harness.events.indexOf("persist-global-mode").should.be.lessThan(harness.events.indexOf("commit-runtime"))
 		harness.events.indexOf("commit-runtime").should.be.lessThan(harness.events.indexOf("publish-state"))
@@ -98,6 +101,7 @@ describe("StateController active-task characterization", () => {
 		const harness = createHarness({
 			status: TaskStatus.AWAITING_USER_INPUT,
 			awaitingPlanResponse: true,
+			initialMode: "plan",
 			lastWaitingCardId: "plan-card",
 		})
 
@@ -108,7 +112,7 @@ describe("StateController active-task characterization", () => {
 		})
 
 		result.should.equal(true)
-		harness.task!.taskState.didSwitchToActMode.should.equal(true)
+		harness.task!.taskState.pendingModeNotice.mode.should.equal("act")
 		harness.task!.taskState.didRespondToPlanAskBySwitchingMode.should.equal(true)
 		sinon.assert.calledOnceWithExactly(
 			harness.task!.submitCardResponse,

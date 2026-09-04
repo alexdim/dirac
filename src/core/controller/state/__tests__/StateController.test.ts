@@ -14,13 +14,16 @@ describe("StateController", () => {
 			}),
 			taskState: {
 				status,
-				didSwitchToActMode: false,
+				pendingModeNotice: undefined,
 				isAwaitingPlanResponse: false,
 			},
 		} as any
 		const stateManager = {
+			getSystemDefaultSettingsKey: sinon.stub().returns("act"),
 			setGlobalState: sinon.stub(),
 			setSessionOverride: sinon.stub(),
+			hasSessionOverride: sinon.stub().returns(false),
+			clearSessionOverride: sinon.stub(),
 		} as any
 		const postStateToWebviewFn = sinon.stub().resolves()
 		const cancelTaskFn = sinon.stub().resolves()

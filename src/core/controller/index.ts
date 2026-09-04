@@ -1,40 +1,54 @@
 import type { Anthropic } from "@anthropic-ai/sdk"
+import { GoalController } from "@core/goal/GoalController"
+import { projectUIActionState } from "@core/task/utils/ui-projector"
+import type { WorkspaceRootManager } from "@core/workspace/WorkspaceRootManager"
+import { HostProvider } from "@hosts/host-provider"
+import { cleanupLegacyCheckpoints } from "@integrations/checkpoints/CheckpointMigration"
 import type { ModelInfo } from "@shared/api"
 import type { ChatContent } from "@shared/ChatContent"
-import { type ExtensionState } from "@shared/ExtensionMessage"
+import { type ExtensionState, TaskStatus } from "@shared/ExtensionMessage"
 import type { HistoryItem } from "@shared/HistoryItem"
+import { type GoalHistoryItem, isGoalHistoryItem } from "@shared/HistoryItem"
+import type { PresentationBatch } from "@shared/PresentationOperation"
 import type { Mode } from "@shared/storage/types"
 import type { TelemetrySetting } from "@shared/TelemetrySetting"
-import type { WorkspaceRootManager } from "@core/workspace/WorkspaceRootManager"
+import { fingerprintAvailableTools } from "@shared/utils/tool-fingerprint"
+import { openAiCodexUsageService } from "@/integrations/openai-codex/OpenAiCodexUsageService"
 import { BannerService } from "@/services/banner/BannerService"
 import { DiracExtensionContext } from "@/shared/dirac"
 import { Logger } from "@/shared/services/Logger"
+import { SkillMetadata } from "@/shared/skills"
 import { StateManager } from "../storage/StateManager"
-import { cleanupLegacyCheckpoints } from "@integrations/checkpoints/CheckpointMigration"
 import { Task } from "../task"
-import { WorkspaceController } from "./workspace/WorkspaceController"
+import type { PresentationSnapshot } from "../task/message-state"
 import { AuthController } from "./auth/AuthController"
-import { StateController } from "./state/StateController"
+import { Initializer, type InitializerConfig } from "./index-initializer"
 import { checkCliInstallation } from "./state/checkCliInstallation"
+import { StateController } from "./state/StateController"
+import { StatePublicationQueue } from "./state/StatePublicationQueue"
+import { sendStateUpdate } from "./state/subscribeToState"
+import type { TaskInitializationOptions } from "./task/TaskController"
+import { TaskController } from "./task/TaskController"
 import { sendChatButtonClickedEvent } from "./ui/subscribeToChatButtonClicked"
 import { getStateToPostToWebview as getUiState } from "./ui/UiController"
-import { sendStateUpdate } from "./state/subscribeToState"
-import { StatePublicationQueue } from "./state/StatePublicationQueue"
-import { SkillMetadata } from "@/shared/skills"
-import { TaskController } from "./task/TaskController"
-import { GoalController } from "@core/goal/GoalController"
-import { isGoalHistoryItem, type GoalHistoryItem } from "@shared/HistoryItem"
-import { HostProvider } from "@hosts/host-provider"
-
-import type { TaskInitializationOptions } from "./task/TaskController"
-import { fingerprintAvailableTools } from "@shared/utils/tool-fingerprint"
-import { Initializer, type InitializerConfig } from "./index-initializer"
-
-import { openAiCodexUsageService } from "@/integrations/openai-codex/OpenAiCodexUsageService"
+import { WorkspaceController } from "./workspace/WorkspaceController"
 
 export type ControllerOptions = {
 	workspaceCwd?: string
 	goalRoutingEnabled?: boolean
+}
+
+type StatePublicationRequest = "control" | "presentation"
+
+interface OutboundStatePublication {
+	state: Partial<ExtensionState>
+	presentation?: PresentationBatch
+	acknowledge: () => void
+}
+
+interface SelectedPresentation extends PresentationSnapshot {
+	surfaceId?: string
+	source?: Task["messageStateHandler"]
 }
 
 export class Controller {
@@ -72,9 +86,18 @@ export class Controller {
 		return this.taskController.onTaskReplaced(listener)
 	}
 
-	private readonly statePublicationQueue = new StatePublicationQueue(
-		() => this.getStateToPostToWebview(),
-		(state, sequenceNumber) => sendStateUpdate(state, sequenceNumber),
+	private lastPublishedPresentation?: {
+		surfaceId?: string
+		source?: object
+		generation?: number
+	}
+	private readonly statePublicationQueue = new StatePublicationQueue<OutboundStatePublication, StatePublicationRequest>(
+		(request) => this.getStatePublication(request),
+		async (publication, sequenceNumber) => {
+			await sendStateUpdate(publication.state, sequenceNumber, publication.presentation)
+			publication.acknowledge()
+		},
+		(pending, requested) => (pending === "control" || requested === "control" ? "control" : "presentation"),
 	)
 
 	private openAiCodexUsageUnsubscribe?: () => void
@@ -293,7 +316,11 @@ export class Controller {
 	}
 
 	async postStateToWebview(): Promise<void> {
-		await this.statePublicationQueue.requestPublication()
+		await this.statePublicationQueue.requestPublication("control")
+	}
+
+	async postPresentationToWebview(): Promise<void> {
+		await this.statePublicationQueue.requestPublication("presentation")
 	}
 
 	async waitForGoalStartupReconciliation(): Promise<void> {
@@ -301,10 +328,95 @@ export class Controller {
 	}
 
 	async getStateToPostToWebview(): Promise<ExtensionState> {
+		const presentation = await this.captureSelectedPresentation()
+		return this.assembleStateToPostToWebview(true, presentation)
+	}
+
+	private async captureSelectedPresentation(): Promise<SelectedPresentation> {
+		while (true) {
+			const selectedGoalId = this.goalController.selectedGoalId
+			const surfaceId = selectedGoalId ?? this.task?.taskId
+			const source = selectedGoalId ? this.goalController.coordinator?.messageStateHandler : this.task?.messageStateHandler
+			const snapshot = selectedGoalId
+				? await this.goalController.selectedPresentationSnapshot()
+				: source
+					? await source.capturePresentationSnapshot()
+					: { messages: [], offset: -1, generation: 0 }
+			const currentGoalId = this.goalController.selectedGoalId
+			const currentSurfaceId = currentGoalId ?? this.task?.taskId
+			const currentSource = currentGoalId
+				? this.goalController.coordinator?.messageStateHandler
+				: this.task?.messageStateHandler
+			if (surfaceId === currentSurfaceId && source === currentSource) {
+				return { ...snapshot, surfaceId, source }
+			}
+		}
+	}
+
+	private async getStatePublication(request: StatePublicationRequest): Promise<OutboundStatePublication> {
+		const controlState = request === "control" ? await this.assembleStateToPostToWebview(false) : undefined
+		const selectedGoalId = this.goalController.selectedGoalId
+		const surfaceId = selectedGoalId ?? this.task?.taskId
+		const source = selectedGoalId ? this.goalController.coordinator?.messageStateHandler : this.task?.messageStateHandler
+		const generation = source?.getPresentationStateGeneration() ?? 0
+		const requiresHydration =
+			surfaceId !== this.lastPublishedPresentation?.surfaceId ||
+			source !== this.lastPublishedPresentation?.source ||
+			generation !== this.lastPublishedPresentation?.generation ||
+			source?.hasPresentationPublicationGap() === true
+
+		if (!requiresHydration) return this.createPresentationPublication(controlState)
+		const presentation = await this.captureSelectedPresentation()
+		const fullState = await this.assembleStateToPostToWebview(true, presentation)
+		return {
+			state: fullState,
+			acknowledge: () => {
+				this.lastPublishedPresentation = {
+					surfaceId: presentation.surfaceId,
+					source: presentation.source,
+					generation: presentation.generation,
+				}
+				presentation.source?.acknowledgePresentationOperations(presentation.offset)
+			},
+		}
+	}
+
+	private createPresentationPublication(controlState?: ExtensionState): OutboundStatePublication {
+		const selectedGoalId = this.goalController.selectedGoalId
+		const task = selectedGoalId ? this.goalController.coordinator : this.task
+		const surfaceId = selectedGoalId ?? task?.taskId
+		const operations = task?.messageStateHandler.getPendingPresentationOperations() ?? []
+		const maxConsecutiveMistakes = this.stateManager.getGlobalSettingsKey("maxConsecutiveMistakes")
+		const state: Partial<ExtensionState> = controlState ?? {
+			presentationSurfaceId: surfaceId,
+			presentationOffset: task?.messageStateHandler.getPresentationOffset(),
+			activeVoiceStreamId: task?.taskState.activeVoiceStreamId,
+			isApiRequestActive: task?.taskState.isApiRequestActive ?? false,
+			taskStatus: task?.taskState.status ?? TaskStatus.IDLE,
+			uiActionState: projectUIActionState(
+				task?.taskState,
+				(id) => task?.messageStateHandler.getMessageById(id),
+				maxConsecutiveMistakes,
+			),
+		}
+		const presentation = operations.length > 0 && surfaceId ? { surfaceId, operations } : undefined
+		const throughOffset = operations.at(-1)?.offset
+		return {
+			state,
+			presentation,
+			acknowledge: () => {
+				if (throughOffset !== undefined) task?.messageStateHandler.acknowledgePresentationOperations(throughOffset)
+			},
+		}
+	}
+
+	private async assembleStateToPostToWebview(
+		includeMessages: boolean,
+		presentation?: SelectedPresentation,
+	): Promise<ExtensionState> {
 		const previousAvailableToolsFingerprint = this.availableToolsFingerprint
 
 		const goal = await this.goalController.inspect()
-		const goalMessages = goal ? await this.goalController.selectedMessages() : undefined
 		const state = await getUiState({
 			stateManager: this.stateManager,
 			task: this.task,
@@ -312,7 +424,10 @@ export class Controller {
 			backgroundCommandRunning: this.backgroundCommandRunning,
 			backgroundCommandTaskId: this.backgroundCommandTaskId,
 			goal,
-			goalMessages,
+			goalMessages: includeMessages ? presentation?.messages : undefined,
+			presentationOffset: includeMessages ? presentation?.offset : undefined,
+			presentationSurfaceId: includeMessages ? presentation?.surfaceId : undefined,
+			includeMessages,
 		})
 
 		const nextAvailableToolsFingerprint = await fingerprintAvailableTools(state.availableTools)

@@ -4,9 +4,9 @@ import { getTaskHookModelContext } from "./runtime/TaskRuntimeModelContext"
 import { getHooksEnabledSafe } from "@core/hooks/hooks-utils"
 import {
 	ensureTaskDirectoryExists,
-	getSavedApiConversationHistory,
+	getSavedApiConversationState,
 	getSavedApiConversationProviderState,
-	getSavedDiracMessages,
+	getSavedPresentationHistory,
 	getTaskMetadata,
 } from "@core/storage/disk"
 import { HostProvider } from "@hosts/host-provider"
@@ -250,7 +250,9 @@ export class LifecycleManager {
 		}
 		if (this.dependencies.taskState.abort) return
 
-		const savedDiracMessages = await getSavedDiracMessages(this.dependencies.taskId)
+		const savedPresentation = await getSavedPresentationHistory(this.dependencies.taskId)
+		const savedDiracMessages = savedPresentation.messages
+		this.dependencies.messageStateHandler.setDiracMessages(savedDiracMessages, savedPresentation.lastOffset)
 		if (this.dependencies.taskState.abort) return
 
 		const lastRelevantMessageIndex = findLastIndex(
@@ -274,15 +276,22 @@ export class LifecycleManager {
 
 		await this.dependencies.messageStateHandler.overwriteDiracMessages(savedDiracMessages)
 		if (this.dependencies.taskState.abort) return
-		const persistedDiracMessages = await getSavedDiracMessages(this.dependencies.taskId)
+		const persistedPresentation = await getSavedPresentationHistory(this.dependencies.taskId)
 		if (this.dependencies.taskState.abort) return
-		this.dependencies.messageStateHandler.setDiracMessages(persistedDiracMessages)
+		this.dependencies.messageStateHandler.setDiracMessages(
+			persistedPresentation.messages,
+			persistedPresentation.lastOffset,
+		)
 
-		const savedApiConversationHistory = (await getSavedApiConversationHistory(this.dependencies.taskId)).map(
+		const savedApiConversation = await getSavedApiConversationState(this.dependencies.taskId)
+		const savedApiConversationHistory = savedApiConversation.messages.map(
 			removeUserInputMarkersFromMessage,
 		)
 		if (this.dependencies.taskState.abort) return
-		this.dependencies.messageStateHandler.setApiConversationHistory(savedApiConversationHistory as any)
+		this.dependencies.messageStateHandler.setApiConversationHistory(
+			savedApiConversationHistory as any,
+			savedApiConversation.lastOffset,
+		)
 		this.dependencies.messageStateHandler.setApiConversationProviderState(
 			await getSavedApiConversationProviderState(this.dependencies.taskId),
 		)
@@ -611,24 +620,18 @@ export class LifecycleManager {
 			// Update any stale auto-retry cards whose delay was still in progress.
 			// Without this, the "Retrying in" body persists because the task loop
 			// never reached the post-delay abort check.
-			for (const [index, msg] of this.dependencies.messageStateHandler.getDiracMessages().entries()) {
+			for (const msg of this.dependencies.messageStateHandler.getDiracMessages()) {
 				if (
 					msg.content.type === DiracMessageType.CARD &&
 					msg.content.card.header === "API Error (Retrying)" &&
 					(msg.content.card.status === CardStatus.PENDING || msg.content.card.status === CardStatus.ERROR)
 				) {
 					const attempt = msg.content.card.body?.match(/attempt (\d+\/\d+)/)?.[1] ?? "?/?"
-					await this.dependencies.messageStateHandler.updateDiracMessage(index, {
-						content: {
-							type: DiracMessageType.CARD,
-							card: {
-								...msg.content.card,
-								header: "API Error (Cancelled)",
-								body: "API Error (attempt " + attempt + "). Cancelled.",
-								status: CardStatus.CANCELLED,
-								endTime: Date.now(),
-							},
-						},
+					await this.dependencies.messageStateHandler.patchCardById(msg.content.card.id, {
+						header: "API Error (Cancelled)",
+						body: "API Error (attempt " + attempt + "). Cancelled.",
+						status: CardStatus.CANCELLED,
+						endTime: Date.now(),
 					})
 				}
 			}

@@ -14,7 +14,7 @@ import { TaskState } from "../TaskState"
 
 export function projectUIActionState(
 	state: TaskState | undefined,
-	messages: DiracMessage[],
+	messages: readonly DiracMessage[] | ((id: string) => DiracMessage | undefined),
 	maxConsecutiveMistakes: number,
 ): UIActionState {
 	const uiState: UIActionState = {
@@ -27,7 +27,9 @@ export function projectUIActionState(
 	// Tools can create a waiting card before the task status is projected as AWAITING_USER_INPUT.
 	if (state?.waitingCardIds && state.waitingCardIds.length > 0) {
 		const activeCardMessage = state.waitingCardIds
-			.map((cardId) => messages.find((message) => message.id === cardId))
+			.map((cardId) =>
+				typeof messages === "function" ? messages(cardId) : messages.find((message) => message.id === cardId),
+			)
 			.find(
 				(message) =>
 					message?.content.type === DiracMessageType.CARD &&

@@ -50,10 +50,13 @@ function convertToolResultToGemini(
 	useMultimodalFunctionResponses: boolean,
 ): Part[] {
 	const nestedContent = Array.isArray(block.content) ? block.content : []
-	const textResult = nestedContent
-		.filter((contentBlock: any) => contentBlock.type === "text")
-		.map((contentBlock: any) => contentBlock.text)
-		.join("\n")
+	const textResult =
+		typeof block.content === "string"
+			? block.content
+			: nestedContent
+					.filter((contentBlock: any) => contentBlock.type === "text")
+					.map((contentBlock: any) => contentBlock.text)
+					.join("\n")
 	const imageParts = nestedContent.filter((contentBlock: any) => contentBlock.type === "image").map(convertImageBlockToGemini)
 	const functionResponse = {
 		id: block.tool_use_id,

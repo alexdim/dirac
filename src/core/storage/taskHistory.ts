@@ -4,6 +4,7 @@ import { fileExistsAtPath } from "@utils/fs"
 import fs from "fs/promises"
 import * as path from "path"
 import { lock, type LockOptions, type ReleaseLock } from "proper-lockfile"
+import Mutex from "p-mutex"
 import { telemetryService } from "@/services/telemetry"
 import { Logger } from "@/shared/services/Logger"
 import { reconstructTaskHistory } from "../commands/reconstructTaskHistory"
@@ -23,6 +24,7 @@ const INVENTORY_LOCK_OPTIONS: LockOptions = {
 	update: 5_000,
 	retries: { retries: 40, factor: 1.15, minTimeout: 50, maxTimeout: 500 },
 }
+const taskHistoryWriteMutex = new Mutex()
 
 export type TaskHistoryMutation =
 	| { kind: "upsert"; item: RunHistoryItem }
@@ -286,21 +288,23 @@ export async function commitTaskHistoryMutations(
 	mutations: readonly TaskHistoryMutation[],
 ): Promise<RunHistoryItem[]> {
 	if (mutations.length === 0) return readTaskHistoryFromState()
-	const filePath = await getTaskHistoryStateFilePath()
-	const release = await lock(filePath, WRITE_LOCK_OPTIONS)
-	try {
-		const firstMutation = mutations[0]
-		const current = firstMutation.kind === "replace" ? [] : await readTaskHistoryFileWithoutRecovery(filePath)
-		const items = applyTaskHistoryMutations(current, mutations)
-		assertWritableTaskHistory(items)
-		await atomicWriteFile(filePath, JSON.stringify(items))
-		return items
-	} catch (error) {
-		Logger.error("[Task History] Failed to commit mutations:", error)
-		throw error
-	} finally {
-		await release()
-	}
+	return taskHistoryWriteMutex.withLock(async () => {
+		const filePath = await getTaskHistoryStateFilePath()
+		const release = await lock(filePath, WRITE_LOCK_OPTIONS)
+		try {
+			const firstMutation = mutations[0]
+			const current = firstMutation.kind === "replace" ? [] : await readTaskHistoryFileWithoutRecovery(filePath)
+			const items = applyTaskHistoryMutations(current, mutations)
+			assertWritableTaskHistory(items)
+			await atomicWriteFile(filePath, JSON.stringify(items))
+			return items
+		} catch (error) {
+			Logger.error("[Task History] Failed to commit mutations:", error)
+			throw error
+		} finally {
+			await release()
+		}
+	})
 }
 
 // Replaces the complete task-history index. Normal callers should use ID-scoped mutations.

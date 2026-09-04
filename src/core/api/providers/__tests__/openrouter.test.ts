@@ -3,6 +3,7 @@ import { expect } from "chai"
 import axios from "axios"
 import sinon from "sinon"
 import { OpenRouterHandler } from "../openrouter"
+import { expectLoggerErrors } from "@/test/loggerGuard"
 
 const modelInfo = { supportsPromptCache: false }
 
@@ -169,6 +170,7 @@ describe("OpenRouterHandler", () => {
 	})
 
 	it("completes after one failed generation-details cost lookup", async () => {
+		expectLoggerErrors()
 		const clock = sinon.useFakeTimers()
 		const handler = new OpenRouterHandler({ openRouterApiKey: "test-api-key" })
 		const fakeClient = {

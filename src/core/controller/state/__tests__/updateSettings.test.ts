@@ -43,6 +43,7 @@ function createMockController(overrides: any = {}) {
 		}),
 		getGlobalSettingsKey: sinon.spy((key: string) => store[key]),
 		getSystemDefaultSettingsKey: sinon.spy((key: string) => store[key]),
+		getGlobalStateKey: sinon.spy((key: string) => store[key]),
 		getSecretKey: sinon.spy((key: string) => store[key]),
 		setSessionOverride: sinon.spy((key: string, value: any) => {
 			store[`__override_${key}`] = value
@@ -97,6 +98,8 @@ function createMockController(overrides: any = {}) {
 			revision: 1,
 			settings: {
 				mode: store.__apiConfig.mode ?? "act",
+				hooksEnabled: store.hooksEnabled ?? true,
+				subagentsEnabled: store.subagentsEnabled ?? false,
 				planModeApiProvider: store.__apiConfig.planModeApiProvider,
 				actModeApiProvider: store.__apiConfig.actModeApiProvider,
 				autoApprovalSettings: store.autoApprovalSettings ?? {

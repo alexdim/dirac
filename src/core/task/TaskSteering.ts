@@ -97,21 +97,17 @@ export async function commitSteeringClaim(ctx: TaskSteeringContext, claimId: str
 	})
 
 	const transcriptMessages = claimedMessages.map((message) => {
-		const index = ctx.messageStateHandler.findMessageIndexById(message.transcriptMessageId)
-		if (index === -1) throw new Error(`Steering transcript message not found: ${message.transcriptMessageId}`)
-		const transcriptMessage = ctx.messageStateHandler.getDiracMessages()[index]
+		const transcriptMessage = ctx.messageStateHandler.getMessageById(message.transcriptMessageId)
+		if (!transcriptMessage) throw new Error(`Steering transcript message not found: ${message.transcriptMessageId}`)
 		if (transcriptMessage.content.type !== DiracMessageType.MARKDOWN) {
 			throw new Error(`Steering transcript message is not markdown: ${message.transcriptMessageId}`)
 		}
-		return { index, content: transcriptMessage.content }
+		return transcriptMessage.id
 	})
 
-	for (const transcript of transcriptMessages) {
-		await ctx.messageStateHandler.updateDiracMessage(transcript.index, {
-			content: {
-				...transcript.content,
-				steering: { status: SteeringTranscriptStatus.SENT },
-			},
+	for (const transcriptMessageId of transcriptMessages) {
+		await ctx.messageStateHandler.patchMarkdownById(transcriptMessageId, {
+			steering: { status: SteeringTranscriptStatus.SENT },
 		})
 	}
 	await ctx.messageStateHandler.saveDiracMessagesAndUpdateHistory()

@@ -4,15 +4,15 @@ import { projectUIActionState } from "@core/task/utils/ui-projector"
 import { detectWorkspaceRoots } from "@core/workspace/detection"
 import { setupWorkspaceManager } from "@core/workspace/setup"
 import type { WorkspaceRootManager } from "@core/workspace/WorkspaceRootManager"
+import type { DiracMessage } from "@shared/ExtensionMessage"
 import { type ExtensionState, TaskStatus } from "@shared/ExtensionMessage"
+import type { GoalViewState } from "@shared/goal"
 import { assembleAuthState } from "./assembleAuthState"
 import { assembleModelState } from "./assembleModelState"
 import { assembleRuntimeState } from "./assembleRuntimeState"
 import { assembleToolState } from "./assembleToolState"
 import { discoverAvailableSkills } from "./discoverAvailableSkills"
 import { processTaskHistory } from "./processTaskHistory"
-import type { GoalViewState } from "@shared/goal"
-import type { DiracMessage } from "@shared/ExtensionMessage"
 
 export async function getStateToPostToWebview(deps: {
 	stateManager: StateManager
@@ -22,11 +22,29 @@ export async function getStateToPostToWebview(deps: {
 	backgroundCommandTaskId?: string | undefined
 	goal?: GoalViewState
 	goalMessages?: DiracMessage[]
+	presentationOffset?: number
+	presentationSurfaceId?: string
+	includeMessages?: boolean
 }): Promise<ExtensionState> {
-	const { stateManager, task, workspaceManager, backgroundCommandRunning, backgroundCommandTaskId, goal, goalMessages } = deps
+	const {
+		stateManager,
+		task,
+		workspaceManager,
+		backgroundCommandRunning,
+		backgroundCommandTaskId,
+		goal,
+		goalMessages,
+		presentationOffset,
+		presentationSurfaceId,
+		includeMessages = true,
+	} = deps
 
 	const resolvedWorkspaceManager =
-		workspaceManager ?? (await setupWorkspaceManager({ stateManager, detectRoots: detectWorkspaceRoots }))
+		workspaceManager ??
+		(await setupWorkspaceManager({
+			stateManager,
+			detectRoots: detectWorkspaceRoots,
+		}))
 	const primaryRootPath = resolvedWorkspaceManager?.getPrimaryRoot()?.path
 	const cwd = task?.cwd || primaryRootPath || process.cwd()
 
@@ -49,8 +67,13 @@ export async function getStateToPostToWebview(deps: {
 	const taskHistory = stateManager.getGlobalStateKey("taskHistory")
 	const lastShownAnnouncementId = stateManager.getGlobalStateKey("lastShownAnnouncementId")
 	const maxConsecutiveMistakes = stateManager.getGlobalSettingsKey("maxConsecutiveMistakes")
-	const diracMessages = goalMessages ?? [...(task?.messageStateHandler.getDiracMessages() || [])]
-	const selectedRunId = goal?.id ?? task?.taskId
+	const capturedPresentation =
+		includeMessages && goalMessages === undefined && task
+			? await task.messageStateHandler.capturePresentationSnapshot()
+			: undefined
+	const diracMessages = includeMessages ? (goalMessages ?? capturedPresentation?.messages ?? []) : undefined
+	const selectedPresentationOffset = presentationOffset ?? capturedPresentation?.offset
+	const selectedRunId = presentationSurfaceId ?? goal?.id ?? task?.taskId
 	const currentTaskItem = selectedRunId ? (taskHistory || []).find((item) => item.id === selectedRunId) : undefined
 
 	return {
@@ -58,10 +81,13 @@ export async function getStateToPostToWebview(deps: {
 		...authState,
 		...runtimeState,
 		...toolState,
-		...(goal ? { goal, mode: "act" as const } : {}),
+		goal: goal ?? null,
+		...(goal ? { mode: "act" as const } : {}),
 		availableSkills,
 		currentTaskItem,
-		diracMessages,
+		...(diracMessages ? { diracMessages } : {}),
+		presentationSurfaceId: selectedRunId,
+		presentationOffset: selectedPresentationOffset,
 		checkpointManagerErrorMessage: task?.taskState?.checkpointManagerErrorMessage,
 		taskHistory: processTaskHistory(taskHistory, primaryRootPath),
 		shouldShowAnnouncement: runtimeState.releaseNotes !== undefined || lastShownAnnouncementId !== latestAnnouncementId,
@@ -73,6 +99,10 @@ export async function getStateToPostToWebview(deps: {
 		activeVoiceStreamId: task?.taskState.activeVoiceStreamId,
 		taskStatus: task?.taskState.status || TaskStatus.IDLE,
 		isApiRequestActive: task?.taskState.isApiRequestActive || false,
-		uiActionState: projectUIActionState(task?.taskState, diracMessages, maxConsecutiveMistakes),
-	}
+		uiActionState: projectUIActionState(
+			task?.taskState,
+			diracMessages ?? ((id) => task?.messageStateHandler.getMessageById(id)),
+			maxConsecutiveMistakes,
+		),
+	} as ExtensionState
 }

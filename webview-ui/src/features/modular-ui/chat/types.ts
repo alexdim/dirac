@@ -46,9 +46,7 @@ export interface InputDecorator {
 export interface ChatViewContext {
 	goal?: GoalViewState
 	task?: DiracMessage
-	messages: DiracMessage[]
-	modifiedMessages: DiracMessage[]
-	renderedMessages: DiracMessage[]
+	renderedMessageIds: string[]
 	apiMetrics: any
 	lastApiReqInfo: any
 	chatState: ChatState

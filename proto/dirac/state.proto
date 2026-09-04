@@ -310,6 +310,7 @@ message Settings {
 
 message State {
   string state_json = 1;
+  optional string presentation_json = 2;
 }
 
 message TerminalProfiles {

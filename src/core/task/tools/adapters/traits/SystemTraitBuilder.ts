@@ -23,16 +23,6 @@ export function buildSystemTrait(
 			})
 		},
 		searchFiles: async (directoryPath, regex, options) => {
-			await options?.debugLog?.({
-				info: "SurfaceAdapter.searchFiles called",
-				cwd: config.cwd,
-				directoryPath,
-				regex,
-				filePattern: options?.filePattern,
-				taskId: config.ulid,
-				contextLines: options?.contextLines,
-				excludeFilePatterns: options?.excludeFilePatterns,
-			})
 			if (options?.includeAnchors) await config.context.ensureAnchorState()
 			return await regexSearchFiles(
 				config.cwd,
@@ -43,9 +33,8 @@ export function buildSystemTrait(
 				config.ulid,
 				options?.contextLines,
 				options?.excludeFilePatterns,
-				options?.debugLog,
 				options?.includeAnchors,
-				() => config.context.markAnchorStateDirty(),
+				(absolutePath) => config.context.markAnchorStateDirty(absolutePath),
 				options?.signal,
 			)
 		},

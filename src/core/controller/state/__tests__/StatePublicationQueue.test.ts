@@ -105,4 +105,34 @@ describe("StatePublicationQueue", () => {
 		assert.equal(readCount, 2)
 		assert.deepEqual(publications, ["new"])
 	})
+
+	it("merges a presentation request into a superseding control snapshot", async () => {
+		const controlReadStarted = deferred()
+		const finishControlRead = deferred()
+		const reads: string[] = []
+		const publications: string[] = []
+		const queue = new StatePublicationQueue<string, "control" | "presentation">(
+			async (request) => {
+				reads.push(request)
+				if (reads.length === 1) {
+					controlReadStarted.resolve()
+					await finishControlRead.promise
+				}
+				return request
+			},
+			async (state) => {
+				publications.push(state)
+			},
+			(pending, requested) => (pending === "control" || requested === "control" ? "control" : "presentation"),
+		)
+
+		const control = queue.requestPublication("control")
+		await controlReadStarted.promise
+		const presentation = queue.requestPublication("presentation")
+		finishControlRead.resolve()
+		await Promise.all([control, presentation])
+
+		assert.deepEqual(reads, ["control", "control"])
+		assert.deepEqual(publications, ["control"])
+	})
 })

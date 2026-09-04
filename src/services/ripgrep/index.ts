@@ -64,7 +64,6 @@ interface FileSearchResult {
 
 const MAX_RESULTS = 30
 
-type RipgrepDebugLog = (info: Record<string, any>) => Promise<void>
 function spawnRipgrepProcess(binPath: string, args: string[]) {
 	return childProcess.spawn(binPath, args, { stdio: ["ignore", "pipe", "pipe"] })
 }
@@ -72,12 +71,10 @@ export type RipgrepProcessSpawner = typeof spawnRipgrepProcess
 
 export async function execRipgrep(
 	args: string[],
-	debugLog?: RipgrepDebugLog,
 	signal?: AbortSignal,
 	spawnProcess: RipgrepProcessSpawner = spawnRipgrepProcess,
 ): Promise<string> {
 	const binPath: string = await getBinaryLocation("rg")
-	await debugLog?.({ info: "execRipgrep start", binPath, args })
 	if (signal?.aborted) {
 		throw signal.reason instanceof Error ? signal.reason : new Error("Ripgrep search aborted")
 	}
@@ -125,29 +122,14 @@ export async function execRipgrep(
 			}
 
 			killedAfterOutputLimit = true
-			const killRequested = rgProcess.kill()
-			void debugLog?.({
-				info: "execRipgrep output limit reached",
-				binPath,
-				args,
-				lineCount,
-				killRequested,
-			})
+			rgProcess.kill()
 			finish(undefined, output)
 		})
 
 		const abortSearch = () => {
 			killedAfterAbort = true
-			const killRequested = rgProcess.kill()
+			rgProcess.kill()
 			const reason = signal?.reason instanceof Error ? signal.reason : new Error("Ripgrep search aborted")
-			void debugLog?.({
-				info: "execRipgrep aborted",
-				binPath,
-				args,
-				lineCount,
-				killRequested,
-				errorMessage: reason.message,
-			})
 			finish(reason)
 		}
 		signal?.addEventListener("abort", abortSearch, { once: true })
@@ -158,32 +140,10 @@ export async function execRipgrep(
 		})
 
 		rgProcess.on("error", (error) => {
-			void debugLog?.({
-				info: "execRipgrep process error",
-				binPath,
-				args,
-				errorMessage: error.message,
-				stack: error.stack,
-			})
 			finish(new Error(buildFailureMessage(`ripgrep spawn failed: ${error.message}`)))
 		})
 
 		rgProcess.on("close", (code, signal) => {
-			const finishDetails = {
-				info: "execRipgrep finished",
-				binPath,
-				args,
-				lineCount,
-				stderrOutput: errorOutput || "(none)",
-				exitCode: code,
-				signal,
-				killedAfterOutputLimit,
-				killedAfterAbort,
-				outputLength: output.length,
-				outputPreview: output.substring(0, 300),
-			}
-			void debugLog?.(finishDetails)
-
 			if (killedAfterOutputLimit) {
 				finish(undefined, output)
 				return
@@ -195,9 +155,6 @@ export async function execRipgrep(
 				return
 			}
 
-			if (errorOutput) {
-				void debugLog?.({ info: "execRipgrep stderr (non-fatal)", stderr: errorOutput })
-			}
 			finish(undefined, output)
 		})
 	})
@@ -212,9 +169,8 @@ export async function regexSearchFiles(
 	anchorTaskId?: string,
 	contextLines?: number,
 	excludeFilePatterns?: string[],
-	debugLog?: RipgrepDebugLog,
 	includeAnchors?: boolean,
-	onAnchorStateChanged?: () => void,
+	onAnchorStateChanged?: (absolutePath: string) => void,
 	signal?: AbortSignal,
 ): Promise<string> {
 	// Limit context lines to 10
@@ -226,36 +182,14 @@ export async function regexSearchFiles(
 		}
 	}
 	args.push(directoryPath)
-	const argsDetails = {
-		info: "regexSearchFiles args",
-		args,
-		cwd,
-		directoryPath,
-		filePattern,
-		contextLines: cappedContextLines,
-		hasDiracIgnore: !!diracIgnoreController,
-	}
-	await debugLog?.(argsDetails)
 
 	let output: string
 	try {
-		output = await execRipgrep(args, debugLog, signal)
+		output = await execRipgrep(args, signal)
 	} catch (error) {
-		await debugLog?.({
-			info: "regexSearchFiles execRipgrep error",
-			errorMessage: getErrorMessage(error),
-			stack: error instanceof Error ? error.stack : undefined,
-		})
 		const causeMessage = getErrorMessage(error)
 		throw new Error(`Error calling ripgrep: ${causeMessage}`, { cause: error })
 	}
-	const outputDetails = {
-		info: "regexSearchFiles ripgrep output",
-		outputLength: output.length,
-		outputPreview: output.substring(0, 500),
-		totalLines: output.split("\n").length,
-	}
-	await debugLog?.(outputDetails)
 
 	const resultsByFile: Map<string, Map<number, SearchResultLine>> = new Map()
 
@@ -282,34 +216,15 @@ export async function regexSearchFiles(
 				}
 			} catch (error) {
 				Logger.error("Error parsing ripgrep output:", error)
-				void debugLog?.({
-					info: "regexSearchFiles parse line error",
-					linePreview: line.substring(0, 300),
-					errorMessage: getErrorMessage(error),
-				})
 			}
 		}
 	})
-	const parsedDetails = {
-		info: "regexSearchFiles parsed",
-		totalFilesParsed: resultsByFile.size,
-		files: Array.from(resultsByFile.entries()).map(([file, lines]) => ({
-			file,
-			lineCount: lines.size,
-			matchCount: Array.from(lines.values()).filter((line) => line.isMatch).length,
-		})),
-	}
-	await debugLog?.(parsedDetails)
 
 	const fileResults: FileSearchResult[] = []
 	let finalMatchCount = 0
 	for (const [filePath, lineMap] of resultsByFile.entries()) {
 		// Filter by diracIgnoreController if provided
 		if (diracIgnoreController && !diracIgnoreController.validateAccess(filePath)) {
-			await debugLog?.({
-				info: "regexSearchFiles diracIgnore filtered file",
-				filePath,
-			})
 			continue
 		}
 
@@ -317,13 +232,6 @@ export async function regexSearchFiles(
 		fileResults.push({ filePath, lines: sortedLines })
 		finalMatchCount += sortedLines.filter((line) => line.isMatch).length
 	}
-	const finalDetails = {
-		info: "regexSearchFiles final",
-		filesBeforeIgnoreFilter: resultsByFile.size,
-		filesAfterIgnoreFilter: fileResults.length,
-		finalMatchCount,
-	}
-	await debugLog?.(finalDetails)
 
 	return await formatResults(fileResults, finalMatchCount, cwd, anchorTaskId, includeAnchors, onAnchorStateChanged)
 }
@@ -338,7 +246,7 @@ export async function formatResults(
 	cwd: string,
 	anchorTaskId?: string,
 	includeAnchors?: boolean,
-	onAnchorStateChanged?: () => void,
+	onAnchorStateChanged?: (absolutePath: string) => void,
 ): Promise<string> {
 	let output = matchCount >= MAX_RESULTS
 		? `Showing first ${MAX_RESULTS} of ${matchCount.toLocaleString()}+ results. Use a more specific search if necessary.\n\n`
@@ -357,7 +265,7 @@ export async function formatResults(
 				currentLines = (await fs.readFile(absoluteFilePath, "utf8")).split(/\r?\n/)
 				const result = AnchorStateManager.reconcileWithChanges(absoluteFilePath, currentLines, anchorTaskId)
 				anchors = result.anchors
-				if (result.changed) onAnchorStateChanged?.()
+				if (result.changed) onAnchorStateChanged?.(absoluteFilePath)
 			} catch (error) {
 				Logger.error(`Error reading file for search anchors: ${absoluteFilePath}`, error)
 				const message = `${relPath}\n[Anchored results unavailable because the file could not be reread. Rerun search_files.]\n\n`

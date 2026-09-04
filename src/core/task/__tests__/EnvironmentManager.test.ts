@@ -12,7 +12,7 @@ function createEnvironmentManager(
 	options: { taskMode?: "plan" | "act"; requestMode?: "plan" | "act"; cwd?: string } = {},
 ): EnvironmentManager {
 	const taskMode = options.taskMode ?? "act"
-	const requestMode = options.requestMode
+	const requestMode = options.requestMode ?? taskMode
 	return new EnvironmentManager({
 		cwd: options.cwd ?? "/test/project",
 		terminalManager: {} as any,
@@ -27,34 +27,58 @@ function createEnvironmentManager(
 						workingConfiguration: { settings: { mode: requestMode }, executionOptions: { multiRootEnabled: false } },
 					} as any)
 				: undefined,
+		getRequestRuntime: () => ({
+			requestId: "request-1",
+			workingConfiguration: { settings: { mode: requestMode }, executionOptions: { multiRootEnabled: false } },
+		}) as any,
 	})
 }
 
-describe("EnvironmentManager Act-mode guidance", () => {
-	it("includes editing instructions only for the first Act request after switching modes", async () => {
+describe("EnvironmentManager mode-entry guidance", () => {
+	it("emits Plan guidance only for a pending Plan entry", async () => {
 		const taskState = new TaskState()
-		const manager = createEnvironmentManager(taskState)
+		taskState.pendingModeNotice = { mode: "plan" }
+		const manager = createEnvironmentManager(taskState, { taskMode: "plan" })
 
-		taskState.didSwitchToActMode = true
-		const firstActRequest = await manager.getEnvironmentDetails(false)
-		assert.match(firstActRequest, /## EDITING FILES INSTRUCTIONS/)
+		const entryDetails = await manager.getEnvironmentDetails(false)
+		assert.match(entryDetails, /# Current Mode\nPLAN MODE/)
+		assert.match(entryDetails, /Research without modifying files/)
+		assert.doesNotMatch(entryDetails, /EDITING FILES/)
+		assert.equal(taskState.pendingModeNotice.includedInRequestId, "request-1")
 
-		taskState.didSwitchToActMode = false
-		const subsequentActRequest = await manager.getEnvironmentDetails(false)
-		assert.doesNotMatch(subsequentActRequest, /## EDITING FILES INSTRUCTIONS/)
-		assert.match(subsequentActRequest, /# Current Mode\nACT MODE/)
-		assert.doesNotMatch(subsequentActRequest, /Reminder: always batch tool calls/)
+		taskState.pendingModeNotice = undefined
+		assert.equal(await manager.getEnvironmentDetails(false), "")
 	})
 
-	it("uses the request-bound mode instead of a newer Task mode", async () => {
-		const planRequest = createEnvironmentManager(new TaskState(), { taskMode: "act", requestMode: "plan" })
-		const planDetails = await planRequest.getEnvironmentDetails(false)
-		assert.match(planDetails, /# Current Mode\nPLAN MODE/)
+	it("emits concise editing guidance only for a pending Act entry", async () => {
+		const taskState = new TaskState()
+		taskState.pendingModeNotice = { mode: "act" }
+		const manager = createEnvironmentManager(taskState)
 
-		const actRequest = createEnvironmentManager(new TaskState(), { taskMode: "plan", requestMode: "act" })
-		const actDetails = await actRequest.getEnvironmentDetails(false)
-		assert.match(actDetails, /# Current Mode\nACT MODE/)
-		assert.doesNotMatch(actDetails, /PLAN MODE/)
+		const entryDetails = await manager.getEnvironmentDetails(false)
+		assert.match(entryDetails, /# Current Mode\nACT MODE/)
+		assert.match(entryDetails, /## EDITING FILES/)
+		assert.match(entryDetails, /ANCHOR§CONTENT/)
+		assert.doesNotMatch(entryDetails, /EDITING FILES INSTRUCTIONS/)
+		assert.doesNotMatch(entryDetails, /REQUIRED `edit_file` WORKFLOW/)
+		assert.equal(taskState.pendingModeNotice.includedInRequestId, "request-1")
+
+		taskState.pendingModeNotice = undefined
+		assert.equal(await manager.getEnvironmentDetails(false), "")
+	})
+
+	it("uses the request-bound mode and does not claim a newer mismatched notice", async () => {
+		const planState = new TaskState()
+		planState.pendingModeNotice = { mode: "plan" }
+		const planRequest = createEnvironmentManager(planState, { taskMode: "act", requestMode: "plan" })
+		assert.match(await planRequest.getEnvironmentDetails(false), /# Current Mode\nPLAN MODE/)
+		assert.equal(planState.pendingModeNotice.includedInRequestId, "request-1")
+
+		const actState = new TaskState()
+		actState.pendingModeNotice = { mode: "act" }
+		const stalePlanRequest = createEnvironmentManager(actState, { taskMode: "act", requestMode: "plan" })
+		assert.equal(await stalePlanRequest.getEnvironmentDetails(false), "")
+		assert.deepEqual(actState.pendingModeNotice, { mode: "act" })
 	})
 })
 

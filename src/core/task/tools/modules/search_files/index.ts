@@ -101,7 +101,13 @@ export class SearchFilesTool implements IDiracTool<SearchFilesArgs, string> {
 			)
 			return `Error: Missing required parameter: regex`
 		}
-		const contextLines = typeof context_lines === "string" ? Number.parseInt(context_lines, 10) : context_lines
+		// Clamp to a valid 0..10 integer; NaN/Infinity fall back to the default (undefined)
+		const parsedContextLines =
+			typeof context_lines === "string" ? Number.parseInt(context_lines, 10) : (context_lines as number | undefined)
+		const contextLines =
+			parsedContextLines !== undefined && Number.isFinite(parsedContextLines)
+				? Math.max(0, Math.min(10, Math.trunc(parsedContextLines)))
+				: undefined
 		const headerPath = paths.length === 1 ? paths[0] : `${paths[0]} (+${paths.length - 1} more)`
 		const isSubagent = env.config.isSubagentExecution
 		const card = !isSubagent
@@ -289,7 +295,6 @@ export class SearchFilesTool implements IDiracTool<SearchFilesArgs, string> {
 						excludeFilePatterns: ["!.*", "!**/.*"],
 						includeAnchors,
 						signal,
-						debugLog: async (info) => env.logging.debug("[search_files]", info),
 					}),
 				)
 

@@ -87,14 +87,14 @@ export class SurfaceAdapter implements ToolExecutionEnvironment {
 		this.anchors = {
 			reconcile: (absolutePath, lines) => {
 				const result = AnchorStateManager.reconcileWithChanges(absolutePath, lines, config.ulid)
-				if (result.changed) config.context.markAnchorStateDirty()
+				if (result.changed) config.context.markAnchorStateDirty(absolutePath)
 				return result.anchors
 			},
 			getDocumentFingerprint: (absolutePath) =>
 				AnchorStateManager.getDocumentFingerprint(absolutePath, config.ulid),
 			clear: (absolutePath) => {
 				AnchorStateManager.clearState(absolutePath, config.ulid)
-				config.context.markAnchorStateDirty()
+				config.context.markAnchorStateDirty(absolutePath)
 			},
 		}
 		this.diagnostics = buildDiagnosticsTrait()

@@ -235,7 +235,7 @@ export const formatResponse = {
 	},
 
 	planModeInstructions: () => {
-		return `Understand user's query and provide a pragmatic answeer. If the query includes a task, perform research needed, then present a plan. You are not allowed make code changes in this mode. If the user asks you to make changes, tell them to manually "toggle to Act mode" (you cannot switch modes yourself). Prefer tools for communication; avoid redundant text.`
+		return `Research without modifying files. Answer simple questions directly. For implementation work, gather the necessary context and use \`respond\` with \`plan\` to present a concrete proposal. Ask the user to switch to Act Mode before implementing; you cannot switch modes yourself.`
 	},
 
 	fileEditWithUserChanges: (

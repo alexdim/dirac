@@ -5,7 +5,6 @@ import { formatResponse } from "@core/formatResponse"
 import type { ICheckpointManager } from "@integrations/checkpoints/types"
 import { processFilesIntoText } from "@integrations/misc/extract-text"
 import { DiracError, DiracErrorType } from "@services/error"
-import { findLastIndex } from "@shared/array"
 import { CardStatus, DiracMessageType, TaskStatus } from "@shared/ExtensionMessage"
 import { DiracContent, DiracTextContentBlock } from "@shared/messages/content"
 import type { DiracMessageModelInfo } from "@shared/messages/metrics"
@@ -73,27 +72,16 @@ export async function handleApiRequestError(
 
 	const streamingFailedMessage = diracError.serialize()
 
-	const lastApiReqStartedIndex = findLastIndex(
-		ctx.messageStateHandler.getDiracMessages(),
-		(m) => m.content.type === DiracMessageType.API_STATUS,
-	)
-	if (lastApiReqStartedIndex !== -1) {
-		const diracMessages = ctx.messageStateHandler.getDiracMessages()
-		const msg = diracMessages[lastApiReqStartedIndex]
-		if (msg.content.type === DiracMessageType.API_STATUS) {
-			const currentApiReqInfo = { ...msg.content.status }
-			delete currentApiReqInfo.retryStatus
-
-			await ctx.messageStateHandler.updateDiracMessage(lastApiReqStartedIndex, {
-				content: {
-					type: DiracMessageType.API_STATUS,
-					status: {
-						...currentApiReqInfo,
-						streamingFailedMessage,
-					},
-				},
-			})
-		}
+	const lastApiStatus = ctx.messageStateHandler.getLatestApiStatusMessage()
+	const lastApiReqStartedIndex = lastApiStatus
+		? ctx.messageStateHandler.findMessageIndexById(lastApiStatus.id)
+		: -1
+	if (lastApiStatus?.content.type === DiracMessageType.API_STATUS) {
+		await ctx.messageStateHandler.patchApiStatusById(
+			lastApiStatus.id,
+			{ streamingFailedMessage },
+			["retryStatus"],
+		)
 	}
 
 	const isAuthError = diracError.isErrorType(DiracErrorType.Auth)
@@ -127,23 +115,9 @@ export async function handleApiRequestError(
 			body: `API Error (attempt ${ctx.taskState.apiErrorRetryAttempts}/3). Retrying in ${delay / 1000}s...`,
 		})
 
-		const autoRetryApiReqIndex = findLastIndex(
-			ctx.messageStateHandler.getDiracMessages(),
-			(m) => m.content.type === DiracMessageType.API_STATUS,
-		)
-		if (autoRetryApiReqIndex !== -1) {
-			const diracMessages = ctx.messageStateHandler.getDiracMessages()
-			const msg = diracMessages[autoRetryApiReqIndex]
-			if (msg.content.type === DiracMessageType.API_STATUS) {
-				const currentApiReqInfo = { ...msg.content.status }
-				delete currentApiReqInfo.streamingFailedMessage
-				await ctx.messageStateHandler.updateDiracMessage(autoRetryApiReqIndex, {
-					content: {
-						type: DiracMessageType.API_STATUS,
-						status: currentApiReqInfo,
-					},
-				})
-			}
+		const autoRetryApiStatus = ctx.messageStateHandler.getLatestApiStatusMessage()
+		if (autoRetryApiStatus?.content.type === DiracMessageType.API_STATUS) {
+			await ctx.messageStateHandler.patchApiStatusById(autoRetryApiStatus.id, {}, ["streamingFailedMessage"])
 		}
 
 		const deadline = Date.now() + delay
@@ -222,23 +196,9 @@ export async function handleApiRequestError(
 		return false
 	}
 
-	const manualRetryApiReqIndex = findLastIndex(
-		ctx.messageStateHandler.getDiracMessages(),
-		(m) => m.content.type === DiracMessageType.API_STATUS,
-	)
-	if (manualRetryApiReqIndex !== -1) {
-		const diracMessages = ctx.messageStateHandler.getDiracMessages()
-		const msg = diracMessages[manualRetryApiReqIndex]
-		if (msg.content.type === DiracMessageType.API_STATUS) {
-			const currentApiReqInfo = { ...msg.content.status }
-			delete currentApiReqInfo.streamingFailedMessage
-			await ctx.messageStateHandler.updateDiracMessage(manualRetryApiReqIndex, {
-				content: {
-					type: DiracMessageType.API_STATUS,
-					status: currentApiReqInfo,
-				},
-			})
-		}
+	const manualRetryApiStatus = ctx.messageStateHandler.getLatestApiStatusMessage()
+	if (manualRetryApiStatus?.content.type === DiracMessageType.API_STATUS) {
+		await ctx.messageStateHandler.patchApiStatusById(manualRetryApiStatus.id, {}, ["streamingFailedMessage"])
 	}
 
 	await ctx.taskMessenger.upsertText("Retrying API request...")
@@ -341,19 +301,8 @@ export async function processStreamResult(
 export async function persistApiStopReason(ctx: TaskRequestOutcomeContext, stopReason?: string): Promise<void> {
 	if (!stopReason) return
 
-	const lastApiRequestIndex = findLastIndex(
-		ctx.messageStateHandler.getDiracMessages(),
-		(message) => message.content.type === DiracMessageType.API_STATUS,
-	)
-	if (lastApiRequestIndex === -1) return
+	const message = ctx.messageStateHandler.getLatestApiStatusMessage()
+	if (message?.content.type !== DiracMessageType.API_STATUS) return
 
-	const message = ctx.messageStateHandler.getDiracMessages()[lastApiRequestIndex]
-	if (message.content.type !== DiracMessageType.API_STATUS) return
-
-	await ctx.messageStateHandler.updateDiracMessage(lastApiRequestIndex, {
-		content: {
-			type: DiracMessageType.API_STATUS,
-			status: { ...message.content.status, stopReason },
-		},
-	})
+	await ctx.messageStateHandler.patchApiStatusById(message.id, { stopReason })
 }

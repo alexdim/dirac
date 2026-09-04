@@ -41,7 +41,6 @@ export interface ChatState {
 	textAreaRef: React.RefObject<HTMLTextAreaElement>
 
 	// Derived values
-	messages: DiracMessage[]
 	lastMessage: DiracMessage | undefined
 	secondLastMessage: DiracMessage | undefined
 	task: DiracMessage | undefined
@@ -143,7 +142,6 @@ export interface TaskSectionProps {
 		supportsImages: boolean
 	}
 	isStreaming: boolean
-	modifiedMessages: DiracMessage[]
 }
 
 /**

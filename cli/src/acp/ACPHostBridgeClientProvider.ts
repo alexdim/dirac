@@ -315,7 +315,18 @@ class ACPWorkspaceServiceClient implements WorkspaceServiceClientInterface {
 	async saveOpenDocumentIfDirty(
 		_request: proto.host.SaveOpenDocumentIfDirtyRequest,
 	): Promise<proto.host.SaveOpenDocumentIfDirtyResponse> {
-		throw new Error("ACP cannot save a dirty open document without a negotiated editor capability.")
+		const canReadAndWriteThroughClient =
+			this._clientCapabilities?.fs?.readTextFile === true &&
+			this._clientCapabilities.fs.writeTextFile === true
+		if (!canReadAndWriteThroughClient) {
+			throw new Error(
+				"ACP file editing requires negotiated fs.readTextFile and fs.writeTextFile capabilities to avoid overwriting unsaved editor content.",
+			)
+		}
+
+		// ACP file reads observe the client's authoritative buffer, and ACP writes
+		// update that same client-owned file state, so no separate save is needed.
+		return proto.host.SaveOpenDocumentIfDirtyResponse.create({})
 	}
 
 	async getDiagnostics(_request: proto.host.GetDiagnosticsRequest): Promise<proto.host.GetDiagnosticsResponse> {

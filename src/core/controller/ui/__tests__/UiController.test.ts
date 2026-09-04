@@ -114,6 +114,8 @@ function makeFakeTask(overrides?: { taskId?: string; cwd?: string; diracMessages
 		},
 		messageStateHandler: {
 			getDiracMessages: () => overrides?.diracMessages ?? [],
+			getMessageById: (id: string) => overrides?.diracMessages?.find((message) => message.id === id),
+			getPresentationOffset: () => 0,
 		},
 	}
 }
@@ -355,6 +357,14 @@ describe("getStateToPostToWebview", () => {
 			expect(state.taskStatus).to.equal(TaskStatus.IDLE)
 		})
 
+		it("publishes an explicit tombstone when no Goal is selected", async () => {
+			const stateManager = makeFakeStateManager()
+			const state = await getStateToPostToWebview({ stateManager, backgroundCommandRunning: false })
+
+			expect(state).to.have.property("goal", null)
+			expect(JSON.parse(JSON.stringify(state))).to.have.property("goal", null)
+		})
+
 		it("projects taskStatus from an active task", async () => {
 			const stateManager = makeFakeStateManager()
 			const task = makeFakeTask({ taskState: { status: TaskStatus.STREAMING_TEXT } })
@@ -551,7 +561,7 @@ describe("getStateToPostToWebview", () => {
 			stateManager.getGlobalStateKey = sinon.stub().callsFake((key: string) => {
 				if (key === "lastDismissedInfoBannerVersion") return undefined
 				if (key === "taskHistory") return []
-				return {}
+				return undefined
 			})
 			const state = await getStateToPostToWebview({ stateManager, backgroundCommandRunning: false })
 			expect(state.lastDismissedInfoBannerVersion).to.equal(0)
@@ -562,7 +572,7 @@ describe("getStateToPostToWebview", () => {
 			stateManager.getGlobalStateKey = sinon.stub().callsFake((key: string) => {
 				if (key === "welcomeViewCompleted") return "truthy"
 				if (key === "taskHistory") return []
-				return {}
+				return undefined
 			})
 			const state = await getStateToPostToWebview({ stateManager, backgroundCommandRunning: false })
 			expect(state.welcomeViewCompleted).to.equal(true)

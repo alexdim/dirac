@@ -144,6 +144,21 @@ function validateCommon(document, expected) {
 	}
 }
 
+function commitBelongsToRange(commit, previousTag, analyzedCommit) {
+	try {
+		git(["merge-base", "--is-ancestor", commit, analyzedCommit])
+	} catch {
+		return false
+	}
+
+	try {
+		git(["merge-base", "--is-ancestor", commit, previousTag])
+		return false
+	} catch {
+		return true
+	}
+}
+
 function validateCurated(options) {
 	const filePath = requireOption(options, "input")
 	const version = requireOption(options, "version")
@@ -174,10 +189,7 @@ function validateCurated(options) {
 			} catch {
 				fail(`Highlight ${highlight.id} references unknown commit ${evidence}`)
 			}
-			try {
-				git(["merge-base", "--is-ancestor", previousTag, commit])
-				git(["merge-base", "--is-ancestor", commit, document.analyzedCommit])
-			} catch {
+			if (!commitBelongsToRange(commit, previousTag, document.analyzedCommit)) {
 				fail(`Highlight ${highlight.id} evidence ${evidence} is outside ${previousTag}..${document.analyzedCommit}`)
 			}
 		}
@@ -227,10 +239,7 @@ function validatePatch(options) {
 			} catch {
 				fail(`Patch highlight ${highlight.id} references unknown commit ${evidence}`)
 			}
-			try {
-				git(["merge-base", "--is-ancestor", previousTag, commit])
-				git(["merge-base", "--is-ancestor", commit, document.analyzedCommit])
-			} catch {
+			if (!commitBelongsToRange(commit, previousTag, document.analyzedCommit)) {
 				fail(`Patch highlight ${highlight.id} evidence ${evidence} is outside ${previousTag}..${document.analyzedCommit}`)
 			}
 		}

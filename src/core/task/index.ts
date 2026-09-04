@@ -127,6 +127,7 @@ export type TaskParams = {
 	controller: Controller
 	updateTaskHistory: (historyItem: HistoryItem) => Promise<HistoryItem[]>
 	postStateToWebview: () => Promise<void>
+	postPresentationToWebview?: () => Promise<void>
 	reinitExistingTaskFromId: (taskId: string) => Promise<void>
 	cancelTask: () => Promise<void>
 	shellIntegrationTimeout: number
@@ -388,6 +389,7 @@ export class Task {
 	// Callbacks
 	private updateTaskHistory: (historyItem: HistoryItem) => Promise<HistoryItem[]>
 	private postStateToWebview: () => Promise<void>
+	private postPresentationToWebview: () => Promise<void>
 	private reinitExistingTaskFromId: (taskId: string) => Promise<void>
 	private cancelTask: () => Promise<void>
 
@@ -412,6 +414,7 @@ export class Task {
 			controller,
 			updateTaskHistory,
 			postStateToWebview,
+			postPresentationToWebview,
 			reinitExistingTaskFromId,
 			cancelTask,
 			shellIntegrationTimeout,
@@ -436,6 +439,7 @@ export class Task {
 		this.taskInitializationStartTime = performance.now()
 		this.taskState = new TaskState()
 		this.taskState.pinnedContext = params.pinnedContext
+		this.taskState.initialTask = task ?? historyItem?.task
 		this.executionProfile = params.executionProfile ?? "standalone"
 		this.getPinnedContext = params.getPinnedContext ?? (() => Promise.resolve(params.pinnedContext))
 		if (this.executionProfile !== "standalone" && workingConfiguration.settings.mode !== "act") {
@@ -445,6 +449,7 @@ export class Task {
 		this.controller = controller
 		this.updateTaskHistory = updateTaskHistory
 		this.postStateToWebview = postStateToWebview
+		this.postPresentationToWebview = postPresentationToWebview ?? postStateToWebview
 		this.reinitExistingTaskFromId = reinitExistingTaskFromId
 		this.cancelTask = cancelTask
 		this.stateManager = stateManager
@@ -458,9 +463,7 @@ export class Task {
 		this.enqueuePreRequestSteeringMessages = params.enqueuePreRequestSteeringMessages ?? (async () => undefined)
 		this.conversationPersistenceHooks = params.conversationPersistenceHooks
 
-		if (workingConfiguration.settings.mode === "act") {
-			this.taskState.didSwitchToActMode = true
-		}
+		this.taskState.pendingModeNotice = { mode: workingConfiguration.settings.mode }
 
 		// Initialize ULID and task state from history or new task params
 		if (historyItem) {
@@ -489,6 +492,7 @@ export class Task {
 			taskState: this.taskState,
 			messageStateHandler: this.messageStateHandler,
 			postStateToWebview: this.postStateToWebview,
+			postPresentationToWebview: this.postPresentationToWebview,
 			getWorkingConfiguration: () => this.activeRequestRuntime?.workingConfiguration ?? this.workingConfiguration,
 			getRequestRuntime: () => this.activeRequestRuntime,
 			taskId: this.taskId,
@@ -983,9 +987,9 @@ export class Task {
 	}
 
 	private applyCommittedModeEffects(previousMode: Mode, nextMode: Mode): void {
-		if (previousMode !== "plan" || nextMode !== "act") return
-		this.taskState.didSwitchToActMode = true
-		if (this.taskState.isAwaitingPlanResponse) {
+		if (previousMode === nextMode) return
+		this.taskState.pendingModeNotice = { mode: nextMode }
+		if (previousMode === "plan" && nextMode === "act" && this.taskState.isAwaitingPlanResponse) {
 			this.taskState.didRespondToPlanAskBySwitchingMode = true
 		}
 	}

@@ -653,7 +653,7 @@ describe("ReadFileToolHandler.execute – include_anchors visibility and cache",
 
 		assert.ok(first.includes(`record ${MAX_ANCHORED_FILE_LINES}:`))
 		assert.ok(first.includes(`record ${MAX_ANCHORED_FILE_LINES + 1}:`))
-		assert.ok(first.includes(`${MAX_ANCHORED_FILE_LINES + 1} lines`))
+		assert.ok(first.includes(`[Total lines: ${MAX_ANCHORED_FILE_LINES + 1}]`))
 		assert.ok(first.includes("Hash anchoring unavailable"))
 		assert.ok(first.includes("use execute_command"))
 		assert.ok(!/^[A-Z][a-zA-Z]*§record/m.test(first))

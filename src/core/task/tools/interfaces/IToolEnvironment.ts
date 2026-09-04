@@ -196,7 +196,6 @@ export interface ISystemTrait {
 			filePattern?: string
 			contextLines?: number
 			excludeFilePatterns?: string[]
-			debugLog?: (info: Record<string, any>) => Promise<void>
 			includeAnchors?: boolean
 			signal?: AbortSignal
 		},
@@ -264,6 +263,9 @@ export interface IWorkspaceTrait {
 	 * Returns information about a file (size, existence, etc.).
 	 */
 	getFileInfo(path: string): Promise<{ size: number; isFile: boolean; exists: boolean }>
+
+	/** Fingerprints workspace file paths and bytes for completion-verification retry arbitration. */
+	fingerprintWorkspace(): Promise<string>
 
 	/**
 	 * Writes content to a file.

@@ -29,11 +29,20 @@ export function createMockContext(): IDiracContext {
 		markAnchorStateDirty: () => { },
 		task: {
 			get: async <T>(key: string): Promise<T | undefined> => taskData[key] as T,
+			getEntry: async <T>(key: string, entryKey: string): Promise<T | undefined> => taskData[key]?.[entryKey] as T,
+			getEntries: async <T>(key: string, entryKeys: readonly string[]): Promise<Record<string, T>> =>
+				Object.fromEntries(entryKeys.filter((entryKey) => taskData[key]?.[entryKey] !== undefined).map((entryKey) => [entryKey, taskData[key][entryKey]])),
 			set: async <T>(key: string, value: T): Promise<void> => {
 				taskData[key] = value
 			},
 			update: async <T>(key: string, updater: (value: T | undefined) => T): Promise<void> => {
 				taskData[key] = updater(taskData[key] as T | undefined)
+			},
+			updateEntries: async <T>(key: string, updates: Record<string, T>, deletions: readonly string[] = []) => {
+				const current = (taskData[key] ?? {}) as Record<string, T>
+				Object.assign(current, updates)
+				for (const entryKey of deletions) delete current[entryKey]
+				taskData[key] = current
 			},
 		},
 		workspace: {
@@ -215,6 +224,7 @@ export function createMockTaskConfig(options: MockTaskConfigOptions = {}) {
 			getApiConversationHistory: sinon.stub().returns([]),
 			getDiracMessages: sinon.stub().returns([]),
 			addToDiracMessages: sinon.stub().resolves(),
+			flushPendingWrites: sinon.stub().resolves(),
 		},
 		model: { id: "test-model", info: { supportsImages: false } },
 		supportsNativeWebSearch: false,

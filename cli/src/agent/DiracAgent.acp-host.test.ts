@@ -112,6 +112,9 @@ describe("DiracAgent ACP host composition", () => {
 		agent.initializeHostProvider({ fs: { readTextFile: true, writeTextFile: true }, terminal: true }, connection)
 
 			; (agent as any).activePromptSessionId = "session-a"
+		await expect(
+			HostProvider.workspace.saveOpenDocumentIfDirty({ filePath: "/workspace/a.ts" }),
+		).resolves.toEqual({})
 		const firstProvider = HostProvider.get().createDiffViewProvider()
 		await firstProvider.open("/workspace/a.ts", { editType: "modify" })
 		await firstProvider.update("changed", true)

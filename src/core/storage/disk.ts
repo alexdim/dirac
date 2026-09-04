@@ -22,8 +22,15 @@ import * as _taskStorage from "./taskStorage"
 export type { SkillsScanDirectory }
 export const atomicWriteFile = _atomicWrite.atomicWriteFile
 export const getSavedApiConversationHistory = _conversationHistory.getSavedApiConversationHistory
+export const getSavedApiConversationState = _conversationHistory.getSavedApiConversationState
 export const getSavedApiConversationProviderState = _conversationHistory.getSavedApiConversationProviderState
 export const getSavedDiracMessages = _conversationHistory.getSavedDiracMessages
+export const getSavedPresentationHistory = _conversationHistory.getSavedPresentationHistory
+export const appendApiConversationOperations = _conversationHistory.appendApiConversationOperations
+export const appendPresentationOperations = _conversationHistory.appendPresentationOperations
+export const createApiConversationBaseline = _conversationHistory.createApiConversationBaseline
+export const createPresentationBaseline = _conversationHistory.createPresentationBaseline
+export const getPresentationHistoryAtMessage = _conversationHistory.getPresentationHistoryAtMessage
 export const saveApiConversationHistory = _conversationHistory.saveApiConversationHistory
 export const saveApiConversationProviderState = _conversationHistory.saveApiConversationProviderState
 export const saveDiracMessages = _conversationHistory.saveDiracMessages

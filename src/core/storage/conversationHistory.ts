@@ -1,23 +1,85 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import type { ApiConversationProviderState } from "@core/api/conversation"
 import { CardKind, CardStatus, DiracMessage, DiracMessageType, SteeringTranscriptStatus } from "@shared/ExtensionMessage"
+import type { DiracStorageMessage, DiracUserContent } from "@shared/messages/content"
+import type { PresentationOperation } from "@shared/PresentationOperation"
 import { fileExistsAtPath } from "@utils/fs"
 import fs from "fs/promises"
 import * as path from "path"
 import { Logger } from "@/shared/services/Logger"
 import { syncWorker } from "@/shared/services/worker/sync"
-import { GlobalFileNames } from "./fileNames"
 import { atomicWriteFile } from "./atomicWrite"
 import { ensureTaskDirectoryExists } from "./directoryEnsurers"
+import { GlobalFileNames } from "./fileNames"
+import { appendOperationRecords, archiveOperationLog, replayOperationRecords, writeFramedBaseline } from "./operationLog"
+
+export type ApiConversationOperation =
+	| { offset: number; type: "append_message"; message: DiracStorageMessage }
+	| { offset: number; type: "append_user_content"; content: DiracUserContent }
+	| { offset: number; type: "reset"; messages: DiracStorageMessage[] }
+
+export interface SavedPresentationHistory {
+	messages: DiracMessage[]
+	lastOffset: number
+}
+
+export interface SavedApiConversationHistory {
+	messages: DiracStorageMessage[]
+	lastOffset: number
+}
+
+type ApiConversationBaselineRecord = { type: "baseline"; offset: number } | { type: "message"; message: DiracStorageMessage }
+
+type PresentationBaselineRecord = { type: "baseline"; offset: number } | { type: "message"; message: DiracMessage }
 
 // Reads the saved API conversation history for a task, returning [] if absent.
 export async function getSavedApiConversationHistory(taskId: string): Promise<Anthropic.MessageParam[]> {
-	const filePath = path.join(await ensureTaskDirectoryExists(taskId), GlobalFileNames.apiConversationHistory)
-	const fileExists = await fileExistsAtPath(filePath)
-	if (fileExists) {
-		return JSON.parse(await fs.readFile(filePath, "utf8"))
+	return (await getSavedApiConversationState(taskId)).messages
+}
+
+export async function getSavedApiConversationState(taskId: string): Promise<SavedApiConversationHistory> {
+	const taskDirectory = await ensureTaskDirectoryExists(taskId)
+	const filePath = path.join(taskDirectory, GlobalFileNames.apiConversationHistory)
+	const baselinePath = path.join(taskDirectory, GlobalFileNames.apiConversationHistoryBaseline)
+	let { messages, lastOffset } = await readApiConversationBaseline(filePath, baselinePath)
+	const operationPath = path.join(path.dirname(filePath), GlobalFileNames.apiConversationHistoryOperations)
+	await replayOperationRecords<ApiConversationOperation>(operationPath, (operation) => {
+		if (operation.offset <= lastOffset) return
+		assertNextOffset(operation.offset, lastOffset, operationPath, operation.type === "reset")
+		lastOffset = operation.offset
+		messages = applyApiConversationOperation(messages, operation)
+	})
+	return { messages, lastOffset }
+}
+
+export async function appendApiConversationOperations(
+	taskId: string,
+	operations: readonly ApiConversationOperation[],
+	completeHistory?: readonly DiracStorageMessage[],
+): Promise<number> {
+	const taskDirectory = await ensureTaskDirectoryExists(taskId)
+	const appendedBytes = await appendOperationRecords(
+		path.join(taskDirectory, GlobalFileNames.apiConversationHistoryOperations),
+		operations,
+	)
+	if (operations.length > 0 && completeHistory) {
+		syncWorker().enqueue(taskId, GlobalFileNames.apiConversationHistory, JSON.stringify(completeHistory))
 	}
-	return []
+	return appendedBytes
+}
+
+export async function createApiConversationBaseline(
+	taskId: string,
+	messages: readonly DiracStorageMessage[],
+	offset: number,
+): Promise<void> {
+	const taskDirectory = await ensureTaskDirectoryExists(taskId)
+	const records = function* (): Generator<ApiConversationBaselineRecord> {
+		yield { type: "baseline", offset }
+		for (const message of messages) yield { type: "message", message }
+	}
+	await writeFramedBaseline(path.join(taskDirectory, GlobalFileNames.apiConversationHistoryBaseline), records())
+	await archiveOperationLog(path.join(taskDirectory, GlobalFileNames.apiConversationHistoryOperations), offset)
 }
 
 // Reads provider-native conversation state separately from the generic API transcript.
@@ -43,9 +105,28 @@ export async function saveApiConversationHistory(taskId: string, apiConversation
 	}
 	try {
 		const fileName = GlobalFileNames.apiConversationHistory
+		const taskDirectory = await ensureTaskDirectoryExists(taskId)
+		const usesIncrementalStorage =
+			(await fileExistsAtPath(path.join(taskDirectory, GlobalFileNames.apiConversationHistoryBaseline))) ||
+			(await fileExistsAtPath(path.join(taskDirectory, GlobalFileNames.apiConversationHistoryOperations)))
+		if (usesIncrementalStorage) {
+			const current = await getSavedApiConversationState(taskId)
+			await appendApiConversationOperations(
+				taskId,
+				[
+					{
+						offset: current.lastOffset + 1,
+						type: "reset",
+						messages: apiConversationHistory,
+					},
+				],
+				apiConversationHistory,
+			)
+			return
+		}
 		const data = JSON.stringify(apiConversationHistory)
 		syncWorker().enqueue(taskId, fileName, data)
-		const filePath = path.join(await ensureTaskDirectoryExists(taskId), fileName)
+		const filePath = path.join(taskDirectory, fileName)
 		await atomicWriteFile(filePath, data)
 	} catch (error) {
 		Logger.error("Failed to save API conversation history:", error)
@@ -55,21 +136,286 @@ export async function saveApiConversationHistory(taskId: string, apiConversation
 
 // Reads saved Dirac UI messages for a task, migrating the legacy filename after validating its contents.
 export async function getSavedDiracMessages(taskId: string): Promise<DiracMessage[]> {
+	return (await getSavedPresentationHistory(taskId)).messages
+}
+
+export async function getSavedPresentationHistory(taskId: string): Promise<SavedPresentationHistory> {
 	const taskDirectory = await ensureTaskDirectoryExists(taskId)
 	const filePath = path.join(taskDirectory, GlobalFileNames.uiMessages)
-	if (await fileExistsAtPath(filePath)) {
-		return parseSavedDiracMessages(await fs.readFile(filePath, "utf8"), filePath)
+	const baselinePath = path.join(taskDirectory, GlobalFileNames.uiMessagesBaseline)
+	let { messages, lastOffset } = await readPresentationBaseline(taskDirectory, filePath, baselinePath)
+	let messageIndexes = indexMessagesById(messages)
+	const appendChunks = new Map<string, string[]>()
+	const operationPath = path.join(taskDirectory, GlobalFileNames.uiMessageOperations)
+	await replayOperationRecords<PresentationOperation>(operationPath, (operation) => {
+		if (operation.offset <= lastOffset) return
+		assertNextOffset(operation.offset, lastOffset, operationPath, operation.type === "reset")
+		lastOffset = operation.offset
+		const applied = applyPresentationOperation(messages, messageIndexes, appendChunks, operation)
+		messages = applied.messages
+		messageIndexes = applied.messageIndexes
+	})
+	materializeAllPresentationAppends(messages, messageIndexes, appendChunks)
+	return { messages, lastOffset }
+}
+
+export async function appendPresentationOperations(
+	taskId: string,
+	operations: readonly PresentationOperation[],
+): Promise<number> {
+	const taskDirectory = await ensureTaskDirectoryExists(taskId)
+	return appendOperationRecords(path.join(taskDirectory, GlobalFileNames.uiMessageOperations), operations)
+}
+
+export async function createPresentationBaseline(
+	taskId: string,
+	messages: readonly DiracMessage[],
+	offset: number,
+): Promise<void> {
+	const taskDirectory = await ensureTaskDirectoryExists(taskId)
+	const records = function* (): Generator<PresentationBaselineRecord> {
+		yield { type: "baseline", offset }
+		for (const message of messages) yield { type: "message", message }
+	}
+	await writeFramedBaseline(path.join(taskDirectory, GlobalFileNames.uiMessagesBaseline), records())
+	await archiveOperationLog(path.join(taskDirectory, GlobalFileNames.uiMessageOperations), offset)
+}
+
+/** Replays retained operation segments to the first state containing a checkpoint message. */
+export async function getPresentationHistoryAtMessage(taskId: string, messageId: string): Promise<DiracMessage[]> {
+	const taskDirectory = await ensureTaskDirectoryExists(taskId)
+	const legacyPath = path.join(taskDirectory, GlobalFileNames.uiMessages)
+	let messages = (await fileExistsAtPath(legacyPath))
+		? await parseSavedDiracMessages(await fs.readFile(legacyPath, "utf8"), legacyPath)
+		: []
+	const legacyTargetIndex = messages.findIndex((message) => message.id === messageId)
+	if (legacyTargetIndex !== -1) return structuredClone(messages.slice(0, legacyTargetIndex + 1))
+
+	let messageIndexes = indexMessagesById(messages)
+	const appendChunks = new Map<string, string[]>()
+	let lastOffset = -1
+	let targetState: DiracMessage[] | undefined
+	for (const operationPath of await presentationOperationHistoryPaths(taskDirectory)) {
+		await replayOperationRecords<PresentationOperation>(operationPath, (operation) => {
+			assertNextOffset(operation.offset, lastOffset, operationPath, operation.type === "reset")
+			lastOffset = operation.offset
+			if (targetState) return
+			const applied = applyPresentationOperation(messages, messageIndexes, appendChunks, operation)
+			messages = applied.messages
+			messageIndexes = applied.messageIndexes
+			const targetIndex = messageIndexes.get(messageId)
+			if (targetIndex !== undefined) {
+				materializeAllPresentationAppends(messages, messageIndexes, appendChunks)
+				targetState = structuredClone(messages.slice(0, targetIndex + 1))
+			}
+		})
+	}
+	if (!targetState) throw new Error(`Presentation checkpoint message ${messageId} is absent from task ${taskId}`)
+	return targetState
+}
+
+async function readApiConversationBaseline(legacyPath: string, baselinePath: string): Promise<SavedApiConversationHistory> {
+	if (!(await fileExistsAtPath(baselinePath))) {
+		const messages = (await fileExistsAtPath(legacyPath))
+			? (JSON.parse(await fs.readFile(legacyPath, "utf8")) as DiracStorageMessage[])
+			: []
+		return { messages, lastOffset: -1 }
 	}
 
-	const oldPath = path.join(taskDirectory, "claude_messages.json")
-	if (await fileExistsAtPath(oldPath)) {
+	const messages: DiracStorageMessage[] = []
+	let lastOffset: number | undefined
+	await replayOperationRecords<ApiConversationBaselineRecord>(baselinePath, (record, lineNumber) => {
+		if (lineNumber === 1 && record.type === "baseline" && Number.isSafeInteger(record.offset)) {
+			lastOffset = record.offset
+			return
+		}
+		if (lastOffset === undefined || record.type !== "message") {
+			throw new Error(`Invalid API conversation baseline record ${lineNumber}`)
+		}
+		messages.push(record.message)
+	})
+	if (lastOffset === undefined) throw new Error(`API conversation baseline has no header: ${baselinePath}`)
+	return { messages, lastOffset }
+}
+
+async function readPresentationBaseline(
+	taskDirectory: string,
+	legacyPath: string,
+	baselinePath: string,
+): Promise<SavedPresentationHistory> {
+	if (!(await fileExistsAtPath(baselinePath))) {
+		if (await fileExistsAtPath(legacyPath)) {
+			return {
+				messages: await parseSavedDiracMessages(await fs.readFile(legacyPath, "utf8"), legacyPath),
+				lastOffset: -1,
+			}
+		}
+		const oldPath = path.join(taskDirectory, "claude_messages.json")
+		if (!(await fileExistsAtPath(oldPath))) return { messages: [], lastOffset: -1 }
 		const contents = await fs.readFile(oldPath, "utf8")
 		const messages = await parseSavedDiracMessages(contents, oldPath)
-		await atomicWriteFile(filePath, JSON.stringify(messages))
+		await atomicWriteFile(legacyPath, JSON.stringify(messages))
 		await fs.unlink(oldPath)
+		return { messages, lastOffset: -1 }
+	}
+
+	const messages: DiracMessage[] = []
+	let lastOffset: number | undefined
+	await replayOperationRecords<PresentationBaselineRecord>(baselinePath, (record, lineNumber) => {
+		if (lineNumber === 1 && record.type === "baseline" && Number.isSafeInteger(record.offset)) {
+			lastOffset = record.offset
+			return
+		}
+		if (lastOffset === undefined || record.type !== "message" || !isReadableDiracMessage(record.message)) {
+			throw new Error(`Invalid presentation baseline record ${lineNumber}`)
+		}
+		messages.push(record.message)
+	})
+	if (lastOffset === undefined) throw new Error(`Presentation baseline has no header: ${baselinePath}`)
+	return { messages, lastOffset }
+}
+
+function applyApiConversationOperation(
+	messages: DiracStorageMessage[],
+	operation: ApiConversationOperation,
+): DiracStorageMessage[] {
+	if (operation.type === "reset") return operation.messages
+	if (operation.type === "append_message") {
+		messages.push(operation.message)
 		return messages
 	}
-	return []
+	const lastMessage = messages.at(-1)
+	if (!lastMessage || lastMessage.role !== "user") {
+		throw new Error("API history operation appends content without a final user message")
+	}
+	if (typeof lastMessage.content === "string") {
+		lastMessage.content = [{ type: "text", text: lastMessage.content }, operation.content]
+	} else {
+		lastMessage.content.push(operation.content)
+	}
+	return messages
+}
+
+function materializePresentationAppends(
+	messages: DiracMessage[],
+	messageIndexes: Map<string, number>,
+	appendChunks: Map<string, string[]>,
+	messageId: string,
+): void {
+	const chunks = appendChunks.get(messageId)
+	if (!chunks) return
+	const index = messageIndexes.get(messageId)
+	if (index === undefined) throw new Error(`Presentation append refers to missing ID ${messageId}`)
+	const message = messages[index]
+	const appendedText = chunks.join("")
+	if (message.content.type === DiracMessageType.MARKDOWN) {
+		message.content.content += appendedText
+	} else if (message.content.type === DiracMessageType.CARD) {
+		message.content.card.body = `${message.content.card.body ?? ""}${appendedText}`
+	} else {
+		throw new Error(`Presentation append refers to non-text message ${messageId}`)
+	}
+	appendChunks.delete(messageId)
+}
+
+function materializeAllPresentationAppends(
+	messages: DiracMessage[],
+	messageIndexes: Map<string, number>,
+	appendChunks: Map<string, string[]>,
+): void {
+	for (const messageId of appendChunks.keys()) {
+		materializePresentationAppends(messages, messageIndexes, appendChunks, messageId)
+	}
+}
+
+function applyPresentationOperation(
+	messages: DiracMessage[],
+	messageIndexes: Map<string, number>,
+	appendChunks: Map<string, string[]>,
+	operation: PresentationOperation,
+): { messages: DiracMessage[]; messageIndexes: Map<string, number> } {
+	if (operation.type === "reset") {
+		appendChunks.clear()
+		return {
+			messages: operation.messages,
+			messageIndexes: indexMessagesById(operation.messages),
+		}
+	}
+	if (operation.type === "create") {
+		if (messageIndexes.has(operation.message.id)) throw new Error(`Duplicate presentation ID ${operation.message.id}`)
+		messageIndexes.set(operation.message.id, messages.length)
+		messages.push(operation.message)
+		return { messages, messageIndexes }
+	}
+
+	const index = messageIndexes.get(operation.id)
+	if (index === undefined) throw new Error(`Presentation operation refers to missing ID ${operation.id}`)
+	if (operation.type === "append_card_body" || operation.type === "append_markdown") {
+		const chunks = appendChunks.get(operation.id)
+		if (chunks) chunks.push(operation.text)
+		else appendChunks.set(operation.id, [operation.text])
+		return { messages, messageIndexes }
+	}
+	if (operation.type === "delete") {
+		appendChunks.delete(operation.id)
+		messages.splice(index, 1)
+		return { messages, messageIndexes: indexMessagesById(messages) }
+	}
+
+	materializePresentationAppends(messages, messageIndexes, appendChunks, operation.id)
+	const message = messages[index]
+	if (operation.type === "patch_message") {
+		Object.assign(message, operation.patch)
+		return { messages, messageIndexes }
+	}
+	if (operation.type === "patch_card") {
+		if (message.content.type !== DiracMessageType.CARD) throw new Error(`Presentation ID ${operation.id} is not a Card`)
+		Object.assign(message.content.card, operation.patch)
+		return { messages, messageIndexes }
+	}
+	if (operation.type === "patch_api_status") {
+		if (message.content.type !== DiracMessageType.API_STATUS) {
+			throw new Error(`Presentation ID ${operation.id} is not an API status`)
+		}
+		Object.assign(message.content.status, operation.patch)
+		for (const key of operation.deletions ?? []) delete message.content.status[key]
+		return { messages, messageIndexes }
+	}
+	if (message.content.type !== DiracMessageType.MARKDOWN) {
+		throw new Error(`Presentation ID ${operation.id} is not markdown`)
+	}
+	Object.assign(message.content, operation.patch)
+	return { messages, messageIndexes }
+}
+
+async function presentationOperationHistoryPaths(taskDirectory: string): Promise<string[]> {
+	const operationName = GlobalFileNames.uiMessageOperations
+	const archivePrefix = `${operationName}.archive.`
+	const entries = await fs.readdir(taskDirectory)
+	const archives = entries
+		.filter((entry) => entry.startsWith(archivePrefix))
+		.map((entry) => ({
+			entry,
+			offset: Number(entry.slice(archivePrefix.length)),
+		}))
+		.filter(({ offset }) => Number.isSafeInteger(offset))
+		.sort((left, right) => left.offset - right.offset)
+		.map(({ entry }) => path.join(taskDirectory, entry))
+	const activePath = path.join(taskDirectory, operationName)
+	if (await fileExistsAtPath(activePath)) archives.push(activePath)
+	return archives
+}
+
+function indexMessagesById(messages: readonly DiracMessage[]): Map<string, number> {
+	const indexes = new Map<string, number>()
+	for (let index = 0; index < messages.length; index++) indexes.set(messages[index].id, index)
+	return indexes
+}
+
+function assertNextOffset(offset: number, previousOffset: number, filePath: string, resetCanBridgeGap = false): void {
+	if (!Number.isSafeInteger(offset) || (offset !== previousOffset + 1 && !resetCanBridgeGap)) {
+		throw new Error(`Non-contiguous operation offset ${offset} after ${previousOffset} in ${filePath}`)
+	}
 }
 
 async function parseSavedDiracMessages(contents: string, filePath: string): Promise<DiracMessage[]> {
@@ -77,7 +423,9 @@ async function parseSavedDiracMessages(contents: string, filePath: string): Prom
 	try {
 		parsed = JSON.parse(contents)
 	} catch (error) {
-		throw new Error(`Saved task transcript is not valid JSON: ${filePath}`, { cause: error })
+		throw new Error(`Saved task transcript is not valid JSON: ${filePath}`, {
+			cause: error,
+		})
 	}
 	if (!Array.isArray(parsed)) {
 		throw new Error(`Saved task transcript is not an array: ${filePath}`)
@@ -104,7 +452,10 @@ async function backupTranscriptBeforeSkippingMessages(filePath: string, contents
 	try {
 		await atomicWriteFile(backupPath, contents)
 	} catch (error) {
-		Logger.warn(`[Task History] Failed to back up unreadable messages from ${filePath}; continuing with readable messages`, error)
+		Logger.warn(
+			`[Task History] Failed to back up unreadable messages from ${filePath}; continuing with readable messages`,
+			error,
+		)
 	}
 }
 
@@ -312,6 +663,20 @@ function isStringInSet(value: unknown, values: ReadonlySet<string>): boolean {
 export async function saveDiracMessages(taskId: string, uiMessages: DiracMessage[]) {
 	try {
 		const taskDir = await ensureTaskDirectoryExists(taskId)
+		const usesIncrementalStorage =
+			(await fileExistsAtPath(path.join(taskDir, GlobalFileNames.uiMessagesBaseline))) ||
+			(await fileExistsAtPath(path.join(taskDir, GlobalFileNames.uiMessageOperations)))
+		if (usesIncrementalStorage) {
+			const current = await getSavedPresentationHistory(taskId)
+			await appendPresentationOperations(taskId, [
+				{
+					offset: current.lastOffset + 1,
+					type: "reset",
+					messages: uiMessages,
+				},
+			])
+			return
+		}
 		const filePath = path.join(taskDir, GlobalFileNames.uiMessages)
 		await atomicWriteFile(filePath, JSON.stringify(uiMessages))
 	} catch (error) {
