@@ -5,6 +5,7 @@ import type { DiracApiReqCancelReason } from "@shared/ExtensionMessage"
 import { TaskStatus } from "@shared/ExtensionMessage"
 import { removeProviderBoundaryMetadataFromMessage } from "@shared/messages/content"
 import type { DiracStorageMessage } from "@shared/messages/content"
+import { Logger } from "@shared/services/Logger"
 import { StreamingMetricsManager } from "./StreamingMetricsManager"
 import { buildApiRequestParams } from "./TaskRequestBuilder"
 import { handleApiRequestError } from "./TaskRequestOutcome"
@@ -17,6 +18,7 @@ export async function* attemptApiRequest(
 	lastApiReqIndex: number,
 	shouldCompact?: boolean,
 ): ApiStream {
+	const requestPreparationStartedAt = performance.now()
 	const { systemPrompt, toolSnapshot, contextManagementMetadata, providerInfo } = await buildApiRequestParams(
 		ctx,
 		ctx.requestRuntime,
@@ -54,6 +56,7 @@ export async function* attemptApiRequest(
 	})
 
 	if (ctx.taskState.abort) throw new Error("Task instance aborted")
+	Logger.debug(`[Task ${ctx.taskId}] Request assembled for ${providerId}/${model.id} in ${Math.round(performance.now() - requestPreparationStartedAt)}ms`)
 
 	const stream = ctx.requestRuntime.api.createMessage(
 		systemPrompt,
@@ -65,10 +68,13 @@ export async function* attemptApiRequest(
 
 	try {
 		ctx.taskState.status = TaskStatus.WAITING_FOR_API
+		await ctx.postStateToWebview()
+		if (ctx.taskState.abort) throw new Error("Task instance aborted")
 
 		ctx.taskState.isWaitingForFirstChunk = true
-		const firstChunk = await iterator.next()
-		ctx.taskState.isWaitingForFirstChunk = false
+		const firstChunk = await iterator.next().finally(() => {
+			ctx.taskState.isWaitingForFirstChunk = false
+		})
 
 		if (firstChunk.done) {
 			await finalizeApiReqMsg()

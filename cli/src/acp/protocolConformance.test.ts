@@ -236,7 +236,10 @@ describe("ACP protocol conformance over raw stdio", () => {
 			id: "model",
 			category: "model",
 			currentValue: "deepseek-flash",
-			options: [{ value: "deepseek-flash", name: "deepseek-flash" }],
+			options: [
+				{ value: "deepseek-flash", name: "deepseek-flash" },
+				{ value: "deepseek-v4-pro", name: "deepseek-v4-pro" },
+			],
 		})
 		expect((modelOptions[0].options as Array<Record<string, unknown>>).map((option) => option.value)).not.toContain(
 			"deepseek",
@@ -471,7 +474,7 @@ describe("ACP protocol conformance over raw stdio", () => {
 		const configDir = await temporaryDirectory("dirac-acp-config-")
 		const cwd = await temporaryDirectory("dirac-acp-workspace-")
 		const sessionId = crypto.randomUUID()
-		await seedPersistedSession(configDir, cwd, sessionId, "deepseek-v4-pro")
+		await seedPersistedSession(configDir, cwd, sessionId, "deepseek-v4-flash")
 
 		const client = createRawClient(configDir, cwd)
 		await client.initialize()
@@ -480,8 +483,25 @@ describe("ACP protocol conformance over raw stdio", () => {
 		assertProviderModelConfig(configOptions)
 		const model = configOptions.find((option) => option.id === "model")!
 		expect(model.currentValue).toBe("deepseek-flash")
-		expect((model.options as Array<Record<string, unknown>>).map((option) => option.value)).not.toContain("deepseek-v4-pro")
+		expect((model.options as Array<Record<string, unknown>>).map((option) => option.value)).not.toContain("deepseek-v4-flash")
 	})
+
+	it("preserves persisted DeepSeek Pro when loading a session", async () => {
+		const configDir = await temporaryDirectory("dirac-acp-config-")
+		const cwd = await temporaryDirectory("dirac-acp-workspace-")
+		const sessionId = crypto.randomUUID()
+		await seedPersistedSession(configDir, cwd, sessionId, "deepseek-v4-pro")
+
+		const client = createRawClient(configDir, cwd)
+		await client.initialize()
+		const loaded = await client.request("session/load", { sessionId, cwd, mcpServers: [] })
+		const configOptions = loaded.result?.configOptions as Array<Record<string, unknown>>
+		assertProviderModelConfig(configOptions)
+		const model = configOptions.find((option) => option.id === "model")!
+		expect(model.currentValue).toBe("deepseek-v4-pro")
+		expect((model.options as Array<Record<string, unknown>>).map((option) => option.value)).toContain("deepseek-v4-pro")
+	})
+
 
 	it("restores a changed never-prompted task without recomputing startup defaults", async () => {
 		const configDir = await temporaryDirectory("dirac-acp-config-")

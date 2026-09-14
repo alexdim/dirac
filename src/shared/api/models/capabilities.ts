@@ -147,6 +147,16 @@ export const MODEL_CAPABILITIES: Record<string, ModelCapabilities> = {
 		defaultReasoningEffort: "high",
 		supportsTools: true,
 	},
+	"deepseek-v4-pro": {
+		maxTokens: 384_000,
+		contextWindow: 1_048_576,
+		supportsImages: false,
+		supportsReasoning: true,
+		supportsReasoningEffort: true,
+		reasoningEffortOptions: ["none", "minimal", "low", "medium", "high", "xhigh", "max"],
+		defaultReasoningEffort: "high",
+		supportsTools: true,
+	},
 	"doubao-1-5-pro-256k-250115": {
 		maxTokens: 12_288,
 		contextWindow: 256_000,

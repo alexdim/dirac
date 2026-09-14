@@ -7,6 +7,7 @@ import * as requestBuilder from "../TaskRequestBuilder"
 import * as requestOutcome from "../TaskRequestOutcome"
 import { StreamingMetricsManager } from "../StreamingMetricsManager"
 import * as steering from "../TaskSteering"
+import { TaskStatus } from "@shared/ExtensionMessage"
 
 function failingStream(error: Error) {
 	return {
@@ -60,6 +61,7 @@ describe("TaskApiRequestAttempt request runtime", () => {
 
 			const ctx = {
 				requestRuntime,
+				postStateToWebview: sandbox.stub().resolves(),
 				messageStateHandler: { updateDiracMessage: sandbox.stub().resolves() },
 				taskState: {
 					abort: false,
@@ -81,6 +83,8 @@ describe("TaskApiRequestAttempt request runtime", () => {
 			const chunks = []
 			for await (const chunk of attemptApiRequest(ctx, 0, 0, false)) chunks.push(chunk)
 
+			sinon.assert.calledTwice(ctx.postStateToWebview)
+			assert.equal(ctx.taskState.isWaitingForFirstChunk, false)
 			assert.deepEqual(chunks, [])
 			sinon.assert.calledTwice(build)
 			assert.equal(build.firstCall.args[1], requestRuntime)
@@ -94,4 +98,46 @@ describe("TaskApiRequestAttempt request runtime", () => {
 			sandbox.restore()
 		}
 	})
+	it("publishes the waiting state before requesting a delayed first chunk", async () => {
+		const sandbox = sinon.createSandbox()
+		try {
+			let finishFirstChunk!: (chunk: { done: true; value: undefined }) => void
+			let startedReading!: () => void
+			const reading = new Promise<void>((resolve) => { startedReading = resolve })
+			const next = sandbox.stub().callsFake(() => {
+				startedReading()
+				return new Promise((resolve) => { finishFirstChunk = resolve })
+			})
+			sandbox.stub(requestBuilder, "buildApiRequestParams").resolves({
+				systemPrompt: "system",
+				toolSnapshot: { nativeTools: [] },
+				contextManagementMetadata: { truncatedConversationHistory: [] },
+				providerInfo: { providerId: "deepseek", model: { id: "deepseek-flash", info: {} }, mode: "plan" },
+			} as any)
+			sandbox.stub(steering, "appendQueuedSteeringToNextApiRequest").resolves()
+			sandbox.stub(StreamingMetricsManager.prototype, "updateApiReqMsgFromMetrics").resolves()
+			const taskState = { status: TaskStatus.BUILDING_REQUEST, isWaitingForFirstChunk: false, abort: false }
+			const publish = sandbox.stub().callsFake(async () => {
+				assert.equal(taskState.status, TaskStatus.WAITING_FOR_API)
+				sinon.assert.notCalled(next)
+			})
+			const ctx = {
+				taskState,
+				postStateToWebview: publish,
+				requestRuntime: { api: { createMessage: () => ({ [Symbol.asyncIterator]: () => ({ next }) }) } },
+				apiConversationManager: { prepareProviderConversationDispatch: async () => ({ messages: [], options: {} }) },
+				messageStateHandler: { updateDiracMessage: sandbox.stub().resolves() },
+			} as any
+			const pending = attemptApiRequest(ctx, -1, 0).next()
+			await reading
+			sinon.assert.calledOnce(publish)
+			assert.equal(taskState.isWaitingForFirstChunk, true)
+			finishFirstChunk({ done: true, value: undefined })
+			await pending
+			assert.equal(taskState.isWaitingForFirstChunk, false)
+		} finally {
+			sandbox.restore()
+		}
+	})
+
 })
