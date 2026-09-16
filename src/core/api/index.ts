@@ -252,6 +252,7 @@ const PROVIDER_REGISTRY: Record<
 				disableRetries: cfg.disableRetries,
 				openAiApiKey: apiKey,
 				openAiBaseUrl: normalizedBaseUrl,
+				openAiHeaders,
 				openAiModelId,
 				openAiModelInfo,
 				reasoningEffort: mc.reasoningEffort,
