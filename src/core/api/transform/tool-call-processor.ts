@@ -63,19 +63,21 @@ export class ToolCallProcessor {
 			if ((!targetState.id || !targetState.name) && (hasFunctionArgs || hasWebSearchQuery)) {
 				// Re-attribute an orphan fragment only when the owner is unambiguous: exactly one call has id+name.
 				const candidates = [...this.toolCallStateByIndex].filter(([, s]) => s.id && s.name)
+				const fragmentLength = (toolCallDelta.function?.arguments ?? toolCallDelta.web_search?.query ?? "").length
 				if (candidates.length === 1) {
 					const [[activeIndex, activeState]] = candidates
 					Logger.warn(
-						`ToolCallProcessor: received arguments delta for index ${toolCallIndex} without tool id/name; re-attributing to active tool call index ${activeIndex}`,
+						`ToolCallProcessor: received arguments delta for index ${toolCallIndex} without tool id/name; re-attributing to active tool call index ${activeIndex} (id: ${activeState.id}, name: ${activeState.name})`,
 					)
 					targetState = activeState
 				} else if (candidates.length > 1) {
+					const candidateIds = candidates.map(([, s]) => s.id).join(", ")
 					Logger.warn(
-						`ToolCallProcessor: ambiguous tool-call fragment for index ${toolCallIndex}; ${candidates.length} complete calls in flight, dropping`,
+						`ToolCallProcessor: ambiguous tool-call fragment for index ${toolCallIndex}; ${candidates.length} complete calls in flight (${candidateIds}), dropping ${fragmentLength}-char fragment`,
 					)
 				} else {
 					Logger.warn(
-						`ToolCallProcessor: dropping argument fragment for index ${toolCallIndex} with no active tool call id/name`,
+						`ToolCallProcessor: dropping argument fragment for index ${toolCallIndex} with no active tool call id/name (${fragmentLength} chars)`,
 					)
 				}
 			}

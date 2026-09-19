@@ -239,6 +239,7 @@ describe("ToolCallProcessor", () => {
 		expect(warnStub.called).to.be.true
 		const warnArg = warnStub.firstCall.args[0] as string
 		expect(warnArg).to.include("re-attributing to active tool call index 0")
+		expect(warnArg).to.include("id: call_123, name: execute_command")
 	})
 
 	it("drops argument delta and logs warning when no active tool call exists", () => {
@@ -259,6 +260,7 @@ describe("ToolCallProcessor", () => {
 		expect(warnStub.called).to.be.true
 		const warnArg = warnStub.firstCall.args[0] as string
 		expect(warnArg).to.include("dropping argument fragment")
+		expect(warnArg).to.include("(17 chars)")
 	})
 
 	it("drops ambiguous argument fragments when multiple complete tool calls exist", () => {
@@ -281,6 +283,8 @@ describe("ToolCallProcessor", () => {
 		expect(warnStub.called).to.be.true
 		const warnArg = warnStub.firstCall.args[0] as string
 		expect(warnArg).to.include("ambiguous tool-call fragment for index 2")
+		expect(warnArg).to.include("call_a, call_b")
+		expect(warnArg).to.include("7-char fragment")
 	})
 })
 
