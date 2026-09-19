@@ -7,6 +7,7 @@ import * as sinon from "sinon"
 import { Logger } from "@/shared/services/Logger"
 import { DiracDefaultTool, getToolUseNames } from "@/shared/tools"
 import {
+	AGENTS_CONFIG_DIRECTORY_NAME,
 	AgentConfigLoader,
 	getAgentsConfigPath,
 	getLegacyAgentsConfigPath,
@@ -208,6 +209,107 @@ Legacy prompt`,
 				() => false,
 			)
 			assert.strictEqual(exists, true)
+		})
+
+		it("does not re-migrate a deleted agent config on subsequent reads", async () => {
+			const tempHome = await createTempHomeDir()
+			tempDirs.push(tempHome)
+
+			const legacyDir = getLegacyAgentsConfigPath(tempHome)
+			const newDir = getAgentsConfigPath(tempHome)
+			await fs.mkdir(legacyDir, { recursive: true })
+			await fs.writeFile(
+				path.join(legacyDir, "gone-agent.yaml"),
+				`---
+name: gone-agent
+description: migrated once
+tools: read_file
+modelId: sonnet
+---
+
+Prompt body`,
+				"utf8",
+			)
+
+			await readAgentConfigsFromDisk(tempHome)
+			await fs.rm(path.join(newDir, "gone-agent.yaml"))
+
+			const second = await readAgentConfigsFromDisk(tempHome)
+			assert.strictEqual(second.has("gone-agent"), false)
+			const exists = await fs.access(path.join(newDir, "gone-agent.yaml")).then(
+				() => true,
+				() => false,
+			)
+			assert.strictEqual(exists, false)
+		})
+
+		it("does not import real-home legacy configs into a custom DIRAC_DIR profile", async () => {
+			const tempHome = await createTempHomeDir()
+			const profileDir = await createTempHomeDir()
+			tempDirs.push(tempHome, profileDir)
+
+			const legacyDir = getLegacyAgentsConfigPath(tempHome)
+			await fs.mkdir(legacyDir, { recursive: true })
+			const legacyFile = path.join(legacyDir, "real-agent.yaml")
+			await fs.writeFile(
+				legacyFile,
+				`---
+name: real-agent
+description: should stay put
+tools: read_file
+modelId: sonnet
+---
+
+Prompt body`,
+				"utf8",
+			)
+
+			process.env.DIRAC_DIR = profileDir
+			try {
+				const configs = await readAgentConfigsFromDisk(tempHome)
+				assert.strictEqual(configs.has("real-agent"), false)
+				const imported = await fs.access(path.join(profileDir, AGENTS_CONFIG_DIRECTORY_NAME, "real-agent.yaml")).then(
+					() => true,
+					() => false,
+				)
+				assert.strictEqual(imported, false)
+				// Legacy source is never modified
+				const legacyIntact = await fs.access(legacyFile).then(
+					() => true,
+					() => false,
+				)
+				assert.strictEqual(legacyIntact, true)
+			} finally {
+				delete process.env.DIRAC_DIR
+			}
+		})
+
+		it("still migrates when DIRAC_DIR points at the default location", async () => {
+			const tempHome = await createTempHomeDir()
+			tempDirs.push(tempHome)
+
+			const legacyDir = getLegacyAgentsConfigPath(tempHome)
+			await fs.mkdir(legacyDir, { recursive: true })
+			await fs.writeFile(
+				path.join(legacyDir, "edge-agent.yaml"),
+				`---
+name: edge-agent
+description: explicit default dir
+tools: read_file
+modelId: sonnet
+---
+
+Prompt body`,
+				"utf8",
+			)
+
+			process.env.DIRAC_DIR = path.join(tempHome, ".dirac")
+			try {
+				const configs = await readAgentConfigsFromDisk(tempHome)
+				assert.strictEqual(configs.has("edge-agent"), true)
+			} finally {
+				delete process.env.DIRAC_DIR
+			}
 		})
 
 		it("logs a warning instead of error when watcher encounters EPERM/EACCES", async () => {

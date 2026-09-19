@@ -11,9 +11,10 @@ import { toError } from "@/shared/errors"
 import { ChokidarWatcherCloser } from "@/shared/utils/ChokidarWatcherCloser"
 import { buildSubagentToolName } from "./SubagentToolName"
 
-/** Default Directory for agent configurations: ~/Documents/Dirac/Agents */
+/** Default Directory for agent configurations: ~/.dirac/Agents */
 export const AGENTS_CONFIG_DIRECTORY_NAME = "Agents"
 const SUBAGENT_DYNAMIC_TOOL_NAMESPACE = "subagent"
+const LEGACY_MIGRATION_MARKER = ".legacy-migration-complete"
 
 const AgentBaseConfigSchema = z.object({
 	name: z.string().trim().min(1),
@@ -128,6 +129,14 @@ function isExpectedMigrationError(error: unknown): boolean {
 }
 
 async function migrateLegacyAgentConfigs(legacyPath: string, newPath: string): Promise<void> {
+	const markerPath = path.join(newPath, LEGACY_MIGRATION_MARKER)
+	try {
+		await fs.access(markerPath)
+		return // migration already ran once for this profile
+	} catch {
+		// no marker yet — proceed with the one-time migration
+	}
+
 	try {
 		const entries = await fs.readdir(legacyPath, { withFileTypes: true })
 		await fs.mkdir(newPath, { recursive: true })
@@ -148,17 +157,35 @@ async function migrateLegacyAgentConfigs(legacyPath: string, newPath: string): P
 				}),
 		)
 	} catch (error) {
-		if (isExpectedMigrationError(error)) {
+		if (!isExpectedMigrationError(error)) {
+			Logger.warn(`[AgentConfigLoader] Failed to read legacy agent configs from '${legacyPath}': ${error}`)
 			return
 		}
-		Logger.warn(`[AgentConfigLoader] Failed to read legacy agent configs from '${legacyPath}': ${error}`)
+		if ((error as NodeJS.ErrnoException).code !== "ENOENT") {
+			// EPERM/EACCES never saw the source — leave the marker unwritten so a
+			// later run can migrate once the user grants filesystem access.
+			return
+		}
+		// ENOENT: nothing to migrate — still mark so a restored backup cannot resurrect configs.
+	}
+	// Written only after a completed enumeration (copies done or ENOENT) so a
+	// crash mid-migration still completes on the next run.
+	try {
+		await fs.mkdir(newPath, { recursive: true })
+		await fs.writeFile(markerPath, "", "utf8")
+	} catch (error) {
+		Logger.warn(`[AgentConfigLoader] Failed to write migration marker '${markerPath}': ${error}`)
 	}
 }
 
 export async function readAgentConfigsFromDisk(homeDir = os.homedir()): Promise<Map<string, AgentBaseConfig>> {
 	const agentsDirectoryPath = getAgentsConfigPath(homeDir)
-	const legacyDirectoryPath = getLegacyAgentsConfigPath(homeDir)
-	await migrateLegacyAgentConfigs(legacyDirectoryPath, agentsDirectoryPath)
+	// Only the default profile imports legacy configs — a custom DIRAC_DIR must never pull real-home files.
+	const isDefaultProfile = path.resolve(agentsDirectoryPath) === path.resolve(homeDir, ".dirac", AGENTS_CONFIG_DIRECTORY_NAME)
+	if (isDefaultProfile) {
+		const legacyDirectoryPath = getLegacyAgentsConfigPath(homeDir)
+		await migrateLegacyAgentConfigs(legacyDirectoryPath, agentsDirectoryPath)
+	}
 	const configs = new Map<string, AgentBaseConfig>()
 
 	try {
