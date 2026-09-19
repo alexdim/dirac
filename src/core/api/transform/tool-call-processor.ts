@@ -19,7 +19,6 @@ interface ToolCallDelta {
  */
 export class ToolCallProcessor {
 	private toolCallStateByIndex: Map<number, { id: string; name: string }>
-	private lastActiveToolCallIndex?: number
 
 	constructor() {
 		this.toolCallStateByIndex = new Map()
@@ -56,26 +55,25 @@ export class ToolCallProcessor {
 				Logger.debug(`ToolCallProcessor: received function name "${toolCallDelta.function.name}"`)
 			}
 
-			if (toolCallState.id && toolCallState.name) {
-				this.lastActiveToolCallIndex = toolCallIndex
-			}
-
 			// Only yield when we have all required fields: id, name, and arguments (or web_search query)
 			const hasFunctionArgs = toolCallDelta.function?.arguments !== undefined
 			const hasWebSearchQuery = toolCallDelta.web_search?.query !== undefined
 
 			let targetState = toolCallState
 			if ((!targetState.id || !targetState.name) && (hasFunctionArgs || hasWebSearchQuery)) {
-				if (this.lastActiveToolCallIndex !== undefined) {
-					const activeState = this.toolCallStateByIndex.get(this.lastActiveToolCallIndex)
-					if (activeState?.id && activeState?.name) {
-						Logger.warn(
-							`ToolCallProcessor: received arguments delta for index ${toolCallIndex} without tool id/name; re-attributing to active tool call index ${this.lastActiveToolCallIndex}`,
-						)
-						targetState = activeState
-					}
-				}
-				if (!targetState.id || !targetState.name) {
+				// Re-attribute an orphan fragment only when the owner is unambiguous: exactly one call has id+name.
+				const candidates = [...this.toolCallStateByIndex].filter(([, s]) => s.id && s.name)
+				if (candidates.length === 1) {
+					const [[activeIndex, activeState]] = candidates
+					Logger.warn(
+						`ToolCallProcessor: received arguments delta for index ${toolCallIndex} without tool id/name; re-attributing to active tool call index ${activeIndex}`,
+					)
+					targetState = activeState
+				} else if (candidates.length > 1) {
+					Logger.warn(
+						`ToolCallProcessor: ambiguous tool-call fragment for index ${toolCallIndex}; ${candidates.length} complete calls in flight, dropping`,
+					)
+				} else {
 					Logger.warn(
 						`ToolCallProcessor: dropping argument fragment for index ${toolCallIndex} with no active tool call id/name`,
 					)
@@ -127,7 +125,6 @@ export class ToolCallProcessor {
 	 */
 	reset(): void {
 		this.toolCallStateByIndex.clear()
-		this.lastActiveToolCallIndex = undefined
 	}
 
 	/**

@@ -260,6 +260,28 @@ describe("ToolCallProcessor", () => {
 		const warnArg = warnStub.firstCall.args[0] as string
 		expect(warnArg).to.include("dropping argument fragment")
 	})
+
+	it("drops ambiguous argument fragments when multiple complete tool calls exist", () => {
+		const warnStub = sinon.stub(Logger, "warn")
+		const processor = new ToolCallProcessor()
+
+		// Two parallel calls both complete id/name setup
+		const setupChunk = [
+			{ index: 0, id: "call_a", function: { name: "read_file" } },
+			{ index: 1, id: "call_b", function: { name: "write_file" } },
+		] as any
+
+		// Orphan fragment at a fresh index — its owner cannot be determined
+		const orphanChunk = [{ index: 2, function: { arguments: '{"x":1}' } }] as any
+
+		;[...processor.processToolCallDeltas(setupChunk)].should.have.length(0)
+		const result = [...processor.processToolCallDeltas(orphanChunk)]
+		result.should.have.length(0)
+
+		expect(warnStub.called).to.be.true
+		const warnArg = warnStub.firstCall.args[0] as string
+		expect(warnArg).to.include("ambiguous tool-call fragment for index 2")
+	})
 })
 
 describe("getOpenAIToolParams", () => {
