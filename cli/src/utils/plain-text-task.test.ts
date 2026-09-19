@@ -14,7 +14,22 @@ import {
 	StandaloneCardDisposition,
 } from "./standalone-card-policy"
 import { emitTaskStartedMessage } from "./task-start-output"
-import { evaluatePlainTextTaskTerminalState } from "./plain-text-task"
+import { evaluatePlainTextTaskTerminalState, runPlainTextTask } from "./plain-text-task"
+import type { Controller } from "@/core/controller"
+import { subscribeToState } from "@/core/controller/state/subscribeToState"
+
+vi.mock("@/core/controller/state/subscribeToState", async (importOriginal) => {
+	const actual = await importOriginal<typeof import("@/core/controller/state/subscribeToState")>()
+	return { ...actual, subscribeToState: vi.fn(async () => {}) }
+})
+vi.mock("@/core/controller/task/showTaskWithId", async (importOriginal) => {
+	const actual = await importOriginal<typeof import("@/core/controller/task/showTaskWithId")>()
+	return { ...actual, showTaskWithId: vi.fn(async () => ({})) }
+})
+vi.mock("@/core/controller/grpc-handler", async (importOriginal) => {
+	const actual = await importOriginal<typeof import("@/core/controller/grpc-handler")>()
+	return { ...actual, getRequestRegistry: vi.fn(() => ({ cancelRequest: vi.fn() })) }
+})
 
 describe("emitTaskStartedMessage", () => {
 	afterEach(() => {
@@ -196,5 +211,159 @@ describe("evaluatePlainTextTaskTerminalState", () => {
 
 		const result = evaluatePlainTextTaskTerminalState(state)
 		expect(result.isTerminal).toBe(false)
+	})
+
+	it("ignores a Task Failed card created before the turn cutoff", () => {
+		const state = {
+			taskStatus: TaskStatus.EXECUTING_TOOL,
+			diracMessages: [
+				{
+					id: "old-fail",
+					ts: 500,
+					content: {
+						type: DiracMessageType.CARD,
+						card: {
+							id: "old-fail",
+							header: "Task Failed",
+							status: CardStatus.ERROR,
+							body: "old failure",
+							renderType: "markdown",
+						},
+					},
+				},
+			],
+		} as unknown as ExtensionState
+
+		const result = evaluatePlainTextTaskTerminalState(state, false, 1000)
+		expect(result.isTerminal).toBe(false)
+	})
+
+	it("rejects on a Task Failed card created at or after the turn cutoff", () => {
+		const state = {
+			taskStatus: TaskStatus.EXECUTING_TOOL,
+			diracMessages: [
+				{
+					id: "new-fail",
+					ts: 1500,
+					content: {
+						type: DiracMessageType.CARD,
+						card: {
+							id: "new-fail",
+							header: "Task Failed",
+							status: CardStatus.ERROR,
+							body: "new failure",
+							renderType: "markdown",
+						},
+					},
+				},
+			],
+		} as unknown as ExtensionState
+
+		const result = evaluatePlainTextTaskTerminalState(state, false, 1000)
+		expect(result.isTerminal).toBe(true)
+		expect(result.action).toBe("reject")
+		expect(result.error?.message).toBe("new failure")
+	})
+
+	it("rejects with the newest failure card when history mixes old and new", () => {
+		const failureCard = (id: string, ts: number, body: string) => ({
+			id,
+			ts,
+			content: {
+				type: DiracMessageType.CARD,
+				card: { id, header: "Task Failed", status: CardStatus.ERROR, body, renderType: "markdown" },
+			},
+		})
+		const state = {
+			taskStatus: TaskStatus.EXECUTING_TOOL,
+			diracMessages: [failureCard("old", 500, "old failure"), failureCard("new", 1500, "new failure")],
+		} as unknown as ExtensionState
+
+		const result = evaluatePlainTextTaskTerminalState(state, false, 1000)
+		expect(result.isTerminal).toBe(true)
+		expect(result.error?.message).toBe("new failure")
+	})
+})
+
+describe("runPlainTextTask resumed history", () => {
+	const oldFailedCard = {
+		id: "old-fail-card",
+		ts: 1, // persisted history — long before the follow-up turn
+		content: {
+			type: DiracMessageType.CARD,
+			card: {
+				id: "old-fail-card",
+				header: "Task Failed",
+				status: CardStatus.ERROR,
+				body: "old mistake limit",
+				renderType: "markdown",
+			},
+		},
+	}
+
+	function setup() {
+		let stateCb: Parameters<typeof subscribeToState>[2] | undefined
+		vi.mocked(subscribeToState).mockImplementation(async (_controller, _request, cb) => {
+			stateCb = cb
+		})
+		const submitCardResponse = vi.fn(async () => ({}))
+		const controller = {
+			task: {
+				taskId: "t1",
+				submitCardResponse,
+				abortTask: vi.fn(async () => {}),
+				messageStateHandler: { getDiracMessages: () => [] },
+			},
+		} as unknown as Controller
+		return {
+			controller,
+			submitCardResponse,
+			getStateCb: () => {
+				if (!stateCb) {
+					throw new Error("subscription callback was not registered")
+				}
+				return stateCb
+			},
+		}
+	}
+
+	it("does not reject a follow-up turn when a historical Task Failed card arrives late", async () => {
+		const { controller, submitCardResponse, getStateCb } = setup()
+		const runPromise = runPlainTextTask({ controller, taskId: "t1", prompt: "continue" })
+		await vi.waitFor(() => expect(submitCardResponse).toHaveBeenCalledTimes(1))
+		const stateCb = getStateCb()
+
+		// Persisted history arriving after the new turn started must not settle the run
+		await stateCb({
+			stateJson: JSON.stringify({ taskStatus: TaskStatus.EXECUTING_TOOL, diracMessages: [oldFailedCard] }),
+		} as never)
+		await stateCb({ stateJson: JSON.stringify({ taskStatus: TaskStatus.COMPLETED }) } as never)
+
+		await expect(runPromise).resolves.toBe(true)
+	})
+
+	it("still rejects a follow-up turn on a Task Failed card created during the new turn", async () => {
+		const { controller, submitCardResponse, getStateCb } = setup()
+		const runPromise = runPlainTextTask({ controller, taskId: "t1", prompt: "continue" })
+		await vi.waitFor(() => expect(submitCardResponse).toHaveBeenCalledTimes(1))
+		const stateCb = getStateCb()
+
+		const newFailedCard = {
+			...oldFailedCard,
+			id: "new-fail-card",
+			ts: Date.now(),
+			content: {
+				...oldFailedCard.content,
+				card: { ...oldFailedCard.content.card, id: "new-fail-card", body: "new mistake limit" },
+			},
+		}
+		await stateCb({
+			stateJson: JSON.stringify({
+				taskStatus: TaskStatus.EXECUTING_TOOL,
+				diracMessages: [oldFailedCard, newFailedCard],
+			}),
+		} as never)
+
+		await expect(runPromise).resolves.toBe(false)
 	})
 })
