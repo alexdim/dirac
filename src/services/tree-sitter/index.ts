@@ -1,5 +1,8 @@
 import { Node as SyntaxNode, Tree } from "web-tree-sitter"
-import { DiracIgnoreController } from "@core/ignore/DiracIgnoreController"
+/** Narrow file-access validator — DiracIgnoreController satisfies this structurally. */
+interface PathAccessValidator {
+	validateAccess(filePath: string): boolean
+}
 import * as fs from "fs/promises"
 import * as path from "path"
 import { Logger } from "@/shared/services/Logger"
@@ -16,7 +19,7 @@ export interface ParsedDefinition {
 export async function parseFile(
 	filePath: string,
 	languageParsers: LanguageParser,
-	diracIgnoreController?: DiracIgnoreController,
+	diracIgnoreController?: PathAccessValidator,
 	options?: { showCallGraph?: boolean },
 ): Promise<ParsedDefinition[] | null> {
 	if (diracIgnoreController && !diracIgnoreController.validateAccess(filePath)) return null
