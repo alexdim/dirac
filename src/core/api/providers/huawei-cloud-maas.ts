@@ -129,8 +129,8 @@ export class HuaweiCloudMaaSHandler implements ApiHandler {
 				if (finalUsage) {
 					yield {
 						type: "usage",
-						inputTokens: finalUsage.prompt_tokens || 0,
-						outputTokens: finalUsage.completion_tokens || 0,
+						inputTokens: finalUsage.prompt_tokens ?? 0,
+						outputTokens: finalUsage.completion_tokens ?? 0,
 						cacheWriteTokens: 0,
 						cacheReadTokens: 0,
 					}

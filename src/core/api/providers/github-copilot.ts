@@ -75,7 +75,7 @@ export class GithubCopilotHandler implements ApiHandler {
 				messages: messages.map((m) => convertDiracStorageToAnthropicMessage(m)),
 				tools: anthropicTools,
 				tool_choice: anthropicTools ? { type: "auto" } : undefined,
-				max_tokens: modelData?.capabilities.limits.max_output_tokens || 4096,
+				max_tokens: modelData?.capabilities.limits.max_output_tokens ?? 4096,
 				stream: true,
 			}
 		} else {
@@ -86,7 +86,7 @@ export class GithubCopilotHandler implements ApiHandler {
 					...convertToOpenAiMessages(messages, undefined, this.getModel().info.supportsImages !== false),
 				],
 				...toolParams,
-				max_tokens: modelData?.capabilities.limits.max_output_tokens || 4096,
+				max_tokens: modelData?.capabilities.limits.max_output_tokens ?? 4096,
 				stream: true,
 			}
 		}
@@ -148,7 +148,7 @@ export class GithubCopilotHandler implements ApiHandler {
 		if (json.type === "content_block_delta" && json.delta?.text) {
 			yield { type: "text", text: json.delta.text }
 		} else if (json.type === "message_delta" && json.usage) {
-			yield { type: "usage", inputTokens: json.usage.input_tokens || 0, outputTokens: json.usage.output_tokens || 0 }
+			yield { type: "usage", inputTokens: json.usage.input_tokens ?? 0, outputTokens: json.usage.output_tokens ?? 0 }
 		}
 	}
 
@@ -158,7 +158,7 @@ export class GithubCopilotHandler implements ApiHandler {
 		if (delta?.tool_calls) yield* toolCallProcessor.processToolCallDeltas(delta.tool_calls)
 		if (delta?.content) yield { type: "text", text: delta.content }
 		if (json.usage)
-			yield { type: "usage", inputTokens: json.usage.prompt_tokens || 0, outputTokens: json.usage.completion_tokens || 0 }
+			yield { type: "usage", inputTokens: json.usage.prompt_tokens ?? 0, outputTokens: json.usage.completion_tokens ?? 0 }
 	}
 
 	private async *handleStream(body: ReadableStream<Uint8Array>, isAnthropicFormat: boolean): ApiStream {

@@ -11,7 +11,7 @@ export class ContextManager {
 	// moving to an earlier conversation history checkpoint - this ordering intuitively allows for binary search on truncation
 	// there is also a number stored for each (EditType) which defines which message type it is, for custom handling
 
-	constructor() { }
+	constructor() {}
 
 	/**
 	 * Extracts text from a content block, handling both regular text blocks and tool_result wrappers.
@@ -67,7 +67,7 @@ export class ContextManager {
 			if (previousRequestStatus) {
 				try {
 					const { tokensIn, tokensOut, cacheWrites, cacheReads } = previousRequestStatus || {}
-					const totalTokens = (tokensIn || 0) + (tokensOut || 0) + (cacheWrites || 0) + (cacheReads || 0)
+					const totalTokens = (tokensIn ?? 0) + (tokensOut ?? 0) + (cacheWrites ?? 0) + (cacheReads ?? 0)
 
 					const { contextWindow, maxAllowedSize } = getContextWindowInfo(api)
 					const thresholdTokens = Math.min(contextTokenLimit ?? maxAllowedSize, maxAllowedSize)
@@ -112,8 +112,7 @@ export class ContextManager {
 			if (targetRequestStatus) {
 				try {
 					const { tokensIn, tokensOut, cacheWrites, cacheReads } = targetRequestStatus || {}
-					const tokensUsed = (tokensIn || 0) + (tokensOut || 0) + (cacheWrites || 0) + (cacheReads || 0)
-
+					const tokensUsed = (tokensIn ?? 0) + (tokensOut ?? 0) + (cacheWrites ?? 0) + (cacheReads ?? 0)
 
 					return {
 						tokensUsed,
@@ -149,7 +148,7 @@ export class ContextManager {
 					previousRequest?.content.type === "api_status" ? previousRequest.content.status : undefined
 				if (previousRequestStatus) {
 					const { tokensIn, tokensOut, cacheWrites, cacheReads } = previousRequestStatus || {}
-					const totalTokens = (tokensIn || 0) + (tokensOut || 0) + (cacheWrites || 0) + (cacheReads || 0)
+					const totalTokens = (tokensIn ?? 0) + (tokensOut ?? 0) + (cacheWrites ?? 0) + (cacheReads ?? 0)
 					const { maxAllowedSize } = getContextWindowInfo(api)
 
 					// This is the most reliable way to know when we're close to hitting the context window.
@@ -272,9 +271,9 @@ export class ContextManager {
 				if (hasToolResults) {
 					// Clone and filter out all tool_result blocks
 					messagesToUpdate[2] = cloneDeep(firstMessageAfterTruncation)
-						; (messagesToUpdate[2].content as Anthropic.Messages.ContentBlockParam[]) = (
-							firstMessageAfterTruncation.content as Anthropic.Messages.ContentBlockParam[]
-						).filter((block) => block.type !== "tool_result")
+					;(messagesToUpdate[2].content as Anthropic.Messages.ContentBlockParam[]) = (
+						firstMessageAfterTruncation.content as Anthropic.Messages.ContentBlockParam[]
+					).filter((block) => block.type !== "tool_result")
 				}
 			}
 		}

@@ -2,13 +2,7 @@ import type { MessageCreateParamsStreaming as BetaMessageCreateParamsStreaming }
 import { Tool as AnthropicTool } from "@anthropic-ai/sdk/resources/index"
 import { AnthropicVertex } from "@anthropic-ai/vertex-sdk"
 import { FunctionDeclaration as GoogleTool } from "@google/genai"
-import {
-	isAnthropicAdaptiveThinkingSupported,
-	ModelInfo,
-	VertexModelId,
-	vertexDefaultModelId,
-	vertexModels,
-} from "@shared/api"
+import { isAnthropicAdaptiveThinkingSupported, ModelInfo, VertexModelId, vertexDefaultModelId, vertexModels } from "@shared/api"
 import { buildExternalBasicHeaders } from "@/services/EnvUtils"
 import { DiracStorageMessage } from "@/shared/messages/content"
 import { DiracTool } from "@/shared/tools"
@@ -116,7 +110,7 @@ export class VertexHandler implements ApiHandler {
 		const clientAnthropic = this.ensureAnthropicClient()
 
 		// Claude implementation
-		const budget_tokens = this.options.thinkingBudgetTokens || 0
+		const budget_tokens = this.options.thinkingBudgetTokens ?? 0
 		// Use model metadata to determine if reasoning should be enabled
 		const reasoningOn = (model.info.supportsReasoning ?? false) && budget_tokens !== 0
 		const useAdaptive = isAnthropicAdaptiveThinkingSupported(modelId, model.info)
@@ -127,7 +121,7 @@ export class VertexHandler implements ApiHandler {
 		const anthropicMessages = sanitizeAnthropicMessages(messages, model.info.supportsPromptCache ?? false)
 		const request = {
 			model: modelId,
-			max_tokens: model.info.maxTokens || 8192,
+			max_tokens: model.info.maxTokens ?? 8192,
 			thinking: reasoningOn
 				? useAdaptive
 					? { type: "adaptive", display: "summarized" }
@@ -171,7 +165,7 @@ export class VertexHandler implements ApiHandler {
 				yield this.parseVertexMessageStart(chunk)
 				break
 			case "message_delta":
-				yield { type: "usage", inputTokens: 0, outputTokens: chunk.usage?.output_tokens || 0 }
+				yield { type: "usage", inputTokens: 0, outputTokens: chunk.usage?.output_tokens ?? 0 }
 				break
 			case "content_block_start":
 				yield* this.parseVertexContentBlockStart(chunk, lastStartedToolCall)
@@ -191,8 +185,8 @@ export class VertexHandler implements ApiHandler {
 		const usage = chunk.message.usage
 		return {
 			type: "usage",
-			inputTokens: usage.input_tokens || 0,
-			outputTokens: usage.output_tokens || 0,
+			inputTokens: usage.input_tokens ?? 0,
+			outputTokens: usage.output_tokens ?? 0,
 			cacheWriteTokens: usage.cache_creation_input_tokens || undefined,
 			cacheReadTokens: usage.cache_read_input_tokens || undefined,
 		}

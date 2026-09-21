@@ -1,6 +1,6 @@
 import { DiracMessage, DiracMessageType, isFinalStatus, type TaskStatus } from "@shared/ExtensionMessage"
-import { useChatTimeline } from "./useChatTimeline"
 import { calculateChatLayoutRows } from "../utils/chat-layout"
+import { useChatTimeline } from "./useChatTimeline"
 
 export function useChatMessages(
 	messages: DiracMessage[],
@@ -21,7 +21,7 @@ export function useChatMessages(
 			hasFooter: true,
 			hasPanel: false,
 		}),
-		terminalColumns: process.stdout.columns || 80,
+		terminalColumns: process.stdout.columns ?? 80,
 		shouldSuppressCardBody: (message) =>
 			message.content.type === DiracMessageType.CARD &&
 			!isFinalStatus(message.content.card.status) &&

@@ -232,7 +232,7 @@ function runProcess(
 		// Disable telemetry, auto-updater and error reporting.
 		CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: process.env.CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC || "1",
 		DISABLE_NON_ESSENTIAL_MODEL_CALLS: process.env.DISABLE_NON_ESSENTIAL_MODEL_CALLS || "1",
-		MAX_THINKING_TOKENS: (thinkingBudgetTokens || 0).toString(),
+		MAX_THINKING_TOKENS: (thinkingBudgetTokens ?? 0).toString(),
 	}
 
 	// We don't want to consume the user's ANTHROPIC_API_KEY,

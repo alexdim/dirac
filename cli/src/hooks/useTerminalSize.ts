@@ -11,8 +11,8 @@ const CLEAR_TERMINAL = "\x1b[2J\x1b[H"
 
 const subscribers = new Set<() => void>()
 let snapshot: TerminalSizeSnapshot = {
-	columns: process.stdout.columns || 80,
-	rows: process.stdout.rows || 24,
+	columns: process.stdout.columns ?? 80,
+	rows: process.stdout.rows ?? 24,
 	resizeKey: 0,
 }
 let previousColumns = snapshot.columns
@@ -21,8 +21,8 @@ let isListening = false
 
 function readTerminalDimensions(): Pick<TerminalSizeSnapshot, "columns" | "rows"> {
 	return {
-		columns: process.stdout.columns || 80,
-		rows: process.stdout.rows || 24,
+		columns: process.stdout.columns ?? 80,
+		rows: process.stdout.rows ?? 24,
 	}
 }
 

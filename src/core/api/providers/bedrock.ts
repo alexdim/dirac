@@ -263,7 +263,7 @@ export class AwsBedrockHandler implements ApiHandler {
 				accept: "application/json",
 				body: JSON.stringify({
 					prompt: formattedPrompt,
-					max_tokens: model.info.maxTokens || 8000,
+					max_tokens: model.info.maxTokens ?? 8000,
 					temperature: model.info.temperature ?? 0,
 				}),
 			})
@@ -504,7 +504,7 @@ export class AwsBedrockHandler implements ApiHandler {
 		)
 
 		// Get thinking configuration
-		const budget_tokens = this.options.thinkingBudgetTokens || 0
+		const budget_tokens = this.options.thinkingBudgetTokens ?? 0
 		const reasoningOn = model.info.supportsReasoning && budget_tokens > 0
 		const useAdaptive = isAnthropicAdaptiveThinkingSupported(modelId, model.info)
 
@@ -513,7 +513,7 @@ export class AwsBedrockHandler implements ApiHandler {
 			modelId: modelId,
 			messages: messagesWithCache,
 			system: systemMessages,
-			inferenceConfig: getInferenceConfig(model.info, "anthropic", this.options.thinkingBudgetTokens || 0),
+			inferenceConfig: getInferenceConfig(model.info, "anthropic", this.options.thinkingBudgetTokens ?? 0),
 			...(toolConfig ? { toolConfig } : {}),
 			additionalModelRequestFields: {
 				// Add thinking configuration as per LangChain documentation
@@ -547,7 +547,7 @@ export class AwsBedrockHandler implements ApiHandler {
 			modelId: modelId,
 			messages: messagesWithCache,
 			system: systemMessages,
-			inferenceConfig: getInferenceConfig(model.info, "nova", this.options.thinkingBudgetTokens || 0),
+			inferenceConfig: getInferenceConfig(model.info, "nova", this.options.thinkingBudgetTokens ?? 0),
 			...(toolConfig ? { toolConfig } : {}),
 		})
 
@@ -586,7 +586,7 @@ export class AwsBedrockHandler implements ApiHandler {
 			modelId: config.modelId,
 			messages: messagesWithCache,
 			system: systemMessages,
-			inferenceConfig: { maxTokens: model.info.maxTokens || 8192, temperature: model.info.temperature ?? 0 },
+			inferenceConfig: { maxTokens: model.info.maxTokens ?? 8192, temperature: model.info.temperature ?? 0 },
 			...(toolConfig ? { toolConfig } : {}),
 		})
 

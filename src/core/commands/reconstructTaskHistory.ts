@@ -1,12 +1,8 @@
-import {
-	getSavedDiracMessages,
-	getTaskHistoryStateFilePath,
-	getTaskMetadata,
-	writeTaskHistoryToState,
-} from "@core/storage/disk"
+import type { TaskMetadata } from "@core/context/context-tracking/ContextTrackerTypes"
 import { createGoalHistoryItem } from "@core/goal/GoalHistory"
 import { GoalStore } from "@core/goal/GoalStore"
-import type { TaskMetadata } from "@core/context/context-tracking/ContextTrackerTypes"
+import { getSavedDiracMessages, getTaskHistoryStateFilePath, getTaskMetadata, writeTaskHistoryToState } from "@core/storage/disk"
+import { withTaskHistoryInventoryLock } from "@core/storage/taskHistory"
 import { HostProvider } from "@hosts/host-provider"
 import { DiracMessage, DiracMessageType } from "@shared/ExtensionMessage"
 import { getApiMetrics } from "@shared/getApiMetrics"
@@ -17,7 +13,6 @@ import * as path from "path"
 import { ulid } from "ulid"
 import { getErrorMessage } from "@/shared/errors"
 import { Logger } from "@/shared/services/Logger"
-import { withTaskHistoryInventoryLock } from "@core/storage/taskHistory"
 
 export interface TaskReconstructionResult {
 	totalTasks: number
@@ -273,11 +268,11 @@ function extractTaskInformation(diracMessages: DiracMessage[], metadata: TaskMet
 	// Use metadata if available and no tokens found in messages
 	if (tokensIn === 0 && tokensOut === 0 && metadata.model_usage) {
 		for (const usage of metadata.model_usage) {
-			tokensIn += usage.tokensIn || 0
-			tokensOut += usage.tokensOut || 0
-			cacheWrites += usage.cacheWrites || 0
-			cacheReads += usage.cacheReads || 0
-			totalCost += usage.totalCost || 0
+			tokensIn += usage.tokensIn ?? 0
+			tokensOut += usage.tokensOut ?? 0
+			cacheWrites += usage.cacheWrites ?? 0
+			cacheReads += usage.cacheReads ?? 0
+			totalCost += usage.totalCost ?? 0
 		}
 	}
 

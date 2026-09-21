@@ -1,7 +1,7 @@
+import { SkillMetadata } from "@/shared/skills"
 import { SYSTEM_PROMPT } from "../template"
 import { TemplateEngine } from "../templates/TemplateEngine"
 import type { SystemPromptContext } from "../types"
-import { SkillMetadata } from "@/shared/skills"
 
 export class PromptBuilder {
 	private templateEngine: TemplateEngine
@@ -25,7 +25,7 @@ export class PromptBuilder {
 		placeholders["SHELL_TYPE"] = this.context.activeShellType || "bash"
 		placeholders["HOME_DIR"] = process.env.HOME || ""
 		placeholders["CURRENT_DATE"] = new Date().toISOString().split("T")[0]
-		placeholders["AVAILABLE_CORES"] = this.context.availableCores || 1
+		placeholders["AVAILABLE_CORES"] = this.context.availableCores ?? 1
 
 		// Add runtime placeholders if any
 		const runtimePlaceholders = (this.context as any).runtimePlaceholders

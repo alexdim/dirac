@@ -11,6 +11,8 @@
 /* eslint-disable no-console */
 // Console output is intentional here for plain text mode
 
+import { randomUUID } from "node:crypto"
+import { isTaskCompletionCard } from "@shared/cardIdentity"
 import {
 	CardStatus,
 	DiracMessage,
@@ -19,27 +21,20 @@ import {
 	TaskStatus,
 	UIActionButtonType,
 } from "@shared/ExtensionMessage"
-import { isTaskCompletionCard } from "@shared/cardIdentity"
-import { randomUUID } from "node:crypto"
-import { Logger } from "@/shared/services/Logger"
-import { DiracAskResponse } from "@shared/WebviewMessage"
-
+import { getApiMetrics } from "@shared/getApiMetrics"
+import type { PresentationBatch } from "@shared/PresentationOperation"
+import { applyPresentationBatch, createPresentationState } from "@shared/presentationState"
 import { StringRequest } from "@shared/proto/dirac/common"
+import { DiracAskResponse } from "@shared/WebviewMessage"
 import type { Controller } from "@/core/controller"
 import { getRequestRegistry } from "@/core/controller/grpc-handler"
 import { subscribeToState } from "@/core/controller/state/subscribeToState"
 import { showTaskWithId } from "@/core/controller/task/showTaskWithId"
-import { emitTaskStartedMessage } from "./task-start-output"
-import { getApiMetrics } from "@shared/getApiMetrics"
-import type { PresentationBatch } from "@shared/PresentationOperation"
-import { applyPresentationBatch, createPresentationState } from "@shared/presentationState"
-import {
-	approveCardForPlainTextYolo,
-	getStandaloneCardDisposition,
-	StandaloneCardDisposition,
-} from "./standalone-card-policy"
-import { stderrStyle } from "./display"
+import { Logger } from "@/shared/services/Logger"
 import { cardBodyForDisplay } from "./card-body"
+import { stderrStyle } from "./display"
+import { approveCardForPlainTextYolo, getStandaloneCardDisposition, StandaloneCardDisposition } from "./standalone-card-policy"
+import { emitTaskStartedMessage } from "./task-start-output"
 
 export { approveCardForPlainTextYolo } from "./standalone-card-policy"
 
@@ -69,7 +64,7 @@ export async function runPlainTextTask(options: PlainTextTaskOptions): Promise<b
 	// Subscription callbacks can reject completion while task initialization is
 	// still in progress. Attach a handler immediately so Node never reports that
 	// legitimate early failure as an unhandled rejection before we await it.
-	void completionPromise.catch(() => { })
+	void completionPromise.catch(() => {})
 	let completionSettled = false
 	const resolveCompletion = () => {
 		if (completionSettled) return
@@ -171,7 +166,10 @@ export async function runPlainTextTask(options: PlainTextTaskOptions): Promise<b
 		} else if (!isStreaming) {
 			processedMessages.add(message.id)
 			// For API_STATUS, once metrics are present, mark as completed to stop re-printing
-			if (content.type === DiracMessageType.API_STATUS && (content.status.cost !== undefined || content.status.tokensIn !== undefined)) {
+			if (
+				content.type === DiracMessageType.API_STATUS &&
+				(content.status.cost !== undefined || content.status.tokensIn !== undefined)
+			) {
 				completedApiStatusIds.add(message.id)
 			}
 		}
@@ -186,9 +184,7 @@ export async function runPlainTextTask(options: PlainTextTaskOptions): Promise<b
 					.then(() => approveCardForPlainTextYolo(controller, content.card))
 					.catch((error) => {
 						rejectCompletion(
-							error instanceof Error
-								? error
-								: new Error(`Failed to auto-approve card: ${String(error)}`),
+							error instanceof Error ? error : new Error(`Failed to auto-approve card: ${String(error)}`),
 						)
 					})
 				return
@@ -255,14 +251,12 @@ export async function runPlainTextTask(options: PlainTextTaskOptions): Promise<b
 					latestState.presentationOffset = presentationState.offset
 					if (!taskExecutionStarted) return
 					const state = latestState as ExtensionState
-					const completedVoiceStreamId = previousActiveVoiceStreamId !== state.activeVoiceStreamId
-						? previousActiveVoiceStreamId
-						: undefined
+					const completedVoiceStreamId =
+						previousActiveVoiceStreamId !== state.activeVoiceStreamId ? previousActiveVoiceStreamId : undefined
 					if (completedVoiceStreamId) {
 						const completedIndex = presentationState.messageIndexById.get(completedVoiceStreamId)
-						const completedMessage = completedIndex === undefined
-							? undefined
-							: presentationState.messages[completedIndex]
+						const completedMessage =
+							completedIndex === undefined ? undefined : presentationState.messages[completedIndex]
 						if (completedMessage) await processMessage(completedMessage, state)
 					}
 					for (const message of changedMessages) {
@@ -321,7 +315,10 @@ export async function runPlainTextTask(options: PlainTextTaskOptions): Promise<b
 		if (options.timeoutSeconds) {
 			const timeoutMs = options.timeoutSeconds * 1000
 			const timeoutPromise = new Promise<void>((_, reject) => {
-				timeout = setTimeout(() => reject(new Error(`Task timed out after ${options.timeoutSeconds} seconds.`)), timeoutMs)
+				timeout = setTimeout(
+					() => reject(new Error(`Task timed out after ${options.timeoutSeconds} seconds.`)),
+					timeoutMs,
+				)
 			})
 			await Promise.race([completionPromise, timeoutPromise])
 		} else {
@@ -382,7 +379,7 @@ export async function runPlainTextTask(options: PlainTextTaskOptions): Promise<b
 			)
 			if (metrics.totalCacheReads || metrics.totalCacheWrites) {
 				process.stderr.write(
-					`Cache: ${(metrics.totalCacheReads || 0).toLocaleString()} read, ${(metrics.totalCacheWrites || 0).toLocaleString()} write\n`,
+					`Cache: ${(metrics.totalCacheReads ?? 0).toLocaleString()} read, ${(metrics.totalCacheWrites ?? 0).toLocaleString()} write\n`,
 				)
 			}
 			if (metrics.totalCacheReads || metrics.totalCacheWrites) {
@@ -433,9 +430,7 @@ function handleMessageForPipeMode(
 				const styledContent = content.isReasoning
 					? stderrStyle.dim(content.content)
 					: stderrStyle.assistant(content.content)
-				process.stderr.write(
-					`${stderrStyle.metadata(`${timestamp}${statusPrefix}`)}${styledLabel}: ${styledContent}\n`,
-				)
+				process.stderr.write(`${stderrStyle.metadata(`${timestamp}${statusPrefix}`)}${styledLabel}: ${styledContent}\n`)
 			}
 		}
 		return
@@ -501,12 +496,13 @@ function handleApiReqMessage(message: DiracMessage, statusPrefix: string, isUpda
 		const costStr = info.cost !== undefined ? `Cost: $${info.cost.toFixed(4)}` : ""
 		const tokensStr =
 			info.tokensIn !== undefined
-				? `Tokens: ${info.tokensIn.toLocaleString()} in, ${(info.tokensOut || 0).toLocaleString()} out${info.reasoningTokens ? ` (+${info.reasoningTokens.toLocaleString()} thinking)` : ""
-				}`
+				? `Tokens: ${info.tokensIn.toLocaleString()} in, ${(info.tokensOut ?? 0).toLocaleString()} out${
+						info.reasoningTokens ? ` (+${info.reasoningTokens.toLocaleString()} thinking)` : ""
+					}`
 				: ""
 		const cacheStr =
 			info.cacheReads !== undefined || info.cacheWrites !== undefined
-				? `Cache: ${(info.cacheReads || 0).toLocaleString()} read, ${(info.cacheWrites || 0).toLocaleString()} write`
+				? `Cache: ${(info.cacheReads ?? 0).toLocaleString()} read, ${(info.cacheWrites ?? 0).toLocaleString()} write`
 				: ""
 		const contextUsagePercentage =
 			info.contextUsagePercentage ??

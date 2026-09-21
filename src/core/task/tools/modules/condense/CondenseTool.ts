@@ -311,7 +311,7 @@ export class CondenseTool implements IDiracTool {
 	private getContextTelemetry(env: IToolEnvironment) {
 		return env.config.services.contextManager.getContextTelemetryData(
 			env.config.messageState.getDiracMessages(),
-			env.config.model.info.contextWindow || 256_000,
+			env.config.model.info.contextWindow ?? 256_000,
 			env.config.taskState.lastAutoCondenseTriggerIndex,
 		)
 	}

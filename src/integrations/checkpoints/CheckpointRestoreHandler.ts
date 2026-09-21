@@ -91,7 +91,7 @@ export class CheckpointRestoreHandler {
 	): Promise<CheckpointRestoreResult> {
 		try {
 			const diracMessages = this.services.messageStateHandler.getDiracMessages()
-			const messageIndex = diracMessages.findIndex((m) => m.id === messageId) - (offset || 0)
+			const messageIndex = diracMessages.findIndex((m) => m.id === messageId) - (offset ?? 0)
 			const lastHashIndex = findLastIndex(diracMessages.slice(0, messageIndex), (m) => m.lastCheckpointHash !== undefined)
 			const message = diracMessages[messageIndex]
 			const lastMessageWithHash = diracMessages[lastHashIndex]
@@ -240,7 +240,7 @@ export class CheckpointRestoreHandler {
 				this.services.taskState.conversationHistoryDeletedRange = message.conversationHistoryDeletedRange
 
 				const apiConversationHistory = this.services.messageStateHandler.getApiConversationHistory()
-				const newConversationHistory = apiConversationHistory.slice(0, (message.conversationHistoryIndex || 0) + 2)
+				const newConversationHistory = apiConversationHistory.slice(0, (message.conversationHistoryIndex ?? 0) + 2)
 				await this.services.messageStateHandler.overwriteApiConversationHistory(newConversationHistory)
 
 				// aggregate deleted api reqs info so we don't lose costs/tokens

@@ -15,8 +15,8 @@ export async function* handleAnthropicMessagesApiStreamResponse(
 				const usage = chunk.message.usage
 				yield {
 					type: "usage",
-					inputTokens: usage.input_tokens || 0,
-					outputTokens: usage.output_tokens || 0,
+					inputTokens: usage.input_tokens ?? 0,
+					outputTokens: usage.output_tokens ?? 0,
 					cacheWriteTokens: usage.cache_creation_input_tokens || undefined,
 					cacheReadTokens: usage.cache_read_input_tokens || undefined,
 				}
@@ -26,7 +26,7 @@ export async function* handleAnthropicMessagesApiStreamResponse(
 				yield {
 					type: "usage",
 					inputTokens: 0,
-					outputTokens: chunk.usage.output_tokens || 0,
+					outputTokens: chunk.usage.output_tokens ?? 0,
 				}
 				break
 			case "message_stop":

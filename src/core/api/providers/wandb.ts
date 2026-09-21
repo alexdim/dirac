@@ -83,8 +83,8 @@ export class WandbHandler implements ApiHandler {
 				// cache-aware pricing. This may change in a future update.
 				yield {
 					type: "usage",
-					inputTokens: chunk.usage.prompt_tokens || 0,
-					outputTokens: chunk.usage.completion_tokens || 0,
+					inputTokens: chunk.usage.prompt_tokens ?? 0,
+					outputTokens: chunk.usage.completion_tokens ?? 0,
 				}
 			}
 		}

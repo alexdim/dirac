@@ -116,10 +116,10 @@ export class GroqHandler implements ApiHandler {
 	}
 
 	private async *yieldUsage(info: ModelInfo, usage: GroqUsage | undefined): ApiStream {
-		const inputTokens = usage?.prompt_tokens || 0
-		const outputTokens = usage?.completion_tokens || 0
+		const inputTokens = usage?.prompt_tokens ?? 0
+		const outputTokens = usage?.completion_tokens ?? 0
 
-		const cacheReadTokens = usage?.prompt_tokens_details?.cached_tokens || 0
+		const cacheReadTokens = usage?.prompt_tokens_details?.cached_tokens ?? 0
 
 		// Groq does not track cache writes
 		const cacheWriteTokens = 0

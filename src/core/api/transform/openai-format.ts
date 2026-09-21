@@ -146,7 +146,9 @@ function collectReasoningDetails(nonToolMessages: DiracContent[], toolMessages: 
 		const toolId = toolMessage.id
 		if (!toolDetails) continue
 		if (Array.isArray(toolDetails)) {
-			const validDetails = toolDetails.filter((detail: unknown) => (detail as ReasoningDetail)?.id === toolId) as ReasoningDetail[]
+			const validDetails = toolDetails.filter(
+				(detail: unknown) => (detail as ReasoningDetail)?.id === toolId,
+			) as ReasoningDetail[]
 			if (validDetails.length > 0) reasoningDetails.push(...validDetails)
 		} else if ((toolDetails as ReasoningDetail | undefined)?.id === toolId) {
 			reasoningDetails.push(toolDetails)
@@ -218,9 +220,7 @@ function convertAssistantMessage(
 		role: "assistant",
 		content: finalContent,
 		tool_calls: tool_calls.length > 0 ? tool_calls : undefined,
-		...(consolidatedReasoningDetails.length > 0
-			? { reasoning_details: consolidatedReasoningDetails }
-			: {}),
+		...(consolidatedReasoningDetails.length > 0 ? { reasoning_details: consolidatedReasoningDetails } : {}),
 	})
 }
 
@@ -379,8 +379,8 @@ export function convertToAnthropicMessage(completion: OpenAI.Chat.Completions.Ch
 
 		stop_sequence: null,
 		usage: {
-			input_tokens: completion.usage?.prompt_tokens || 0,
-			output_tokens: completion.usage?.completion_tokens || 0,
+			input_tokens: completion.usage?.prompt_tokens ?? 0,
+			output_tokens: completion.usage?.completion_tokens ?? 0,
 			cache_creation_input_tokens: null,
 			cache_read_input_tokens: null,
 			cache_creation: null,
@@ -396,21 +396,23 @@ export function convertToAnthropicMessage(completion: OpenAI.Chat.Completions.Ch
 			)
 			if (functionCalls.length > 0) {
 				anthropicMessage.content.push(
-					...functionCalls.map((toolCall: OpenAI.Chat.ChatCompletionMessageFunctionToolCall): Anthropic.ToolUseBlock => {
-						let parsedInput = {}
-						try {
-							parsedInput = JSON.parse(toolCall.function?.arguments || "{}")
-						} catch (error) {
-							Logger.error("Failed to parse tool arguments:", error)
-						}
-						return {
-							type: "tool_use",
-							id: toolCall.id,
-							name: toolCall.function?.name || UNIQUE_ERROR_TOOL_NAME,
-							input: parsedInput,
-							caller: { type: "direct" },
-						}
-					}),
+					...functionCalls.map(
+						(toolCall: OpenAI.Chat.ChatCompletionMessageFunctionToolCall): Anthropic.ToolUseBlock => {
+							let parsedInput = {}
+							try {
+								parsedInput = JSON.parse(toolCall.function?.arguments || "{}")
+							} catch (error) {
+								Logger.error("Failed to parse tool arguments:", error)
+							}
+							return {
+								type: "tool_use",
+								id: toolCall.id,
+								name: toolCall.function?.name || UNIQUE_ERROR_TOOL_NAME,
+								input: parsedInput,
+								caller: { type: "direct" },
+							}
+						},
+					),
 				)
 			}
 		}

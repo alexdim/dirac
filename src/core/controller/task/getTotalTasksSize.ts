@@ -10,5 +10,5 @@ import { Controller } from ".."
  */
 export async function getTotalTasksSize(_controller: Controller, _request: EmptyRequest): Promise<Int64> {
 	const totalSize = await calculateTotalTasksSize()
-	return { value: totalSize || 0 }
+	return { value: totalSize ?? 0 }
 }

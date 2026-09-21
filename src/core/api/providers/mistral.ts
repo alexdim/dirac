@@ -1,5 +1,4 @@
-import { Mistral } from "@mistralai/mistralai"
-import { HTTPClient } from "@mistralai/mistralai"
+import { HTTPClient, Mistral } from "@mistralai/mistralai"
 import { MistralModelId, ModelInfo, mistralDefaultModelId, mistralModels } from "@shared/api"
 import type { ChatCompletionTool as OpenAITool } from "openai/resources/chat/completions"
 import { buildExternalBasicHeaders } from "@/services/EnvUtils"
@@ -141,8 +140,8 @@ export class MistralHandler implements ApiHandler {
 			if (chunk.data.usage) {
 				yield {
 					type: "usage",
-					inputTokens: chunk.data.usage.promptTokens || 0,
-					outputTokens: chunk.data.usage.completionTokens || 0,
+					inputTokens: chunk.data.usage.promptTokens ?? 0,
+					outputTokens: chunk.data.usage.completionTokens ?? 0,
 				}
 			}
 		}

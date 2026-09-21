@@ -2,12 +2,12 @@ import { DoubaoModelId, doubaoDefaultModelId, doubaoModels, ModelInfo } from "@s
 import OpenAI from "openai"
 import { DiracStorageMessage } from "@/shared/messages/content"
 import { createOpenAIClient } from "@/shared/net"
+import { DiracTool } from "@/shared/tools"
 import { ApiHandler, CommonApiHandlerOptions } from ".."
 import { withRetry } from "../retry"
 import { convertToOpenAiMessages } from "../transform/openai-format"
-import { getOpenAIToolParams, ToolCallProcessor } from "../transform/tool-call-processor"
-import { DiracTool } from "@/shared/tools"
 import { ApiStream } from "../transform/stream"
+import { getOpenAIToolParams, ToolCallProcessor } from "../transform/tool-call-processor"
 
 interface DoubaoHandlerOptions extends CommonApiHandlerOptions {
 	doubaoApiKey?: string
@@ -87,12 +87,12 @@ export class DoubaoHandler implements ApiHandler {
 			if (chunk.usage) {
 				yield {
 					type: "usage",
-					inputTokens: chunk.usage.prompt_tokens || 0,
-					outputTokens: chunk.usage.completion_tokens || 0,
+					inputTokens: chunk.usage.prompt_tokens ?? 0,
+					outputTokens: chunk.usage.completion_tokens ?? 0,
 					// @ts-expect-error-next-line
-					cacheReadTokens: chunk.usage.prompt_cache_hit_tokens || 0,
+					cacheReadTokens: chunk.usage.prompt_cache_hit_tokens ?? 0,
 					// @ts-expect-error-next-line
-					cacheWriteTokens: chunk.usage.prompt_cache_miss_tokens || 0,
+					cacheWriteTokens: chunk.usage.prompt_cache_miss_tokens ?? 0,
 				}
 			}
 		}

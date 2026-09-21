@@ -200,9 +200,9 @@ export class DifyHandler implements ApiHandler {
 				} else {
 					throw new Error(
 						`Dify API did not provide any assistant messages. ` +
-						`Events processed: [${processedEvents.join(", ")}]. ` +
-						`Check your Dify application configuration and ensure it's properly set up to return responses. ` +
-						`API URL: ${fullUrl}. Conversation ID: ${this.conversationId || "none"}.`,
+							`Events processed: [${processedEvents.join(", ")}]. ` +
+							`Check your Dify application configuration and ensure it's properly set up to return responses. ` +
+							`API URL: ${fullUrl}. Conversation ID: ${this.conversationId || "none"}.`,
 					)
 				}
 			}
@@ -243,9 +243,9 @@ export class DifyHandler implements ApiHandler {
 			if (parsed.usage)
 				chunks.push({
 					type: "usage",
-					inputTokens: parsed.usage.prompt_tokens || 0,
-					outputTokens: parsed.usage.completion_tokens || parsed.usage.total_tokens || 0,
-					totalCost: parsed.usage.total_price || 0,
+					inputTokens: parsed.usage.prompt_tokens ?? 0,
+					outputTokens: parsed.usage.completion_tokens ?? parsed.usage.total_tokens ?? 0,
+					totalCost: parsed.usage.total_price ?? 0,
 				})
 			return { chunks, fullText, hasYieldedContent, done: true }
 		} else if (parsed.event === "error") {

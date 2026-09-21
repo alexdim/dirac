@@ -41,7 +41,6 @@ function waitForTerminalProcessCompletion(process: TerminalProcessResultPromise)
 	})
 }
 
-
 export class CommandExecutor {
 	private cwd: string
 	private taskId: string
@@ -86,9 +85,9 @@ export class CommandExecutor {
 			// Copy settings from the provided terminalManager to ensure consistency
 			if ("shellIntegrationTimeout" in config.terminalManager) {
 				const tm = config.terminalManager as any
-				this.standaloneManager.setShellIntegrationTimeout(tm.shellIntegrationTimeout || 4000)
+				this.standaloneManager.setShellIntegrationTimeout(tm.shellIntegrationTimeout ?? 4000)
 				this.standaloneManager.setTerminalReuseEnabled(tm.terminalReuseEnabled ?? true)
-				this.standaloneManager.setTerminalOutputLineLimit(tm.terminalOutputLineLimit || 500)
+				this.standaloneManager.setTerminalOutputLineLimit(tm.terminalOutputLineLimit ?? 500)
 			}
 		}
 	}
@@ -127,19 +126,19 @@ export class CommandExecutor {
 			suppressUserInteraction: options?.suppressUserInteraction,
 			onProceedWhileRunning: useStandalone
 				? (existingOutput: string[], existingLogFilePath?: string, existingOutputReady?: Promise<void>) => {
-					const backgroundCmd = this.standaloneManager.trackBackgroundCommand(
-						process,
-						command,
-						existingOutput,
-						existingLogFilePath,
-						existingOutputReady,
-					)
-					return {
-						logFilePath: backgroundCmd.logFilePath,
-						outputReady: existingOutputReady,
-						completion: waitForTerminalProcessCompletion(process),
+						const backgroundCmd = this.standaloneManager.trackBackgroundCommand(
+							process,
+							command,
+							existingOutput,
+							existingLogFilePath,
+							existingOutputReady,
+						)
+						return {
+							logFilePath: backgroundCmd.logFilePath,
+							outputReady: existingOutputReady,
+							completion: waitForTerminalProcessCompletion(process),
+						}
 					}
-				}
 				: undefined,
 			showShellIntegrationSuggestion: this.shouldShowBackgroundTerminalSuggestion(),
 			terminalType: useStandalone ? "standalone" : "vscode",

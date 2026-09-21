@@ -88,12 +88,12 @@ export class BasetenHandler implements ApiHandler {
 
 	private async *yieldUsage(modelInfo: ModelInfo, usage: any): ApiStream {
 		if (usage.prompt_tokens || usage.completion_tokens) {
-			const cost = calculateApiCostOpenAI(modelInfo, usage.prompt_tokens || 0, usage.completion_tokens || 0)
+			const cost = calculateApiCostOpenAI(modelInfo, usage.prompt_tokens ?? 0, usage.completion_tokens ?? 0)
 
 			yield {
 				type: "usage",
-				inputTokens: usage.prompt_tokens || 0,
-				outputTokens: usage.completion_tokens || 0,
+				inputTokens: usage.prompt_tokens ?? 0,
+				outputTokens: usage.completion_tokens ?? 0,
 				cacheWriteTokens: 0,
 				cacheReadTokens: 0,
 				totalCost: cost,

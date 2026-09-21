@@ -5,12 +5,12 @@ import OpenAI from "openai"
 import { toRequestyServiceStringUrl } from "@/shared/clients/requesty"
 import { DiracStorageMessage } from "@/shared/messages/content"
 import { createOpenAIClient } from "@/shared/net"
+import { DiracTool } from "@/shared/tools"
 import { ApiHandler, CommonApiHandlerOptions } from "../index"
 import { withRetry } from "../retry"
 import { convertToOpenAiMessages } from "../transform/openai-format"
-import { getOpenAIToolParams, ToolCallProcessor } from "../transform/tool-call-processor"
-import { DiracTool } from "@/shared/tools"
 import { ApiStream } from "../transform/stream"
+import { getOpenAIToolParams, ToolCallProcessor } from "../transform/tool-call-processor"
 
 interface RequestyHandlerOptions extends CommonApiHandlerOptions {
 	requestyBaseUrl?: string
@@ -75,20 +75,20 @@ export class RequestyHandler implements ApiHandler {
 		const reasoning = { reasoning_effort: reasoningEffort }
 		const reasoningArgs = model.id.startsWith("openai/o") ? reasoning : {}
 
-		const thinkingBudget = this.options.thinkingBudgetTokens || 0
+		const thinkingBudget = this.options.thinkingBudgetTokens ?? 0
 		const thinking =
 			thinkingBudget > 0
 				? { thinking: { type: "enabled", budget_tokens: thinkingBudget } }
 				: { thinking: { type: "disabled" } }
 		const thinkingArgs =
 			model.id.includes("claude-opus-4-6") ||
-				model.id.includes("claude-sonnet-5") ||
-				model.id.includes("claude-sonnet-4-6") ||
-				model.id.includes("claude-4.6-sonnet") ||
-				model.id.includes("claude-3-7-sonnet") ||
-				model.id.includes("claude-sonnet-4") ||
-				model.id.includes("claude-opus-4") ||
-				model.id.includes("claude-opus-4-1")
+			model.id.includes("claude-sonnet-5") ||
+			model.id.includes("claude-sonnet-4-6") ||
+			model.id.includes("claude-4.6-sonnet") ||
+			model.id.includes("claude-3-7-sonnet") ||
+			model.id.includes("claude-sonnet-4") ||
+			model.id.includes("claude-opus-4") ||
+			model.id.includes("claude-opus-4-1")
 				? thinking
 				: {}
 
@@ -133,8 +133,8 @@ export class RequestyHandler implements ApiHandler {
 
 		if (lastUsage) {
 			const usage = lastUsage as RequestyUsage
-			const inputTokens = usage.prompt_tokens || 0
-			const outputTokens = usage.completion_tokens || 0
+			const inputTokens = usage.prompt_tokens ?? 0
+			const outputTokens = usage.completion_tokens ?? 0
 			const cacheWriteTokens = usage.prompt_tokens_details?.caching_tokens || undefined
 			const cacheReadTokens = usage.prompt_tokens_details?.cached_tokens || undefined
 			const totalCost = calculateApiCostOpenAI(model.info, inputTokens, outputTokens, cacheWriteTokens, cacheReadTokens)

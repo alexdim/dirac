@@ -16,9 +16,9 @@ import { Logger } from "@/shared/services/Logger"
 import { ApiHandler, CommonApiHandlerOptions } from "../"
 import { withRetry } from "../retry"
 import { convertToOpenAiMessages } from "../transform/openai-format"
+import { formatOpenAiCompatibleUsage } from "../transform/openai-usage"
 import { convertToR1Format } from "../transform/r1-format"
 import { ApiStream } from "../transform/stream"
-import { formatOpenAiCompatibleUsage } from "../transform/openai-usage"
 import { getOpenAIToolParams, ToolCallProcessor } from "../transform/tool-call-processor"
 
 interface QwenHandlerOptions extends CommonApiHandlerOptions {
@@ -97,7 +97,7 @@ export class QwenHandler implements ApiHandler {
 
 		let temperature: number | undefined = 0
 		// Configuration for extended thinking
-		const budgetTokens = this.options.thinkingBudgetTokens || 0
+		const budgetTokens = this.options.thinkingBudgetTokens ?? 0
 		const reasoningOn = budgetTokens !== 0
 		const thinkingArgs = isReasoningModelFamily
 			? {

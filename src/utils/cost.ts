@@ -139,8 +139,8 @@ export function calculateApiCostAnthropic(
 	reasoningTokens?: number,
 	pricingDate: Date = new Date(),
 ): number | undefined {
-	const cacheCreationInputTokensNum = cacheCreationInputTokens || 0
-	const cacheReadInputTokensNum = cacheReadInputTokens || 0
+	const cacheCreationInputTokensNum = cacheCreationInputTokens ?? 0
+	const cacheReadInputTokensNum = cacheReadInputTokens ?? 0
 	// Anthropic style: inputTokens already represents the total, so pass it directly for tiered pricing lookup if needed
 	// (though Anthropic models currently don't use tiered pricing based on input size)
 	// Anthropic style doesn't need totalInputTokensForPricing as its inputTokens already represents the total
@@ -168,8 +168,8 @@ export function calculateApiCostOpenAI(
 	reasoningTokens?: number,
 	pricingDate: Date = new Date(),
 ): number | undefined {
-	const cacheCreationInputTokensNum = cacheCreationInputTokens || 0
-	const cacheReadInputTokensNum = cacheReadInputTokens || 0
+	const cacheCreationInputTokensNum = cacheCreationInputTokens ?? 0
+	const cacheReadInputTokensNum = cacheReadInputTokens ?? 0
 	// Calculate non-cached tokens for the internal function's 'inputTokens' parameter
 	const nonCachedInputTokens = Math.max(0, inputTokens - cacheCreationInputTokensNum - cacheReadInputTokensNum)
 	// Pass the original 'inputTokens' as 'totalInputTokensForPricing' for tier lookup
@@ -197,8 +197,8 @@ export function calculateApiCostQwen(
 	reasoningTokens?: number,
 	pricingDate: Date = new Date(),
 ): number | undefined {
-	const cacheCreationInputTokensNum = cacheCreationInputTokens || 0
-	const cacheReadInputTokensNum = cacheReadInputTokens || 0
+	const cacheCreationInputTokensNum = cacheCreationInputTokens ?? 0
+	const cacheReadInputTokensNum = cacheReadInputTokens ?? 0
 	// Calculate non-cached tokens for the internal function's 'inputTokens' parameter
 	const nonCachedInputTokens = Math.max(0, inputTokens - cacheCreationInputTokensNum - cacheReadInputTokensNum)
 	// Pass the original 'inputTokens' as 'totalInputTokensForPricing' for tier lookup

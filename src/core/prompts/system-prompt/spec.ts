@@ -2,10 +2,9 @@ import { Tool as AnthropicTool } from "@anthropic-ai/sdk/resources/index"
 import { FunctionDeclaration as GoogleTool, Type as GoogleToolParamType } from "@google/genai"
 import { ChatCompletionTool as OpenAITool } from "openai/resources/chat/completions"
 import { FunctionTool as OpenAIResponseFunctionTool, Tool as OpenAIResponseTool } from "openai/resources/responses/responses"
+import { DiracToolSpecParameter as BaseParam, DiracToolSpec as BaseSpec } from "@/shared/tools"
 import { MULTI_ROOT_HINT } from "./constants"
 import type { SystemPromptContext } from "./types"
-
-import { DiracToolSpec as BaseSpec, DiracToolSpecParameter as BaseParam } from "@/shared/tools"
 
 export type DiracToolSpec = BaseSpec<SystemPromptContext>
 export type DiracToolSpecParameter = BaseParam<SystemPromptContext>
@@ -207,7 +206,6 @@ export function toolSpecInputSchema(tool: DiracToolSpec, context: SystemPromptCo
 				}
 			}
 
-
 			properties[param.name] = paramSchema
 		}
 	}
@@ -365,9 +363,9 @@ export function openAIToolToAnthropic(openAITool: OpenAITool): AnthropicTool {
 				type: "object",
 				...(Object.keys(func.parameters?.properties || {}).length > 0
 					? {
-						properties: func.parameters?.properties,
-						required: (func.parameters as any)?.required || [],
-					}
+							properties: func.parameters?.properties,
+							required: (func.parameters as any)?.required || [],
+						}
 					: {}),
 			},
 		}
@@ -448,8 +446,8 @@ function resolveToolDescription(tool: DiracToolSpec, context: SystemPromptContex
  * Replaces template placeholders in descriptions for native tool schemas.
  */
 function replacer(description: string, context: SystemPromptContext): string {
-	const width = context.browserSettings?.viewport?.width || 900
-	const height = context.browserSettings?.viewport?.height || 600
+	const width = context.browserSettings?.viewport?.width ?? 900
+	const height = context.browserSettings?.viewport?.height ?? 600
 	const cwd = context.cwd || process.cwd()
 	const multiRootHint = context.isMultiRootEnabled ? MULTI_ROOT_HINT : ""
 

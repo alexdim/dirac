@@ -103,7 +103,7 @@ export async function createVercelAIGatewayStream(
 
 	if (isClaudeThinkingModel) {
 		// For Claude models, match OpenRouter behavior: check even if thinkingBudgetTokens is 0
-		const budgetTokens = thinkingBudgetTokens || 0
+		const budgetTokens = thinkingBudgetTokens ?? 0
 		if (budgetTokens !== 0) {
 			temperature = undefined // extended thinking does not support non-1 temperature
 			reasoning = { max_tokens: budgetTokens }

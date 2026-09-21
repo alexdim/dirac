@@ -103,7 +103,7 @@ export class DiffContentManager {
 				return
 			}
 			if (!part.removed) {
-				lineCount += part.count || 0
+				lineCount += part.count ?? 0
 			}
 		}
 	}

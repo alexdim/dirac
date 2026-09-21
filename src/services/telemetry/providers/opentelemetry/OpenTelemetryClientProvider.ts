@@ -4,10 +4,10 @@ import { Resource } from "@opentelemetry/resources"
 import { BatchLogRecordProcessor, LoggerProvider } from "@opentelemetry/sdk-logs"
 import { MeterProvider } from "@opentelemetry/sdk-metrics"
 import { ATTR_SERVICE_NAME, ATTR_SERVICE_VERSION } from "@opentelemetry/semantic-conventions"
+import { isDev } from "@shared/config/environment"
 import { ExtensionRegistryInfo } from "@/registry"
 import { OpenTelemetryClientValidConfig } from "@/shared/services/config/otel-config"
 import { Logger } from "@/shared/services/Logger"
-import { isDev } from "@shared/config/environment"
 import {
 	createConsoleLogExporter,
 	createConsoleMetricReader,
@@ -46,7 +46,7 @@ export class OpenTelemetryClientProvider {
 
 			Logger.log(`[OTEL DEBUG]   - OTLP Endpoint: ${this.config.otlpEndpoint || "not set"}`)
 			Logger.log(`[OTEL DEBUG]   - OTLP Insecure: ${this.config.otlpInsecure || false}`)
-			Logger.log(`[OTEL DEBUG]   - Metric Export Interval: ${this.config.metricExportInterval || 60000}ms`)
+			Logger.log(`[OTEL DEBUG]   - Metric Export Interval: ${this.config.metricExportInterval ?? 60000}ms`)
 		}
 
 		if (isDebugMode && config.otlpHeaders) {
@@ -78,7 +78,7 @@ export class OpenTelemetryClientProvider {
 	private createMeterProvider(resource: Resource): MeterProvider {
 		const exporters = (this.config.metricsExporter?.split(",") ?? []).map((type) => type.trim())
 		const readers: any[] = []
-		const interval = this.config.metricExportInterval || 60000
+		const interval = this.config.metricExportInterval ?? 60000
 		const timeout = Math.min(Math.floor(interval * 0.8), 30000)
 
 		Logger.log(`[OTEL] Creating MeterProvider with exporters: ${exporters.join(", ")}`)
@@ -170,9 +170,9 @@ export class OpenTelemetryClientProvider {
 
 				if (exporter) {
 					const batchConfig = {
-						maxQueueSize: this.config.logMaxQueueSize || 2048,
-						maxExportBatchSize: this.config.logBatchSize || 512,
-						scheduledDelayMillis: this.config.logBatchTimeout || 5000,
+						maxQueueSize: this.config.logMaxQueueSize ?? 2048,
+						maxExportBatchSize: this.config.logBatchSize ?? 512,
+						scheduledDelayMillis: this.config.logBatchTimeout ?? 5000,
 					}
 
 					loggerProvider.addLogRecordProcessor(new BatchLogRecordProcessor(exporter, batchConfig))

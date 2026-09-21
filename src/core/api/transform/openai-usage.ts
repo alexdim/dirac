@@ -1,7 +1,7 @@
 import { ModelInfo } from "@shared/api"
 import type { InferenceSpeed } from "@shared/storage/types"
-import { ApiStreamUsageChunk } from "./stream"
 import { calculateApiCostOpenAI, getModelInfoForInferenceSpeed } from "@/utils/cost"
+import { ApiStreamUsageChunk } from "./stream"
 
 /**
  * Formats usage data from OpenAI-compatible providers into a standardized chunk,
@@ -28,8 +28,8 @@ export function formatOpenAiCompatibleUsage(
 		inferenceSpeed?: InferenceSpeed
 	},
 ): ApiStreamUsageChunk {
-	const totalInputTokens = usage.prompt_tokens || 0
-	const outputTokens = usage.completion_tokens || 0
+	const totalInputTokens = usage.prompt_tokens ?? 0
+	const outputTokens = usage.completion_tokens ?? 0
 
 	// Resolve cache read tokens (checking multiple possible field names)
 	const cacheReadTokens =

@@ -68,7 +68,8 @@ export class StreamingMetricsManager {
 	updateFromChunk(chunk: UsageChunk): void {
 		this.metrics.availability.inputTokens = true
 		this.metrics.availability.outputTokens = true
-		this.metrics.availability.reasoningTokens ||= chunk.reasoningTokens !== undefined || chunk.thoughtsTokenCount !== undefined
+		this.metrics.availability.reasoningTokens ||=
+			chunk.reasoningTokens !== undefined || chunk.thoughtsTokenCount !== undefined
 		this.metrics.availability.cacheWrites ||= chunk.cacheWriteTokens !== undefined
 		this.metrics.availability.cacheReads ||= chunk.cacheReadTokens !== undefined
 		this.metrics.inputTokens = chunk.inputTokens
@@ -87,8 +88,8 @@ export class StreamingMetricsManager {
 		const totalTokens =
 			this.metrics.inputTokens +
 			this.metrics.outputTokens +
-			(this.metrics.cacheWriteTokens || 0) +
-			(this.metrics.cacheReadTokens || 0)
+			(this.metrics.cacheWriteTokens ?? 0) +
+			(this.metrics.cacheReadTokens ?? 0)
 		const contextUsagePercentage = contextWindow ? Math.round((totalTokens / contextWindow) * 100) : undefined
 
 		await updateApiReqMsg({

@@ -50,7 +50,7 @@ async function expandMultiRootFileMention(
 	for (const r of successful) parsedText += formatContentBlock(mentionPath, isFolder, r.content!, r.workspaceName)
 	telemetryService.captureMentionUsed(
 		mentionType,
-		successful.reduce((sum, r) => sum + (r.content?.length || 0), 0),
+		successful.reduce((sum, r) => sum + (r.content?.length ?? 0), 0),
 	)
 	return parsedText
 }

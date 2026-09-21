@@ -230,8 +230,8 @@ export class QwenCodeHandler implements ApiHandler {
 			if (apiChunk.usage) {
 				yield {
 					type: "usage",
-					inputTokens: apiChunk.usage.prompt_tokens || 0,
-					outputTokens: apiChunk.usage.completion_tokens || 0,
+					inputTokens: apiChunk.usage.prompt_tokens ?? 0,
+					outputTokens: apiChunk.usage.completion_tokens ?? 0,
 				}
 			}
 		}

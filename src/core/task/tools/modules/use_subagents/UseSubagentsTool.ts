@@ -22,8 +22,8 @@ import { excerpt } from "../../../utils/excerpt"
 import { IDiracTool } from "../../interfaces/IDiracTool"
 import { ICardHandle, IToolEnvironment } from "../../interfaces/IToolEnvironment"
 import { AgentConfigLoader } from "../../subagent/AgentConfigLoader"
-import { waitForPresentationOperation } from "../../subagent/PresentationDeadline"
 import { LatestPresentationQueue } from "../../subagent/LatestPresentationQueue"
+import { waitForPresentationOperation } from "../../subagent/PresentationDeadline"
 import { DEFAULT_SUBAGENT_TIMEOUT_SECONDS, resolveSubagentTimeoutSeconds } from "../../subagent/SubagentExecutionPolicy"
 
 interface SubagentRequest {
@@ -250,9 +250,7 @@ export class UseSubagentsTool implements IDiracTool {
 				)
 			}
 			aggregatePresentation.stopAcceptingUpdates()
-			const intermediateUpdates = await waitForPresentationOperation(
-				aggregatePresentation.waitForInFlightPresentation(),
-			)
+			const intermediateUpdates = await waitForPresentationOperation(aggregatePresentation.waitForInFlightPresentation())
 			if (intermediateUpdates.timedOut) {
 				reportPresentationIssue(
 					{
@@ -379,14 +377,14 @@ export class UseSubagentsTool implements IDiracTool {
 		).length
 		const successes = entries.filter((e) => e.status === SubagentExecutionStatus.COMPLETED).length
 		const failures = entries.filter((e) => e.status === SubagentExecutionStatus.FAILED).length
-		const toolCalls = entries.reduce((acc: number, e) => acc + (e.toolCalls || 0), 0)
-		const inputTokens = entries.reduce((acc: number, e) => acc + (e.inputTokens || 0), 0)
-		const outputTokens = entries.reduce((acc: number, e) => acc + (e.outputTokens || 0), 0)
-		const cacheWrites = entries.reduce((acc: number, e) => acc + (e.cacheWrites || 0), 0)
-		const cacheReads = entries.reduce((acc: number, e) => acc + (e.cacheReads || 0), 0)
-		const contextWindow = entries.reduce((acc: number, e) => Math.max(acc, e.contextWindow || 0), 0)
-		const maxContextTokens = entries.reduce((acc: number, e) => Math.max(acc, e.contextTokens || 0), 0)
-		const maxContextUsagePercentage = entries.reduce((acc: number, e) => Math.max(acc, e.contextUsagePercentage || 0), 0)
+		const toolCalls = entries.reduce((acc: number, e) => acc + (e.toolCalls ?? 0), 0)
+		const inputTokens = entries.reduce((acc: number, e) => acc + (e.inputTokens ?? 0), 0)
+		const outputTokens = entries.reduce((acc: number, e) => acc + (e.outputTokens ?? 0), 0)
+		const cacheWrites = entries.reduce((acc: number, e) => acc + (e.cacheWrites ?? 0), 0)
+		const cacheReads = entries.reduce((acc: number, e) => acc + (e.cacheReads ?? 0), 0)
+		const contextWindow = entries.reduce((acc: number, e) => Math.max(acc, e.contextWindow ?? 0), 0)
+		const maxContextTokens = entries.reduce((acc: number, e) => Math.max(acc, e.contextTokens ?? 0), 0)
+		const maxContextUsagePercentage = entries.reduce((acc: number, e) => Math.max(acc, e.contextUsagePercentage ?? 0), 0)
 
 		return {
 			status,
@@ -615,9 +613,7 @@ export class UseSubagentsTool implements IDiracTool {
 						)
 					}
 					presentation.stopAcceptingUpdates()
-					const intermediateUpdates = await waitForPresentationOperation(
-						presentation.waitForInFlightPresentation(),
-					)
+					const intermediateUpdates = await waitForPresentationOperation(presentation.waitForInFlightPresentation())
 					if (intermediateUpdates.timedOut) {
 						reportAgentIssue(
 							"intermediate_update",
@@ -666,9 +662,7 @@ export class UseSubagentsTool implements IDiracTool {
 						)
 					}
 					presentation.stopAcceptingUpdates()
-					const intermediateUpdates = await waitForPresentationOperation(
-						presentation.waitForInFlightPresentation(),
-					)
+					const intermediateUpdates = await waitForPresentationOperation(presentation.waitForInFlightPresentation())
 					if (intermediateUpdates.timedOut) {
 						reportAgentIssue(
 							"intermediate_update",
@@ -718,12 +712,12 @@ export class UseSubagentsTool implements IDiracTool {
 		const succeeded = entries.filter((entry) => entry.status === SubagentExecutionStatus.COMPLETED).length
 		const failed = entries.filter((entry) => entry.status === SubagentExecutionStatus.FAILED).length
 		const cancelled = entries.filter((entry) => entry.status === SubagentExecutionStatus.CANCELLED).length
-		const totalToolCalls = entries.reduce((acc, entry) => acc + (entry.toolCalls || 0), 0)
-		const maxContextTokens = entries.reduce((acc, entry) => Math.max(acc, entry.contextTokens || 0), 0)
-		const contextWindow = entries.reduce((acc, entry) => Math.max(acc, entry.contextWindow || 0), 0)
-		const maxContextUsagePercentage = entries.reduce((acc, entry) => Math.max(acc, entry.contextUsagePercentage || 0), 0)
-		const totalCacheReads = entries.reduce((acc, entry) => acc + (entry.cacheReads || 0), 0)
-		const totalCacheWrites = entries.reduce((acc, entry) => acc + (entry.cacheWrites || 0), 0)
+		const totalToolCalls = entries.reduce((acc, entry) => acc + (entry.toolCalls ?? 0), 0)
+		const maxContextTokens = entries.reduce((acc, entry) => Math.max(acc, entry.contextTokens ?? 0), 0)
+		const contextWindow = entries.reduce((acc, entry) => Math.max(acc, entry.contextWindow ?? 0), 0)
+		const maxContextUsagePercentage = entries.reduce((acc, entry) => Math.max(acc, entry.contextUsagePercentage ?? 0), 0)
+		const totalCacheReads = entries.reduce((acc, entry) => acc + (entry.cacheReads ?? 0), 0)
+		const totalCacheWrites = entries.reduce((acc, entry) => acc + (entry.cacheWrites ?? 0), 0)
 
 		return [
 			"Subagent results:",

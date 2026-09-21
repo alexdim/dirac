@@ -1,10 +1,10 @@
 import { findLastIndex } from "@shared/array"
 import { DiracMessage, DiracMessageType } from "@shared/ExtensionMessage"
 import type { DiracStorageMessage } from "@shared/messages/content"
-import type { HookExecution } from "../task/types/HookExecution"
 import { Logger } from "@/shared/services/Logger"
 import type { ContextManager } from "../context/context-management/ContextManager"
 import type { MessageStateHandler } from "../task/message-state"
+import type { HookExecution } from "../task/types/HookExecution"
 import type { HookModelInputContext } from "./hook-factory"
 
 /**
@@ -55,10 +55,10 @@ export function extractTokenUsageFromMessage(message: DiracMessage | undefined):
 
 	const apiReqInfo = message.content.status
 	return {
-		tokensIn: apiReqInfo.tokensIn || 0,
-		tokensOut: apiReqInfo.tokensOut || 0,
-		tokensInCache: apiReqInfo.cacheWrites || 0,
-		tokensOutCache: apiReqInfo.cacheReads || 0,
+		tokensIn: apiReqInfo.tokensIn ?? 0,
+		tokensOut: apiReqInfo.tokensOut ?? 0,
+		tokensInCache: apiReqInfo.cacheWrites ?? 0,
+		tokensOutCache: apiReqInfo.cacheReads ?? 0,
 	}
 }
 

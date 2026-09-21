@@ -3,14 +3,14 @@ import { GenerateContentConfig, GoogleGenAI } from "@google/genai"
 import { ModelInfo } from "@shared/api"
 import OpenAI from "openai"
 import { buildExternalBasicHeaders } from "@/services/EnvUtils"
+import { DiracStorageMessage } from "@/shared/messages/content"
 import { ApiHandler, CommonApiHandlerOptions } from "../index"
 import { withRetry } from "../retry"
 import { sanitizeAnthropicMessages } from "../transform/anthropic-format"
-import { DiracStorageMessage } from "@/shared/messages/content"
 import { convertAnthropicMessagesToGemini } from "../transform/gemini-format"
-import { resolveGeminiImageSources } from "./gemini-image-resolver"
 import { convertToOpenAiMessages } from "../transform/openai-format"
 import { ApiStream } from "../transform/stream"
+import { resolveGeminiImageSources } from "./gemini-image-resolver"
 
 interface AIhubmixHandlerOptions extends CommonApiHandlerOptions {
 	apiKey?: string
@@ -157,7 +157,7 @@ export class AIhubmixHandler implements ApiHandler {
 		const stream = await client.messages.create({
 			model: modelId,
 			temperature: 0,
-			max_tokens: this.options.modelInfo?.maxTokens || 8192,
+			max_tokens: this.options.modelInfo?.maxTokens ?? 8192,
 			system: [{ text: systemPrompt, type: "text" }],
 			messages: sanitizedMessages,
 			stream: true,
@@ -169,8 +169,8 @@ export class AIhubmixHandler implements ApiHandler {
 					const usage = chunk.message.usage
 					yield {
 						type: "usage",
-						inputTokens: usage.input_tokens || 0,
-						outputTokens: usage.output_tokens || 0,
+						inputTokens: usage.input_tokens ?? 0,
+						outputTokens: usage.output_tokens ?? 0,
 						cacheWriteTokens: usage.cache_creation_input_tokens || undefined,
 						cacheReadTokens: usage.cache_read_input_tokens || undefined,
 					}
@@ -179,7 +179,7 @@ export class AIhubmixHandler implements ApiHandler {
 					yield {
 						type: "usage",
 						inputTokens: 0,
-						outputTokens: chunk.usage.output_tokens || 0,
+						outputTokens: chunk.usage.output_tokens ?? 0,
 					}
 					break
 				case "content_block_start":
@@ -236,8 +236,8 @@ export class AIhubmixHandler implements ApiHandler {
 				const usage = event.response?.usage || {}
 				yield {
 					type: "usage",
-					inputTokens: usage.input_tokens || 0,
-					outputTokens: usage.output_tokens || 0,
+					inputTokens: usage.input_tokens ?? 0,
+					outputTokens: usage.output_tokens ?? 0,
 				}
 				continue
 			}
@@ -279,8 +279,8 @@ export class AIhubmixHandler implements ApiHandler {
 			if (chunk.usage) {
 				yield {
 					type: "usage",
-					inputTokens: chunk.usage.prompt_tokens || 0,
-					outputTokens: chunk.usage.completion_tokens || 0,
+					inputTokens: chunk.usage.prompt_tokens ?? 0,
+					outputTokens: chunk.usage.completion_tokens ?? 0,
 				}
 			}
 		}

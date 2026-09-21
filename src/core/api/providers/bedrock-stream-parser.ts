@@ -67,10 +67,10 @@ export class BedrockStreamParser {
 	}
 
 	private buildUsageChunk(usage: TokenUsage, modelInfo: ModelInfo): ApiStreamChunk {
-		const inputTokens = usage.inputTokens || 0
-		const outputTokens = usage.outputTokens || 0
-		const cacheReadInputTokens = usage.cacheReadInputTokens || 0
-		const cacheWriteInputTokens = usage.cacheWriteInputTokens || 0
+		const inputTokens = usage.inputTokens ?? 0
+		const outputTokens = usage.outputTokens ?? 0
+		const cacheReadInputTokens = usage.cacheReadInputTokens ?? 0
+		const cacheWriteInputTokens = usage.cacheWriteInputTokens ?? 0
 		return {
 			type: "usage",
 			inputTokens,

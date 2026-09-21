@@ -45,7 +45,7 @@ export function resolveHistorySession(sessionId: string): HistorySessionResoluti
 	const taskHistory = getTaskHistory()
 	const matchingConversationItems = taskHistory
 		.filter((item) => item.ulid === sessionId)
-		.sort((a, b) => (b.ts || 0) - (a.ts || 0))
+		.sort((a, b) => (b.ts ?? 0) - (a.ts ?? 0))
 	const historyItem = matchingConversationItems[0] || taskHistory.find((item) => item.id === sessionId)
 
 	if (!historyItem) {
@@ -71,14 +71,13 @@ export function listLatestConversationHistoryItems(cwd?: string | null, defaultC
 
 		const conversationId = getHistoryItemSessionId(item)
 		const existingItem = latestByConversationId.get(conversationId)
-		if (!existingItem || (item.ts || 0) > (existingItem.ts || 0)) {
+		if (!existingItem || (item.ts ?? 0) > (existingItem.ts ?? 0)) {
 			latestByConversationId.set(conversationId, item)
 		}
 	}
 
-	return Array.from(latestByConversationId.values()).sort((a, b) => (b.ts || 0) - (a.ts || 0))
+	return Array.from(latestByConversationId.values()).sort((a, b) => (b.ts ?? 0) - (a.ts ?? 0))
 }
-
 
 /** Return every persisted task ID belonging to an ACP session. */
 export function getTaskIdsForSession(sessionId: string): string[] {

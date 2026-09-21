@@ -107,7 +107,7 @@ export function getLastApiReqTotalTokens(messages: DiracMessage[]): number {
 		const msg = messages[i]
 		if (msg.content.type === "api_status") {
 			const info = msg.content.status
-			const total = (info.tokensIn || 0) + (info.tokensOut || 0) + (info.cacheWrites || 0) + (info.cacheReads || 0)
+			const total = (info.tokensIn ?? 0) + (info.tokensOut ?? 0) + (info.cacheWrites ?? 0) + (info.cacheReads ?? 0)
 			if (total > 0) {
 				return total
 			}
@@ -130,7 +130,7 @@ export function getLastApiReqInfo(messages: DiracMessage[]): DiracApiReqInfo | u
 		const msg = messages[i]
 		if (msg.content.type === "api_status") {
 			const info = msg.content.status
-			const total = (info.tokensIn || 0) + (info.tokensOut || 0) + (info.cacheWrites || 0) + (info.cacheReads || 0)
+			const total = (info.tokensIn ?? 0) + (info.tokensOut ?? 0) + (info.cacheWrites ?? 0) + (info.cacheReads ?? 0)
 			if (total > 0) {
 				return info
 			}

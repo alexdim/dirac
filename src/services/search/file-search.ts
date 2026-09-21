@@ -257,7 +257,7 @@ export async function searchWorkspaceFilesMultiroot(
 		if (workspacesToSearch.length > 1) {
 			const pathCounts = new Map<string, number>()
 			for (const result of flatResults) {
-				pathCounts.set(result.path, (pathCounts.get(result.path) || 0) + 1)
+				pathCounts.set(result.path, (pathCounts.get(result.path) ?? 0) + 1)
 			}
 
 			flatResults = flatResults.map((result) => {

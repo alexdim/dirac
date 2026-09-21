@@ -1,4 +1,3 @@
-import { setTimeout as setTimeoutPromise } from "node:timers/promises"
 import type { ApiHandler } from "@core/api"
 import type { ApiStream } from "@core/api/transform/stream"
 import { formatResponse } from "@core/formatResponse"
@@ -11,13 +10,14 @@ import type { DiracMessageModelInfo } from "@shared/messages/metrics"
 import { isMutatingTool } from "@shared/tools"
 import { DiracAskResponse } from "@shared/WebviewMessage"
 import pWaitFor from "p-wait-for"
+import { sleep } from "@/utils/retry"
 import type { MessageStateHandler } from "./message-state"
 import type { StreamingMetricsManager } from "./StreamingMetricsManager"
+import type { TaskExecutionProfile } from "./TaskExecutionProfile"
 import type { TaskMessenger } from "./TaskMessenger"
 import type { TaskState } from "./TaskState"
 import { ToolSkippedByUserMessage } from "./tools/types/ToolSkippedByUserMessage"
 import { updateApiReqMsg } from "./utils"
-import type { TaskExecutionProfile } from "./TaskExecutionProfile"
 
 export interface TaskRequestOutcomeContext {
 	taskState: TaskState
@@ -73,15 +73,9 @@ export async function handleApiRequestError(
 	const streamingFailedMessage = diracError.serialize()
 
 	const lastApiStatus = ctx.messageStateHandler.getLatestApiStatusMessage()
-	const lastApiReqStartedIndex = lastApiStatus
-		? ctx.messageStateHandler.findMessageIndexById(lastApiStatus.id)
-		: -1
+	const lastApiReqStartedIndex = lastApiStatus ? ctx.messageStateHandler.findMessageIndexById(lastApiStatus.id) : -1
 	if (lastApiStatus?.content.type === DiracMessageType.API_STATUS) {
-		await ctx.messageStateHandler.patchApiStatusById(
-			lastApiStatus.id,
-			{ streamingFailedMessage },
-			["retryStatus"],
-		)
+		await ctx.messageStateHandler.patchApiStatusById(lastApiStatus.id, { streamingFailedMessage }, ["retryStatus"])
 	}
 
 	const isAuthError = diracError.isErrorType(DiracErrorType.Auth)
@@ -122,7 +116,7 @@ export async function handleApiRequestError(
 
 		const deadline = Date.now() + delay
 		while (Date.now() < deadline && !ctx.taskState.abort) {
-			await setTimeoutPromise(Math.min(200, deadline - Date.now()))
+			await sleep(Math.min(200, deadline - Date.now()))
 		}
 		// If the user aborted during the retry delay, stop retrying
 		if (ctx.taskState.abort) {
@@ -171,9 +165,7 @@ export async function handleApiRequestError(
 		try {
 			const askResult = await cardHandle.waitForInteraction()
 			response = askResult.response
-			await cardHandle.finalize(
-				response === DiracAskResponse.APPROVE ? CardStatus.SUCCESS : CardStatus.CANCELLED,
-			)
+			await cardHandle.finalize(response === DiracAskResponse.APPROVE ? CardStatus.SUCCESS : CardStatus.CANCELLED)
 		} catch (error) {
 			if (error instanceof ToolSkippedByUserMessage) {
 				await cardHandle.finalize(CardStatus.SKIPPED)

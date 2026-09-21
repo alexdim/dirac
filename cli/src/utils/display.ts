@@ -4,14 +4,13 @@
  * For interactive rendering, see the Ink components in cli/src/components/.
  */
 
-import { CardStatus, DiracMessageType, isFinalStatus } from "@shared/ExtensionMessage"
 import type { DiracMessage, ExtensionState } from "@shared/ExtensionMessage"
-import { originalConsoleError, originalConsoleLog } from "./console"
-
+import { CardStatus, DiracMessageType, isFinalStatus } from "@shared/ExtensionMessage"
 // ANSI color codes — re-exported from the centralized theme
-import { ansi as colors, ansiForeground, shouldUseAnsiColors } from "../constants/theme"
-import { getIcon, getIconCategoryColor } from "./icon-mapping"
+import { ansiForeground, ansi as colors, shouldUseAnsiColors } from "../constants/theme"
 import { cardBodyForDisplay } from "./card-body"
+import { originalConsoleError, originalConsoleLog } from "./console"
+import { getIcon, getIconCategoryColor } from "./icon-mapping"
 
 // Backward-compatible alias so existing code using `colors.xxx` keeps working
 // const colors = ansi  // (already aliased in the import above)
@@ -20,7 +19,7 @@ import { cardBodyForDisplay } from "./card-body"
  * Center text by padding with spaces
  */
 export function centerText(text: string, terminalWidth?: number): string {
-	const width = terminalWidth || process.stdout.columns || 80
+	const width = terminalWidth ?? process.stdout.columns ?? 80
 	const padding = Math.max(0, Math.floor((width - text.length) / 2))
 	return " ".repeat(padding) + text
 }
@@ -154,9 +153,7 @@ function formatCardMessage(message: DiracMessage, prefix: string, verbose: boole
 			? ` (${card.status})`
 			: ""
 
-	lines.push(
-		`${prefix} ${statusIndicator}${styledHeader}${style.metadata(`${statusStr}${outcome}${elapsed}`)}`,
-	)
+	lines.push(`${prefix} ${statusIndicator}${styledHeader}${style.metadata(`${statusStr}${outcome}${elapsed}`)}`)
 
 	if (card.body) {
 		const body = cardBodyForDisplay(card.body, card.renderType).trim()
@@ -199,7 +196,7 @@ function formatApiStatusMessage(message: DiracMessage, prefix: string, verbose: 
 
 	const cacheStr =
 		status.cacheReads !== undefined || status.cacheWrites !== undefined
-			? ` (Cache: ${(status.cacheReads || 0).toLocaleString()} read, ${(status.cacheWrites || 0).toLocaleString()} write)`
+			? ` (Cache: ${(status.cacheReads ?? 0).toLocaleString()} read, ${(status.cacheWrites ?? 0).toLocaleString()} write)`
 			: ""
 
 	const contextStr =
@@ -422,5 +419,8 @@ export function setTerminalTitle(title: string): void {
 }
 
 export function sanitizeTerminalTitle(title: string): string {
-	return title.replace(/[\u0000-\u001f\u007f-\u009f]/g, " ").replace(/\s+/g, " ").trim()
+	return title
+		.replace(/[\u0000-\u001f\u007f-\u009f]/g, " ")
+		.replace(/\s+/g, " ")
+		.trim()
 }

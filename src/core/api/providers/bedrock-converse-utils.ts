@@ -219,7 +219,7 @@ export function getInferenceConfig(
 	if (modelType === "anthropic") {
 		const reasoningOn = thinkingBudgetTokens > 0 && (modelInfo.supportsReasoning ?? false)
 		return {
-			maxTokens: modelInfo.maxTokens || 8192,
+			maxTokens: modelInfo.maxTokens ?? 8192,
 			temperature: reasoningOn ? undefined : modelInfo.temperature,
 		}
 	}

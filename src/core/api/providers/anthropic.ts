@@ -97,7 +97,7 @@ export class AnthropicHandler implements ApiHandler {
 			})
 		}
 
-		const budget_tokens = this.options.thinkingBudgetTokens || 0
+		const budget_tokens = this.options.thinkingBudgetTokens ?? 0
 		const nativeToolsOn = (tools?.length ?? 0) > 0
 		const reasoningOn = (model.info.supportsReasoning ?? false) && budget_tokens !== 0
 		const useAdaptive = isAnthropicAdaptiveThinkingSupported(model.id, model.info)
@@ -114,7 +114,7 @@ export class AnthropicHandler implements ApiHandler {
 				...(reasoningOn && useAdaptive
 					? { output_config: { effort: (this.options.reasoningEffort as AnthropicEffort) || "high" } }
 					: {}),
-				max_tokens: model.info.maxTokens || 8192,
+				max_tokens: model.info.maxTokens ?? 8192,
 				temperature: reasoningOn ? undefined : (model.info.temperature ?? undefined),
 				system: [
 					{
@@ -133,7 +133,7 @@ export class AnthropicHandler implements ApiHandler {
 		} else {
 			const requestBody: AnthropicMessageCreateParamsStreaming = {
 				model: model.id,
-				max_tokens: model.info.maxTokens || 8192,
+				max_tokens: model.info.maxTokens ?? 8192,
 				thinking: reasoningOn
 					? useAdaptive
 						? { type: "adaptive", display: "summarized" }
@@ -171,7 +171,7 @@ export class AnthropicHandler implements ApiHandler {
 				yield {
 					type: "usage",
 					inputTokens: 0,
-					outputTokens: chunk.usage.output_tokens || 0,
+					outputTokens: chunk.usage.output_tokens ?? 0,
 					stopReason: chunk.delta.stop_reason || undefined,
 				}
 				break
@@ -195,8 +195,8 @@ export class AnthropicHandler implements ApiHandler {
 		this.deliveredInferenceSpeed = inferenceSpeed
 		return {
 			type: "usage",
-			inputTokens: usage.input_tokens || 0,
-			outputTokens: usage.output_tokens || 0,
+			inputTokens: usage.input_tokens ?? 0,
+			outputTokens: usage.output_tokens ?? 0,
 			cacheWriteTokens: usage.cache_creation_input_tokens || undefined,
 			cacheReadTokens: usage.cache_read_input_tokens || undefined,
 			...(inferenceSpeed ? { inferenceSpeed } : {}),

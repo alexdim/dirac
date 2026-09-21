@@ -52,11 +52,11 @@ export interface ResponsesWebsocketOptions {
 
 export async function* yieldUsage(info: ModelInfo, usage: any, id?: string, serviceTier?: unknown): AsyncGenerator<any> {
 	if (!usage) return
-	const inputTokens = usage.input_tokens || 0
-	const outputTokens = usage.output_tokens || 0
-	const cacheReadTokens = usage.input_tokens_details?.cached_tokens || 0
-	const cacheWriteTokens = usage.input_tokens_details?.cache_creation_tokens || 0
-	const reasoningTokens = usage.output_tokens_details?.reasoning_tokens || 0
+	const inputTokens = usage.input_tokens ?? 0
+	const outputTokens = usage.output_tokens ?? 0
+	const cacheReadTokens = usage.input_tokens_details?.cached_tokens ?? 0
+	const cacheWriteTokens = usage.input_tokens_details?.cache_creation_tokens ?? 0
+	const reasoningTokens = usage.output_tokens_details?.reasoning_tokens ?? 0
 	const inferenceSpeed = normalizeOpenAIServiceTier(serviceTier)
 
 	const totalCost = calculateApiCostOpenAI(

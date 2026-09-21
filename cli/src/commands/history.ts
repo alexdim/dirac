@@ -29,9 +29,9 @@ export async function listHistory(options: { config?: string; limit?: number; pa
 
 	const taskHistory = StateManager.get().getGlobalStateKey("taskHistory") || []
 	// Sort by timestamp (newest first) before pagination
-	const sortedHistory = [...taskHistory].sort((a: HistoryItem, b: HistoryItem) => (b.ts || 0) - (a.ts || 0))
-	const limit = options.limit || 10
-	const requestedPage = options.page || 1
+	const sortedHistory = [...taskHistory].sort((a: HistoryItem, b: HistoryItem) => (b.ts ?? 0) - (a.ts ?? 0))
+	const limit = options.limit ?? 10
+	const requestedPage = options.page ?? 1
 	const totalCount = sortedHistory.length
 	const totalPages = Math.ceil(totalCount / limit)
 	const initialPage = Math.min(requestedPage, Math.max(1, totalPages))

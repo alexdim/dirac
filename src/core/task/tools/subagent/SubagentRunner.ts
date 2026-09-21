@@ -12,6 +12,7 @@ import { ContextManager } from "@/core/context/context-management/ContextManager
 import { checkContextWindowExceededError } from "@/core/context/context-management/context-error-handling"
 import { DiracError, DiracErrorType } from "@/services/error"
 import { calculateApiCostAnthropic } from "@/utils/cost"
+import { sleep } from "@/utils/retry"
 import { TaskState } from "../../TaskState"
 import { excerpt } from "../../utils/excerpt"
 import { ToolExecutorCoordinator } from "../ToolExecutorCoordinator"
@@ -42,7 +43,6 @@ import type {
 } from "./SubagentRunTypes"
 import { SubagentToolExecutor } from "./SubagentToolExecutor"
 
-const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 const MAX_EMPTY_ASSISTANT_RETRIES = 3
 const MAX_INITIAL_STREAM_ATTEMPTS = 3
 const INITIAL_STREAM_RETRY_BASE_DELAY_MS = 2_000
@@ -408,7 +408,7 @@ export class SubagentRunner {
 			state.availableSkills = context.skills ?? []
 			let requestSnapshot = initialContext.requestSnapshot
 			let useNativeToolCalls = initialContext.useNativeToolCalls
-			stats.contextWindow = context.providerInfo.model.info.contextWindow || 0
+			stats.contextWindow = context.providerInfo.model.info.contextWindow ?? 0
 			let systemPrompt = this.contextBuilder.appendExecutionDeadline(initialContext.systemPrompt, timeout)
 			this.enterPhase("building_workspace_metadata", "building workspace metadata")
 			const workspaceMetadataEnvironmentBlock = await this.getWorkspaceMetadataEnvironmentBlock()
@@ -435,11 +435,11 @@ export class SubagentRunner {
 					// initial user message of subagent runs.
 					...(workspaceMetadataEnvironmentBlock
 						? [
-							{
-								type: "text",
-								text: workspaceMetadataEnvironmentBlock,
-							} as DiracTextContentBlock,
-						]
+								{
+									type: "text",
+									text: workspaceMetadataEnvironmentBlock,
+								} as DiracTextContentBlock,
+							]
 						: []),
 				],
 			})
@@ -497,14 +497,14 @@ export class SubagentRunner {
 						switch (chunk.type) {
 							case "usage":
 								requestId = requestId ?? chunk.id
-								stats.inputTokens += chunk.inputTokens || 0
-								stats.outputTokens += chunk.outputTokens || 0
-								stats.cacheWriteTokens += chunk.cacheWriteTokens || 0
-								stats.cacheReadTokens += chunk.cacheReadTokens || 0
-								requestUsage.inputTokens += chunk.inputTokens || 0
-								requestUsage.outputTokens += chunk.outputTokens || 0
-								requestUsage.cacheWriteTokens += chunk.cacheWriteTokens || 0
-								requestUsage.cacheReadTokens += chunk.cacheReadTokens || 0
+								stats.inputTokens += chunk.inputTokens ?? 0
+								stats.outputTokens += chunk.outputTokens ?? 0
+								stats.cacheWriteTokens += chunk.cacheWriteTokens ?? 0
+								stats.cacheReadTokens += chunk.cacheReadTokens ?? 0
+								requestUsage.inputTokens += chunk.inputTokens ?? 0
+								requestUsage.outputTokens += chunk.outputTokens ?? 0
+								requestUsage.cacheWriteTokens += chunk.cacheWriteTokens ?? 0
+								requestUsage.cacheReadTokens += chunk.cacheReadTokens ?? 0
 								requestUsage.totalTokens =
 									requestUsage.inputTokens +
 									requestUsage.outputTokens +
@@ -512,13 +512,17 @@ export class SubagentRunner {
 									requestUsage.cacheReadTokens
 								requestUsage.totalCost = chunk.totalCost ?? requestUsage.totalCost
 								// Account as usage arrives so aborts, stream failures, and wrap-up retain billed usage.
-								stats.totalCost = costBeforeRequest + (requestUsage.totalCost ?? calculateApiCostAnthropic(
-									context.providerInfo.model.info,
-									requestUsage.inputTokens,
-									requestUsage.outputTokens,
-									requestUsage.cacheWriteTokens,
-									requestUsage.cacheReadTokens,
-								) ?? 0)
+								stats.totalCost =
+									costBeforeRequest +
+									(requestUsage.totalCost ??
+										calculateApiCostAnthropic(
+											context.providerInfo.model.info,
+											requestUsage.inputTokens,
+											requestUsage.outputTokens,
+											requestUsage.cacheWriteTokens,
+											requestUsage.cacheReadTokens,
+										) ??
+										0)
 								stats.contextTokens = requestUsage.totalTokens
 								stats.contextUsagePercentage =
 									stats.contextWindow > 0 ? (stats.contextTokens / stats.contextWindow) * 100 : 0
@@ -631,7 +635,7 @@ export class SubagentRunner {
 
 				if (finalizedToolCalls.length === 0) {
 					if (this.wrapUpRequested || this.isWrappingUp) {
-						await delay(0)
+						await sleep(0)
 						continue
 					}
 
@@ -669,7 +673,7 @@ export class SubagentRunner {
 							},
 						],
 					})
-					await delay(0)
+					await sleep(0)
 					continue
 				}
 				emptyAssistantResponseRetries = 0
@@ -702,7 +706,7 @@ export class SubagentRunner {
 
 				conversation.push({ role: "user", content: toolExecResult.toolResultBlocks })
 				if (this.wrapUpRequested || this.isWrappingUp) {
-					await delay(0)
+					await sleep(0)
 					continue
 				}
 
@@ -714,7 +718,7 @@ export class SubagentRunner {
 				systemPrompt = this.contextBuilder.appendExecutionDeadline(refreshedContext.systemPrompt, timeout)
 				this.markActivity("refreshed tool and provider context")
 
-				await delay(0)
+				await sleep(0)
 			}
 		} catch (error) {
 			if (this.shouldAbort()) {
@@ -838,7 +842,7 @@ export class SubagentRunner {
 	}
 
 	private shouldCompactBeforeNextRequest(requestTotalTokens: number, configuredContextWindow?: number): boolean {
-		const contextWindow = configuredContextWindow || 256_000
+		const contextWindow = configuredContextWindow ?? 256_000
 		const maxAllowedSize = Math.min(1_000_000, Math.max(contextWindow - 40_000, contextWindow * 0.8))
 		const useAutoCondense = this.baseConfig.useAutoCondense
 		if (useAutoCondense) {
@@ -932,7 +936,7 @@ export class SubagentRunner {
 					error,
 				})
 				Logger.warn(`[SubagentRunner] Initial stream failed. Retrying attempt ${attempt + 1}.`, error)
-				await delay(delayMs)
+				await sleep(delayMs)
 			}
 		}
 	}

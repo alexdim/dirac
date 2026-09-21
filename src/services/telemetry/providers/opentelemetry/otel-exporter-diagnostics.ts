@@ -25,7 +25,7 @@ export function wrapMetricsExporterWithDiagnostics(exporter: any, protocol: stri
 
 		const wrappedCallback = (result: any) => {
 			const elapsed = Date.now() - startTime
-			const metricsCount = metrics?.resourceMetrics?.[0]?.scopeMetrics?.[0]?.metrics?.length || 0
+			const metricsCount = metrics?.resourceMetrics?.[0]?.scopeMetrics?.[0]?.metrics?.length ?? 0
 
 			if (result.code === 0) {
 				Logger.log(
@@ -69,7 +69,7 @@ export function wrapLogsExporterWithDiagnostics(exporter: any, protocol: string,
 
 		const wrappedCallback = (result: any) => {
 			const elapsed = Date.now() - startTime
-			const logsCount = logs?.resourceLogs?.[0]?.scopeLogs?.[0]?.logRecords?.length || 0
+			const logsCount = logs?.resourceLogs?.[0]?.scopeLogs?.[0]?.logRecords?.length ?? 0
 
 			if (result.code === 0) {
 				Logger.log(

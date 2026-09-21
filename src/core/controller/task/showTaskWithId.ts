@@ -48,14 +48,14 @@ export async function showTaskWithId(controller: Controller, request: StringRequ
 			return TaskResponse.create({
 				id: historyItem.id,
 				task: historyItem.task || "",
-				ts: historyItem.ts || 0,
+				ts: historyItem.ts ?? 0,
 				isFavorited: historyItem.isFavorited || false,
-				size: historyItem.size || 0,
-				totalCost: historyItem.totalCost || 0,
-				tokensIn: historyItem.tokensIn || 0,
-				tokensOut: historyItem.tokensOut || 0,
-				cacheWrites: historyItem.cacheWrites || 0,
-				cacheReads: historyItem.cacheReads || 0,
+				size: historyItem.size ?? 0,
+				totalCost: historyItem.totalCost ?? 0,
+				tokensIn: historyItem.tokensIn ?? 0,
+				tokensOut: historyItem.tokensOut ?? 0,
+				cacheWrites: historyItem.cacheWrites ?? 0,
+				cacheReads: historyItem.cacheReads ?? 0,
 			})
 		}
 
@@ -72,14 +72,14 @@ export async function showTaskWithId(controller: Controller, request: StringRequ
 		return TaskResponse.create({
 			id: fetchedItem.id,
 			task: fetchedItem.task || "",
-			ts: fetchedItem.ts || 0,
+			ts: fetchedItem.ts ?? 0,
 			isFavorited: fetchedItem.isFavorited || false,
-			size: fetchedItem.size || 0,
-			totalCost: fetchedItem.totalCost || 0,
-			tokensIn: fetchedItem.tokensIn || 0,
-			tokensOut: fetchedItem.tokensOut || 0,
-			cacheWrites: fetchedItem.cacheWrites || 0,
-			cacheReads: fetchedItem.cacheReads || 0,
+			size: fetchedItem.size ?? 0,
+			totalCost: fetchedItem.totalCost ?? 0,
+			tokensIn: fetchedItem.tokensIn ?? 0,
+			tokensOut: fetchedItem.tokensOut ?? 0,
+			cacheWrites: fetchedItem.cacheWrites ?? 0,
+			cacheReads: fetchedItem.cacheReads ?? 0,
 		})
 	} catch (error) {
 		Logger.error("Error in showTaskWithId:", error)

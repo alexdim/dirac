@@ -111,7 +111,7 @@ function createModelItems(props: UseSettingsItemsProps): ListItem[] {
 		resolveReasoningEffortForModel(planModelId, planModelInfo, planReasoningEffort) ?? planReasoningEffort
 	const isOpenRouter = provider === "openrouter"
 	const formatPinnedProviderCount = (modelId: string) => {
-		const count = openRouterPinnedProviders[modelId]?.length || 0
+		const count = openRouterPinnedProviders[modelId]?.length ?? 0
 		return count > 0 ? `${count} allowed` : "Unrestricted"
 	}
 	const providerSortingLabel = openRouterProviderSorting

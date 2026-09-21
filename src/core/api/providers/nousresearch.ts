@@ -2,12 +2,12 @@ import { ModelInfo, NousResearchModelId, nousResearchDefaultModelId, nousResearc
 import OpenAI from "openai"
 import { DiracStorageMessage } from "@/shared/messages/content"
 import { createOpenAIClient } from "@/shared/net"
+import { DiracTool } from "@/shared/tools"
 import { ApiHandler, CommonApiHandlerOptions } from "../index"
 import { withRetry } from "../retry"
 import { convertToOpenAiMessages } from "../transform/openai-format"
-import { getOpenAIToolParams, ToolCallProcessor } from "../transform/tool-call-processor"
-import { DiracTool } from "@/shared/tools"
 import { ApiStream } from "../transform/stream"
+import { getOpenAIToolParams, ToolCallProcessor } from "../transform/tool-call-processor"
 
 interface NousResearchHandlerOptions extends CommonApiHandlerOptions {
 	nousResearchApiKey?: string
@@ -83,8 +83,8 @@ export class NousResearchHandler implements ApiHandler {
 			if (chunk.usage) {
 				yield {
 					type: "usage",
-					inputTokens: chunk.usage.prompt_tokens || 0,
-					outputTokens: chunk.usage.completion_tokens || 0,
+					inputTokens: chunk.usage.prompt_tokens ?? 0,
+					outputTokens: chunk.usage.completion_tokens ?? 0,
 				}
 			}
 		}

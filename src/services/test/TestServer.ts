@@ -385,9 +385,9 @@ export async function createTestServer(controller: Controller): Promise<http.Ser
 								taskId,
 								completed: true,
 								metrics: {
-									tokensIn: taskData?.tokensIn || 0,
-									tokensOut: taskData?.tokensOut || 0,
-									cost: taskData?.totalCost || 0,
+									tokensIn: taskData?.tokensIn ?? 0,
+									tokensOut: taskData?.tokensOut ?? 0,
+									cost: taskData?.totalCost ?? 0,
 									duration: taskDuration,
 									...toolMetrics,
 								},

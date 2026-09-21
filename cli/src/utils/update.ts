@@ -295,8 +295,8 @@ function compareVersions(v1: string, v2: string): number {
 
 	// Compare base versions first
 	for (let i = 0; i < Math.max(p1.base.length, p2.base.length); i++) {
-		const part1 = p1.base[i] || 0
-		const part2 = p2.base[i] || 0
+		const part1 = p1.base[i] ?? 0
+		const part2 = p2.base[i] ?? 0
 
 		if (part1 > part2) return 1
 		if (part1 < part2) return -1

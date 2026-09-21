@@ -174,7 +174,7 @@ export async function regexSearchFiles(
 	signal?: AbortSignal,
 ): Promise<string> {
 	// Limit context lines to 10
-	const cappedContextLines = Math.max(0, Math.min(10, contextLines || 0))
+	const cappedContextLines = Math.max(0, Math.min(10, contextLines ?? 0))
 	const args = ["--json", "-e", regex, "--glob", filePattern || "*", "--context", cappedContextLines.toString()]
 	if (excludeFilePatterns) {
 		for (const pattern of excludeFilePatterns) {
@@ -248,9 +248,10 @@ export async function formatResults(
 	includeAnchors?: boolean,
 	onAnchorStateChanged?: (absolutePath: string) => void,
 ): Promise<string> {
-	let output = matchCount >= MAX_RESULTS
-		? `Showing first ${MAX_RESULTS} of ${matchCount.toLocaleString()}+ results. Use a more specific search if necessary.\n\n`
-		: `Found ${matchCount === 1 ? "1 result" : `${matchCount.toLocaleString()} results`}.\n\n`
+	let output =
+		matchCount >= MAX_RESULTS
+			? `Showing first ${MAX_RESULTS} of ${matchCount.toLocaleString()}+ results. Use a more specific search if necessary.\n\n`
+			: `Found ${matchCount === 1 ? "1 result" : `${matchCount.toLocaleString()} results`}.\n\n`
 	let byteSize = Buffer.byteLength(output, "utf8")
 	let wasLimitReached = false
 
@@ -321,9 +322,7 @@ export async function formatResults(
 				byteSize += Buffer.byteLength(separator, "utf8")
 			}
 
-			const displayLine = includeAnchors
-				? formatLineWithHash(sourceLine, anchors![line.lineNum - 1])
-				: sourceLine
+			const displayLine = includeAnchors ? formatLineWithHash(sourceLine, anchors![line.lineNum - 1]) : sourceLine
 			const lineString = includeAnchors ? `${displayLine}\n` : `│${displayLine}\n`
 			if (byteSize + Buffer.byteLength(lineString, "utf8") >= MAX_BYTE_SIZE) {
 				wasLimitReached = true

@@ -184,7 +184,9 @@ export class TaskCheckpointManager implements ICheckpointManager {
 						?.commit()
 						.then(async (commitHash) => {
 							if (commitHash) {
-								await this.services.messageStateHandler.patchMessageById(cardHandle.id, { lastCheckpointHash: commitHash })
+								await this.services.messageStateHandler.patchMessageById(cardHandle.id, {
+									lastCheckpointHash: commitHash,
+								})
 								await this.services.messageStateHandler.saveDiracMessagesAndUpdateHistory()
 							}
 						})
@@ -211,11 +213,15 @@ export class TaskCheckpointManager implements ICheckpointManager {
 				const commitHash = await this.storage.getTracker()?.commit()
 				if (completionMessageId) {
 					if (this.services.messageStateHandler.getMessageById(completionMessageId)) {
-						await this.services.messageStateHandler.patchMessageById(completionMessageId, { lastCheckpointHash: commitHash })
+						await this.services.messageStateHandler.patchMessageById(completionMessageId, {
+							lastCheckpointHash: commitHash,
+						})
 						await this.services.messageStateHandler.saveDiracMessagesAndUpdateHistory()
 					}
 				} else if (lastCompletionResultMessage) {
-					await this.services.messageStateHandler.patchMessageById(lastCompletionResultMessage.id, { lastCheckpointHash: commitHash })
+					await this.services.messageStateHandler.patchMessageById(lastCompletionResultMessage.id, {
+						lastCheckpointHash: commitHash,
+					})
 					await this.services.messageStateHandler.saveDiracMessagesAndUpdateHistory()
 				}
 			}
@@ -307,7 +313,7 @@ export class TaskCheckpointManager implements ICheckpointManager {
 				return false
 			}
 
-			const changedFilesCount = (await this.storage.getTracker()?.getDiffCount(previousCheckpointHash, hash)) || 0
+			const changedFilesCount = (await this.storage.getTracker()?.getDiffCount(previousCheckpointHash, hash)) ?? 0
 			return changedFilesCount > 0
 		} catch (error) {
 			const errorMessage = getErrorMessage(error, "Unknown error")

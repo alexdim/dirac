@@ -45,14 +45,14 @@ function parseGroqResponse(rawModels: any): Record<string, ModelInfo> {
 		if (!isValidChatModel(rawModel)) continue
 		const staticModelInfo: ModelInfo | undefined = groqModels[rawModel.id as keyof typeof groqModels]
 		models[rawModel.id] = {
-			maxTokens: rawModel.max_completion_tokens || staticModelInfo?.maxTokens || 8192,
-			contextWindow: rawModel.context_window || staticModelInfo?.contextWindow || 8192,
+			maxTokens: rawModel.max_completion_tokens ?? staticModelInfo?.maxTokens ?? 8192,
+			contextWindow: rawModel.context_window ?? staticModelInfo?.contextWindow ?? 8192,
 			supportsImages: detectImageSupport(rawModel, staticModelInfo),
 			supportsPromptCache: staticModelInfo?.supportsPromptCache || false,
-			inputPrice: staticModelInfo?.inputPrice || 0,
-			outputPrice: staticModelInfo?.outputPrice || 0,
-			cacheWritesPrice: staticModelInfo?.cacheWritesPrice || 0,
-			cacheReadsPrice: staticModelInfo?.cacheReadsPrice || 0,
+			inputPrice: staticModelInfo?.inputPrice ?? 0,
+			outputPrice: staticModelInfo?.outputPrice ?? 0,
+			cacheWritesPrice: staticModelInfo?.cacheWritesPrice ?? 0,
+			cacheReadsPrice: staticModelInfo?.cacheReadsPrice ?? 0,
 			description: generateModelDescription(rawModel, staticModelInfo),
 		}
 	}
@@ -69,8 +69,8 @@ function getGroqStaticModels(): Record<string, ModelInfo> {
 			supportsPromptCache: modelInfo.supportsPromptCache,
 			inputPrice: modelInfo.inputPrice,
 			outputPrice: modelInfo.outputPrice,
-			cacheWritesPrice: modelInfo.cacheWritesPrice || 0,
-			cacheReadsPrice: modelInfo.cacheReadsPrice || 0,
+			cacheWritesPrice: modelInfo.cacheWritesPrice ?? 0,
+			cacheReadsPrice: modelInfo.cacheReadsPrice ?? 0,
 			description: modelInfo.description || `${modelId} model`,
 		}
 	}
@@ -95,7 +95,7 @@ function detectImageSupport(rawModel: any, staticModelInfo?: any): boolean {
 function generateModelDescription(rawModel: any, staticModelInfo?: any): string {
 	if (staticModelInfo?.description) return staticModelInfo.description
 	const modelId = rawModel.id
-	const contextWindow = rawModel.context_window || 8192
+	const contextWindow = rawModel.context_window ?? 8192
 	const ownedBy = rawModel.owned_by || "Unknown"
 	if (modelId.includes("compound"))
 		return `${ownedBy}'s ${modelId} model with ${contextWindow.toLocaleString()} token context window - Advanced compound architecture`

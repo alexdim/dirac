@@ -21,14 +21,14 @@ export async function runSearch(
 ): Promise<SearchResult[] | null> {
 	const wm = await controller.ensureWorkspaceManager()
 	if (wm && wm.getRoots()?.length > 0)
-		return searchWorkspaceFilesMultiroot(request.query || "", wm, request.limit || 20, selectedType, request.workspaceHint)
+		return searchWorkspaceFilesMultiroot(request.query || "", wm, request.limit ?? 20, selectedType, request.workspaceHint)
 	const workspacePath = await getWorkspacePath()
 	if (!workspacePath) {
 		Logger.error("Error in searchFiles: No workspace path available")
 		telemetryService.captureMentionFailed("folder", "not_found", "No workspace path available")
 		return null
 	}
-	return searchWorkspaceFiles(request.query || "", workspacePath, request.limit || 20, selectedType)
+	return searchWorkspaceFiles(request.query || "", workspacePath, request.limit ?? 20, selectedType)
 }
 // Resolves an absolute path to a workspace-relative POSIX-style path
 function toRelativePath(workspacePath: string, absolutePath: string): string {

@@ -34,14 +34,14 @@ function parseBasetenResponse(rawModels: any): Record<string, ModelInfo> {
 		const staticModelInfo = basetenModels[rawModel.id as keyof typeof basetenModels]
 		const supportThinking = rawModel?.supported_features?.some((p: string) => p === "reasoning_effort" || p === "reasoning")
 		models[rawModel.id] = {
-			maxTokens: (rawModel.max_completion_tokens || staticModelInfo?.maxTokens) ?? 8192,
-			contextWindow: (rawModel.context_length || staticModelInfo?.contextWindow) ?? 8192,
+			maxTokens: rawModel.max_completion_tokens ?? staticModelInfo?.maxTokens ?? 8192,
+			contextWindow: rawModel.context_length ?? staticModelInfo?.contextWindow ?? 8192,
 			supportsImages: false, // Baseten model APIs does not support image input
 			supportsPromptCache: staticModelInfo?.supportsPromptCache || false,
-			inputPrice: parsePrice(rawModel.pricing?.prompt) || staticModelInfo?.inputPrice || 0,
-			outputPrice: parsePrice(rawModel.pricing?.completion) || staticModelInfo?.outputPrice || 0,
-			cacheWritesPrice: staticModelInfo?.cacheWritesPrice || 0,
-			cacheReadsPrice: staticModelInfo?.cacheReadsPrice || 0,
+			inputPrice: parsePrice(rawModel.pricing?.prompt) ?? staticModelInfo?.inputPrice ?? 0,
+			outputPrice: parsePrice(rawModel.pricing?.completion) ?? staticModelInfo?.outputPrice ?? 0,
+			cacheWritesPrice: staticModelInfo?.cacheWritesPrice ?? 0,
+			cacheReadsPrice: staticModelInfo?.cacheReadsPrice ?? 0,
 			description: generateModelDescription(rawModel, staticModelInfo),
 			supportsReasoning: supportThinking || false,
 			thinkingConfig: supportThinking ? { maxBudget: ANTHROPIC_MAX_THINKING_BUDGET } : undefined,
@@ -60,8 +60,8 @@ function getBasetenStaticModels(): Record<string, ModelInfo> {
 			supportsPromptCache: modelInfo.supportsPromptCache,
 			inputPrice: modelInfo.inputPrice,
 			outputPrice: modelInfo.outputPrice,
-			cacheWritesPrice: modelInfo.cacheWritesPrice || 0,
-			cacheReadsPrice: modelInfo.cacheReadsPrice || 0,
+			cacheWritesPrice: modelInfo.cacheWritesPrice ?? 0,
+			cacheReadsPrice: modelInfo.cacheReadsPrice ?? 0,
 			description: modelInfo.description || `${modelId} model`,
 			supportsReasoning: modelInfo.supportsReasoning || false,
 			thinkingConfig: modelInfo.supportsReasoning ? { maxBudget: ANTHROPIC_MAX_THINKING_BUDGET } : undefined,

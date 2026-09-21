@@ -119,13 +119,13 @@ export class CerebrasHandler implements ApiHandler {
 				if (chunk.usage) {
 					const usage = chunk.usage
 					const totalCost = this.calculateCost({
-						inputTokens: usage.prompt_tokens || 0,
-						outputTokens: usage.completion_tokens || 0,
+						inputTokens: usage.prompt_tokens ?? 0,
+						outputTokens: usage.completion_tokens ?? 0,
 					})
 					yield {
 						type: "usage",
-						inputTokens: usage.prompt_tokens || 0,
-						outputTokens: usage.completion_tokens || 0,
+						inputTokens: usage.prompt_tokens ?? 0,
+						outputTokens: usage.completion_tokens ?? 0,
 						cacheReadTokens: 0,
 						cacheWriteTokens: 0,
 						totalCost,
@@ -223,8 +223,8 @@ export class CerebrasHandler implements ApiHandler {
 
 	private calculateCost({ inputTokens, outputTokens }: { inputTokens: number; outputTokens: number }): number {
 		const model = this.getModel()
-		const inputPrice = model.info.inputPrice || 0
-		const outputPrice = model.info.outputPrice || 0
+		const inputPrice = model.info.inputPrice ?? 0
+		const outputPrice = model.info.outputPrice ?? 0
 
 		const inputCost = (inputPrice / 1_000_000) * inputTokens
 		const outputCost = (outputPrice / 1_000_000) * outputTokens

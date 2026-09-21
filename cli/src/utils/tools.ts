@@ -231,7 +231,7 @@ export function getToolMainArg(toolName: string, args: Record<string, unknown>):
 
 		if (typeof path === "string" && path !== "Multiple files") return path
 		if (typeof filesCount === "number" && filesCount > 0) {
-			return `${filesCount} files (${editsCount || 0} edits)`
+			return `${filesCount} files (${editsCount ?? 0} edits)`
 		}
 		if (typeof path === "string") return path
 	}

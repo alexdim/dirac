@@ -1,6 +1,13 @@
+import { DiracMessageType, UIActionButtonType } from "@shared/ExtensionMessage"
+import type { GoalStatus } from "@shared/goal"
 import { useInput } from "ink"
-import { isMouseEscapeSequence, isTerminalResponseSequence } from "../utils/input"
+import { getVisibleGlobalActionButtons } from "../utils/action-buttons"
+import { readImageFromClipboard } from "../utils/clipboard-image"
+import { moveCursorDown, moveCursorUp } from "../utils/cursor"
 import { extractMentionQuery, insertMention } from "../utils/file-search"
+import type { GoalLifecycleAction } from "../utils/goals"
+import { isMouseEscapeSequence, isTerminalResponseSequence } from "../utils/input"
+import { parseImagesFromInput } from "../utils/parser"
 import {
 	executeLocalSlashCommand,
 	executeStandaloneLocalSlashCommand,
@@ -8,13 +15,6 @@ import {
 	insertSlashCommand,
 } from "../utils/slash-commands"
 import { findWordEnd, findWordStart } from "./useTextInput"
-import { moveCursorDown, moveCursorUp } from "../utils/cursor"
-import { parseImagesFromInput } from "../utils/parser"
-import { readImageFromClipboard } from "../utils/clipboard-image"
-import { getVisibleGlobalActionButtons } from "../utils/action-buttons"
-import { DiracMessageType, UIActionButtonType } from "@shared/ExtensionMessage"
-import type { GoalStatus } from "@shared/goal"
-import type { GoalLifecycleAction } from "../utils/goals"
 
 export type GoalKeyboardShortcut = GoalLifecycleAction | "details"
 
@@ -385,7 +385,7 @@ export function useChatInputHandler({
 
 			if (timeSinceLastPaste < PASTE_CHUNK_WINDOW_MS && activePasteNumRef.current > 0) {
 				const pasteNum = activePasteNumRef.current
-				const chunkLines = input.match(/[\r\n]/g)?.length || 0
+				const chunkLines = input.match(/[\r\n]/g)?.length ?? 0
 				activePasteLinesRef.current += chunkLines
 
 				setPastedTexts((prev) => {
@@ -416,7 +416,7 @@ export function useChatInputHandler({
 			const pasteNum = pasteCounterRef.current
 			activePasteNumRef.current = pasteNum
 			activePasteStartPosRef.current = currentCursorPos
-			const extraLines = input.match(/[\r\n]/g)?.length || 0
+			const extraLines = input.match(/[\r\n]/g)?.length ?? 0
 			activePasteLinesRef.current = extraLines
 			const placeholder = `[Pasted text #${pasteNum} +${extraLines} lines]`
 			setPastedTexts((prev) => {

@@ -3,12 +3,12 @@ import { randomUUID } from "node:crypto"
 import { existsSync, readFileSync } from "node:fs"
 import path from "node:path"
 import type * as acp from "@agentclientprotocol/sdk"
-import * as Diff from "diff"
 import type { ApiConfiguration } from "@shared/api"
-import type { DiracStorageMessage } from "@/shared/messages/content"
-import { Logger } from "@/shared/services/Logger.js"
+import * as Diff from "diff"
 import { buildApiHandler } from "@/core/api"
 import type { Controller } from "@/core/controller"
+import type { DiracStorageMessage } from "@/shared/messages/content"
+import { Logger } from "@/shared/services/Logger.js"
 
 const EMPTY_TREE_SHA = "4b825dc642cb6eb9a060e54bf8d69288fbee4904"
 
@@ -148,7 +148,7 @@ export function formatReviewFindings(findings: ReviewFinding[]): string {
 
 	return sorted
 		.map((finding) => {
-			const line = Math.max(1, Math.trunc(finding.line || 1))
+			const line = Math.max(1, Math.trunc(finding.line ?? 1))
 			return `- ${finding.path}:${line} [${finding.severity}] ${finding.title}\n${finding.explanation}`
 		})
 		.join("\n\n")
