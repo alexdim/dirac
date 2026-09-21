@@ -43,10 +43,15 @@ export function buildOrchestrationTrait(config: TaskConfig): IOrchestrationTrait
 				recorder,
 			})
 			const usage = new SubagentUsagePublisher(config.messageState, config.callbacks.postStateToWebview, agentIdentity.name)
-			const result = await runner.run(prompt, async (update) => {
-				if (update.stats) await usage.update(update.stats)
-				await options?.onUpdate?.(update)
-			}, options?.timeout, options?.includeHistory)
+			const result = await runner.run(
+				prompt,
+				async (update) => {
+					if (update.stats) await usage.update(update.stats)
+					await options?.onUpdate?.(update)
+				},
+				options?.timeout,
+				options?.includeHistory,
+			)
 			await usage.finish(result.stats)
 			return result
 		},
@@ -54,7 +59,7 @@ export function buildOrchestrationTrait(config: TaskConfig): IOrchestrationTrait
 			const { executeHook } = await import("@core/hooks/hook-executor")
 			return await executeHook({
 				hookName: name as keyof Hooks,
-				hookInput: input,
+				hookInput: input as Hooks[keyof Hooks],
 				messenger: config.taskMessenger,
 				isCancellable: options?.isCancellable ?? false,
 				setActiveHookExecution: config.callbacks.setActiveHookExecution,

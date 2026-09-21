@@ -1,46 +1,46 @@
+import { AnchorStateManager } from "@utils/AnchorStateManager"
 import { IDiracContext } from "../interfaces/IDiracContext"
 import {
 	CardParams,
 	IAnchorTrait,
 	IBrowserTrait,
 	ICardHandle,
+	IConversationCondensationTrait,
 	IDiagnosticsTrait,
 	IEditorTrait,
 	IInteractionTrait,
 	ILoggingTrait,
 	IOrchestrationTrait,
+	IResponseObserverTrait,
 	ISkillsTrait,
 	ISourceAstTrait,
-	IConversationCondensationTrait,
 	ISystemTrait,
-	SystemCommandResult,
 	ITelemetryTrait,
 	IUITrait,
 	IWorkspaceTrait,
-	IResponseObserverTrait,
+	SystemCommandResult,
+	TelemetryMetadata,
 } from "../interfaces/IToolEnvironment"
-import type { ToolExecutionEnvironment, ToolEnvironmentFactory } from "../interfaces/ToolEnvironmentFactory"
+import type { ToolEnvironmentFactory, ToolExecutionEnvironment } from "../interfaces/ToolEnvironmentFactory"
 import { TaskConfig } from "../types/TaskConfig"
 import { CardHandle } from "./CardHandle"
+import { buildBrowserTrait } from "./traits/BrowserTraitBuilder"
+import { buildConversationCondensationTrait } from "./traits/ConversationCondensationTraitBuilder"
 import { buildDiagnosticsTrait } from "./traits/DiagnosticsTraitBuilder"
 import { buildEditorTrait } from "./traits/EditorTraitBuilder"
-import { buildSourceAstTrait } from "./traits/SourceAstTraitBuilder"
-import { buildBrowserTrait } from "./traits/BrowserTraitBuilder"
 import { buildLoggingTrait } from "./traits/LoggingTraitBuilder"
 import { buildOrchestrationTrait } from "./traits/OrchestrationTraitBuilder"
 import { buildSkillsTrait } from "./traits/SkillsTraitBuilder"
+import { buildSourceAstTrait } from "./traits/SourceAstTraitBuilder"
 import { buildSystemTrait } from "./traits/SystemTraitBuilder"
+import { buildTelemetryTrait } from "./traits/TelemetryTraitBuilder"
 import {
 	buildInteractionTrait,
 	buildUiTrait,
 	createCardFromMessenger,
 	createManualInteractionCardFromMessenger,
 } from "./traits/UiTraitBuilder"
-import { buildTelemetryTrait } from "./traits/TelemetryTraitBuilder"
 import { buildWorkspaceTrait } from "./traits/WorkspaceTraitBuilder"
-import { buildConversationCondensationTrait } from "./traits/ConversationCondensationTraitBuilder"
-
-import { AnchorStateManager } from "@utils/AnchorStateManager"
 /**
  * SurfaceAdapter provides the standard implementation of IToolEnvironment for the Dirac surface.
  * It connects modular tools to the core services and capabilities of the Dirac application.
@@ -64,7 +64,7 @@ export class SurfaceAdapter implements ToolExecutionEnvironment {
 	public readonly logging: ILoggingTrait
 	public readonly context: IDiracContext
 
-	public customMetadata: Record<string, any> = {}
+	public customMetadata: TelemetryMetadata = {}
 	private createdCards: CardHandle[] = []
 
 	constructor(
@@ -72,11 +72,7 @@ export class SurfaceAdapter implements ToolExecutionEnvironment {
 		public readonly toolName: string = "",
 	) {
 		this.logging = buildLoggingTrait()
-		this.ui = buildUiTrait(
-			config,
-			this.createCard.bind(this),
-			this.createManualInteractionCard.bind(this),
-		)
+		this.ui = buildUiTrait(config, this.createCard.bind(this), this.createManualInteractionCard.bind(this))
 		this.interaction = buildInteractionTrait(config, this.createCard.bind(this))
 		this.browser = buildBrowserTrait(config)
 		this.skills = buildSkillsTrait(config)
@@ -90,8 +86,7 @@ export class SurfaceAdapter implements ToolExecutionEnvironment {
 				if (result.changed) config.context.markAnchorStateDirty(absolutePath)
 				return result.anchors
 			},
-			getDocumentFingerprint: (absolutePath) =>
-				AnchorStateManager.getDocumentFingerprint(absolutePath, config.ulid),
+			getDocumentFingerprint: (absolutePath) => AnchorStateManager.getDocumentFingerprint(absolutePath, config.ulid),
 			clear: (absolutePath) => {
 				AnchorStateManager.clearState(absolutePath, config.ulid)
 				config.context.markAnchorStateDirty(absolutePath)
@@ -102,12 +97,10 @@ export class SurfaceAdapter implements ToolExecutionEnvironment {
 		this.context = config.context
 		this.orchestration = buildOrchestrationTrait(config)
 		this.responseObserver = { recordResponse: async () => undefined }
-		this.conversationCondensation = config.isSubagentExecution
-			? undefined
-			: buildConversationCondensationTrait(config)
+		this.conversationCondensation = config.isSubagentExecution ? undefined : buildConversationCondensationTrait(config)
 	}
 
-	public getCustomMetadata(): Record<string, any> {
+	public getCustomMetadata(): TelemetryMetadata {
 		return this.customMetadata
 	}
 

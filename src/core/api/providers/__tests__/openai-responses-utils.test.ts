@@ -13,14 +13,11 @@ import {
 describe("yieldUsage", () => {
 	it("does not bill reasoning tokens twice", async () => {
 		const chunks: any[] = []
-		for await (const chunk of yieldUsage(
-			{ inputPrice: 1, outputPrice: 2 } as any,
-			{
-				input_tokens: 100,
-				output_tokens: 30,
-				output_tokens_details: { reasoning_tokens: 20 },
-			},
-		)) {
+		for await (const chunk of yieldUsage({ inputPrice: 1, outputPrice: 2 } as any, {
+			input_tokens: 100,
+			output_tokens: 30,
+			output_tokens_details: { reasoning_tokens: 20 },
+		})) {
 			chunks.push(chunk)
 		}
 
@@ -30,7 +27,6 @@ describe("yieldUsage", () => {
 		expect(chunks[0].totalCost).to.be.approximately(0.00016, 1e-12)
 	})
 })
-
 
 describe("OpenAI service tiers", () => {
 	it("maps configured speeds to native and Codex request tiers", () => {
@@ -196,7 +192,7 @@ describe("processResponsesEvents", () => {
 
 		const argumentsChunks: string[] = []
 		for await (const chunk of processResponsesEvents(stream() as any, {} as any)) {
-			if (chunk.type === "tool_calls") argumentsChunks.push(chunk.tool_call.function.arguments)
+			if (chunk.type === "tool_calls") argumentsChunks.push(chunk.tool_call.function.arguments ?? "")
 		}
 
 		argumentsChunks.join("").should.equal('{"path":"a"}')
@@ -222,7 +218,7 @@ describe("processResponsesEvents", () => {
 
 		const argumentsChunks: string[] = []
 		for await (const chunk of processResponsesEvents(stream() as any, {} as any)) {
-			if (chunk.type === "tool_calls") argumentsChunks.push(chunk.tool_call.function.arguments)
+			if (chunk.type === "tool_calls") argumentsChunks.push(chunk.tool_call.function.arguments ?? "")
 		}
 
 		argumentsChunks.join("").should.equal('{"path":"a"}')
@@ -272,7 +268,6 @@ describe("processResponsesEvents", () => {
 		reasoning.should.equal("**Planning layout restoration**\n\n**Refining spacing**")
 	})
 
-
 	it("preserves structured metadata from error events", async () => {
 		async function* stream() {
 			yield {
@@ -294,14 +289,11 @@ describe("processResponsesEvents", () => {
 		}
 
 		expect(caughtError).to.be.instanceOf(Error)
-		expect(caughtError.message).to.equal(
-			"Codex API stream error: Your input exceeds the context window of this model.",
-		)
+		expect(caughtError.message).to.equal("Codex API stream error: Your input exceeds the context window of this model.")
 		expect(caughtError.code).to.equal("context_length_exceeded")
 		expect(caughtError.status).to.equal(400)
 		expect(caughtError.details).to.deep.equal({ param: "input" })
 	})
-
 
 	it("reports completed response IDs to the caller", async () => {
 		async function* stream() {

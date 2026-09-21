@@ -1,6 +1,5 @@
-import { Logger } from "@/shared/services/Logger"
-
 import type { ChatCompletionToolChoiceOption, ChatCompletionTool as OpenAITool } from "openai/resources/chat/completions"
+import { Logger } from "@/shared/services/Logger"
 import type { ApiStreamToolCallsChunk } from "./stream"
 
 // Generalized tool call delta that accepts null for id/index (Cerebras SDK returns null)
@@ -65,24 +64,25 @@ export class ToolCallProcessor {
 					tool_call:
 						toolCallState.name === "web_search"
 							? {
-								call_id: toolCallState.id,
-								type: "web_search",
-								web_search: toolCallDelta.web_search || { query: "" },
-								function: {
-									id: toolCallState.id,
-									name: "web_search",
-									arguments: toolCallDelta.web_search?.query || "",
-								},
-							}
+									call_id: toolCallState.id,
+									type: "web_search",
+									web_search: toolCallDelta.web_search || { query: "" },
+									function: {
+										id: toolCallState.id,
+										name: "web_search",
+										arguments: toolCallDelta.web_search?.query || "",
+									},
+								}
 							: {
-								...toolCallDelta,
-								call_id: toolCallState.id,
-								function: {
-									...toolCallDelta.function,
-									id: toolCallState.id,
-									name: toolCallState.name,
+									...toolCallDelta,
+									call_id: toolCallState.id,
+									function: {
+										...toolCallDelta.function,
+										id: toolCallState.id,
+										name: toolCallState.name,
+										arguments: toolCallDelta.function?.arguments ?? undefined,
+									},
 								},
-							},
 				}
 			}
 		}
@@ -115,7 +115,7 @@ export class ToolCallProcessor {
 }
 
 // ChatCompletionTool doesn't include web_search; define the shape we use
-interface WebSearchChatTool {
+export interface WebSearchChatTool {
 	type: "web_search"
 	search_context_size?: string
 	filters?: object
@@ -128,14 +128,14 @@ function isWebSearchTool(tool: OpenAITool | WebSearchChatTool): tool is WebSearc
 	return tool.type === "web_search"
 }
 
-export function getOpenAIToolParams(tools?: OpenAITool[], enableParallelToolCalls = false) {
+export function getOpenAIToolParams(tools?: (OpenAITool | WebSearchChatTool)[], enableParallelToolCalls = false) {
 	if (!tools?.length) {
 		return {
 			tools: undefined,
 		}
 	}
 
-	const mappedTools = (tools as (OpenAITool | WebSearchChatTool)[]).map((tool) => {
+	const mappedTools = tools.map((tool) => {
 		if (tool.type === "function") {
 			return tool
 		}

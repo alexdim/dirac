@@ -3,10 +3,10 @@ import type { ApiStream, ApiStreamChunk } from "@core/api/transform/stream"
 import { UtilityModelCancelledError, type UtilityModelRequest } from "@core/utility-model/UtilityModelRunner"
 import sinon from "sinon"
 import {
-    UTILITY_PERMISSION_SYSTEM_PROMPT,
-    UtilityPermissionDecisionService,
-    type UtilityPermissionRequest,
-    type UtilityPermissionRequestRunner,
+	UTILITY_PERMISSION_SYSTEM_PROMPT,
+	UtilityPermissionDecisionService,
+	type UtilityPermissionRequest,
+	type UtilityPermissionRequestRunner,
 } from "./UtilityPermissionDecisionService"
 
 const REQUEST: UtilityPermissionRequest = {
@@ -30,7 +30,7 @@ function stream(...chunks: ApiStreamChunk[]): ApiStream {
 
 function stalledStream(): ApiStream {
 	return (async function* () {
-		await new Promise<void>(() => { })
+		await new Promise<void>(() => {})
 		yield { type: "text", text: "unreachable" }
 	})()
 }
@@ -122,7 +122,7 @@ describe("UtilityPermissionDecisionService", () => {
 		const run = sinon.stub<[UtilityModelRequest], ApiStream>().returns(
 			stream({
 				type: "tool_calls",
-				tool_call: { function: { name: "execute_command", arguments: {} } },
+				tool_call: { function: { name: "execute_command", arguments: "{}" } },
 			}),
 		)
 		const service = new UtilityPermissionDecisionService({ run }, "policy")

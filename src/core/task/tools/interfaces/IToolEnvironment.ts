@@ -1,5 +1,5 @@
+import type { ImageBlockParam } from "@anthropic-ai/sdk/resources/messages/messages"
 import type { TextCondensationTemplateId } from "@core/text-condensation/TextCondenser"
-import type { TextFileWindow, TextFileWindowOptions } from "@shared/text-file-window"
 import type {
 	AstImplementationRequest,
 	AstImplementationResult,
@@ -11,36 +11,31 @@ import type {
 	AstReplacementRequest,
 	SourceMutationPlan,
 } from "@services/source-ast/types"
+import type { GoalChildRecord, GoalChildRole, GoalChildStatus, GoalObjectiveRevision, GoalTaskSummary } from "@shared/goal"
 import { FileDiagnostics } from "@shared/proto/index.dirac"
+import type { ResponseArguments } from "@shared/responseTool"
 import type { SubagentIdentity } from "@shared/subagents"
+import type { TextFileWindow, TextFileWindowOptions } from "@shared/text-file-window"
 import { FileInfo } from "../../../../services/glob/list-files"
 import {
 	ActionButton,
 	BrowserActionResult,
 	Card,
-	CardParams as SharedCardParams,
 	CardLocation,
 	CardStatus,
 	CleanupStrategy,
 	DiracMessage,
 	RenderType,
+	CardParams as SharedCardParams,
 } from "../../../../shared/ExtensionMessage"
+import type { DiracStorageMessage } from "../../../../shared/messages/content"
 import { SkillContent, SkillMetadata } from "../../../../shared/skills"
 import { DiracAskResponse } from "../../../../shared/WebviewMessage"
-import type { DiracStorageMessage } from "../../../../shared/messages/content"
 import { HookExecutionResult } from "../../../hooks/hook-executor"
 import { TaskState } from "../../TaskState"
 import { SubagentProgressUpdate, SubagentRunResult } from "../subagent/SubagentRunner"
 import { TaskConfig } from "../types/TaskConfig"
 import { IDiracContext } from "./IDiracContext"
-import type {
-	GoalChildRecord,
-	GoalChildRole,
-	GoalChildStatus,
-	GoalObjectiveRevision,
-	GoalTaskSummary,
-} from "@shared/goal"
-import type { ResponseArguments } from "@shared/responseTool"
 
 export interface ICardHandle {
 	readonly collapsed: boolean
@@ -159,12 +154,17 @@ export interface PermissionPreview {
 	rawInput?: import("../../../../shared/ExtensionMessage").CardRawInput
 }
 
+/**
+ * Flat key→primitive telemetry payload; must stay serializable for analytics backends.
+ */
+export type TelemetryMetadata = Record<string, string | number | boolean | string[] | undefined>
+
 export interface ITelemetryTrait {
 	/**
 	 * Captures custom tool usage telemetry.
 	 * Standard telemetry (invocation, duration, success) is handled automatically by the coordinator.
 	 */
-	captureCustomMetadata(metadata: Record<string, any>): void
+	captureCustomMetadata(metadata: TelemetryMetadata): void
 	captureTaskCompleted(): void
 	captureOptionSelected(optionCount: number, mode: import("@shared/storage/types").Mode): void
 	captureOptionsIgnored(optionCount: number, mode: import("@shared/storage/types").Mode): void
@@ -256,7 +256,7 @@ export interface IWorkspaceTrait {
 	/**
 	 * Reads the content of a file, handling rich formats (PDF, DOCX, images).
 	 */
-	readRichFile(path: string): Promise<{ text: string; imageBlock?: any }>
+	readRichFile(path: string): Promise<{ text: string; imageBlock?: ImageBlockParam }>
 	/** Loads user-attached files into model-facing text. */
 	formatAttachedFiles(paths: string[]): Promise<string>
 	/**
@@ -340,7 +340,7 @@ export interface IOrchestrationTrait {
 	/**
 	 * Executes a lifecycle hook.
 	 */
-	runHook(name: string, input: any, options?: { isCancellable?: boolean }): Promise<HookExecutionResult>
+	runHook(name: string, input: unknown, options?: { isCancellable?: boolean }): Promise<HookExecutionResult>
 
 	/**
 	 * Transitions the agent from Plan Mode to Act Mode.
@@ -453,12 +453,12 @@ export interface IDiagnosticsTrait {
 }
 
 export interface ILoggingTrait {
-	error(message: string, ...args: any[]): void
-	warn(message: string, ...args: any[]): void
-	info(message: string, ...args: any[]): void
-	debug(message: string, ...args: any[]): void
-	log(message: string, ...args: any[]): void
-	trace(message: string, ...args: any[]): void
+	error(message: string, ...args: unknown[]): void
+	warn(message: string, ...args: unknown[]): void
+	info(message: string, ...args: unknown[]): void
+	debug(message: string, ...args: unknown[]): void
+	log(message: string, ...args: unknown[]): void
+	trace(message: string, ...args: unknown[]): void
 }
 
 export interface IAnchorTrait {

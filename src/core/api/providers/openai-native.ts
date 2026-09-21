@@ -28,7 +28,7 @@ import { convertToOpenAiMessages } from "../transform/openai-format"
 import { convertToOpenAIResponsesInput } from "../transform/openai-response-format"
 import { formatOpenAiCompatibleUsage } from "../transform/openai-usage"
 import { ApiStream } from "../transform/stream"
-import { getOpenAIToolParams, ToolCallProcessor } from "../transform/tool-call-processor"
+import { getOpenAIToolParams, ToolCallProcessor, type WebSearchChatTool } from "../transform/tool-call-processor"
 import {
 	buildResponseCreateParams,
 	getOpenAIServiceTier,
@@ -68,7 +68,6 @@ export class OpenAiNativeHandler implements ApiHandler {
 		}
 		return false
 	}
-
 
 	private isCurrentModelResponse(message: DiracStorageMessage, modelId: OpenAiNativeModelId): boolean {
 		return (
@@ -122,32 +121,38 @@ export class OpenAiNativeHandler implements ApiHandler {
 			throw new Error("OpenAI Native conversation compaction requires the Responses API")
 		}
 
-		const finalTools = [...((request.tools ?? []) as ChatCompletionTool[]), { type: "web_search" } as any]
+		const finalTools: (ChatCompletionTool | WebSearchChatTool)[] = [
+			...((request.tools ?? []) as ChatCompletionTool[]),
+			{ type: "web_search" },
+		]
 		const responseTools = mapResponseTools(finalTools, model.info.supportsStrictTools)
-		const input = [
-			...(request.checkpoint?.input ?? []),
+		// checkpoint.input is opaque provider state; here it is a previously-returned ResponseInput
+		const input: OpenAI.Responses.ResponseInput = [
+			...((request.checkpoint?.input ?? []) as OpenAI.Responses.ResponseInput),
 			...convertToOpenAIResponsesInput(request.messages).input,
 		]
 		const fullParams = buildResponseCreateParams({
 			modelId: model.id,
 			systemPrompt: request.systemPrompt,
-			input: input as any,
+			input,
 			tools: responseTools,
 			reasoningEffort: this.options.reasoningEffort,
 			reasoningContext: usePersistedReasoning ? "all_turns" : undefined,
 			enableParallelToolCalling: this.shouldEnableParallelToolCalling(),
 		})
-		const { stream, store, previous_response_id, ...compactParams } = fullParams as any
+		const { stream, store, previous_response_id, ...compactParams } = fullParams
 		void stream
 		void store
 		void previous_response_id
 
 		this.abortController = new AbortController()
 		try {
-			const data = await this.ensureClient().responses.compact(compactParams, { signal: this.abortController.signal })
-			const output = (data as any).output
+			const data = await this.ensureClient().responses.compact(compactParams as OpenAI.Responses.ResponseCompactParams, {
+				signal: this.abortController.signal,
+			})
+			const output = data.output
 			if (!Array.isArray(output)) throw new Error("OpenAI compact response did not contain replacement input items")
-			const opaqueItem = output.find((item: any) => item?.type === "compaction")
+			const opaqueItem = output.find((item) => item.type === "compaction")
 			if (!opaqueItem || typeof opaqueItem.encrypted_content !== "string") {
 				throw new Error("OpenAI compact response did not contain opaque compaction state")
 			}
@@ -158,7 +163,6 @@ export class OpenAiNativeHandler implements ApiHandler {
 		}
 	}
 
-
 	@withRetry()
 	async *createMessage(
 		systemPrompt: string,
@@ -166,8 +170,8 @@ export class OpenAiNativeHandler implements ApiHandler {
 		tools?: ChatCompletionTool[],
 		options?: ApiConversationRequestOptions,
 	): ApiStream {
-		const finalTools = [...(tools || [])]
-		finalTools.push({ type: "web_search" } as any)
+		const finalTools: (ChatCompletionTool | WebSearchChatTool)[] = [...(tools || [])]
+		finalTools.push({ type: "web_search" })
 		const apiFormat = this.getModel()?.info?.apiFormat
 		if (apiFormat === ApiFormat.OPENAI_RESPONSES || apiFormat === ApiFormat.OPENAI_RESPONSES_WEBSOCKET_MODE) {
 			if (!tools?.length) {
@@ -182,7 +186,7 @@ export class OpenAiNativeHandler implements ApiHandler {
 	private async *createCompletionStream(
 		systemPrompt: string,
 		messages: DiracStorageMessage[],
-		tools?: ChatCompletionTool[],
+		tools?: (ChatCompletionTool | WebSearchChatTool)[],
 	): ApiStream {
 		const client = this.ensureClient()
 		const model = this.getModel()
@@ -205,7 +209,7 @@ export class OpenAiNativeHandler implements ApiHandler {
 				text: response.choices[0]?.message.content || "",
 			}
 			yield formatOpenAiCompatibleUsage(response.usage || {}, model.info, {
-				inferenceSpeed: normalizeOpenAIServiceTier((response as any).service_tier),
+				inferenceSpeed: normalizeOpenAIServiceTier(response.service_tier),
 			})
 			return
 		}
@@ -247,7 +251,7 @@ export class OpenAiNativeHandler implements ApiHandler {
 			if (chunk.usage) {
 				// Only last chunk contains usage
 				yield formatOpenAiCompatibleUsage(chunk.usage, model.info, {
-					inferenceSpeed: normalizeOpenAIServiceTier((chunk as any).service_tier),
+					inferenceSpeed: normalizeOpenAIServiceTier(chunk.service_tier),
 				})
 			}
 		}
@@ -256,7 +260,7 @@ export class OpenAiNativeHandler implements ApiHandler {
 	private async *createResponseStream(
 		systemPrompt: string,
 		messages: DiracStorageMessage[],
-		tools: ChatCompletionTool[],
+		tools: (ChatCompletionTool | WebSearchChatTool)[],
 		options?: ApiConversationRequestOptions,
 	): ApiStream {
 		const model = this.getModel()
@@ -278,8 +282,9 @@ export class OpenAiNativeHandler implements ApiHandler {
 				? (message) => this.isCurrentModelResponse(message, model.id)
 				: undefined,
 		})
-		const fullInput = [
-			...(options?.checkpoint?.input ?? []),
+		// checkpoint.input is opaque provider state; here it is a previously-returned ResponseInput
+		const fullInput: OpenAI.Responses.ResponseInput = [
+			...((options?.checkpoint?.input ?? []) as OpenAI.Responses.ResponseInput),
 			...convertToOpenAIResponsesInput(messages).input,
 		]
 		const input = converted.previousResponseId ? converted.input : fullInput
@@ -290,7 +295,7 @@ export class OpenAiNativeHandler implements ApiHandler {
 		const params = buildResponseCreateParams({
 			modelId: model.id,
 			systemPrompt,
-			input: input as any,
+			input,
 			previousResponseId: converted.previousResponseId,
 			tools: responseTools,
 			reasoningEffort: this.options.reasoningEffort,
@@ -302,7 +307,7 @@ export class OpenAiNativeHandler implements ApiHandler {
 		const fallbackParams = buildResponseCreateParams({
 			modelId: model.id,
 			systemPrompt,
-			input: fallbackInput as any,
+			input: fallbackInput,
 			tools: responseTools,
 			reasoningEffort: this.options.reasoningEffort,
 			reasoningContext: usePersistedReasoning ? "all_turns" : undefined,
@@ -312,7 +317,7 @@ export class OpenAiNativeHandler implements ApiHandler {
 		})
 
 		if (usePersistedReasoning) {
-			const functionCallOutputs = input.filter((item: any) => item.type === "function_call_output").length
+			const functionCallOutputs = input.filter((item) => item.type === "function_call_output").length
 			Logger.log(
 				`[OpenAI Native persisted reasoning] request=${converted.previousResponseId ? "continuation" : "full_context"} input_items=${input.length} function_call_outputs=${functionCallOutputs}`,
 			)
