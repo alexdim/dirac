@@ -35,7 +35,7 @@ vi.mock("ink-picture", () => ({
 }))
 
 // Mock vscode-shim shutdownEvent
-vi.mock("../vscode-shim", () => ({
+vi.mock("../utils/shutdown", () => ({
 	shutdownEvent: {
 		event: (listener: () => void) => {
 			shutdownMockState.listeners.push(listener)
