@@ -1,4 +1,7 @@
-import { DiracIgnoreController } from "@core/ignore/DiracIgnoreController"
+/** Narrow file-access validator — DiracIgnoreController satisfies this structurally. */
+interface PathAccessValidator {
+	validateAccess(filePath: string): boolean
+}
 import { AnchorStateManager } from "@utils/AnchorStateManager"
 import { formatLineWithHash } from "@utils/line-hashing"
 import * as childProcess from "child_process"
@@ -165,7 +168,7 @@ export async function regexSearchFiles(
 	directoryPath: string,
 	regex: string,
 	filePattern?: string,
-	diracIgnoreController?: DiracIgnoreController,
+	diracIgnoreController?: PathAccessValidator,
 	anchorTaskId?: string,
 	contextLines?: number,
 	excludeFilePatterns?: string[],
