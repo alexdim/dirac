@@ -1,6 +1,7 @@
 import { Logger } from "@shared/services/Logger"
 import fs from "fs/promises"
 import * as path from "path"
+import { isPromptArtifactsEnvEnabled, promptArtifactsDir } from "@/shared/config/environment"
 
 export interface TaskPromptArtifactsContext {
 	taskId: string
@@ -20,16 +21,14 @@ export async function writePromptMetadataArtifacts(
 	},
 ): Promise<void> {
 	const enabledSetting = ctx.writePromptMetadataEnabled
-	const enabledFlag = process.env.DIRAC_WRITE_PROMPT_ARTIFACTS?.toLowerCase()
-	const enabled =
-		enabledSetting || enabledFlag === "1" || enabledFlag === "true" || enabledFlag === "yes" || process.env.IS_DEV === "true"
+	const enabled = enabledSetting || isPromptArtifactsEnvEnabled()
 	if (!enabled) {
 		return
 	}
 
 	try {
 		// Env var is OS-level (user-controlled, safe to allow absolute); workspace setting is the exfiltration vector.
-		const envDir = process.env.DIRAC_PROMPT_ARTIFACT_DIR?.trim()
+		const envDir = promptArtifactsDir()
 		const settingDir = ctx.writePromptMetadataDirectory?.trim()
 		const cwdResolved = path.resolve(ctx.cwd)
 		// Setting-configured dirs must resolve under cwd to prevent workspace settings from exfiltrating prompts.

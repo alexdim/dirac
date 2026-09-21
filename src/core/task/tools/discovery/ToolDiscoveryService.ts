@@ -1,10 +1,11 @@
 import * as fs from "fs"
-import * as path from "path"
 import * as os from "os"
+import * as path from "path"
+import { diracHomeDir } from "@/shared/config/environment"
+import type { DiracToolSpec } from "@/shared/tools"
+import type { IDiracTool } from "../interfaces/IDiracTool"
 import { CONFIGURABLE_TOOL_EXPOSURE, type DiscoveredTool, type ToolExposure, type ToolSource } from "./DiscoveredTool"
 import { UserToolLoader } from "./UserToolLoader"
-import type { IDiracTool } from "../interfaces/IDiracTool"
-import type { DiracToolSpec } from "@/shared/tools"
 
 interface ToolManifest {
 	spec: DiracToolSpec
@@ -94,12 +95,12 @@ export class ToolDiscoveryService {
 	}
 
 	static async scanGlobalUserTools(): Promise<DiscoveredTool[]> {
-		const globalDir = path.join(process.env.DIRAC_DIR || path.join(os.homedir(), ".dirac"), "tools")
-		return this.scanUserToolDirectory(globalDir, "global")
+		const globalDir = path.join(diracHomeDir(), "tools")
+		return ToolDiscoveryService.scanUserToolDirectory(globalDir, "global")
 	}
 
 	static scanWorkspaceTools(workspaceRoot: string): Promise<DiscoveredTool[]> {
 		const workspaceDir = path.join(workspaceRoot, ".dirac", "tools")
-		return this.scanUserToolDirectory(workspaceDir, "workspace")
+		return ToolDiscoveryService.scanUserToolDirectory(workspaceDir, "workspace")
 	}
 }

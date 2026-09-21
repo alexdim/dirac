@@ -3,6 +3,7 @@ import { allocateSubagentIdentity, type SubagentIdentity } from "@shared/subagen
 import * as fs from "fs/promises"
 import * as os from "os"
 import * as path from "path"
+import { diracHomeDir } from "@/shared/config/environment"
 import { getErrorMessage } from "@/shared/errors"
 import { Logger } from "@/shared/services/Logger"
 import { DiracToolSpec } from "@/shared/tools"
@@ -11,21 +12,16 @@ import { IDiracTool } from "../../interfaces/IDiracTool"
 import { IToolEnvironment } from "../../interfaces/IToolEnvironment"
 import { ToolRegistry } from "../../registry/ToolRegistry"
 import { validateStagedTool } from "./builder-validation"
-import {
-	buildManifest,
-	resolveTaskToolDir,
-	ToolScope,
-	upsert_tool_spec,
-} from "./constants"
-import { buildToolWithRepairs } from "./subagent-builder"
+import { buildManifest, resolveTaskToolDir, ToolScope, upsert_tool_spec } from "./constants"
 import { buildScaffoldedToolSource, writeTestHarness } from "./scaffold-generator"
+import { buildToolWithRepairs } from "./subagent-builder"
 import {
 	commitToolPromotion,
 	createToolStagingDirectory,
 	discardStagedTool,
 	promoteStagedTool,
 	rollbackToolPromotion,
-	ToolPromotion
+	ToolPromotion,
 } from "./tool-lifecycle"
 
 export { upsert_tool_spec }
@@ -88,13 +84,7 @@ export class UpsertTool implements IDiracTool {
 		let outcome: ToolBuildOutcome
 		try {
 			outcome = await env.config.callbacks.withMutationAuthorization(upsert_tool_spec.id, async () => {
-				const buildOutcome = await buildAndActivateTools(
-					tools,
-					env,
-					updateProgress,
-					newlyEnabledToolIds,
-					activatedTools,
-				)
+				const buildOutcome = await buildAndActivateTools(tools, env, updateProgress, newlyEnabledToolIds, activatedTools)
 				await env.config.callbacks.transitionFromMutation(async () => {
 					try {
 						await env.config.callbacks.commitEnabledToolToggles([...newlyEnabledToolIds], () =>
@@ -196,13 +186,7 @@ async function buildAndActivateTools(
 			continue
 		}
 
-		const activationError = await promoteAndActivateTool(
-			tool,
-			env,
-			updateProgress,
-			newlyEnabledToolIds,
-			activatedTools,
-		)
+		const activationError = await promoteAndActivateTool(tool, env, updateProgress, newlyEnabledToolIds, activatedTools)
 		if (activationError) {
 			outcomeLines.push(`❌ Tool '${tool.name}' failed: ${activationError}`)
 			hasFailure = true
@@ -257,10 +241,8 @@ async function resolveToolDirectory(name: string, scope: ToolScope, env: IToolEn
 		}
 		dir = await resolveTaskToolDir(name, env.config.taskId)
 	} else {
-		const home = process.env.DIRAC_DIR || path.join(os.homedir(), ".dirac")
-		dir = scope === "global"
-			? path.join(home, "tools", name)
-			: path.join(env.config.cwd, ".dirac", "tools", name)
+		const home = diracHomeDir()
+		dir = scope === "global" ? path.join(home, "tools", name) : path.join(env.config.cwd, ".dirac", "tools", name)
 	}
 
 	// Validate the resolved path structure: must be <base>/tools/<name>
@@ -290,9 +272,7 @@ async function promoteAndActivateTool(
 			throw new Error(`promoted tool failed to load: ${loadResult.error}`)
 		}
 
-		const loadedTool = prepared.scope === "task"
-			? { ...loadResult.tool!, ownerTaskId: env.config.taskId }
-			: loadResult.tool!
+		const loadedTool = prepared.scope === "task" ? { ...loadResult.tool!, ownerTaskId: env.config.taskId } : loadResult.tool!
 		const workspaceRoot = env.config.workspaceManager?.getPrimaryRoot()?.path ?? env.config.cwd
 		const replacement = await ToolRegistry.withExclusiveAccess((registry) =>
 			registry.replaceUserToolWithResult(loadedTool, true, workspaceRoot),
@@ -326,7 +306,9 @@ async function promoteAndActivateTool(
 		}
 	}
 	const registryVersion = await ToolRegistry.withExclusiveAccess((registry) => registry.getVersion())
-	Logger.info(`[UpsertTool] Registered and enabled '${prepared.name}' (source: ${prepared.scope}, registryVersion: ${registryVersion})`)
+	Logger.info(
+		`[UpsertTool] Registered and enabled '${prepared.name}' (source: ${prepared.scope}, registryVersion: ${registryVersion})`,
+	)
 	await updateProgress(`[${prepared.name}] Activated`, "promotion and registration passed")
 	return undefined
 }
@@ -371,7 +353,6 @@ async function rollbackActivatedTools(activatedTools: readonly ActivatedTool[]):
 	if (errors.length > 0) throw new AggregateError(errors, "Failed to roll back activated tools")
 }
 
-
 function validateToolDefinitions(tools: unknown): string | undefined {
 	if (!Array.isArray(tools) || tools.length === 0) {
 		return "❌ Missing required parameter: tools (must be a non-empty array of tool definitions)."
@@ -397,14 +378,15 @@ function validateToolDefinitions(tools: unknown): string | undefined {
 				seenNames.set(tool.name, index)
 			}
 		}
-		if (!tool.scope || !["global", "workspace", "task"].includes(tool.scope)) errors.push(`${prefix}: scope must be 'global', 'workspace', or 'task'`)
-		if (!tool.description || typeof tool.description !== "string") errors.push(`${prefix}: Missing required field: description`)
-		if (!tool.requirements || typeof tool.requirements !== "string") errors.push(`${prefix}: Missing required field: requirements`)
+		if (!tool.scope || !["global", "workspace", "task"].includes(tool.scope))
+			errors.push(`${prefix}: scope must be 'global', 'workspace', or 'task'`)
+		if (!tool.description || typeof tool.description !== "string")
+			errors.push(`${prefix}: Missing required field: description`)
+		if (!tool.requirements || typeof tool.requirements !== "string")
+			errors.push(`${prefix}: Missing required field: requirements`)
 		if (!Array.isArray(tool.parameters)) errors.push(`${prefix}: parameters must be an array`)
 		if (!/^[a-z][a-z0-9_]*$/.test(tool.name || "")) errors.push(`${prefix}: name must be a snake_case identifier`)
 	}
 
-	return errors.length > 0
-		? `❌ Validation errors:\n${errors.map((error) => `  - ${error}`).join("\n")}`
-		: undefined
+	return errors.length > 0 ? `❌ Validation errors:\n${errors.map((error) => `  - ${error}`).join("\n")}` : undefined
 }

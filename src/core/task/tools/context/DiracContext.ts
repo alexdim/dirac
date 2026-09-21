@@ -2,8 +2,9 @@ import * as fs from "node:fs/promises"
 import * as os from "node:os"
 import * as path from "node:path"
 import { isDeepStrictEqual } from "node:util"
+import { AnchorStateManager, PersistedAnchorDocument, PersistedAnchorState } from "@utils/AnchorStateManager"
 import Mutex from "p-mutex"
-import { StateManager } from "../../../storage/StateManager"
+import { diracHomeDir } from "@/shared/config/environment"
 import { GlobalFileNames } from "../../../storage/fileNames"
 import {
 	appendOperationRecords,
@@ -12,7 +13,7 @@ import {
 	replayOperationRecords,
 	writeFramedBaseline,
 } from "../../../storage/operationLog"
-import { AnchorStateManager, PersistedAnchorDocument, PersistedAnchorState } from "@utils/AnchorStateManager"
+import { StateManager } from "../../../storage/StateManager"
 import { IDiracContext } from "../interfaces/IDiracContext"
 
 const ANCHOR_STATE_KEY = "anchorState"
@@ -53,7 +54,7 @@ export class DiracContext implements IDiracContext {
 		private stateManager: StateManager,
 		private conversationUlid: string,
 	) {
-		const diracHome = process.env.DIRAC_DIR || path.join(os.homedir(), ".dirac")
+		const diracHome = diracHomeDir()
 		const taskDirectory = path.join(diracHome, "data", "tasks", taskId)
 		this.taskPath = path.join(taskDirectory, GlobalFileNames.toolContext)
 		this.baselinePath = path.join(taskDirectory, GlobalFileNames.toolContextBaseline)
@@ -104,8 +105,7 @@ export class DiracContext implements IDiracContext {
 			version: 1,
 			documents: [],
 		}
-		const absolutePath =
-			operation.type === "set_anchor_document" ? operation.document.absolutePath : operation.absolutePath
+		const absolutePath = operation.type === "set_anchor_document" ? operation.document.absolutePath : operation.absolutePath
 		const documentIndex = anchorState.documents.findIndex((document) => document.absolutePath === absolutePath)
 		if (documentIndex !== -1) anchorState.documents.splice(documentIndex, 1)
 		if (operation.type === "set_anchor_document") {
@@ -268,7 +268,7 @@ export class DiracContext implements IDiracContext {
 				wroteAnchorState = true
 				const anchorState = this.anchorStateLoaded
 					? AnchorStateManager.exportState(this.conversationUlid)
-					: value as PersistedAnchorState
+					: (value as PersistedAnchorState)
 				yield { type: "anchor", version: anchorState.version }
 				for (const document of anchorState.documents) yield { type: "anchor_document", document }
 				continue
