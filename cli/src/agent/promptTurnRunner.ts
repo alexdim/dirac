@@ -274,6 +274,21 @@ export class PromptTurnRunner {
 		turn.subscribedTask = task
 	}
 
+	/** Replays the task's full message history into the session output. */
+	private async replayTaskHistory(turn: PromptTurnContext, task: NonNullable<Controller["task"]>): Promise<void> {
+		const replayEndIndex = task.messageStateHandler.getDiracMessages().length
+		await turn.bridge.replayTaskMessages(
+			turn.controller,
+			turn.sessionId,
+			turn.sessionState,
+			turn.resolvePrompt,
+			turn.rejectPrompt,
+			turn.promptResolved,
+			0,
+			replayEndIndex,
+		)
+	}
+
 	/** Resubscribes and replays when the controller replaces the task mid-turn. */
 	private registerTaskReplacementListener(turn: PromptTurnContext): void {
 		const removeListener = turn.controller.onTaskReplaced(async (taskId) => {
@@ -284,18 +299,8 @@ export class PromptTurnRunner {
 			const replacementTask = turn.controller.task
 			if (!replacementTask) return
 			await this.deps.steering.bindPromptTask(turn.sessionId, replacementTask)
-			const replayEndIndex = replacementTask.messageStateHandler.getDiracMessages().length
 			this.subscribeToCurrentTask(turn)
-			await turn.bridge.replayTaskMessages(
-				turn.controller,
-				turn.sessionId,
-				turn.sessionState,
-				turn.resolvePrompt,
-				turn.rejectPrompt,
-				turn.promptResolved,
-				0,
-				replayEndIndex,
-			)
+			await this.replayTaskHistory(turn, replacementTask)
 		})
 		turn.cleanupFunctions.push(removeListener)
 	}
@@ -530,18 +535,8 @@ export class PromptTurnRunner {
 		if (!task) return
 		await recordTaskForSession(turn.sessionId, task.taskId)
 		turn.session.taskId = task.taskId
-		const replayEndIndex = task.messageStateHandler.getDiracMessages().length
 		this.subscribeToCurrentTask(turn)
-		await turn.bridge.replayTaskMessages(
-			turn.controller,
-			turn.sessionId,
-			turn.sessionState,
-			turn.resolvePrompt,
-			turn.rejectPrompt,
-			turn.promptResolved,
-			0,
-			replayEndIndex,
-		)
+		await this.replayTaskHistory(turn, task)
 	}
 
 	/** Starts the session's first task, consuming the reserved taskId so it equals the sessionId. */
@@ -573,18 +568,8 @@ export class PromptTurnRunner {
 		const task = turn.controller.task
 		if (!task || turn.subscribedTask) return
 
-		const replayEndIndex = task.messageStateHandler.getDiracMessages().length
 		this.subscribeToCurrentTask(turn)
-		await turn.bridge.replayTaskMessages(
-			turn.controller,
-			turn.sessionId,
-			turn.sessionState,
-			turn.resolvePrompt,
-			turn.rejectPrompt,
-			turn.promptResolved,
-			0,
-			replayEndIndex,
-		)
+		await this.replayTaskHistory(turn, task)
 	}
 
 	/**
