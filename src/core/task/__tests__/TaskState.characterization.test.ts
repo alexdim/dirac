@@ -5,7 +5,7 @@
  */
 import { strict as assert } from "node:assert"
 import { describe, it } from "mocha"
-import { type ReadonlyTaskState, TaskState } from "../TaskState"
+import { type ReadonlyTaskState, TaskState, type TaskStateTransition } from "../TaskState"
 
 describe("TaskState contract", () => {
 	describe("stream-stage flags", () => {
@@ -172,6 +172,18 @@ describe("TaskState contract", () => {
 				v.settleRunOutcome({ kind: "cancelled", cancelledAt: 0 })
 			}
 			void assertsViewIsReadonly // typecheck-only; never invoked
+		})
+
+		it("every TaskState method is a listed transition (typecheck-level sync lock)", () => {
+			// A method added to TaskState but missing from TaskStateTransition would leak
+			// onto ReadonlyTaskState — this lock fails typecheck in that case.
+			// (-? strips optionality so optional fields contribute never, not never|undefined.)
+			type MethodNames = {
+				[K in keyof TaskState]-?: TaskState[K] extends (...args: never[]) => unknown ? K : never
+			}[keyof TaskState]
+			type Unlisted = Exclude<MethodNames, TaskStateTransition>
+			const unlistedIsEmpty: Unlisted extends never ? true : never = true
+			assert.equal(unlistedIsEmpty, true)
 		})
 	})
 })
