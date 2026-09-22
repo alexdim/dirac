@@ -7,7 +7,7 @@ import {
 	openAiCodexModels,
 } from "@shared/api"
 import { jsonHeaders } from "@shared/net"
-import { normalizeOpenaiReasoningEffort } from "@shared/storage/types"
+import { resolveReasoningEffortForModel } from "@shared/utils/reasoning-support"
 import OpenAI from "openai"
 import type { ChatCompletionTool } from "openai/resources/chat/completions"
 import * as os from "os"
@@ -124,7 +124,7 @@ export class OpenAiCodexHandler implements ApiHandler {
 					}),
 					parallelToolCalls: this.shouldEnableParallelToolCalling(),
 					inferenceSpeed: this.options.inferenceSpeed,
-					reasoningEffort: normalizeOpenaiReasoningEffort(this.options.reasoningEffort),
+					reasoningEffort: resolveReasoningEffortForModel(model.id, model.info, this.options.reasoningEffort),
 					usePersistedReasoning,
 				}),
 			)
@@ -356,8 +356,8 @@ export class OpenAiCodexHandler implements ApiHandler {
 		tools: CodexTool[] | undefined,
 		options: CodexRequestBodyOptions,
 	): any {
-		const reasoningEffort = normalizeOpenaiReasoningEffort(this.options.reasoningEffort)
-		const includeReasoning = reasoningEffort !== "none"
+		const reasoningEffort = resolveReasoningEffortForModel(model.id, model.info, this.options.reasoningEffort)
+		const includeReasoning = reasoningEffort !== undefined && reasoningEffort !== "none"
 		const includeReasoningConfig = includeReasoning || options.usePersistedReasoning
 		const serviceTier = options.includeInferenceSpeed ? this.resolveServiceTier(model.info) : undefined
 
