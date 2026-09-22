@@ -61,9 +61,9 @@ import {
 	wandbModels,
 	xaiDefaultModelId,
 	xaiModels,
-} from "@/shared/api"
-import { getProviderDefaultModelId } from "@/shared/storage/provider-keys"
-import { usesOpenRouterModels } from "./openrouter-models"
+} from "@/shared/api";
+import { getProviderDefaultModelId } from "@/shared/storage/provider-keys";
+import { usesOpenRouterModels } from "./openrouter-models";
 
 export const providerModels: Record<string, { models: Record<string, unknown>; defaultId: string }> = {
 	anthropic: { models: anthropicModels, defaultId: anthropicDefaultModelId },
@@ -111,5 +111,10 @@ export function getDefaultModelId(provider: string): string {
 
 export function getModelList(provider: string): string[] {
 	if (!hasStaticModels(provider)) return []
+	if (provider === "huggingface") {
+		return Object.entries(huggingFaceModels)
+			.filter(([, info]) => info.supportsTools)
+			.map(([id]) => id)
+	}
 	return Object.keys(providerModels[provider].models)
 }

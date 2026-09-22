@@ -14,6 +14,7 @@ import {
 import { applyApiConfigurationTransaction } from "@/core/controller/models/apiConfigurationTransaction"
 import type { Controller } from "@/core/controller"
 import { refreshOpenRouterModels } from "@/core/controller/models/refreshOpenRouterModels"
+import { getHuggingFaceModels } from "@/core/controller/models/refreshHuggingFaceModels"
 import { refreshVercelAiGatewayModels } from "@/core/controller/models/refreshVercelAiGatewayModels"
 import { StateManager } from "@/core/storage/StateManager"
 import type { BedrockConfig } from "../components/BedrockSetup"
@@ -124,6 +125,10 @@ export async function applyProviderConfig(options: ApplyProviderConfigOptions): 
 					config.planModeOpenRouterModelInfo = modelInfo
 				}
 			}
+		} else if (providerId === "huggingface") {
+			const huggingFaceModels = await getHuggingFaceModels()
+			config.actModeHuggingFaceModelInfo = huggingFaceModels[finalActModelId]
+			config.planModeHuggingFaceModelInfo = huggingFaceModels[finalPlanModelId]
 		} else if (providerId === "vercel-ai-gateway" && controller) {
 			const vercelModels = await refreshVercelAiGatewayModels(controller)
 			if (finalActModelId) {

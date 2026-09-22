@@ -662,6 +662,10 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 		)
 		if (isWaitingForGithubAuth && githubAuthData) return <GithubAuthPage githubAuthData={githubAuthData} />
 		if (isPickingModel && pickingModelKey) {
+			const apiConfiguration = controller?.task?.getWorkingConfiguration().apiConfiguration ?? stateManager.getApiConfiguration()
+			const selectedProvider = pickingModelKey === "actModelId"
+				? apiConfiguration.actModeApiProvider
+				: apiConfiguration.planModeApiProvider || apiConfiguration.actModeApiProvider
 			const label = pickingModelKey === "actModelId" ? "Model ID (Act)" : "Model ID (Plan)"
 			return (
 				<ModelPickerPage
@@ -669,7 +673,7 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 					isActive={isPickingModel && !isApplyingSetting}
 					label={label}
 					onSelect={(modelId) => runSettingsAction("model update", () => handleModelSelect(modelId))}
-					provider={pendingProvider || provider}
+					provider={pendingProvider || selectedProvider || provider}
 				/>
 			)
 		}
