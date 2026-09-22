@@ -38,6 +38,60 @@ import { emitTaskStartedMessage } from "./task-start-output"
 
 export { approveCardForPlainTextYolo } from "./standalone-card-policy"
 
+export interface TerminalStateEvaluation {
+	isTerminal: boolean
+	action?: "resolve" | "reject"
+	error?: Error
+}
+
+export function evaluatePlainTextTaskTerminalState(
+	state: ExtensionState,
+	isViewTaskOnly = false,
+	excludeBeforeTs?: number,
+): TerminalStateEvaluation {
+	// A resumed task keeps its persisted history — only failure cards created in this turn are terminal.
+	const failedCard = [...(state.diracMessages ?? [])]
+		.reverse()
+		.find(
+			(m) =>
+				m.content.type === DiracMessageType.CARD &&
+				m.content.card.header === "Task Failed" &&
+				m.content.card.status === CardStatus.ERROR &&
+				(excludeBeforeTs === undefined || m.ts >= excludeBeforeTs),
+		)
+
+	if (failedCard) {
+		const msg =
+			failedCard.content.type === DiracMessageType.CARD && failedCard.content.card.body
+				? failedCard.content.card.body
+				: "Mistake limit reached. Task halted in YOLO mode."
+		return { isTerminal: true, action: "reject", error: new Error(msg) }
+	}
+
+	const globalButtons = state.uiActionState?.globalButtons || []
+	const cardButtons = state.uiActionState?.cardButtons || []
+	const hasNewTask = globalButtons.some((button) => button.action === UIActionButtonType.NEW_TASK)
+	const hasProceed = globalButtons.some((button) => button.action === UIActionButtonType.PROCEED)
+
+	if (hasNewTask && hasProceed) {
+		return { isTerminal: true, action: "reject", error: new Error("Mistake limit reached. Task halted in YOLO mode.") }
+	}
+	if (state.taskStatus === TaskStatus.COMPLETED || (hasNewTask && !hasProceed)) {
+		return { isTerminal: true, action: "resolve" }
+	}
+	if (state.taskStatus === TaskStatus.CANCELLED) {
+		if (isViewTaskOnly) {
+			return { isTerminal: true, action: "resolve" }
+		}
+		return { isTerminal: true, action: "reject", error: new Error("Task was cancelled.") }
+	}
+	if (isViewTaskOnly && cardButtons.length > 0) {
+		return { isTerminal: true, action: "resolve" }
+	}
+
+	return { isTerminal: false }
+}
+
 export interface PlainTextTaskOptions {
 	controller: Controller
 	/** Prompt for new task or message to send to resumed task */
@@ -64,7 +118,7 @@ export async function runPlainTextTask(options: PlainTextTaskOptions): Promise<b
 	// Subscription callbacks can reject completion while task initialization is
 	// still in progress. Attach a handler immediately so Node never reports that
 	// legitimate early failure as an unhandled rejection before we await it.
-	void completionPromise.catch(() => {})
+	void completionPromise.catch(() => { })
 	let completionSettled = false
 	const resolveCompletion = () => {
 		if (completionSettled) return
@@ -93,6 +147,9 @@ export async function runPlainTextTask(options: PlainTextTaskOptions): Promise<b
 	let approvalQueue = Promise.resolve()
 	let latestState: Partial<ExtensionState> = {}
 	let presentationState = createPresentationState()
+	let turnStartTs: number | undefined
+	// Messages persisted before this turn was submitted are resumed history, not new terminal events.
+	const isHistoricalMessage = (message: DiracMessage) => turnStartTs !== undefined && message.ts < turnStartTs
 
 	const isViewTaskOnly = Boolean(options.taskId) && !prompt && !imageDataUrls?.length
 
@@ -203,8 +260,23 @@ export async function runPlainTextTask(options: PlainTextTaskOptions): Promise<b
 			}
 		}
 
+		// Check for task failure card (e.g. YOLO mistake limit reached)
+		if (
+			content.type === DiracMessageType.CARD &&
+			content.card.header === "Task Failed" &&
+			content.card.status === CardStatus.ERROR &&
+			!isHistoricalMessage(message)
+		) {
+			rejectCompletion(new Error(content.card.body || "Mistake limit reached. Task halted in YOLO mode."))
+			return
+		}
+
 		// Check for API failure (retries exhausted)
-		if (content.type === DiracMessageType.API_STATUS && content.status.cancelReason === "retries_exhausted") {
+		if (
+			content.type === DiracMessageType.API_STATUS &&
+			content.status.cancelReason === "retries_exhausted" &&
+			!isHistoricalMessage(message)
+		) {
 			rejectCompletion(new Error("API request failed: retries exhausted"))
 		}
 	}
@@ -267,31 +339,19 @@ export async function runPlainTextTask(options: PlainTextTaskOptions): Promise<b
 						await processMessage(message, state)
 					}
 
-					// The first status diverging from the restored snapshot proves the
-					// follow-up turn is live; only then are terminal states trustworthy.
+					// A restored terminal snapshot is not a terminal event for the follow-up turn.
 					if (!turnStatusObserved && state.taskStatus !== undefined && state.taskStatus !== restoredTerminalStatus) {
 						turnStatusObserved = true
 					}
-
-					// Check for terminal state via task status, retaining the mistake-limit projection.
-					const globalButtons = state.uiActionState?.globalButtons || []
-					const cardButtons = state.uiActionState?.cardButtons || []
-					const hasNewTask = globalButtons.some((button) => button.action === UIActionButtonType.NEW_TASK)
-					const hasProceed = globalButtons.some((button) => button.action === UIActionButtonType.PROCEED)
-
-					// Terminal checks are meaningful only once the new turn diverges from
-					// the restored snapshot; skip while that replay is still landing.
 					if (!turnStatusObserved) return
-					if (hasNewTask && hasProceed) {
-						rejectCompletion(new Error("Mistake limit reached. Task halted in YOLO mode."))
-					} else if (state.taskStatus === TaskStatus.COMPLETED || (hasNewTask && !hasProceed)) {
-						resolveCompletion()
-					} else if (state.taskStatus === TaskStatus.CANCELLED) {
-						if (isViewTaskOnly) resolveCompletion()
-						else rejectCompletion(new Error("Task was cancelled."))
-					} else if (isViewTaskOnly && cardButtons.length > 0) {
-						// Historical task loaded and waiting for interaction (e.g. Resume Task card)
-						resolveCompletion()
+
+					const terminalCheck = evaluatePlainTextTaskTerminalState(state, isViewTaskOnly, turnStartTs)
+					if (terminalCheck.isTerminal) {
+						if (terminalCheck.action === "resolve") {
+							resolveCompletion()
+						} else if (terminalCheck.action === "reject" && terminalCheck.error) {
+							rejectCompletion(terminalCheck.error)
+						}
 					}
 				} catch (error) {
 					rejectCompletion(error instanceof Error ? error : new Error(String(error)))
@@ -318,6 +378,7 @@ export async function runPlainTextTask(options: PlainTextTaskOptions): Promise<b
 				restoredTerminalStatus = controller.task.taskState?.status
 				turnStatusObserved = false
 				// Send the prompt as a response to any pending ask, or as a new message
+				turnStartTs = Date.now()
 				taskExecutionStarted = true
 				await controller.task.submitCardResponse("", DiracAskResponse.MESSAGE, prompt || "", imageDataUrls)
 			}
@@ -515,9 +576,8 @@ function handleApiReqMessage(message: DiracMessage, statusPrefix: string, isUpda
 		const costStr = info.cost !== undefined ? `Cost: $${info.cost.toFixed(4)}` : ""
 		const tokensStr =
 			info.tokensIn !== undefined
-				? `Tokens: ${info.tokensIn.toLocaleString()} in, ${(info.tokensOut || 0).toLocaleString()} out${
-						info.reasoningTokens ? ` (+${info.reasoningTokens.toLocaleString()} thinking)` : ""
-					}`
+				? `Tokens: ${info.tokensIn.toLocaleString()} in, ${(info.tokensOut || 0).toLocaleString()} out${info.reasoningTokens ? ` (+${info.reasoningTokens.toLocaleString()} thinking)` : ""
+				}`
 				: ""
 		const cacheStr =
 			info.cacheReads !== undefined || info.cacheWrites !== undefined
