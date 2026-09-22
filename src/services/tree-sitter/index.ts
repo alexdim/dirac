@@ -1,10 +1,7 @@
-import { Node as SyntaxNode, Tree } from "web-tree-sitter"
-/** Narrow file-access validator — DiracIgnoreController satisfies this structurally. */
-interface PathAccessValidator {
-	validateAccess(filePath: string): boolean
-}
+import type { PathAccessValidator } from "@shared/path-access"
 import * as fs from "fs/promises"
 import * as path from "path"
+import { Node as SyntaxNode, Tree } from "web-tree-sitter"
 import { Logger } from "@/shared/services/Logger"
 import { LanguageParser } from "./languageParser"
 
