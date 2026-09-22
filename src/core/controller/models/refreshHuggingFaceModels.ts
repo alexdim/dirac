@@ -93,16 +93,18 @@ export async function refreshHuggingFaceModels(
 ): Promise<OpenRouterCompatibleModelInfo> {
 	const models = await getHuggingFaceModels()
 	return OpenRouterCompatibleModelInfo.create({
-		models: Object.fromEntries(Object.entries(models).map(([id, info]) => [
-			id,
-			OpenRouterModelInfo.create({
-				maxTokens: info.maxTokens,
-				contextWindow: info.contextWindow,
-				supportsImages: info.supportsImages,
-				supportsPromptCache: info.supportsPromptCache,
-				supportsTools: info.supportsTools,
-				description: info.description,
-			}),
-		]))
+		models: Object.fromEntries(
+			Object.entries(models).map(([id, info]) => [
+				id,
+				OpenRouterModelInfo.create({
+					maxTokens: info.maxTokens,
+					contextWindow: info.contextWindow,
+					supportsImages: info.supportsImages,
+					supportsPromptCache: info.supportsPromptCache,
+					supportsTools: info.supportsTools,
+					description: info.description,
+				}),
+			]),
+		),
 	})
 }
