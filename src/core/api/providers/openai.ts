@@ -184,10 +184,11 @@ export class OpenAiHandler implements ApiHandler {
 			}
 		}
 
-		const requestedEffort = normalizeOpenaiReasoningEffort(this.options.reasoningEffort)
-		if (requestedEffort !== "none") {
-			reasoningEffort = requestedEffort as ChatCompletionReasoningEffort
-		}
+		// "none" is a first-class ReasoningEffort value in the OpenAI SDK, so send it rather than
+		// omitting the field: omitting lets the server apply its own default, which for several
+		// local backends (Ollama with a qwen3 tag, for one) means reasoning stays ON. Selecting
+		// "none" in Settings must actually turn reasoning off.
+		reasoningEffort = normalizeOpenaiReasoningEffort(this.options.reasoningEffort) as ChatCompletionReasoningEffort
 
 		if (isReasoningModelFamily) {
 			openAiMessages = [
