@@ -284,7 +284,7 @@ export type TaskStateGatedKey =
 	| "terminalError"
 	| "runOutcome"
 
-type TaskStateTransition =
+export type TaskStateTransition =
 	| "recordFirstTokenAt"
 	| "beginApiRequest"
 	| "endApiRequest"
