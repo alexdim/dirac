@@ -279,9 +279,10 @@ export async function runPlainTextTask(options: PlainTextTaskOptions): Promise<b
 					const hasNewTask = globalButtons.some((button) => button.action === UIActionButtonType.NEW_TASK)
 					const hasProceed = globalButtons.some((button) => button.action === UIActionButtonType.PROCEED)
 
-					if (!turnStatusObserved) {
-						// Still replaying the restored terminal snapshot — not the new turn's outcome.
-					} else if (hasNewTask && hasProceed) {
+					// Terminal checks are meaningful only once the new turn diverges from
+					// the restored snapshot; skip while that replay is still landing.
+					if (!turnStatusObserved) return
+					if (hasNewTask && hasProceed) {
 						rejectCompletion(new Error("Mistake limit reached. Task halted in YOLO mode."))
 					} else if (state.taskStatus === TaskStatus.COMPLETED || (hasNewTask && !hasProceed)) {
 						resolveCompletion()
@@ -312,6 +313,8 @@ export async function runPlainTextTask(options: PlainTextTaskOptions): Promise<b
 			if ((prompt || imageDataUrls?.length) && controller.task) {
 				// Capture the terminal status restore replayed; suppressing it stops the
 				// stale snapshot from resolving the follow-up turn before it starts.
+				// This read must sit after showTaskWithId (restore sets the status) and
+				// before submitCardResponse (the new turn may already flip it).
 				restoredTerminalStatus = controller.task.taskState?.status
 				turnStatusObserved = false
 				// Send the prompt as a response to any pending ask, or as a new message
