@@ -270,6 +270,14 @@ export class SubagentRunner {
 		timeout?: number,
 		includeHistory?: boolean,
 	): Promise<SubagentRunResult> {
+		// A cancellation received before run() must never be cleared by startup.
+		if (this.abortRequested) {
+			const result = this.abortHandler.buildAbortResult(this.activeConversation, this.activeStats)
+			this.recordTerminal(result)
+			void this.runProgress.flush()
+			return result
+		}
+
 		const timeoutSeconds = resolveSubagentTimeoutSeconds(timeout)
 		const logPrefix = `[SubagentRunner:${this.subagentName || "unnamed"}]`
 		this.abortRequested = false

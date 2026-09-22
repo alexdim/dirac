@@ -48,6 +48,7 @@ export function evaluatePlainTextTaskTerminalState(
 	state: ExtensionState,
 	isViewTaskOnly = false,
 	excludeBeforeTs?: number,
+	historicalMessageIds?: ReadonlySet<string>,
 ): TerminalStateEvaluation {
 	// A resumed task keeps its persisted history — only failure cards created in this turn are terminal.
 	const failedCard = [...(state.diracMessages ?? [])]
@@ -57,7 +58,8 @@ export function evaluatePlainTextTaskTerminalState(
 				m.content.type === DiracMessageType.CARD &&
 				m.content.card.header === "Task Failed" &&
 				m.content.card.status === CardStatus.ERROR &&
-				(excludeBeforeTs === undefined || m.ts >= excludeBeforeTs),
+				(excludeBeforeTs === undefined || m.ts >= excludeBeforeTs) &&
+				!historicalMessageIds?.has(m.id),
 		)
 
 	if (failedCard) {
@@ -148,8 +150,9 @@ export async function runPlainTextTask(options: PlainTextTaskOptions): Promise<b
 	let latestState: Partial<ExtensionState> = {}
 	let presentationState = createPresentationState()
 	let turnStartTs: number | undefined
-	// Messages persisted before this turn was submitted are resumed history, not new terminal events.
-	const isHistoricalMessage = (message: DiracMessage) => turnStartTs !== undefined && message.ts < turnStartTs
+	const historicalMessageIds = new Set<string>()
+	const isHistoricalMessage = (message: DiracMessage) =>
+		historicalMessageIds.has(message.id) || (turnStartTs !== undefined && message.ts < turnStartTs)
 
 	const isViewTaskOnly = Boolean(options.taskId) && !prompt && !imageDataUrls?.length
 
@@ -235,6 +238,9 @@ export async function runPlainTextTask(options: PlainTextTaskOptions): Promise<b
 			}
 		}
 
+		// Replayed history may be printed, but must not approve cards or settle the new turn.
+		if (isHistoricalMessage(message)) return
+
 		// Auto-approve if yolo mode is on and it's an approval request
 		if (content.type === DiracMessageType.CARD && content.card.status === CardStatus.WAITING_FOR_INPUT) {
 			const disposition = getStandaloneCardDisposition(content.card, Boolean(yolo), isViewTaskOnly)
@@ -264,8 +270,7 @@ export async function runPlainTextTask(options: PlainTextTaskOptions): Promise<b
 		if (
 			content.type === DiracMessageType.CARD &&
 			content.card.header === "Task Failed" &&
-			content.card.status === CardStatus.ERROR &&
-			!isHistoricalMessage(message)
+			content.card.status === CardStatus.ERROR
 		) {
 			rejectCompletion(new Error(content.card.body || "Mistake limit reached. Task halted in YOLO mode."))
 			return
@@ -274,8 +279,7 @@ export async function runPlainTextTask(options: PlainTextTaskOptions): Promise<b
 		// Check for API failure (retries exhausted)
 		if (
 			content.type === DiracMessageType.API_STATUS &&
-			content.status.cancelReason === "retries_exhausted" &&
-			!isHistoricalMessage(message)
+			content.status.cancelReason === "retries_exhausted"
 		) {
 			rejectCompletion(new Error("API request failed: retries exhausted"))
 		}
@@ -345,7 +349,12 @@ export async function runPlainTextTask(options: PlainTextTaskOptions): Promise<b
 					}
 					if (!turnStatusObserved) return
 
-					const terminalCheck = evaluatePlainTextTaskTerminalState(state, isViewTaskOnly, turnStartTs)
+					const terminalCheck = evaluatePlainTextTaskTerminalState(
+						state,
+						isViewTaskOnly,
+						turnStartTs,
+						historicalMessageIds,
+					)
 					if (terminalCheck.isTerminal) {
 						if (terminalCheck.action === "resolve") {
 							resolveCompletion()
@@ -377,6 +386,10 @@ export async function runPlainTextTask(options: PlainTextTaskOptions): Promise<b
 				// before submitCardResponse (the new turn may already flip it).
 				restoredTerminalStatus = controller.task.taskState?.status
 				turnStatusObserved = false
+				for (const message of controller.task.messageStateHandler.getDiracMessages()) {
+					historicalMessageIds.add(message.id)
+				}
+
 				// Send the prompt as a response to any pending ask, or as a new message
 				turnStartTs = Date.now()
 				taskExecutionStarted = true

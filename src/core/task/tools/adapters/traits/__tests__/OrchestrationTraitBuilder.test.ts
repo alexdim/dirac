@@ -98,12 +98,26 @@ describe("OrchestrationTraitBuilder runSubagent abort signal propagation (FB-29)
 		sinon.assert.calledWith(abortStub, "Aborted by external signal")
 	})
 
+	it("does not enter the real runner lifecycle when already aborted", async () => {
+		abortStub.restore()
+		runStub.restore()
+		const { config } = createMockTaskConfig()
+		const runner = new SubagentRunner(config)
+		const executeRun = sinon.stub(runner as any, "executeRun").throws(new Error("must not start"))
+		await runner.abort("Aborted by external signal")
+
+		const result = await runner.run("Investigate", () => { })
+		assert.equal(result.status, SubagentExecutionStatus.CANCELLED)
+		assert.equal(result.error, "Aborted by external signal")
+		sinon.assert.notCalled(executeRun)
+	})
+
 	it("calls runner.abort() immediately when the signal aborts mid-run", async () => {
 		const { config } = createMockTaskConfig()
 		const trait = buildOrchestrationTrait(config)
 
 		const controller = new AbortController()
-		let releaseRun: (result: any) => void = () => {}
+		let releaseRun: (result: any) => void = () => { }
 		runStub.returns(
 			new Promise((resolve) => {
 				releaseRun = resolve

@@ -1,5 +1,5 @@
-import { DiracMessageType, TaskStatus } from "@shared/ExtensionMessage"
-import { beforeEach, describe, expect, it, vi } from "vitest"
+import { CardStatus, DiracMessageType, TaskStatus } from "@shared/ExtensionMessage";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
 	stateSubscriber: undefined as undefined | ((update: { stateJson: string; presentationJson?: string }) => Promise<void>),
@@ -25,7 +25,7 @@ vi.mock("./task-start-output", () => ({
 	emitTaskStartedMessage: vi.fn(),
 }))
 
-import { runPlainTextTask } from "./plain-text-task"
+import { runPlainTextTask } from "./plain-text-task";
 
 function stateJson(taskStatus: TaskStatus): string {
 	return JSON.stringify({
@@ -108,6 +108,51 @@ describe("runPlainTextTask", () => {
 		expect(settled).toBe(false)
 
 		// The new turn's real completion resolves.
+		await mocks.stateSubscriber?.({ stateJson: stateJson(TaskStatus.COMPLETED) })
+		await expect(resultPromise).resolves.toBe(true)
+	})
+
+	it("ignores replayed failures from before a follow-up, even with a current timestamp", async () => {
+		const oldApiFailure = {
+			id: "old-api-failure",
+			ts: Date.now() + 10_000,
+			content: { type: DiracMessageType.API_STATUS, status: { cancelReason: "retries_exhausted" } },
+		}
+		const oldTaskFailure = {
+			id: "old-task-failure",
+			ts: Date.now() + 10_000,
+			content: {
+				type: DiracMessageType.CARD,
+				card: { id: "old-task-failure", header: "Task Failed", status: CardStatus.ERROR, body: "Old mistake" },
+			},
+		}
+		const submitCardResponse = vi.fn().mockResolvedValue(undefined)
+		const controller = {
+			task: {
+				taskId: "task-1",
+				submitCardResponse,
+				abortTask: vi.fn(),
+				taskState: { status: TaskStatus.CANCELLED },
+				messageStateHandler: { getDiracMessages: () => [oldApiFailure, oldTaskFailure] },
+			},
+		}
+		mocks.showTaskWithId.mockResolvedValue(undefined)
+
+		let settled = false
+		const resultPromise = runPlainTextTask({
+			controller: controller as never,
+			taskId: "task-1",
+			prompt: "again",
+		}).finally(() => {
+			settled = true
+		})
+		await vi.waitFor(() => expect(submitCardResponse).toHaveBeenCalledOnce())
+		await mocks.stateSubscriber?.({
+			stateJson: JSON.stringify({ taskStatus: TaskStatus.CANCELLED, diracMessages: [oldApiFailure, oldTaskFailure] }),
+		})
+		await mocks.stateSubscriber?.({ stateJson: stateJson(TaskStatus.WAITING_FOR_API) })
+		await new Promise<void>((resolve) => setImmediate(resolve))
+		expect(settled).toBe(false)
 		await mocks.stateSubscriber?.({ stateJson: stateJson(TaskStatus.COMPLETED) })
 		await expect(resultPromise).resolves.toBe(true)
 	})

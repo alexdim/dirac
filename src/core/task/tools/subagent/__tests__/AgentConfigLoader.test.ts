@@ -243,6 +243,35 @@ Prompt body`,
 			assert.strictEqual(exists, false)
 		})
 
+		it("retries an incomplete migration after a legacy file copy fails", async () => {
+			const tempHome = await createTempHomeDir()
+			tempDirs.push(tempHome)
+			const legacyDir = getLegacyAgentsConfigPath(tempHome)
+			const newDir = getAgentsConfigPath(tempHome)
+			await fs.mkdir(legacyDir, { recursive: true })
+			await fs.writeFile(path.join(legacyDir, "retry.yaml"), `---
+name: retry
+description: migrated after permissions recover
+tools: read_file
+---
+Prompt body`, "utf8")
+
+			const copyStub = sinon
+				.stub(fs, "copyFile")
+				.rejects(Object.assign(new Error("permission denied"), { code: "EACCES" }))
+			try {
+				const first = await readAgentConfigsFromDisk(tempHome)
+				assert.equal(first.has("retry"), false)
+				await assert.rejects(fs.access(path.join(newDir, ".legacy-migration-complete")), { code: "ENOENT" })
+			} finally {
+				copyStub.restore()
+			}
+
+			const second = await readAgentConfigsFromDisk(tempHome)
+			assert.equal(second.has("retry"), true)
+			await fs.access(path.join(newDir, ".legacy-migration-complete"))
+		})
+
 		it("does not import real-home legacy configs into a custom DIRAC_DIR profile", async () => {
 			const tempHome = await createTempHomeDir()
 			const profileDir = await createTempHomeDir()

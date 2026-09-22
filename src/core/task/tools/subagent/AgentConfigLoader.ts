@@ -137,6 +137,7 @@ async function migrateLegacyAgentConfigs(legacyPath: string, newPath: string): P
 		// no marker yet — proceed with the one-time migration
 	}
 
+	let copyFailed = false
 	try {
 		const entries = await fs.readdir(legacyPath, { withFileTypes: true })
 		await fs.mkdir(newPath, { recursive: true })
@@ -151,6 +152,7 @@ async function migrateLegacyAgentConfigs(legacyPath: string, newPath: string): P
 						Logger.debug(`[AgentConfigLoader] Migrated legacy agent config '${entry.name}' to ${dest}`)
 					} catch (copyErr) {
 						if ((copyErr as NodeJS.ErrnoException).code !== "EEXIST") {
+							copyFailed = true
 							Logger.warn(`[AgentConfigLoader] Failed to copy legacy agent config '${entry.name}': ${copyErr}`)
 						}
 					}
@@ -168,6 +170,9 @@ async function migrateLegacyAgentConfigs(legacyPath: string, newPath: string): P
 		}
 		// ENOENT: nothing to migrate — still mark so a restored backup cannot resurrect configs.
 	}
+	// An incomplete copy must remain retryable on the next load.
+	if (copyFailed) return
+
 	// Written only after a completed enumeration (copies done or ENOENT) so a
 	// crash mid-migration still completes on the next run.
 	try {
