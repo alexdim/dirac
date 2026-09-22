@@ -42,13 +42,29 @@ export function buildOrchestrationTrait(config: TaskConfig): IOrchestrationTrait
 				agentIdentity,
 				recorder,
 			})
+			const signal = options?.signal
+			const onAbort = () => {
+				void runner.abort(signal?.reason ? `Aborted: ${String(signal.reason)}` : "Aborted by external signal")
+			}
+			if (signal) {
+				if (signal.aborted) {
+					await runner.abort("Aborted by external signal")
+				} else {
+					signal.addEventListener("abort", onAbort, { once: true })
+				}
+			}
+
 			const usage = new SubagentUsagePublisher(config.messageState, config.callbacks.postStateToWebview, agentIdentity.name)
-			const result = await runner.run(prompt, async (update) => {
-				if (update.stats) await usage.update(update.stats)
-				await options?.onUpdate?.(update)
-			}, options?.timeout, options?.includeHistory)
-			await usage.finish(result.stats)
-			return result
+			try {
+				const result = await runner.run(prompt, async (update) => {
+					if (update.stats) await usage.update(update.stats)
+					await options?.onUpdate?.(update)
+				}, options?.timeout, options?.includeHistory)
+				await usage.finish(result.stats)
+				return result
+			} finally {
+				signal?.removeEventListener("abort", onAbort)
+			}
 		},
 		runHook: async (name, input, options) => {
 			const { executeHook } = await import("@core/hooks/hook-executor")
