@@ -44,6 +44,8 @@ export interface ModelCapabilities {
 	reasoningEffortOptions?: OpenaiReasoningEffort[]
 	defaultReasoningEffort?: OpenaiReasoningEffort
 	supportsAdaptiveThinking?: boolean
+	thinkingAlwaysOn?: boolean
+	supportsForcedToolUse?: boolean
 	supportsTools?: boolean
 	supportsStrictTools?: boolean
 	description?: string

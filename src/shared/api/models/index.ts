@@ -7,6 +7,7 @@ export {
 	type AnthropicModelId,
 	anthropicDefaultModelId,
 	anthropicModels,
+	getAnthropicReasoningEffort,
 	isAnthropicAdaptiveThinkingSupported,
 } from "./anthropic"
 // Baseten

@@ -53,6 +53,19 @@ export const MODEL_CAPABILITIES: Record<string, ModelCapabilities> = {
 		supportsReasoning: true,
 		supportsAdaptiveThinking: true,
 	},
+	"claude-opus-5-5": {
+		maxTokens: 128_000,
+		contextWindow: 1_000_000,
+		supportsImages: true,
+		supportsReasoning: true,
+		supportsAdaptiveThinking: true,
+		supportsReasoningEffort: true,
+		reasoningEffortOptions: ["low", "medium", "high", "xhigh", "max"],
+		thinkingAlwaysOn: true,
+		supportsForcedToolUse: false,
+		defaultReasoningEffort: "medium",
+	},
+
 	"claude-opus-5:fast": {
 		maxTokens: 128_000,
 		contextWindow: 200_000,
@@ -428,6 +441,16 @@ export const MODEL_CAPABILITIES: Record<string, ModelCapabilities> = {
 		contextWindow: 128_000,
 		supportsImages: false,
 	},
+	"grok-4.7": {
+		contextWindow: 500_000,
+		supportsImages: true,
+		supportsReasoning: true,
+		supportsReasoningEffort: true,
+		reasoningEffortOptions: ["low", "medium", "high", "xhigh"],
+		defaultReasoningEffort: "high",
+		supportsTools: true,
+	},
+
 	"grok-4.6": {
 		contextWindow: 500_000,
 		supportsImages: true,
