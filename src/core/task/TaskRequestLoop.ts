@@ -298,7 +298,18 @@ export async function recursivelyMakeDiracRequests(
 			const previousThinking = message.content.content
 			if (thinking.startsWith(previousThinking)) {
 				const suffix = thinking.slice(previousThinking.length)
-				if (suffix) await ctx.messageStateHandler.appendMarkdownById(activeVoiceStreamId, suffix)
+				if (suffix) {
+					await ctx.messageStateHandler.appendMarkdownById(activeVoiceStreamId, suffix)
+				} else {
+					// No suffix means the reasoning already streamed in full. getMessageById above
+					// materialized it server-side but emitted no presentation operation, so the
+					// client's buffered chunks would never be merged into the message — and once
+					// activeVoiceStreamId clears below, the row stops reading the live buffer and
+					// renders an empty body. Patch unconditionally, as TaskMessenger.close() does.
+					await ctx.messageStateHandler.patchMessageById(activeVoiceStreamId, {
+						content: { ...message.content },
+					})
+				}
 			} else if (thinking !== previousThinking) {
 				const index = ctx.messageStateHandler.findMessageIndexById(activeVoiceStreamId)
 				await ctx.messageStateHandler.updateDiracMessage(index, {
