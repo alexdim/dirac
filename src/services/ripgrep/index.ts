@@ -1,7 +1,4 @@
-/** Narrow file-access validator — DiracIgnoreController satisfies this structurally. */
-interface PathAccessValidator {
-	validateAccess(filePath: string): boolean
-}
+import type { PathAccessValidator } from "@shared/path-access"
 import { AnchorStateManager } from "@utils/AnchorStateManager"
 import { formatLineWithHash } from "@utils/line-hashing"
 import * as childProcess from "child_process"
