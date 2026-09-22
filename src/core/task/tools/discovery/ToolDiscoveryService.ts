@@ -5,6 +5,7 @@ import { CONFIGURABLE_TOOL_EXPOSURE, type DiscoveredTool, type ToolExposure, typ
 import { UserToolLoader } from "./UserToolLoader"
 import type { IDiracTool } from "../interfaces/IDiracTool"
 import type { DiracToolSpec } from "@/shared/tools"
+import { approvedWorkspaceCode } from "@/core/security/WorkspaceCodeApproval"
 
 interface ToolManifest {
 	spec: DiracToolSpec
@@ -65,7 +66,7 @@ export class ToolDiscoveryService {
 	 * Scan a user tool directory for Dirac-managed tool manifests.
 	 * Each subdirectory must contain dirac-tool.json and tool.ts.
 	 */
-	static async scanUserToolDirectory(dirPath: string, source: ToolSource): Promise<DiscoveredTool[]> {
+	static async scanUserToolDirectory(dirPath: string, source: ToolSource, toggles: Record<string, boolean> = {}, workspaceRoot?: string): Promise<DiscoveredTool[]> {
 		if (!fs.existsSync(dirPath)) {
 			return []
 		}
@@ -84,7 +85,14 @@ export class ToolDiscoveryService {
 				continue
 			}
 
-			const tool = await UserToolLoader.load(toolDir, source)
+			const metadata = source === "workspace" ? await UserToolLoader.describe(toolDir, source) : undefined
+			if (source === "workspace" && !metadata) continue
+			let tool = metadata
+			if (source !== "workspace") tool = await UserToolLoader.load(toolDir, source)
+			else if (toggles[metadata!.id]) {
+				const approved = await approvedWorkspaceCode(workspaceRoot!, metadata!.modulePath, manifestPath, true)
+				if (approved) tool = await UserToolLoader.loadWithDiagnostics(toolDir, source, approved).then((result) => result.tool) ?? metadata
+			}
 			if (tool) {
 				tools.push(tool)
 			}
@@ -98,8 +106,8 @@ export class ToolDiscoveryService {
 		return this.scanUserToolDirectory(globalDir, "global")
 	}
 
-	static scanWorkspaceTools(workspaceRoot: string): Promise<DiscoveredTool[]> {
+	static scanWorkspaceTools(workspaceRoot: string, toggles: Record<string, boolean> = {}): Promise<DiscoveredTool[]> {
 		const workspaceDir = path.join(workspaceRoot, ".dirac", "tools")
-		return this.scanUserToolDirectory(workspaceDir, "workspace")
+		return this.scanUserToolDirectory(workspaceDir, "workspace", toggles, workspaceRoot)
 	}
 }

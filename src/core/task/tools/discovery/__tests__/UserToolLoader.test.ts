@@ -149,6 +149,23 @@ describe("ToolDiscoveryService user tools", () => {
 		assert.equal(tools.length, 0)
 	})
 
+	it("discovers a disabled workspace tool without evaluating module top-level code", async () => {
+		const workspace = await makeTempDir()
+		const toolsDir = path.join(workspace, ".dirac", "tools")
+		const marker = path.join(workspace, "unexpected-marker")
+		await writeUserTool(toolsDir, {
+			id: "marker_tool",
+			extraSource: `import { writeFileSync } from "node:fs"; writeFileSync(${JSON.stringify(marker)}, "ran");`,
+		})
+
+		const tools = await ToolDiscoveryService.scanWorkspaceTools(workspace)
+
+		assert.equal(tools.length, 1)
+		assert.equal(tools[0].id, "marker_tool")
+		assert.equal(tools[0].executable, false)
+		await assert.rejects(() => fs.access(marker), { code: "ENOENT" })
+	})
+
 	it("skips invalid tools without blocking valid tools", async () => {
 		const root = await makeTempDir()
 		await writeUserTool(root, { id: "valid_tool" })

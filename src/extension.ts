@@ -13,7 +13,7 @@ import { DiracWebviewProvider } from "./core/webview"
 import { createDiracAPI } from "./exports"
 import { initializeTestMode } from "./services/test/TestMode"
 import { DiracAskResponse } from "./shared/WebviewMessage"
-import "./utils/path" // necessary to have access to String.prototype.toPosix
+import "./utils/path"; // necessary to have access to String.prototype.toPosix
 import { isDev } from "@shared/config/environment"
 import type { ExtensionContext } from "vscode"
 import { HostProvider } from "@/hosts/host-provider"
@@ -659,6 +659,7 @@ async function setupHostProvider(context: ExtensionContext, globalStorageFsPath:
 		globalStorageFsPath,
 
 		getEnvironmentVariables,
+		() => vscode.workspace.isTrusted,
 	)
 }
 

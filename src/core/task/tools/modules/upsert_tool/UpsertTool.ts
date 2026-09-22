@@ -232,7 +232,7 @@ async function prepareTool(
 		await updateProgress(`[${name}] Resolved directory`, finalDir)
 		stagingDir = await createToolStagingDirectory(finalDir)
 
-		const manifest = buildManifest(name, scope)
+		const manifest = buildManifest(name, scope, description, parameters)
 		await fs.writeFile(path.join(stagingDir, "dirac-tool.json"), JSON.stringify(manifest, null, 2), "utf8")
 		await writeTestHarness(stagingDir)
 		await fs.writeFile(path.join(stagingDir, "tool.ts"), buildScaffoldedToolSource(name, description, parameters), "utf8")

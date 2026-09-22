@@ -70,6 +70,8 @@ export interface ToolMetadata {
 	description: string
 	source: "builtin" | "global" | "workspace" | "task"
 	modulePath: string
+	/** False when workspace code is not approved for execution. */
+	executable?: boolean
 }
 
 export interface ExtensionState {

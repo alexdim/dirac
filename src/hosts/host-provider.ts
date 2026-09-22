@@ -45,6 +45,8 @@ export class HostProvider {
 	// Use to this to get the location of extension assets.
 	extensionFsPath: string
 	getEnvironmentVariables: (cwd: string) => Promise<{ [key: string]: string | undefined } | undefined>
+	/** Host-level workspace restriction; never substitutes for a code-specific grant. */
+	isWorkspaceTrusted: () => boolean
 
 	// The absolute file system path where the extension can store global state.
 	globalStorageFsPath: string
@@ -63,6 +65,7 @@ export class HostProvider {
 		extensionFsPath: string,
 		globalStorageFsPath: string,
 		getEnvironmentVariables: GetEnvironmentVariables,
+		isWorkspaceTrusted: () => boolean = () => true,
 	) {
 		this.diracType = diracType
 		this.createDiracWebviewProvider = createDiracWebviewProvider
@@ -76,6 +79,7 @@ export class HostProvider {
 		this.extensionFsPath = extensionFsPath
 		this.globalStorageFsPath = globalStorageFsPath
 		this.getEnvironmentVariables = getEnvironmentVariables
+		this.isWorkspaceTrusted = isWorkspaceTrusted
 	}
 
 	public static initialize(
@@ -91,6 +95,7 @@ export class HostProvider {
 		extensionFsPath: string,
 		globalStorageFsPath: string,
 		getEnvironmentVariables: GetEnvironmentVariables,
+		isWorkspaceTrusted: () => boolean = () => true,
 	): HostProvider {
 		if (HostProvider.instance) {
 			throw new Error("Host provider has already been initialized.")
@@ -108,6 +113,7 @@ export class HostProvider {
 			extensionFsPath,
 			globalStorageFsPath,
 			getEnvironmentVariables,
+			isWorkspaceTrusted,
 		)
 		return HostProvider.instance
 	}

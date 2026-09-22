@@ -5,6 +5,7 @@ import * as path from "path"
 import * as ts from "typescript"
 import { pathToFileURL } from "url"
 import { getErrorMessage } from "@/shared/errors"
+import type { WorkspaceCodeSnapshot } from "@/core/security/WorkspaceCodeApproval"
 import { Logger } from "@/shared/services/Logger"
 import type { DiracToolSpec } from "@/shared/tools"
 import type { IDiracTool } from "../interfaces/IDiracTool"
@@ -26,6 +27,8 @@ interface UserToolManifest {
 	entry: "tool.ts"
 	createdBy: "dirac"
 	createdAt?: string
+	description?: string
+	parameters?: DiracToolSpec["parameters"]
 }
 
 interface UserToolModule {
@@ -39,12 +42,40 @@ export class UserToolLoader {
 		return result.tool
 	}
 
-	static async loadWithDiagnostics(toolDir: string, source: ToolSource): Promise<UserToolLoadResult> {
+	/** Manifest-only descriptor: never transpiles or imports workspace code. */
+	static async describe(toolDir: string, source: ToolSource): Promise<DiscoveredTool | undefined> {
 		try {
 			const manifest = await this.readManifest(toolDir, source)
+			const modulePath = path.join(toolDir, manifest.entry)
+			const sourceCode = await fs.readFile(modulePath, "utf8")
+			return {
+				id: manifest.id,
+				name: manifest.name,
+				source,
+				exposure: CONFIGURABLE_TOOL_EXPOSURE,
+				spec: {
+					id: manifest.id,
+					name: manifest.name,
+					description: manifest.description || "Review this tool's source before enabling it.",
+					parameters: manifest.parameters || [],
+				},
+				factory: () => { throw new Error(`Unapproved workspace tool '${manifest.id}' cannot run.`) },
+				modulePath,
+				sourceHash: this.hashToolSource(modulePath, `${JSON.stringify(manifest)}\0${sourceCode}`),
+				executable: false,
+			}
+		} catch (error) {
+			Logger.warn(`[UserToolLoader] Skipping invalid user tool at '${toolDir}'.`, error)
+			return undefined
+		}
+	}
+
+	static async loadWithDiagnostics(toolDir: string, source: ToolSource, approvedSource?: WorkspaceCodeSnapshot): Promise<UserToolLoadResult> {
+		try {
+			const manifest = await this.readManifest(toolDir, source, approvedSource?.manifestSource)
 
 			const sourcePath = path.join(toolDir, manifest.entry)
-			const sourceCode = await fs.readFile(sourcePath, "utf8")
+			const sourceCode = approvedSource ? approvedSource.source.toString("utf8") : await fs.readFile(sourcePath, "utf8")
 			const sourceHash = this.hashToolSource(sourcePath, sourceCode)
 			const compiledPath = await this.compileTool(manifest.id, sourceCode, sourceHash)
 
@@ -89,9 +120,9 @@ export class UserToolLoader {
 		}
 	}
 
-	private static async readManifest(toolDir: string, source: ToolSource): Promise<UserToolManifest> {
+	private static async readManifest(toolDir: string, source: ToolSource, approvedManifest?: Buffer): Promise<UserToolManifest> {
 		const manifestPath = path.join(toolDir, "dirac-tool.json")
-		const raw = await fs.readFile(manifestPath, "utf8")
+		const raw = approvedManifest ? approvedManifest.toString("utf8") : await fs.readFile(manifestPath, "utf8")
 		const parsed = JSON.parse(raw) as Partial<UserToolManifest>
 
 		if (!parsed.schemaVersion || typeof parsed.schemaVersion !== "number" || parsed.schemaVersion < 1) {
