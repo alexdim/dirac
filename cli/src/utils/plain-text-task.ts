@@ -11,6 +11,8 @@
 /* eslint-disable no-console */
 // Console output is intentional here for plain text mode
 
+import { randomUUID } from "node:crypto"
+import { isTaskCompletionCard } from "@shared/cardIdentity"
 import {
 	CardStatus,
 	DiracMessage,
@@ -19,27 +21,20 @@ import {
 	TaskStatus,
 	UIActionButtonType,
 } from "@shared/ExtensionMessage"
-import { isTaskCompletionCard } from "@shared/cardIdentity"
-import { randomUUID } from "node:crypto"
-import { Logger } from "@/shared/services/Logger"
-import { DiracAskResponse } from "@shared/WebviewMessage"
-
+import { getApiMetrics } from "@shared/getApiMetrics"
+import type { PresentationBatch } from "@shared/PresentationOperation"
+import { applyPresentationBatch, createPresentationState } from "@shared/presentationState"
 import { StringRequest } from "@shared/proto/dirac/common"
+import { DiracAskResponse } from "@shared/WebviewMessage"
 import type { Controller } from "@/core/controller"
 import { getRequestRegistry } from "@/core/controller/grpc-handler"
 import { subscribeToState } from "@/core/controller/state/subscribeToState"
 import { showTaskWithId } from "@/core/controller/task/showTaskWithId"
-import { emitTaskStartedMessage } from "./task-start-output"
-import { getApiMetrics } from "@shared/getApiMetrics"
-import type { PresentationBatch } from "@shared/PresentationOperation"
-import { applyPresentationBatch, createPresentationState } from "@shared/presentationState"
-import {
-	approveCardForPlainTextYolo,
-	getStandaloneCardDisposition,
-	StandaloneCardDisposition,
-} from "./standalone-card-policy"
-import { stderrStyle } from "./display"
+import { Logger } from "@/shared/services/Logger"
 import { cardBodyForDisplay } from "./card-body"
+import { stderrStyle } from "./display"
+import { approveCardForPlainTextYolo, getStandaloneCardDisposition, StandaloneCardDisposition } from "./standalone-card-policy"
+import { emitTaskStartedMessage } from "./task-start-output"
 
 export { approveCardForPlainTextYolo } from "./standalone-card-policy"
 
@@ -69,7 +64,7 @@ export async function runPlainTextTask(options: PlainTextTaskOptions): Promise<b
 	// Subscription callbacks can reject completion while task initialization is
 	// still in progress. Attach a handler immediately so Node never reports that
 	// legitimate early failure as an unhandled rejection before we await it.
-	void completionPromise.catch(() => { })
+	void completionPromise.catch(() => {})
 	let completionSettled = false
 	const resolveCompletion = () => {
 		if (completionSettled) return
@@ -85,6 +80,10 @@ export async function runPlainTextTask(options: PlainTextTaskOptions): Promise<b
 	let hasError = false
 	let hasEmittedTaskStarted = false
 	let taskExecutionStarted = false
+	// A resumed task replays its terminal status once after restore; terminal
+	// resolution stays suppressed until the new turn posts a divergent status.
+	let restoredTerminalStatus: TaskStatus | undefined
+	let turnStatusObserved = true
 	// Track which messages have been processed (by ID)
 	const processedMessages = new Set<string>()
 	const streamedApiStatusIds = new Set<string>()
@@ -171,7 +170,10 @@ export async function runPlainTextTask(options: PlainTextTaskOptions): Promise<b
 		} else if (!isStreaming) {
 			processedMessages.add(message.id)
 			// For API_STATUS, once metrics are present, mark as completed to stop re-printing
-			if (content.type === DiracMessageType.API_STATUS && (content.status.cost !== undefined || content.status.tokensIn !== undefined)) {
+			if (
+				content.type === DiracMessageType.API_STATUS &&
+				(content.status.cost !== undefined || content.status.tokensIn !== undefined)
+			) {
 				completedApiStatusIds.add(message.id)
 			}
 		}
@@ -186,9 +188,7 @@ export async function runPlainTextTask(options: PlainTextTaskOptions): Promise<b
 					.then(() => approveCardForPlainTextYolo(controller, content.card))
 					.catch((error) => {
 						rejectCompletion(
-							error instanceof Error
-								? error
-								: new Error(`Failed to auto-approve card: ${String(error)}`),
+							error instanceof Error ? error : new Error(`Failed to auto-approve card: ${String(error)}`),
 						)
 					})
 				return
@@ -255,18 +255,22 @@ export async function runPlainTextTask(options: PlainTextTaskOptions): Promise<b
 					latestState.presentationOffset = presentationState.offset
 					if (!taskExecutionStarted) return
 					const state = latestState as ExtensionState
-					const completedVoiceStreamId = previousActiveVoiceStreamId !== state.activeVoiceStreamId
-						? previousActiveVoiceStreamId
-						: undefined
+					const completedVoiceStreamId =
+						previousActiveVoiceStreamId !== state.activeVoiceStreamId ? previousActiveVoiceStreamId : undefined
 					if (completedVoiceStreamId) {
 						const completedIndex = presentationState.messageIndexById.get(completedVoiceStreamId)
-						const completedMessage = completedIndex === undefined
-							? undefined
-							: presentationState.messages[completedIndex]
+						const completedMessage =
+							completedIndex === undefined ? undefined : presentationState.messages[completedIndex]
 						if (completedMessage) await processMessage(completedMessage, state)
 					}
 					for (const message of changedMessages) {
 						await processMessage(message, state)
+					}
+
+					// The first status diverging from the restored snapshot proves the
+					// follow-up turn is live; only then are terminal states trustworthy.
+					if (!turnStatusObserved && state.taskStatus !== undefined && state.taskStatus !== restoredTerminalStatus) {
+						turnStatusObserved = true
 					}
 
 					// Check for terminal state via task status, retaining the mistake-limit projection.
@@ -275,7 +279,9 @@ export async function runPlainTextTask(options: PlainTextTaskOptions): Promise<b
 					const hasNewTask = globalButtons.some((button) => button.action === UIActionButtonType.NEW_TASK)
 					const hasProceed = globalButtons.some((button) => button.action === UIActionButtonType.PROCEED)
 
-					if (hasNewTask && hasProceed) {
+					if (!turnStatusObserved) {
+						// Still replaying the restored terminal snapshot — not the new turn's outcome.
+					} else if (hasNewTask && hasProceed) {
 						rejectCompletion(new Error("Mistake limit reached. Task halted in YOLO mode."))
 					} else if (state.taskStatus === TaskStatus.COMPLETED || (hasNewTask && !hasProceed)) {
 						resolveCompletion()
@@ -304,6 +310,10 @@ export async function runPlainTextTask(options: PlainTextTaskOptions): Promise<b
 
 			// If a prompt was provided, send it as a message to the resumed task
 			if ((prompt || imageDataUrls?.length) && controller.task) {
+				// Capture the terminal status restore replayed; suppressing it stops the
+				// stale snapshot from resolving the follow-up turn before it starts.
+				restoredTerminalStatus = controller.task.taskState?.status
+				turnStatusObserved = false
 				// Send the prompt as a response to any pending ask, or as a new message
 				taskExecutionStarted = true
 				await controller.task.submitCardResponse("", DiracAskResponse.MESSAGE, prompt || "", imageDataUrls)
@@ -321,7 +331,10 @@ export async function runPlainTextTask(options: PlainTextTaskOptions): Promise<b
 		if (options.timeoutSeconds) {
 			const timeoutMs = options.timeoutSeconds * 1000
 			const timeoutPromise = new Promise<void>((_, reject) => {
-				timeout = setTimeout(() => reject(new Error(`Task timed out after ${options.timeoutSeconds} seconds.`)), timeoutMs)
+				timeout = setTimeout(
+					() => reject(new Error(`Task timed out after ${options.timeoutSeconds} seconds.`)),
+					timeoutMs,
+				)
 			})
 			await Promise.race([completionPromise, timeoutPromise])
 		} else {
@@ -433,9 +446,7 @@ function handleMessageForPipeMode(
 				const styledContent = content.isReasoning
 					? stderrStyle.dim(content.content)
 					: stderrStyle.assistant(content.content)
-				process.stderr.write(
-					`${stderrStyle.metadata(`${timestamp}${statusPrefix}`)}${styledLabel}: ${styledContent}\n`,
-				)
+				process.stderr.write(`${stderrStyle.metadata(`${timestamp}${statusPrefix}`)}${styledLabel}: ${styledContent}\n`)
 			}
 		}
 		return
@@ -501,8 +512,9 @@ function handleApiReqMessage(message: DiracMessage, statusPrefix: string, isUpda
 		const costStr = info.cost !== undefined ? `Cost: $${info.cost.toFixed(4)}` : ""
 		const tokensStr =
 			info.tokensIn !== undefined
-				? `Tokens: ${info.tokensIn.toLocaleString()} in, ${(info.tokensOut || 0).toLocaleString()} out${info.reasoningTokens ? ` (+${info.reasoningTokens.toLocaleString()} thinking)` : ""
-				}`
+				? `Tokens: ${info.tokensIn.toLocaleString()} in, ${(info.tokensOut || 0).toLocaleString()} out${
+						info.reasoningTokens ? ` (+${info.reasoningTokens.toLocaleString()} thinking)` : ""
+					}`
 				: ""
 		const cacheStr =
 			info.cacheReads !== undefined || info.cacheWrites !== undefined
