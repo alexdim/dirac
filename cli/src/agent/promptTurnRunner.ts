@@ -9,7 +9,7 @@ import { Logger } from "@/shared/services/Logger.js"
 import { copyTaskRuntimeSettings } from "../acp/acp-session-runtime-config.js"
 import { recordTaskForSession } from "../acp/acp-session-tasks.js"
 import type { PinnedMessagesManager } from "./pinnedMessages.js"
-import { parsePromptContent } from "./promptContent.js"
+import { type PromptContent, parsePromptContent } from "./promptContent.js"
 import type { PromptSteeringQueue } from "./promptSteeringQueue.js"
 import type { DiracAcpSession } from "./public-types.js"
 import { AcpSessionStatus } from "./public-types.js"
@@ -40,6 +40,23 @@ interface PromptTurnDeps {
  * sessions, binds the session's task, routes the prompt into the right task
  * path (new/continue/resume), and resolves when the turn completes or cancels.
  */
+
+/** Mutable per-turn state shared by the prompt phases. */
+interface PromptTurnContext {
+	sessionId: string
+	session: DiracAcpSession
+	sessionState: AcpSessionState
+	controller: Controller
+	bridge: TaskMessageBridge
+	/** Settles when the task completes, is cancelled, needs input, or fails internally. */
+	promptPromise: Promise<acp.PromptResponse>
+	resolvePrompt: (response: acp.PromptResponse) => void
+	rejectPrompt: (error: Error) => void
+	promptResolved: { value: boolean }
+	cleanupFunctions: (() => void)[]
+	subscribedTask: object | undefined
+}
+
 export class PromptTurnRunner {
 	private activePrompt: Promise<void> = Promise.resolve()
 
@@ -135,321 +152,27 @@ export class PromptTurnRunner {
 			return this.deps.bridgeForSession(params.sessionId).promptResponse("cancelled")
 		}
 
-		// Clear only this session's delta and tool-call tracking state.
-		const bridge = this.deps.bridgeForSession(params.sessionId)
-		bridge.clearPromptState()
-
-		// Track cleanup functions for subscriptions
-		const cleanupFunctions: (() => void)[] = []
-
-		// Promise that settles when the task completes, is cancelled, needs input,
-		// or encounters an internal failure.
-		let resolvePrompt: (response: acp.PromptResponse) => void
-		let rejectPrompt: (error: Error) => void
-		const promptPromise = new Promise<acp.PromptResponse>((resolve, reject) => {
-			resolvePrompt = resolve
-			rejectPrompt = reject
-		})
-
-		// Track if we've already resolved/rejected (object for pass-by-reference)
-		const promptResolved = { value: false }
-
-		// Register the resolver so cancel() can resolve the in-flight prompt with
-		// `stopReason: "cancelled"`. Cleared in the finally block.
-		this.pendingPromptResolvers.set(params.sessionId, {
-			resolve: resolvePrompt!,
-			resolved: promptResolved,
-		})
-
-		let subscribedTask: object | undefined
-		const subscribeToCurrentTask = () => {
-			const task = controller.task
-			if (!task || subscribedTask === task) return
-			bridge.subscribeToTaskMessages(
-				controller,
-				params.sessionId,
-				sessionState,
-				resolvePrompt!,
-				rejectPrompt!,
-				promptResolved,
-				cleanupFunctions,
-				controller.taskRunPromise,
-			)
-			subscribedTask = task
-		}
-		const removeTaskReplacementListener = controller.onTaskReplaced(async (taskId) => {
-			await bridge.cancelInFlightToolCalls(params.sessionId, sessionState)
-			await recordTaskForSession(params.sessionId, taskId)
-			session.taskId = taskId
-			subscribedTask = undefined
-			const replacementTask = controller.task
-			if (!replacementTask) return
-			await this.deps.steering.bindPromptTask(params.sessionId, replacementTask)
-			const replayEndIndex = replacementTask.messageStateHandler.getDiracMessages().length
-			subscribeToCurrentTask()
-			await bridge.replayTaskMessages(
-				controller,
-				params.sessionId,
-				sessionState,
-				resolvePrompt!,
-				rejectPrompt!,
-				promptResolved,
-				0,
-				replayEndIndex,
-			)
-		})
-		cleanupFunctions.push(removeTaskReplacementListener)
+		const turn = this.setupPromptTurn(session, sessionState, controller, params.sessionId)
 
 		try {
-			// Extract text content from prompt
-			const { textContent, imageContent, fileResources } = parsePromptContent(params.prompt)
+			const content = parsePromptContent(params.prompt)
 
 			// Command availability may depend on skills and workflows added after the
 			// session was created. Republish the complete current set before each turn.
 			await this.deps.sendAvailableCommands(params.sessionId, controller)
-			await this.deps.setSessionTitleFromFirstExchange(session, textContent)
+			await this.deps.setSessionTitleFromFirstExchange(session, content.textContent)
 
-			const interceptedReviewResponse =
-				imageContent.length === 0 && fileResources.length === 0
-					? await handleAcpReviewCommand({
-							commandText: textContent,
-							controller,
-							sessionId: params.sessionId,
-							cwd: session.cwd,
-							emitSessionUpdate: (sessionId, update) => this.deps.emitSessionUpdate(sessionId, update),
-						})
-					: null
+			const intercepted = await this.interceptReviewCommand(turn, content)
+			if (intercepted) return intercepted
 
-			if (interceptedReviewResponse) {
-				return {
-					...interceptedReviewResponse,
-					...bridge.promptResponse(interceptedReviewResponse.stopReason),
-				}
-			}
-
-			// Determine if this is a new task, continuation, or loaded session resume
-			const hasActiveTask = controller.task !== undefined
-			const isLoadedSession = session.isLoadedFromHistory === true
-
-			if (session.awaitingCancelledTaskResume && hasActiveTask && controller.task) {
-				// cancelTask() reinitializes persisted history and leaves its replacement task
-				// waiting in resumeTaskFromHistory(). ACP has no historical resume-card
-				// requirement, so wake that flow directly rather than replacing the task.
-				Logger.debug("[DiracAgent] Resuming task reinitialized after cancellation:", controller.task.taskId)
-				subscribeToCurrentTask()
-				await this.deps.steering.bindPromptTask(params.sessionId, controller.task)
-				await controller.task.submitCardResponse("", DiracAskResponse.MESSAGE, textContent, imageContent, fileResources)
-				session.awaitingCancelledTaskResume = false
-			} else if (isLoadedSession && !hasActiveTask) {
-				// First prompt on a loaded session - resume the task from history.
-				Logger.debug("[DiracAgent] Resuming loaded session:", params.sessionId)
-
-				// Clear the flag so subsequent prompts are handled normally.
-				session.isLoadedFromHistory = false
-
-				// Use loadedTaskId if set (multi-task session resolved in loadSession),
-				// otherwise fall back to sessionId (common case where taskId === sessionId).
-				const taskIdToResume = session.loadedTaskId ?? params.sessionId
-				session.loadedTaskId = undefined
-
-				await controller.reinitExistingTaskFromId(
-					taskIdToResume,
-					this.deps.pinned.activePromptInitializationOptions(params.sessionId),
-				)
-
-				if (controller.task) {
-					const task = controller.task
-					const resumeResult = await new Promise<"completed" | "resumed">((resolve, reject) => {
-						let settled = false
-						const finish = (result: "completed" | "resumed") => {
-							if (settled) return
-							settled = true
-							clearInterval(statusPoll)
-							task.messageStateHandler.off("diracMessagesChanged", onChanged)
-							resolve(result)
-						}
-						const onRunPromiseError = (err: unknown) => {
-							if (settled) return
-							settled = true
-							clearInterval(statusPoll)
-							task.messageStateHandler.off("diracMessagesChanged", onChanged)
-							reject(err instanceof Error ? err : new Error(String(err)))
-						}
-						const hasResumeCard = () =>
-							task.messageStateHandler
-								.getDiracMessages()
-								.some(
-									(message) =>
-										message.content.type === DiracMessageType.CARD &&
-										isResumePromptCard(message.content.card),
-								)
-						const checkResumeState = () => {
-							if (task.taskState.status === TaskStatus.COMPLETED) return finish("completed")
-							if (hasResumeCard()) finish("resumed")
-						}
-						const onChanged = (change: DiracMessageChange) => {
-							if (
-								change.type === "add" &&
-								change.message?.content.type === DiracMessageType.CARD &&
-								isResumePromptCard(change.message.content.card)
-							) {
-								finish("resumed")
-							}
-						}
-						const statusPoll = setInterval(checkResumeState, 10)
-						task.messageStateHandler.on("diracMessagesChanged", onChanged)
-						Promise.resolve(controller.taskRunPromise).catch(onRunPromiseError)
-						checkResumeState()
-					})
-
-					if (resumeResult === "completed") {
-						// Completed history is terminal: resumeTaskFromHistory() intentionally does
-						// not issue a resume card or wait for a response. Start a fresh task for
-						// the first new ACP prompt rather than waiting forever for that card.
-						Logger.debug("[DiracAgent] Starting a new task from completed loaded session:", taskIdToResume)
-						await controller.initTask(
-							textContent,
-							imageContent,
-							fileResources,
-							undefined,
-							undefined,
-							undefined,
-							undefined,
-							this.deps.pinned.activePromptInitializationOptions(params.sessionId),
-						)
-						if (controller.task) {
-							await recordTaskForSession(params.sessionId, controller.task.taskId)
-							session.taskId = controller.task.taskId
-						}
-					} else {
-						subscribeToCurrentTask()
-						await task.submitCardResponse("", DiracAskResponse.MESSAGE, textContent, imageContent, fileResources)
-					}
-				}
-			} else if (hasActiveTask && controller.task) {
-				// Continue existing task - respond to pending ask
-				Logger.debug("[DiracAgent] Continuing existing task:", controller.task.taskId)
-
-				const waitingCardId = controller.task.taskState.lastWaitingCardId
-				const waitingCard = waitingCardId
-					? controller.task.messageStateHandler
-							.getDiracMessages()
-							.find(
-								(message) =>
-									message.content.type === DiracMessageType.CARD &&
-									message.content.card.id === waitingCardId &&
-									message.content.card.status === CardStatus.WAITING_FOR_INPUT,
-							)
-					: undefined
-
-				if (waitingCard) {
-					subscribeToCurrentTask()
-					await controller.task.submitCardResponse(
-						waitingCardId!,
-						DiracAskResponse.MESSAGE,
-						textContent,
-						imageContent,
-						fileResources,
-					)
-				} else if (controller.task.taskState.didAttemptCompletion) {
-					// The completion card resolves session/prompt slightly before the core task
-					// finishes publishing its terminal state. Wait until that handoff clears stale
-					// response fields before submitting the follow-up. Completed tasks intentionally
-					// retain COMPLETED while waitForFollowUp() accepts the next message.
-					await pWaitFor(
-						() => {
-							const status = controller.task?.taskState.status
-							return status === TaskStatus.COMPLETED || status === TaskStatus.AWAITING_USER_INPUT
-						},
-						{ interval: 10 },
-					)
-
-					// A completion response ends the ACP turn, not the conversation. The core
-					// task remains alive in waitForFollowUp() so the next session/prompt can
-					// continue with the same API conversation history.
-					Logger.debug("[DiracAgent] Continuing completed task in existing ACP session:", controller.task.taskId)
-					subscribeToCurrentTask()
-					await controller.task.submitCardResponse(
-						"",
-						DiracAskResponse.MESSAGE,
-						textContent,
-						imageContent,
-						fileResources,
-					)
-				} else {
-					Logger.debug("[DiracAgent] Starting new task (active task cannot accept a follow-up)")
-					await controller.initTask(
-						textContent,
-						imageContent,
-						fileResources,
-						undefined,
-						undefined,
-						undefined,
-						undefined,
-						this.deps.pinned.activePromptInitializationOptions(params.sessionId),
-					)
-					if (controller.task) {
-						await recordTaskForSession(params.sessionId, controller.task.taskId)
-						session.taskId = controller.task.taskId
-						const replayEndIndex = controller.task.messageStateHandler.getDiracMessages().length
-						subscribeToCurrentTask()
-						await bridge.replayTaskMessages(
-							controller,
-							params.sessionId,
-							sessionState,
-							resolvePrompt!,
-							rejectPrompt!,
-							promptResolved,
-							0,
-							replayEndIndex,
-						)
-					}
-				}
-			} else {
-				// Start new task — consume reservedTaskId (sessionId) so the task's taskId
-				// equals the sessionId, enabling loadSession to find it without a map lookup.
-				const taskIdOverride = session.reservedTaskId
-				session.reservedTaskId = undefined
-				Logger.debug("[DiracAgent] Starting new task")
-				await controller.initTask(
-					textContent,
-					imageContent,
-					fileResources,
-					undefined,
-					undefined,
-					taskIdOverride,
-					undefined,
-					this.deps.pinned.activePromptInitializationOptions(params.sessionId),
-				)
-				session.taskId = controller.task?.taskId
-			}
-
-			if (controller.task && !subscribedTask) {
-				const replayEndIndex = controller.task.messageStateHandler.getDiracMessages().length
-				subscribeToCurrentTask()
-				await bridge.replayTaskMessages(
-					controller,
-					params.sessionId,
-					sessionState,
-					resolvePrompt!,
-					rejectPrompt!,
-					promptResolved,
-					0,
-					replayEndIndex,
-				)
-			}
-
-			// Existing continuations subscribe before waking the task; newly created
-			// tasks subscribe and replay the messages emitted during initialization.
-
-			// Pins were installed during task construction. This preserves the observer
-			// for task implementations that do not consume initialization options.
+			await this.routePromptToTask(turn, content)
+			await this.subscribeAndReplayCurrentTask(turn)
 
 			// Return the promise that will resolve when task completes
-			return await promptPromise
+			return await turn.promptPromise
 		} catch (error) {
-			if (!promptResolved.value) {
-				promptResolved.value = true
+			if (!turn.promptResolved.value) {
+				turn.promptResolved.value = true
 				const internalError = error instanceof Error ? error : new Error(String(error))
 				try {
 					await this.deps.emitSessionUpdate(params.sessionId, {
@@ -471,7 +194,7 @@ export class PromptTurnRunner {
 			this.activePromptSessionId = undefined
 
 			// Clean up subscriptions
-			for (const cleanup of cleanupFunctions) {
+			for (const cleanup of turn.cleanupFunctions) {
 				try {
 					cleanup()
 				} catch (error) {
@@ -484,6 +207,384 @@ export class PromptTurnRunner {
 			// Task-owned steering remains in the transcript. Pre-task guidance remains session-owned until a task binds.
 			sessionState.status = AcpSessionStatus.Idle
 		}
+	}
+
+	/** Builds the per-turn context: prompt plumbing plus task-replacement handling. */
+	private setupPromptTurn(
+		session: DiracAcpSession,
+		sessionState: AcpSessionState,
+		controller: Controller,
+		sessionId: string,
+	): PromptTurnContext {
+		// Clear only this session's delta and tool-call tracking state.
+		const bridge = this.deps.bridgeForSession(sessionId)
+		bridge.clearPromptState()
+
+		// Promise that settles when the task completes, is cancelled, needs input,
+		// or encounters an internal failure.
+		let resolvePrompt!: (response: acp.PromptResponse) => void
+		let rejectPrompt!: (error: Error) => void
+		const promptPromise = new Promise<acp.PromptResponse>((resolve, reject) => {
+			resolvePrompt = resolve
+			rejectPrompt = reject
+		})
+
+		// Track if we've already resolved/rejected (object for pass-by-reference)
+		const promptResolved = { value: false }
+
+		const turn: PromptTurnContext = {
+			sessionId,
+			session,
+			sessionState,
+			controller,
+			bridge,
+			promptPromise,
+			resolvePrompt,
+			rejectPrompt,
+			promptResolved,
+			cleanupFunctions: [],
+			subscribedTask: undefined,
+		}
+
+		// Register the resolver so cancel() can resolve the in-flight prompt with
+		// `stopReason: "cancelled"`. Cleared in the finally block.
+		this.pendingPromptResolvers.set(sessionId, {
+			resolve: turn.resolvePrompt,
+			resolved: promptResolved,
+		})
+
+		this.registerTaskReplacementListener(turn)
+		return turn
+	}
+
+	/** Subscribes the bridge to the controller's current task, once per task object. */
+	private subscribeToCurrentTask(turn: PromptTurnContext): void {
+		const task = turn.controller.task
+		if (!task || turn.subscribedTask === task) return
+		turn.bridge.subscribeToTaskMessages(
+			turn.controller,
+			turn.sessionId,
+			turn.sessionState,
+			turn.resolvePrompt,
+			turn.rejectPrompt,
+			turn.promptResolved,
+			turn.cleanupFunctions,
+			turn.controller.taskRunPromise,
+		)
+		turn.subscribedTask = task
+	}
+
+	/** Resubscribes and replays when the controller replaces the task mid-turn. */
+	private registerTaskReplacementListener(turn: PromptTurnContext): void {
+		const removeListener = turn.controller.onTaskReplaced(async (taskId) => {
+			await turn.bridge.cancelInFlightToolCalls(turn.sessionId, turn.sessionState)
+			await recordTaskForSession(turn.sessionId, taskId)
+			turn.session.taskId = taskId
+			turn.subscribedTask = undefined
+			const replacementTask = turn.controller.task
+			if (!replacementTask) return
+			await this.deps.steering.bindPromptTask(turn.sessionId, replacementTask)
+			const replayEndIndex = replacementTask.messageStateHandler.getDiracMessages().length
+			this.subscribeToCurrentTask(turn)
+			await turn.bridge.replayTaskMessages(
+				turn.controller,
+				turn.sessionId,
+				turn.sessionState,
+				turn.resolvePrompt,
+				turn.rejectPrompt,
+				turn.promptResolved,
+				0,
+				replayEndIndex,
+			)
+		})
+		turn.cleanupFunctions.push(removeListener)
+	}
+
+	/** Intercepts /review-style commands before any task routing; null when not intercepted. */
+	private async interceptReviewCommand(turn: PromptTurnContext, content: PromptContent): Promise<acp.PromptResponse | null> {
+		if (content.imageContent.length > 0 || content.fileResources.length > 0) return null
+		const intercepted = await handleAcpReviewCommand({
+			commandText: content.textContent,
+			controller: turn.controller,
+			sessionId: turn.sessionId,
+			cwd: turn.session.cwd,
+			emitSessionUpdate: (sessionId, update) => this.deps.emitSessionUpdate(sessionId, update),
+		})
+		if (!intercepted) return null
+		return {
+			...intercepted,
+			...turn.bridge.promptResponse(intercepted.stopReason),
+		}
+	}
+
+	/** Dispatches the prompt to the right task path: resume, loaded session, continue, or new task. */
+	private async routePromptToTask(turn: PromptTurnContext, content: PromptContent): Promise<void> {
+		const task = turn.controller.task
+		const isLoadedSession = turn.session.isLoadedFromHistory === true
+
+		if (turn.session.awaitingCancelledTaskResume && task) {
+			await this.resumeTaskAfterCancellation(turn, task, content)
+		} else if (isLoadedSession && !task) {
+			await this.resumeLoadedSession(turn, content)
+		} else if (task) {
+			await this.continueActiveTask(turn, task, content)
+		} else {
+			await this.startNewTask(turn, content)
+		}
+	}
+
+	/**
+	 * cancelTask() reinitializes persisted history and leaves its replacement task
+	 * waiting in resumeTaskFromHistory(). ACP has no historical resume-card
+	 * requirement, so wake that flow directly rather than replacing the task.
+	 */
+	private async resumeTaskAfterCancellation(
+		turn: PromptTurnContext,
+		task: NonNullable<Controller["task"]>,
+		content: PromptContent,
+	): Promise<void> {
+		Logger.debug("[DiracAgent] Resuming task reinitialized after cancellation:", task.taskId)
+		this.subscribeToCurrentTask(turn)
+		await this.deps.steering.bindPromptTask(turn.sessionId, task)
+		await task.submitCardResponse(
+			"",
+			DiracAskResponse.MESSAGE,
+			content.textContent,
+			content.imageContent,
+			content.fileResources,
+		)
+		turn.session.awaitingCancelledTaskResume = false
+	}
+
+	/** First prompt on a loaded session — resume the task from persisted history. */
+	private async resumeLoadedSession(turn: PromptTurnContext, content: PromptContent): Promise<void> {
+		Logger.debug("[DiracAgent] Resuming loaded session:", turn.sessionId)
+
+		// Clear the flag so subsequent prompts are handled normally.
+		turn.session.isLoadedFromHistory = false
+
+		// Use loadedTaskId if set (multi-task session resolved in loadSession),
+		// otherwise fall back to sessionId (common case where taskId === sessionId).
+		const taskIdToResume = turn.session.loadedTaskId ?? turn.sessionId
+		turn.session.loadedTaskId = undefined
+
+		await turn.controller.reinitExistingTaskFromId(
+			taskIdToResume,
+			this.deps.pinned.activePromptInitializationOptions(turn.sessionId),
+		)
+
+		const task = turn.controller.task
+		if (!task) return
+
+		const resumeResult = await this.waitForLoadedTaskResume(task, turn.controller)
+
+		if (resumeResult === "completed") {
+			// Completed history is terminal: resumeTaskFromHistory() intentionally does
+			// not issue a resume card or wait for a response. Start a fresh task for
+			// the first new ACP prompt rather than waiting forever for that card.
+			Logger.debug("[DiracAgent] Starting a new task from completed loaded session:", taskIdToResume)
+			await turn.controller.initTask(
+				content.textContent,
+				content.imageContent,
+				content.fileResources,
+				undefined,
+				undefined,
+				undefined,
+				undefined,
+				this.deps.pinned.activePromptInitializationOptions(turn.sessionId),
+			)
+			if (turn.controller.task) {
+				await recordTaskForSession(turn.sessionId, turn.controller.task.taskId)
+				turn.session.taskId = turn.controller.task.taskId
+			}
+		} else {
+			this.subscribeToCurrentTask(turn)
+			await task.submitCardResponse(
+				"",
+				DiracAskResponse.MESSAGE,
+				content.textContent,
+				content.imageContent,
+				content.fileResources,
+			)
+		}
+	}
+
+	/** Resolves once the reloaded task either turns out completed or shows its resume card. */
+	private waitForLoadedTaskResume(
+		task: NonNullable<Controller["task"]>,
+		controller: Controller,
+	): Promise<"completed" | "resumed"> {
+		return new Promise<"completed" | "resumed">((resolve, reject) => {
+			let settled = false
+			const finish = (result: "completed" | "resumed") => {
+				if (settled) return
+				settled = true
+				clearInterval(statusPoll)
+				task.messageStateHandler.off("diracMessagesChanged", onChanged)
+				resolve(result)
+			}
+			const onRunPromiseError = (err: unknown) => {
+				if (settled) return
+				settled = true
+				clearInterval(statusPoll)
+				task.messageStateHandler.off("diracMessagesChanged", onChanged)
+				reject(err instanceof Error ? err : new Error(String(err)))
+			}
+			const hasResumeCard = () =>
+				task.messageStateHandler
+					.getDiracMessages()
+					.some((message) => message.content.type === DiracMessageType.CARD && isResumePromptCard(message.content.card))
+			const checkResumeState = () => {
+				if (task.taskState.status === TaskStatus.COMPLETED) return finish("completed")
+				if (hasResumeCard()) finish("resumed")
+			}
+			const onChanged = (change: DiracMessageChange) => {
+				if (
+					change.type === "add" &&
+					change.message?.content.type === DiracMessageType.CARD &&
+					isResumePromptCard(change.message.content.card)
+				) {
+					finish("resumed")
+				}
+			}
+			const statusPoll = setInterval(checkResumeState, 10)
+			task.messageStateHandler.on("diracMessagesChanged", onChanged)
+			Promise.resolve(controller.taskRunPromise).catch(onRunPromiseError)
+			checkResumeState()
+		})
+	}
+
+	/** Continue the session's active task — pending ask card, completed follow-up, or fresh restart. */
+	private async continueActiveTask(
+		turn: PromptTurnContext,
+		task: NonNullable<Controller["task"]>,
+		content: PromptContent,
+	): Promise<void> {
+		Logger.debug("[DiracAgent] Continuing existing task:", task.taskId)
+
+		const waitingCardId = task.taskState.lastWaitingCardId
+		const waitingCard = waitingCardId
+			? task.messageStateHandler
+					.getDiracMessages()
+					.find(
+						(message) =>
+							message.content.type === DiracMessageType.CARD &&
+							message.content.card.id === waitingCardId &&
+							message.content.card.status === CardStatus.WAITING_FOR_INPUT,
+					)
+			: undefined
+
+		if (waitingCard) {
+			this.subscribeToCurrentTask(turn)
+			await task.submitCardResponse(
+				waitingCardId!,
+				DiracAskResponse.MESSAGE,
+				content.textContent,
+				content.imageContent,
+				content.fileResources,
+			)
+		} else if (task.taskState.didAttemptCompletion) {
+			// The completion card resolves session/prompt slightly before the core task
+			// finishes publishing its terminal state. Wait until that handoff clears stale
+			// response fields before submitting the follow-up. Completed tasks intentionally
+			// retain COMPLETED while waitForFollowUp() accepts the next message.
+			await pWaitFor(
+				() => {
+					const status = task.taskState.status
+					return status === TaskStatus.COMPLETED || status === TaskStatus.AWAITING_USER_INPUT
+				},
+				{ interval: 10 },
+			)
+
+			// A completion response ends the ACP turn, not the conversation. The core
+			// task remains alive in waitForFollowUp() so the next session/prompt can
+			// continue with the same API conversation history.
+			Logger.debug("[DiracAgent] Continuing completed task in existing ACP session:", task.taskId)
+			this.subscribeToCurrentTask(turn)
+			await task.submitCardResponse(
+				"",
+				DiracAskResponse.MESSAGE,
+				content.textContent,
+				content.imageContent,
+				content.fileResources,
+			)
+		} else {
+			await this.startTaskInActiveSession(turn, content)
+		}
+	}
+
+	/** Starts a fresh task when the active one cannot accept a follow-up. */
+	private async startTaskInActiveSession(turn: PromptTurnContext, content: PromptContent): Promise<void> {
+		Logger.debug("[DiracAgent] Starting new task (active task cannot accept a follow-up)")
+		await turn.controller.initTask(
+			content.textContent,
+			content.imageContent,
+			content.fileResources,
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+			this.deps.pinned.activePromptInitializationOptions(turn.sessionId),
+		)
+		const task = turn.controller.task
+		if (!task) return
+		await recordTaskForSession(turn.sessionId, task.taskId)
+		turn.session.taskId = task.taskId
+		const replayEndIndex = task.messageStateHandler.getDiracMessages().length
+		this.subscribeToCurrentTask(turn)
+		await turn.bridge.replayTaskMessages(
+			turn.controller,
+			turn.sessionId,
+			turn.sessionState,
+			turn.resolvePrompt,
+			turn.rejectPrompt,
+			turn.promptResolved,
+			0,
+			replayEndIndex,
+		)
+	}
+
+	/** Starts the session's first task, consuming the reserved taskId so it equals the sessionId. */
+	private async startNewTask(turn: PromptTurnContext, content: PromptContent): Promise<void> {
+		// Start new task — consume reservedTaskId (sessionId) so the task's taskId
+		// equals the sessionId, enabling loadSession to find it without a map lookup.
+		const taskIdOverride = turn.session.reservedTaskId
+		turn.session.reservedTaskId = undefined
+		Logger.debug("[DiracAgent] Starting new task")
+		await turn.controller.initTask(
+			content.textContent,
+			content.imageContent,
+			content.fileResources,
+			undefined,
+			undefined,
+			taskIdOverride,
+			undefined,
+			this.deps.pinned.activePromptInitializationOptions(turn.sessionId),
+		)
+		turn.session.taskId = turn.controller.task?.taskId
+	}
+
+	/**
+	 * Subscribes and replays the current task when no branch already did.
+	 * Existing continuations subscribe before waking the task; newly created
+	 * tasks subscribe and replay the messages emitted during initialization.
+	 */
+	private async subscribeAndReplayCurrentTask(turn: PromptTurnContext): Promise<void> {
+		const task = turn.controller.task
+		if (!task || turn.subscribedTask) return
+
+		const replayEndIndex = task.messageStateHandler.getDiracMessages().length
+		this.subscribeToCurrentTask(turn)
+		await turn.bridge.replayTaskMessages(
+			turn.controller,
+			turn.sessionId,
+			turn.sessionState,
+			turn.resolvePrompt,
+			turn.rejectPrompt,
+			turn.promptResolved,
+			0,
+			replayEndIndex,
+		)
 	}
 
 	/**
