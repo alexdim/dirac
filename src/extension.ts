@@ -13,7 +13,7 @@ import { DiracWebviewProvider } from "./core/webview"
 import { createDiracAPI } from "./exports"
 import { initializeTestMode } from "./hosts/vscode/test/TestMode"
 import { DiracAskResponse } from "./shared/WebviewMessage"
-import "./utils/path"; // necessary to have access to String.prototype.toPosix
+import "./utils/path" // necessary to have access to String.prototype.toPosix
 import { isDev } from "@shared/config/environment"
 import type { ExtensionContext } from "vscode"
 import { HostProvider } from "@/hosts/host-provider"
@@ -31,18 +31,18 @@ import { sendAddToInputEvent } from "./core/controller/ui/subscribeToAddToInput"
 import { sendShowWebviewEvent } from "./core/controller/ui/subscribeToShowWebview"
 import { HookDiscoveryCache } from "./core/hooks/HookDiscoveryCache"
 import {
-    cleanupOldApiKey,
-    migrateCustomInstructionsToGlobalRules,
-    migrateTaskHistoryToFile,
-    migrateWelcomeViewCompleted,
-    migrateWorkspaceToGlobalStorage,
+	cleanupOldApiKey,
+	migrateCustomInstructionsToGlobalRules,
+	migrateTaskHistoryToFile,
+	migrateWelcomeViewCompleted,
+	migrateWorkspaceToGlobalStorage,
 } from "./core/storage/state-migrations"
 import { findMatchingNotebookCell, getContextForCommand, showWebview } from "./hosts/vscode/commandUtils"
 import { abortCommitGeneration, generateCommitMsg } from "./hosts/vscode/commit-message-generator"
 import { registerDiracOutputChannel } from "./hosts/vscode/hostbridge/env/debugLog"
 import {
-    disposeVscodeCommentReviewController,
-    getVscodeCommentReviewController,
+	disposeVscodeCommentReviewController,
+	getVscodeCommentReviewController,
 } from "./hosts/vscode/review/VscodeCommentReviewController"
 import { VscodeTerminalManager } from "./hosts/vscode/terminal/VscodeTerminalManager"
 import { VscodeDiffViewProvider } from "./hosts/vscode/VscodeDiffViewProvider"

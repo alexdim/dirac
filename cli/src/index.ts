@@ -7,11 +7,11 @@ import { INFERENCE_SPEED_OPTIONS, OPENAI_REASONING_EFFORT_OPTIONS } from "@share
 import { Command, Option } from "commander"
 import { version as CLI_VERSION } from "../package.json"
 import {
-    parseInferenceSpeed,
-    parsePositiveInteger,
-    parseReasoningEffort,
-    parseThinkingBudget,
-    parseToolIdentifiers,
+	parseInferenceSpeed,
+	parsePositiveInteger,
+	parseReasoningEffort,
+	parseThinkingBudget,
+	parseToolIdentifiers,
 } from "./utils/command-parsers"
 import { suppressConsoleUnlessVerbose } from "./utils/console"
 import { setupSignalHandlers } from "./utils/errors"

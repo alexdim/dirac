@@ -1,28 +1,28 @@
-import { DiracWebviewProvider } from "./core/webview";
-import "./utils/path"; // necessary to have access to String.prototype.toPosix
+import { DiracWebviewProvider } from "./core/webview"
+import "./utils/path" // necessary to have access to String.prototype.toPosix
 
-import { createRotatingFileLogger, type RotatingFileLogger, resolveLogDirectory } from "@shared/services/file-logger";
-import { HostProvider } from "@/hosts/host-provider";
-import { Logger } from "@/shared/services/Logger";
-import type { StorageContext } from "@/shared/storage/storage-context";
-import { repairMissingTaskHistory } from "./core/commands/repairMissingTaskHistory";
-import { FileContextTracker } from "./core/context/context-tracking/FileContextTracker";
-import { HookDiscoveryCache } from "./core/hooks/HookDiscoveryCache";
-import { HookProcessRegistry } from "./core/hooks/HookProcessRegistry";
-import { StateManager } from "./core/storage/StateManager";
-import { AgentConfigLoader } from "./core/task/tools/subagent/AgentConfigLoader";
-import { ErrorService } from "./services/error";
-import { featureFlagsService } from "./services/feature-flags";
-import { getDistinctId } from "./services/logging/distinctId";
-import { recordVersionUpgrade } from "./services/release-notes/recordVersionUpgrade";
-import { SymbolIndexService } from "./services/symbol-index/SymbolIndexService";
-import { telemetryService } from "./services/telemetry";
+import { createRotatingFileLogger, type RotatingFileLogger, resolveLogDirectory } from "@shared/services/file-logger"
+import { HostProvider } from "@/hosts/host-provider"
+import { Logger } from "@/shared/services/Logger"
+import type { StorageContext } from "@/shared/storage/storage-context"
+import { repairMissingTaskHistory } from "./core/commands/repairMissingTaskHistory"
+import { FileContextTracker } from "./core/context/context-tracking/FileContextTracker"
+import { HookDiscoveryCache } from "./core/hooks/HookDiscoveryCache"
+import { HookProcessRegistry } from "./core/hooks/HookProcessRegistry"
+import { StateManager } from "./core/storage/StateManager"
+import { AgentConfigLoader } from "./core/task/tools/subagent/AgentConfigLoader"
+import { ErrorService } from "./services/error"
+import { featureFlagsService } from "./services/feature-flags"
+import { getDistinctId } from "./services/logging/distinctId"
+import { recordVersionUpgrade } from "./services/release-notes/recordVersionUpgrade"
+import { SymbolIndexService } from "./services/symbol-index/SymbolIndexService"
+import { telemetryService } from "./services/telemetry"
 // Legacy telemetry removed
-import { DiracTempManager } from "./services/temp";
-import { ShowMessageType } from "./shared/proto/host/window";
-import { syncWorker } from "./shared/services/worker/sync";
-import { getBlobStoreSettingsFromEnv } from "./shared/services/worker/worker";
-import { arePathsEqual } from "./utils/path";
+import { DiracTempManager } from "./services/temp"
+import { ShowMessageType } from "./shared/proto/host/window"
+import { syncWorker } from "./shared/services/worker/sync"
+import { getBlobStoreSettingsFromEnv } from "./shared/services/worker/worker"
+import { arePathsEqual } from "./utils/path"
 
 let persistentFileLogger: RotatingFileLogger | undefined
 let unsubscribeHostLogger: (() => void) | undefined

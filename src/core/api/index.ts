@@ -28,7 +28,6 @@ import { AwsBedrockHandler } from "./providers/bedrock"
 import { CerebrasHandler } from "./providers/cerebras"
 import { ClaudeCodeHandler } from "./providers/claude-code"
 import { DeepSeekHandler } from "./providers/deepseek"
-import { UnbiasedHandler } from "./providers/unbiased"
 import { DifyHandler } from "./providers/dify"
 import { DoubaoHandler } from "./providers/doubao"
 import { FireworksHandler } from "./providers/fireworks"
@@ -54,6 +53,7 @@ import { QwenCodeHandler } from "./providers/qwen-code"
 import { RequestyHandler } from "./providers/requesty"
 import { SambanovaHandler } from "./providers/sambanova"
 import { TogetherHandler } from "./providers/together"
+import { UnbiasedHandler } from "./providers/unbiased"
 import { VercelAIGatewayHandler } from "./providers/vercel-ai-gateway"
 import { VertexHandler } from "./providers/vertex"
 import { WandbHandler } from "./providers/wandb"
@@ -388,7 +388,11 @@ const PROVIDER_REGISTRY: Record<
 	"vscode-lm": (cfg, mc) => {
 		const factory = HostProvider.get().capabilities.createVsCodeLmHandler
 		if (!factory) {
-			throw new Error("The vscode-lm provider is only available in the VS Code extension host")
+			throw new ApiConfigurationError(
+				ApiConfigurationErrorCode.ProviderUnsupported,
+				"The vscode-lm provider is only available in the VS Code extension host",
+				"Select another provider.",
+			)
 		}
 		return factory({
 			onRetryAttempt: cfg.onRetryAttempt,

@@ -1,9 +1,9 @@
 import {
-    CommentReviewControllerCreator,
-    DiffViewProviderCreator,
-    DiracWebviewProviderCreator,
-    HostProvider,
-    TerminalManagerCreator,
+	CommentReviewControllerCreator,
+	DiffViewProviderCreator,
+	DiracWebviewProviderCreator,
+	HostProvider,
+	TerminalManagerCreator,
 } from "@/hosts/host-provider"
 import { HostBridgeClientProvider, HostCapabilities } from "@/hosts/host-provider-types"
 import { vscodeHostBridgeClient } from "@/hosts/vscode/hostbridge/client/host-grpc-client"

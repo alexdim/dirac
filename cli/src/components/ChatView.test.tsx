@@ -34,7 +34,7 @@ vi.mock("ink-picture", () => ({
 	TerminalInfoProvider: ({ children }: any) => children,
 }))
 
-// Mock vscode-shim shutdownEvent
+// Mock the CLI shutdownEvent
 vi.mock("../utils/shutdown", () => ({
 	shutdownEvent: {
 		event: (listener: () => void) => {
@@ -164,7 +164,7 @@ vi.mock("@/core/controller/slash/getAvailableSlashCommands", () => ({
 }))
 
 vi.mock("@/core/controller/task/showTaskWithId", () => ({
-	showTaskWithId: vi.fn(async () => { }),
+	showTaskWithId: vi.fn(async () => {}),
 }))
 
 vi.mock("@shared/getApiMetrics", () => ({

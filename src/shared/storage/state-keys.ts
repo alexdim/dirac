@@ -1,12 +1,12 @@
 import { AutoApprovalSettings, DEFAULT_AUTO_APPROVAL_SETTINGS } from "@shared/AutoApprovalSettings"
 import {
-    ApiProvider,
-    DEFAULT_API_PROVIDER,
-    LiteLLMModelInfo,
-    ModelInfo,
-    ModelProviderSelection,
-    OpenAiCompatibleModelInfo,
-    OpenAiCompatibleProfile,
+	ApiProvider,
+	DEFAULT_API_PROVIDER,
+	LiteLLMModelInfo,
+	ModelInfo,
+	ModelProviderSelection,
+	OpenAiCompatibleModelInfo,
+	OpenAiCompatibleProfile,
 } from "@shared/api"
 import { BrowserSettings, DEFAULT_BROWSER_SETTINGS } from "@shared/BrowserSettings"
 import { DiracRulesToggles } from "@shared/dirac-rules"
