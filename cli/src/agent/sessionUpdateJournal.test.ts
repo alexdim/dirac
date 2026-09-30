@@ -1,27 +1,56 @@
+import fs from "node:fs"
+import os from "node:os"
+import path from "node:path"
 import type * as acp from "@agentclientprotocol/sdk"
-import { beforeEach, describe, expect, it, vi } from "vitest"
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { DiracSessionEmitter } from "./DiracSessionEmitter.js"
-import { SessionUpdateJournal } from "./sessionUpdateJournal.js"
 
 const update: acp.SessionUpdate = {
 	sessionUpdate: "agent_message_chunk",
 	content: { type: "text", text: "hello" },
 } as acp.SessionUpdate
 
+// The module-level mock keeps a spy on recordSessionUpdate. importOriginal's
+// result is cached for the whole file, so the spy delegates to a holder that
+// beforeEach refreshes via vi.importActual after resetModules() — that is the
+// only instance evaluated with this test's DIRAC_DATA_DIR.
+const journalMocks = vi.hoisted(() => ({
+	realRecordSessionUpdate: undefined as typeof import("../acp/acp-session-updates.js").recordSessionUpdate | undefined,
+}))
+
 vi.mock("../acp/acp-session-updates.js", async (importOriginal) => {
 	const actual = await importOriginal<typeof import("../acp/acp-session-updates.js")>()
-	return { ...actual, recordSessionUpdate: vi.fn(actual.recordSessionUpdate) }
+	return {
+		...actual,
+		recordSessionUpdate: vi.fn((sessionId: string, update: acp.SessionUpdate) => {
+			if (!journalMocks.realRecordSessionUpdate) throw new Error("real recordSessionUpdate not initialized")
+			return journalMocks.realRecordSessionUpdate(sessionId, update)
+		}),
+	}
 })
 
-import { recordSessionUpdate } from "../acp/acp-session-updates.js"
-
 describe("SessionUpdateJournal", () => {
+	let tempDir: string
 	let emitter: DiracSessionEmitter
-	let journal: SessionUpdateJournal
+	let journal: import("./sessionUpdateJournal.js").SessionUpdateJournal
+	let recordSessionUpdate: typeof import("../acp/acp-session-updates.js").recordSessionUpdate
 
-	beforeEach(() => {
+	beforeEach(async () => {
+		tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "dirac-test-"))
+		process.env.DIRAC_DATA_DIR = tempDir
+		vi.resetModules()
+		const realUpdates = await vi.importActual<typeof import("../acp/acp-session-updates.js")>("../acp/acp-session-updates.js")
+		journalMocks.realRecordSessionUpdate = realUpdates.recordSessionUpdate
+		const acpUpdates = await import("../acp/acp-session-updates.js")
+		recordSessionUpdate = acpUpdates.recordSessionUpdate
+		const { SessionUpdateJournal } = await import("./sessionUpdateJournal.js")
 		emitter = new DiracSessionEmitter()
 		journal = new SessionUpdateJournal(() => emitter)
+	})
+
+	afterEach(() => {
+		delete process.env.DIRAC_DATA_DIR
+		fs.rmSync(tempDir, { recursive: true, force: true })
 	})
 
 	it("emits the persisted update on the session emitter", async () => {
@@ -29,6 +58,11 @@ describe("SessionUpdateJournal", () => {
 		emitter.on("agent_message_chunk", (p) => received.push(p))
 		await journal.emitSessionUpdate("s1", update)
 		expect(received).toHaveLength(1)
+	})
+
+	it("writes the journal under DIRAC_DATA_DIR", async () => {
+		await journal.emitSessionUpdate("s1", update)
+		expect(fs.readdirSync(path.join(tempDir, "acp-session-updates")).length).toBeGreaterThan(0)
 	})
 
 	it("synthesizes an ephemeral sequence when journal persistence fails", async () => {

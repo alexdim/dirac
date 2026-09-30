@@ -167,6 +167,9 @@ export class PromptTurnRunner {
 
 			await this.routePromptToTask(turn, content)
 			await this.subscribeAndReplayCurrentTask(turn)
+			// Existing continuations subscribe before waking the task; newly created
+			// tasks subscribe and replay the messages emitted during initialization.
+			this.subscribeToCurrentTask(turn)
 
 			// Return the promise that will resolve when task completes
 			return await turn.promptPromise
@@ -481,7 +484,8 @@ export class PromptTurnRunner {
 
 		if (waitingCard) {
 			this.subscribeToCurrentTask(turn)
-			await task.submitCardResponse(
+			// Re-read the controller's task: it may be replaced between the card lookup and the submit
+			await turn.controller.task!.submitCardResponse(
 				waitingCardId!,
 				DiracAskResponse.MESSAGE,
 				content.textContent,
@@ -495,7 +499,8 @@ export class PromptTurnRunner {
 			// retain COMPLETED while waitForFollowUp() accepts the next message.
 			await pWaitFor(
 				() => {
-					const status = task.taskState.status
+					// Re-read on every poll; optional chaining keeps polling while no task is attached
+					const status = turn.controller.task?.taskState.status
 					return status === TaskStatus.COMPLETED || status === TaskStatus.AWAITING_USER_INPUT
 				},
 				{ interval: 10 },
@@ -504,9 +509,9 @@ export class PromptTurnRunner {
 			// A completion response ends the ACP turn, not the conversation. The core
 			// task remains alive in waitForFollowUp() so the next session/prompt can
 			// continue with the same API conversation history.
-			Logger.debug("[DiracAgent] Continuing completed task in existing ACP session:", task.taskId)
+			Logger.debug("[DiracAgent] Continuing completed task in existing ACP session:", turn.controller.task!.taskId)
 			this.subscribeToCurrentTask(turn)
-			await task.submitCardResponse(
+			await turn.controller.task!.submitCardResponse(
 				"",
 				DiracAskResponse.MESSAGE,
 				content.textContent,
