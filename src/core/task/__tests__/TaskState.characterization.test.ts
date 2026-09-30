@@ -6,6 +6,7 @@
 import { strict as assert } from "node:assert"
 import { describe, it } from "mocha"
 import { type ReadonlyTaskState, TaskState, type TaskStateTransition } from "../TaskState"
+import type { IToolEnvironment } from "../tools/interfaces/IToolEnvironment"
 
 describe("TaskState contract", () => {
 	describe("stream-stage flags", () => {
@@ -81,10 +82,7 @@ describe("TaskState contract", () => {
 		it("settleRunOutcome throws on a second settlement", () => {
 			const state = new TaskState()
 			state.settleRunOutcome({ kind: "completed", response: "done", completedAt: 1 })
-			assert.throws(
-				() => state.settleRunOutcome({ kind: "cancelled", cancelledAt: 2 }),
-				/already settled/,
-			)
+			assert.throws(() => state.settleRunOutcome({ kind: "cancelled", cancelledAt: 2 }), /already settled/)
 		})
 
 		it("a failed outcome preserves the error for the owner", () => {
@@ -172,6 +170,26 @@ describe("TaskState contract", () => {
 				v.settleRunOutcome({ kind: "cancelled", cancelledAt: 0 })
 			}
 			void assertsViewIsReadonly // typecheck-only; never invoked
+		})
+
+		it("setTaskState accepts only plain writable keys (typecheck-level)", () => {
+			// Bound to the real contract: the first parameter of the orchestration
+			// trait's setTaskState, not just the exported alias.
+			type SetTaskStateKey = Parameters<IToolEnvironment["orchestration"]["setTaskState"]>[0]
+			function assertWritable(_key: SetTaskStateKey): void {}
+			function assertsWritableKeys() {
+				assertWritable("abort")
+				assertWritable("didAttemptCompletion")
+				// @ts-expect-error method keys cannot be passed to setTaskState
+				assertWritable("settleRunOutcome")
+				// @ts-expect-error gated fields cannot be passed to setTaskState
+				assertWritable("runOutcome")
+				// @ts-expect-error getter-only keys cannot be passed to setTaskState
+				assertWritable("abortSignal")
+				// @ts-expect-error getter-only keys cannot be passed to setTaskState
+				assertWritable("lastWaitingCardId")
+			}
+			void assertsWritableKeys // typecheck-only; never invoked
 		})
 
 		it("every TaskState method is a listed transition (typecheck-level sync lock)", () => {

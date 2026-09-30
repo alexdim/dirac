@@ -284,6 +284,14 @@ export type TaskStateGatedKey =
 	| "terminalError"
 	| "runOutcome"
 
+export type TaskStateMethodKey = {
+	[K in keyof TaskState]-?: TaskState[K] extends (...args: never[]) => unknown ? K : never
+}[keyof TaskState]
+export type TaskStateWritableKey = Exclude<
+	keyof TaskState,
+	TaskStateGatedKey | TaskStateMethodKey | "abortSignal" | "lastWaitingCardId"
+>
+
 export type TaskStateTransition =
 	| "recordFirstTokenAt"
 	| "beginApiRequest"

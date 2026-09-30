@@ -31,7 +31,7 @@ import type { DiracStorageMessage } from "../../../../shared/messages/content"
 import { SkillContent, SkillMetadata } from "../../../../shared/skills"
 import { DiracAskResponse } from "../../../../shared/WebviewMessage"
 import { HookExecutionResult } from "../../../hooks/hook-executor"
-import { TaskState, TaskStateGatedKey } from "../../TaskState"
+import { TaskState, type TaskStateWritableKey } from "../../TaskState"
 import { SubagentProgressUpdate, SubagentRunResult } from "../subagent/SubagentRunner"
 import { TaskConfig } from "../types/TaskConfig"
 import { IDiracContext } from "./IDiracContext"
@@ -372,10 +372,12 @@ export interface IOrchestrationTrait {
 	getTaskState<T extends keyof TaskState>(key: T): TaskState[T]
 
 	/**
-	 * Updates the runtime task state. Transition-gated fields are excluded;
-	 * they are written through their named TaskState transitions instead.
+	 * Updates the runtime task state. Only plain writable fields are accepted:
+	 * transition-gated fields are written through their named TaskState
+	 * transitions, method keys are not data, and getter-only keys
+	 * (abortSignal, lastWaitingCardId) have no setter at all.
 	 */
-	setTaskState<T extends Exclude<keyof TaskState, TaskStateGatedKey>>(key: T, value: TaskState[T]): void
+	setTaskState<T extends TaskStateWritableKey>(key: T, value: TaskState[T]): void
 
 	/** Records the accepted completion response on task state. */
 	commitCompletionResponse(response: string): void
