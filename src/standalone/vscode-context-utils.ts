@@ -1,7 +1,7 @@
 import * as fs from "fs"
 
 /** Minimal VS Code `Event<T>` shape — a subscribable callback returning a disposable. */
-export type Event<T> = (listener: (e: T) => any) => { dispose(): any }
+export type Event<T> = (listener: (e: T) => any) => { dispose(): void }
 
 export interface SecretStorageChangeEvent {
 	key: string

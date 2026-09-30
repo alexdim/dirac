@@ -2,6 +2,7 @@ import { DiracWebviewProvider } from "@/core/webview"
 import { CommentReviewController } from "@/integrations/editor/CommentReviewController"
 import { DiffViewProvider } from "@/integrations/editor/DiffViewProvider"
 import { ITerminalManager } from "@/integrations/terminal/types"
+import { setHostCapabilities } from "./host-capabilities"
 import { HostBridgeClientProvider, type HostCapabilities } from "./host-provider-types"
 /**
  * Singleton class that manages host-specific providers for dependency injection.
@@ -86,6 +87,7 @@ export class HostProvider {
 		this.getEnvironmentVariables = getEnvironmentVariables
 		this.isWorkspaceTrusted = isWorkspaceTrusted
 		this.capabilities = capabilities
+		setHostCapabilities(capabilities)
 	}
 
 	public static initialize(
@@ -146,6 +148,7 @@ export class HostProvider {
 	 */
 	public static reset(): void {
 		HostProvider.instance = null
+		setHostCapabilities(undefined)
 	}
 
 	public static get workspace() {

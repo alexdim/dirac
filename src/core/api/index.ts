@@ -2,24 +2,16 @@ import {
 	ApiConfiguration,
 	type ApiProvider,
 	getModelInfo,
-	ModelInfo,
 	type ModelProviderSelection,
 	modelSupportsInferenceSpeed,
 	openAiModelInfoSaneDefaults,
 	providerSupportsInferenceSpeed,
 	QwenApiRegions,
 } from "@shared/api"
-import { DEFAULT_INFERENCE_SPEED, type InferenceSpeed, isInferenceSpeed, type Mode } from "@shared/storage/types"
-import { HostProvider } from "@/hosts/host-provider"
-import { DiracStorageMessage } from "@/shared/messages/content"
+import { DEFAULT_INFERENCE_SPEED, isInferenceSpeed, type Mode } from "@shared/storage/types"
+import { getHostCapabilities } from "@/hosts/host-capabilities"
 import { Logger } from "@/shared/services/Logger"
-import { DiracTool } from "@/shared/tools"
 import { ApiConfigurationError, ApiConfigurationErrorCode } from "./ApiConfigurationError"
-import type {
-	ApiConversationCompactionRequest,
-	ApiConversationCompactionResult,
-	ApiConversationRequestOptions,
-} from "./conversation"
 import { modelProviderSelectionUpdates } from "./modelProviderSelection"
 import { AIhubmixHandler } from "./providers/aihubmix"
 import { AnthropicHandler } from "./providers/anthropic"
@@ -59,7 +51,7 @@ import { VertexHandler } from "./providers/vertex"
 import { WandbHandler } from "./providers/wandb"
 import { XAIHandler } from "./providers/xai"
 import { ZAiHandler } from "./providers/zai"
-import { ApiStream, ApiStreamUsageChunk } from "./transform/stream"
+import type { ApiHandler } from "./types"
 
 export { ApiConfigurationError, ApiConfigurationErrorCode } from "./ApiConfigurationError"
 export type {
@@ -71,45 +63,13 @@ export type {
 	ApiConversationRequestOptions,
 	PendingApiConversationCompaction,
 } from "./conversation"
-export type CommonApiHandlerOptions = {
-	onRetryAttempt?: ApiConfiguration["onRetryAttempt"]
-	disableRetries?: boolean
-	enableParallelToolCalling?: boolean
-	inferenceSpeed?: InferenceSpeed
-}
-export interface ApiHandler {
-	createMessage(
-		systemPrompt: string,
-		messages: DiracStorageMessage[],
-		tools?: DiracTool[],
-		options?: ApiConversationRequestOptions,
-	): ApiStream
-	compactConversation?(request: ApiConversationCompactionRequest): Promise<ApiConversationCompactionResult>
-	supportsNativeWebSearch?(): boolean
-	/** Whether Dirac may estimate cost when the provider omits it. Defaults to true. */
-	shouldEstimateCost?(): boolean
-	getModel(): ApiHandlerModel
-	getApiStreamUsage?(): Promise<ApiStreamUsageChunk | undefined>
-	abort?(): void
-}
-
-export interface ApiHandlerModel {
-	id: string
-	info: ModelInfo
-}
-
-export interface ApiProviderInfo {
-	providerId: string
-	model: ApiHandlerModel
-	mode: Mode
-	customPrompt?: string // "compact"
-	supportsNativeWebSearch?: boolean
-}
-
-export interface SingleCompletionHandler {
-	completePrompt(prompt: string): Promise<string>
-}
-
+export type {
+	ApiHandler,
+	ApiHandlerModel,
+	ApiProviderInfo,
+	CommonApiHandlerOptions,
+	SingleCompletionHandler,
+} from "./types"
 /** Resolves all mode-specific fields from config so provider cases use plain properties. */
 export function resolveModeConfig(options: Omit<ApiConfiguration, "apiProvider">, mode: Mode) {
 	const isPlan = mode === "plan"
@@ -386,7 +346,7 @@ const PROVIDER_REGISTRY: Record<
 		}),
 	// vscode-lm lives in the hosts layer — only the VS Code host can create it.
 	"vscode-lm": (cfg, mc) => {
-		const factory = HostProvider.get().capabilities.createVsCodeLmHandler
+		const factory = getHostCapabilities().createVsCodeLmHandler
 		if (!factory) {
 			throw new ApiConfigurationError(
 				ApiConfigurationErrorCode.ProviderUnsupported,

@@ -1,6 +1,6 @@
 import * as fs from "fs"
-import { HostProvider } from "@/hosts/host-provider"
 import { userInfo } from "os"
+import { getHostCapabilities } from "@/hosts/host-capabilities"
 
 export const WINDOWS_POWERSHELL_7_PATH = "C:\\Program Files\\PowerShell\\7\\pwsh.exe"
 export const WINDOWS_POWERSHELL_LEGACY_PATH = "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe"
@@ -52,7 +52,7 @@ type LinuxTerminalProfiles = Record<string, LinuxTerminalProfile>
 function getWindowsTerminalConfig() {
 	try {
 		// Hosts without workspace configuration (CLI, standalone) return no profiles.
-		const readConfig = HostProvider.get().capabilities.getWorkspaceConfig
+		const readConfig = getHostCapabilities().getWorkspaceConfig
 		const defaultProfileName = readConfig?.("terminal.integrated", "defaultProfile.windows") as string | undefined
 		const profiles = (readConfig?.("terminal.integrated", "profiles.windows") as WindowsTerminalProfiles | undefined) || {}
 		return { defaultProfileName, profiles }
@@ -63,7 +63,7 @@ function getWindowsTerminalConfig() {
 
 function getMacTerminalConfig() {
 	try {
-		const readConfig = HostProvider.get().capabilities.getWorkspaceConfig
+		const readConfig = getHostCapabilities().getWorkspaceConfig
 		const defaultProfileName = readConfig?.("terminal.integrated", "defaultProfile.osx") as string | undefined
 		const profiles = (readConfig?.("terminal.integrated", "profiles.osx") as MacTerminalProfiles | undefined) || {}
 		return { defaultProfileName, profiles }
@@ -74,7 +74,7 @@ function getMacTerminalConfig() {
 
 function getLinuxTerminalConfig() {
 	try {
-		const readConfig = HostProvider.get().capabilities.getWorkspaceConfig
+		const readConfig = getHostCapabilities().getWorkspaceConfig
 		const defaultProfileName = readConfig?.("terminal.integrated", "defaultProfile.linux") as string | undefined
 		const profiles = (readConfig?.("terminal.integrated", "profiles.linux") as LinuxTerminalProfiles | undefined) || {}
 		return { defaultProfileName, profiles }

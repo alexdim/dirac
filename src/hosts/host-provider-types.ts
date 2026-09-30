@@ -4,7 +4,7 @@ import {
 	WindowServiceClientInterface,
 	WorkspaceServiceClientInterface,
 } from "@generated/hosts/host-bridge-client-types"
-import type { ApiHandler, CommonApiHandlerOptions } from "@/core/api"
+import type { ApiHandler, CommonApiHandlerOptions } from "@/core/api/types"
 import type { VsCodeNativeModel } from "@/shared/proto-conversions/models/vscode-lm-models-conversion"
 
 /**
