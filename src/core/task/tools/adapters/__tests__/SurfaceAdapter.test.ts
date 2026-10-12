@@ -239,59 +239,72 @@ describe("SurfaceAdapter", () => {
 			result.action.should.equal(DiracAskResponse.APPROVE)
 		})
 
-		it("uses the displayed card path for a Utility escalation", async () => {
-			const fakeHandle = {
-				id: "card-1",
-				update: sinon.stub().resolves(),
-				appendBody: sinon.stub().resolves(),
-				finalize: sinon.stub().resolves(),
-				waitForInteraction: sinon.stub().resolves({ action: DiracAskResponse.APPROVE }),
-			}
-			config.permissionDecisionBinding = {
-				service: { decide: sinon.stub().resolves({ decision: "escalate", reason: "User choice." }) },
-				configurationRevision: 1,
-			}
-			config.taskMessenger.createCard = sinon.stub().resolves(attachCardState(fakeHandle))
+		for (const isSubagentExecution of [false, true]) {
+			it(`displays Utility escalations for user approval (subagent: ${isSubagentExecution})`, async () => {
+				const fakeHandle = {
+					id: "card-1",
+					update: sinon.stub().resolves(),
+					appendBody: sinon.stub().resolves(),
+					finalize: sinon.stub().resolves(),
+					waitForInteraction: sinon.stub().resolves({ action: DiracAskResponse.APPROVE }),
+				}
+				const decide = sinon.stub().resolves({ decision: "escalate", reason: "User choice." })
+				config.isSubagentExecution = isSubagentExecution
+				config.permissionDecisionBinding = { service: { decide }, configurationRevision: 1 }
+				config.taskMessenger.createCard = sinon.stub().resolves(attachCardState(fakeHandle))
 
-			const handle = await adapter.ui.createCard({
-				header: "Permission",
-				status: CardStatus.WAITING_FOR_INPUT,
-				requireApproval: true,
-				permissionRequestKind: "tool",
+				const handle = await adapter.ui.createCard({
+					header: "Permission",
+					status: CardStatus.WAITING_FOR_INPUT,
+					requireApproval: true,
+					permissionRequestKind: "tool",
+				})
+				await handle.waitForInteraction()
+
+				sinon.assert.calledOnce(decide)
+				sinon.assert.calledWithExactly(config.taskMessenger.createCard, {
+					header: "Permission",
+					toolName: "test-tool",
+					locations: undefined,
+					status: CardStatus.WAITING_FOR_INPUT,
+					requireApproval: true,
+					isAutoApproved: sinon.match.func,
+				})
+				sinon.assert.calledOnce(fakeHandle.waitForInteraction)
 			})
-			await handle.waitForInteraction()
+		}
 
-			sinon.assert.calledWithExactly(config.taskMessenger.createCard, {
-				header: "Permission",
-				toolName: "test-tool",
-				locations: undefined,
-				status: CardStatus.WAITING_FOR_INPUT,
-				requireApproval: true,
-				isAutoApproved: sinon.match.func,
-			})
-			sinon.assert.calledOnce(fakeHandle.waitForInteraction)
-		})
+		for (const isSubagentExecution of [false, true]) {
+			for (const permissionRequestKind of [undefined, "tool"] as const) {
+				it(`displays permissions without Utility (subagent: ${isSubagentExecution}, kind: ${permissionRequestKind})`, async () => {
+					const fakeHandle = {
+						id: "card-1",
+						update: sinon.stub().resolves(),
+						appendBody: sinon.stub().resolves(),
+						finalize: sinon.stub().resolves(),
+						waitForInteraction: sinon.stub().resolves({ action: DiracAskResponse.APPROVE }),
+					}
+					config.isSubagentExecution = isSubagentExecution
+					config.taskMessenger.createCard = sinon.stub().resolves(attachCardState(fakeHandle))
 
-		it("uses the displayed card path when Utility permission handling is disabled", async () => {
-			const fakeHandle = {
-				id: "card-1",
-				update: sinon.stub().resolves(),
-				appendBody: sinon.stub().resolves(),
-				finalize: sinon.stub().resolves(),
-				waitForInteraction: sinon.stub().resolves({ action: DiracAskResponse.APPROVE }),
+					const handle = await adapter.ui.createCard({
+						header: "Permission",
+						status: CardStatus.WAITING_FOR_INPUT,
+						requireApproval: true,
+						permissionRequestKind,
+					})
+					const result = await handle.waitForInteraction()
+
+					sinon.assert.calledOnce(config.taskMessenger.createCard)
+					sinon.assert.calledWithMatch(config.taskMessenger.createCard, {
+						status: CardStatus.WAITING_FOR_INPUT,
+						requireApproval: true,
+					})
+					sinon.assert.calledOnce(fakeHandle.waitForInteraction)
+					result.action.should.equal(DiracAskResponse.APPROVE)
+				})
 			}
-			config.taskMessenger.createCard = sinon.stub().resolves(attachCardState(fakeHandle))
-
-			const handle = await adapter.ui.createCard({
-				header: "Permission",
-				requireApproval: true,
-				permissionRequestKind: "tool",
-			})
-			await handle.waitForInteraction()
-
-			sinon.assert.calledOnce(config.taskMessenger.createCard)
-			sinon.assert.calledOnce(fakeHandle.waitForInteraction)
-		})
+		}
 
 		it("preserves legacy YOLO approval when Utility permission handling is disabled", async () => {
 			const fakeHandle = {
