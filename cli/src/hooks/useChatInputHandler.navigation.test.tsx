@@ -1,0 +1,241 @@
+import type { Key } from "ink"
+import { render } from "ink-testing-library"
+// biome-ignore lint/correctness/noUnusedImports: Vitest transforms this test with the classic JSX runtime.
+import React from "react"
+import { beforeEach, describe, expect, it, vi } from "vitest"
+import { createInputViewport } from "../utils/input-viewport"
+import { useChatInputHandler } from "./useChatInputHandler"
+
+type ChatInputProps = Parameters<typeof useChatInputHandler>[0]
+type InputHandler = (input: string, key: Key) => void
+
+const capturedInput = vi.hoisted(() => ({ handler: null as InputHandler | null }))
+
+vi.mock("ink", async (importOriginal) => {
+	const actual = await importOriginal<typeof import("ink")>()
+	return {
+		...actual,
+		useInput: (handler: InputHandler) => {
+			capturedInput.handler = handler
+		},
+	}
+})
+
+function InputHarness(props: ChatInputProps) {
+	useChatInputHandler(props)
+	return null
+}
+
+const draft = "first\nsecond\nthird"
+
+function createInputProps(overrides: Partial<ChatInputProps> = {}): ChatInputProps {
+	const textInputRef = overrides.textInputRef ?? { current: draft }
+	const cursorPosRef = overrides.cursorPosRef ?? { current: 8 }
+	return {
+		workspacePath: "/workspace",
+		textInputRef,
+		cursorPosRef,
+		setTextInput: vi.fn(),
+		setCursorPos: vi.fn((pos) => {
+			cursorPosRef.current = typeof pos === "function" ? pos(cursorPosRef.current) : pos
+		}),
+		activePanel: null,
+		setActivePanel: vi.fn(),
+		handleAskShortcuts: vi.fn(() => false),
+		handleKeyboardSequence: vi.fn(() => false),
+		handleCtrlShortcut: vi.fn(() => false),
+		insertTextAtCursor: vi.fn(),
+		toggleMode: vi.fn(),
+		toggleAutoApproveAll: vi.fn(),
+		enableFastMode: vi.fn(),
+		toggleQuietMode: vi.fn(),
+		handleSubmit: vi.fn(),
+		handleExit: vi.fn(),
+		clearViewAndResetTask: vi.fn(),
+		filteredCommands: [],
+		selectedSlashIndex: 0,
+		setSelectedSlashIndex: vi.fn(),
+		slashMenuDismissed: false,
+		setSlashMenuDismissed: vi.fn(),
+		fileResults: [],
+		selectedIndex: 0,
+		setSelectedIndex: vi.fn(),
+		setFileResults: vi.fn(),
+		getHistoryItems: vi.fn(() => []),
+		historyIndex: -1,
+		setHistoryIndex: vi.fn(),
+		savedInput: "",
+		setSavedInput: vi.fn(),
+		isSpinnerActive: false,
+		isProcessing: false,
+		yolo: false,
+		uiActionState: {},
+		pendingAsk: null,
+		handleButtonAction: vi.fn(),
+		isYoloSuppressed: vi.fn(() => false),
+		lastPasteTimeRef: { current: 0 },
+		activePasteNumRef: { current: 0 },
+		activePasteLinesRef: { current: 0 },
+		activePasteStartPosRef: { current: 0 },
+		pasteCounterRef: { current: 0 },
+		pasteUpdateTimeoutRef: { current: null },
+		setPastedTexts: vi.fn(),
+		PASTE_COLLAPSE_THRESHOLD: 10000,
+		PASTE_CHUNK_WINDOW_MS: 150,
+		PASTE_UPDATE_DEBOUNCE_MS: 50,
+		mode: "act",
+		isEmptyConversation: false,
+		scrollableCardMaxOffset: 10,
+		cardScrollOffset: 4,
+		setCardScrollOffset: vi.fn(),
+		handleGoalControl: vi.fn(),
+		toggleGoalDetails: vi.fn(),
+		disarmGoalStopConfirmation: vi.fn(),
+		...overrides,
+	}
+}
+
+function pressKey(keyOverrides: Partial<Key>) {
+	if (!capturedInput.handler) throw new Error("useInput handler was not registered")
+	capturedInput.handler("", {
+		upArrow: false,
+		downArrow: false,
+		leftArrow: false,
+		rightArrow: false,
+		pageDown: false,
+		pageUp: false,
+		return: false,
+		escape: false,
+		ctrl: false,
+		shift: false,
+		tab: false,
+		backspace: false,
+		delete: false,
+		meta: false,
+		...keyOverrides,
+	})
+}
+
+describe("useChatInputHandler arrow navigation", () => {
+	beforeEach(() => {
+		capturedInput.handler = null
+	})
+
+	it.each([0, 4, 10])("moves within the draft before scrolling a response at offset %i", (cardScrollOffset) => {
+		const props = createInputProps({ cardScrollOffset })
+		const app = render(<InputHarness {...props} />)
+
+		pressKey({ upArrow: true })
+		expect(props.setCursorPos).toHaveBeenLastCalledWith(2)
+		pressKey({ downArrow: true })
+		expect(props.setCursorPos).toHaveBeenLastCalledWith(8)
+		pressKey({ downArrow: true })
+		expect(props.setCursorPos).toHaveBeenLastCalledWith(15)
+		expect(props.setCardScrollOffset).not.toHaveBeenCalled()
+		app.unmount()
+	})
+
+	it("keeps a long draft viewport following the cursor without scrolling the response", () => {
+		const text = Array.from({ length: 20 }, (_, index) => `line ${index}`).join("\n")
+		const props = createInputProps({ textInputRef: { current: text }, cursorPosRef: { current: text.length } })
+		const app = render(<InputHarness {...props} />)
+		expect(createInputViewport(text, props.cursorPosRef.current, 40, 3).hasHiddenBefore).toBe(true)
+
+		for (let index = 0; index < 19; index++) pressKey({ upArrow: true })
+
+		const viewport = createInputViewport(text, props.cursorPosRef.current, 40, 3)
+		expect(viewport.text).toContain("line 0\n")
+		expect(viewport.hasHiddenBefore).toBe(false)
+		expect(props.setCardScrollOffset).not.toHaveBeenCalled()
+		app.unmount()
+	})
+
+	it.each([
+		{ cursorPos: 2, key: { upArrow: true }, expected: 0 },
+		{ cursorPos: draft.length - 2, key: { downArrow: true }, expected: draft.length },
+	])("moves to the input edge before scrolling ($cursorPos)", ({ cursorPos, key, expected }) => {
+		const props = createInputProps({ cursorPosRef: { current: cursorPos } })
+		const app = render(<InputHarness {...props} />)
+		pressKey(key)
+		expect(props.setCursorPos).toHaveBeenCalledWith(expected)
+		expect(props.setCardScrollOffset).not.toHaveBeenCalled()
+		app.unmount()
+	})
+
+	it.each([
+		{ text: draft, cursorPos: 0, key: { upArrow: true }, expected: 5 },
+		{ text: draft, cursorPos: draft.length, key: { downArrow: true }, expected: 3 },
+		{ text: "", cursorPos: 0, key: { upArrow: true }, expected: 5 },
+		{ text: "", cursorPos: 0, key: { downArrow: true }, expected: 3 },
+	])("scrolls the response only when the cursor cannot move ($expected)", ({ text, cursorPos, key, expected }) => {
+		const props = createInputProps({ textInputRef: { current: text }, cursorPosRef: { current: cursorPos } })
+		const app = render(<InputHarness {...props} />)
+		pressKey(key)
+		expect(props.setCardScrollOffset).toHaveBeenCalledWith(expected)
+		expect(props.setCursorPos).not.toHaveBeenCalled()
+		app.unmount()
+	})
+
+	it.each([
+		{ cardScrollOffset: 10, scrollableCardMaxOffset: 10, key: { upArrow: true } },
+		{ cardScrollOffset: 0, scrollableCardMaxOffset: 10, key: { downArrow: true } },
+		{ cardScrollOffset: 0, scrollableCardMaxOffset: 0, key: { upArrow: true } },
+		{ cardScrollOffset: 0, scrollableCardMaxOffset: 0, key: { downArrow: true } },
+	])("does not scroll beyond response limits (%j)", ({ cardScrollOffset, scrollableCardMaxOffset, key }) => {
+		const props = createInputProps({
+			textInputRef: { current: "" },
+			cursorPosRef: { current: 0 },
+			cardScrollOffset,
+			scrollableCardMaxOffset,
+		})
+		const app = render(<InputHarness {...props} />)
+		pressKey(key)
+		expect(props.setCardScrollOffset).not.toHaveBeenCalled()
+		expect(props.setCursorPos).not.toHaveBeenCalled()
+		app.unmount()
+	})
+
+	it.each(["upArrow", "downArrow"] as const)("preserves slash and mention menu priority for %s", (direction) => {
+		for (const menu of ["slash", "mention"]) {
+			const text = menu === "slash" ? "/a" : "@a"
+			const props = createInputProps({
+				textInputRef: { current: text },
+				cursorPosRef: { current: text.length },
+				filteredCommands: menu === "slash" ? [{ name: "agent" }] : [],
+				fileResults: menu === "mention" ? [{ path: "a.ts" }] : [],
+			})
+			const app = render(<InputHarness {...props} />)
+			pressKey({ [direction]: true })
+			expect(menu === "slash" ? props.setSelectedSlashIndex : props.setSelectedIndex).toHaveBeenCalledOnce()
+			expect(props.setCursorPos).not.toHaveBeenCalled()
+			expect(props.setCardScrollOffset).not.toHaveBeenCalled()
+			app.unmount()
+		}
+	})
+
+	it("preserves Shift+Down newline insertion", () => {
+		const props = createInputProps()
+		const app = render(<InputHarness {...props} />)
+		pressKey({ shift: true, downArrow: true })
+		expect(props.insertTextAtCursor).toHaveBeenCalledWith("\n")
+		expect(props.setCursorPos).not.toHaveBeenCalled()
+		expect(props.setCardScrollOffset).not.toHaveBeenCalled()
+		app.unmount()
+	})
+
+	it.each(["upArrow", "downArrow"] as const)("preserves prompt history priority for %s", (direction) => {
+		const props = createInputProps({
+			isEmptyConversation: true,
+			textInputRef: { current: draft },
+			cursorPosRef: { current: 8 },
+			getHistoryItems: () => [draft, "older prompt"],
+			historyIndex: 0,
+		})
+		const app = render(<InputHarness {...props} />)
+		pressKey({ [direction]: true })
+		expect(props.setHistoryIndex).toHaveBeenCalledWith(direction === "upArrow" ? 1 : -1)
+		expect(props.setTextInput).toHaveBeenCalledWith(direction === "upArrow" ? "older prompt" : "")
+		expect(props.setCardScrollOffset).not.toHaveBeenCalled()
+		app.unmount()
+	})
+})

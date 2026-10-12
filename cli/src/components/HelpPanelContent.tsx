@@ -8,9 +8,9 @@ import { Box, Text, useInput } from "ink"
 import React from "react"
 import { COLORS } from "../constants/colors"
 import { useStdinContext } from "../context/StdinContext"
+import { useTerminalSize } from "../hooks/useTerminalSize"
 import { shouldIgnoreTerminalInput } from "../utils/input"
 import { Panel } from "./Panel"
-import { useTerminalSize } from "../hooks/useTerminalSize"
 
 interface HelpPanelContentProps {
 	onClose: () => void
@@ -62,6 +62,7 @@ export const HelpPanelContent: React.FC<HelpPanelContentProps> = ({ onClose }) =
 						["Ctrl+W", "Delete word backwards"],
 						["Ctrl+A / Ctrl+E", "Jump to start / end of input"],
 						["Alt/Option+←/→", "Move by word"],
+						["↑ / ↓", "Move cursor; scroll response at input edges"],
 						["Tab", "Switch Plan/Act mode"],
 						["Shift+Tab", "Toggle auto-approve"],
 						["Esc", "Cancel current action"],

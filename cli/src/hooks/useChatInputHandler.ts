@@ -1,6 +1,13 @@
+import { DiracMessageType, UIActionButtonType } from "@shared/ExtensionMessage"
+import type { GoalStatus } from "@shared/goal"
 import { useInput } from "ink"
-import { isMouseEscapeSequence, isTerminalResponseSequence } from "../utils/input"
+import { getVisibleGlobalActionButtons } from "../utils/action-buttons"
+import { readImageFromClipboard } from "../utils/clipboard-image"
+import { moveCursorDown, moveCursorUp } from "../utils/cursor"
 import { extractMentionQuery, insertMention } from "../utils/file-search"
+import type { GoalLifecycleAction } from "../utils/goals"
+import { isMouseEscapeSequence, isTerminalResponseSequence } from "../utils/input"
+import { parseImagesFromInput } from "../utils/parser"
 import {
 	executeLocalSlashCommand,
 	executeStandaloneLocalSlashCommand,
@@ -8,13 +15,6 @@ import {
 	insertSlashCommand,
 } from "../utils/slash-commands"
 import { findWordEnd, findWordStart } from "./useTextInput"
-import { moveCursorDown, moveCursorUp } from "../utils/cursor"
-import { parseImagesFromInput } from "../utils/parser"
-import { readImageFromClipboard } from "../utils/clipboard-image"
-import { getVisibleGlobalActionButtons } from "../utils/action-buttons"
-import { DiracMessageType, UIActionButtonType } from "@shared/ExtensionMessage"
-import type { GoalStatus } from "@shared/goal"
-import type { GoalLifecycleAction } from "../utils/goals"
 
 export type GoalKeyboardShortcut = GoalLifecycleAction | "details"
 
@@ -282,15 +282,6 @@ export function useChatInputHandler({
 			return
 		}
 
-		if (key.upArrow && !inSlashMenu && !inFileMenu && scrollableCardMaxOffset > 0) {
-			setCardScrollOffset(Math.min(cardScrollOffset + 1, scrollableCardMaxOffset))
-			return
-		}
-		if (key.downArrow && !inSlashMenu && !inFileMenu && cardScrollOffset > 0) {
-			setCardScrollOffset(Math.max(cardScrollOffset - 1, 0))
-			return
-		}
-
 		if (key.upArrow && !inSlashMenu && !inFileMenu && isEmptyConversation) {
 			const historyItems = getHistoryItems()
 			if (historyItems.length > 0) {
@@ -472,12 +463,20 @@ export function useChatInputHandler({
 			setCursorPos((pos) => Math.min(currentTextInput.length, pos + 1))
 			return
 		}
-		if (key.upArrow && !inSlashMenu && !inFileMenu) {
-			setCursorPos(moveCursorUp(currentTextInput, currentCursorPos))
-			return
-		}
-		if (key.downArrow && !inSlashMenu && !inFileMenu) {
-			setCursorPos(moveCursorDown(currentTextInput, currentCursorPos))
+		if ((key.upArrow || key.downArrow) && !inSlashMenu && !inFileMenu) {
+			const nextCursorPos = key.upArrow
+				? moveCursorUp(currentTextInput, currentCursorPos)
+				: moveCursorDown(currentTextInput, currentCursorPos)
+			if (nextCursorPos !== currentCursorPos) {
+				setCursorPos(nextCursorPos)
+				return
+			}
+
+			// Scroll the response only when the cursor cannot move farther in the prompt.
+			const nextScrollOffset = key.upArrow
+				? Math.min(cardScrollOffset + 1, scrollableCardMaxOffset)
+				: Math.max(cardScrollOffset - 1, 0)
+			if (nextScrollOffset !== cardScrollOffset) setCardScrollOffset(nextScrollOffset)
 			return
 		}
 
