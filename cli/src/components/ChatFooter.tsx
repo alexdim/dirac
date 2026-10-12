@@ -61,7 +61,7 @@ export const ChatFooter: React.FC<ChatFooterProps> = ({
 						<Text bold color={mode === "plan" ? theme.plan : theme.primary}>
 							{theme.symbols.active} {mode === "plan" ? "Plan" : "Act"} (Goal)
 						</Text>
-						{" · / commands · @ files · Ctrl+G details · Shift+↓ newline"}
+						{" · / commands · @ files · Ctrl+G details · Shift+Enter/↓ newline"}
 					</Text>
 				</Box>
 				<Box paddingLeft={1} paddingRight={1} width="100%">
@@ -99,7 +99,7 @@ export const ChatFooter: React.FC<ChatFooterProps> = ({
 					</Text>
 				) : (
 					<Box flexShrink={1} flexWrap="wrap">
-						<Text color={theme.muted}>/ commands · @ files · Shift+↓ newline · Tab mode</Text>
+						<Text color={theme.muted}>/ commands · @ files · Shift+Enter/↓ newline · Tab mode</Text>
 					</Box>
 				)}
 				{!compact && (

@@ -57,6 +57,8 @@ export const HelpPanelContent: React.FC<HelpPanelContentProps> = ({ onClose }) =
 						Keyboard Shortcuts
 					</Text>
 					{[
+						["Enter", "Submit prompt"],
+						["Shift+Enter / Shift+↓", "Insert newline (Shift+↓ is the fallback)"],
 						["Ctrl+U", "Clear entire input (delete to start)"],
 						["Ctrl+K", "Delete from cursor to end"],
 						["Ctrl+W", "Delete word backwards"],

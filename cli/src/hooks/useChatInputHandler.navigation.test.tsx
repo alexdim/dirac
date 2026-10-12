@@ -96,9 +96,9 @@ function createInputProps(overrides: Partial<ChatInputProps> = {}): ChatInputPro
 	}
 }
 
-function pressKey(keyOverrides: Partial<Key>) {
+function pressKey(keyOverrides: Partial<Key>, input = "") {
 	if (!capturedInput.handler) throw new Error("useInput handler was not registered")
-	capturedInput.handler("", {
+	capturedInput.handler(input, {
 		upArrow: false,
 		downArrow: false,
 		leftArrow: false,
@@ -231,6 +231,49 @@ describe("useChatInputHandler arrow navigation", () => {
 			expect(props.setCardScrollOffset).not.toHaveBeenCalled()
 			app.unmount()
 		}
+	})
+
+	it.each([
+		{ input: "", key: { return: true, shift: true } },
+		{ input: "[13;2u", key: {} },
+		{ input: "[27;2;13~", key: {} },
+	])("inserts a newline for Shift+Enter before slash or mention selection ($input)", ({ input, key }) => {
+		for (const menu of ["none", "slash", "mention"]) {
+			const text = menu === "slash" ? "/a" : menu === "mention" ? "@a" : draft
+			const props = createInputProps({
+				textInputRef: { current: text },
+				cursorPosRef: { current: text.length },
+				filteredCommands: menu === "slash" ? [{ name: "agent" }] : [],
+				fileResults: menu === "mention" ? [{ path: "a.ts" }] : [],
+			})
+			const app = render(<InputHarness {...props} />)
+			pressKey(key, input)
+			expect(props.insertTextAtCursor).toHaveBeenCalledExactlyOnceWith("\n")
+			expect(props.handleSubmit).not.toHaveBeenCalled()
+			expect(props.handleAskShortcuts).not.toHaveBeenCalled()
+			expect(props.setTextInput).not.toHaveBeenCalled()
+			expect(props.setSelectedSlashIndex).not.toHaveBeenCalled()
+			expect(props.setSelectedIndex).not.toHaveBeenCalled()
+			app.unmount()
+		}
+	})
+
+	it.each(["[13;2u", "[27;2;13~"])("does not edit the draft behind an active panel (%s)", (input) => {
+		const props = createInputProps({ activePanel: { type: "help" } })
+		const app = render(<InputHarness {...props} />)
+		pressKey({}, input)
+		expect(props.insertTextAtCursor).not.toHaveBeenCalled()
+		expect(props.handleSubmit).not.toHaveBeenCalled()
+		app.unmount()
+	})
+
+	it("still ignores unrelated terminal replies", () => {
+		const props = createInputProps()
+		const app = render(<InputHarness {...props} />)
+		pressKey({}, "[4;991;1710t")
+		expect(props.insertTextAtCursor).not.toHaveBeenCalled()
+		expect(props.handleSubmit).not.toHaveBeenCalled()
+		app.unmount()
 	})
 
 	it("preserves Shift+Down newline insertion", () => {

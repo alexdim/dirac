@@ -23,6 +23,7 @@ export function encodeKey(chord) {
 	if (key in specialKeys) return modifier === 1 ? `\x1b[${specialKeys[key]}` : `\x1b[1;${modifier}${specialKeys[key]}`
 	if (key in tildeKeys) return `\x1b[${tildeKeys[key]}${modifier === 1 ? "" : `;${modifier}`}~`
 	if (key === "Tab" && modifier === 2) return "\x1b[Z"
+	if (key === "Enter" && modifier === 2) return "\x1b[13;2u" // CSI-u Shift+Enter
 	const plain = { Enter: "\r", Escape: "\x1b", Tab: "\t", Backspace: "\x7f" }
 	if (key in plain && modifier === 1) return plain[key]
 	if (key?.length !== 1) throw new Error(`Unsupported key chord: ${chord}`)

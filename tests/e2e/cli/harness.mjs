@@ -19,7 +19,7 @@ start defaults to the built local CLI, an isolated home/workspace, and a
 loopback canned provider (no live model calls). --live inherits your environment
 and credentials; specify --cwd to work in your repository. Always rebuild first.
 Keys: Up/Down/Left/Right, Home/End, Enter, Tab, Escape, Backspace, Delete,
-PageUp/PageDown, Ctrl+a, Ctrl+e, Ctrl+c, Alt+Left, Shift+Down, etc.
+PageUp/PageDown, Ctrl+a, Ctrl+e, Ctrl+c, Alt+Left, Shift+Down, Shift+Enter (CSI-u), etc.
 All output is JSON. See tests/e2e/cli/README.md for the JS API and cursor details.
 `
 

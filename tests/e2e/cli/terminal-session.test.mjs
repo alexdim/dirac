@@ -30,6 +30,8 @@ function createProbe(context, program = probe) {
 test("encodes terminal key chords and rejects unsupported combinations", () => {
 	assert.equal(encodeKey("Up"), "\x1b[A")
 	assert.equal(encodeKey("Shift+Down"), "\x1b[1;2B")
+	assert.equal(encodeKey("Shift+Enter"), "\x1b[13;2u")
+	assert.equal(encodeKey("Enter"), "\r")
 	assert.equal(encodeKey("Alt+Left"), "\x1b[1;3D")
 	assert.equal(encodeKey("Ctrl+a"), "\x01")
 	assert.equal(encodeKey("Ctrl+e"), "\x05")

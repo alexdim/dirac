@@ -46,6 +46,15 @@ With a prompt, it submits the first turn immediately.
 The interface supports approvals, feedback, follow-up messages, history,
 settings, model selection, skills, and task resumption.
 .PP
+Press \f[B]Enter\f[R] to submit a prompt.
+\f[B]Shift+Enter\f[R] inserts a newline when the terminal sends a
+distinct modified-Enter sequence (CSI-u \f[V]ESC [ 13 ; 2 u\f[R] or
+xterm modifyOtherKeys \f[V]ESC [ 27 ; 2 ; 13 \[ti]\f[R]).
+\f[B]Shift+Down\f[R] also inserts a newline.
+If Enter and Shift+Enter send the same carriage return, use Shift+Down
+or configure a Shift+Enter mapping to one of these sequences; identical
+input bytes cannot be distinguished.
+.PP
 \f[B]Standalone mode\f[R] is selected when \f[B]\[en]yolo\f[R] or
 \f[B]\[en]json\f[R] is present, stdin was piped, stdin is redirected, or
 stdout is redirected.

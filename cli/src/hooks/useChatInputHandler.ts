@@ -1,6 +1,7 @@
 import { DiracMessageType, UIActionButtonType } from "@shared/ExtensionMessage"
 import type { GoalStatus } from "@shared/goal"
 import { useInput } from "ink"
+import { SHIFT_ENTER_SEQUENCES } from "../constants/keyboard"
 import { getVisibleGlobalActionButtons } from "../utils/action-buttons"
 import { readImageFromClipboard } from "../utils/clipboard-image"
 import { moveCursorDown, moveCursorUp } from "../utils/cursor"
@@ -162,7 +163,8 @@ export function useChatInputHandler({
 	disarmGoalStopConfirmation,
 }: UseChatInputHandlerProps) {
 	useInput((input, key) => {
-		if (isMouseEscapeSequence(input) || isTerminalResponseSequence(input, key)) return
+		const isShiftEnter = (key.return && key.shift) || SHIFT_ENTER_SEQUENCES.has(input)
+		if (isMouseEscapeSequence(input) || (!isShiftEnter && isTerminalResponseSequence(input, key))) return
 		if (activePanel) {
 			disarmGoalStopConfirmation()
 			return
@@ -195,6 +197,12 @@ export function useChatInputHandler({
 			return
 		}
 		disarmGoalStopConfirmation()
+
+		// Modified Enter must edit the draft, not select a menu item or submit an answer.
+		if (isShiftEnter) {
+			insertTextAtCursor("\n")
+			return
+		}
 
 		if (handleAskShortcuts(input, key, currentTextInput)) return
 		if (handleKeyboardSequence(input)) return
@@ -423,7 +431,7 @@ export function useChatInputHandler({
 			return
 		}
 
-		if (key.return && (key.shift || key.meta || input === "\n")) {
+		if (key.return && (key.meta || input === "\n")) {
 			insertTextAtCursor("\n")
 			return
 		}

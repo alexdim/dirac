@@ -54,6 +54,8 @@ dirac --plan "Design an implementation"
 
 Interactive mode supports task approvals, follow-up messages, history, settings, model selection, skills, file mentions, image paste, and task resumption. `--auto-approve-all` keeps this interface while automatically approving actions.
 
+Press **Enter** to submit a prompt. **Shift+Enter** inserts a newline when your terminal sends a distinct modified-Enter sequence (CSI-u `ESC [ 13 ; 2 u` or xterm modifyOtherKeys `ESC [ 27 ; 2 ; 13 ~`). **Shift+Down** remains an alternative for inserting newlines. If your terminal sends the same carriage return for Enter and Shift+Enter, use Shift+Down or configure a Shift+Enter mapping to one of these sequences; Dirac cannot distinguish identical input bytes.
+
 ### Goals, custom tools, and steering
 
 Start a long-running Goal directly from an interactive terminal:

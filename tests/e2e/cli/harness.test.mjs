@@ -171,3 +171,64 @@ test(
 		assert.deepEqual(responseLines(unicodeDown), unicodeResponse)
 	},
 )
+for (const encoding of ["CSI-u", "modifyOtherKeys"]) {
+	for (const [cols, rows] of [
+		[100, 30],
+		[60, 20],
+	]) {
+		test(
+			`#260: Shift+Enter (${encoding}, ${cols}x${rows}) inserts a newline without submitting in the real CLI`,
+			{ timeout: 60000 },
+			async (context) => {
+				const metadata = await startSession({ cols, rows })
+				context.after(() => stopAndRemove(metadata.session))
+				const session = metadata.session
+				const newline = () =>
+					requestSession(
+						session,
+						encoding === "CSI-u"
+							? { operation: "key", key: "Shift+Enter" }
+							: { operation: "write", text: "\x1b[27;2;13~" },
+					)
+				await requestSession(session, { operation: "wait", text: "@ files", timeoutMs: 30000 })
+				await requestSession(session, { operation: "write", text: "issue260 first line" })
+				const afterNewline = await newline()
+				assert.equal(afterNewline.fixtureRequests, 0, "Shift+Enter must not start a task")
+				assert.equal(
+					inputCursor(afterNewline).x,
+					3,
+					"Shift+Enter must place the painted cursor at the start of a new line",
+				)
+				const draft = await requestSession(session, { operation: "write", text: "issue260 second line" })
+				assert.match(draft.screen, /│  issue260 first line *│\n│  issue260 second line *│/)
+				assert.equal(draft.fixtureRequests, 0)
+
+				// Insertion in the middle of a draft must retain the text after the cursor.
+				await requestSession(session, { operation: "key", key: "Ctrl+u" })
+				await requestSession(session, { operation: "write", text: "leftright" })
+				await requestSession(session, { operation: "key", key: "Left", count: 5 })
+				await newline()
+				const middle = await requestSession(session, { operation: "write", text: "mid" })
+				assert.match(middle.screen, /│  left *│\n│  midright *│/)
+				assert.equal(middle.fixtureRequests, 0)
+
+				// The existing newline shortcut and normal submit key remain available.
+				await requestSession(session, { operation: "key", key: "Ctrl+e" })
+				await requestSession(session, { operation: "key", key: "Shift+Down" })
+				const third = await requestSession(session, { operation: "write", text: "third" })
+				assert.match(third.screen, /│  midright *│\n│  third *│/)
+				assert.equal(third.fixtureRequests, 0)
+				await requestSession(session, { operation: "key", key: "Enter" })
+				const completed = await requestSession(session, { operation: "wait", text: "Task Completed", timeoutMs: 30000 })
+				assert.equal(completed.fixtureRequests, 1, "Unmodified Enter must still submit")
+
+				await requestSession(session, { operation: "write", text: "follow-up first" })
+				await newline()
+				const followUp = await requestSession(session, { operation: "write", text: "follow-up second" })
+				assert.match(followUp.screen, /│  follow-up first *│\n│  follow-up second *│/)
+				assert.equal(followUp.fixtureRequests, 1, "Shift+Enter must not submit a follow-up")
+				assert.deepEqual(responseLines(followUp), responseLines(completed))
+			},
+		)
+	}
+}

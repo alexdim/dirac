@@ -55,8 +55,13 @@ enabled that terminal mode**. Use `key Enter` to submit separately. `paste` and
 
 Keys include `Up`, `Down`, `Left`, `Right`, `Home`, `End`, `Enter`, `Escape`, `Tab`,
 `Backspace`, `Delete`, `PageUp`, `PageDown`, `Ctrl+a`, `Ctrl+e`, `Ctrl+c`, `Alt+Left`,
-and `Shift+Down`. Repeated keys are spaced apart so Ink doesn't receive several
-escape sequences coalesced into one input event. Unsupported chords fail visibly.
+`Shift+Down`, and `Shift+Enter` (sent as CSI-u `ESC [ 13 ; 2 u`). Repeated keys are
+spaced apart so Ink doesn't receive several escape sequences coalesced into one
+input event. Unsupported chords fail visibly. The #260 regressions verify both
+CSI-u and xterm modifyOtherKeys Shift+Enter, insertion at the cursor, follow-up
+drafts, narrow widths, Shift+Down, and ordinary Enter submission. The harness sends
+distinct bytes; it does not simulate physical Shift+Enter in a terminal that
+sends the same carriage return as Enter.
 
 `wait` searches the visible screen, with a default 10-second deadline. A failure
 includes the current screen. Actions wait briefly for terminal output to settle;

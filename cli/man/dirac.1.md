@@ -28,6 +28,8 @@ The CLI has an interactive React/Ink interface and a standalone output path for 
 
 **Interactive mode** is used when stdin and stdout are terminal devices and neither **--yolo** nor **--json** is present. With no prompt, Dirac opens the composer. With a prompt, it submits the first turn immediately. The interface supports approvals, feedback, follow-up messages, history, settings, model selection, skills, and task resumption.
 
+Press **Enter** to submit a prompt. **Shift+Enter** inserts a newline when the terminal sends a distinct modified-Enter sequence (CSI-u `ESC [ 13 ; 2 u` or xterm modifyOtherKeys `ESC [ 27 ; 2 ; 13 ~`). **Shift+Down** also inserts a newline. If Enter and Shift+Enter send the same carriage return, use Shift+Down or configure a Shift+Enter mapping to one of these sequences; identical input bytes cannot be distinguished.
+
 **Standalone mode** is selected when **--yolo** or **--json** is present, stdin was piped, stdin is redirected, or stdout is redirected. It does not render the Ink interface.
 
 In standalone text mode, stdout is reserved for the final completion result. Task IDs, progress, tool activity, verbose reasoning, summaries, warnings, and errors are written to stderr. Redirected output has no ANSI escape sequences unless color is explicitly forced.
