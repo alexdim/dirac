@@ -41,6 +41,8 @@ npm run lint
 
 CLI tests use Vitest. The suite includes interactive Ink rendering, standalone execution and stream contracts, parser behavior, task resumption, ACP conformance, and the public library surface. Some ACP tests create local Unix sockets, so the environment must allow temporary socket creation.
 
+For persistent terminal interaction and deterministic built-CLI regressions, use the [PTY harness](../tests/e2e/cli/README.md): `npm run cli:tui -- start` for interactive control, or `npm run test:e2e:cli:tui` after rebuilding. Its default local fixture does not use live model credentials.
+
 ## Runtime paths
 
 The CLI deliberately has two rendering paths:
