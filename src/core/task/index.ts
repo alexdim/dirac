@@ -127,7 +127,7 @@ export type TaskParams = {
 	historyItem?: HistoryItem
 	taskId: string
 	conversationUlid?: string
-	taskLockAcquired: boolean
+	releaseTaskLock?: () => Promise<void>
 	pinnedContext?: string
 	getPinnedContext?: () => Promise<string | undefined>
 	executionProfile?: TaskExecutionProfile
@@ -162,6 +162,8 @@ export class Task {
 	}
 
 	private readonly conversationPersistenceHooks?: TaskConversationPersistenceHooks
+	private readonly releaseTaskLock?: () => Promise<void>
+	private persistenceRetirementPromise?: Promise<void>
 
 	// ONE mutex for ALL state modifications to prevent race conditions
 	private stateMutex = new Mutex()
@@ -426,7 +428,7 @@ export class Task {
 			historyItem,
 			taskId,
 			conversationUlid,
-			taskLockAcquired,
+			releaseTaskLock,
 			updateBackgroundCommandState,
 		} = params
 
@@ -451,7 +453,7 @@ export class Task {
 		this.workspaceManager = workspaceManager
 		this.cwd = cwd
 		this.taskId = taskId
-		this.taskState.taskLockAcquired = taskLockAcquired
+		this.releaseTaskLock = releaseTaskLock
 		this.terminalExecutionMode = vscodeTerminalExecutionMode || "vscodeTerminal"
 		this.switchToActMode = params.switchToActMode ?? (() => this.host.toggleActModeForYoloMode())
 		this.enqueuePreRequestSteeringMessages = params.enqueuePreRequestSteeringMessages ?? (async () => undefined)
@@ -1188,10 +1190,18 @@ export class Task {
 	private async settleTaskRun(candidate: TaskRunOutcome): Promise<TaskRunOutcome> {
 		let outcome = candidate
 		if (this.executionProfile !== "standalone") {
+			const failures: unknown[] = []
 			try {
 				await this.lifecycleManager.finalizeTaskRun()
 			} catch (error) {
-				const failures: unknown[] = [error]
+				failures.push(error)
+			}
+			try {
+				await this.retirePersistence()
+			} catch (error) {
+				failures.push(error)
+			}
+			if (failures.length > 0) {
 				if (candidate.kind === "failed") {
 					failures.unshift(new Error(`${candidate.error.name}: ${candidate.error.message}`))
 				}
@@ -1223,8 +1233,16 @@ export class Task {
 		return this.lifecycleManager.abortTask()
 	}
 
+	/** Retires this writer before releasing exclusive ownership, once per task instance. */
 	async retirePersistence(): Promise<void> {
+		this.persistenceRetirementPromise ??= this.retirePersistenceAndReleaseLock()
+		await this.persistenceRetirementPromise
+	}
+
+	private async retirePersistenceAndReleaseLock(): Promise<void> {
+		await this.messageStateHandler.flushPendingWrites()
 		await this.messageStateHandler.retirePersistence()
+		await this.releaseTaskLock?.()
 	}
 
 	// Tools

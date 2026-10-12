@@ -4,17 +4,17 @@ import { TaskStatus } from "@shared/ExtensionMessage"
 import { type Settings } from "@shared/storage/state-keys"
 import pTimeout from "p-timeout"
 import pWaitFor from "p-wait-for"
-import type { FolderLockWithRetryResult } from "@/core/locks/types"
 import { Logger } from "@/shared/services/Logger"
 import { getCwd, getDesktopDir } from "@/utils/path"
 import type { StateManager } from "../../storage/StateManager"
+import { getTaskDirectoryPath } from "../../storage/taskDirectory"
 import { Task } from "../../task"
 import {
 	createTaskWorkingConfiguration,
 	type TaskWorkingConfiguration,
 	type TaskWorkingConfigurationInput,
 } from "../../task/runtime/TaskWorkingConfiguration"
-import { releaseTaskLock, tryAcquireTaskLockWithRetry } from "../../task/TaskLockUtils"
+import { acquireTaskLock } from "../../task/TaskLockUtils"
 import { deserializeTaskError, type TaskRunOutcome } from "../../task/TaskRunOutcome"
 import { detectWorkspaceRoots } from "../../workspace/detection"
 import { setupWorkspaceManager } from "../../workspace/setup"
@@ -79,7 +79,7 @@ export class TaskController {
 
 	constructor(
 		private readonly deps: ITaskControllerDependencies,
-		private readonly tryAcquireTaskLockWithRetryFn: typeof tryAcquireTaskLockWithRetry = tryAcquireTaskLockWithRetry,
+		private readonly acquireTaskLockFn: typeof acquireTaskLock = acquireTaskLock,
 		private readonly setupWorkspaceManagerFn: typeof setupWorkspaceManager = setupWorkspaceManager,
 		private readonly detectRootsFn: typeof detectWorkspaceRoots = detectWorkspaceRoots,
 		private readonly getCwdFn: (defaultDir: string) => Promise<string> = getCwd,
@@ -264,58 +264,39 @@ export class TaskController {
 		_watcherFactory?: any,
 		initializationOptions?: TaskInitializationOptions,
 	): Promise<string> {
-		// Controller is required to construct a Task; fail fast with a clear error if missing
 		if (!this.deps.controller) {
 			throw new Error("TaskController.initTask requires a Controller instance")
 		}
 		const controller = this.deps.controller
-		this.currentConversationUlid = conversationUlid
-		this.currentInitializationOptions = initializationOptions
-		await this.clearTask()
-		this.deps.stateManager.refreshModelProviderPresetsFromDisk()
-
-		const isNewUser = this.deps.stateManager.getGlobalStateKey("isNewUser")
-		const taskHistory = this.deps.stateManager.getGlobalStateKey("taskHistory")
-
-		const NEW_USER_TASK_COUNT_THRESHOLD = 10
-
-		if (isNewUser && !historyItem && taskHistory && taskHistory.length >= NEW_USER_TASK_COUNT_THRESHOLD) {
-			this.deps.stateManager.setGlobalState("isNewUser", false)
-			await this.deps.postStateToWebview()
-		}
-
-		this._workspaceManager = this.deps.workspaceCwd
-			? await controller.ensureWorkspaceManager()
-			: await this.setupWorkspaceManagerFn({
-					stateManager: this.deps.stateManager,
-					detectRoots: this.detectRootsFn,
-				})
-		if (!this._workspaceManager) {
-			throw new Error("TaskController.initTask could not initialize a workspace manager")
-		}
-
-		const cwd = this._workspaceManager.getPrimaryRoot()?.path || (await this.getCwdFn(this.getDesktopDirFn()))
-
 		const taskId = historyItem?.id || Date.now().toString()
-
-		let taskLockAcquired = false
-		const lockResult: FolderLockWithRetryResult = await this.tryAcquireTaskLockWithRetryFn(taskId)
-
-		if (!lockResult.acquired && !lockResult.skipped) {
-			const errorMessage = lockResult.conflictingLock
-				? `Task locked by instance (${lockResult.conflictingLock.held_by})`
-				: "Failed to acquire task lock"
-			throw new Error(errorMessage)
-		}
-
-		taskLockAcquired = lockResult.acquired
-		if (lockResult.acquired) {
-			Logger.debug(`[Task ${taskId}] Task lock acquired`)
-		} else {
-			Logger.debug(`[Task ${taskId}] Task lock skipped (VS Code)`)
-		}
+		// Same-ID reconstruction must retire our current writer before reacquiring ownership.
+		if (this._task?.taskId === taskId) await this.clearTask()
+		const releaseTaskLock = await this.acquireTaskLockFn(getTaskDirectoryPath(taskId))
 
 		try {
+			await this.clearTask()
+			this.currentConversationUlid = conversationUlid
+			this.currentInitializationOptions = initializationOptions
+			this.deps.stateManager.refreshModelProviderPresetsFromDisk()
+
+			const isNewUser = this.deps.stateManager.getGlobalStateKey("isNewUser")
+			const taskHistory = this.deps.stateManager.getGlobalStateKey("taskHistory")
+			const NEW_USER_TASK_COUNT_THRESHOLD = 10
+			if (isNewUser && !historyItem && taskHistory && taskHistory.length >= NEW_USER_TASK_COUNT_THRESHOLD) {
+				this.deps.stateManager.setGlobalState("isNewUser", false)
+				await this.deps.postStateToWebview()
+			}
+
+			this._workspaceManager = this.deps.workspaceCwd
+				? await controller.ensureWorkspaceManager()
+				: await this.setupWorkspaceManagerFn({
+						stateManager: this.deps.stateManager,
+						detectRoots: this.detectRootsFn,
+					})
+			if (!this._workspaceManager) {
+				throw new Error("TaskController.initTask could not initialize a workspace manager")
+			}
+			const cwd = this._workspaceManager.getPrimaryRoot()?.path || (await this.getCwdFn(this.getDesktopDirFn()))
 			await this.deps.stateManager.loadTaskSettings(taskId)
 			if (taskSettings) {
 				this.deps.stateManager.setTaskSettingsBatch(taskId, taskSettings)
@@ -361,7 +342,7 @@ export class TaskController {
 				historyItem,
 				taskId,
 				conversationUlid,
-				taskLockAcquired,
+				releaseTaskLock,
 				pinnedContext: initializationOptions?.pinnedContext,
 				onContextCompacted: initializationOptions?.onContextCompacted,
 				switchToActMode: initializationOptions?.switchToActMode,
@@ -369,14 +350,11 @@ export class TaskController {
 				enqueuePreRequestSteeringMessages: async () => initializationOptions?.enqueueSteeringMessages?.(this._task!),
 			})
 		} catch (error) {
-			if (taskLockAcquired) {
-				await releaseTaskLock(taskId)
-			}
+			await releaseTaskLock()
 			throw error
 		}
 
 		this.currentConversationUlid = this._task.ulid
-
 		if (historyItem) {
 			await this.startHistoricalTaskAndWaitForRestore(this._task)
 		} else if (task || images || files) {
@@ -384,7 +362,6 @@ export class TaskController {
 		} else {
 			this._taskRunPromise = undefined
 		}
-
 		return this._task.taskId
 	}
 

@@ -568,21 +568,10 @@ describe("LifecycleManager", () => {
 			sinon.assert.calledOnce(deps.diffViewProvider.revertChanges)
 		})
 
-		it("releases task lock if acquired", async () => {
-			deps.taskState.taskLockAcquired = true
-			const lockModule = require("../TaskLockUtils")
-			sinon.stub(lockModule, "releaseTaskLock").resolves()
+		it("keeps persistence available after cancellation until the owner closes the task", async () => {
+			deps.messageStateHandler.retirePersistence = sinon.stub().resolves()
 			await manager.abortTask()
-			sinon.assert.calledOnce(lockModule.releaseTaskLock)
-			deps.taskState.taskLockAcquired.should.equal(false)
-		})
-
-		it("does not release lock if not acquired", async () => {
-			deps.taskState.taskLockAcquired = false
-			const lockModule = require("../TaskLockUtils")
-			sinon.stub(lockModule, "releaseTaskLock").resolves()
-			await manager.abortTask()
-			sinon.assert.notCalled(lockModule.releaseTaskLock)
+			sinon.assert.notCalled(deps.messageStateHandler.retirePersistence)
 		})
 
 		it("runs TaskCancel hook when hooks enabled", async () => {

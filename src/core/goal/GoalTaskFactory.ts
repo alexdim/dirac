@@ -1,7 +1,8 @@
 import type { Controller } from "@core/controller"
 import type { StateManager } from "@core/storage/StateManager"
+import { getTaskDirectoryPath } from "@core/storage/taskDirectory"
 import { Task, type TaskParams } from "@core/task"
-import { releaseTaskLock, tryAcquireTaskLockWithRetry } from "@core/task/TaskLockUtils"
+import { acquireTaskLock } from "@core/task/TaskLockUtils"
 import type { TaskExecutionProfile } from "@core/task/TaskExecutionProfile"
 import type { GoalChildRole } from "@shared/goal"
 import type { ToolEnvironmentFactory } from "@core/task/tools/interfaces/ToolEnvironmentFactory"
@@ -44,13 +45,7 @@ export class GoalTaskFactory {
 	constructor(private readonly dependencies: GoalTaskFactoryDependencies) { }
 
 	async create(input: GoalTaskConstruction): Promise<Task> {
-		const lockResult = await tryAcquireTaskLockWithRetry(input.id)
-		if (!lockResult.acquired && !lockResult.skipped) {
-			const detail = lockResult.conflictingLock
-				? `Task locked by instance (${lockResult.conflictingLock.held_by})`
-				: "Failed to acquire task lock"
-			throw new Error(`Cannot construct Goal-owned Task ${input.id}: ${detail}`)
-		}
+		const releaseTaskLock = await acquireTaskLock(getTaskDirectoryPath(input.id))
 
 		let task!: Task
 		try {
@@ -85,7 +80,7 @@ export class GoalTaskFactory {
 				historyItem: input.historyItem,
 				taskId: input.id,
 				conversationUlid: input.conversationUlid,
-				taskLockAcquired: lockResult.acquired,
+				releaseTaskLock,
 				getPinnedContext: input.getPinnedContext,
 				executionProfile: input.executionProfile,
 				toolEnvironmentFactory: input.environmentFactory,
@@ -98,7 +93,7 @@ export class GoalTaskFactory {
 			task = new Task(params)
 			return task
 		} catch (error) {
-			if (lockResult.acquired) await releaseTaskLock(input.id)
+			await releaseTaskLock()
 			throw error
 		}
 	}

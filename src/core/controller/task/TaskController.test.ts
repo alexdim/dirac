@@ -1,6 +1,7 @@
 import { strict as assert } from "node:assert"
 import { afterEach, describe, it } from "mocha"
 import sinon from "sinon"
+import * as taskDirectory from "@core/storage/taskDirectory"
 import { Logger } from "@/shared/services/Logger"
 import { TaskController } from "./TaskController"
 
@@ -340,9 +341,32 @@ describe("TaskController task isolation", () => {
 		assert.equal(controller.task, newTask)
 	})
 
+	it("refuses a locked historical task before clearing the current task or loading settings", async () => {
+		sinon.stub(taskDirectory, "getTaskDirectoryPath").returns("/storage/tasks/locked-task")
+		const failure = new Error("This task is already open in another Dirac instance.")
+		const currentTask = { taskId: "current-task", abortTask: sinon.stub(), retirePersistence: sinon.stub() } as any
+		const stateManager = { loadTaskSettings: sinon.stub(), refreshModelProviderPresetsFromDisk: sinon.stub() } as any
+		const acquire = sinon.stub().rejects(failure)
+		const clearTaskSettings = sinon.stub()
+		const controller = new (TaskController as any)(
+			{ controller: {}, task: currentTask, stateManager, clearTaskSettings },
+			acquire,
+		) as TaskController
+
+		await assert.rejects(
+			() => controller.initTask(undefined, undefined, undefined, { id: "locked-task" } as any),
+			(error: unknown) => error === failure,
+		)
+		sinon.assert.calledOnceWithExactly(acquire, "/storage/tasks/locked-task")
+		sinon.assert.notCalled(clearTaskSettings)
+		sinon.assert.notCalled(currentTask.abortTask)
+		sinon.assert.notCalled(stateManager.loadTaskSettings)
+		assert.equal(controller.task, currentTask)
+	})
+
 	it("releases an acquired task lock when initialization fails", async () => {
-		const lockModule = require("../../task/TaskLockUtils")
-		const releaseTaskLock = sinon.stub(lockModule, "releaseTaskLock").resolves()
+		sinon.stub(taskDirectory, "getTaskDirectoryPath").returns("/storage/tasks/task")
+		const releaseTaskLock = sinon.stub().resolves()
 		const initializationFailure = new Error("settings failed")
 		const stateManager = {
 			refreshModelProviderPresetsFromDisk: sinon.stub(),
@@ -360,7 +384,7 @@ describe("TaskController task isolation", () => {
 				clearTaskSettings: sinon.stub().resolves(),
 				postStateToWebview: sinon.stub().resolves(),
 			},
-			sinon.stub().resolves({ acquired: true, skipped: false }),
+			sinon.stub().resolves(releaseTaskLock),
 			sinon.stub().resolves(workspaceManager),
 		) as TaskController
 
@@ -373,6 +397,7 @@ describe("TaskController task isolation", () => {
 	})
 
 	it("captures task working configuration after persisted settings and runtime overrides", async () => {
+		sinon.stub(taskDirectory, "getTaskDirectoryPath").returns("/storage/tasks/task")
 		const order: string[] = []
 		const workingConfiguration = {
 			revision: 1,
@@ -405,7 +430,7 @@ describe("TaskController task isolation", () => {
 				clearTaskSettings: sinon.stub().resolves(),
 				postStateToWebview: sinon.stub().resolves(),
 			},
-			sinon.stub().resolves({ acquired: false, skipped: true }),
+			sinon.stub().resolves(sinon.stub().resolves()),
 			sinon.stub().resolves(workspaceManager),
 		) as TaskController
 

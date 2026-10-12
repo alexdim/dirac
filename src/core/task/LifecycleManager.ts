@@ -28,7 +28,6 @@ import pWaitFor from "p-wait-for"
 import { CardStatus, DiracMessageType, TaskStatus } from "@/shared/ExtensionMessage"
 import { getErrorMessage } from "@/shared/errors"
 import { getTaskHookModelContext } from "./runtime/TaskRuntimeModelContext"
-import { releaseTaskLock } from "./TaskLockUtils"
 import type { TaskRunOutcome } from "./TaskRunOutcome"
 import { clearAskResponse } from "./TaskUserInput"
 import { LifecycleManagerDependencies } from "./types/lifecycle-manager"
@@ -691,15 +690,6 @@ export class LifecycleManager {
 
 		failures.push(...(await this.disposeTaskResources()))
 
-		if (this.dependencies.taskState.taskLockAcquired) {
-			try {
-				await releaseTaskLock(this.dependencies.taskId)
-				this.dependencies.taskState.taskLockAcquired = false
-				Logger.info(`[Task ${this.dependencies.taskId}] Task lock released`)
-			} catch (error) {
-				failures.push(error)
-			}
-		}
 
 		if (failures.length === 1) throw failures[0]
 		if (failures.length > 1) throw new AggregateError(failures, "Task resource cleanup failed")

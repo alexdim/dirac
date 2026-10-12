@@ -138,6 +138,11 @@ export class GoalTaskHost implements GoalChildSurfaceOwner {
 					failures.push(abortError)
 				}
 				try {
+					await task.retirePersistence()
+				} catch (retirementError) {
+					failures.push(retirementError)
+				}
+				try {
 					record = await this.recordStartupFailure(taskId, error)
 				} catch (recordError) {
 					failures.push(recordError)

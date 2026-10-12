@@ -126,7 +126,6 @@ describe("Task (original)", () => {
 			stateManager: StateManager.get(),
 			task: "test task",
 			taskId: "test-123",
-			taskLockAcquired: false,
 			workingConfiguration: StateManager.get().captureEffectiveTaskConfiguration(),
 		})
 		t.should.not.be.undefined()
@@ -159,7 +158,6 @@ describe("Task (original)", () => {
 			stateManager: StateManager.get(),
 			task: "plan task",
 			taskId: "test-plan-notice",
-			taskLockAcquired: false,
 			workingConfiguration: planConfiguration,
 		})
 
@@ -189,7 +187,6 @@ describe("Task (original)", () => {
 				totalCost: 0,
 			},
 			taskId: "history-task",
-			taskLockAcquired: false,
 			workingConfiguration: StateManager.get().captureEffectiveTaskConfiguration(),
 		})
 
@@ -220,7 +217,6 @@ describe("Task (original)", () => {
 			stateManager: StateManager.get(),
 			task: "test task",
 			taskId: "test-active-model-compaction-fallback",
-			taskLockAcquired: false,
 			workingConfiguration: {
 				...workingConfiguration,
 				settings,
@@ -272,7 +268,6 @@ describe("Task (original)", () => {
 			stateManager: StateManager.get(),
 			task: "test task",
 			taskId: "test-automatic-condense-source-cleanup",
-			taskLockAcquired: false,
 			workingConfiguration: StateManager.get().captureEffectiveTaskConfiguration(),
 		}) as any
 		task.taskState.pendingCondenseSource = "automatic"
@@ -310,7 +305,6 @@ describe("Task (original)", () => {
 			stateManager: StateManager.get(),
 			task: "test task",
 			taskId: "test-api-propagation",
-			taskLockAcquired: false,
 			workingConfiguration: StateManager.get().captureEffectiveTaskConfiguration(),
 		}) as any
 		await t.applyWorkingConfigurationUpdate({ settings: { mode: "plan" } })
@@ -380,7 +374,6 @@ describe("Task (original)", () => {
 			stateManager: StateManager.get(),
 			task: "test task",
 			taskId: "test-atomic-config-commit",
-			taskLockAcquired: false,
 			workingConfiguration: StateManager.get().captureEffectiveTaskConfiguration(),
 		}) as any
 		const previous = t.getWorkingConfiguration()
@@ -448,7 +441,6 @@ describe("Task (original)", () => {
 			stateManager: StateManager.get(),
 			task: "test",
 			taskId: "test-456",
-			taskLockAcquired: false,
 			workingConfiguration: StateManager.get().captureEffectiveTaskConfiguration(),
 		})
 		t.cwd.should.equal(tempDir)
@@ -471,7 +463,6 @@ describe("Task (original)", () => {
 			stateManager: StateManager.get(),
 			task: "test",
 			taskId: "test-789",
-			taskLockAcquired: false,
 			workingConfiguration: StateManager.get().captureEffectiveTaskConfiguration(),
 		})
 		t.taskState.should.not.be.undefined()
@@ -494,7 +485,6 @@ describe("Task (original)", () => {
 			stateManager: StateManager.get(),
 			task: "test",
 			taskId: "test-abort",
-			taskLockAcquired: false,
 			workingConfiguration: StateManager.get().captureEffectiveTaskConfiguration(),
 		})
 		await t.abortTask()
@@ -519,7 +509,6 @@ describe("Task (original)", () => {
 			stateManager: StateManager.get(),
 			task: "test",
 			taskId: "test-cancelbg",
-			taskLockAcquired: false,
 			workingConfiguration: StateManager.get().captureEffectiveTaskConfiguration(),
 		})
 		const r = await t.cancelBackgroundCommand()
@@ -556,7 +545,6 @@ describe("Task (original)", () => {
 			stateManager: StateManager.get(),
 			task: "test",
 			taskId: "test-dirty",
-			taskLockAcquired: false,
 			workingConfiguration: StateManager.get().captureEffectiveTaskConfiguration(),
 		})
 			; (() => t.markToolsDirty("settings_refresh_detected_change" as any)).should.not.throw()
@@ -579,7 +567,6 @@ describe("Task (original)", () => {
 			stateManager: StateManager.get(),
 			task: "test",
 			taskId: "test-reset",
-			taskLockAcquired: false,
 			workingConfiguration: StateManager.get().captureEffectiveTaskConfiguration(),
 		})
 		await t.resetTransientState()
@@ -602,7 +589,6 @@ describe("Task (original)", () => {
 			stateManager: StateManager.get(),
 			task: "test",
 			taskId: "test-exec",
-			taskLockAcquired: false,
 			workingConfiguration: StateManager.get().captureEffectiveTaskConfiguration(),
 		})
 			// Test that the method exists and can be called
@@ -626,7 +612,6 @@ describe("Task (original)", () => {
 			stateManager: StateManager.get(),
 			task: "test",
 			taskId: "test-hook",
-			taskLockAcquired: false,
 			workingConfiguration: StateManager.get().captureEffectiveTaskConfiguration(),
 		})
 			; (() => t.cancelHookExecution()).should.not.throw()
@@ -649,7 +634,6 @@ describe("Task (original)", () => {
 			stateManager: StateManager.get(),
 			task: "test",
 			taskId: "test-ulid",
-			taskLockAcquired: false,
 			workingConfiguration: StateManager.get().captureEffectiveTaskConfiguration(),
 		})
 		t.ulid.should.be.a.String()
@@ -673,7 +657,6 @@ describe("Task (original)", () => {
 			stateManager: StateManager.get(),
 			task: "test",
 			taskId: "test-api-cancel",
-			taskLockAcquired: false,
 			workingConfiguration: StateManager.get().captureEffectiveTaskConfiguration(),
 		}) as any
 		const abortTask = sandbox.stub(task, "abortTask").resolves()

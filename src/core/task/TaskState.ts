@@ -228,7 +228,6 @@ export class TaskState {
 	totalToolCallCount = 0
 
 	lastAutoCondenseTriggerIndex?: number
-	taskLockAcquired = false
 	initialCheckpointCommitPromise?: Promise<string | undefined>
 	availableSkills: SkillMetadata[] = []
 	discoveredSkillsCache?: SkillMetadata[]
