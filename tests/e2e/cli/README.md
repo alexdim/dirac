@@ -102,6 +102,14 @@ when the opening fence is above the viewport; prose between blocks must not
 become code. The regressions cover both directions, the end, narrow widths and
 resizing. Markdown is parsed as a full document before formatted rows are clipped.
 
+For #265 response Markdown regressions, use `--fixture markdown-response` at
+100×30 or 60×30 and submit `/askDirac what are the auto-approved commands?`.
+The canned `respond:complete` answer contains headings, bold prose, inline code,
+lists, a reference link and a long fenced code block. Assertions check formatted
+rows throughout scrolling, literal code after its fence leaves the viewport,
+return scrolling and resizing. This tests rendering, not the accuracy of an
+answer about approvals; no live credentials or command execution are used.
+
 For file-creation approval regressions, opt into a deterministic `write_to_file`
 request followed by a short completion:
 
@@ -179,7 +187,7 @@ Operations: `screen`, `write`, `paste`, `key`, `resize`, `wait`, `stop`. Their
 properties mirror the CLI flags; deadlines use `timeoutMs`, dimensions use `cols`
 and `rows`, and repeated keypresses use `count`. `startSession` also accepts
 `command`, `args`, `cwd`, `live`, `idleMs`, and `fixture` (`long-response` by default
-or `long-plan` / `markdown-plan` / `create-file`).
+or `long-plan` / `markdown-plan` / `markdown-response` / `create-file`).
 
 ## Lifecycle and artifacts
 

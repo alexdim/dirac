@@ -130,6 +130,57 @@ for (const fixture of ["long-response", "long-plan"]) {
 	}
 }
 
+for (const [cols, rows] of [[100, 30], [60, 30]]) {
+	test(`#265: askDirac completions render Markdown throughout scrolling (${cols}x${rows})`, { timeout: 120000 }, async (context) => {
+		const { session } = await startSession({ fixture: "markdown-response", cols, rows })
+		context.after(() => stopAndRemove(session))
+		await requestSession(session, { operation: "wait", text: "@ files", timeoutMs: 30000 })
+		await requestSession(session, { operation: "write", text: "/askDirac what are the auto-approved commands?" })
+		await requestSession(session, { operation: "key", key: "Enter" })
+		let snapshot = await requestSession(session, { operation: "wait", text: "Task Completed", timeoutMs: 30000 })
+		assert.equal(snapshot.fixtureRequests, 1)
+		assert.doesNotMatch(snapshot.screen, /## Auto-approved commands/, "Completion headings must not display raw Markdown")
+		const seen = new Set()
+		for (let step = 0; step < 80; step++) {
+			for (const line of snapshot.lines) {
+				if (line.includes("Auto-approved commands") && !line.includes("/askDirac")) seen.add("heading")
+				if (line.includes("Read-only commands")) {
+					assert.doesNotMatch(line, /\*\*/)
+					seen.add("bold")
+				}
+				if (line.includes("Inspect files with")) {
+					assert.match(line, /• Inspect files with/)
+					assert.doesNotMatch(line, /`/)
+					seen.add("list")
+				}
+				if (line.includes("2. Ask before making changes.")) seen.add("ordered")
+				if (line.includes("https://example.com/approvals")) {
+					assert.doesNotMatch(line, /\[approvals\]/)
+					seen.add("reference")
+				}
+				if (/Code \d\d:/.test(line)) {
+					assert.match(line, /│ echo "Code \d\d: \*\*literal\*\*" /, "Code must retain its border and literal contents off-screen")
+					seen.add("code")
+				}
+				if (line.includes("Approval summary:")) {
+					assert.doesNotMatch(line, /\*\*Approval/)
+					seen.add("end")
+				}
+			}
+			if (seen.has("end")) break
+			snapshot = await requestSession(session, { operation: "key", key: "Down" })
+		}
+		assert.deepEqual([...seen].sort(), ["bold", "code", "end", "heading", "list", "ordered", "reference"].sort())
+		const back = await requestSession(session, { operation: "key", key: "Up", count: 10 })
+		assert.match(back.screen, /│ echo "Code \d\d: \*\*literal\*\*" /)
+		await requestSession(session, { operation: "resize", cols: 80, rows: 32 })
+		await delay(400)
+		const resized = await requestSession(session, { operation: "key", key: "Down", count: 18 })
+		assert.match(resized.screen, /│ echo "Code \d\d: \*\*literal\*\*" /)
+		assert.doesNotMatch(resized.screen, /```/)
+	})
+}
+
 for (const [cols, rows] of [
 	[100, 30],
 	[60, 20],

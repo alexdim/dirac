@@ -19,7 +19,6 @@ import { ModularCard } from "./modular-ui/ModularCard"
 import { TaskCompletionCard } from "./modular-ui/TaskCompletionCard"
 import {
 	clipTextToLastVisualLines,
-	clipTextToWindow,
 	summarizeFirstLine,
 } from "../utils/text-clipping"
 import { cardBodyForDisplay } from "../utils/card-body"
@@ -179,13 +178,10 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
 						</Text>
 					)
 				}
-				const markdownContent = maxContentLines
-					? clipTextToLastVisualLines(message.content.content, maxContentLines, Math.max(1, columns - 4))
-					: message.content.content
 				return (
 					<React.Fragment>
 						<DotRow color={roleColor} prefix={markdownRole === "user" ? "❯" : undefined}>
-							<Markdown color={contentColor}>{markdownContent}</Markdown>
+							<Markdown color={contentColor} width={Math.max(1, columns - 4)}>{message.content.content}</Markdown>
 						</DotRow>
 						{message.content.steering && (
 							<DotRow color={theme.muted} prefix=" ">
@@ -246,16 +242,11 @@ function renderBoundedMarkdownMessage(
 ): React.ReactNode {
 	const role = content.role === "user" ? "user" : "assistant"
 	const color = role === "user" ? styles.conversation.user.color : styles.conversation.assistant.color
-	const { visibleText } = clipTextToWindow(
-		content.content,
-		maxLines,
-		Math.max(1, columns - 4),
-		scrollOffset,
-		"",
-	)
 	return (
 		<DotRow color={color} prefix={role === "user" ? "❯" : undefined}>
-			<Text color={color}>{visibleText}</Text>
+			<Markdown color={color} width={Math.max(1, columns - 4)} maxLines={maxLines} scrollOffset={scrollOffset}>
+				{content.content}
+			</Markdown>
 		</DotRow>
 	)
 }
@@ -274,13 +265,16 @@ function renderTimelineTail(
 			: message.content.role === "user"
 				? styles.conversation.user.color
 				: styles.conversation.assistant.color
-		return <Text color={color}>{clipTextToLastVisualLines(message.content.content, maxLines, width, "")}</Text>
+		return <Markdown color={color} width={width} maxLines={maxLines}>{message.content.content}</Markdown>
 	}
 
 	if (message.content.type === DiracMessageType.CARD) {
 		if (suppressCardBody) return <ModularCard card={message.content.card} suppressBody />
 		const body = cardBodyForDisplay(message.content.card.body, message.content.card.renderType)
 		if (body) {
+			if (message.content.card.renderType === "markdown") {
+				return <Markdown color={styles.tool.body.color} width={Math.max(1, columns - 6)} maxLines={maxLines}>{body}</Markdown>
+			}
 			return <Text {...styles.tool.body}>{clipTextToLastVisualLines(body, maxLines, width, "")}</Text>
 		}
 		return <ModularCard card={message.content.card} suppressBody />

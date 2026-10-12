@@ -25,13 +25,35 @@ export const MARKDOWN_PLAN = [
 	"Markdown plan end.",
 ].join("\n")
 
+export const MARKDOWN_RESPONSE = [
+	"## Auto-approved commands",
+	"",
+	"**Read-only commands** can run without approval.",
+	"",
+	"- Inspect files with `ls` and `pwd`.",
+	"- Check changes with `git status`.",
+	"",
+	"1. Review the command.",
+	"2. Ask before making changes.",
+	"",
+	"[Approval documentation][approvals]",
+	"",
+	"```sh",
+	...Array.from({ length: 24 }, (_, line) => `echo \"Code ${String(line + 1).padStart(2, "0")}: **literal**\"`),
+	"```",
+	"",
+	"**Approval summary:** changes still need permission.",
+	"",
+	"[approvals]: https://example.com/approvals",
+].join("\n")
+
 export const CREATE_FILE_PATH =
 	"src/features/permission-dialog/regressions/long-directory-name-for-file-creation/a-very-long-file-name-that-must-remain-readable-in-the-permission-prompt.txt"
 export const CREATE_FILE_CONTENT = "Permission prompt regression fixture.\n"
 
 /** Deterministic tool calls; all UI, provider parsing, task execution and storage remain real. */
 export async function startFixtureProvider(home, scenario = "long-response") {
-	if (!["long-response", "long-plan", "markdown-plan", "create-file"].includes(scenario)) {
+	if (!["long-response", "long-plan", "markdown-plan", "markdown-response", "create-file"].includes(scenario)) {
 		throw new Error(`Unknown fixture: ${scenario}`)
 	}
 	let requests = 0
@@ -56,16 +78,18 @@ export async function startFixtureProvider(home, scenario = "long-response") {
 			const args = createFile
 				? { path: CREATE_FILE_PATH, content: CREATE_FILE_CONTENT }
 				: {
-						operation: scenario === "long-plan" || scenario === "markdown-plan" ? "plan" : "complete",
-						text:
-							scenario === "markdown-plan"
+					operation: scenario === "long-plan" || scenario === "markdown-plan" ? "plan" : "complete",
+					text:
+						scenario === "markdown-response"
+							? MARKDOWN_RESPONSE
+							: scenario === "markdown-plan"
 								? MARKDOWN_PLAN
 								: scenario === "long-plan"
 									? LONG_PLAN
 									: scenario === "create-file"
 										? "File creation fixture completed."
 										: LONG_RESPONSE,
-					}
+				}
 			requests++
 			const chunk = (delta, finishReason = null) => ({
 				id: `tui-completion-${requests}`,
