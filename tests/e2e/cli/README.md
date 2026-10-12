@@ -94,6 +94,14 @@ The #263 regressions assert that completed responses and proposed plans open
 at their first line, retain their viewport during draft edits and resizing,
 remain scrollable in both directions, and reset to the beginning on follow-up.
 
+For #264 Markdown rendering regressions, use `--fixture markdown-plan`. This
+returns a plan with three long fenced code blocks separated by bold prose. Enter
+Plan mode with Tab, submit a prompt, and wait for `Markdown plan start.`. Scroll
+with Down: code must retain its border and literal `**literal**` markers even
+when the opening fence is above the viewport; prose between blocks must not
+become code. The regressions cover both directions, the end, narrow widths and
+resizing. Markdown is parsed as a full document before formatted rows are clipped.
+
 For file-creation approval regressions, opt into a deterministic `write_to_file`
 request followed by a short completion:
 
@@ -171,7 +179,7 @@ Operations: `screen`, `write`, `paste`, `key`, `resize`, `wait`, `stop`. Their
 properties mirror the CLI flags; deadlines use `timeoutMs`, dimensions use `cols`
 and `rows`, and repeated keypresses use `count`. `startSession` also accepts
 `command`, `args`, `cwd`, `live`, `idleMs`, and `fixture` (`long-response` by default
-or `long-plan` / `create-file`).
+or `long-plan` / `markdown-plan` / `create-file`).
 
 ## Lifecycle and artifacts
 

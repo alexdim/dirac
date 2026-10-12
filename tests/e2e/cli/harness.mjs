@@ -5,7 +5,7 @@ import { requestSession, startSession } from "./client.mjs"
 
 const HELP = `Persistent CLI terminal harness (Linux/macOS)
 
-  npm run cli:tui -- start [--fixture long-response|long-plan|create-file] [--live] [--cwd DIR] [--cols N] [--rows N]
+  npm run cli:tui -- start [--fixture long-response|long-plan|markdown-plan|create-file] [--live] [--cwd DIR] [--cols N] [--rows N]
   npm run cli:tui -- start -- node /absolute/path/to/program.mjs
   npm run cli:tui -- screen --session DIR [--scrollback]
   npm run cli:tui -- write --session DIR --text 'hello'

@@ -20,7 +20,6 @@ import { TaskCompletionCard } from "./modular-ui/TaskCompletionCard"
 import {
 	clipTextToLastVisualLines,
 	clipTextToWindow,
-	estimateVisualLineCount,
 	summarizeFirstLine,
 } from "../utils/text-clipping"
 import { cardBodyForDisplay } from "../utils/card-body"
@@ -74,16 +73,6 @@ const DotRow: React.FC<{ children: React.ReactNode; color?: string; flashing?: b
 
 const REASONING_VISIBLE_LINES = 3
 
-function clipReasoningText(content: string, columns: number): string {
-	const visibleText = clipTextToLastVisualLines(content, REASONING_VISIBLE_LINES, columns, "").replace(/^\n/, "")
-	return padTextToVisualLines(visibleText, REASONING_VISIBLE_LINES, columns)
-}
-
-function padTextToVisualLines(text: string, targetLines: number, columns: number): string {
-	const missingLines = targetLines - estimateVisualLineCount(text, columns)
-	if (missingLines <= 0) return text
-	return `${text}${"\n".repeat(missingLines)}`
-}
 
 const ReasoningMessage: React.FC<{
 	content: string
@@ -100,9 +89,7 @@ const ReasoningMessage: React.FC<{
 
 	const reasoningAccent = isStreaming ? getModeColor(mode) : styles.conversation.reasoningTitle.color
 	const reasoningColor = styles.conversation.reasoning.color
-	const visibleContent = display === "full" ? content : clipReasoningText(content, Math.max(1, columns - 4))
-
-	if (!visibleContent.trim()) {
+	if (!content.trim()) {
 		return null
 	}
 
@@ -125,8 +112,8 @@ const ReasoningMessage: React.FC<{
 					<Text color={reasoningAccent}>
 						Thinking
 					</Text>
-					<Markdown color={reasoningColor} width={Math.max(1, columns - 4)}>
-						{visibleContent}
+					<Markdown color={reasoningColor} width={Math.max(1, columns - 4)} maxLines={display === "tail" ? REASONING_VISIBLE_LINES : undefined} padLines>
+						{content}
 					</Markdown>
 				</Box>
 			</DotRow>

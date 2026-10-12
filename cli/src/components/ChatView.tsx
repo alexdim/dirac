@@ -60,6 +60,7 @@ import { processImagePaths } from "../utils/parser"
 import { ActionButtons } from "./ActionButtons"
 
 import { ChatMessage } from "./ChatMessage"
+import { renderMarkdownLines } from "../utils/markdown"
 import { FileMentionMenu } from "./FileMentionMenu"
 import { HelpPanelContent } from "./HelpPanelContent"
 import { HistoryPanelContent } from "./HistoryPanelContent"
@@ -429,7 +430,9 @@ export const ChatView: React.FC<ChatViewProps> = ({
 		if (!permissionCard) return 0
 		const body = cardBodyForDisplay(permissionCard.body, permissionCard.renderType)
 		if (!body) return 0
-		const totalLines = estimateVisualLineCount(body, permissionModalLayout.bodyColumns)
+		const totalLines = permissionCard.renderType === "markdown"
+			? renderMarkdownLines(body, permissionModalLayout.bodyColumns).length
+			: estimateVisualLineCount(body, permissionModalLayout.bodyColumns)
 		return Math.max(0, totalLines - permissionModalLayout.bodyLines)
 	}, [permissionCard, permissionModalLayout.bodyColumns, permissionModalLayout.bodyLines])
 

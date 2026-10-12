@@ -130,6 +130,63 @@ for (const fixture of ["long-response", "long-plan"]) {
 	}
 }
 
+for (const [cols, rows] of [
+	[100, 30],
+	[60, 20],
+]) {
+	test(
+		`#264: plan code and prose retain Markdown formatting while scrolling (${cols}x${rows})`,
+		{ timeout: 120000 },
+		async (context) => {
+			const metadata = await startSession({ fixture: "markdown-plan", cols, rows })
+			context.after(() => stopAndRemove(metadata.session))
+			const session = metadata.session
+			await requestSession(session, { operation: "wait", text: "@ files", timeoutMs: 30000 })
+			await requestSession(session, { operation: "key", key: "Tab" })
+			await requestSession(session, { operation: "write", text: "Create a plan with multiple long code blocks." })
+			await requestSession(session, { operation: "key", key: "Enter" })
+			const initial = await requestSession(session, { operation: "wait", text: "Markdown plan start.", timeoutMs: 30000 })
+			assert.equal(initial.fixtureRequests, 1)
+			assert.match(initial.screen, /│ Code 1\.01: \*\*literal\*\* /)
+			let snapshot = initial
+			let sawProse = false
+			for (let step = 0; step < 100; step++) {
+				snapshot = await requestSession(session, { operation: "key", key: "Down" })
+				for (const line of snapshot.lines.filter((line) => /Code \d\.\d\d/.test(line))) {
+					assert.match(
+						line,
+						/│ Code \d\.\d\d: \*\*literal\*\* /,
+						`Code must remain literal when its opening fence is off-screen\n${snapshot.screen}`,
+					)
+				}
+				for (const line of snapshot.lines.filter((line) => line.includes("Prose between blocks"))) {
+					sawProse = true
+					const body = line.slice(line.indexOf("│") + 2, line.lastIndexOf("│")).trim()
+					assert.match(
+						body,
+						/^Prose between blocks \d and \d\.$/,
+						`Prose must be formatted, without a code border or literal markers\n${snapshot.screen}`,
+					)
+				}
+				if (snapshot.screen.includes("Markdown plan end.")) break
+			}
+			assert.ok(sawProse, "Must scroll across intervening prose")
+			assert.match(snapshot.screen, /Markdown plan end\./, "The rendered end must remain reachable")
+			const back = await requestSession(session, { operation: "key", key: "Up", count: 10 })
+			assert.match(back.screen, /│ Code 3\.\d\d: \*\*literal\*\* /)
+			await requestSession(session, { operation: "resize", cols: 80, rows: 24 })
+			// Compare the settled UI after App's width-change remount debounce.
+			await delay(400)
+			// App remounts reset scroll state; re-enter a code block at the new width.
+			const resized = await requestSession(session, { operation: "key", key: "Down", count: 8 })
+			const codeRows = resized.lines.filter((line) => /Code \d\.\d\d/.test(line))
+			assert.ok(codeRows.length > 0)
+			assert.doesNotMatch(resized.screen, /Markdown plan start\./)
+			for (const line of codeRows) assert.match(line, /│ Code \d\.\d\d: \*\*literal\*\* /)
+		},
+	)
+}
+
 test(
 	"#259: the real built CLI navigates a pasted draft before scrolling a canned long response",
 	{ timeout: 60000 },

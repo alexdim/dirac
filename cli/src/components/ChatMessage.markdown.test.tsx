@@ -49,6 +49,23 @@ describe("ChatMessage markdown rendering", () => {
 		expect(frame).toContain(`\u001B[48;2;${codeBackgroundRgb}m`)
 	})
 
+	it("#264: keeps code literal in a live thinking tail after its opening fence is clipped", () => {
+		const message: DiracMessage = {
+			id: "thinking-code",
+			ts: 0,
+			content: {
+				type: DiracMessageType.MARKDOWN,
+				isReasoning: true,
+				content: "```text\nfirst\nsecond\nthird\n**literal tail**",
+			},
+		}
+		const view = render(<ChatMessage message={message} />)
+		const plain = (view.lastFrame() ?? "").replace(/\u001B\[[0-9;]*m/g, "")
+		expect(plain).toContain("│ **literal tail**")
+		expect(plain).not.toContain("first")
+		view.unmount()
+	})
+
 	it("keeps tables and code blocks within an explicit narrow width", () => {
 		const { lastFrame } = render(
 			<Markdown width={10}>{"| Long heading | Other |\n| --- | --- |\n| Long cell value | More content |\n\n```\nabcdefghijklmnop\n```"}</Markdown>,
