@@ -33,6 +33,7 @@ function createInputProps(overrides: Partial<ChatInputProps> = {}): ChatInputPro
 	const cursorPosRef = overrides.cursorPosRef ?? { current: 8 }
 	return {
 		workspacePath: "/workspace",
+		inputColumns: 80,
 		textInputRef,
 		cursorPosRef,
 		setTextInput: vi.fn(),
@@ -146,6 +147,25 @@ describe("useChatInputHandler arrow navigation", () => {
 		const viewport = createInputViewport(text, props.cursorPosRef.current, 40, 3)
 		expect(viewport.text).toContain("line 0\n")
 		expect(viewport.hasHiddenBefore).toBe(false)
+		expect(props.setCardScrollOffset).not.toHaveBeenCalled()
+		app.unmount()
+	})
+
+	it.each([0, 4, 10])("moves through soft-wrapped input before scrolling at offset %i", (cardScrollOffset) => {
+		const text = "abcdefghijklmnop"
+		const props = createInputProps({
+			textInputRef: { current: text },
+			cursorPosRef: { current: text.length },
+			inputColumns: 5,
+			cardScrollOffset,
+		})
+		const app = render(<InputHarness {...props} />)
+		pressKey({ upArrow: true })
+		expect(props.setCursorPos).toHaveBeenLastCalledWith(11)
+		pressKey({ upArrow: true })
+		expect(props.setCursorPos).toHaveBeenLastCalledWith(7)
+		pressKey({ downArrow: true })
+		expect(props.setCursorPos).toHaveBeenLastCalledWith(11)
 		expect(props.setCardScrollOffset).not.toHaveBeenCalled()
 		app.unmount()
 	})

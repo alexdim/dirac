@@ -85,6 +85,7 @@ import {
 	shouldShowGoalFooter,
 } from "../utils/chat-layout"
 import { estimateVisualLineCount } from "../utils/text-clipping"
+import { getInputContentWidth } from "../utils/input-layout"
 import { cardBodyForDisplay } from "../utils/card-body"
 import { createCardBodySuppressionPolicy } from "../utils/quiet-mode"
 import { clearTaskDeadline, getTaskDeadline, hasTaskTimedOut, markTaskTimedOut } from "../utils/task-timeout"
@@ -450,6 +451,20 @@ export const ChatView: React.FC<ChatViewProps> = ({
 		[permissionCard],
 	)
 
+	const isResumeChoiceActive = taskState.taskStatus === TaskStatus.CANCELLED
+	let inputPrompt = ""
+	if (selectedGoal?.followUpActive) {
+		inputPrompt = "(steer follow-up)"
+	} else if (isRunningGoalStatus(selectedGoal?.status)) {
+		inputPrompt = "(steer Goal)"
+	} else if (selectedGoal) {
+		inputPrompt = "(follow up Goal)"
+	} else if (pendingAsk && !yolo && askType === "options" && askOptions.length > 0) {
+		inputPrompt = `(1-${askOptions.length} or type)`
+	} else if (isResumeChoiceActive) {
+		inputPrompt = "(type to resume)"
+	}
+
 	const {
 		textInput,
 		cursorPos,
@@ -475,6 +490,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
 		taskId,
 		mode,
 		workspacePath: footerStatus.workspacePath,
+		inputColumns: getInputContentWidth(terminalColumns, inputPrompt),
 		activePanel,
 		setActivePanel,
 		isSpinnerActive,
@@ -551,7 +567,6 @@ export const ChatView: React.FC<ChatViewProps> = ({
 		[uiActionState],
 	)
 	const isCompletionChoiceActive = taskState.taskStatus === TaskStatus.COMPLETED || hasGlobalAction(UIActionButtonType.NEW_TASK)
-	const isResumeChoiceActive = taskState.taskStatus === TaskStatus.CANCELLED
 	const submitResumeTextResponse = useCallback(
 		async (text: string, images: string[]) => {
 			if (!isResumeChoiceActive && !isCompletionChoiceActive) return false
@@ -802,18 +817,6 @@ export const ChatView: React.FC<ChatViewProps> = ({
 	)
 
 	const borderColor = mode === "act" ? theme.primary : theme.plan
-	let inputPrompt = ""
-	if (selectedGoal?.followUpActive) {
-		inputPrompt = "(steer follow-up)"
-	} else if (isRunningGoalStatus(selectedGoal?.status)) {
-		inputPrompt = "(steer Goal)"
-	} else if (selectedGoal) {
-		inputPrompt = "(follow up Goal)"
-	} else if (pendingAsk && !yolo && askType === "options" && askOptions.length > 0) {
-		inputPrompt = `(1-${askOptions.length} or type)`
-	} else if (isResumeChoiceActive) {
-		inputPrompt = "(type to resume)"
-	}
 
 	composerActionsRef.current = {
 		handleAskShortcuts,

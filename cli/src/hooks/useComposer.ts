@@ -77,6 +77,7 @@ interface UseComposerProps {
 	taskId?: string
 	mode: string
 	workspacePath: string
+	inputColumns: number
 	activePanel: ActivePanel
 	setActivePanel: React.Dispatch<React.SetStateAction<ActivePanel>>
 	isSpinnerActive: boolean
@@ -101,6 +102,7 @@ export function useComposer({
 	taskId,
 	mode,
 	workspacePath,
+	inputColumns,
 	activePanel,
 	setActivePanel,
 	isSpinnerActive,
@@ -375,6 +377,7 @@ export function useComposer({
 
 	useChatInputHandler({
 		workspacePath,
+		inputColumns,
 		isEmptyConversation,
 		textInputRef,
 		cursorPosRef,

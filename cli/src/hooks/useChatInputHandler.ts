@@ -33,6 +33,7 @@ export function getGoalKeyboardShortcut(
 
 interface UseChatInputHandlerProps {
 	workspacePath: string
+	inputColumns: number
 	textInputRef: React.MutableRefObject<string>
 	cursorPosRef: React.MutableRefObject<number>
 	setTextInput: React.Dispatch<React.SetStateAction<string>>
@@ -101,6 +102,7 @@ interface UseChatInputHandlerProps {
 
 export function useChatInputHandler({
 	workspacePath,
+	inputColumns,
 	textInputRef,
 	cursorPosRef,
 	setTextInput,
@@ -465,8 +467,8 @@ export function useChatInputHandler({
 		}
 		if ((key.upArrow || key.downArrow) && !inSlashMenu && !inFileMenu) {
 			const nextCursorPos = key.upArrow
-				? moveCursorUp(currentTextInput, currentCursorPos)
-				: moveCursorDown(currentTextInput, currentCursorPos)
+				? moveCursorUp(currentTextInput, currentCursorPos, inputColumns)
+				: moveCursorDown(currentTextInput, currentCursorPos, inputColumns)
 			if (nextCursorPos !== currentCursorPos) {
 				setCursorPos(nextCursorPos)
 				return
