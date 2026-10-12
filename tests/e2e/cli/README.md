@@ -123,6 +123,22 @@ workspace rather than pointing it at user files. The #261 regressions verify the
 left-aligned, fully wrapped description at wide and narrow widths, resizing, and
 approval/denial behavior.
 
+For existing-file edit approval scrolling (#266), use a seeded temporary file and
+real `read_file` → `edit_file` calls with two long insertions:
+
+```bash
+npm run --silent cli:tui -- start --fixture edit-file --cols 180 --rows 32
+```
+
+Submit `Make the two insertions in permission-scroll.txt.` and wait for `Apply 2 edit`.
+Press Down 25 times, Up 5 times, then Up 3 times: earlier diff rows must enter the
+viewport instead of only removing its bottom rows. The regression also checks
+both scroll boundaries, unified/wrapped layouts, resizing, and approval/denial.
+Diffs are parsed in full before formatted rows are clipped; scroll bounds include
+collapsed context, paired changes, wrapped lines and hunk separators. This fixture
+writes only `permission-scroll.txt`; keep the default isolated workspace rather
+than supplying a directory with user files.
+
 For real providers, explicitly opt in:
 
 ```bash
@@ -187,7 +203,7 @@ Operations: `screen`, `write`, `paste`, `key`, `resize`, `wait`, `stop`. Their
 properties mirror the CLI flags; deadlines use `timeoutMs`, dimensions use `cols`
 and `rows`, and repeated keypresses use `count`. `startSession` also accepts
 `command`, `args`, `cwd`, `live`, `idleMs`, and `fixture` (`long-response` by default
-or `long-plan` / `markdown-plan` / `markdown-response` / `create-file`).
+or `long-plan` / `markdown-plan` / `markdown-response` / `create-file` / `edit-file`).
 
 ## Lifecycle and artifacts
 

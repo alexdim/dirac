@@ -7,6 +7,7 @@ import { Markdown } from "./modular-ui/Markdown"
 import { cardBodyForDisplay } from "../utils/card-body"
 import { CardBody } from "./modular-ui/CardBody"
 import { CardHeader } from "./modular-ui/CardHeader"
+import { Diff } from "./modular-ui/Diff"
 
 interface PermissionModalProps {
 	card: CardType
@@ -30,7 +31,7 @@ export const PermissionModal: React.FC<PermissionModalProps> = ({
 	const body = cardBodyForDisplay(card.body, card.renderType)
 	// With separate file diffs, the body describes the request rather than containing a diff.
 	const bodyRenderType = card.renderType === "diff" && card.diffs?.length ? "text" : card.renderType
-	const visibleBody = bodyRenderType === "markdown" ? body : clipTextToWindow(body, bodyLines, bodyColumns, scrollOffset, "… earlier content clipped …").visibleText
+	const visibleBody = bodyRenderType === "text" ? clipTextToWindow(body, bodyLines, bodyColumns, scrollOffset, "… earlier content clipped …").visibleText : body
 	const borderColor = card.requireApproval ? theme.warning : theme.status.waiting
 	const title = card.requireApproval ? "Permission required" : "Input required"
 
@@ -54,6 +55,8 @@ export const PermissionModal: React.FC<PermissionModalProps> = ({
 				<Box flexDirection="column" marginTop={1}>
 					{bodyRenderType === "markdown" ? (
 						<Markdown color={styles.tool.body.color} width={bodyColumns} maxLines={bodyLines} scrollOffset={scrollOffset}>{body}</Markdown>
+					) : bodyRenderType === "diff" ? (
+						<Diff content={body} width={bodyColumns} maxLines={bodyLines} scrollOffset={scrollOffset} />
 					) : (
 						<CardBody body={visibleBody} renderType={bodyRenderType} renderWidth={bodyColumns} />
 					)}

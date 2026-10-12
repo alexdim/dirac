@@ -125,6 +125,8 @@ Transcript rendering uses a restrained hierarchy for long-running terminal sessi
 
 Scrollable Markdown and live thinking tails must parse the complete document before clipping formatted terminal rows. Use `renderMarkdownLines` for both viewport rendering and Markdown scroll bounds; clipping source text before parsing loses off-screen fences, table headers, list numbering, and reference definitions. The interactive formatter is separate from standalone text output.
 
+File-edit permission diffs also parse the complete patch before clipping. Use `createDiffLayout` for both diff rendering and permission scroll bounds, accounting for collapsed context, split-row pairing, hunk separators and unified-line wrapping. Never clip raw patch source before parsing: losing a hunk header changes line numbers and can cut off rows without moving the viewport.
+
 ## Standalone output contract
 
 Standalone execution is designed for shell composition:

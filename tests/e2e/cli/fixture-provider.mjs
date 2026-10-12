@@ -51,11 +51,42 @@ export const CREATE_FILE_PATH =
 	"src/features/permission-dialog/regressions/long-directory-name-for-file-creation/a-very-long-file-name-that-must-remain-readable-in-the-permission-prompt.txt"
 export const CREATE_FILE_CONTENT = "Permission prompt regression fixture.\n"
 
+export const EDIT_FILE_PATH = "permission-scroll.txt"
+export const EDIT_FILE_CONTENT = `${Array.from({ length: 40 }, (_, index) => `Context line ${String(index + 1).padStart(2, "0")}.`).join("\n")}\n`
+export const EDIT_FILE_INSERTIONS = [18, 28].map((length, block) =>
+	Array.from(
+		{ length },
+		(_, index) => `Added ${block + 1}.${String(index + 1).padStart(2, "0")}: permission scrolling fixture.`,
+	).join("\n"),
+)
+
+function editFileArguments(completion) {
+	const messages = JSON.stringify(completion.messages)
+	const anchors = ["05", "35"].map((line) => {
+		const match = messages.match(new RegExp(`[A-Z][a-zA-Z]*§Context line ${line}\\.`))
+		if (!match) throw new Error(`Fixture requires the read_file anchor for line ${line}`)
+		return match[0]
+	})
+	return {
+		files: [
+			{
+				path: EDIT_FILE_PATH,
+				edits: anchors.map((anchor, index) => ({
+					edit_type: "insert_after",
+					anchor,
+					text: `${EDIT_FILE_INSERTIONS[index]}\n`,
+				})),
+			},
+		],
+	}
+}
+
 /** Deterministic tool calls; all UI, provider parsing, task execution and storage remain real. */
-export async function startFixtureProvider(home, scenario = "long-response") {
-	if (!["long-response", "long-plan", "markdown-plan", "markdown-response", "create-file"].includes(scenario)) {
+export async function startFixtureProvider(home, scenario = "long-response", workspace) {
+	if (!["long-response", "long-plan", "markdown-plan", "markdown-response", "create-file", "edit-file"].includes(scenario)) {
 		throw new Error(`Unknown fixture: ${scenario}`)
 	}
+	if (scenario === "edit-file") await writeFile(path.join(workspace, EDIT_FILE_PATH), EDIT_FILE_CONTENT)
 	let requests = 0
 	const server = createServer(async (request, response) => {
 		try {
@@ -72,24 +103,32 @@ export async function startFixtureProvider(home, scenario = "long-response") {
 			for await (const chunk of request) body += chunk
 			const completion = JSON.parse(body)
 			const createFile = scenario === "create-file" && requests === 0
-			const toolName = createFile ? "write_to_file" : "respond"
+			const readFile = scenario === "edit-file" && requests === 0
+			const editFile = scenario === "edit-file" && requests === 1
+			const toolName = createFile ? "write_to_file" : readFile ? "read_file" : editFile ? "edit_file" : "respond"
 			const tool = completion.tools?.find((candidate) => candidate.function?.name === toolName)
 			if (!tool) throw new Error(`Fixture requires the native ${toolName} tool`)
 			const args = createFile
 				? { path: CREATE_FILE_PATH, content: CREATE_FILE_CONTENT }
-				: {
-					operation: scenario === "long-plan" || scenario === "markdown-plan" ? "plan" : "complete",
-					text:
-						scenario === "markdown-response"
-							? MARKDOWN_RESPONSE
-							: scenario === "markdown-plan"
-								? MARKDOWN_PLAN
-								: scenario === "long-plan"
-									? LONG_PLAN
-									: scenario === "create-file"
-										? "File creation fixture completed."
-										: LONG_RESPONSE,
-				}
+				: readFile
+					? { paths: [EDIT_FILE_PATH], include_anchors: true }
+					: editFile
+						? editFileArguments(completion)
+						: {
+								operation: scenario === "long-plan" || scenario === "markdown-plan" ? "plan" : "complete",
+								text:
+									scenario === "markdown-response"
+										? MARKDOWN_RESPONSE
+										: scenario === "markdown-plan"
+											? MARKDOWN_PLAN
+											: scenario === "long-plan"
+												? LONG_PLAN
+												: scenario === "edit-file"
+													? "File edit fixture completed."
+													: scenario === "create-file"
+														? "File creation fixture completed."
+														: LONG_RESPONSE,
+							}
 			requests++
 			const chunk = (delta, finishReason = null) => ({
 				id: `tui-completion-${requests}`,

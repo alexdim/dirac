@@ -41,7 +41,7 @@ function fail(error) {
 }
 
 try {
-	if (fixtureEnabled) fixture = await startFixtureProvider(home, options.fixture)
+	if (fixtureEnabled) fixture = await startFixtureProvider(home, options.fixture, workspace)
 	const env = options.live
 		? { ...process.env }
 		: {

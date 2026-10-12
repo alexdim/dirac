@@ -88,6 +88,7 @@ import {
 import { estimateVisualLineCount } from "../utils/text-clipping"
 import { getInputContentWidth } from "../utils/input-layout"
 import { cardBodyForDisplay } from "../utils/card-body"
+import { createDiffLayout } from "../utils/diff-layout"
 import { createCardBodySuppressionPolicy } from "../utils/quiet-mode"
 import { clearTaskDeadline, getTaskDeadline, hasTaskTimedOut, markTaskTimedOut } from "../utils/task-timeout"
 import { CliPanelType } from "../types"
@@ -432,7 +433,9 @@ export const ChatView: React.FC<ChatViewProps> = ({
 		if (!body) return 0
 		const totalLines = permissionCard.renderType === "markdown"
 			? renderMarkdownLines(body, permissionModalLayout.bodyColumns).length
-			: estimateVisualLineCount(body, permissionModalLayout.bodyColumns)
+			: permissionCard.renderType === "diff" && !permissionCard.diffs?.length
+				? createDiffLayout(body, permissionModalLayout.bodyColumns).rows.length
+				: estimateVisualLineCount(body, permissionModalLayout.bodyColumns)
 		return Math.max(0, totalLines - permissionModalLayout.bodyLines)
 	}, [permissionCard, permissionModalLayout.bodyColumns, permissionModalLayout.bodyLines])
 
