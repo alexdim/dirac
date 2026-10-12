@@ -78,6 +78,18 @@ The fixture never tells the agent to run commands or edit files. Host provider
 credentials and proxy variables are not inherited. Auto-update, indexing and
 telemetry are disabled. This is **not** an OS sandbox or a network firewall.
 
+For plan-scroll regressions, use an 80-line `respond:plan` fixture:
+
+```bash
+npm run --silent cli:tui -- start --fixture long-plan --cols 100 --rows 30
+```
+
+Press Tab to enter Plan mode, submit a prompt, wait for `Plan line 80`, scroll up
+with Up, and type into the composer. The #262 regressions assert that editing
+retains the visible plan lines, including at narrow widths, with multiline and
+Unicode input, and after resizing. They also cover completed-response scrolling
+and verify that a newly submitted turn starts its new card at the bottom.
+
 For file-creation approval regressions, opt into a deterministic `write_to_file`
 request followed by a short completion:
 
@@ -155,7 +167,7 @@ Operations: `screen`, `write`, `paste`, `key`, `resize`, `wait`, `stop`. Their
 properties mirror the CLI flags; deadlines use `timeoutMs`, dimensions use `cols`
 and `rows`, and repeated keypresses use `count`. `startSession` also accepts
 `command`, `args`, `cwd`, `live`, `idleMs`, and `fixture` (`long-response` by default
-or `create-file`).
+or `long-plan` / `create-file`).
 
 ## Lifecycle and artifacts
 

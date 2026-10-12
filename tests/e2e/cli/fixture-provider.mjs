@@ -8,13 +8,18 @@ export const LONG_RESPONSE = Array.from(
 	(_, index) => `Response line ${String(index + 1).padStart(2, "0")}: deterministic CLI scrolling fixture.`,
 ).join("\n")
 
+export const LONG_PLAN = Array.from(
+	{ length: 80 },
+	(_, index) => `Plan line ${String(index + 1).padStart(2, "0")}: deterministic CLI scrolling fixture.`,
+).join("\n")
+
 export const CREATE_FILE_PATH =
 	"src/features/permission-dialog/regressions/long-directory-name-for-file-creation/a-very-long-file-name-that-must-remain-readable-in-the-permission-prompt.txt"
 export const CREATE_FILE_CONTENT = "Permission prompt regression fixture.\n"
 
 /** Deterministic tool calls; all UI, provider parsing, task execution and storage remain real. */
 export async function startFixtureProvider(home, scenario = "long-response") {
-	if (!["long-response", "create-file"].includes(scenario)) throw new Error(`Unknown fixture: ${scenario}`)
+	if (!["long-response", "long-plan", "create-file"].includes(scenario)) throw new Error(`Unknown fixture: ${scenario}`)
 	let requests = 0
 	const server = createServer(async (request, response) => {
 		try {
@@ -36,7 +41,15 @@ export async function startFixtureProvider(home, scenario = "long-response") {
 			if (!tool) throw new Error(`Fixture requires the native ${toolName} tool`)
 			const args = createFile
 				? { path: CREATE_FILE_PATH, content: CREATE_FILE_CONTENT }
-				: { operation: "complete", text: scenario === "create-file" ? "File creation fixture completed." : LONG_RESPONSE }
+				: {
+						operation: scenario === "long-plan" ? "plan" : "complete",
+						text:
+							scenario === "long-plan"
+								? LONG_PLAN
+								: scenario === "create-file"
+									? "File creation fixture completed."
+									: LONG_RESPONSE,
+					}
 			requests++
 			const chunk = (delta, finishReason = null) => ({
 				id: `tui-completion-${requests}`,

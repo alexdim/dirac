@@ -172,6 +172,80 @@ test(
 		assert.deepEqual(responseLines(unicodeDown), unicodeResponse)
 	},
 )
+for (const fixture of ["long-plan", "long-response"]) {
+	const dimensions =
+		fixture === "long-plan"
+			? [
+				[100, 30],
+				[60, 20],
+			]
+			: [[100, 30]]
+	for (const [cols, rows] of dimensions) {
+		test(`#262: editing a draft preserves a scrolled ${fixture} (${cols}x${rows})`, { timeout: 60000 }, async (context) => {
+			const metadata = await startSession({ fixture, cols, rows })
+			context.after(() => stopAndRemove(metadata.session))
+			const session = metadata.session
+			const linePrefix = fixture === "long-plan" ? "Plan line" : "Response line"
+			const visibleLines = (snapshot) => snapshot.lines.filter((line) => line.includes(linePrefix))
+			await requestSession(session, { operation: "wait", text: "@ files", timeoutMs: 30000 })
+			if (fixture === "long-plan") {
+				const mode = await requestSession(session, { operation: "key", key: "Tab" })
+				assert.match(mode.screen, /● Plan/)
+			}
+			await requestSession(session, { operation: "write", text: "Create a long plan." })
+			await requestSession(session, { operation: "key", key: "Enter" })
+			const bottom = await requestSession(session, { operation: "wait", text: `${linePrefix} 80`, timeoutMs: 30000 })
+			assert.equal(bottom.fixtureRequests, 1)
+			assert.match(bottom.screen, fixture === "long-plan" ? /Proposed Plan/ : /Task Completed/)
+			const scrolled = await requestSession(session, { operation: "key", key: "Up", count: 8 })
+			const expected = visibleLines(scrolled)
+			assert.ok(expected.length > 0)
+			assert.notDeepEqual(expected, visibleLines(bottom), "Up must actually scroll the displayed body")
+			assert.doesNotMatch(scrolled.screen, new RegExp(`${linePrefix} 80`))
+
+			const typed = await requestSession(session, { operation: "write", text: "x" })
+			assert.match(typed.screen, /│  x +│/)
+			assert.equal(typed.fixtureRequests, 1, "Editing must not submit a response")
+			assert.deepEqual(visibleLines(typed), expected, "Typing one character must not jump to the bottom")
+
+			for (const action of [
+				{ operation: "write", text: "yz" },
+				{ operation: "key", key: "Left" },
+				{ operation: "write", text: "m" },
+				{ operation: "key", key: "Backspace" },
+				{ operation: "key", key: "Delete" },
+				{ operation: "key", key: "Ctrl+u" },
+				{ operation: "paste", text: "first\r\n界🙂e\u0301\r\nthird" },
+				{ operation: "key", key: "Shift+Enter" },
+			]) {
+				const edited = await requestSession(session, action)
+				assert.deepEqual(
+					visibleLines(edited),
+					expected,
+					`Draft edit must retain the body viewport: ${JSON.stringify(action)}`,
+				)
+				assert.equal(edited.fixtureRequests, 1)
+				assert.ok(inputCursor(edited))
+			}
+
+			// Width changes remount the UI; compare settled frames at the new dimensions.
+			await requestSession(session, { operation: "resize", cols: 80, rows: 24 })
+			await delay(400)
+			const resized = await requestSession(session, { operation: "screen" })
+			const afterResize = await requestSession(session, { operation: "write", text: "r" })
+			assert.deepEqual(visibleLines(afterResize), visibleLines(resized))
+			assert.ok(inputCursor(afterResize))
+
+			// A newly submitted turn must still start its new card at the bottom.
+			await requestSession(session, { operation: "key", key: "Ctrl+a" })
+			const beforeSubmit = await requestSession(session, { operation: "key", key: "Up", count: 8 })
+			assert.doesNotMatch(beforeSubmit.screen, new RegExp(`${linePrefix} 80`))
+			await requestSession(session, { operation: "key", key: "Enter" })
+			const next = await requestSession(session, { operation: "wait", text: `${linePrefix} 80`, timeoutMs: 30000 })
+			assert.equal(next.fixtureRequests, 2)
+		})
+	}
+}
 for (const encoding of ["CSI-u", "modifyOtherKeys"]) {
 	for (const [cols, rows] of [
 		[100, 30],

@@ -491,8 +491,6 @@ export function useChatInputHandler({
 		}
 
 		if (input && !key.ctrl && !key.meta && !key.upArrow && !key.downArrow && !key.tab) {
-			if (cardScrollOffset > 0) setCardScrollOffset(0)
-
 			insertTextAtCursor(input)
 		}
 	})
