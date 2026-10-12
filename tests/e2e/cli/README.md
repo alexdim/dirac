@@ -78,6 +78,19 @@ The fixture never tells the agent to run commands or edit files. Host provider
 credentials and proxy variables are not inherited. Auto-update, indexing and
 telemetry are disabled. This is **not** an OS sandbox or a network firewall.
 
+For file-creation approval regressions, opt into a deterministic `write_to_file`
+request followed by a short completion:
+
+```bash
+npm run --silent cli:tui -- start --fixture create-file --cols 180 --rows 40
+```
+
+This fixture asks to create one fixed long workspace-relative path. Auto-approval
+is off; the file is written only after approval. Keep the default temporary
+workspace rather than pointing it at user files. The #261 regressions verify the
+left-aligned, fully wrapped description at wide and narrow widths, resizing, and
+approval/denial behavior.
+
 For real providers, explicitly opt in:
 
 ```bash
@@ -141,7 +154,8 @@ try {
 Operations: `screen`, `write`, `paste`, `key`, `resize`, `wait`, `stop`. Their
 properties mirror the CLI flags; deadlines use `timeoutMs`, dimensions use `cols`
 and `rows`, and repeated keypresses use `count`. `startSession` also accepts
-`command`, `args`, `cwd`, `live`, and `idleMs`.
+`command`, `args`, `cwd`, `live`, `idleMs`, and `fixture` (`long-response` by default
+or `create-file`).
 
 ## Lifecycle and artifacts
 

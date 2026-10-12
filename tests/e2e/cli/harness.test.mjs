@@ -6,6 +6,7 @@ import { test } from "node:test"
 import { setTimeout as delay } from "node:timers/promises"
 import { promisify } from "node:util"
 import { REPO_ROOT, requestSession, startSession } from "./client.mjs"
+import { CREATE_FILE_CONTENT, CREATE_FILE_PATH } from "./fixture-provider.mjs"
 
 const execFileAsync = promisify(execFile)
 const harness = path.join(REPO_ROOT, "tests/e2e/cli/harness.mjs")
@@ -232,3 +233,79 @@ for (const encoding of ["CSI-u", "modifyOtherKeys"]) {
 		)
 	}
 }
+
+function assertReadableCreationDescription(snapshot) {
+	const rowIndex = snapshot.lines.findIndex((line) => line.includes("Dirac wants to create"))
+	assert.notEqual(rowIndex, -1, `Expected a creation description\n${snapshot.screen}`)
+	const row = snapshot.lines[rowIndex]
+	const leftBorder = row.indexOf("│")
+	assert.equal(
+		row.indexOf("Dirac wants to create"),
+		leftBorder + 2,
+		`The description must start at the left of the permission body, not in a diff pane\n${snapshot.screen}`,
+	)
+	const bodyRows = snapshot.lines.slice(rowIndex, snapshot.lines.findIndex((line) => line.includes("approve")))
+	const body = bodyRows.map((line) => line.slice(leftBorder + 2, line.lastIndexOf("│")).trim()).join("")
+	assert.ok(body.includes(CREATE_FILE_PATH), `The full path must be readable across wrapped rows\n${snapshot.screen}`)
+	assert.ok(!body.includes("…"), `The path must wrap instead of being truncated\n${snapshot.screen}`)
+}
+
+for (const [cols, rows] of [
+	[180, 40],
+	[100, 30],
+	[60, 20],
+	[40, 24],
+]) {
+	test(
+		`#261: the real CLI left-aligns and wraps create-file permission descriptions (${cols}x${rows})`,
+		{ timeout: 60000 },
+		async (context) => {
+			const metadata = await startSession({ fixture: "create-file", cols, rows })
+			context.after(() => stopAndRemove(metadata.session))
+			const session = metadata.session
+			await requestSession(session, { operation: "wait", text: "@ files", timeoutMs: 30000 })
+			await requestSession(session, { operation: "write", text: `Create ${CREATE_FILE_PATH}` })
+			await requestSession(session, { operation: "key", key: "Enter" })
+			const pending = await requestSession(session, { operation: "wait", text: "Permission Request", timeoutMs: 30000 })
+			assert.equal(pending.fixtureRequests, 1)
+			assertReadableCreationDescription(pending)
+			await assert.rejects(readFile(path.join(metadata.cwd, CREATE_FILE_PATH)), { code: "ENOENT" })
+			if (cols === 180) {
+				await requestSession(session, { operation: "resize", cols: 60, rows: 20 })
+				// App remounts after the width-change debounce; verify like-sized settled frames.
+				await delay(400)
+				assertReadableCreationDescription(await requestSession(session, { operation: "screen" }))
+				await requestSession(session, { operation: "resize", cols, rows })
+				await delay(400)
+				assertReadableCreationDescription(await requestSession(session, { operation: "screen" }))
+			}
+			await requestSession(session, { operation: "write", text: "y" })
+			const completed = await requestSession(session, {
+				operation: "wait",
+				text: "File creation fixture completed.",
+				timeoutMs: 30000,
+			})
+			assert.equal(completed.fixtureRequests, 2)
+			assert.equal(await readFile(path.join(metadata.cwd, CREATE_FILE_PATH), "utf8"), CREATE_FILE_CONTENT)
+		},
+	)
+}
+
+test("#261: denying file creation still leaves the workspace unchanged", { timeout: 60000 }, async (context) => {
+	const metadata = await startSession({ fixture: "create-file", cols: 180, rows: 40 })
+	context.after(() => stopAndRemove(metadata.session))
+	const session = metadata.session
+	await requestSession(session, { operation: "wait", text: "@ files", timeoutMs: 30000 })
+	await requestSession(session, { operation: "write", text: `Create ${CREATE_FILE_PATH}` })
+	await requestSession(session, { operation: "key", key: "Enter" })
+	const pending = await requestSession(session, { operation: "wait", text: "Permission Request", timeoutMs: 30000 })
+	assertReadableCreationDescription(pending)
+	await requestSession(session, { operation: "write", text: "n" })
+	const completed = await requestSession(session, {
+		operation: "wait",
+		text: "File creation fixture completed.",
+		timeoutMs: 30000,
+	})
+	assert.equal(completed.fixtureRequests, 2)
+	await assert.rejects(readFile(path.join(metadata.cwd, CREATE_FILE_PATH)), { code: "ENOENT" })
+})

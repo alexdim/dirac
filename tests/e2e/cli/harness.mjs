@@ -5,7 +5,7 @@ import { requestSession, startSession } from "./client.mjs"
 
 const HELP = `Persistent CLI terminal harness (Linux/macOS)
 
-  npm run cli:tui -- start [--live] [--cwd DIR] [--cols N] [--rows N]
+  npm run cli:tui -- start [--fixture long-response|create-file] [--live] [--cwd DIR] [--cols N] [--rows N]
   npm run cli:tui -- start -- node /absolute/path/to/program.mjs
   npm run cli:tui -- screen --session DIR [--scrollback]
   npm run cli:tui -- write --session DIR --text 'hello'
@@ -35,6 +35,7 @@ async function main() {
 		options: {
 			session: { type: "string" },
 			live: { type: "boolean", default: false },
+			fixture: { type: "string" },
 			cwd: { type: "string" },
 			cols: { type: "string" },
 			rows: { type: "string" },
@@ -50,6 +51,7 @@ async function main() {
 	if (operation === "start") {
 		const result = await startSession({
 			live: values.live,
+			fixture: values.fixture,
 			cwd: values.cwd ? path.resolve(values.cwd) : undefined,
 			cols: values.cols === undefined ? undefined : Number(values.cols),
 			rows: values.rows === undefined ? undefined : Number(values.rows),

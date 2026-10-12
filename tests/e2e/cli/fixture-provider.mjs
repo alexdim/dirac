@@ -8,8 +8,13 @@ export const LONG_RESPONSE = Array.from(
 	(_, index) => `Response line ${String(index + 1).padStart(2, "0")}: deterministic CLI scrolling fixture.`,
 ).join("\n")
 
-/** Only emits respond:complete; all UI, provider parsing, task execution and storage remain real. */
-export async function startFixtureProvider(home) {
+export const CREATE_FILE_PATH =
+	"src/features/permission-dialog/regressions/long-directory-name-for-file-creation/a-very-long-file-name-that-must-remain-readable-in-the-permission-prompt.txt"
+export const CREATE_FILE_CONTENT = "Permission prompt regression fixture.\n"
+
+/** Deterministic tool calls; all UI, provider parsing, task execution and storage remain real. */
+export async function startFixtureProvider(home, scenario = "long-response") {
+	if (!["long-response", "create-file"].includes(scenario)) throw new Error(`Unknown fixture: ${scenario}`)
 	let requests = 0
 	const server = createServer(async (request, response) => {
 		try {
@@ -25,8 +30,13 @@ export async function startFixtureProvider(home) {
 			let body = ""
 			for await (const chunk of request) body += chunk
 			const completion = JSON.parse(body)
-			const tool = completion.tools?.find((candidate) => candidate.function?.name === "respond")
-			if (!tool) throw new Error("Fixture requires the native respond tool")
+			const createFile = scenario === "create-file" && requests === 0
+			const toolName = createFile ? "write_to_file" : "respond"
+			const tool = completion.tools?.find((candidate) => candidate.function?.name === toolName)
+			if (!tool) throw new Error(`Fixture requires the native ${toolName} tool`)
+			const args = createFile
+				? { path: CREATE_FILE_PATH, content: CREATE_FILE_CONTENT }
+				: { operation: "complete", text: scenario === "create-file" ? "File creation fixture completed." : LONG_RESPONSE }
 			requests++
 			const chunk = (delta, finishReason = null) => ({
 				id: `tui-completion-${requests}`,
@@ -46,8 +56,8 @@ export async function startFixtureProvider(home) {
 								id: `tui-tool-${requests}`,
 								type: "function",
 								function: {
-									name: "respond",
-									arguments: JSON.stringify({ operation: "complete", text: LONG_RESPONSE }),
+									name: toolName,
+									arguments: JSON.stringify(args),
 								},
 							},
 						],

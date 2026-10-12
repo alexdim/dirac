@@ -27,6 +27,8 @@ export const PermissionModal: React.FC<PermissionModalProps> = ({
 	height,
 }) => {
 	const body = cardBodyForDisplay(card.body, card.renderType)
+	// With separate file diffs, the body describes the request rather than containing a diff.
+	const bodyRenderType = card.renderType === "diff" && card.diffs?.length ? "text" : card.renderType
 	const clipped = clipTextToWindow(body, bodyLines, bodyColumns, scrollOffset, "… earlier content clipped …")
 	const borderColor = card.requireApproval ? theme.warning : theme.status.waiting
 	const title = card.requireApproval ? "Permission required" : "Input required"
@@ -49,7 +51,7 @@ export const PermissionModal: React.FC<PermissionModalProps> = ({
 					<CardHeader header={card.header} icon={card.icon} status={card.status} />
 				</Box>
 				<Box flexDirection="column" marginTop={1}>
-					<CardBody body={clipped.visibleText} renderType={card.renderType} renderWidth={bodyColumns} />
+					<CardBody body={clipped.visibleText} renderType={bodyRenderType} renderWidth={bodyColumns} />
 				</Box>
 			</Box>
 			<Box flexShrink={0}>{renderFooter(card, scrollOffset, maxScrollOffset)}</Box>

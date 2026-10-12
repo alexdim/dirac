@@ -73,6 +73,7 @@ vi.mock("../context/TaskContext", () => ({
 	})),
 	useTaskContext: vi.fn(() => ({
 		controller: null,
+		setLastError: vi.fn(),
 	})),
 }))
 
@@ -152,6 +153,7 @@ vi.mock("../utils/slash-commands", () => ({
 	filterCommands: vi.fn(() => []),
 	insertSlashCommand: vi.fn((text: string) => text),
 	sortCommandsWorkflowsFirst: vi.fn((cmds: unknown[]) => cmds),
+	mergeCliSlashCommands: vi.fn((commands: unknown[]) => commands),
 }))
 
 vi.mock("../utils/input", () => ({
@@ -195,6 +197,7 @@ vi.mock("@shared/getApiMetrics", () => ({
 
 vi.mock("child_process", () => ({
 	exec: vi.fn(),
+	execFile: vi.fn(),
 	execSync: vi.fn(() => "main"),
 }))
 
@@ -351,7 +354,7 @@ describe("ChatView conversation follow-ups", () => {
 		const task = { taskId: "original-task", submitCardResponse: vi.fn(async () => undefined) }
 		const controller = { task, initTask: vi.fn(), prepareTaskForFollowUp: vi.fn(async () => task) }
 		vi.mocked(useTaskState).mockReturnValue({ diracMessages: [], mode: "act", taskStatus } as any)
-		vi.mocked(useTaskContext).mockReturnValue({ controller } as any)
+		vi.mocked(useTaskContext).mockReturnValue({ controller, setLastError: vi.fn() } as any)
 		const { unmount } = render(<ChatView controller={controller} />)
 		await latestChatInputProps.handleSubmit("follow up using prior context", [])
 		expect(controller.prepareTaskForFollowUp).toHaveBeenCalledOnce()
@@ -374,7 +377,7 @@ describe("ChatView conversation follow-ups", () => {
 			prepareTaskForFollowUp: vi.fn(async () => restored),
 		}
 		vi.mocked(useTaskState).mockReturnValue({ diracMessages: [], mode: "act", taskStatus: TaskStatus.COMPLETED } as any)
-		vi.mocked(useTaskContext).mockReturnValue({ controller } as any)
+		vi.mocked(useTaskContext).mockReturnValue({ controller, setLastError: vi.fn() } as any)
 		const { unmount } = render(<ChatView controller={controller} />)
 		await latestChatInputProps.handleSubmit("continue tomorrow", ["image.png"])
 		expect(restored.submitCardResponse).toHaveBeenCalledWith("", DiracAskResponse.MESSAGE, "continue tomorrow", ["image.png"])
@@ -386,7 +389,7 @@ describe("ChatView conversation follow-ups", () => {
 	it("starts a task only when there is no active conversation", async () => {
 		const controller = { initTask: vi.fn(async () => undefined) }
 		vi.mocked(useTaskState).mockReturnValue({ diracMessages: [], mode: "act", taskStatus: TaskStatus.IDLE } as any)
-		vi.mocked(useTaskContext).mockReturnValue({ controller } as any)
+		vi.mocked(useTaskContext).mockReturnValue({ controller, setLastError: vi.fn() } as any)
 		const { unmount } = render(<ChatView controller={controller} />)
 		await latestChatInputProps.handleSubmit("new conversation", [])
 		expect(controller.initTask).toHaveBeenCalledWith("new conversation", undefined)

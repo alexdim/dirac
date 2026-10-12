@@ -41,7 +41,7 @@ function fail(error) {
 }
 
 try {
-	if (fixtureEnabled) fixture = await startFixtureProvider(home)
+	if (fixtureEnabled) fixture = await startFixtureProvider(home, options.fixture)
 	const env = options.live
 		? { ...process.env }
 		: {
@@ -132,7 +132,7 @@ try {
 		command,
 		args,
 		cwd: workspace,
-		fixture: fixtureEnabled ? "long-response" : null,
+		fixture: fixtureEnabled ? (options.fixture ?? "long-response") : null,
 		bundle,
 		idleMs,
 	}
