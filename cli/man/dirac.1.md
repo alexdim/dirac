@@ -30,6 +30,8 @@ The CLI has an interactive React/Ink interface and a standalone output path for 
 
 Press **Enter** to submit a prompt. **Shift+Enter** inserts a newline when the terminal sends a distinct modified-Enter sequence (CSI-u `ESC [ 13 ; 2 u` or xterm modifyOtherKeys `ESC [ 27 ; 2 ; 13 ~`). **Shift+Down** also inserts a newline. If Enter and Shift+Enter send the same carriage return, use Shift+Down or configure a Shift+Enter mapping to one of these sequences; identical input bytes cannot be distinguished.
 
+Scrollable response cards, including proposed plans and follow-up responses, open at the beginning. Use **Down** for later lines and **Up** for earlier lines. In a multiline draft, arrows navigate the prompt first and scroll the response only at the draft's navigation boundaries. Editing a draft retains the response's scroll position.
+
 **Standalone mode** is selected when **--yolo** or **--json** is present, stdin was piped, stdin is redirected, or stdout is redirected. It does not render the Ink interface.
 
 In standalone text mode, stdout is reserved for the final completion result. Task IDs, progress, tool activity, verbose reasoning, summaries, warnings, and errors are written to stderr. Redirected output has no ANSI escape sequences unless color is explicitly forced.

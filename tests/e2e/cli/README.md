@@ -40,7 +40,7 @@ SESSION=/tmp/dirac-tui-AbCd12
 npm run --silent cli:tui -- wait --session "$SESSION" --text '@ files'
 npm run --silent cli:tui -- write --session "$SESSION" --text 'Give me a long response.'
 npm run --silent cli:tui -- key --session "$SESSION" --key Enter
-npm run --silent cli:tui -- wait --session "$SESSION" --text 'Response line 80' --timeout 30000
+npm run --silent cli:tui -- wait --session "$SESSION" --text 'Response line 01' --timeout 30000
 npm run --silent cli:tui -- paste --session "$SESSION" --file /absolute/path/to/draft.txt
 npm run --silent cli:tui -- key --session "$SESSION" --key Up --count 3
 npm run --silent cli:tui -- screen --session "$SESSION" --scrollback
@@ -84,11 +84,15 @@ For plan-scroll regressions, use an 80-line `respond:plan` fixture:
 npm run --silent cli:tui -- start --fixture long-plan --cols 100 --rows 30
 ```
 
-Press Tab to enter Plan mode, submit a prompt, wait for `Plan line 80`, scroll up
-with Up, and type into the composer. The #262 regressions assert that editing
-retains the visible plan lines, including at narrow widths, with multiline and
-Unicode input, and after resizing. They also cover completed-response scrolling
-and verify that a newly submitted turn starts its new card at the bottom.
+Press Tab to enter Plan mode, submit a prompt, and wait for `Plan line 01`.
+Cards now open at the beginning; press Down to reach later lines. The #262
+regressions first scroll down and then up before asserting that editing retains
+the visible plan lines, including at narrow widths, with multiline and Unicode
+input, and after resizing. They also cover completed-response scrolling and
+verify that a newly submitted turn starts its new card at the beginning.
+The #263 regressions assert that completed responses and proposed plans open
+at their first line, retain their viewport during draft edits and resizing,
+remain scrollable in both directions, and reset to the beginning on follow-up.
 
 For file-creation approval regressions, opt into a deterministic `write_to_file`
 request followed by a short completion:

@@ -154,7 +154,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
 	const quietModeRef = useRef(false)
 	const shouldSuppressCardBody = useMemo(() => createCardBodySuppressionPolicy(() => quietModeRef.current), [])
 
-	const [timelineScrollOffset, setTimelineScrollOffset] = useState(0)
+	const [timelineScrollFromTop, setTimelineScrollFromTop] = useState(0)
 	const [pendingGoalStopId, setPendingGoalStopId] = useState<string | undefined>()
 	const pendingGoalStopIdRef = useRef<string | undefined>(undefined)
 	const pendingGoalStopTimeoutRef = useRef<NodeJS.Timeout | undefined>(undefined)
@@ -191,12 +191,12 @@ export const ChatView: React.FC<ChatViewProps> = ({
 			userScrolled,
 		layoutRows,
 		terminalColumns,
-		scrollOffset: timelineScrollOffset,
+		scrollFromTop: timelineScrollFromTop,
 		shouldSuppressCardBody,
 	})
 
 	useEffect(() => {
-		setTimelineScrollOffset(0)
+		setTimelineScrollFromTop(0)
 	}, [dynamicScrollMessageId])
 
 	useEffect(() => {
@@ -422,8 +422,8 @@ export const ChatView: React.FC<ChatViewProps> = ({
 			: null
 	const permissionModalLayout = calculatePermissionModalLayout(terminalColumns, terminalRows)
 
-	// Permission modal scroll state — offset from the bottom of the pending card body.
-	const [permissionCardScrollOffset, setPermissionCardScrollOffset] = useState(0)
+	// Feedback and approval cards also open at the beginning of their body.
+	const [permissionCardScrollFromTop, setPermissionCardScrollFromTop] = useState(0)
 
 	const scrollableCardMaxOffset = useMemo(() => {
 		if (!permissionCard) return 0
@@ -435,20 +435,22 @@ export const ChatView: React.FC<ChatViewProps> = ({
 
 	// Reset scroll offset when pending ask changes
 	useEffect(() => {
-		setPermissionCardScrollOffset(0)
+		setPermissionCardScrollFromTop(0)
 	}, [pendingAsk?.id])
 
+	const permissionCardScrollOffset = Math.max(0, scrollableCardMaxOffset - permissionCardScrollFromTop)
+	const timelineScrollOffset = Math.max(0, dynamicScrollMaxOffset - timelineScrollFromTop)
 	const activeScrollableMaxOffset = permissionCard ? scrollableCardMaxOffset : dynamicScrollMaxOffset
 	const activeScrollOffset = permissionCard ? permissionCardScrollOffset : timelineScrollOffset
 	const setActiveScrollOffset = useCallback(
 		(offset: number) => {
 			if (permissionCard) {
-				setPermissionCardScrollOffset(offset)
+				setPermissionCardScrollFromTop(scrollableCardMaxOffset - offset)
 				return
 			}
-			setTimelineScrollOffset(offset)
+			setTimelineScrollFromTop(dynamicScrollMaxOffset - offset)
 		},
-		[permissionCard],
+		[permissionCard, scrollableCardMaxOffset, dynamicScrollMaxOffset],
 	)
 
 	const isResumeChoiceActive = taskState.taskStatus === TaskStatus.CANCELLED

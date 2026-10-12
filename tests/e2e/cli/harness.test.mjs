@@ -84,6 +84,52 @@ function responseLines(snapshot) {
 	return snapshot.lines.filter((line) => line.includes("Response line"))
 }
 
+for (const fixture of ["long-response", "long-plan"]) {
+	for (const [cols, rows] of [
+		[100, 30],
+		[60, fixture === "long-plan" ? 20 : 30],
+	]) {
+		test(`#263: new ${fixture} cards start at the beginning (${cols}x${rows})`, { timeout: 60000 }, async (context) => {
+			const metadata = await startSession({ fixture, cols, rows })
+			context.after(() => stopAndRemove(metadata.session))
+			const session = metadata.session
+			const prefix = fixture === "long-plan" ? "Plan line" : "Response line"
+			const header = fixture === "long-plan" ? "Proposed Plan" : "Task Completed"
+			const visibleLines = (snapshot) => snapshot.lines.filter((line) => line.includes(prefix))
+			await requestSession(session, { operation: "wait", text: "@ files", timeoutMs: 30000 })
+			if (fixture === "long-plan") await requestSession(session, { operation: "key", key: "Tab" })
+			await requestSession(session, { operation: "write", text: "Give me a long response." })
+			await requestSession(session, { operation: "key", key: "Enter" })
+			const initial = await requestSession(session, { operation: "wait", text: header, timeoutMs: 30000 })
+			assert.equal(initial.fixtureRequests, 1)
+			assert.match(initial.screen, new RegExp(`${prefix} 01`), "A new response must show its beginning without scrolling")
+			assert.doesNotMatch(initial.screen, new RegExp(`${prefix} 80`))
+			const upAtTop = await requestSession(session, { operation: "key", key: "Up" })
+			assert.deepEqual(visibleLines(upAtTop), visibleLines(initial), "Up at the beginning must not move the body")
+			const down = await requestSession(session, { operation: "key", key: "Down", count: 4 })
+			assert.notDeepEqual(visibleLines(down), visibleLines(initial), "Down must scroll toward later response lines")
+			const typed = await requestSession(session, { operation: "write", text: "follow-up" })
+			assert.deepEqual(visibleLines(typed), visibleLines(down), "Draft edits must retain the response viewport")
+			const top = await requestSession(session, { operation: "key", key: "Up", count: 8 })
+			assert.match(top.screen, new RegExp(`${prefix} 01`))
+			const resized = await requestSession(session, { operation: "resize", cols: 80, rows: 32 })
+			assert.match(resized.screen, new RegExp(`${prefix} 01`), "Resizing at the beginning must retain the first line")
+			const bottom = await requestSession(session, { operation: "key", key: "Down", count: 80 })
+			assert.match(bottom.screen, new RegExp(`${prefix} 80`), "The end must remain reachable with Down")
+			// Width changes remount the composer, so enter the follow-up in the settled UI.
+			await requestSession(session, { operation: "key", key: "Ctrl+u" })
+			await requestSession(session, { operation: "write", text: "Another long response." })
+			await requestSession(session, { operation: "key", key: "Enter" })
+			const next = await requestSession(session, { operation: "wait", text: `${prefix} 01`, timeoutMs: 30000 })
+			assert.equal(next.fixtureRequests, 2)
+			// The previous completion is now printed in scrollback; inspect only the new card.
+			const newCard = next.screen.slice(next.screen.lastIndexOf(header))
+			assert.match(newCard, new RegExp(`${prefix} 01`))
+			assert.doesNotMatch(newCard, new RegExp(`${prefix} 80`), "Follow-up responses must also start at the beginning")
+		})
+	}
+}
+
 test(
 	"#259: the real built CLI navigates a pasted draft before scrolling a canned long response",
 	{ timeout: 60000 },
@@ -96,6 +142,8 @@ test(
 		await requestSession(session, { operation: "wait", text: "@ files", timeoutMs: 30000 })
 		await requestSession(session, { operation: "write", text: "Give me a long response." })
 		await requestSession(session, { operation: "key", key: "Enter" })
+		await requestSession(session, { operation: "wait", text: "Task Completed", timeoutMs: 30000 })
+		await requestSession(session, { operation: "key", key: "Down", count: 80 })
 		const completed = await requestSession(session, { operation: "wait", text: "Response line 80", timeoutMs: 30000 })
 		assert.equal(completed.fixtureRequests, 1)
 		assert.match(completed.screen, /Task Completed/)
@@ -194,6 +242,8 @@ for (const fixture of ["long-plan", "long-response"]) {
 			}
 			await requestSession(session, { operation: "write", text: "Create a long plan." })
 			await requestSession(session, { operation: "key", key: "Enter" })
+			await requestSession(session, { operation: "wait", text: `${linePrefix} 01`, timeoutMs: 30000 })
+			await requestSession(session, { operation: "key", key: "Down", count: 160 })
 			const bottom = await requestSession(session, { operation: "wait", text: `${linePrefix} 80`, timeoutMs: 30000 })
 			assert.equal(bottom.fixtureRequests, 1)
 			assert.match(bottom.screen, fixture === "long-plan" ? /Proposed Plan/ : /Task Completed/)
@@ -236,12 +286,12 @@ for (const fixture of ["long-plan", "long-response"]) {
 			assert.deepEqual(visibleLines(afterResize), visibleLines(resized))
 			assert.ok(inputCursor(afterResize))
 
-			// A newly submitted turn must still start its new card at the bottom.
+			// A newly submitted turn must start its new card at the beginning.
 			await requestSession(session, { operation: "key", key: "Ctrl+a" })
 			const beforeSubmit = await requestSession(session, { operation: "key", key: "Up", count: 8 })
 			assert.doesNotMatch(beforeSubmit.screen, new RegExp(`${linePrefix} 80`))
 			await requestSession(session, { operation: "key", key: "Enter" })
-			const next = await requestSession(session, { operation: "wait", text: `${linePrefix} 80`, timeoutMs: 30000 })
+			const next = await requestSession(session, { operation: "wait", text: `${linePrefix} 01`, timeoutMs: 30000 })
 			assert.equal(next.fixtureRequests, 2)
 		})
 	}
