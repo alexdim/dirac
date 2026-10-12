@@ -111,7 +111,9 @@ buttons and code blocks may also have background colors.
 The #259 test pastes 15 lines, presses Up **without Ctrl+A**, and asserts that the
 painted prompt cursor moves while the response stays still. It then verifies both
 arrow directions, prompt viewport movement, response-scroll fallback at input
-boundaries, and resize retention.
+boundaries, and resize retention. It also checks one-row navigation through a
+soft-wrapped paragraph, cursor visibility after resizing, and pasted CRLF text
+with empty rows, wide characters, emoji and combining characters.
 
 ## JavaScript API
 
