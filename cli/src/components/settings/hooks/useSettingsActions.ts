@@ -74,6 +74,7 @@ interface UseSettingsActionsProps {
 		features: Record<FeatureKey, boolean> | ((prev: Record<FeatureKey, boolean>) => Record<FeatureKey, boolean>),
 	) => void
 	setLightTerminalTheme: (value: boolean) => void
+	setVimModeEnabled: (value: boolean) => void
 	preferredLanguage: string
 	setPreferredLanguage: (language: string) => void
 	telemetry: TelemetrySetting
@@ -142,6 +143,7 @@ export function useSettingsActions({
 	setUtilityPermissionPolicy,
 	setFeatures,
 	setLightTerminalTheme,
+	setVimModeEnabled,
 	preferredLanguage,
 	setPreferredLanguage,
 	telemetry,
@@ -409,6 +411,21 @@ export function useSettingsActions({
 		}
 
 		const newValue = !item.value
+		if (item.key === "vimModeEnabled") {
+			const previous = stateManager.getGlobalSettingsKey("cliVimMode")
+			await persistInteractiveSettingWithRollback(
+				async () => {
+					stateManager.setGlobalState("cliVimMode", newValue)
+					await stateManager.flushPendingState()
+				},
+				async () => {
+					stateManager.setGlobalState("cliVimMode", previous)
+					await stateManager.flushPendingState()
+				},
+			)
+			setVimModeEnabled(newValue)
+			return
+		}
 		if (item.key === "lightTerminalTheme") {
 			setLightTerminalTheme(newValue)
 			stateManager.setGlobalState("cliTerminalColorMode", newValue ? "light" : "dark")

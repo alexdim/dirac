@@ -307,6 +307,7 @@ message Settings {
   optional string utility_model_permission_policy = 213;
   optional string plan_mode_inference_speed = 214;
   optional string act_mode_inference_speed = 215;
+  optional bool cli_vim_mode = 216;
 }
 
 message State {

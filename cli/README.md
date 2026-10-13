@@ -58,6 +58,19 @@ Press **Enter** to submit a prompt. **Shift+Enter** inserts a newline when your 
 
 Scrollable response cards, including proposed plans and follow-up responses, open at the beginning. Use **Down** to read later lines and **Up** to return to earlier lines. In a multiline draft, these arrows move the prompt cursor first and scroll the response only at the draft's navigation boundaries. Editing a draft retains the response's scroll position.
 
+### Vim prompt editing
+
+Enable **Vim prompt editing** under `/settings` → **Terminal** (search for `vim`). It is off by default, persists across launches, and applies immediately. The composer starts in **INSERT**; **Esc** enters **NORMAL**, and **i**, **a**, **I**, or **A** return to INSERT. The footer shows the current editing mode. Enter still submits in either mode; new drafts start in INSERT.
+
+Supported NORMAL-mode keys:
+
+- `h` / `l`: move by grapheme; `j` / `k`: move between logical lines.
+- `w` / `b` / `e`: word motions (punctuation forms separate words); `0` / `^` / `$`: line start, first nonblank, line end; `gg` / `G`: draft start / last-line start.
+- `d` / `c` with `h`, `l`, `w`, `b`, `e`, `0`, `^`, or `$`: delete / change; `dd` / `cc`: delete / change lines; `D` / `C`: delete / change to line end; `x`: delete graphemes.
+- Numeric counts, including `3b`, `2dw`, and `d2w`; `u` / **Ctrl+R**: undo / redo (active Goal shortcuts take precedence).
+
+Use INSERT for typing, pasting, slash-command completion and file mentions; NORMAL interprets printable input as editing commands. Esc cancels an incomplete command. This is a prompt-editing subset, not full Vim: registers, yank/put, search, repeat (`.`), and Ex commands are not supported. Standalone text/JSON and ACP input are unchanged.
+
 ### Goals, custom tools, and steering
 
 Start a long-running Goal directly from an interactive terminal:

@@ -205,6 +205,10 @@ and `rows`, and repeated keypresses use `count`. `startSession` also accepts
 `command`, `args`, `cwd`, `live`, `idleMs`, and `fixture` (`long-response` by default
 or `long-plan` / `markdown-plan` / `markdown-response` / `create-file` / `edit-file`).
 
+## Vim prompt editing regressions (#92)
+
+`node --test tests/e2e/cli/vim-input.test.mjs` checks modal editing against the built CLI at baseline, screen-fit (80×24), and narrow sizes. It covers the persisted Terminal setting, `Esc`/`i`, counts, deletion/change, painted cursor, CRLF/Unicode paste in INSERT, raw Backspace/Delete/Home/End, undo/redo, resizing, slash-menu cancellation, and follow-up submission. The JavaScript `startSession` API accepts `vimMode: true` to seed only this preference in the isolated fixture configuration; it is false by default. Pasting in NORMAL is interpreted as Vim keystrokes, so paste drafts in INSERT. No live credentials are used.
+
 ## Lifecycle and artifacts
 
 Always call `stop` when finished. It terminates the PTY process (escalating to

@@ -7,6 +7,7 @@ import type { TaskStatus } from "@shared/ExtensionMessage"
 import { TaskStatusIndicator } from "./modular-ui/TaskStatusIndicator"
 import path from "node:path"
 import { useTerminalSize } from "../hooks/useTerminalSize"
+import type { VimMode } from "../utils/vim-editor"
 
 interface ChatFooterProps {
 	mode: "act" | "plan"
@@ -26,6 +27,7 @@ interface ChatFooterProps {
 	taskStatus?: TaskStatus
 	show?: boolean
 	isGoalActive?: boolean
+	vimMode?: VimMode
 }
 
 export const ChatFooter: React.FC<ChatFooterProps> = ({
@@ -46,6 +48,7 @@ export const ChatFooter: React.FC<ChatFooterProps> = ({
 	taskStatus,
 	show = true,
 	isGoalActive = false,
+	vimMode,
 }) => {
 	const { columns } = useTerminalSize()
 	if (!show) return null
@@ -61,6 +64,7 @@ export const ChatFooter: React.FC<ChatFooterProps> = ({
 						<Text bold color={mode === "plan" ? theme.plan : theme.primary}>
 							{theme.symbols.active} {mode === "plan" ? "Plan" : "Act"} (Goal)
 						</Text>
+						{vimMode && ` · ${vimMode.toUpperCase()}`}
 						{" · / commands · @ files · Ctrl+G details · Shift+Enter/↓ newline"}
 					</Text>
 				</Box>
@@ -95,11 +99,14 @@ export const ChatFooter: React.FC<ChatFooterProps> = ({
 						<Text bold color={mode === "plan" ? theme.plan : theme.primary}>
 							{mode === "plan" ? "Plan" : "Act"}
 						</Text>
+						{vimMode && ` · ${vimMode.toUpperCase()}`}
 						{" · / commands · @ files · Tab mode"}
 					</Text>
 				) : (
 					<Box flexShrink={1} flexWrap="wrap">
-						<Text color={theme.muted}>/ commands · @ files · Shift+Enter/↓ newline · Tab mode</Text>
+						<Text color={theme.muted}>
+							{vimMode && `${vimMode.toUpperCase()} · `}/ commands · @ files · Shift+Enter/↓ newline · Tab mode
+						</Text>
 					</Box>
 				)}
 				{!compact && (

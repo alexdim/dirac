@@ -322,6 +322,14 @@ dirac auth --provider openai --apikey "$OPENAI_API_KEY" --modelid gpt-4o --baseu
 
 Interactive setup masks keys in terminal output. Quick setup validates the provider and required values instead of falling back silently.
 
+# VIM PROMPT EDITING
+
+Enable **Vim prompt editing** in **/settings → Terminal**, or search settings for **vim**. It is disabled by default, saved across launches, and applies immediately. The footer shows **INSERT** or **NORMAL**. New drafts start in INSERT; **Esc** enters NORMAL; **i**, **a**, **I**, and **A** return to INSERT. Enter submits in either mode.
+
+NORMAL supports **h/l** (graphemes), **j/k** (logical lines), **w/b/e** (words), **0/^/\$** (line positions), and **gg/G** (draft start/last-line start). Use **d/c** with **h/l/w/b/e/0/^/\$** to delete/change, **dd/cc** for lines, **D/C** to line end, and **x** for graphemes. Numeric counts include **3b**, **2dw**, and **d2w**. **u** undoes; **Ctrl+R** redoes unless an active Goal owns that shortcut. Esc cancels an incomplete command.
+
+Type, paste, complete slash commands, and insert file mentions in INSERT. Printable input in NORMAL is interpreted as editing commands. This subset does not implement registers, yank/put, search, repeat, or Ex commands. The preference does not affect standalone text/JSON or ACP input.
+
 # TERMINAL COLORS
 
 Dirac uses semantic dark and light palettes in both interactive and standalone output. Dark mode is the fallback.

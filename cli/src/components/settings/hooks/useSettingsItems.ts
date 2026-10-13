@@ -32,6 +32,7 @@ export interface UseSettingsItemsProps {
 	utilityModelSelection?: ModelProviderSelection
 	utilityPermissionPolicy: string
 	lightTerminalTheme: boolean
+	vimModeEnabled?: boolean
 	preferredLanguage: string
 	telemetry: TelemetrySetting
 	openAiHeaders: Record<string, string>
@@ -630,6 +631,13 @@ function createTerminalItems(props: UseSettingsItemsProps): ListItem[] {
 			props.lightTerminalTheme,
 			"Choose the CLI palette. DIRAC_COLOR_MODE overrides this preference. A restart is currently required.",
 		),
+		checkbox(
+			"vimModeEnabled",
+			"Vim prompt editing",
+			props.vimModeEnabled,
+			"Opt into modal prompt editing. Esc enters NORMAL; i returns to INSERT. Applies immediately; starts in INSERT.",
+			{ keywords: ["vi", "vim", "bindings", "input", "normal", "insert"] },
+		),
 	]
 }
 
@@ -717,6 +725,7 @@ export function useSettingsItems(props: UseSettingsItemsProps): ListItem[] {
 			props.utilityModelSelection,
 			props.utilityPermissionPolicy,
 			props.lightTerminalTheme,
+			props.vimModeEnabled,
 			props.preferredLanguage,
 			props.telemetry,
 			props.openAiHeaders,

@@ -82,7 +82,7 @@ function editFileArguments(completion) {
 }
 
 /** Deterministic tool calls; all UI, provider parsing, task execution and storage remain real. */
-export async function startFixtureProvider(home, scenario = "long-response", workspace) {
+export async function startFixtureProvider(home, scenario = "long-response", workspace, vimMode = false) {
 	if (!["long-response", "long-plan", "markdown-plan", "markdown-response", "create-file", "edit-file"].includes(scenario)) {
 		throw new Error(`Unknown fixture: ${scenario}`)
 	}
@@ -188,6 +188,7 @@ export async function startFixtureProvider(home, scenario = "long-response", wor
 			doubleCheckCompletionEnabled: false,
 			utilityModelUseCases: { condense: false, approval: false, earlyExit: false },
 			cliTerminalColorMode: "dark",
+			cliVimMode: vimMode,
 		}),
 	)
 	await writeFile(path.join(dataDir, "secrets.json"), JSON.stringify({ openAiApiKey: "local-tui-fixture" }), { mode: 0o600 })

@@ -301,4 +301,49 @@ describe("useChatInputHandler arrow navigation", () => {
 		expect(props.setCardScrollOffset).not.toHaveBeenCalled()
 		app.unmount()
 	})
+
+	it.each(["@/src/example.ts ", "/condense "])("submits %j and toggles mode with completion disabled in NORMAL", (text) => {
+		const props = createInputProps({
+			textInputRef: { current: text },
+			cursorPosRef: { current: text.length - 1 },
+			isVimNormal: true,
+			handleVimInput: vi.fn(() => false),
+		})
+		const app = render(<InputHarness {...props} />)
+		pressKey({ return: true }, "\r")
+		expect(props.handleSubmit).toHaveBeenCalledWith(text.trim(), [])
+		pressKey({ tab: true }, "\t")
+		expect(props.toggleMode).toHaveBeenCalledOnce()
+		expect(props.setTextInput).not.toHaveBeenCalled()
+		app.unmount()
+	})
+
+	it("routes Vim editing before approval shortcuts and text insertion", () => {
+		const props = createInputProps({ handleVimInput: vi.fn(() => true), isVimNormal: true })
+		const app = render(<InputHarness {...props} />)
+		pressKey({}, "3")
+		expect(props.handleVimInput).toHaveBeenCalledOnce()
+		expect(props.handleAskShortcuts).not.toHaveBeenCalled()
+		expect(props.handleButtonAction).not.toHaveBeenCalled()
+		expect(props.insertTextAtCursor).not.toHaveBeenCalled()
+		app.unmount()
+	})
+
+	it("leaves active Goal shortcuts ahead of Vim redo", () => {
+		const props = createInputProps({ goalStatus: "paused", handleVimInput: vi.fn(() => true) })
+		const app = render(<InputHarness {...props} />)
+		pressKey({ ctrl: true }, "r")
+		expect(props.handleGoalControl).toHaveBeenCalledWith("resume")
+		expect(props.handleVimInput).not.toHaveBeenCalled()
+		app.unmount()
+	})
+
+	it("does not send panel or terminal-control input to Vim", () => {
+		const props = createInputProps({ activePanel: { type: "settings" }, handleVimInput: vi.fn(() => true) })
+		const app = render(<InputHarness {...props} />)
+		pressKey({}, "d")
+		pressKey({}, "[4;991;1710t")
+		expect(props.handleVimInput).not.toHaveBeenCalled()
+		app.unmount()
+	})
 })

@@ -89,6 +89,7 @@ vi.mock("../hooks/useStateSubscriber", () => ({
 vi.mock("@/core/storage/StateManager", () => ({
 	StateManager: {
 		get: vi.fn(() => ({
+			subscribe: vi.fn(() => () => { }),
 			getGlobalSettingsKey: vi.fn((key: string) => {
 				if (key === "mode") return "act"
 				if (key === "yoloModeToggled") return false
@@ -182,7 +183,7 @@ vi.mock("@/core/controller/slash/getAvailableSlashCommands", () => ({
 }))
 
 vi.mock("@/core/controller/task/showTaskWithId", () => ({
-	showTaskWithId: vi.fn(async () => {}),
+	showTaskWithId: vi.fn(async () => { }),
 }))
 
 vi.mock("@shared/getApiMetrics", () => ({

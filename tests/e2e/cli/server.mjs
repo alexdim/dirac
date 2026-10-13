@@ -41,7 +41,7 @@ function fail(error) {
 }
 
 try {
-	if (fixtureEnabled) fixture = await startFixtureProvider(home, options.fixture, workspace)
+	if (fixtureEnabled) fixture = await startFixtureProvider(home, options.fixture, workspace, options.vimMode)
 	const env = options.live
 		? { ...process.env }
 		: {

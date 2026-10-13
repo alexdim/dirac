@@ -44,6 +44,9 @@ interface UseChatInputHandlerProps {
 	handleAskShortcuts: (input: string, key: any, currentTextInput: string) => boolean
 	handleKeyboardSequence: (input: string) => boolean
 	handleCtrlShortcut: (input: string) => boolean
+	handleVimInput?: (input: string, key: import("ink").Key) => boolean
+	resetVimInput?: () => void
+	isVimNormal?: boolean
 	insertTextAtCursor: (text: string) => void
 	toggleMode: () => void
 	toggleAutoApproveAll: () => void
@@ -113,6 +116,9 @@ export function useChatInputHandler({
 	handleAskShortcuts,
 	handleKeyboardSequence,
 	handleCtrlShortcut,
+	handleVimInput,
+	resetVimInput,
+	isVimNormal = false,
 	insertTextAtCursor,
 	toggleMode,
 	toggleAutoApproveAll,
@@ -180,6 +186,7 @@ export function useChatInputHandler({
 			resetInputLine: () => {
 				setTextInput("")
 				setCursorPos(0)
+				resetVimInput?.()
 			},
 			clearViewAndResetTask,
 			handleExit,
@@ -198,9 +205,17 @@ export function useChatInputHandler({
 		}
 		disarmGoalStopConfirmation()
 
-		// Modified Enter must edit the draft, not select a menu item or submit an answer.
-		if (isShiftEnter) {
+		// Newline chords belong to the composer in either editing mode.
+		if (isShiftEnter || (key.shift && key.downArrow)) {
 			insertTextAtCursor("\n")
+			return
+		}
+
+		if (handleVimInput?.(input, key)) {
+			if (key.escape) {
+				setSlashMenuDismissed(true)
+				setFileResults([])
+			}
 			return
 		}
 
@@ -218,8 +233,10 @@ export function useChatInputHandler({
 			}
 		}
 
-		const inSlashMenu = currentSlashInfo.inSlashMode && filteredCommands.length > 0 && !slashMenuDismissed
-		const inFileMenu = currentMentionInfo.inMentionMode && fileResults.length > 0 && !inSlashMenu
+		const inSlashMode = !isVimNormal && currentSlashInfo.inSlashMode
+		const inMentionMode = !isVimNormal && currentMentionInfo.inMentionMode
+		const inSlashMenu = inSlashMode && filteredCommands.length > 0 && !slashMenuDismissed
+		const inFileMenu = inMentionMode && fileResults.length > 0 && !inSlashMenu
 
 		if (inSlashMenu) {
 			if (key.upArrow) {
@@ -285,11 +302,6 @@ export function useChatInputHandler({
 				setSelectedIndex(0)
 				return
 			}
-		}
-
-		if (key.shift && key.downArrow) {
-			insertTextAtCursor("\n")
-			return
 		}
 
 		if (key.upArrow && !inSlashMenu && !inFileMenu && isEmptyConversation) {
@@ -439,7 +451,7 @@ export function useChatInputHandler({
 			toggleAutoApproveAll()
 			return
 		}
-		if (key.tab && !currentMentionInfo.inMentionMode && !currentSlashInfo.inSlashMode) {
+		if (key.tab && !inMentionMode && !inSlashMode) {
 			toggleMode()
 			return
 		}
@@ -448,7 +460,7 @@ export function useChatInputHandler({
 			!key.shift &&
 			!key.meta &&
 			input !== "\n" &&
-			!currentMentionInfo.inMentionMode &&
+			!inMentionMode &&
 			(!isSpinnerActive || goalStatus !== undefined) &&
 			!isProcessing
 		) {
@@ -457,7 +469,7 @@ export function useChatInputHandler({
 				setSlashMenuDismissed(true)
 				return
 			}
-			if (currentSlashInfo.inSlashMode) return
+			if (inSlashMode) return
 			const { prompt: currentPrompt, imagePaths: currentImagePaths } = parseImagesFromInput(currentTextInput, workspacePath)
 			if (currentPrompt.trim() || currentImagePaths.length > 0) {
 				handleSubmit(currentPrompt.trim(), currentImagePaths)

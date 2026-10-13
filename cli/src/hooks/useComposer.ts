@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import React, { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react"
 import type { SlashCommandInfo } from "@shared/proto/dirac/slash"
 import { EmptyRequest } from "@shared/proto/dirac/common"
 import { CLI_ONLY_COMMANDS } from "@shared/slashCommands"
@@ -12,6 +12,8 @@ import { Logger } from "@/shared/services/Logger"
 import { useHomeEndKeys } from "./useHomeEndKeys"
 import { useRawBackspaceKeys } from "./useRawBackspaceKeys"
 import { useTextInput } from "./useTextInput"
+import { useVimInput } from "./useVimInput"
+import type { VimEditorState } from "../utils/vim-editor"
 import { useChatInputHandler } from "./useChatInputHandler"
 import {
 	checkAndWarnRipgrepMissing,
@@ -28,10 +30,10 @@ import type { GoalLifecycleAction } from "../utils/goals"
 
 export type ActivePanel =
 	| {
-			type: CliPanelType.SETTINGS
-			initialMode?: "model-picker" | "featured-models" | "provider-picker"
-			initialModelKey?: "actModelId" | "planModelId"
-	  }
+		type: CliPanelType.SETTINGS
+		initialMode?: "model-picker" | "featured-models" | "provider-picker"
+		initialModelKey?: "actModelId" | "planModelId"
+	}
 	| { type: CliPanelType.HISTORY }
 	| { type: CliPanelType.HELP }
 	| { type: CliPanelType.SKILLS }
@@ -44,6 +46,7 @@ interface PersistedInputState {
 	cursorPos: number
 	pastedTexts: Map<number, string>
 	pasteCounter: number
+	vimState: VimEditorState
 }
 
 const inputStateStorage = new Map<string, PersistedInputState>()
@@ -125,18 +128,41 @@ export function useComposer({
 	const {
 		text: textInput,
 		cursorPos,
-		setText: setTextInput,
+		setText,
 		setCursorPos,
+		setValue,
 		handleKeyboardSequence,
-		handleCtrlShortcut,
+		handleCtrlShortcut: applyCtrlShortcut,
 		deleteCharsBefore,
 		deleteCharsAfter,
-		insertText: insertTextAtCursor,
+		insertText,
 		getText,
 		getCursorPos,
 	} = useTextInput()
 
-	const storageKey = useMemo(() => getInputStorageKey(ctrl, taskId), [ctrl, taskId])
+	const storageKey = getInputStorageKey(ctrl, taskId)
+	const stateManager = StateManager.get()
+	const subscribeVimSetting = useCallback((listener: () => void) => stateManager.subscribe(listener), [stateManager])
+	const readVimSetting = useCallback(() => stateManager.getGlobalSettingsKey("cliVimMode"), [stateManager])
+	const vimEnabled = useSyncExternalStore(subscribeVimSetting, readVimSetting)
+	const { vimState, vimMode, handleVimInput, resetVimInput, restoreVimDraft, editWithVimHistory } = useVimInput({
+		enabled: vimEnabled,
+		getText,
+		getCursorPos,
+		setValue,
+	})
+	const setTextInput = useCallback(
+		(text: string | ((prev: string) => string)) => editWithVimHistory(() => setText(text)),
+		[editWithVimHistory, setText],
+	)
+	const insertTextAtCursor = useCallback(
+		(text: string) => editWithVimHistory(() => insertText(text)),
+		[editWithVimHistory, insertText],
+	)
+	const handleCtrlShortcut = useCallback(
+		(input: string) => editWithVimHistory(() => applyCtrlShortcut(input)),
+		[editWithVimHistory, applyCtrlShortcut],
+	)
 	const textInputRef = useMemo(
 		() => ({
 			get current() {
@@ -186,8 +212,14 @@ export function useComposer({
 	})
 	const skipNextPersistRef = useRef(false)
 
-	const handleHome = useCallback(() => setCursorPos(0), [setCursorPos])
-	const handleEnd = useCallback(() => setCursorPos(textInputRef.current.length), [setCursorPos, textInputRef])
+	const handleHome = useCallback(() => {
+		if (vimMode === "normal") handleVimInput("0", {})
+		else setCursorPos(0)
+	}, [vimMode, handleVimInput, setCursorPos])
+	const handleEnd = useCallback(() => {
+		if (vimMode === "normal") handleVimInput("$", {})
+		else setCursorPos(textInputRef.current.length)
+	}, [vimMode, handleVimInput, setCursorPos, textInputRef])
 
 	useHomeEndKeys({
 		onHome: handleHome,
@@ -196,45 +228,43 @@ export function useComposer({
 	})
 
 	useRawBackspaceKeys({
-		onBackspace: deleteCharsBefore,
-		onDelete: deleteCharsAfter,
+		onBackspace: (count) => {
+			if (vimMode === "normal") handleVimInput("h", {}, count)
+			else deleteCharsBefore(count)
+		},
+		onDelete: (count) => {
+			if (vimMode === "normal") handleVimInput("x", {}, count)
+			else deleteCharsAfter(count)
+		},
 		isActive: !activePanel,
 	})
 
 	useEffect(() => {
 		skipNextPersistRef.current = true
 		const stored = inputStateStorage.get(storageKey)
-		if (stored) {
-			setTextInput(stored.text)
-			setCursorPos(stored.cursorPos)
-			setPastedTexts(new Map(stored.pastedTexts))
-			pasteCounterRef.current = stored.pasteCounter
-			return
-		}
-
-		setTextInput("")
-		setCursorPos(0)
-		setPastedTexts(new Map())
-		pasteCounterRef.current = 0
-	}, [storageKey, setTextInput, setCursorPos])
+		restoreVimDraft({ text: stored?.text ?? "", cursorPos: stored?.cursorPos ?? 0 }, stored?.vimState)
+		setPastedTexts(new Map(stored?.pastedTexts))
+		pasteCounterRef.current = stored?.pasteCounter ?? 0
+	}, [storageKey, restoreVimDraft])
 
 	useEffect(() => {
 		if (skipNextPersistRef.current) {
 			skipNextPersistRef.current = false
 			return
 		}
-		if (textInput || pastedTexts.size > 0) {
+		if (textInput || pastedTexts.size > 0 || vimMode === "normal") {
 			inputStateStorage.set(storageKey, {
 				text: textInput,
 				cursorPos,
 				pastedTexts: new Map(pastedTexts),
 				pasteCounter: pasteCounterRef.current,
+				vimState,
 			})
 			return
 		}
 
 		inputStateStorage.delete(storageKey)
-	}, [storageKey, textInput, cursorPos, pastedTexts])
+	}, [storageKey, textInput, cursorPos, pastedTexts, vimState, vimMode])
 
 	const mentionInfo = useMemo(() => extractMentionQuery(textInput, cursorPos), [textInput, cursorPos])
 	const slashInfo = useMemo(() => extractSlashQuery(textInput, cursorPos), [textInput, cursorPos])
@@ -294,8 +324,8 @@ export function useComposer({
 			.filter((item) =>
 				Boolean(
 					(item.cwdOnTaskInitialization && arePathsEqual(item.cwdOnTaskInitialization, workspacePath)) ||
-						(item.workspaceRootPath && arePathsEqual(item.workspaceRootPath, workspacePath)) ||
-						(item.shadowGitConfigWorkTree && arePathsEqual(item.shadowGitConfigWorkTree, workspacePath)),
+					(item.workspaceRootPath && arePathsEqual(item.workspaceRootPath, workspacePath)) ||
+					(item.shadowGitConfigWorkTree && arePathsEqual(item.shadowGitConfigWorkTree, workspacePath)),
 				),
 			)
 			.reverse()
@@ -388,6 +418,9 @@ export function useComposer({
 		handleAskShortcuts: (input, key, currentTextInput) => actionsRef.current.handleAskShortcuts(input, key, currentTextInput),
 		handleKeyboardSequence,
 		handleCtrlShortcut,
+		handleVimInput,
+		resetVimInput,
+		isVimNormal: vimMode === "normal",
 		insertTextAtCursor,
 		toggleMode: () => actionsRef.current.toggleMode(),
 		toggleAutoApproveAll: () => actionsRef.current.toggleAutoApproveAll(),
@@ -438,18 +471,18 @@ export function useComposer({
 	})
 
 	const resetInput = useCallback(() => {
-		setTextInput("")
-		setCursorPos(0)
+		resetVimInput()
 		setPastedTexts(new Map())
 		pasteCounterRef.current = 0
 		inputStateStorage.delete(storageKey)
-	}, [setTextInput, setCursorPos, storageKey])
+	}, [storageKey, resetVimInput])
 
 	const { imagePaths } = parseImagesFromInput(textInput, workspacePath)
-	const showSlashMenu = slashInfo.inSlashMode && !slashMenuDismissed
-	const showFileMenu = mentionInfo.inMentionMode && !showSlashMenu
+	const showSlashMenu = vimMode !== "normal" && slashInfo.inSlashMode && !slashMenuDismissed
+	const showFileMenu = vimMode !== "normal" && mentionInfo.inMentionMode && !showSlashMenu
 
 	return {
+		vimMode,
 		textInput,
 		cursorPos,
 		setTextInput,

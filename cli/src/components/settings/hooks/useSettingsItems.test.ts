@@ -40,7 +40,7 @@ describe("CLI tool settings presentation", () => {
 		const global = results.find((result) => result.item.key === "global-tool")
 
 		expect(global?.searchText).toContain("global tool description")
-		expect(global?.searchText).toContain("global configuration")
+		expect(global?.searchText).toContain("global dirac configuration")
 		expect(global?.searchText).toContain("saved to global settings")
 	})
 
@@ -85,5 +85,20 @@ describe("CLI Unbiased account presentation", () => {
 		})
 		expect(items.find((item) => item.key === "unbiasedSignOut")).toMatchObject({ type: SettingsItemType.ACTION })
 		expect(items.some((item) => item.key === "unbiasedSignIn")).toBe(false)
+	})
+})
+
+describe("CLI Vim editing preference", () => {
+	it.each([undefined, false, true])("presents the opt-in Terminal setting for %s", (vimModeEnabled) => {
+		const items = createSettingsItems({ ...props, currentTab: SettingsTab.TERMINAL, vimModeEnabled })
+		expect(items.find((item) => item.key === "vimModeEnabled")).toMatchObject({
+			type: SettingsItemType.CHECKBOX, label: "Vim prompt editing", value: vimModeEnabled ?? false,
+		})
+	})
+
+	it("indexes vi/vim, mode and bindings keywords", () => {
+		const results = createSettingsSearchResults(props, [SettingsTab.TERMINAL])
+		const setting = results.find((result) => result.item.key === "vimModeEnabled")
+		for (const keyword of ["vi", "vim", "bindings", "normal", "insert"]) expect(setting?.searchText).toContain(keyword)
 	})
 })

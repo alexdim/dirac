@@ -150,6 +150,7 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 		() => stateManager.getGlobalSettingsKey("modelProviderPresets") ?? [],
 	)
 
+	const [vimModeEnabled, setVimModeEnabled] = useState(() => stateManager.getGlobalSettingsKey("cliVimMode"))
 	const [lightTerminalTheme, setLightTerminalTheme] = useState<boolean>(() => {
 		const savedPreference = stateManager.getGlobalSettingsKey("cliTerminalColorMode")
 		return savedPreference ? savedPreference === "light" : terminalColorMode === TerminalColorMode.LIGHT
@@ -282,6 +283,7 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 		utilityModelSelection,
 		utilityPermissionPolicy,
 		lightTerminalTheme,
+		vimModeEnabled,
 		preferredLanguage,
 		telemetry,
 		openAiHeaders,
@@ -360,6 +362,7 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 		setUtilityPermissionPolicy,
 		setFeatures,
 		setLightTerminalTheme,
+		setVimModeEnabled,
 		preferredLanguage,
 		setPreferredLanguage,
 		telemetry,

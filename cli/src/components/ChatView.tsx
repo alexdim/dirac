@@ -474,6 +474,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
 	}
 
 	const {
+		vimMode,
 		textInput,
 		cursorPos,
 		setTextInput,
@@ -1057,6 +1058,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
 					autoApproveAll={autoApproveAll}
 					yoloMode={yolo}
 					quietMode={quietMode}
+					vimMode={vimMode}
 					contextWindowSize={footerStatus.contextWindowSize}
 					gitBranch={footerStatus.gitBranch}
 					gitDiffStats={footerStatus.gitDiffStats}
