@@ -209,6 +209,10 @@ or `long-plan` / `markdown-plan` / `markdown-response` / `create-file` / `edit-f
 
 `node --test tests/e2e/cli/vim-input.test.mjs` checks modal editing against the built CLI at baseline, screen-fit (80×24), and narrow sizes. It covers the persisted Terminal setting, `Esc`/`i`, counts, deletion/change, painted cursor, CRLF/Unicode paste in INSERT, raw Backspace/Delete/Home/End, undo/redo, resizing, slash-menu cancellation, and follow-up submission. The JavaScript `startSession` API accepts `vimMode: true` to seed only this preference in the isolated fixture configuration; it is false by default. Pasting in NORMAL is interpreted as Vim keystrokes, so paste drafts in INSERT. No live credentials are used.
 
+## Prompt recall regressions (#269)
+
+`node --test tests/e2e/cli/prompt-history.test.mjs` checks Ctrl+Up/Down recall against the built CLI, including initial and follow-up prompts, draft/cursor restoration, collapsed pastes, editing and explicit resubmission, completion-menu priority, Vim NORMAL, resizing, narrow layouts, and unchanged response scrolling. It also checks recall after `/clear` and a new CLI launch with the same isolated configuration, plus workspace isolation. The shortcut hint uses the existing muted footer row without adding terminal rows. The harness sends xterm modified arrows (`ESC [ 1 ; 5 A/B`); OS-level shortcuts must be configured to pass these bytes to the terminal. No live credentials are used.
+
 ## Lifecycle and artifacts
 
 Always call `stop` when finished. It terminates the PTY process (escalating to

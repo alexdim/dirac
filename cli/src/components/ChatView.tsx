@@ -496,7 +496,9 @@ export const ChatView: React.FC<ChatViewProps> = ({
 		imagePaths,
 	} = useComposer({
 		ctrl,
-		taskId,
+		messages: taskState.diracMessages,
+		onHistoryError: (error) => reportInteractionError("Failed to load prompt history", error),
+		taskId: selectedGoal?.id ?? taskId,
 		mode,
 		workspacePath: footerStatus.workspacePath,
 		inputColumns: getInputContentWidth(terminalColumns, inputPrompt),

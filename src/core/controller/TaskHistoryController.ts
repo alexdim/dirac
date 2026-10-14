@@ -5,6 +5,7 @@ import {
 	ensureCacheDirectoryExists,
 	GlobalFileNames,
 	getSavedApiConversationHistory,
+	getSavedDiracMessages,
 	getTaskDirectoryPath,
 } from "@core/storage/disk"
 import { isActiveGoalStatus } from "@shared/goal"
@@ -22,6 +23,8 @@ import fs from "fs/promises"
 import * as path from "path"
 import { Logger } from "@/shared/services/Logger"
 import { withTaskHistoryInventoryLock } from "@core/storage/taskHistory"
+import { getUserPrompts, type UserPrompt } from "@shared/messages/prompt-history"
+import { arePathsEqual } from "@utils/path"
 
 export async function deleteRunStorage(item: RunHistoryItem, goalStore = new GoalStore()): Promise<void> {
 	if (!isGoalHistoryItem(item)) {
@@ -98,6 +101,28 @@ export class TaskHistoryController {
 		}
 		await this.deleteTaskFromState(id)
 		throw new Error("Task not found")
+	}
+
+	/** Read recent public conversations only; Goal child prompts are agent-authored and private. */
+	async getPromptHistory(workspacePath: string, excludedRunId?: string): Promise<UserPrompt[]> {
+		const runs = this.stateManager
+			.getGlobalStateKey("taskHistory")
+			.filter(
+				(item) =>
+					item.id !== excludedRunId &&
+					[item.cwdOnTaskInitialization, item.workspaceRootPath, item.shadowGitConfigWorkTree].some(
+						(workspace) => workspace && arePathsEqual(workspace, workspacePath),
+					),
+			)
+			.sort((left, right) => right.ts - left.ts)
+			.slice(0, 20)
+		const prompts = await Promise.all(
+			runs.map(async (run) => {
+				const saved = getUserPrompts(await getSavedDiracMessages(run.id))
+				return saved.length > 0 ? saved : run.task.trim() ? [{ text: run.task, ts: run.ts }] : []
+			}),
+		)
+		return prompts.flat()
 	}
 
 	getRunHistoryItem(id: string): RunHistoryItem {

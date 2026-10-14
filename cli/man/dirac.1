@@ -55,6 +55,16 @@ If Enter and Shift+Enter send the same carriage return, use Shift+Down
 or configure a Shift+Enter mapping to one of these sequences; identical
 input bytes cannot be distinguished.
 .PP
+\f[B]Ctrl+Up / Ctrl+Down\f[R] recall older/newer prompts from the
+current conversation and recent conversations in the same workspace.
+Recall fills the input without sending; edit and press Enter to submit.
+Moving forward past the newest prompt restores the original draft and
+cursor.
+Only text is recalled, not old attachments.
+Ordinary arrows still move the cursor or scroll the response.
+If the terminal or OS intercepts Ctrl+arrows, configure it to send
+\f[V]ESC [ 1 ; 5 A\f[R] / \f[V]ESC [ 1 ; 5 B\f[R].
+.PP
 Scrollable response cards, including proposed plans and follow-up
 responses, open at the beginning.
 Use \f[B]Down\f[R] for later lines and \f[B]Up\f[R] for earlier lines.

@@ -53,6 +53,7 @@ export const ChatFooter: React.FC<ChatFooterProps> = ({
 	const { columns } = useTerminalSize()
 	if (!show) return null
 	const compact = columns < 64
+	const historyHint = columns < 48 ? "Ctrl+↑↓ prompts" : compact ? "Ctrl+↑/↓ history" : "Ctrl+↑/↓ previous prompts"
 	const boundedCacheHitRate = Math.max(0, Math.min(1, cacheHitRate))
 	const workspaceName = workspacePath.includes("\\") ? path.win32.basename(workspacePath) : path.basename(workspacePath)
 
@@ -62,10 +63,12 @@ export const ChatFooter: React.FC<ChatFooterProps> = ({
 				<Box paddingLeft={1} paddingRight={1} width="100%">
 					<Text color={theme.muted} wrap="truncate-end">
 						<Text bold color={mode === "plan" ? theme.plan : theme.primary}>
-							{theme.symbols.active} {mode === "plan" ? "Plan" : "Act"} (Goal)
+							{theme.symbols.active} {mode === "plan" ? "Plan" : "Act"}{compact ? "" : " (Goal)"}
 						</Text>
 						{vimMode && ` · ${vimMode.toUpperCase()}`}
-						{" · / commands · @ files · Ctrl+G details · Shift+Enter/↓ newline"}
+						{compact
+							? ` · ${historyHint} · @ files · / commands · Ctrl+G details`
+							: ` · ${historyHint} · / commands · @ files · Ctrl+G details · Shift+Enter/↓ newline`}
 					</Text>
 				</Box>
 				<Box paddingLeft={1} paddingRight={1} width="100%">
@@ -100,12 +103,13 @@ export const ChatFooter: React.FC<ChatFooterProps> = ({
 							{mode === "plan" ? "Plan" : "Act"}
 						</Text>
 						{vimMode && ` · ${vimMode.toUpperCase()}`}
-						{" · / commands · @ files · Tab mode"}
+						{` · ${historyHint} · / commands · @ files · Tab mode`}
 					</Text>
 				) : (
-					<Box flexShrink={1} flexWrap="wrap">
-						<Text color={theme.muted}>
-							{vimMode && `${vimMode.toUpperCase()} · `}/ commands · @ files · Shift+Enter/↓ newline · Tab mode
+					<Box flexShrink={1}>
+						<Text color={theme.muted} wrap="truncate-end">
+							{vimMode && `${vimMode.toUpperCase()} · `}
+							{historyHint} · / commands · @ files · Shift+Enter/↓ newline · Tab mode
 						</Text>
 					</Box>
 				)}

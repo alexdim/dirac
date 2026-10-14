@@ -353,7 +353,7 @@ describe("ChatView conversation follow-ups", () => {
 		TaskStatus.IDLE,
 	])("submits input to the existing %s conversation rather than starting a new task", async (taskStatus) => {
 		const task = { taskId: "original-task", submitCardResponse: vi.fn(async () => undefined) }
-		const controller = { task, initTask: vi.fn(), prepareTaskForFollowUp: vi.fn(async () => task) }
+		const controller = { task, getPromptHistory: vi.fn(async () => []), initTask: vi.fn(), prepareTaskForFollowUp: vi.fn(async () => task) }
 		vi.mocked(useTaskState).mockReturnValue({ diracMessages: [], mode: "act", taskStatus } as any)
 		vi.mocked(useTaskContext).mockReturnValue({ controller, setLastError: vi.fn() } as any)
 		const { unmount } = render(<ChatView controller={controller} />)
@@ -374,6 +374,7 @@ describe("ChatView conversation follow-ups", () => {
 		const restored = { taskId: "saved-task", submitCardResponse: vi.fn(async () => undefined) }
 		const controller = {
 			task: oldTask,
+			getPromptHistory: vi.fn(async () => []),
 			initTask: vi.fn(),
 			prepareTaskForFollowUp: vi.fn(async () => restored),
 		}
@@ -388,7 +389,7 @@ describe("ChatView conversation follow-ups", () => {
 	})
 
 	it("starts a task only when there is no active conversation", async () => {
-		const controller = { initTask: vi.fn(async () => undefined) }
+		const controller = { getPromptHistory: vi.fn(async () => []), initTask: vi.fn(async () => undefined) }
 		vi.mocked(useTaskState).mockReturnValue({ diracMessages: [], mode: "act", taskStatus: TaskStatus.IDLE } as any)
 		vi.mocked(useTaskContext).mockReturnValue({ controller, setLastError: vi.fn() } as any)
 		const { unmount } = render(<ChatView controller={controller} />)

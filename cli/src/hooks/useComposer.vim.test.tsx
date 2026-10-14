@@ -3,6 +3,7 @@ import { render } from "ink-testing-library"
 // biome-ignore lint/correctness/noUnusedImports: React is needed by the test JSX runtime.
 import React from "react"
 import { beforeEach, expect, it, vi } from "vitest"
+import { DiracMessageType } from "@shared/ExtensionMessage"
 import { useComposer } from "./useComposer"
 import { useChatInputHandler } from "./useChatInputHandler"
 import { useRawBackspaceKeys } from "./useRawBackspaceKeys"
@@ -47,7 +48,8 @@ function vimInput(input = "", key: Partial<Key> = {}) {
 
 function Harness({ controller }: { controller: { task?: { taskId: string } } }) {
 	latest = useComposer({
-		ctrl: controller,
+		ctrl: Object.assign(controller, { getPromptHistory: async () => [] }),
+		messages: [{ id: "old", ts: 1, content: { type: DiracMessageType.MARKDOWN, role: "user", content: "historical prompt" } }],
 		mode: "act",
 		workspacePath: "/workspace",
 		inputColumns: 70,
@@ -270,5 +272,52 @@ it.each([false, true])("preserves ordinary editing with Vim disabled (previously
 	expect(latest.textInput).toBe("")
 	expect(latest.cursorPos).toBe(0)
 	expect(latest.vimMode).toBeUndefined()
+	app.unmount()
+})
+it("recall restores collapsed paste data, cursor, and Vim state without losing payloads", async () => {
+	const app = render(<Harness controller={{ task: { taskId: "history-paste" } }} />)
+	await delay()
+	const pastedTexts = new Map([[1, "the full pasted content"]])
+	inputHandlers().setPastedTexts(pastedTexts)
+	latest.setTextInput("draft [Pasted text #1 +2 lines] suffix")
+	latest.setCursorPos(6)
+	await delay()
+	inputHandlers().navigateHistory("older")
+	await delay()
+	expect(latest.textInput).toBe("historical prompt")
+	expect(latest.pastedTexts.size).toBe(0)
+	inputHandlers().navigateHistory("newer")
+	await delay()
+	expect(latest.textInput).toBe("draft [Pasted text #1 +2 lines] suffix")
+	expect(latest.cursorPos).toBe(6)
+	expect(latest.pastedTexts).toEqual(pastedTexts)
+	expect(latest.vimMode).toBe("insert")
+	app.unmount()
+})
+
+it.each([false, true])("local-command resets discard stale browsing with Vim enabled: %s", async (enabled) => {
+	vimSetting.enabled = enabled
+	const app = render(<Harness controller={{ task: { taskId: `history-local-reset-${enabled}` } }} />)
+	await delay()
+	latest.setTextInput("draft before command")
+	await delay()
+	inputHandlers().navigateHistory("older")
+	await delay()
+	expect(latest.textInput).toBe("historical prompt")
+	latest.setTextInput("/quiet")
+	await delay()
+	inputHandlers().resetInput()
+	await delay()
+	expect(latest.textInput).toBe("")
+	latest.setTextInput("draft after command")
+	latest.setCursorPos(5)
+	await delay()
+	inputHandlers().navigateHistory("older")
+	await delay()
+	expect(latest.textInput).toBe("historical prompt")
+	inputHandlers().navigateHistory("newer")
+	await delay()
+	expect(latest.textInput).toBe("draft after command")
+	expect(latest.cursorPos).toBe(5)
 	app.unmount()
 })

@@ -28,6 +28,45 @@ function InputHarness(props: ChatInputProps) {
 
 const draft = "first\nsecond\nthird"
 
+it.each(["upArrow", "downArrow"] as const)("routes Ctrl+%s to recall before Vim and completion menus", (direction) => {
+	const props = createInputProps({
+		textInputRef: { current: "/a" },
+		cursorPosRef: { current: 2 },
+		filteredCommands: [{ name: "agent" }],
+		handleVimInput: vi.fn(() => true),
+	})
+	const app = render(<InputHarness {...props} />)
+	pressKey({ ctrl: true, [direction]: true })
+	expect(props.navigateHistory).toHaveBeenCalledWith(direction === "upArrow" ? "older" : "newer")
+	expect(props.handleVimInput).not.toHaveBeenCalled()
+	expect(props.setSelectedSlashIndex).not.toHaveBeenCalled()
+	expect(props.setCardScrollOffset).not.toHaveBeenCalled()
+	app.unmount()
+})
+
+it.each([
+	{ command: "quiet", menu: true },
+	{ command: "quiet", menu: false },
+	{ command: "settings", menu: true },
+	{ command: "settings", menu: false },
+])("uses the complete composer reset for /$command (menu: $menu)", ({ command, menu }) => {
+	const text = `/${command}`
+	const props = createInputProps({
+		textInputRef: { current: text },
+		cursorPosRef: { current: text.length },
+		filteredCommands: menu ? [{ name: command }] : [],
+	})
+	const app = render(<InputHarness {...props} />)
+	pressKey({ return: true }, "\r")
+	expect(props.resetInput).toHaveBeenCalledOnce()
+	expect(props.setTextInput).not.toHaveBeenCalled()
+	expect(props.setCursorPos).not.toHaveBeenCalled()
+	expect(props.handleSubmit).not.toHaveBeenCalled()
+	if (command === "quiet") expect(props.toggleQuietMode).toHaveBeenCalledOnce()
+	else expect(props.setActivePanel).toHaveBeenCalledWith({ type: "settings" })
+	app.unmount()
+})
+
 function createInputProps(overrides: Partial<ChatInputProps> = {}): ChatInputProps {
 	const textInputRef = overrides.textInputRef ?? { current: draft }
 	const cursorPosRef = overrides.cursorPosRef ?? { current: 8 }
@@ -45,6 +84,7 @@ function createInputProps(overrides: Partial<ChatInputProps> = {}): ChatInputPro
 		handleAskShortcuts: vi.fn(() => false),
 		handleKeyboardSequence: vi.fn(() => false),
 		handleCtrlShortcut: vi.fn(() => false),
+		resetInput: vi.fn(),
 		insertTextAtCursor: vi.fn(),
 		toggleMode: vi.fn(),
 		toggleAutoApproveAll: vi.fn(),
@@ -63,6 +103,7 @@ function createInputProps(overrides: Partial<ChatInputProps> = {}): ChatInputPro
 		setSelectedIndex: vi.fn(),
 		setFileResults: vi.fn(),
 		getHistoryItems: vi.fn(() => []),
+		navigateHistory: vi.fn(),
 		historyIndex: -1,
 		setHistoryIndex: vi.fn(),
 		savedInput: "",

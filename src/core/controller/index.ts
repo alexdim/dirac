@@ -310,6 +310,10 @@ export class Controller implements ITaskHost {
 		return this.taskHistoryController.getTaskWithId(id)
 	}
 
+	async getPromptHistory(workspacePath: string, excludedRunId?: string) {
+		return this.taskHistoryController.getPromptHistory(workspacePath, excludedRunId)
+	}
+
 	async exportTaskWithId(id: string) {
 		return this.taskHistoryController.exportTaskWithId(id)
 	}

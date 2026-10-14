@@ -56,6 +56,8 @@ Interactive mode supports task approvals, follow-up messages, history, settings,
 
 Press **Enter** to submit a prompt. **Shift+Enter** inserts a newline when your terminal sends a distinct modified-Enter sequence (CSI-u `ESC [ 13 ; 2 u` or xterm modifyOtherKeys `ESC [ 27 ; 2 ; 13 ~`). **Shift+Down** remains an alternative for inserting newlines. If your terminal sends the same carriage return for Enter and Shift+Enter, use Shift+Down or configure a Shift+Enter mapping to one of these sequences; Dirac cannot distinguish identical input bytes.
 
+**Ctrl+Up / Ctrl+Down** recall older/newer prompts from the current conversation and recent conversations in the same workspace. Recall only fills the input; edit it and press Enter to send. Moving forward past the newest prompt restores your original draft and cursor. History includes text, not old attachments, and does not change ordinary arrow-key cursor movement or response scrolling. If your terminal or OS intercepts Ctrl+arrows, configure it to send `ESC [ 1 ; 5 A` / `ESC [ 1 ; 5 B`.
+
 Scrollable response cards, including proposed plans and follow-up responses, open at the beginning. Use **Down** to read later lines and **Up** to return to earlier lines. In a multiline draft, these arrows move the prompt cursor first and scroll the response only at the draft's navigation boundaries. Editing a draft retains the response's scroll position.
 
 ### Vim prompt editing

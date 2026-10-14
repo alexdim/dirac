@@ -45,7 +45,7 @@ interface UseChatInputHandlerProps {
 	handleKeyboardSequence: (input: string) => boolean
 	handleCtrlShortcut: (input: string) => boolean
 	handleVimInput?: (input: string, key: import("ink").Key) => boolean
-	resetVimInput?: () => void
+	resetInput: () => void
 	isVimNormal?: boolean
 	insertTextAtCursor: (text: string) => void
 	toggleMode: () => void
@@ -68,6 +68,7 @@ interface UseChatInputHandlerProps {
 	setFileResults: (results: any[]) => void
 	// History state
 	getHistoryItems: () => string[]
+	navigateHistory: (direction: "older" | "newer") => void
 	historyIndex: number
 	setHistoryIndex: (index: number) => void
 	savedInput: string
@@ -117,7 +118,7 @@ export function useChatInputHandler({
 	handleKeyboardSequence,
 	handleCtrlShortcut,
 	handleVimInput,
-	resetVimInput,
+	resetInput,
 	isVimNormal = false,
 	insertTextAtCursor,
 	toggleMode,
@@ -137,6 +138,7 @@ export function useChatInputHandler({
 	setSelectedIndex,
 	setFileResults,
 	getHistoryItems,
+	navigateHistory,
 	historyIndex,
 	setHistoryIndex,
 	savedInput,
@@ -183,11 +185,7 @@ export function useChatInputHandler({
 		const localSlashCommandContext = {
 			mode,
 			setActivePanel,
-			resetInputLine: () => {
-				setTextInput("")
-				setCursorPos(0)
-				resetVimInput?.()
-			},
+			resetInputLine: resetInput,
 			clearViewAndResetTask,
 			handleExit,
 			enableFastMode,
@@ -204,6 +202,11 @@ export function useChatInputHandler({
 			return
 		}
 		disarmGoalStopConfirmation()
+
+		if (key.ctrl && !key.shift && !key.meta && (key.upArrow || key.downArrow)) {
+			navigateHistory(key.upArrow ? "older" : "newer")
+			return
+		}
 
 		// Newline chords belong to the composer in either editing mode.
 		if (isShiftEnter || (key.shift && key.downArrow)) {

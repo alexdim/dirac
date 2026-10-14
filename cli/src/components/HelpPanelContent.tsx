@@ -65,6 +65,7 @@ export const HelpPanelContent: React.FC<HelpPanelContentProps> = ({ onClose }) =
 						["Ctrl+A / Ctrl+E", "Jump to start / end of input"],
 						["Alt/Option+←/→", "Move by word"],
 						["↑ / ↓", "Move cursor; scroll response at input edges"],
+						["Ctrl+↑ / Ctrl+↓", "Recall previous prompts for editing"],
 						["Tab", "Switch Plan/Act mode"],
 						["Shift+Tab", "Toggle auto-approve"],
 						["Esc", "Cancel current action"],

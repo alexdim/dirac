@@ -5,7 +5,8 @@ import { CLI_ONLY_COMMANDS } from "@shared/slashCommands"
 import { getAvailableSlashCommands } from "@/core/controller/slash/getAvailableSlashCommands"
 import { StateManager } from "@/core/storage/StateManager"
 import { arePathsEqual } from "@/utils/path"
-import { UIActionButtonType } from "@shared/ExtensionMessage"
+import { UIActionButtonType, type DiracMessage } from "@shared/ExtensionMessage"
+import { getUserPrompts } from "@shared/messages/prompt-history"
 import type { DiracAskResponse } from "@shared/WebviewMessage"
 import { Logger } from "@/shared/services/Logger"
 
@@ -13,7 +14,8 @@ import { useHomeEndKeys } from "./useHomeEndKeys"
 import { useRawBackspaceKeys } from "./useRawBackspaceKeys"
 import { useTextInput } from "./useTextInput"
 import { useVimInput } from "./useVimInput"
-import type { VimEditorState } from "../utils/vim-editor"
+import { createVimEditor, type VimEditorState } from "../utils/vim-editor"
+import { usePromptHistory } from "./usePromptHistory"
 import { useChatInputHandler } from "./useChatInputHandler"
 import {
 	checkAndWarnRipgrepMissing,
@@ -78,6 +80,8 @@ export interface ComposerActions {
 interface UseComposerProps {
 	ctrl: any
 	taskId?: string
+	messages?: DiracMessage[]
+	onHistoryError?: (error: unknown) => void
 	mode: string
 	workspacePath: string
 	inputColumns: number
@@ -103,6 +107,8 @@ interface UseComposerProps {
 export function useComposer({
 	ctrl,
 	taskId,
+	messages = [],
+	onHistoryError = (error) => Logger.error("Failed to load prompt history:", error),
 	mode,
 	workspacePath,
 	inputColumns,
@@ -211,6 +217,44 @@ export function useComposer({
 		requestId: 0,
 	})
 	const skipNextPersistRef = useRef(false)
+
+	const resetPasteChunks = useCallback(() => {
+		if (pasteUpdateTimeoutRef.current) clearTimeout(pasteUpdateTimeoutRef.current)
+		pasteUpdateTimeoutRef.current = null
+		activePasteNumRef.current = 0
+		lastPasteTimeRef.current = 0
+	}, [])
+	const runId = taskId ?? ctrl?.task?.taskId
+	const loadHistory = useCallback(
+		async () => (ctrl ? ctrl.getPromptHistory(workspacePath, runId) : []),
+		[ctrl, workspacePath, runId],
+	)
+	const { navigateHistory, resetHistory } = usePromptHistory({
+		scopeKey: `${workspacePath}:${storageKey}`,
+		loadHistory,
+		currentPrompts: getUserPrompts(messages),
+		captureDraft: (): PersistedInputState => ({
+			text: getText(),
+			cursorPos: getCursorPos(),
+			pastedTexts: new Map(pastedTexts),
+			pasteCounter: pasteCounterRef.current,
+			vimState,
+		}),
+		restoreDraft: (draft) => {
+			resetPasteChunks()
+			restoreVimDraft(draft, draft.vimState)
+			setPastedTexts(new Map(draft.pastedTexts))
+			pasteCounterRef.current = draft.pasteCounter
+		},
+		recallText: (text) => {
+			resetPasteChunks()
+			const value = { text, cursorPos: text.length }
+			restoreVimDraft(value, createVimEditor(value, vimMode ?? "insert"))
+			setPastedTexts(new Map())
+			pasteCounterRef.current = 0
+		},
+		onError: onHistoryError,
+	})
 
 	const handleHome = useCallback(() => {
 		if (vimMode === "normal") handleVimInput("0", {})
@@ -405,6 +449,17 @@ export function useComposer({
 		}
 	}, [mentionInfo.inMentionMode, mentionInfo.query, workspacePath])
 
+	const resetInput = useCallback(() => {
+		resetHistory()
+		resetPasteChunks()
+		setHistoryIndex(-1)
+		setSavedInput("")
+		resetVimInput()
+		setPastedTexts(new Map())
+		pasteCounterRef.current = 0
+		inputStateStorage.delete(storageKey)
+	}, [storageKey, resetVimInput, resetHistory, resetPasteChunks])
+
 	useChatInputHandler({
 		workspacePath,
 		inputColumns,
@@ -419,7 +474,7 @@ export function useComposer({
 		handleKeyboardSequence,
 		handleCtrlShortcut,
 		handleVimInput,
-		resetVimInput,
+		resetInput,
 		isVimNormal: vimMode === "normal",
 		insertTextAtCursor,
 		toggleMode: () => actionsRef.current.toggleMode(),
@@ -439,6 +494,7 @@ export function useComposer({
 		setSelectedIndex,
 		setFileResults,
 		getHistoryItems,
+		navigateHistory,
 		historyIndex,
 		setHistoryIndex,
 		savedInput,
@@ -469,13 +525,6 @@ export function useComposer({
 		toggleGoalDetails,
 		disarmGoalStopConfirmation,
 	})
-
-	const resetInput = useCallback(() => {
-		resetVimInput()
-		setPastedTexts(new Map())
-		pasteCounterRef.current = 0
-		inputStateStorage.delete(storageKey)
-	}, [storageKey, resetVimInput])
 
 	const { imagePaths } = parseImagesFromInput(textInput, workspacePath)
 	const showSlashMenu = vimMode !== "normal" && slashInfo.inSlashMode && !slashMenuDismissed
