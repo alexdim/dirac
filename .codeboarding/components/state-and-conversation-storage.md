@@ -404,6 +404,9 @@ export class StateManager {
 
 ### /Users/highlands/pools/Development/dirac/src/core/controller/TaskHistoryController.ts (lines 38-152)
 ```
+	await deleteTaskDirectory(item.id)
+}
+
 export class TaskHistoryController {
 	constructor(
 		private readonly stateManager: import("@core/storage/StateManager").StateManager,
@@ -469,6 +472,28 @@ export class TaskHistoryController {
 		throw new Error("Task not found")
 	}
 
+	/** Read recent public conversations only; Goal child prompts are agent-authored and private. */
+	async getPromptHistory(workspacePath: string, excludedRunId?: string): Promise<UserPrompt[]> {
+		const runs = this.stateManager
+			.getGlobalStateKey("taskHistory")
+			.filter(
+				(item) =>
+					item.id !== excludedRunId &&
+					[item.cwdOnTaskInitialization, item.workspaceRootPath, item.shadowGitConfigWorkTree].some(
+						(workspace) => workspace && arePathsEqual(workspace, workspacePath),
+					),
+			)
+			.sort((left, right) => right.ts - left.ts)
+			.slice(0, 20)
+		const prompts = await Promise.all(
+			runs.map(async (run) => {
+				const saved = getUserPrompts(await getSavedDiracMessages(run.id))
+				return saved.length > 0 ? saved : run.task.trim() ? [{ text: run.task, ts: run.ts }] : []
+			}),
+		)
+		return prompts.flat()
+	}
+
 	getRunHistoryItem(id: string): RunHistoryItem {
 		const item = this.stateManager.getGlobalStateKey("taskHistory").find((candidate) => candidate.id === id)
 		if (!item) throw new Error(`Run ${id} is not present in top-level history`)
@@ -494,31 +519,6 @@ export class TaskHistoryController {
 
 	async updateRunHistory(item: RunHistoryItem): Promise<RunHistoryItem[]> {
 		return this.stateManager.upsertTaskHistoryItem(item)
-	}
-
-	async updateTaskHistory(item: HistoryItem): Promise<RunHistoryItem[]> {
-		if (!isTaskHistoryItem(item)) throw new Error(`Goal ${item.id} cannot be written through updateTaskHistory`)
-		return this.updateRunHistory(item)
-	}
-
-	async updateGoalHistory(item: GoalHistoryItem): Promise<RunHistoryItem[]> {
-		return this.updateRunHistory(item)
-	}
-
-	/** Deletes complete run storage. Goal children remain private and are cascaded from goal.json. */
-	async deleteRunStorage(id: string): Promise<void> {
-		await deleteRunStorage(this.getRunHistoryItem(id), this.goalStore)
-	}
-
-	async deleteRunWithId(id: string): Promise<RunHistoryItem[]> {
-		return withTaskHistoryInventoryLock(async () => {
-			await this.deleteRunStorage(id)
-			const history = await this.deleteTaskFromState(id)
-			await this.stateManager.flushPendingState()
-			return history
-		})
-	}
-}
 ```
 
 ### /Users/highlands/pools/Development/dirac/src/core/storage/conversationHistory.ts (lines 40-53)

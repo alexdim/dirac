@@ -7,9 +7,9 @@ graph LR
     Interactive_Terminal_UI_Hooks["Interactive Terminal UI Hooks"]
     CLI_Host_Bridge_Review_Controllers["CLI Host Bridge & Review Controllers"]
     ACP_Diagnostic_Packaging_Scripts["ACP Diagnostic & Packaging Scripts"]
-    Terminal_Commands_Ink_UI_Components -- "renders terminal output and manages runtime state via" --> CLI_Runtime_Display_Utilities
+    Terminal_Commands_Ink_UI_Components -- "calls" --> CLI_Runtime_Display_Utilities
     Terminal_Commands_Ink_UI_Components -- "initializes CLI runtime and core services via" --> CLI_Bootstrap_Core_Service_Integration
-    Terminal_Commands_Ink_UI_Components -- "manages interactive UI state and layout with" --> Interactive_Terminal_UI_Hooks
+    Terminal_Commands_Ink_UI_Components -- "calls" --> Interactive_Terminal_UI_Hooks
     CLI_Runtime_Display_Utilities -- "parses unified diffs via" --> ACP_Server_Dirac_Agent_Adapter
     CLI_Runtime_Display_Utilities -- "reads ANSI theme configuration from" --> Terminal_Commands_Ink_UI_Components
     CLI_Runtime_Display_Utilities -- "disposes CLI logging via" --> CLI_Bootstrap_Core_Service_Integration
@@ -35,7 +35,7 @@ graph LR
 Provides the terminal-based CLI interface, Agent Client Protocol (ACP) runtime, DiracAgent session management, and Unbiased provider integration.
 
 ### Terminal Commands & Ink UI Components [[Expand]](./Terminal_Commands_Ink_UI_Components.md)
-Implements CLI subcommands, React Ink terminal views, settings subpages, theme constants, and mocked VS Code extension context for interactive terminal execution.
+Implements CLI subcommands and React Ink terminal views, plus theme constants and mocked VS Code context, to drive interactive terminal sessions.
 
 
 **Related Classes/Methods**:
@@ -273,96 +273,94 @@ Implements CLI subcommands, React Ink terminal views, settings subpages, theme c
   - `cli.src.components.BedrockSetup.BedrockSetup.AUTH_METHODS.map() callback` (L257-L267) - Function
   - `cli.src.components.BedrockSetup.BedrockSetup.visibleRegions.map() callback` (L351-L361) - Function
 - `cli/src/components/ChatFooter.tsx`
-  - `cli.src.components.ChatFooter.ChatFooterProps` (L11-L29) - Interface
-  - `cli.src.components.ChatFooter.ChatFooter` (L31-L215) - Class
-  - `cli.src.components.ChatFooter.<function>` (L126-L141) - Function
-  - `cli.src.components.ChatFooter.ChatFooter.<function>` (L142-L150) - Function
+  - `cli.src.components.ChatFooter.ChatFooterProps` (L12-L31) - Interface
+  - `cli.src.components.ChatFooter.ChatFooter` (L33-L226) - Class
+  - `cli.src.components.ChatFooter.<function>` (L137-L152) - Function
+  - `cli.src.components.ChatFooter.ChatFooter.<function>` (L153-L161) - Function
 - `cli/src/components/ChatHeader.tsx`
   - `cli.src.components.ChatHeader.ChatHeaderProps` (L8-L12) - Interface
 - `cli/src/components/ChatInputBar.tsx`
-  - `cli.src.components.ChatInputBar.ChatInputBarProps` (L7-L16) - Interface
-  - `cli.src.components.ChatInputBar.ChatInputBar.viewport` (L39-L41) - Class
-  - `cli.src.components.ChatInputBar.ChatInputBar.viewport.useMemo() callback` (L39-L41) - Function
+  - `cli.src.components.ChatInputBar.ChatInputBarProps` (L8-L17) - Interface
+  - `cli.src.components.ChatInputBar.ChatInputBar.viewport` (L36-L38) - Class
+  - `cli.src.components.ChatInputBar.ChatInputBar.viewport.useMemo() callback` (L36-L38) - Function
 - `cli/src/components/ChatMessage.tsx`
-  - `cli.src.components.ChatMessage.ChatMessageProps` (L33-L46) - Interface
-  - `cli.src.components.ChatMessage.clipReasoningText` (L77-L80) - Function
-  - `cli.src.components.ChatMessage.padTextToVisualLines` (L82-L86) - Function
-  - `cli.src.components.ChatMessage.renderBoundedMarkdownMessage` (L254-L274) - Function
-  - `cli.src.components.ChatMessage.renderTimelineTail` (L277-L303) - Function
-  - `cli.src.components.ChatMessage.ChatMessageListProps` (L311-L317) - Interface
-  - `cli.src.components.ChatMessage.ChatMessageList` (L319-L372) - Class
-  - `cli.src.components.ChatMessage.ChatMessageList.displayMessages` (L327-L331) - Class
-  - `cli.src.components.ChatMessage.ChatMessageList.displayMessages.messages.filter() callback` (L327-L331) - Function
-  - `cli.src.components.ChatMessage.ChatMessageList.messagesToShow.map() callback` (L343-L369) - Function
+  - `cli.src.components.ChatMessage.ChatMessageProps` (L31-L44) - Interface
+  - `cli.src.components.ChatMessage.renderBoundedMarkdownMessage` (L237-L252) - Function
+  - `cli.src.components.ChatMessage.renderTimelineTail` (L255-L284) - Function
+  - `cli.src.components.ChatMessage.ChatMessageListProps` (L292-L298) - Interface
+  - `cli.src.components.ChatMessage.ChatMessageList` (L300-L353) - Class
+  - `cli.src.components.ChatMessage.ChatMessageList.displayMessages` (L308-L312) - Class
+  - `cli.src.components.ChatMessage.ChatMessageList.displayMessages.messages.filter() callback` (L308-L312) - Function
+  - `cli.src.components.ChatMessage.ChatMessageList.messagesToShow.map() callback` (L324-L350) - Function
 - `cli/src/components/ChatView.tsx`
-  - `cli.src.components.ChatView.ChatViewProps` (L96-L106) - Interface
-  - `cli.src.components.ChatView.ChatView` (L108-L1164) - Class
-  - `cli.src.components.ChatView.ChatView.quote` (L118-L118) - Class
-  - `cli.src.components.ChatView.ChatView.quote.useMemo() callback` (L118-L118) - Function
-  - `cli.src.components.ChatView.ChatView.ctrl` (L124-L124) - Class
-  - `cli.src.components.ChatView.ChatView.ctrl.useMemo() callback` (L124-L124) - Function
-  - `cli.src.components.ChatView.ChatView.resetComposerInputRef` (L126-L126) - Class
-  - `cli.src.components.ChatView.ChatView.resetComposerInputRef.useRef() callback` (L126-L126) - Function
-  - `cli.src.components.ChatView.ChatView.composerActionsRef` (L127-L137) - Class
-  - `cli.src.components.ChatView.ChatView.composerActionsRef.handleAskShortcuts` (L128-L128) - Method
-  - `cli.src.components.ChatView.ChatView.composerActionsRef.handleSubmit` (L129-L129) - Method
-  - `cli.src.components.ChatView.ChatView.composerActionsRef.handleExit` (L130-L130) - Method
-  - `cli.src.components.ChatView.ChatView.composerActionsRef.clearViewAndResetTask` (L131-L131) - Method
-  - `cli.src.components.ChatView.ChatView.composerActionsRef.handleButtonAction` (L132-L132) - Method
-  - `cli.src.components.ChatView.ChatView.composerActionsRef.toggleMode` (L133-L133) - Method
-  - `cli.src.components.ChatView.ChatView.composerActionsRef.toggleAutoApproveAll` (L134-L134) - Method
-  - `cli.src.components.ChatView.ChatView.composerActionsRef.enableFastMode` (L135-L135) - Method
-  - `cli.src.components.ChatView.ChatView.composerActionsRef.toggleQuietMode` (L136-L136) - Method
-  - `cli.src.components.ChatView.ChatView.shouldSuppressCardBody` (L154-L154) - Class
-  - `cli.src.components.ChatView.ChatView.shouldSuppressCardBody.useMemo() callback` (L154-L154) - Function
-  - `cli.src.components.ChatView.ChatView.shouldSuppressCardBody.useMemo() callback.createCardBodySuppressionPolicy() callback` (L154-L154) - Function
-  - `cli.src.components.ChatView.useEffect() callback` (L197-L199) - Function
-  - `cli.src.components.ChatView.ChatView.toggleAutoApproveAll.useCallback() callback` (L219-L224) - Function
-  - `cli.src.components.ChatView.ChatView.toggleQuietMode.useCallback() callback` (L226-L232) - Function
-  - `cli.src.components.ChatView.ChatView.toggleQuietMode.useCallback() callback.setQuietMode() callback` (L227-L231) - Function
-  - `cli.src.components.ChatView.ChatView.reportInteractionError` (L240-L248) - Class
-  - `cli.src.components.ChatView.ChatView.reportInteractionError.useCallback() callback` (L241-L246) - Function
-  - `cli.src.components.ChatView.ChatView.enableFastMode.useCallback() callback` (L250-L282) - Function
-  - `cli.src.components.ChatView.ChatView.disarmGoalStopConfirmation` (L305-L310) - Class
-  - `cli.src.components.ChatView.ChatView.disarmGoalStopConfirmation.useCallback() callback` (L305-L310) - Function
-  - `cli.src.components.ChatView.ChatView.toggleGoalDetails` (L312-L315) - Class
-  - `cli.src.components.ChatView.ChatView.toggleGoalDetails.useCallback() callback` (L312-L315) - Function
-  - `cli.src.components.ChatView.ChatView.toggleGoalDetails.useCallback() callback.setGoalDetailsExpanded() callback` (L314-L314) - Function
-  - `cli.src.components.ChatView.ChatView.handleGoalControl` (L331-L365) - Class
-  - `cli.src.components.ChatView.ChatView.handleGoalControl.useCallback() callback` (L332-L363) - Function
-  - `cli.src.components.ChatView.ChatView.handleGoalControl.useCallback() callback.setTimeout() callback` (L339-L343) - Function
-  - `cli.src.components.ChatView.ChatView.useEffect() callback.timeout` (L382-L387) - Class
-  - `cli.src.components.ChatView.ChatView.useEffect() callback.timeout.setTimeout() callback` (L382-L387) - Function
-  - `cli.src.components.ChatView.ChatView.useEffect() callback.timeout.setTimeout() callback.catch() callback` (L386-L386) - Function
-  - `cli.src.components.ChatView.ChatView.pendingAsk` (L395-L405) - Class
-  - `cli.src.components.ChatView.ChatView.pendingAsk.useMemo() callback` (L395-L405) - Function
-  - `cli.src.components.ChatView.ChatView.pendingAsk.useMemo() callback.find() callback` (L399-L402) - Function
-  - `cli.src.components.ChatView.ChatView.scrollableCardMaxOffset` (L427-L433) - Class
-  - `cli.src.components.ChatView.ChatView.scrollableCardMaxOffset.useMemo() callback` (L427-L433) - Function
-  - `cli.src.components.ChatView.ChatView.setActiveScrollOffset` (L442-L451) - Class
-  - `cli.src.components.ChatView.ChatView.setActiveScrollOffset.useCallback() callback` (L443-L449) - Function
-  - `cli.src.components.ChatView.ChatView.toggleMode.useCallback() callback` (L498-L511) - Function
-  - `cli.src.components.ChatView.ChatView.sendAskResponse` (L513-L532) - Class
-  - `cli.src.components.ChatView.ChatView.sendAskResponse.useCallback() callback` (L514-L530) - Function
-  - `cli.src.components.ChatView.ChatView.submitResumeResponse` (L534-L544) - Class
-  - `cli.src.components.ChatView.ChatView.submitResumeResponse.useCallback() callback` (L535-L542) - Function
-  - `cli.src.components.ChatView.ChatView.hasGlobalAction` (L549-L552) - Class
-  - `cli.src.components.ChatView.ChatView.hasGlobalAction.useCallback() callback` (L550-L550) - Function
-  - `cli.src.components.ChatView.ChatView.hasGlobalAction.useCallback() callback.uiActionState.globalButtons.some() callback` (L550-L550) - Function
-  - `cli.src.components.ChatView.ChatView.submitResumeTextResponse` (L555-L581) - Class
-  - `cli.src.components.ChatView.ChatView.submitResumeTextResponse.useCallback() callback` (L556-L572) - Function
-  - `cli.src.components.ChatView.ChatView.useEffect() callback` (L583-L592) - Function
-  - `cli.src.components.ChatView.ChatView.handleButtonAction.useCallback() callback` (L595-L642) - Function
-  - `cli.src.components.ChatView.ChatView.handleAskShortcuts.useCallback() callback` (L664-L697) - Function
-  - `cli.src.components.ChatView.ChatView.handleAskShortcuts.useCallback() callback.options` (L681-L681) - Class
-  - `cli.src.components.ChatView.ChatView.handleAskShortcuts.useCallback() callback.options.card.actions.map() callback` (L681-L681) - Function
-  - `cli.src.components.ChatView.ChatView.handleSubmit.useCallback() callback` (L702-L784) - Function
-  - `cli.src.components.ChatView.ChatView.renderTurnBoundary` (L834-L840) - Method
-  - `cli.src.components.ChatView.ChatView.renderDynamicItem` (L842-L874) - Method
-  - `cli.src.components.ChatView.ChatView.activityContent` (L878-L901) - Class
-  - `cli.src.components.ChatView.ChatView.activityContent.<function>` (L886-L895) - Function
-  - `cli.src.components.ChatView.ChatView.composerFooterContent` (L939-L1065) - Class
-  - `cli.src.components.ChatView.ChatView.composerFooterContent.availableCommands.map() callback` (L1034-L1034) - Function
+  - `cli.src.components.ChatView.ChatViewProps` (L99-L109) - Interface
+  - `cli.src.components.ChatView.ChatView` (L111-L1179) - Class
+  - `cli.src.components.ChatView.ChatView.quote` (L121-L121) - Class
+  - `cli.src.components.ChatView.ChatView.quote.useMemo() callback` (L121-L121) - Function
+  - `cli.src.components.ChatView.ChatView.ctrl` (L127-L127) - Class
+  - `cli.src.components.ChatView.ChatView.ctrl.useMemo() callback` (L127-L127) - Function
+  - `cli.src.components.ChatView.ChatView.resetComposerInputRef` (L129-L129) - Class
+  - `cli.src.components.ChatView.ChatView.resetComposerInputRef.useRef() callback` (L129-L129) - Function
+  - `cli.src.components.ChatView.ChatView.composerActionsRef` (L130-L140) - Class
+  - `cli.src.components.ChatView.ChatView.composerActionsRef.handleAskShortcuts` (L131-L131) - Method
+  - `cli.src.components.ChatView.ChatView.composerActionsRef.handleSubmit` (L132-L132) - Method
+  - `cli.src.components.ChatView.ChatView.composerActionsRef.handleExit` (L133-L133) - Method
+  - `cli.src.components.ChatView.ChatView.composerActionsRef.clearViewAndResetTask` (L134-L134) - Method
+  - `cli.src.components.ChatView.ChatView.composerActionsRef.handleButtonAction` (L135-L135) - Method
+  - `cli.src.components.ChatView.ChatView.composerActionsRef.toggleMode` (L136-L136) - Method
+  - `cli.src.components.ChatView.ChatView.composerActionsRef.toggleAutoApproveAll` (L137-L137) - Method
+  - `cli.src.components.ChatView.ChatView.composerActionsRef.enableFastMode` (L138-L138) - Method
+  - `cli.src.components.ChatView.ChatView.composerActionsRef.toggleQuietMode` (L139-L139) - Method
+  - `cli.src.components.ChatView.ChatView.shouldSuppressCardBody` (L157-L157) - Class
+  - `cli.src.components.ChatView.ChatView.shouldSuppressCardBody.useMemo() callback` (L157-L157) - Function
+  - `cli.src.components.ChatView.ChatView.shouldSuppressCardBody.useMemo() callback.createCardBodySuppressionPolicy() callback` (L157-L157) - Function
+  - `cli.src.components.ChatView.useEffect() callback` (L200-L202) - Function
+  - `cli.src.components.ChatView.ChatView.toggleAutoApproveAll.useCallback() callback` (L222-L227) - Function
+  - `cli.src.components.ChatView.ChatView.toggleQuietMode.useCallback() callback` (L229-L235) - Function
+  - `cli.src.components.ChatView.ChatView.toggleQuietMode.useCallback() callback.setQuietMode() callback` (L230-L234) - Function
+  - `cli.src.components.ChatView.ChatView.reportInteractionError` (L243-L251) - Class
+  - `cli.src.components.ChatView.ChatView.reportInteractionError.useCallback() callback` (L244-L249) - Function
+  - `cli.src.components.ChatView.ChatView.enableFastMode.useCallback() callback` (L253-L285) - Function
+  - `cli.src.components.ChatView.ChatView.disarmGoalStopConfirmation` (L308-L313) - Class
+  - `cli.src.components.ChatView.ChatView.disarmGoalStopConfirmation.useCallback() callback` (L308-L313) - Function
+  - `cli.src.components.ChatView.ChatView.toggleGoalDetails` (L315-L318) - Class
+  - `cli.src.components.ChatView.ChatView.toggleGoalDetails.useCallback() callback` (L315-L318) - Function
+  - `cli.src.components.ChatView.ChatView.toggleGoalDetails.useCallback() callback.setGoalDetailsExpanded() callback` (L317-L317) - Function
+  - `cli.src.components.ChatView.ChatView.handleGoalControl` (L334-L368) - Class
+  - `cli.src.components.ChatView.ChatView.handleGoalControl.useCallback() callback` (L335-L366) - Function
+  - `cli.src.components.ChatView.ChatView.handleGoalControl.useCallback() callback.setTimeout() callback` (L342-L346) - Function
+  - `cli.src.components.ChatView.ChatView.useEffect() callback.timeout` (L385-L390) - Class
+  - `cli.src.components.ChatView.ChatView.useEffect() callback.timeout.setTimeout() callback` (L385-L390) - Function
+  - `cli.src.components.ChatView.ChatView.useEffect() callback.timeout.setTimeout() callback.catch() callback` (L389-L389) - Function
+  - `cli.src.components.ChatView.ChatView.pendingAsk` (L398-L408) - Class
+  - `cli.src.components.ChatView.ChatView.pendingAsk.useMemo() callback` (L398-L408) - Function
+  - `cli.src.components.ChatView.ChatView.pendingAsk.useMemo() callback.find() callback` (L402-L405) - Function
+  - `cli.src.components.ChatView.ChatView.scrollableCardMaxOffset` (L430-L440) - Class
+  - `cli.src.components.ChatView.ChatView.scrollableCardMaxOffset.useMemo() callback` (L430-L440) - Function
+  - `cli.src.components.ChatView.ChatView.setActiveScrollOffset` (L451-L460) - Class
+  - `cli.src.components.ChatView.ChatView.setActiveScrollOffset.useCallback() callback` (L452-L458) - Function
+  - `cli.src.components.ChatView.ChatView.toggleMode.useCallback() callback` (L525-L538) - Function
+  - `cli.src.components.ChatView.ChatView.sendAskResponse` (L540-L559) - Class
+  - `cli.src.components.ChatView.ChatView.sendAskResponse.useCallback() callback` (L541-L557) - Function
+  - `cli.src.components.ChatView.ChatView.submitResumeResponse` (L561-L571) - Class
+  - `cli.src.components.ChatView.ChatView.submitResumeResponse.useCallback() callback` (L562-L569) - Function
+  - `cli.src.components.ChatView.ChatView.hasGlobalAction` (L576-L579) - Class
+  - `cli.src.components.ChatView.ChatView.hasGlobalAction.useCallback() callback` (L577-L577) - Function
+  - `cli.src.components.ChatView.ChatView.hasGlobalAction.useCallback() callback.uiActionState.globalButtons.some() callback` (L577-L577) - Function
+  - `cli.src.components.ChatView.ChatView.submitResumeTextResponse` (L581-L607) - Class
+  - `cli.src.components.ChatView.ChatView.submitResumeTextResponse.useCallback() callback` (L582-L598) - Function
+  - `cli.src.components.ChatView.ChatView.useEffect() callback` (L609-L618) - Function
+  - `cli.src.components.ChatView.ChatView.handleButtonAction.useCallback() callback` (L621-L668) - Function
+  - `cli.src.components.ChatView.ChatView.handleAskShortcuts.useCallback() callback` (L690-L723) - Function
+  - `cli.src.components.ChatView.ChatView.handleAskShortcuts.useCallback() callback.options` (L707-L707) - Class
+  - `cli.src.components.ChatView.ChatView.handleAskShortcuts.useCallback() callback.options.card.actions.map() callback` (L707-L707) - Function
+  - `cli.src.components.ChatView.ChatView.handleSubmit.useCallback() callback` (L728-L810) - Function
+  - `cli.src.components.ChatView.ChatView.renderTurnBoundary` (L848-L854) - Method
+  - `cli.src.components.ChatView.ChatView.renderDynamicItem` (L856-L888) - Method
+  - `cli.src.components.ChatView.ChatView.activityContent` (L892-L915) - Class
+  - `cli.src.components.ChatView.ChatView.activityContent.<function>` (L900-L909) - Function
+  - `cli.src.components.ChatView.ChatView.composerFooterContent` (L953-L1080) - Class
+  - `cli.src.components.ChatView.ChatView.composerFooterContent.availableCommands.map() callback` (L1048-L1048) - Function
 - `cli/src/components/Checkbox.tsx`
   - `cli.src.components.Checkbox.CheckboxProps` (L9-L13) - Interface
 - `cli/src/components/ConfigView.tsx`
@@ -542,19 +540,22 @@ Implements CLI subcommands, React Ink terminal views, settings subpages, theme c
   - `cli.src.components.GoalSummary.GoalSummary.visibleChildren.map() callback` (L173-L184) - Function
 - `cli/src/components/HelpPanelContent.tsx`
   - `cli.src.components.HelpPanelContent.HelpPanelContentProps` (L15-L17) - Interface
-  - `cli.src.components.HelpPanelContent.HelpPanelContent` (L19-L116) - Class
+  - `cli.src.components.HelpPanelContent.HelpPanelContent` (L19-L120) - Class
   - `cli.src.components.HelpPanelContent.HelpPanelContent.useInput() callback` (L26-L33) - Function
-  - `cli.src.components.HelpPanelContent.map() callback` (L69-L77) - Function
-  - `cli.src.components.HelpPanelContent.HelpPanelContent.map() callback` (L97-L105) - Function
+  - `cli.src.components.HelpPanelContent.map() callback` (L73-L81) - Function
+  - `cli.src.components.HelpPanelContent.HelpPanelContent.map() callback` (L101-L109) - Function
 - `cli/src/components/HighlightedInput.tsx`
-  - `cli.src.components.HighlightedInput.HighlightedInputProps` (L11-L15) - Interface
-  - `cli.src.components.HighlightedInput.Segment` (L20-L24) - Interface
-  - `cli.src.components.HighlightedInput.parseInput` (L26-L109) - Function
-  - `cli.src.components.HighlightedInput.parseInput.highlights.sort() callback` (L61-L61) - Function
-  - `cli.src.components.HighlightedInput.HighlightedInput` (L111-L220) - Class
-  - `cli.src.components.HighlightedInput.segments.map() callback` (L118-L130) - Function
-  - `cli.src.components.HighlightedInput.HighlightedInput.renderSegmentWithCursor` (L140-L209) - Method
-  - `cli.src.components.HighlightedInput.HighlightedInput.segments.map() callback` (L216-L216) - Function
+  - `cli.src.components.HighlightedInput.HighlightedInputProps` (L14-L19) - Interface
+  - `cli.src.components.HighlightedInput.Segment` (L24-L28) - Interface
+  - `cli.src.components.HighlightedInput.parseInput` (L30-L113) - Function
+  - `cli.src.components.HighlightedInput.parseInput.highlights.sort() callback` (L65-L65) - Function
+  - `cli.src.components.HighlightedInput.HighlightedInput` (L115-L264) - Class
+  - `cli.src.components.HighlightedInput.segments.map() callback` (L122-L134) - Function
+  - `cli.src.components.HighlightedInput.HighlightedInput.renderSegmentWithCursor` (L144-L221) - Method
+  - `cli.src.components.HighlightedInput.HighlightedInput.rows.map() callback` (L228-L246) - Function
+  - `cli.src.components.HighlightedInput.HighlightedInput.rows.map() callback.rowSegments` (L229-L234) - Class
+  - `cli.src.components.HighlightedInput.HighlightedInput.rows.map() callback.rowSegments.segments.flatMap() callback` (L229-L234) - Function
+  - `cli.src.components.HighlightedInput.HighlightedInput.segments.map() callback` (L256-L256) - Function
 - `cli/src/components/HistoryPanelContent.tsx`
   - `cli.src.components.HistoryPanelContent.HistoryPanelContentProps` (L23-L27) - Interface
   - `cli.src.components.HistoryPanelContent.formatRelativeDate` (L29-L40) - Function
@@ -685,9 +686,9 @@ Implements CLI subcommands, React Ink terminal views, settings subpages, theme c
   - `cli.src.components.Panel.Panel.currentTabIndex.tabs.findIndex() callback` (L33-L33) - Function
   - `cli.src.components.Panel.Panel.tabs.map() callback` (L48-L59) - Function
 - `cli/src/components/PermissionModal.tsx`
-  - `cli.src.components.PermissionModal.PermissionModalProps` (L10-L18) - Interface
-  - `cli.src.components.PermissionModal.renderFooter` (L60-L95) - Function
-  - `cli.src.components.PermissionModal.renderFooter.card.actions.map() callback` (L79-L87) - Function
+  - `cli.src.components.PermissionModal.PermissionModalProps` (L12-L20) - Interface
+  - `cli.src.components.PermissionModal.renderFooter` (L70-L105) - Function
+  - `cli.src.components.PermissionModal.renderFooter.card.actions.map() callback` (L89-L97) - Function
 - `cli/src/components/ProviderPicker.tsx`
   - `cli.src.components.ProviderPicker.isProviderConfigured` (L18-L102) - Function
   - `cli.src.components.ProviderPicker.ProviderPickerProps` (L104-L107) - Interface
@@ -770,8 +771,10 @@ Implements CLI subcommands, React Ink terminal views, settings subpages, theme c
   - `cli.src.components.UnbiasedAuthView.UnbiasedAuthView.useInput() callback.setAttempt() callback` (L81-L81) - Function
   - `cli.src.components.UnbiasedAuthView.UnbiasedAuthView.useInput() callback.catch() callback` (L93-L94) - Function
 - `cli/src/components/modular-ui/CardBody.tsx`
-  - `cli.src.components.modular-ui.CardBody.CardBodyProps` (L11-L17) - Interface
-  - `cli.src.components.modular-ui.CardBody.renderContent` (L40-L50) - Function
+  - `cli.src.components.modular-ui.CardBody.CardBodyProps` (L12-L18) - Interface
+  - `cli.src.components.modular-ui.CardBody.CardBody.markdownLines` (L23-L26) - Class
+  - `cli.src.components.modular-ui.CardBody.CardBody.markdownLines.useMemo() callback` (L24-L24) - Function
+  - `cli.src.components.modular-ui.CardBody.renderContent` (L47-L57) - Function
 - `cli/src/components/modular-ui/CardHeader.tsx`
   - `cli.src.components.modular-ui.CardHeader.CardHeaderProps` (L8-L14) - Interface
   - `cli.src.components.modular-ui.CardHeader.getHeaderPresentation` (L16-L29) - Function
@@ -780,66 +783,20 @@ Implements CLI subcommands, React Ink terminal views, settings subpages, theme c
   - `cli.src.components.modular-ui.CardInteractions.CardInteractions` (L12-L40) - Class
   - `cli.src.components.modular-ui.CardInteractions.CardInteractions.actions.map() callback` (L24-L35) - Function
 - `cli/src/components/modular-ui/Diff.tsx`
-  - `cli.src.components.modular-ui.Diff.DiffProps` (L8-L19) - Interface
-  - `cli.src.components.modular-ui.Diff.lineNumberForSide` (L32-L35) - Function
-  - `cli.src.components.modular-ui.Diff.lineTypeForSide` (L37-L43) - Function
-  - `cli.src.components.modular-ui.Diff.prefixForType` (L45-L49) - Function
-  - `cli.src.components.modular-ui.Diff.colorsForType` (L51-L59) - Function
-  - `cli.src.components.modular-ui.Diff.truncateLine` (L61-L66) - Function
-  - `cli.src.components.modular-ui.Diff.collapseContext` (L181-L243) - Function
-  - `cli.src.components.modular-ui.Diff.collapseContext.lines.map() callback` (L193-L193) - Function
-  - `cli.src.components.modular-ui.Diff.toSplitRows` (L245-L281) - Function
-  - `cli.src.components.modular-ui.Diff.shouldRenderSplit` (L283-L287) - Function
-  - `cli.src.components.modular-ui.Diff.Diff` (L290-L350) - Class
-  - `cli.src.components.modular-ui.Diff.Diff.diff` (L294-L297) - Class
-  - `cli.src.components.modular-ui.Diff.Diff.diff.useMemo() callback` (L294-L297) - Function
-  - `cli.src.components.modular-ui.Diff.Diff.gutterWidth` (L299-L302) - Class
-  - `cli.src.components.modular-ui.Diff.Diff.gutterWidth.useMemo() callback` (L299-L302) - Function
-  - `cli.src.components.modular-ui.Diff.Diff.collapsedBlocks` (L304-L307) - Class
-  - `cli.src.components.modular-ui.Diff.Diff.collapsedBlocks.useMemo() callback` (L304-L307) - Function
-  - `cli.src.components.modular-ui.Diff.Diff.collapsedBlocks.useMemo() callback.diff.blocks.map() callback` (L306-L306) - Function
-  - `cli.src.components.modular-ui.Diff.Diff.splitBlocks` (L309-L309) - Class
-  - `cli.src.components.modular-ui.Diff.Diff.splitBlocks.useMemo() callback` (L309-L309) - Function
-  - `cli.src.components.modular-ui.Diff.Diff.collapsedBlocks.map() callback` (L319-L347) - Function
-  - `cli.src.components.modular-ui.Diff.Diff.collapsedBlocks.map() callback.map() callback` (L323-L330) - Function
-  - `cli.src.components.modular-ui.Diff.Diff.collapsedBlocks.map() callback.displayLines.map() callback` (L331-L344) - Function
+  - `cli.src.components.modular-ui.Diff.DiffProps` (L9-L23) - Interface
+  - `cli.src.components.modular-ui.Diff.lineNumberForSide` (L28-L31) - Function
+  - `cli.src.components.modular-ui.Diff.lineTypeForSide` (L33-L39) - Function
+  - `cli.src.components.modular-ui.Diff.prefixForType` (L41-L45) - Function
+  - `cli.src.components.modular-ui.Diff.colorsForType` (L47-L55) - Function
+  - `cli.src.components.modular-ui.Diff.truncateLine` (L57-L62) - Function
+  - `cli.src.components.modular-ui.Diff.Diff` (L163-L203) - Class
+  - `cli.src.components.modular-ui.Diff.Diff.layout` (L166-L169) - Class
+  - `cli.src.components.modular-ui.Diff.Diff.layout.useMemo() callback` (L167-L167) - Function
+  - `cli.src.components.modular-ui.Diff.Diff.rows.map() callback` (L174-L200) - Function
 - `cli/src/components/modular-ui/Markdown.tsx`
-  - `cli.src.components.modular-ui.Markdown.truncateCell` (L7-L12) - Function
-  - `cli.src.components.modular-ui.Markdown.allocateColumnWidths` (L14-L25) - Function
-  - `cli.src.components.modular-ui.Markdown.allocateColumnWidths.widths` (L15-L15) - Class
-  - `cli.src.components.modular-ui.Markdown.allocateColumnWidths.widths.naturalWidths.map() callback` (L15-L15) - Function
-  - `cli.src.components.modular-ui.Markdown.allocateColumnWidths.naturalTotal` (L16-L16) - Class
-  - `cli.src.components.modular-ui.Markdown.allocateColumnWidths.naturalTotal.widths.reduce() callback` (L16-L16) - Function
-  - `cli.src.components.modular-ui.Markdown.allocateColumnWidths.expandableTotal` (L20-L20) - Class
-  - `cli.src.components.modular-ui.Markdown.allocateColumnWidths.expandableTotal.widths.reduce() callback` (L20-L20) - Function
-  - `cli.src.components.modular-ui.Markdown.allocateColumnWidths.widths.map() callback` (L21-L24) - Function
-  - `cli.src.components.modular-ui.Markdown.renderTokens` (L30-L32) - Function
-  - `cli.src.components.modular-ui.Markdown.renderTokens.tokens.map() callback` (L31-L31) - Function
-  - `cli.src.components.modular-ui.Markdown.renderToken` (L39-L254) - Function
-  - `cli.src.components.modular-ui.Markdown.renderToken.wrappedLines` (L69-L76) - Class
-  - `cli.src.components.modular-ui.Markdown.renderToken.wrappedLines.rawLines.flatMap() callback` (L69-L76) - Function
-  - `cli.src.components.modular-ui.Markdown.renderToken.padWidth` (L77-L77) - Class
-  - `cli.src.components.modular-ui.Markdown.renderToken.padWidth.wrappedLines.map() callback` (L77-L77) - Function
-  - `cli.src.components.modular-ui.Markdown.renderToken.wrappedLines.map() callback` (L82-L88) - Function
-  - `cli.src.components.modular-ui.Markdown.renderToken.items.map() callback` (L98-L104) - Function
-  - `cli.src.components.modular-ui.Markdown.renderToken.rowTexts` (L184-L184) - Class
-  - `cli.src.components.modular-ui.Markdown.renderToken.rowTexts.rows.map() callback` (L184-L184) - Function
-  - `cli.src.components.modular-ui.Markdown.renderToken.colWidths` (L185-L188) - Class
-  - `cli.src.components.modular-ui.Markdown.renderToken.colWidths.headerTexts.map() callback` (L185-L188) - Function
-  - `cli.src.components.modular-ui.Markdown.renderToken.colWidths.headerTexts.map() callback.maxRowWidth` (L186-L186) - Class
-  - `cli.src.components.modular-ui.Markdown.renderToken.colWidths.headerTexts.map() callback.maxRowWidth.rowTexts.reduce() callback` (L186-L186) - Function
-  - `cli.src.components.modular-ui.Markdown.renderToken.fallbackRows.map() callback` (L196-L204) - Function
-  - `cli.src.components.modular-ui.Markdown.renderToken.topBorder` (L209-L209) - Class
-  - `cli.src.components.modular-ui.Markdown.renderToken.topBorder.colWidths.map() callback` (L209-L209) - Function
-  - `cli.src.components.modular-ui.Markdown.renderToken.headerSep` (L210-L210) - Class
-  - `cli.src.components.modular-ui.Markdown.renderToken.headerSep.colWidths.map() callback` (L210-L210) - Function
-  - `cli.src.components.modular-ui.Markdown.renderToken.bottomBorder` (L211-L211) - Class
-  - `cli.src.components.modular-ui.Markdown.renderToken.bottomBorder.colWidths.map() callback` (L211-L211) - Function
-  - `cli.src.components.modular-ui.Markdown.renderToken.renderRow` (L212-L213) - Class
-  - `cli.src.components.modular-ui.Markdown.renderToken.renderRow.cells.map() callback` (L213-L213) - Function
-  - `cli.src.components.modular-ui.Markdown.renderToken.rowTexts.map() callback` (L219-L221) - Function
-  - `cli.src.components.modular-ui.Markdown.Markdown.tokens` (L263-L263) - Class
-  - `cli.src.components.modular-ui.Markdown.Markdown.tokens.useMemo() callback` (L263-L263) - Function
+  - `cli.src.components.modular-ui.Markdown.MarkdownProps` (L5-L12) - Interface
+  - `cli.src.components.modular-ui.Markdown.Markdown.lines` (L17-L17) - Class
+  - `cli.src.components.modular-ui.Markdown.Markdown.lines.useMemo() callback` (L17-L17) - Function
 - `cli/src/components/modular-ui/ModularCard.tsx`
   - `cli.src.components.modular-ui.ModularCard.ModularCardProps` (L9-L14) - Interface
 - `cli/src/components/modular-ui/TaskCompletionCard.tsx`
@@ -863,62 +820,62 @@ Implements CLI subcommands, React Ink terminal views, settings subpages, theme c
   - `cli.src.components.settings.SettingsListView.SettingsListView` (L54-L160) - Class
   - `cli.src.components.settings.SettingsListView.SettingsListView.visibleItems.map() callback` (L63-L156) - Function
 - `cli/src/components/settings/SettingsPanelContent.tsx`
-  - `cli.src.components.settings.SettingsPanelContent.SettingsPanelContent` (L51-L810) - Class
+  - `cli.src.components.settings.SettingsPanelContent.SettingsPanelContent` (L51-L813) - Class
   - `cli.src.components.settings.SettingsPanelContent.SettingsPanelContent.runSettingsAction` (L94-L110) - Class
   - `cli.src.components.settings.SettingsPanelContent.SettingsPanelContent.runSettingsAction.useCallback() callback` (L94-L110) - Function
-  - `cli.src.components.settings.SettingsPanelContent.React.useEffect() callback` (L199-L203) - Function
-  - `cli.src.components.settings.SettingsPanelContent.SettingsPanelContent.React.useEffect() callback.then() callback` (L224-L226) - Function
-  - `cli.src.components.settings.SettingsPanelContent.SettingsPanelContent.React.useEffect() callback.catch() callback` (L227-L233) - Function
-  - `cli.src.components.settings.SettingsPanelContent.SettingsPanelContent.refreshModelIds` (L238-L238) - Class
-  - `cli.src.components.settings.SettingsPanelContent.SettingsPanelContent.refreshModelIds.useCallback() callback` (L238-L238) - Function
-  - `cli.src.components.settings.SettingsPanelContent.SettingsPanelContent.refreshModelIds.useCallback() callback.setModelRefreshKey() callback` (L238-L238) - Function
-  - `cli.src.components.settings.SettingsPanelContent.SettingsPanelContent.rebuildTaskApi` (L255-L260) - Class
-  - `cli.src.components.settings.SettingsPanelContent.SettingsPanelContent.rebuildTaskApi.useCallback() callback` (L256-L258) - Function
-  - `cli.src.components.settings.SettingsPanelContent.SettingsPanelContent.settingsSearchResults` (L307-L310) - Class
-  - `cli.src.components.settings.SettingsPanelContent.SettingsPanelContent.settingsSearchResults.CLI_SETTINGS_DESTINATIONS.map() callback` (L309-L309) - Function
-  - `cli.src.components.settings.SettingsPanelContent.SettingsPanelContent.React.useEffect() callback` (L312-L316) - Function
-  - `cli.src.components.settings.SettingsPanelContent.SettingsPanelContent.React.useEffect() callback.setSelectedIndex() callback` (L313-L314) - Function
-  - `cli.src.components.settings.SettingsPanelContent.SettingsPanelContent.updateUserApprovedCommands` (L399-L419) - Class
-  - `cli.src.components.settings.SettingsPanelContent.SettingsPanelContent.updateUserApprovedCommands.useCallback() callback` (L400-L417) - Function
-  - `cli.src.components.settings.SettingsPanelContent.SettingsPanelContent.updateUserApprovedCommands.useCallback() callback.runSettingsAction("approved command update") callback` (L401-L417) - Function
-  - `cli.src.components.settings.SettingsPanelContent.SettingsPanelContent.updateUserApprovedCommands.useCallback() callback.runSettingsAction("approved command update") callback.commitInteractiveSetting() callback` (L404-L414) - Function
-  - `cli.src.components.settings.SettingsPanelContent.updateUserApprovedCommands.useCallback() callback.runSettingsAction("approved command update") callback.commitInteractiveSetting() callback.persistInteractiveSettingWithRollback() callback` (L406-L409) - Function
-  - `cli.src.components.settings.SettingsPanelContent.SettingsPanelContent.updateUserApprovedCommands.useCallback() callback.runSettingsAction("approved command update") callback.commitInteractiveSetting() callback.persistInteractiveSettingWithRollback() callback` (L410-L413) - Function
-  - `cli.src.components.settings.SettingsPanelContent.SettingsPanelContent.openDestination` (L420-L437) - Class
-  - `cli.src.components.settings.SettingsPanelContent.SettingsPanelContent.openDestination.useCallback() callback` (L420-L437) - Function
-  - `cli.src.components.settings.SettingsPanelContent.SettingsPanelContent.returnHome` (L439-L446) - Class
-  - `cli.src.components.settings.SettingsPanelContent.SettingsPanelContent.returnHome.useCallback() callback` (L439-L446) - Function
-  - `cli.src.components.settings.SettingsPanelContent.SettingsPanelContent.returnHome.useCallback() callback.destinationIndex` (L444-L444) - Class
-  - `cli.src.components.settings.SettingsPanelContent.SettingsPanelContent.returnHome.useCallback() callback.destinationIndex.CLI_SETTINGS_DESTINATIONS.findIndex() callback` (L444-L444) - Function
-  - `cli.src.components.settings.SettingsPanelContent.SettingsPanelContent.activateSettingsItem` (L448-L476) - Class
-  - `cli.src.components.settings.SettingsPanelContent.SettingsPanelContent.activateSettingsItem.useCallback() callback` (L448-L476) - Function
-  - `cli.src.components.settings.SettingsPanelContent.SettingsPanelContent.activateSettingsItem.useCallback() callback.runSettingsAction("Unbiased sign-out") callback` (L468-L472) - Function
-  - `cli.src.components.settings.SettingsPanelContent.SettingsPanelContent.selectSearchResult` (L478-L484) - Class
-  - `cli.src.components.settings.SettingsPanelContent.SettingsPanelContent.selectSearchResult.useCallback() callback` (L479-L482) - Function
-  - `cli.src.components.settings.SettingsPanelContent.SettingsPanelContent.showSearchResultHelp` (L485-L487) - Class
-  - `cli.src.components.settings.SettingsPanelContent.SettingsPanelContent.showSearchResultHelp.useCallback() callback` (L485-L487) - Function
-  - `cli.src.components.settings.SettingsPanelContent.SettingsPanelContent.useInput() callback` (L490-L566) - Function
-  - `cli.src.components.settings.SettingsPanelContent.SettingsPanelContent.useInput() callback.runSettingsAction("save") callback` (L531-L531) - Function
-  - `cli.src.components.settings.SettingsPanelContent.useInput() callback.setEditValue() callback` (L532-L532) - Function
-  - `cli.src.components.settings.SettingsPanelContent.SettingsPanelContent.useInput() callback.setEditValue() callback` (L533-L533) - Function
-  - `cli.src.components.settings.SettingsPanelContent.useInput() callback.setHomeSelectedIndex() callback` (L547-L547) - Function
-  - `cli.src.components.settings.SettingsPanelContent.SettingsPanelContent.useInput() callback.setHomeSelectedIndex() callback` (L549-L549) - Function
-  - `cli.src.components.settings.SettingsPanelContent.SettingsPanelContent.renderContent` (L572-L768) - Class
-  - `cli.src.components.settings.SettingsPanelContent.renderContent.<function>` (L630-L642) - Function
-  - `cli.src.components.settings.SettingsPanelContent.SettingsPanelContent.renderContent.<function>.runSettingsAction("routing update") callback` (L635-L641) - Function
-  - `cli.src.components.settings.SettingsPanelContent.SettingsPanelContent.renderContent.<function>.runSettingsAction("routing update") callback.rebuildTaskApi() callback` (L636-L637) - Function
-  - `cli.src.components.settings.SettingsPanelContent.SettingsPanelContent.renderContent.<function>.runSettingsAction("provider update") callback` (L651-L651) - Function
-  - `cli.src.components.settings.SettingsPanelContent.SettingsPanelContent.renderContent.<function>.runSettingsAction("API key update") callback` (L666-L666) - Function
-  - `cli.src.components.settings.SettingsPanelContent.SettingsPanelContent.renderContent.<function>.runSettingsAction("Bedrock setup") callback` (L679-L679) - Function
-  - `cli.src.components.settings.SettingsPanelContent.SettingsPanelContent.renderContent.<function>.runSettingsAction("model update") callback` (L705-L705) - Function
-  - `cli.src.components.settings.SettingsPanelContent.SettingsPanelContent.renderContent.<function>.runSettingsAction("utility model selection") callback` (L715-L715) - Function
-  - `cli.src.components.settings.SettingsPanelContent.SettingsPanelContent.renderContent.<function>.runSettingsAction("language update") callback` (L725-L725) - Function
-  - `cli.src.components.settings.SettingsPanelContent.SettingsPanelContent.renderContent.<function>.runSettingsAction("custom Bedrock model update") callback` (L738-L738) - Function
-  - `cli.src.components.settings.SettingsPanelContent.SettingsPanelContent.renderContent.<function>` (L751-L761) - Function
-  - `cli.src.components.settings.SettingsPanelContent.SettingsPanelContent.renderContent.<function>.runSettingsAction("custom header update") callback` (L754-L759) - Function
-  - `cli.src.components.settings.SettingsPanelContent.SettingsPanelContent.renderContent.<function>.runSettingsAction("custom header update") callback.rebuildTaskApi() callback` (L755-L756) - Function
-  - `cli.src.components.settings.SettingsPanelContent.SettingsPanelContent.activeDestination` (L787-L787) - Class
-  - `cli.src.components.settings.SettingsPanelContent.SettingsPanelContent.activeDestination.CLI_SETTINGS_DESTINATIONS.find() callback` (L787-L787) - Function
+  - `cli.src.components.settings.SettingsPanelContent.React.useEffect() callback` (L200-L204) - Function
+  - `cli.src.components.settings.SettingsPanelContent.SettingsPanelContent.React.useEffect() callback.then() callback` (L225-L227) - Function
+  - `cli.src.components.settings.SettingsPanelContent.SettingsPanelContent.React.useEffect() callback.catch() callback` (L228-L234) - Function
+  - `cli.src.components.settings.SettingsPanelContent.SettingsPanelContent.refreshModelIds` (L239-L239) - Class
+  - `cli.src.components.settings.SettingsPanelContent.SettingsPanelContent.refreshModelIds.useCallback() callback` (L239-L239) - Function
+  - `cli.src.components.settings.SettingsPanelContent.SettingsPanelContent.refreshModelIds.useCallback() callback.setModelRefreshKey() callback` (L239-L239) - Function
+  - `cli.src.components.settings.SettingsPanelContent.SettingsPanelContent.rebuildTaskApi` (L256-L261) - Class
+  - `cli.src.components.settings.SettingsPanelContent.SettingsPanelContent.rebuildTaskApi.useCallback() callback` (L257-L259) - Function
+  - `cli.src.components.settings.SettingsPanelContent.SettingsPanelContent.settingsSearchResults` (L309-L312) - Class
+  - `cli.src.components.settings.SettingsPanelContent.SettingsPanelContent.settingsSearchResults.CLI_SETTINGS_DESTINATIONS.map() callback` (L311-L311) - Function
+  - `cli.src.components.settings.SettingsPanelContent.SettingsPanelContent.React.useEffect() callback` (L314-L318) - Function
+  - `cli.src.components.settings.SettingsPanelContent.SettingsPanelContent.React.useEffect() callback.setSelectedIndex() callback` (L315-L316) - Function
+  - `cli.src.components.settings.SettingsPanelContent.SettingsPanelContent.updateUserApprovedCommands` (L402-L422) - Class
+  - `cli.src.components.settings.SettingsPanelContent.SettingsPanelContent.updateUserApprovedCommands.useCallback() callback` (L403-L420) - Function
+  - `cli.src.components.settings.SettingsPanelContent.SettingsPanelContent.updateUserApprovedCommands.useCallback() callback.runSettingsAction("approved command update") callback` (L404-L420) - Function
+  - `cli.src.components.settings.SettingsPanelContent.SettingsPanelContent.updateUserApprovedCommands.useCallback() callback.runSettingsAction("approved command update") callback.commitInteractiveSetting() callback` (L407-L417) - Function
+  - `cli.src.components.settings.SettingsPanelContent.updateUserApprovedCommands.useCallback() callback.runSettingsAction("approved command update") callback.commitInteractiveSetting() callback.persistInteractiveSettingWithRollback() callback` (L409-L412) - Function
+  - `cli.src.components.settings.SettingsPanelContent.SettingsPanelContent.updateUserApprovedCommands.useCallback() callback.runSettingsAction("approved command update") callback.commitInteractiveSetting() callback.persistInteractiveSettingWithRollback() callback` (L413-L416) - Function
+  - `cli.src.components.settings.SettingsPanelContent.SettingsPanelContent.openDestination` (L423-L440) - Class
+  - `cli.src.components.settings.SettingsPanelContent.SettingsPanelContent.openDestination.useCallback() callback` (L423-L440) - Function
+  - `cli.src.components.settings.SettingsPanelContent.SettingsPanelContent.returnHome` (L442-L449) - Class
+  - `cli.src.components.settings.SettingsPanelContent.SettingsPanelContent.returnHome.useCallback() callback` (L442-L449) - Function
+  - `cli.src.components.settings.SettingsPanelContent.SettingsPanelContent.returnHome.useCallback() callback.destinationIndex` (L447-L447) - Class
+  - `cli.src.components.settings.SettingsPanelContent.SettingsPanelContent.returnHome.useCallback() callback.destinationIndex.CLI_SETTINGS_DESTINATIONS.findIndex() callback` (L447-L447) - Function
+  - `cli.src.components.settings.SettingsPanelContent.SettingsPanelContent.activateSettingsItem` (L451-L479) - Class
+  - `cli.src.components.settings.SettingsPanelContent.SettingsPanelContent.activateSettingsItem.useCallback() callback` (L451-L479) - Function
+  - `cli.src.components.settings.SettingsPanelContent.SettingsPanelContent.activateSettingsItem.useCallback() callback.runSettingsAction("Unbiased sign-out") callback` (L471-L475) - Function
+  - `cli.src.components.settings.SettingsPanelContent.SettingsPanelContent.selectSearchResult` (L481-L487) - Class
+  - `cli.src.components.settings.SettingsPanelContent.SettingsPanelContent.selectSearchResult.useCallback() callback` (L482-L485) - Function
+  - `cli.src.components.settings.SettingsPanelContent.SettingsPanelContent.showSearchResultHelp` (L488-L490) - Class
+  - `cli.src.components.settings.SettingsPanelContent.SettingsPanelContent.showSearchResultHelp.useCallback() callback` (L488-L490) - Function
+  - `cli.src.components.settings.SettingsPanelContent.SettingsPanelContent.useInput() callback` (L493-L569) - Function
+  - `cli.src.components.settings.SettingsPanelContent.SettingsPanelContent.useInput() callback.runSettingsAction("save") callback` (L534-L534) - Function
+  - `cli.src.components.settings.SettingsPanelContent.useInput() callback.setEditValue() callback` (L535-L535) - Function
+  - `cli.src.components.settings.SettingsPanelContent.SettingsPanelContent.useInput() callback.setEditValue() callback` (L536-L536) - Function
+  - `cli.src.components.settings.SettingsPanelContent.useInput() callback.setHomeSelectedIndex() callback` (L550-L550) - Function
+  - `cli.src.components.settings.SettingsPanelContent.SettingsPanelContent.useInput() callback.setHomeSelectedIndex() callback` (L552-L552) - Function
+  - `cli.src.components.settings.SettingsPanelContent.SettingsPanelContent.renderContent` (L575-L771) - Class
+  - `cli.src.components.settings.SettingsPanelContent.renderContent.<function>` (L633-L645) - Function
+  - `cli.src.components.settings.SettingsPanelContent.SettingsPanelContent.renderContent.<function>.runSettingsAction("routing update") callback` (L638-L644) - Function
+  - `cli.src.components.settings.SettingsPanelContent.SettingsPanelContent.renderContent.<function>.runSettingsAction("routing update") callback.rebuildTaskApi() callback` (L639-L640) - Function
+  - `cli.src.components.settings.SettingsPanelContent.SettingsPanelContent.renderContent.<function>.runSettingsAction("provider update") callback` (L654-L654) - Function
+  - `cli.src.components.settings.SettingsPanelContent.SettingsPanelContent.renderContent.<function>.runSettingsAction("API key update") callback` (L669-L669) - Function
+  - `cli.src.components.settings.SettingsPanelContent.SettingsPanelContent.renderContent.<function>.runSettingsAction("Bedrock setup") callback` (L682-L682) - Function
+  - `cli.src.components.settings.SettingsPanelContent.SettingsPanelContent.renderContent.<function>.runSettingsAction("model update") callback` (L708-L708) - Function
+  - `cli.src.components.settings.SettingsPanelContent.SettingsPanelContent.renderContent.<function>.runSettingsAction("utility model selection") callback` (L718-L718) - Function
+  - `cli.src.components.settings.SettingsPanelContent.SettingsPanelContent.renderContent.<function>.runSettingsAction("language update") callback` (L728-L728) - Function
+  - `cli.src.components.settings.SettingsPanelContent.SettingsPanelContent.renderContent.<function>.runSettingsAction("custom Bedrock model update") callback` (L741-L741) - Function
+  - `cli.src.components.settings.SettingsPanelContent.SettingsPanelContent.renderContent.<function>` (L754-L764) - Function
+  - `cli.src.components.settings.SettingsPanelContent.SettingsPanelContent.renderContent.<function>.runSettingsAction("custom header update") callback` (L757-L762) - Function
+  - `cli.src.components.settings.SettingsPanelContent.SettingsPanelContent.renderContent.<function>.runSettingsAction("custom header update") callback.rebuildTaskApi() callback` (L758-L759) - Function
+  - `cli.src.components.settings.SettingsPanelContent.SettingsPanelContent.activeDestination` (L790-L790) - Class
+  - `cli.src.components.settings.SettingsPanelContent.SettingsPanelContent.activeDestination.CLI_SETTINGS_DESTINATIONS.find() callback` (L790-L790) - Function
 - `cli/src/components/settings/SettingsSearchView.tsx`
   - `cli.src.components.settings.SettingsSearchView.SettingsSearchViewProps` (L10-L19) - Interface
   - `cli.src.components.settings.SettingsSearchView.SettingsSearchView` (L21-L120) - Class
@@ -964,84 +921,86 @@ Implements CLI subcommands, React Ink terminal views, settings subpages, theme c
   - `cli.src.components.settings.hooks.useAuthStatus.useAuthStatus` (L6-L54) - Function
   - `cli.src.components.settings.hooks.useAuthStatus.useAuthStatus.useEffect() callback` (L13-L41) - Function
 - `cli/src/components/settings/hooks/useSettingsActions.ts`
-  - `cli.src.components.settings.hooks.useSettingsActions.UseSettingsActionsProps` (L43-L111) - Interface
-  - `cli.src.components.settings.hooks.useSettingsActions.useSettingsActions` (L113-L890) - Function
-  - `cli.src.components.settings.hooks.useSettingsActions.useSettingsActions.commitSettings` (L182-L201) - Class
-  - `cli.src.components.settings.hooks.useSettingsActions.useSettingsActions.commitSettings.useCallback() callback` (L183-L199) - Function
-  - `cli.src.components.settings.hooks.useSettingsActions.useSettingsActions.commitSettings.useCallback() callback.previous` (L184-L186) - Class
-  - `cli.src.components.settings.hooks.useSettingsActions.useSettingsActions.commitSettings.useCallback() callback.previous.map() callback` (L185-L185) - Function
-  - `cli.src.components.settings.hooks.useSettingsActions.useSettingsActions.commitSettings.useCallback() callback.rebuildTaskApi() callback` (L187-L197) - Function
-  - `cli.src.components.settings.hooks.useSettingsActions.commitSettings.useCallback() callback.rebuildTaskApi() callback.persistInteractiveSettingWithRollback() callback` (L189-L192) - Function
-  - `cli.src.components.settings.hooks.useSettingsActions.useSettingsActions.commitSettings.useCallback() callback.rebuildTaskApi() callback.persistInteractiveSettingWithRollback() callback` (L193-L196) - Function
-  - `cli.src.components.settings.hooks.useSettingsActions.toggleFeature` (L203-L211) - Class
-  - `cli.src.components.settings.hooks.useSettingsActions.useSettingsActions.toggleFeature.useCallback() callback` (L204-L209) - Function
-  - `cli.src.components.settings.hooks.useSettingsActions.useSettingsActions.toggleFeature.useCallback() callback.setFeatures() callback` (L208-L208) - Function
-  - `cli.src.components.settings.hooks.useSettingsActions.handleUtilityModelPresetSelect` (L213-L221) - Class
-  - `cli.src.components.settings.hooks.useSettingsActions.useSettingsActions.handleUtilityModelPresetSelect.useCallback() callback` (L214-L219) - Function
-  - `cli.src.components.settings.hooks.useSettingsActions.setReasoningEffortForMode` (L223-L241) - Class
-  - `cli.src.components.settings.hooks.useSettingsActions.useSettingsActions.setReasoningEffortForMode.useCallback() callback` (L224-L239) - Function
-  - `cli.src.components.settings.hooks.useSettingsActions.startCodexAuth` (L243-L245) - Class
-  - `cli.src.components.settings.hooks.useSettingsActions.useSettingsActions.startCodexAuth.useCallback() callback` (L243-L245) - Function
-  - `cli.src.components.settings.hooks.useSettingsActions.completeCodexAuth` (L247-L252) - Class
-  - `cli.src.components.settings.hooks.useSettingsActions.useSettingsActions.completeCodexAuth.useCallback() callback` (L247-L252) - Function
-  - `cli.src.components.settings.hooks.useSettingsActions.startGithubAuth` (L254-L279) - Class
-  - `cli.src.components.settings.hooks.useSettingsActions.useSettingsActions.startGithubAuth.useCallback() callback` (L254-L279) - Function
-  - `cli.src.components.settings.hooks.useSettingsActions.cancelGithubAuth` (L281-L286) - Class
-  - `cli.src.components.settings.hooks.useSettingsActions.useSettingsActions.cancelGithubAuth.useCallback() callback` (L281-L286) - Function
-  - `cli.src.components.settings.hooks.useSettingsActions.useSettingsActions.handleAction.useCallback() callback` (L288-L522) - Function
-  - `cli.src.components.settings.hooks.useSettingsActions.handleAction` (L288-L564) - Class
-  - `cli.src.components.settings.hooks.useSettingsActions.useSettingsActions.handleAction.useCallback() callback.setUtilityModelUseCases() callback` (L303-L303) - Function
-  - `cli.src.components.settings.hooks.useSettingsActions.handleAction.useCallback() callback.rebuildTaskApi() callback` (L322-L328) - Function
-  - `cli.src.components.settings.hooks.useSettingsActions.handleAction.useCallback() callback.rebuildTaskApi() callback.persistInteractiveSettingWithRollback() callback` (L324-L324) - Function
-  - `cli.src.components.settings.hooks.useSettingsActions.useSettingsActions.handleAction.useCallback() callback.isTool` (L423-L423) - Class
-  - `cli.src.components.settings.hooks.useSettingsActions.useSettingsActions.handleAction.useCallback() callback.isTool.availableTools.some() callback` (L423-L423) - Function
-  - `cli.src.components.settings.hooks.useSettingsActions.useSettingsActions.handleAction.useCallback() callback.previousToggles` (L426-L426) - Class
-  - `cli.src.components.settings.hooks.useSettingsActions.useSettingsActions.handleAction.useCallback() callback.previousToggles.ToolRegistry.withExclusiveAccess() callback` (L426-L426) - Function
-  - `cli.src.components.settings.hooks.useSettingsActions.useSettingsActions.handleAction.useCallback() callback.rebuildTaskApi() callback` (L428-L440) - Function
-  - `cli.src.components.settings.hooks.useSettingsActions.handleAction.useCallback() callback.rebuildTaskApi() callback.persistInteractiveSettingWithRollback() callback.ToolRegistry.withExclusiveAccess() callback` (L431-L434) - Function
-  - `cli.src.components.settings.hooks.useSettingsActions.useSettingsActions.handleAction.useCallback() callback.rebuildTaskApi() callback.persistInteractiveSettingWithRollback() callback` (L435-L439) - Function
-  - `cli.src.components.settings.hooks.useSettingsActions.useSettingsActions.handleAction.useCallback() callback.rebuildTaskApi() callback.persistInteractiveSettingWithRollback() callback.ToolRegistry.withExclusiveAccess() callback` (L436-L439) - Function
-  - `cli.src.components.settings.hooks.useSettingsActions.useSettingsActions.handleAction.useCallback() callback.setToolToggles() callback` (L442-L442) - Function
-  - `cli.src.components.settings.hooks.useSettingsActions.handleSave` (L566-L631) - Class
-  - `cli.src.components.settings.hooks.useSettingsActions.useSettingsActions.handleSave.useCallback() callback` (L567-L616) - Function
-  - `cli.src.components.settings.hooks.useSettingsActions.useSettingsActions.beginOpenRouterModelSelection` (L633-L638) - Class
-  - `cli.src.components.settings.hooks.useSettingsActions.useSettingsActions.beginOpenRouterModelSelection.useCallback() callback` (L633-L638) - Function
-  - `cli.src.components.settings.hooks.useSettingsActions.handleProviderSelect` (L640-L731) - Class
-  - `cli.src.components.settings.hooks.useSettingsActions.useSettingsActions.handleProviderSelect.useCallback() callback` (L641-L714) - Function
-  - `cli.src.components.settings.hooks.useSettingsActions.handleModelSelect` (L733-L778) - Class
-  - `cli.src.components.settings.hooks.useSettingsActions.useSettingsActions.handleModelSelect.useCallback() callback` (L734-L760) - Function
-  - `cli.src.components.settings.hooks.useSettingsActions.handleApiKeySubmit` (L780-L815) - Class
-  - `cli.src.components.settings.hooks.useSettingsActions.useSettingsActions.handleApiKeySubmit.useCallback() callback` (L781-L801) - Function
-  - `cli.src.components.settings.hooks.useSettingsActions.handleBedrockComplete` (L817-L827) - Class
-  - `cli.src.components.settings.hooks.useSettingsActions.useSettingsActions.handleBedrockComplete.useCallback() callback` (L818-L825) - Function
-  - `cli.src.components.settings.hooks.useSettingsActions.handleBedrockCustomFlowComplete` (L829-L854) - Class
-  - `cli.src.components.settings.hooks.useSettingsActions.useSettingsActions.handleBedrockCustomFlowComplete.useCallback() callback` (L830-L843) - Function
-  - `cli.src.components.settings.hooks.useSettingsActions.handleLanguageSelect` (L856-L863) - Class
-  - `cli.src.components.settings.hooks.useSettingsActions.useSettingsActions.handleLanguageSelect.useCallback() callback` (L857-L861) - Function
-  - `cli.src.components.settings.hooks.useSettingsActions.navigateItems` (L865-L870) - Class
-  - `cli.src.components.settings.hooks.useSettingsActions.useSettingsActions.navigateItems.useCallback() callback` (L866-L868) - Function
-  - `cli.src.components.settings.hooks.useSettingsActions.useSettingsActions.navigateItems.useCallback() callback.setSelectedIndex() callback` (L867-L867) - Function
+  - `cli.src.components.settings.hooks.useSettingsActions.UseSettingsActionsProps` (L43-L112) - Interface
+  - `cli.src.components.settings.hooks.useSettingsActions.useSettingsActions` (L114-L907) - Function
+  - `cli.src.components.settings.hooks.useSettingsActions.useSettingsActions.commitSettings` (L184-L203) - Class
+  - `cli.src.components.settings.hooks.useSettingsActions.useSettingsActions.commitSettings.useCallback() callback` (L185-L201) - Function
+  - `cli.src.components.settings.hooks.useSettingsActions.useSettingsActions.commitSettings.useCallback() callback.previous` (L186-L188) - Class
+  - `cli.src.components.settings.hooks.useSettingsActions.useSettingsActions.commitSettings.useCallback() callback.previous.map() callback` (L187-L187) - Function
+  - `cli.src.components.settings.hooks.useSettingsActions.useSettingsActions.commitSettings.useCallback() callback.rebuildTaskApi() callback` (L189-L199) - Function
+  - `cli.src.components.settings.hooks.useSettingsActions.commitSettings.useCallback() callback.rebuildTaskApi() callback.persistInteractiveSettingWithRollback() callback` (L191-L194) - Function
+  - `cli.src.components.settings.hooks.useSettingsActions.useSettingsActions.commitSettings.useCallback() callback.rebuildTaskApi() callback.persistInteractiveSettingWithRollback() callback` (L195-L198) - Function
+  - `cli.src.components.settings.hooks.useSettingsActions.toggleFeature` (L205-L213) - Class
+  - `cli.src.components.settings.hooks.useSettingsActions.useSettingsActions.toggleFeature.useCallback() callback` (L206-L211) - Function
+  - `cli.src.components.settings.hooks.useSettingsActions.useSettingsActions.toggleFeature.useCallback() callback.setFeatures() callback` (L210-L210) - Function
+  - `cli.src.components.settings.hooks.useSettingsActions.handleUtilityModelPresetSelect` (L215-L223) - Class
+  - `cli.src.components.settings.hooks.useSettingsActions.useSettingsActions.handleUtilityModelPresetSelect.useCallback() callback` (L216-L221) - Function
+  - `cli.src.components.settings.hooks.useSettingsActions.setReasoningEffortForMode` (L225-L243) - Class
+  - `cli.src.components.settings.hooks.useSettingsActions.useSettingsActions.setReasoningEffortForMode.useCallback() callback` (L226-L241) - Function
+  - `cli.src.components.settings.hooks.useSettingsActions.startCodexAuth` (L245-L247) - Class
+  - `cli.src.components.settings.hooks.useSettingsActions.useSettingsActions.startCodexAuth.useCallback() callback` (L245-L247) - Function
+  - `cli.src.components.settings.hooks.useSettingsActions.completeCodexAuth` (L249-L254) - Class
+  - `cli.src.components.settings.hooks.useSettingsActions.useSettingsActions.completeCodexAuth.useCallback() callback` (L249-L254) - Function
+  - `cli.src.components.settings.hooks.useSettingsActions.startGithubAuth` (L256-L281) - Class
+  - `cli.src.components.settings.hooks.useSettingsActions.useSettingsActions.startGithubAuth.useCallback() callback` (L256-L281) - Function
+  - `cli.src.components.settings.hooks.useSettingsActions.cancelGithubAuth` (L283-L288) - Class
+  - `cli.src.components.settings.hooks.useSettingsActions.useSettingsActions.cancelGithubAuth.useCallback() callback` (L283-L288) - Function
+  - `cli.src.components.settings.hooks.useSettingsActions.useSettingsActions.handleAction.useCallback() callback` (L290-L539) - Function
+  - `cli.src.components.settings.hooks.useSettingsActions.handleAction` (L290-L581) - Class
+  - `cli.src.components.settings.hooks.useSettingsActions.useSettingsActions.handleAction.useCallback() callback.setUtilityModelUseCases() callback` (L305-L305) - Function
+  - `cli.src.components.settings.hooks.useSettingsActions.handleAction.useCallback() callback.rebuildTaskApi() callback` (L324-L330) - Function
+  - `cli.src.components.settings.hooks.useSettingsActions.handleAction.useCallback() callback.rebuildTaskApi() callback.persistInteractiveSettingWithRollback() callback` (L326-L326) - Function
+  - `cli.src.components.settings.hooks.useSettingsActions.handleAction.useCallback() callback.persistInteractiveSettingWithRollback() callback` (L417-L420) - Function
+  - `cli.src.components.settings.hooks.useSettingsActions.useSettingsActions.handleAction.useCallback() callback.persistInteractiveSettingWithRollback() callback` (L421-L424) - Function
+  - `cli.src.components.settings.hooks.useSettingsActions.useSettingsActions.handleAction.useCallback() callback.isTool` (L440-L440) - Class
+  - `cli.src.components.settings.hooks.useSettingsActions.useSettingsActions.handleAction.useCallback() callback.isTool.availableTools.some() callback` (L440-L440) - Function
+  - `cli.src.components.settings.hooks.useSettingsActions.useSettingsActions.handleAction.useCallback() callback.previousToggles` (L443-L443) - Class
+  - `cli.src.components.settings.hooks.useSettingsActions.useSettingsActions.handleAction.useCallback() callback.previousToggles.ToolRegistry.withExclusiveAccess() callback` (L443-L443) - Function
+  - `cli.src.components.settings.hooks.useSettingsActions.useSettingsActions.handleAction.useCallback() callback.rebuildTaskApi() callback` (L445-L457) - Function
+  - `cli.src.components.settings.hooks.useSettingsActions.handleAction.useCallback() callback.rebuildTaskApi() callback.persistInteractiveSettingWithRollback() callback.ToolRegistry.withExclusiveAccess() callback` (L448-L451) - Function
+  - `cli.src.components.settings.hooks.useSettingsActions.useSettingsActions.handleAction.useCallback() callback.rebuildTaskApi() callback.persistInteractiveSettingWithRollback() callback` (L452-L456) - Function
+  - `cli.src.components.settings.hooks.useSettingsActions.useSettingsActions.handleAction.useCallback() callback.rebuildTaskApi() callback.persistInteractiveSettingWithRollback() callback.ToolRegistry.withExclusiveAccess() callback` (L453-L456) - Function
+  - `cli.src.components.settings.hooks.useSettingsActions.useSettingsActions.handleAction.useCallback() callback.setToolToggles() callback` (L459-L459) - Function
+  - `cli.src.components.settings.hooks.useSettingsActions.handleSave` (L583-L648) - Class
+  - `cli.src.components.settings.hooks.useSettingsActions.useSettingsActions.handleSave.useCallback() callback` (L584-L633) - Function
+  - `cli.src.components.settings.hooks.useSettingsActions.useSettingsActions.beginOpenRouterModelSelection` (L650-L655) - Class
+  - `cli.src.components.settings.hooks.useSettingsActions.useSettingsActions.beginOpenRouterModelSelection.useCallback() callback` (L650-L655) - Function
+  - `cli.src.components.settings.hooks.useSettingsActions.handleProviderSelect` (L657-L748) - Class
+  - `cli.src.components.settings.hooks.useSettingsActions.useSettingsActions.handleProviderSelect.useCallback() callback` (L658-L731) - Function
+  - `cli.src.components.settings.hooks.useSettingsActions.handleModelSelect` (L750-L795) - Class
+  - `cli.src.components.settings.hooks.useSettingsActions.useSettingsActions.handleModelSelect.useCallback() callback` (L751-L777) - Function
+  - `cli.src.components.settings.hooks.useSettingsActions.handleApiKeySubmit` (L797-L832) - Class
+  - `cli.src.components.settings.hooks.useSettingsActions.useSettingsActions.handleApiKeySubmit.useCallback() callback` (L798-L818) - Function
+  - `cli.src.components.settings.hooks.useSettingsActions.handleBedrockComplete` (L834-L844) - Class
+  - `cli.src.components.settings.hooks.useSettingsActions.useSettingsActions.handleBedrockComplete.useCallback() callback` (L835-L842) - Function
+  - `cli.src.components.settings.hooks.useSettingsActions.handleBedrockCustomFlowComplete` (L846-L871) - Class
+  - `cli.src.components.settings.hooks.useSettingsActions.useSettingsActions.handleBedrockCustomFlowComplete.useCallback() callback` (L847-L860) - Function
+  - `cli.src.components.settings.hooks.useSettingsActions.handleLanguageSelect` (L873-L880) - Class
+  - `cli.src.components.settings.hooks.useSettingsActions.useSettingsActions.handleLanguageSelect.useCallback() callback` (L874-L878) - Function
+  - `cli.src.components.settings.hooks.useSettingsActions.navigateItems` (L882-L887) - Class
+  - `cli.src.components.settings.hooks.useSettingsActions.useSettingsActions.navigateItems.useCallback() callback` (L883-L885) - Function
+  - `cli.src.components.settings.hooks.useSettingsActions.useSettingsActions.navigateItems.useCallback() callback.setSelectedIndex() callback` (L884-L884) - Function
 - `cli/src/components/settings/hooks/useSettingsItems.ts`
-  - `cli.src.components.settings.hooks.useSettingsItems.UseSettingsItemsProps` (L18-L51) - Interface
-  - `cli.src.components.settings.hooks.useSettingsItems.createModelItems` (L76-L334) - Function
-  - `cli.src.components.settings.hooks.useSettingsItems.createUtilityItems` (L336-L413) - Function
-  - `cli.src.components.settings.hooks.useSettingsItems.createApprovalItems` (L415-L529) - Function
-  - `cli.src.components.settings.hooks.useSettingsItems.createResponsesItems` (L531-L554) - Function
-  - `cli.src.components.settings.hooks.useSettingsItems.createRunningTaskItems` (L556-L573) - Function
-  - `cli.src.components.settings.hooks.useSettingsItems.createToolItems` (L575-L623) - Function
-  - `cli.src.components.settings.hooks.useSettingsItems.createToolItems.tools` (L588-L588) - Class
-  - `cli.src.components.settings.hooks.useSettingsItems.createToolItems.tools.availableTools.filter() callback` (L588-L588) - Function
-  - `cli.src.components.settings.hooks.useSettingsItems.createToolItems.tools.sort() callback` (L588-L588) - Function
-  - `cli.src.components.settings.hooks.useSettingsItems.createTerminalItems` (L625-L634) - Function
-  - `cli.src.components.settings.hooks.useSettingsItems.createGeneralItems` (L636-L675) - Function
-  - `cli.src.components.settings.hooks.useSettingsItems.createSettingsItems` (L677-L698) - Function
-  - `cli.src.components.settings.hooks.useSettingsItems.useSettingsItems` (L700-L738) - Function
-  - `cli.src.components.settings.hooks.useSettingsItems.useSettingsItems.useMemo() callback` (L702-L702) - Function
-  - `cli.src.components.settings.hooks.useSettingsItems.createSettingsSearchResults` (L764-L801) - Function
-  - `cli.src.components.settings.hooks.useSettingsItems.createSettingsSearchResults.destinations.flatMap() callback` (L768-L800) - Function
-  - `cli.src.components.settings.hooks.useSettingsItems.destinations.flatMap() callback.map() callback` (L771-L771) - Function
-  - `cli.src.components.settings.hooks.useSettingsItems.createSettingsSearchResults.destinations.flatMap() callback.filter() callback` (L773-L773) - Function
-  - `cli.src.components.settings.hooks.useSettingsItems.createSettingsSearchResults.destinations.flatMap() callback.map() callback` (L775-L799) - Function
+  - `cli.src.components.settings.hooks.useSettingsItems.UseSettingsItemsProps` (L18-L52) - Interface
+  - `cli.src.components.settings.hooks.useSettingsItems.createModelItems` (L77-L335) - Function
+  - `cli.src.components.settings.hooks.useSettingsItems.createUtilityItems` (L337-L414) - Function
+  - `cli.src.components.settings.hooks.useSettingsItems.createApprovalItems` (L416-L530) - Function
+  - `cli.src.components.settings.hooks.useSettingsItems.createResponsesItems` (L532-L555) - Function
+  - `cli.src.components.settings.hooks.useSettingsItems.createRunningTaskItems` (L557-L574) - Function
+  - `cli.src.components.settings.hooks.useSettingsItems.createToolItems` (L576-L624) - Function
+  - `cli.src.components.settings.hooks.useSettingsItems.createToolItems.tools` (L589-L589) - Class
+  - `cli.src.components.settings.hooks.useSettingsItems.createToolItems.tools.availableTools.filter() callback` (L589-L589) - Function
+  - `cli.src.components.settings.hooks.useSettingsItems.createToolItems.tools.sort() callback` (L589-L589) - Function
+  - `cli.src.components.settings.hooks.useSettingsItems.createTerminalItems` (L626-L642) - Function
+  - `cli.src.components.settings.hooks.useSettingsItems.createGeneralItems` (L644-L683) - Function
+  - `cli.src.components.settings.hooks.useSettingsItems.createSettingsItems` (L685-L706) - Function
+  - `cli.src.components.settings.hooks.useSettingsItems.useSettingsItems` (L708-L747) - Function
+  - `cli.src.components.settings.hooks.useSettingsItems.useSettingsItems.useMemo() callback` (L710-L710) - Function
+  - `cli.src.components.settings.hooks.useSettingsItems.createSettingsSearchResults` (L773-L810) - Function
+  - `cli.src.components.settings.hooks.useSettingsItems.createSettingsSearchResults.destinations.flatMap() callback` (L777-L809) - Function
+  - `cli.src.components.settings.hooks.useSettingsItems.destinations.flatMap() callback.map() callback` (L780-L780) - Function
+  - `cli.src.components.settings.hooks.useSettingsItems.createSettingsSearchResults.destinations.flatMap() callback.filter() callback` (L782-L782) - Function
+  - `cli.src.components.settings.hooks.useSettingsItems.createSettingsSearchResults.destinations.flatMap() callback.map() callback` (L784-L808) - Function
 - `cli/src/components/settings/navigation.ts`
   - `cli.src.components.settings.navigation.isSelectableSettingsItem` (L13-L15) - Function
   - `cli.src.components.settings.navigation.getFirstSelectableSettingsIndex` (L17-L20) - Function
@@ -1289,8 +1248,25 @@ Provides shared terminal utilities for formatted output, Ink app lifecycle, prov
   - `cli.src.utils.console.suppressConsoleUnlessVerbose.info` (L32-L32) - Function
   - `cli.src.utils.console.restoreConsole` (L38-L44) - Function
 - `cli/src/utils/cursor.ts`
-  - `cli.src.utils.cursor.moveCursorUp` (L8-L23) - Function
-  - `cli.src.utils.cursor.moveCursorDown` (L28-L45) - Function
+  - `cli.src.utils.cursor.moveCursorVertically` (L3-L13) - Function
+  - `cli.src.utils.cursor.moveCursorVertically.currentColumn` (L10-L10) - Class
+  - `cli.src.utils.cursor.moveCursorVertically.currentColumn.cursorStops.reduce() callback` (L10-L10) - Function
+  - `cli.src.utils.cursor.moveCursorVertically.targetRow.cursorStops.reduce() callback` (L12-L12) - Function
+  - `cli.src.utils.cursor.moveCursorUp` (L16-L18) - Function
+  - `cli.src.utils.cursor.moveCursorDown` (L21-L23) - Function
+- `cli/src/utils/diff-layout.ts`
+  - `cli.src.utils.diff-layout.DiffLayout` (L10-L14) - Interface
+  - `cli.src.utils.diff-layout.createDiffLayout` (L20-L47) - Function
+  - `cli.src.utils.diff-layout.createDiffLayout.rows.diff.blocks.flatMap() callback` (L30-L45) - Function
+  - `cli.src.utils.diff-layout.createDiffLayout.rows.diff.blocks.flatMap() callback.blockRows` (L32-L43) - Class
+  - `cli.src.utils.diff-layout.createDiffLayout.rows.diff.blocks.flatMap() callback.blockRows.collapsed.flatMap() callback` (L34-L43) - Function
+  - `cli.src.utils.diff-layout.createDiffLayout.rows.diff.blocks.flatMap() callback.blockRows.collapsed.flatMap() callback.map() callback` (L38-L42) - Function
+  - `cli.src.utils.diff-layout.clipDiffRows` (L50-L55) - Function
+  - `cli.src.utils.diff-layout.collapseContext` (L57-L82) - Function
+  - `cli.src.utils.diff-layout.collapseContext.changeIndices` (L59-L59) - Class
+  - `cli.src.utils.diff-layout.collapseContext.changeIndices.lines.flatMap() callback` (L59-L59) - Function
+  - `cli.src.utils.diff-layout.collapseContext.lines.map() callback` (L60-L60) - Function
+  - `cli.src.utils.diff-layout.toSplitRows` (L84-L119) - Function
 - `cli/src/utils/display.ts`
   - `cli.src.utils.display.centerText` (L22-L26) - Function
   - `cli.src.utils.display.colorize` (L28-L31) - Function
@@ -1428,17 +1404,54 @@ Provides shared terminal utilities for formatted output, Ink app lifecycle, prov
   - `cli.src.utils.import-configs.getProviderDisplayName` (L246-L248) - Function
 - `cli/src/utils/ink.ts`
   - `cli.src.utils.ink.runInkApp` (L4-L57) - Function
+- `cli/src/utils/input-layout.ts`
+  - `cli.src.utils.input-layout.CursorStop` (L3-L6) - Interface
+  - `cli.src.utils.input-layout.InputVisualRow` (L8-L12) - Interface
+  - `cli.src.utils.input-layout.getInputContentWidth` (L17-L20) - Function
+  - `cli.src.utils.input-layout.getInputVisualRows` (L27-L58) - Function
+  - `cli.src.utils.input-layout.getInputCursorRow` (L60-L65) - Function
 - `cli/src/utils/input-viewport.ts`
-  - `cli.src.utils.input-viewport.InputViewport` (L1-L6) - Interface
-  - `cli.src.utils.input-viewport.VisualRow` (L8-L11) - Interface
-  - `cli.src.utils.input-viewport.splitIntoVisualRows` (L13-L40) - Function
-  - `cli.src.utils.input-viewport.createInputViewport` (L47-L82) - Function
-  - `cli.src.utils.input-viewport.createInputViewport.cursorRow` (L66-L66) - Class
-  - `cli.src.utils.input-viewport.createInputViewport.cursorRow.rows.findIndex() callback` (L66-L66) - Function
+  - `cli.src.utils.input-viewport.InputViewport` (L3-L8) - Interface
+  - `cli.src.utils.input-viewport.createInputViewport` (L11-L39) - Function
 - `cli/src/utils/input.ts`
   - `cli.src.utils.input.isTerminalResponseSequence` (L18-L46) - Function
   - `cli.src.utils.input.isMouseEscapeSequence` (L48-L52) - Function
   - `cli.src.utils.input.shouldIgnoreTerminalInput` (L54-L56) - Function
+- `cli/src/utils/markdown.ts`
+  - `cli.src.utils.markdown.styleText` (L13-L21) - Function
+  - `cli.src.utils.markdown.truncateCell` (L23-L32) - Function
+  - `cli.src.utils.markdown.allocateColumnWidths` (L34-L41) - Function
+  - `cli.src.utils.markdown.allocateColumnWidths.widths` (L35-L35) - Class
+  - `cli.src.utils.markdown.allocateColumnWidths.widths.naturalWidths.map() callback` (L35-L35) - Function
+  - `cli.src.utils.markdown.allocateColumnWidths.naturalTotal` (L36-L36) - Class
+  - `cli.src.utils.markdown.allocateColumnWidths.naturalTotal.widths.reduce() callback` (L36-L36) - Function
+  - `cli.src.utils.markdown.allocateColumnWidths.expandableTotal` (L39-L39) - Class
+  - `cli.src.utils.markdown.allocateColumnWidths.expandableTotal.widths.reduce() callback` (L39-L39) - Function
+  - `cli.src.utils.markdown.allocateColumnWidths.widths.map() callback` (L40-L40) - Function
+  - `cli.src.utils.markdown.renderTokens` (L43-L45) - Function
+  - `cli.src.utils.markdown.renderTokens.tokens.map() callback` (L44-L44) - Function
+  - `cli.src.utils.markdown.renderToken` (L47-L157) - Function
+  - `cli.src.utils.markdown.renderToken.padWidth` (L64-L64) - Class
+  - `cli.src.utils.markdown.renderToken.padWidth.lines.map() callback` (L64-L64) - Function
+  - `cli.src.utils.markdown.renderToken.body` (L66-L71) - Class
+  - `cli.src.utils.markdown.renderToken.body.lines.map() callback` (L68-L69) - Function
+  - `cli.src.utils.markdown.renderToken.items.map() callback` (L78-L79) - Function
+  - `cli.src.utils.markdown.renderToken.headerTexts` (L111-L111) - Class
+  - `cli.src.utils.markdown.renderToken.headerTexts.header.map() callback` (L111-L111) - Function
+  - `cli.src.utils.markdown.renderToken.rowTexts` (L112-L112) - Class
+  - `cli.src.utils.markdown.renderToken.rowTexts.rows.map() callback` (L112-L112) - Function
+  - `cli.src.utils.markdown.renderToken.rowTexts.rows.map() callback.row.map() callback` (L112-L112) - Function
+  - `cli.src.utils.markdown.renderToken.naturalWidths.headerTexts.map() callback` (L113-L114) - Function
+  - `cli.src.utils.markdown.renderToken.naturalWidths` (L113-L115) - Class
+  - `cli.src.utils.markdown.renderToken.naturalWidths.headerTexts.map() callback.rowTexts.map() callback` (L114-L114) - Function
+  - `cli.src.utils.markdown.renderToken.map() callback` (L120-L121) - Function
+  - `cli.src.utils.markdown.renderToken.border` (L126-L127) - Class
+  - `cli.src.utils.markdown.renderToken.border.widths.map() callback` (L127-L127) - Function
+  - `cli.src.utils.markdown.renderToken.row` (L128-L136) - Class
+  - `cli.src.utils.markdown.renderToken.row.cells.map() callback` (L131-L134) - Function
+  - `cli.src.utils.markdown.renderToken.rowTexts.map() callback` (L142-L142) - Function
+  - `cli.src.utils.markdown.renderMarkdownLines` (L160-L164) - Function
+  - `cli.src.utils.markdown.clipMarkdownLines` (L166-L176) - Function
 - `cli/src/utils/mode-selection.ts`
   - `cli.src.utils.mode-selection.ModeSelectionInput` (L13-L24) - Interface
   - `cli.src.utils.mode-selection.ModeSelectionResult` (L26-L31) - Interface
@@ -1632,9 +1645,9 @@ Provides shared terminal utilities for formatted output, Ink app lifecycle, prov
   - `cli.src.utils.text-clipping.summarizeFirstLine.line.map() callback` (L51-L51) - Function
   - `cli.src.utils.text-clipping.clipTextToWindow` (L70-L107) - Function
 - `cli/src/utils/timeline-rows.ts`
-  - `cli.src.utils.timeline-rows.estimateTimelineMessageRows` (L9-L29) - Function
-  - `cli.src.utils.timeline-rows.estimateTimelineMessageBodyRows` (L31-L44) - Function
-  - `cli.src.utils.timeline-rows.calculateTimelineBodyLineBudget` (L46-L62) - Function
+  - `cli.src.utils.timeline-rows.estimateTimelineMessageRows` (L10-L30) - Function
+  - `cli.src.utils.timeline-rows.estimateTimelineMessageBodyRows` (L32-L48) - Function
+  - `cli.src.utils.timeline-rows.calculateTimelineBodyLineBudget` (L50-L66) - Function
 - `cli/src/utils/tool-options.ts`
   - `cli.src.utils.tool-options.hasToolSelectionOptions` (L9-L11) - Function
   - `cli.src.utils.tool-options.toolIdentifiers` (L13-L15) - Function
@@ -1668,6 +1681,32 @@ Provides shared terminal utilities for formatted output, Ink app lifecycle, prov
   - `cli.src.utils.update.ParsedVersion` (L260-L264) - Interface
   - `cli.src.utils.update.parseVersion` (L270-L284) - Function
   - `cli.src.utils.update.compareVersions` (L292-L317) - Function
+- `cli/src/utils/vim-editor.ts`
+  - `cli.src.utils.vim-editor.VimSnapshot` (L3-L6) - Interface
+  - `cli.src.utils.vim-editor.VimEditorState` (L7-L16) - Interface
+  - `cli.src.utils.vim-editor.createVimEditor` (L21-L23) - Function
+  - `cli.src.utils.vim-editor.VimTextMotions` (L26-L135) - Class
+  - `cli.src.utils.vim-editor.VimTextMotions.constructor` (L30-L33) - Constructor
+  - `cli.src.utils.vim-editor.VimTextMotions.constructor.map() callback` (L31-L31) - Function
+  - `cli.src.utils.vim-editor.VimTextMotions.constructor.offsets.map() callback` (L32-L32) - Function
+  - `cli.src.utils.vim-editor.VimTextMotions.previous` (L35-L37) - Method
+  - `cli.src.utils.vim-editor.VimTextMotions.next` (L39-L41) - Method
+  - `cli.src.utils.vim-editor.VimTextMotions.lineStart` (L43-L45) - Method
+  - `cli.src.utils.vim-editor.VimTextMotions.lineEnd` (L47-L50) - Method
+  - `cli.src.utils.vim-editor.VimTextMotions.boundary` (L52-L62) - Method
+  - `cli.src.utils.vim-editor.VimTextMotions.normalCursor` (L64-L68) - Method
+  - `cli.src.utils.vim-editor.VimTextMotions.wordClass` (L70-L74) - Method
+  - `cli.src.utils.vim-editor.VimTextMotions.wordMotion` (L76-L93) - Method
+  - `cli.src.utils.vim-editor.VimTextMotions.wordEnd` (L95-L99) - Method
+  - `cli.src.utils.vim-editor.VimTextMotions.verticalMotion` (L101-L110) - Method
+  - `cli.src.utils.vim-editor.VimTextMotions.motion` (L112-L134) - Method
+  - `cli.src.utils.vim-editor.normalCursor` (L137-L139) - Function
+  - `cli.src.utils.vim-editor.clearCommand` (L141-L143) - Function
+  - `cli.src.utils.vim-editor.enterInsert` (L145-L147) - Function
+  - `cli.src.utils.vim-editor.deleteRange` (L149-L159) - Function
+  - `cli.src.utils.vim-editor.restoreHistory` (L161-L172) - Function
+  - `cli.src.utils.vim-editor.applyVimTextEdit` (L175-L184) - Function
+  - `cli.src.utils.vim-editor.applyVimKey` (L187-L269) - Function
 
 
 ### ACP Server & Dirac Agent Adapter [[Expand]](./ACP_Server_Dirac_Agent_Adapter.md)
@@ -2675,7 +2714,7 @@ Supplies custom React hooks for chat message timelines, input handling, terminal
 - `cli.src.hooks.useTerminalSize.useTerminalSize`:95-97
 - `cli.src.hooks.useScrollableList.useScrollableList`:78-80
 - `cli.src.hooks.useChatFooterStatus.useChatFooterStatus`:33-141
-- `cli.src.hooks.useChatInputHandler.useChatInputHandler`:102-490
+- `cli.src.hooks.useChatInputHandler.useChatInputHandler`:108-512
 
 
 
@@ -2695,23 +2734,21 @@ Supplies custom React hooks for chat message timelines, input handling, terminal
   - `cli.src.hooks.useChatFooterStatus.useChatFooterStatus.lastApiReqTotalTokens.useMemo() callback` (L98-L98) - Function
   - `cli.src.hooks.useChatFooterStatus.useChatFooterStatus.contextWindowSize.useMemo() callback` (L101-L126) - Function
 - `cli/src/hooks/useChatInputHandler.ts`
-  - `cli.src.hooks.useChatInputHandler.getGoalKeyboardShortcut` (L21-L32) - Function
-  - `cli.src.hooks.useChatInputHandler.UseChatInputHandlerProps` (L34-L100) - Interface
-  - `cli.src.hooks.useChatInputHandler.useChatInputHandler` (L102-L490) - Function
-  - `cli.src.hooks.useChatInputHandler.useChatInputHandler.useInput() callback` (L162-L489) - Function
-  - `cli.src.hooks.useChatInputHandler.useChatInputHandler.useInput() callback.localSlashCommandContext` (L173-L184) - Class
-  - `cli.src.hooks.useChatInputHandler.useChatInputHandler.useInput() callback.localSlashCommandContext.resetInputLine` (L176-L179) - Method
-  - `cli.src.hooks.useChatInputHandler.useInput() callback.setSelectedSlashIndex() callback` (L216-L216) - Function
-  - `cli.src.hooks.useChatInputHandler.useChatInputHandler.useInput() callback.setSelectedSlashIndex() callback` (L220-L220) - Function
-  - `cli.src.hooks.useChatInputHandler.useInput() callback.setSelectedIndex() callback` (L255-L255) - Function
-  - `cli.src.hooks.useChatInputHandler.useChatInputHandler.useInput() callback.setSelectedIndex() callback` (L259-L259) - Function
-  - `cli.src.hooks.useChatInputHandler.useChatInputHandler.useInput() callback.<function>` (L366-L376) - Function
-  - `cli.src.hooks.useChatInputHandler.useInput() callback.setPastedTexts() callback` (L391-L395) - Function
-  - `cli.src.hooks.useChatInputHandler.useChatInputHandler.useInput() callback.setTimeout() callback` (L398-L411) - Function
-  - `cli.src.hooks.useChatInputHandler.useChatInputHandler.useInput() callback.setTimeout() callback.setTextInput() callback` (L407-L407) - Function
-  - `cli.src.hooks.useChatInputHandler.useChatInputHandler.useInput() callback.setPastedTexts() callback` (L422-L426) - Function
-  - `cli.src.hooks.useChatInputHandler.useInput() callback.setCursorPos() callback` (L468-L468) - Function
-  - `cli.src.hooks.useChatInputHandler.useChatInputHandler.useInput() callback.setCursorPos() callback` (L472-L472) - Function
+  - `cli.src.hooks.useChatInputHandler.getGoalKeyboardShortcut` (L22-L33) - Function
+  - `cli.src.hooks.useChatInputHandler.UseChatInputHandlerProps` (L35-L106) - Interface
+  - `cli.src.hooks.useChatInputHandler.useChatInputHandler` (L108-L512) - Function
+  - `cli.src.hooks.useChatInputHandler.useChatInputHandler.useInput() callback` (L173-L511) - Function
+  - `cli.src.hooks.useChatInputHandler.useInput() callback.setSelectedSlashIndex() callback` (L246-L246) - Function
+  - `cli.src.hooks.useChatInputHandler.useChatInputHandler.useInput() callback.setSelectedSlashIndex() callback` (L250-L250) - Function
+  - `cli.src.hooks.useChatInputHandler.useInput() callback.setSelectedIndex() callback` (L285-L285) - Function
+  - `cli.src.hooks.useChatInputHandler.useChatInputHandler.useInput() callback.setSelectedIndex() callback` (L289-L289) - Function
+  - `cli.src.hooks.useChatInputHandler.useChatInputHandler.useInput() callback.<function>` (L382-L392) - Function
+  - `cli.src.hooks.useChatInputHandler.useInput() callback.setPastedTexts() callback` (L407-L411) - Function
+  - `cli.src.hooks.useChatInputHandler.useChatInputHandler.useInput() callback.setTimeout() callback` (L414-L427) - Function
+  - `cli.src.hooks.useChatInputHandler.useChatInputHandler.useInput() callback.setTimeout() callback.setTextInput() callback` (L423-L423) - Function
+  - `cli.src.hooks.useChatInputHandler.useChatInputHandler.useInput() callback.setPastedTexts() callback` (L438-L442) - Function
+  - `cli.src.hooks.useChatInputHandler.useInput() callback.setCursorPos() callback` (L484-L484) - Function
+  - `cli.src.hooks.useChatInputHandler.useChatInputHandler.useInput() callback.setCursorPos() callback` (L488-L488) - Function
 - `cli/src/hooks/useChatMessages.ts`
   - `cli.src.hooks.useChatMessages.useChatMessages` (L5-L38) - Function
   - `cli.src.hooks.useChatMessages.useChatMessages.timeline` (L11-L29) - Class
@@ -2757,64 +2794,81 @@ Supplies custom React hooks for chat message timelines, input handling, terminal
   - `cli.src.hooks.useChatTimeline.createStaticTimelineItems` (L144-L156) - Function
   - `cli.src.hooks.useChatTimeline.createDynamicTimelineItems` (L158-L192) - Function
   - `cli.src.hooks.useChatTimeline.createDynamicTimelineItems.items.allocations.map() callback` (L187-L188) - Function
-  - `cli.src.hooks.useChatTimeline.createExclusiveMessagePlan` (L194-L223) - Function
-  - `cli.src.hooks.useChatTimeline.createProjectedMessageItem` (L225-L246) - Function
-  - `cli.src.hooks.useChatTimeline.estimateMessageRows` (L248-L254) - Function
-  - `cli.src.hooks.useChatTimeline.isMutableTimelineMessage` (L256-L259) - Function
-  - `cli.src.hooks.useChatTimeline.createTurnSeparatedMessageItems` (L261-L278) - Function
-  - `cli.src.hooks.useChatTimeline.startsNewChatTurn` (L280-L283) - Function
-  - `cli.src.hooks.useChatTimeline.createMessageItem` (L285-L292) - Function
-  - `cli.src.hooks.useChatTimeline.getMessageKind` (L294-L304) - Function
+  - `cli.src.hooks.useChatTimeline.createExclusiveMessagePlan` (L194-L224) - Function
+  - `cli.src.hooks.useChatTimeline.createProjectedMessageItem` (L226-L247) - Function
+  - `cli.src.hooks.useChatTimeline.estimateMessageRows` (L249-L255) - Function
+  - `cli.src.hooks.useChatTimeline.isMutableTimelineMessage` (L257-L260) - Function
+  - `cli.src.hooks.useChatTimeline.createTurnSeparatedMessageItems` (L262-L279) - Function
+  - `cli.src.hooks.useChatTimeline.startsNewChatTurn` (L281-L284) - Function
+  - `cli.src.hooks.useChatTimeline.createMessageItem` (L286-L293) - Function
+  - `cli.src.hooks.useChatTimeline.getMessageKind` (L295-L305) - Function
 - `cli/src/hooks/useComposer.ts`
-  - `cli.src.hooks.useComposer.PersistedInputState` (L42-L47) - Interface
-  - `cli.src.hooks.useComposer.ComposerActions` (L59-L73) - Interface
-  - `cli.src.hooks.useComposer.UseComposerProps` (L75-L97) - Interface
-  - `cli.src.hooks.useComposer.useComposer` (L99-L473) - Function
-  - `cli.src.hooks.useComposer.storageKey` (L137-L137) - Class
-  - `cli.src.hooks.useComposer.useComposer.storageKey.useMemo() callback` (L137-L137) - Function
-  - `cli.src.hooks.useComposer.textInputRef` (L138-L145) - Class
-  - `cli.src.hooks.useComposer.useComposer.textInputRef.useMemo() callback` (L139-L143) - Function
-  - `cli.src.hooks.useComposer.useComposer.textInputRef.useMemo() callback.current` (L140-L142) - Method
-  - `cli.src.hooks.useComposer.cursorPosRef` (L146-L153) - Class
-  - `cli.src.hooks.useComposer.useComposer.cursorPosRef.useMemo() callback` (L147-L151) - Function
-  - `cli.src.hooks.useComposer.useComposer.cursorPosRef.useMemo() callback.current` (L148-L150) - Method
-  - `cli.src.hooks.useComposer.useComposer.handleHome` (L187-L187) - Class
-  - `cli.src.hooks.useComposer.useComposer.handleHome.useCallback() callback` (L187-L187) - Function
-  - `cli.src.hooks.useComposer.useComposer.handleEnd` (L188-L188) - Class
-  - `cli.src.hooks.useComposer.useComposer.handleEnd.useCallback() callback` (L188-L188) - Function
-  - `cli.src.hooks.useComposer.useEffect() callback` (L202-L217) - Function
-  - `cli.src.hooks.useComposer.mentionInfo` (L237-L237) - Class
-  - `cli.src.hooks.useComposer.useComposer.mentionInfo.useMemo() callback` (L237-L237) - Function
-  - `cli.src.hooks.useComposer.slashInfo` (L238-L238) - Class
-  - `cli.src.hooks.useComposer.useComposer.slashInfo.useMemo() callback` (L238-L238) - Function
-  - `cli.src.hooks.useComposer.filteredCommands` (L239-L242) - Class
-  - `cli.src.hooks.useComposer.useComposer.filteredCommands.useMemo() callback` (L240-L240) - Function
-  - `cli.src.hooks.useComposer.useComposer.useEffect() callback.cliOnlyCommands` (L253-L258) - Class
-  - `cli.src.hooks.useComposer.useComposer.useEffect() callback.cliOnlyCommands.CLI_ONLY_COMMANDS.map() callback` (L253-L258) - Function
-  - `cli.src.hooks.useComposer.useEffect() callback.then() callback` (L264-L268) - Function
-  - `cli.src.hooks.useComposer.useComposer.useEffect() callback.then() callback.backendCommands` (L266-L266) - Class
-  - `cli.src.hooks.useComposer.useComposer.useEffect() callback.then() callback.backendCommands.response.commands.filter() callback` (L266-L266) - Function
-  - `cli.src.hooks.useComposer.useComposer.useEffect() callback.then() callback` (L269-L271) - Function
-  - `cli.src.hooks.useComposer.getHistoryItems` (L288-L304) - Class
-  - `cli.src.hooks.useComposer.useComposer.getHistoryItems.useCallback() callback` (L288-L304) - Function
-  - `cli.src.hooks.useComposer.useComposer.getHistoryItems.useCallback() callback.filtered` (L291-L302) - Class
-  - `cli.src.hooks.useComposer.useComposer.getHistoryItems.useCallback() callback.filtered.filter() callback` (L292-L297) - Function
-  - `cli.src.hooks.useComposer.useComposer.getHistoryItems.useCallback() callback.filtered.map() callback` (L300-L300) - Function
-  - `cli.src.hooks.useComposer.useComposer.useEffect() callback` (L306-L374) - Function
-  - `cli.src.hooks.useComposer.useEffect() callback.setTimeout() callback` (L325-L325) - Function
-  - `cli.src.hooks.useComposer.useComposer.useEffect() callback.setTimeout() callback` (L335-L370) - Function
-  - `cli.src.hooks.useComposer.useComposer.handleAskShortcuts` (L385-L385) - Method
-  - `cli.src.hooks.useComposer.useComposer.toggleMode` (L389-L389) - Method
-  - `cli.src.hooks.useComposer.useComposer.toggleAutoApproveAll` (L390-L390) - Method
-  - `cli.src.hooks.useComposer.useComposer.enableFastMode` (L391-L391) - Method
-  - `cli.src.hooks.useComposer.useComposer.toggleQuietMode` (L392-L392) - Method
-  - `cli.src.hooks.useComposer.useComposer.handleSubmit` (L393-L393) - Method
-  - `cli.src.hooks.useComposer.useComposer.handleExit` (L394-L394) - Method
-  - `cli.src.hooks.useComposer.useComposer.clearViewAndResetTask` (L395-L395) - Method
-  - `cli.src.hooks.useComposer.useComposer.handleButtonAction` (L415-L415) - Method
-  - `cli.src.hooks.useComposer.resetInput` (L437-L443) - Class
-  - `cli.src.hooks.useComposer.useComposer.resetInput.useCallback() callback` (L437-L443) - Function
-  - `cli.src.hooks.useComposer.useComposer.availableCommandNames.availableCommands.map() callback` (L459-L459) - Function
+  - `cli.src.hooks.useComposer.PersistedInputState` (L46-L52) - Interface
+  - `cli.src.hooks.useComposer.ComposerActions` (L64-L78) - Interface
+  - `cli.src.hooks.useComposer.UseComposerProps` (L80-L105) - Interface
+  - `cli.src.hooks.useComposer.useComposer` (L107-L558) - Function
+  - `cli.src.hooks.useComposer.useComposer.subscribeVimSetting` (L151-L151) - Class
+  - `cli.src.hooks.useComposer.useComposer.subscribeVimSetting.useCallback() callback` (L151-L151) - Function
+  - `cli.src.hooks.useComposer.useComposer.readVimSetting` (L152-L152) - Class
+  - `cli.src.hooks.useComposer.useComposer.readVimSetting.useCallback() callback` (L152-L152) - Function
+  - `cli.src.hooks.useComposer.setTextInput` (L160-L163) - Class
+  - `cli.src.hooks.useComposer.useComposer.setTextInput.useCallback() callback` (L161-L161) - Function
+  - `cli.src.hooks.useComposer.useComposer.setTextInput.useCallback() callback.editWithVimHistory() callback` (L161-L161) - Function
+  - `cli.src.hooks.useComposer.insertTextAtCursor` (L164-L167) - Class
+  - `cli.src.hooks.useComposer.useComposer.insertTextAtCursor.useCallback() callback` (L165-L165) - Function
+  - `cli.src.hooks.useComposer.useComposer.insertTextAtCursor.useCallback() callback.editWithVimHistory() callback` (L165-L165) - Function
+  - `cli.src.hooks.useComposer.handleCtrlShortcut` (L168-L171) - Class
+  - `cli.src.hooks.useComposer.useComposer.handleCtrlShortcut.useCallback() callback` (L169-L169) - Function
+  - `cli.src.hooks.useComposer.useComposer.handleCtrlShortcut.useCallback() callback.editWithVimHistory() callback` (L169-L169) - Function
+  - `cli.src.hooks.useComposer.textInputRef` (L172-L179) - Class
+  - `cli.src.hooks.useComposer.useComposer.textInputRef.useMemo() callback` (L173-L177) - Function
+  - `cli.src.hooks.useComposer.useComposer.textInputRef.useMemo() callback.current` (L174-L176) - Method
+  - `cli.src.hooks.useComposer.cursorPosRef` (L180-L187) - Class
+  - `cli.src.hooks.useComposer.useComposer.cursorPosRef.useMemo() callback` (L181-L185) - Function
+  - `cli.src.hooks.useComposer.useComposer.cursorPosRef.useMemo() callback.current` (L182-L184) - Method
+  - `cli.src.hooks.useComposer.useComposer.resetPasteChunks` (L221-L226) - Class
+  - `cli.src.hooks.useComposer.useComposer.resetPasteChunks.useCallback() callback` (L221-L226) - Function
+  - `cli.src.hooks.useComposer.useComposer.loadHistory` (L228-L231) - Class
+  - `cli.src.hooks.useComposer.useComposer.loadHistory.useCallback() callback` (L229-L229) - Function
+  - `cli.src.hooks.useComposer.useComposer.handleHome` (L259-L262) - Class
+  - `cli.src.hooks.useComposer.useComposer.handleHome.useCallback() callback` (L259-L262) - Function
+  - `cli.src.hooks.useComposer.useComposer.handleEnd` (L263-L266) - Class
+  - `cli.src.hooks.useComposer.useComposer.handleEnd.useCallback() callback` (L263-L266) - Function
+  - `cli.src.hooks.useComposer.useComposer.onBackspace` (L275-L278) - Method
+  - `cli.src.hooks.useComposer.useComposer.onDelete` (L279-L282) - Method
+  - `cli.src.hooks.useComposer.useEffect() callback` (L286-L292) - Function
+  - `cli.src.hooks.useComposer.mentionInfo` (L313-L313) - Class
+  - `cli.src.hooks.useComposer.useComposer.mentionInfo.useMemo() callback` (L313-L313) - Function
+  - `cli.src.hooks.useComposer.slashInfo` (L314-L314) - Class
+  - `cli.src.hooks.useComposer.useComposer.slashInfo.useMemo() callback` (L314-L314) - Function
+  - `cli.src.hooks.useComposer.filteredCommands` (L315-L318) - Class
+  - `cli.src.hooks.useComposer.useComposer.filteredCommands.useMemo() callback` (L316-L316) - Function
+  - `cli.src.hooks.useComposer.useComposer.useEffect() callback.cliOnlyCommands` (L329-L334) - Class
+  - `cli.src.hooks.useComposer.useComposer.useEffect() callback.cliOnlyCommands.CLI_ONLY_COMMANDS.map() callback` (L329-L334) - Function
+  - `cli.src.hooks.useComposer.useEffect() callback.then() callback` (L340-L344) - Function
+  - `cli.src.hooks.useComposer.useComposer.useEffect() callback.then() callback.backendCommands` (L342-L342) - Class
+  - `cli.src.hooks.useComposer.useComposer.useEffect() callback.then() callback.backendCommands.response.commands.filter() callback` (L342-L342) - Function
+  - `cli.src.hooks.useComposer.useComposer.useEffect() callback.then() callback` (L345-L347) - Function
+  - `cli.src.hooks.useComposer.getHistoryItems` (L364-L380) - Class
+  - `cli.src.hooks.useComposer.useComposer.getHistoryItems.useCallback() callback` (L364-L380) - Function
+  - `cli.src.hooks.useComposer.useComposer.getHistoryItems.useCallback() callback.filtered` (L367-L378) - Class
+  - `cli.src.hooks.useComposer.useComposer.getHistoryItems.useCallback() callback.filtered.filter() callback` (L368-L373) - Function
+  - `cli.src.hooks.useComposer.useComposer.getHistoryItems.useCallback() callback.filtered.map() callback` (L376-L376) - Function
+  - `cli.src.hooks.useComposer.useComposer.useEffect() callback` (L382-L450) - Function
+  - `cli.src.hooks.useComposer.useEffect() callback.setTimeout() callback` (L401-L401) - Function
+  - `cli.src.hooks.useComposer.useComposer.useEffect() callback.setTimeout() callback` (L411-L446) - Function
+  - `cli.src.hooks.useComposer.resetInput` (L452-L461) - Class
+  - `cli.src.hooks.useComposer.useComposer.resetInput.useCallback() callback` (L452-L461) - Function
+  - `cli.src.hooks.useComposer.useComposer.handleAskShortcuts` (L473-L473) - Method
+  - `cli.src.hooks.useComposer.useComposer.toggleMode` (L480-L480) - Method
+  - `cli.src.hooks.useComposer.useComposer.toggleAutoApproveAll` (L481-L481) - Method
+  - `cli.src.hooks.useComposer.useComposer.enableFastMode` (L482-L482) - Method
+  - `cli.src.hooks.useComposer.useComposer.toggleQuietMode` (L483-L483) - Method
+  - `cli.src.hooks.useComposer.useComposer.handleSubmit` (L484-L484) - Method
+  - `cli.src.hooks.useComposer.useComposer.handleExit` (L485-L485) - Method
+  - `cli.src.hooks.useComposer.useComposer.clearViewAndResetTask` (L486-L486) - Method
+  - `cli.src.hooks.useComposer.useComposer.handleButtonAction` (L507-L507) - Method
+  - `cli.src.hooks.useComposer.useComposer.availableCommandNames.availableCommands.map() callback` (L544-L544) - Function
 - `cli/src/hooks/useHomeEndKeys.ts`
   - `cli.src.hooks.useHomeEndKeys.UseHomeEndKeysOptions` (L14-L18) - Interface
   - `cli.src.hooks.useHomeEndKeys.useHomeEndKeys` (L24-L54) - Function
@@ -2827,6 +2881,17 @@ Supplies custom React hooks for chat message timelines, input handling, terminal
   - `cli.src.hooks.useOcaAuth.useOcaAuth` (L29-L37) - Function
   - `cli.src.hooks.useOcaAuth.useOcaAuth.startAuth` (L32-L32) - Method
   - `cli.src.hooks.useOcaAuth.useOcaAuth.cancelAuth` (L33-L33) - Method
+- `cli/src/hooks/usePromptHistory.ts`
+  - `cli.src.hooks.usePromptHistory.Draft` (L4-L7) - Interface
+  - `cli.src.hooks.usePromptHistory.UsePromptHistoryProps` (L9-L17) - Interface
+  - `cli.src.hooks.usePromptHistory.usePromptHistory` (L20-L83) - Function
+  - `cli.src.hooks.usePromptHistory.resetHistory` (L28-L32) - Class
+  - `cli.src.hooks.usePromptHistory.usePromptHistory.resetHistory.useCallback() callback` (L28-L32) - Function
+  - `cli.src.hooks.usePromptHistory.usePromptHistory.useEffect() callback` (L34-L44) - Function
+  - `cli.src.hooks.usePromptHistory.usePromptHistory.useEffect() callback.history.catch() callback` (L40-L42) - Function
+  - `cli.src.hooks.usePromptHistory.navigateHistory` (L46-L80) - Class
+  - `cli.src.hooks.usePromptHistory.usePromptHistory.navigateHistory.useCallback() callback` (L46-L80) - Function
+  - `cli.src.hooks.usePromptHistory.usePromptHistory.navigateHistory.useCallback() callback.catch() callback` (L77-L79) - Function
 - `cli/src/hooks/useRawBackspaceKeys.ts`
   - `cli.src.hooks.useRawBackspaceKeys.UseRawBackspaceKeysOptions` (L22-L26) - Interface
   - `cli.src.hooks.useRawBackspaceKeys.useRawBackspaceKeys` (L33-L88) - Function
@@ -2857,55 +2922,60 @@ Supplies custom React hooks for chat message timelines, input handling, terminal
   - `cli.src.hooks.useTextInput.parseKeyboardSequence` (L32-L40) - Function
   - `cli.src.hooks.useTextInput.findWordStart` (L45-L56) - Function
   - `cli.src.hooks.useTextInput.findWordEnd` (L61-L72) - Function
-  - `cli.src.hooks.useTextInput.UseTextInputReturn` (L74-L96) - Interface
-  - `cli.src.hooks.useTextInput.useTextInput` (L101-L297) - Function
-  - `cli.src.hooks.useTextInput.useTextInput.updateState` (L114-L121) - Class
-  - `cli.src.hooks.useTextInput.useTextInput.updateState.useCallback() callback` (L115-L119) - Function
-  - `cli.src.hooks.useTextInput.setText` (L124-L136) - Class
-  - `cli.src.hooks.useTextInput.useTextInput.setText.useCallback() callback` (L125-L134) - Function
-  - `cli.src.hooks.useTextInput.useTextInput.setText.useCallback() callback.updateState() callback` (L126-L133) - Function
-  - `cli.src.hooks.useTextInput.insertText` (L138-L147) - Class
-  - `cli.src.hooks.useTextInput.useTextInput.insertText.useCallback() callback` (L139-L145) - Function
-  - `cli.src.hooks.useTextInput.useTextInput.insertText.useCallback() callback.updateState() callback` (L141-L144) - Function
-  - `cli.src.hooks.useTextInput.setCursorPos` (L149-L160) - Class
-  - `cli.src.hooks.useTextInput.useTextInput.setCursorPos.useCallback() callback` (L150-L158) - Function
-  - `cli.src.hooks.useTextInput.useTextInput.setCursorPos.useCallback() callback.updateState() callback` (L151-L157) - Function
-  - `cli.src.hooks.useTextInput.deleteCharsBefore` (L163-L175) - Class
-  - `cli.src.hooks.useTextInput.useTextInput.deleteCharsBefore.useCallback() callback` (L164-L173) - Function
-  - `cli.src.hooks.useTextInput.useTextInput.deleteCharsBefore.useCallback() callback.updateState() callback` (L165-L172) - Function
-  - `cli.src.hooks.useTextInput.deleteCharBefore` (L177-L177) - Class
-  - `cli.src.hooks.useTextInput.useTextInput.deleteCharBefore.useCallback() callback` (L177-L177) - Function
-  - `cli.src.hooks.useTextInput.deleteCharsAfter` (L179-L191) - Class
-  - `cli.src.hooks.useTextInput.useTextInput.deleteCharsAfter.useCallback() callback` (L180-L189) - Function
-  - `cli.src.hooks.useTextInput.useTextInput.deleteCharsAfter.useCallback() callback.updateState() callback` (L181-L188) - Function
-  - `cli.src.hooks.useTextInput.useTextInput.deleteCharAfter` (L193-L193) - Class
-  - `cli.src.hooks.useTextInput.useTextInput.deleteCharAfter.useCallback() callback` (L193-L193) - Function
-  - `cli.src.hooks.useTextInput.useTextInput.deleteWordBefore` (L195-L206) - Class
-  - `cli.src.hooks.useTextInput.useTextInput.deleteWordBefore.useCallback() callback` (L195-L206) - Function
-  - `cli.src.hooks.useTextInput.useTextInput.deleteWordBefore.useCallback() callback.updateState() callback` (L196-L205) - Function
-  - `cli.src.hooks.useTextInput.useTextInput.deleteToStart` (L208-L218) - Class
-  - `cli.src.hooks.useTextInput.useTextInput.deleteToStart.useCallback() callback` (L208-L218) - Function
-  - `cli.src.hooks.useTextInput.useTextInput.deleteToStart.useCallback() callback.updateState() callback` (L209-L217) - Function
-  - `cli.src.hooks.useTextInput.useTextInput.deleteToEnd` (L220-L230) - Class
-  - `cli.src.hooks.useTextInput.useTextInput.deleteToEnd.useCallback() callback` (L220-L230) - Function
-  - `cli.src.hooks.useTextInput.useTextInput.deleteToEnd.useCallback() callback.updateState() callback` (L221-L229) - Function
-  - `cli.src.hooks.useTextInput.useTextInput.moveToStart` (L233-L233) - Class
-  - `cli.src.hooks.useTextInput.useTextInput.moveToStart.useCallback() callback` (L233-L233) - Function
-  - `cli.src.hooks.useTextInput.useTextInput.moveToEnd` (L234-L234) - Class
-  - `cli.src.hooks.useTextInput.useTextInput.moveToEnd.useCallback() callback` (L234-L234) - Function
-  - `cli.src.hooks.useTextInput.useTextInput.moveToEnd.useCallback() callback.setCursorPos() callback` (L234-L234) - Function
-  - `cli.src.hooks.useTextInput.useTextInput.moveWordLeft` (L235-L235) - Class
-  - `cli.src.hooks.useTextInput.useTextInput.moveWordLeft.useCallback() callback` (L235-L235) - Function
-  - `cli.src.hooks.useTextInput.useTextInput.moveWordLeft.useCallback() callback.setCursorPos() callback` (L235-L235) - Function
-  - `cli.src.hooks.useTextInput.useTextInput.moveWordRight` (L236-L236) - Class
-  - `cli.src.hooks.useTextInput.useTextInput.moveWordRight.useCallback() callback` (L236-L236) - Function
-  - `cli.src.hooks.useTextInput.useTextInput.moveWordRight.useCallback() callback.setCursorPos() callback` (L236-L236) - Function
-  - `cli.src.hooks.useTextInput.handleKeyboardSequence` (L239-L256) - Class
-  - `cli.src.hooks.useTextInput.useTextInput.handleKeyboardSequence.useCallback() callback` (L240-L254) - Function
-  - `cli.src.hooks.useTextInput.handleCtrlShortcut` (L258-L281) - Class
-  - `cli.src.hooks.useTextInput.useTextInput.handleCtrlShortcut.useCallback() callback` (L259-L279) - Function
-  - `cli.src.hooks.useTextInput.useTextInput.getText` (L294-L294) - Method
-  - `cli.src.hooks.useTextInput.useTextInput.getCursorPos` (L295-L295) - Method
+  - `cli.src.hooks.useTextInput.UseTextInputReturn` (L74-L97) - Interface
+  - `cli.src.hooks.useTextInput.useTextInput` (L102-L303) - Function
+  - `cli.src.hooks.useTextInput.useTextInput.updateState` (L115-L122) - Class
+  - `cli.src.hooks.useTextInput.useTextInput.updateState.useCallback() callback` (L116-L120) - Function
+  - `cli.src.hooks.useTextInput.setValue` (L124-L124) - Class
+  - `cli.src.hooks.useTextInput.useTextInput.setValue.useCallback() callback` (L124-L124) - Function
+  - `cli.src.hooks.useTextInput.useTextInput.setValue.useCallback() callback.updateState() callback` (L124-L124) - Function
+  - `cli.src.hooks.useTextInput.getText` (L125-L125) - Class
+  - `cli.src.hooks.useTextInput.useTextInput.getText.useCallback() callback` (L125-L125) - Function
+  - `cli.src.hooks.useTextInput.getCursorPos` (L126-L126) - Class
+  - `cli.src.hooks.useTextInput.useTextInput.getCursorPos.useCallback() callback` (L126-L126) - Function
+  - `cli.src.hooks.useTextInput.setText` (L129-L141) - Class
+  - `cli.src.hooks.useTextInput.useTextInput.setText.useCallback() callback` (L130-L139) - Function
+  - `cli.src.hooks.useTextInput.useTextInput.setText.useCallback() callback.updateState() callback` (L131-L138) - Function
+  - `cli.src.hooks.useTextInput.insertText` (L143-L152) - Class
+  - `cli.src.hooks.useTextInput.useTextInput.insertText.useCallback() callback` (L144-L150) - Function
+  - `cli.src.hooks.useTextInput.useTextInput.insertText.useCallback() callback.updateState() callback` (L146-L149) - Function
+  - `cli.src.hooks.useTextInput.setCursorPos` (L154-L165) - Class
+  - `cli.src.hooks.useTextInput.useTextInput.setCursorPos.useCallback() callback` (L155-L163) - Function
+  - `cli.src.hooks.useTextInput.useTextInput.setCursorPos.useCallback() callback.updateState() callback` (L156-L162) - Function
+  - `cli.src.hooks.useTextInput.deleteCharsBefore` (L168-L180) - Class
+  - `cli.src.hooks.useTextInput.useTextInput.deleteCharsBefore.useCallback() callback` (L169-L178) - Function
+  - `cli.src.hooks.useTextInput.useTextInput.deleteCharsBefore.useCallback() callback.updateState() callback` (L170-L177) - Function
+  - `cli.src.hooks.useTextInput.deleteCharBefore` (L182-L182) - Class
+  - `cli.src.hooks.useTextInput.useTextInput.deleteCharBefore.useCallback() callback` (L182-L182) - Function
+  - `cli.src.hooks.useTextInput.deleteCharsAfter` (L184-L196) - Class
+  - `cli.src.hooks.useTextInput.useTextInput.deleteCharsAfter.useCallback() callback` (L185-L194) - Function
+  - `cli.src.hooks.useTextInput.useTextInput.deleteCharsAfter.useCallback() callback.updateState() callback` (L186-L193) - Function
+  - `cli.src.hooks.useTextInput.useTextInput.deleteCharAfter` (L198-L198) - Class
+  - `cli.src.hooks.useTextInput.useTextInput.deleteCharAfter.useCallback() callback` (L198-L198) - Function
+  - `cli.src.hooks.useTextInput.useTextInput.deleteWordBefore` (L200-L211) - Class
+  - `cli.src.hooks.useTextInput.useTextInput.deleteWordBefore.useCallback() callback` (L200-L211) - Function
+  - `cli.src.hooks.useTextInput.useTextInput.deleteWordBefore.useCallback() callback.updateState() callback` (L201-L210) - Function
+  - `cli.src.hooks.useTextInput.useTextInput.deleteToStart` (L213-L223) - Class
+  - `cli.src.hooks.useTextInput.useTextInput.deleteToStart.useCallback() callback` (L213-L223) - Function
+  - `cli.src.hooks.useTextInput.useTextInput.deleteToStart.useCallback() callback.updateState() callback` (L214-L222) - Function
+  - `cli.src.hooks.useTextInput.useTextInput.deleteToEnd` (L225-L235) - Class
+  - `cli.src.hooks.useTextInput.useTextInput.deleteToEnd.useCallback() callback` (L225-L235) - Function
+  - `cli.src.hooks.useTextInput.useTextInput.deleteToEnd.useCallback() callback.updateState() callback` (L226-L234) - Function
+  - `cli.src.hooks.useTextInput.useTextInput.moveToStart` (L238-L238) - Class
+  - `cli.src.hooks.useTextInput.useTextInput.moveToStart.useCallback() callback` (L238-L238) - Function
+  - `cli.src.hooks.useTextInput.useTextInput.moveToEnd` (L239-L239) - Class
+  - `cli.src.hooks.useTextInput.useTextInput.moveToEnd.useCallback() callback` (L239-L239) - Function
+  - `cli.src.hooks.useTextInput.useTextInput.moveToEnd.useCallback() callback.setCursorPos() callback` (L239-L239) - Function
+  - `cli.src.hooks.useTextInput.useTextInput.moveWordLeft` (L240-L240) - Class
+  - `cli.src.hooks.useTextInput.useTextInput.moveWordLeft.useCallback() callback` (L240-L240) - Function
+  - `cli.src.hooks.useTextInput.useTextInput.moveWordLeft.useCallback() callback.setCursorPos() callback` (L240-L240) - Function
+  - `cli.src.hooks.useTextInput.useTextInput.moveWordRight` (L241-L241) - Class
+  - `cli.src.hooks.useTextInput.useTextInput.moveWordRight.useCallback() callback` (L241-L241) - Function
+  - `cli.src.hooks.useTextInput.useTextInput.moveWordRight.useCallback() callback.setCursorPos() callback` (L241-L241) - Function
+  - `cli.src.hooks.useTextInput.handleKeyboardSequence` (L244-L261) - Class
+  - `cli.src.hooks.useTextInput.useTextInput.handleKeyboardSequence.useCallback() callback` (L245-L259) - Function
+  - `cli.src.hooks.useTextInput.handleCtrlShortcut` (L263-L286) - Class
+  - `cli.src.hooks.useTextInput.useTextInput.handleCtrlShortcut.useCallback() callback` (L264-L284) - Function
 - `cli/src/hooks/useTranscriptPartition.ts`
   - `cli.src.hooks.useTranscriptPartition.TranscriptPartition` (L12-L17) - Interface
   - `cli.src.hooks.useTranscriptPartition.TranscriptRetention` (L19-L22) - Interface
@@ -2914,6 +2984,20 @@ Supplies custom React hooks for chat message timelines, input handling, terminal
   - `cli.src.hooks.useTranscriptPartition.calculateVisibleBoundary` (L72-L87) - Function
   - `cli.src.hooks.useTranscriptPartition.sameItems` (L89-L91) - Function
   - `cli.src.hooks.useTranscriptPartition.sameItems.left.every() callback` (L90-L90) - Function
+- `cli/src/hooks/useVimInput.ts`
+  - `cli.src.hooks.useVimInput.UseVimInputProps` (L5-L10) - Interface
+  - `cli.src.hooks.useVimInput.useVimInput` (L12-L93) - Function
+  - `cli.src.hooks.useVimInput.useVimInput.updateEditor` (L16-L19) - Class
+  - `cli.src.hooks.useVimInput.useVimInput.updateEditor.useCallback() callback` (L16-L19) - Function
+  - `cli.src.hooks.useVimInput.useVimInput.useEffect() callback` (L21-L23) - Function
+  - `cli.src.hooks.useVimInput.restoreVimDraft` (L25-L31) - Class
+  - `cli.src.hooks.useVimInput.useVimInput.restoreVimDraft.useCallback() callback` (L26-L29) - Function
+  - `cli.src.hooks.useVimInput.resetVimInput` (L33-L35) - Class
+  - `cli.src.hooks.useVimInput.useVimInput.resetVimInput.useCallback() callback` (L33-L35) - Function
+  - `cli.src.hooks.useVimInput.editWithVimHistory` (L37-L49) - Class
+  - `cli.src.hooks.useVimInput.useVimInput.editWithVimHistory.useCallback() callback` (L38-L47) - Function
+  - `cli.src.hooks.useVimInput.handleVimInput` (L51-L83) - Class
+  - `cli.src.hooks.useVimInput.useVimInput.handleVimInput.useCallback() callback` (L52-L81) - Function
 
 
 ### CLI Host Bridge & Review Controllers

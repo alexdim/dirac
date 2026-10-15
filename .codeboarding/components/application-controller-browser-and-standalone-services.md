@@ -273,6 +273,10 @@ export class Controller implements ITaskHost {
 		return this.taskHistoryController.getTaskWithId(id)
 	}
 
+	async getPromptHistory(workspacePath: string, excludedRunId?: string) {
+		return this.taskHistoryController.getPromptHistory(workspacePath, excludedRunId)
+	}
+
 	async exportTaskWithId(id: string) {
 		return this.taskHistoryController.exportTaskWithId(id)
 	}
@@ -481,10 +485,6 @@ export class Controller implements ITaskHost {
 			throw new Error("Invocation tool-selection options cannot be used with Goals.")
 		}
 		if (!this.goalRoutingEnabled) {
-			throw new Error("Goals require the interactive VS Code or CLI surface; ACP and unattended CLI are unsupported.")
-		}
-	}
-}
 ```
 
 ### /Users/highlands/pools/Development/dirac/src/core/webview/WebviewProvider.ts (lines 12-297)

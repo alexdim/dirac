@@ -54,7 +54,7 @@ Handles gRPC requests, UI state synchronization, model configuration endpoints, 
 				clearTaskSettings: () => stateManager.clearTaskSettings(),
 				toggleActModeForYoloMode: () => controller.toggleActModeForYoloMode(),
 			},
-			undefined, // tryAcquireTaskLockWithRetry - use default
+			undefined, // acquireTaskLock - use default
 			undefined, // setupWorkspaceManager - use default
 			undefined, // detectRoots - use default
 			undefined, // getCwd - use default

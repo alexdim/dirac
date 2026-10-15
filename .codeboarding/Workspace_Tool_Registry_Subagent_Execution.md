@@ -19,7 +19,7 @@ graph LR
 Manages multi-root workspace resolution, file context tracking, task controller dispatch, tool registry lifecycle, and subagent execution.
 
 ### Core Workspace & Task Tool Orchestration [[Expand]](./Core_Workspace_Task_Tool_Orchestration.md)
-Manages core workspace root resolution, context and mention loading, hook discovery, tool registry, and subagent execution within task workflows.
+Orchestrates core workspace root resolution, context and mention loading, hook discovery, tool registry lifecycle, and subagent execution within task workflows.
 
 
 **Related Classes/Methods**:
@@ -81,7 +81,7 @@ Manages core workspace root resolution, context and mention loading, hook discov
   - `src.core.controller.historyItemWorkspace.historyItemBelongsToWorkspace` (L5-L9) - Function
 - `src/core/controller/task/TaskController.ts`
   - `src.core.controller.task.TaskController.ITaskControllerDependencies` (L36-L60) - Interface
-  - `src.core.controller.task.TaskController.TaskController` (L64-L518) - Class
+  - `src.core.controller.task.TaskController.TaskController` (L64-L495) - Class
   - `src.core.controller.task.TaskController.TaskController.taskRunPromise` (L76-L78) - Method
   - `src.core.controller.task.TaskController.TaskController.constructor` (L80-L92) - Constructor
   - `src.core.controller.task.TaskController.TaskController.task` (L98-L100) - Method
@@ -102,20 +102,20 @@ Manages core workspace root resolution, context and mention loading, hook discov
   - `src.core.controller.task.TaskController.startHistoricalTaskAndWaitForRestore.taskRun.then() callback` (L218-L225) - Function
   - `src.core.controller.task.TaskController.TaskController.startHistoricalTaskAndWaitForRestore.taskRun.then() callback` (L226-L226) - Function
   - `src.core.controller.task.TaskController.TaskController.startHistoricalTaskAndWaitForRestore.abort.catch() callback` (L240-L241) - Function
-  - `src.core.controller.task.TaskController.TaskController.initTask` (L257-L389) - Method
-  - `src.core.controller.task.TaskController.TaskController.initTask.updateTaskHistory` (L344-L344) - Method
-  - `src.core.controller.task.TaskController.TaskController.initTask.postStateToWebview` (L345-L345) - Method
-  - `src.core.controller.task.TaskController.TaskController.initTask.postPresentationToWebview` (L346-L346) - Method
-  - `src.core.controller.task.TaskController.TaskController.initTask.reinitExistingTaskFromId` (L347-L347) - Method
-  - `src.core.controller.task.TaskController.TaskController.initTask.cancelTask` (L348-L348) - Method
-  - `src.core.controller.task.TaskController.TaskController.initTask.enqueuePreRequestSteeringMessages` (L369-L369) - Method
-  - `src.core.controller.task.TaskController.TaskController.reinitExistingTaskFromId` (L391-L408) - Method
-  - `src.core.controller.task.TaskController.TaskController.cancelTask` (L410-L476) - Method
-  - `src.core.controller.task.TaskController.TaskController.cancelTask.pWaitFor() callback` (L434-L437) - Function
-  - `src.core.controller.task.TaskController.TaskController.cancelTask.catch() callback` (L441-L443) - Function
-  - `src.core.controller.task.TaskController.TaskController.updateBackgroundCommandState` (L478-L486) - Method
-  - `src.core.controller.task.TaskController.TaskController.cancelBackgroundCommand` (L488-L494) - Method
-  - `src.core.controller.task.TaskController.TaskController.clearTask` (L496-L517) - Method
+  - `src.core.controller.task.TaskController.TaskController.initTask` (L257-L366) - Method
+  - `src.core.controller.task.TaskController.TaskController.initTask.updateTaskHistory` (L325-L325) - Method
+  - `src.core.controller.task.TaskController.TaskController.initTask.postStateToWebview` (L326-L326) - Method
+  - `src.core.controller.task.TaskController.TaskController.initTask.postPresentationToWebview` (L327-L327) - Method
+  - `src.core.controller.task.TaskController.TaskController.initTask.reinitExistingTaskFromId` (L328-L328) - Method
+  - `src.core.controller.task.TaskController.TaskController.initTask.cancelTask` (L329-L329) - Method
+  - `src.core.controller.task.TaskController.TaskController.initTask.enqueuePreRequestSteeringMessages` (L350-L350) - Method
+  - `src.core.controller.task.TaskController.TaskController.reinitExistingTaskFromId` (L368-L385) - Method
+  - `src.core.controller.task.TaskController.TaskController.cancelTask` (L387-L453) - Method
+  - `src.core.controller.task.TaskController.TaskController.cancelTask.pWaitFor() callback` (L411-L414) - Function
+  - `src.core.controller.task.TaskController.TaskController.cancelTask.catch() callback` (L418-L420) - Function
+  - `src.core.controller.task.TaskController.TaskController.updateBackgroundCommandState` (L455-L463) - Method
+  - `src.core.controller.task.TaskController.TaskController.cancelBackgroundCommand` (L465-L471) - Method
+  - `src.core.controller.task.TaskController.TaskController.clearTask` (L473-L494) - Method
 - `src/core/controller/workspace/WorkspaceController.ts`
   - `src.core.controller.workspace.WorkspaceController.WorkspaceController` (L10-L39) - Class
   - `src.core.controller.workspace.WorkspaceController.WorkspaceController.constructor` (L13-L18) - Constructor
@@ -514,29 +514,29 @@ Manages core workspace root resolution, context and mention loading, hook discov
   - `src.core.task.tools.modules.execute_command.ExecuteCommandTool.NormalizedCommand` (L24-L28) - Interface
   - `src.core.task.tools.modules.execute_command.ExecuteCommandTool.WorkspaceHintMatch` (L30-L33) - Interface
   - `src.core.task.tools.modules.execute_command.ExecuteCommandTool.parseWorkspaceHint` (L35-L42) - Function
-  - `src.core.task.tools.modules.execute_command.ExecuteCommandTool.ExecuteCommandTool` (L74-L425) - Class
+  - `src.core.task.tools.modules.execute_command.ExecuteCommandTool.ExecuteCommandTool` (L74-L410) - Class
   - `src.core.task.tools.modules.execute_command.ExecuteCommandTool.ExecuteCommandTool.constructor` (L75-L81) - Constructor
   - `src.core.task.tools.modules.execute_command.ExecuteCommandTool.ExecuteCommandTool.spec` (L83-L85) - Method
   - `src.core.task.tools.modules.execute_command.ExecuteCommandTool.ExecuteCommandTool.supportedSurfaces` (L87-L89) - Method
   - `src.core.task.tools.modules.execute_command.ExecuteCommandTool.ExecuteCommandTool.processCall` (L91-L124) - Method
   - `src.core.task.tools.modules.execute_command.ExecuteCommandTool.ExecuteCommandTool.validateCommands` (L126-L143) - Method
-  - `src.core.task.tools.modules.execute_command.ExecuteCommandTool.ExecuteCommandTool.getCommandApprovalRequirement` (L145-L182) - Method
-  - `src.core.task.tools.modules.execute_command.ExecuteCommandTool.ExecuteCommandTool.getCommandApprovalRequirement.permissionResults` (L163-L169) - Class
-  - `src.core.task.tools.modules.execute_command.ExecuteCommandTool.ExecuteCommandTool.getCommandApprovalRequirement.permissionResults.commands.map() callback` (L163-L169) - Function
-  - `src.core.task.tools.modules.execute_command.ExecuteCommandTool.ExecuteCommandTool.getCommandApprovalRequirement.permissionResults.some() callback` (L170-L170) - Function
-  - `src.core.task.tools.modules.execute_command.ExecuteCommandTool.ExecuteCommandTool.getCommandApprovalRequirement.requiresApproval` (L177-L180) - Class
-  - `src.core.task.tools.modules.execute_command.ExecuteCommandTool.ExecuteCommandTool.getCommandApprovalRequirement.requiresApproval.permissionResults.some() callback` (L177-L180) - Function
-  - `src.core.task.tools.modules.execute_command.ExecuteCommandTool.ExecuteCommandTool.requestApproval` (L184-L245) - Method
-  - `src.core.task.tools.modules.execute_command.ExecuteCommandTool.ExecuteCommandTool.requestApproval.card.rawInput.commands.commands.map() callback` (L205-L205) - Function
-  - `src.core.task.tools.modules.execute_command.ExecuteCommandTool.ExecuteCommandTool.requestApproval.card.body.commands.map() callback` (L208-L212) - Function
-  - `src.core.task.tools.modules.execute_command.ExecuteCommandTool.ExecuteCommandTool.permissionCardLabel` (L247-L249) - Method
-  - `src.core.task.tools.modules.execute_command.ExecuteCommandTool.ExecuteCommandTool.resolvePermissionCard` (L251-L264) - Method
-  - `src.core.task.tools.modules.execute_command.ExecuteCommandTool.ExecuteCommandTool.executeCommands` (L266-L288) - Method
-  - `src.core.task.tools.modules.execute_command.ExecuteCommandTool.ExecuteCommandTool.executeSingleCommand` (L290-L374) - Method
-  - `src.core.task.tools.modules.execute_command.ExecuteCommandTool.ExecuteCommandTool.normalizeCommands` (L376-L398) - Method
-  - `src.core.task.tools.modules.execute_command.ExecuteCommandTool.ExecuteCommandTool.normalizeCommands.args.commands.forEach() callback` (L379-L383) - Function
-  - `src.core.task.tools.modules.execute_command.ExecuteCommandTool.ExecuteCommandTool.stripWorkspaceHint` (L400-L402) - Method
-  - `src.core.task.tools.modules.execute_command.ExecuteCommandTool.ExecuteCommandTool.wrapScript` (L404-L424) - Method
+  - `src.core.task.tools.modules.execute_command.ExecuteCommandTool.ExecuteCommandTool.getCommandApprovalRequirement` (L145-L172) - Method
+  - `src.core.task.tools.modules.execute_command.ExecuteCommandTool.ExecuteCommandTool.getCommandApprovalRequirement.permissionResults` (L153-L159) - Class
+  - `src.core.task.tools.modules.execute_command.ExecuteCommandTool.ExecuteCommandTool.getCommandApprovalRequirement.permissionResults.commands.map() callback` (L153-L159) - Function
+  - `src.core.task.tools.modules.execute_command.ExecuteCommandTool.ExecuteCommandTool.getCommandApprovalRequirement.permissionResults.some() callback` (L160-L160) - Function
+  - `src.core.task.tools.modules.execute_command.ExecuteCommandTool.ExecuteCommandTool.getCommandApprovalRequirement.requiresApproval` (L167-L170) - Class
+  - `src.core.task.tools.modules.execute_command.ExecuteCommandTool.ExecuteCommandTool.getCommandApprovalRequirement.requiresApproval.permissionResults.some() callback` (L167-L170) - Function
+  - `src.core.task.tools.modules.execute_command.ExecuteCommandTool.ExecuteCommandTool.requestApproval` (L174-L230) - Method
+  - `src.core.task.tools.modules.execute_command.ExecuteCommandTool.ExecuteCommandTool.requestApproval.card.rawInput.commands.commands.map() callback` (L193-L193) - Function
+  - `src.core.task.tools.modules.execute_command.ExecuteCommandTool.ExecuteCommandTool.requestApproval.card.body.commands.map() callback` (L196-L200) - Function
+  - `src.core.task.tools.modules.execute_command.ExecuteCommandTool.ExecuteCommandTool.permissionCardLabel` (L232-L234) - Method
+  - `src.core.task.tools.modules.execute_command.ExecuteCommandTool.ExecuteCommandTool.resolvePermissionCard` (L236-L249) - Method
+  - `src.core.task.tools.modules.execute_command.ExecuteCommandTool.ExecuteCommandTool.executeCommands` (L251-L273) - Method
+  - `src.core.task.tools.modules.execute_command.ExecuteCommandTool.ExecuteCommandTool.executeSingleCommand` (L275-L359) - Method
+  - `src.core.task.tools.modules.execute_command.ExecuteCommandTool.ExecuteCommandTool.normalizeCommands` (L361-L383) - Method
+  - `src.core.task.tools.modules.execute_command.ExecuteCommandTool.ExecuteCommandTool.normalizeCommands.args.commands.forEach() callback` (L364-L368) - Function
+  - `src.core.task.tools.modules.execute_command.ExecuteCommandTool.ExecuteCommandTool.stripWorkspaceHint` (L385-L387) - Method
+  - `src.core.task.tools.modules.execute_command.ExecuteCommandTool.ExecuteCommandTool.wrapScript` (L389-L409) - Method
 - `src/core/task/tools/modules/search_files/index.ts`
   - `src.core.task.tools.modules.search_files.index.SearchFilesArgs` (L15-L21) - Interface
   - `src.core.task.tools.modules.search_files.index.SearchPathInfo` (L23-L27) - Interface

@@ -2,11 +2,12 @@
 graph LR
     Shared_API_Task_Content_Utilities["Shared API, Task & Content Utilities"]
     Presentation_State_Settings_Models["Presentation State & Settings Models"]
-    Task_History_Models_Proto_Conversion["Task History Models & Proto Conversion"]
+    Task_History_Models_Proto_Conversion_Prompt_History["Task History Models, Proto Conversion & Prompt History"]
     User_Identity_Approved_Command_Models["User Identity & Approved Command Models"]
     OpenAI_Codex_Auth_Usage_Models["OpenAI Codex Auth & Usage Models"]
     Subagent_Definitions_Usage_Metrics["Subagent Definitions & Usage Metrics"]
     Shared_API_Task_Content_Utilities -- "computes subagent usage metrics via" --> Subagent_Definitions_Usage_Metrics
+    Task_History_Models_Proto_Conversion_Prompt_History -- "references goal status and accounting types from" --> Shared_API_Task_Content_Utilities
 ```
 
 [![CodeBoarding](https://img.shields.io/badge/Generated%20by-CodeBoarding-9cf?style=flat-square)](https://github.com/CodeBoarding/CodeBoarding)[![Web platform](https://img.shields.io/badge/Open%20in-Web%20platform-2563EB?style=flat-square)](https://app.codeboarding.org)[![Demo](https://img.shields.io/badge/Try%20our-Demo-blue?style=flat-square)](https://www.codeboarding.org/diagrams)[![Contact](https://img.shields.io/badge/Contact%20us%20-%20contact@codeboarding.org-lightgrey?style=flat-square)](mailto:contact@codeboarding.org)
@@ -197,11 +198,21 @@ Defines presentation operations, presentation state structures, and settings pre
   - `src.shared.settings-presentation.SettingsDestinationPresentation` (L15-L23) - Interface
 
 
-### Task History Models & Proto Conversion
-Defines task history item data structures and conversion helpers from protocol buffer messages.
+### Task History Models, Proto Conversion & Prompt History
+Defines task and goal history item data structures, protocol-buffer conversion helpers, and user prompt extraction from message history.
 
 
-**Related Classes/Methods**: _None_
+**Related Classes/Methods**:
+
+- `src.shared.HistoryItem.RunHistoryItemBase`:3-23
+- `src.shared.HistoryItem.TaskHistoryItem`:29-36
+- `src.shared.HistoryItem.GoalHistoryItem`:39-51
+- `src.shared.HistoryItem.isGoalHistoryItem`:61-63
+- `src.shared.HistoryItem.isTaskHistoryItem`:65-67
+- `src.shared.historyItemFromProto.historyItemFromProto`:8-37
+- `src.shared.messages.prompt-history.getUserPrompts`:9-15
+- `src.shared.messages.prompt-history.getRecentUniquePrompts`:17-20
+
 
 
 **Source Files:**
@@ -220,6 +231,14 @@ Defines task history item data structures and conversion helpers from protocol b
   - `src.shared.historyItemFromProto.requiredString` (L69-L72) - Function
   - `src.shared.historyItemFromProto.requiredNonnegativeNumber` (L74-L82) - Function
   - `src.shared.historyItemFromProto.requiredGoalStatus` (L84-L89) - Function
+- `src/shared/messages/prompt-history.ts`
+  - `src.shared.messages.prompt-history.UserPrompt` (L3-L6) - Interface
+  - `src.shared.messages.prompt-history.getUserPrompts` (L9-L15) - Function
+  - `src.shared.messages.prompt-history.getUserPrompts.messages.flatMap() callback` (L10-L13) - Function
+  - `src.shared.messages.prompt-history.getRecentUniquePrompts` (L17-L20) - Function
+  - `src.shared.messages.prompt-history.getRecentUniquePrompts.newestFirst` (L18-L18) - Class
+  - `src.shared.messages.prompt-history.getRecentUniquePrompts.newestFirst.map() callback` (L18-L18) - Function
+  - `src.shared.messages.prompt-history.getRecentUniquePrompts.newestFirst.sort() callback` (L18-L18) - Function
 
 
 ### User Identity & Approved Command Models

@@ -78,37 +78,37 @@ Orchestrates core task execution, API conversation loops, message state persiste
   - `src.core.task.ApiConversationManager.prepareApiRequest.request.userContent.map() callback` (L458-L458) - Function
   - `src.core.task.ApiConversationManager.ApiConversationManager.prepareApiRequest.request.userContent.map() callback` (L486-L486) - Function
 - `src/core/task/LifecycleManager.ts`
-  - `src.core.task.LifecycleManager.ResumeTaskOptions` (L37-L46) - Interface
-  - `src.core.task.LifecycleManager.LifecycleManager` (L48-L729) - Class
-  - `src.core.task.LifecycleManager.LifecycleManager.constructor` (L52-L52) - Constructor
-  - `src.core.task.LifecycleManager.LifecycleManager.setApi` (L54-L56) - Method
-  - `src.core.task.LifecycleManager.LifecycleManager.setBrowserSession` (L58-L60) - Method
-  - `src.core.task.LifecycleManager.LifecycleManager.getOperationalApi` (L62-L64) - Method
-  - `src.core.task.LifecycleManager.LifecycleManager.initializeCheckpoints` (L66-L121) - Method
-  - `src.core.task.LifecycleManager.LifecycleManager.initializeCheckpoints.lastCheckpointMessageIndex` (L94-L94) - Class
-  - `src.core.task.LifecycleManager.LifecycleManager.initializeCheckpoints.lastCheckpointMessageIndex.findLastIndex() callback` (L94-L94) - Function
-  - `src.core.task.LifecycleManager.LifecycleManager.initializeCheckpoints.commitPromise.then() callback` (L106-L112) - Function
-  - `src.core.task.LifecycleManager.LifecycleManager.initializeCheckpoints.catch() callback` (L113-L118) - Function
-  - `src.core.task.LifecycleManager.LifecycleManager.startTask` (L123-L239) - Method
-  - `src.core.task.LifecycleManager.LifecycleManager.resumeTaskFromHistory` (L241-L542) - Method
-  - `src.core.task.LifecycleManager.LifecycleManager.resumeTaskFromHistory.lastRelevantMessageIndex` (L258-L261) - Class
-  - `src.core.task.LifecycleManager.LifecycleManager.resumeTaskFromHistory.lastRelevantMessageIndex.findLastIndex() callback` (L260-L260) - Function
-  - `src.core.task.LifecycleManager.LifecycleManager.resumeTaskFromHistory.lastApiReqStartedIndex` (L266-L266) - Class
-  - `src.core.task.LifecycleManager.LifecycleManager.resumeTaskFromHistory.lastApiReqStartedIndex.findLastIndex() callback` (L266-L266) - Function
-  - `src.core.task.LifecycleManager.LifecycleManager.resumeTaskFromHistory.lastDiracMessage` (L309-L317) - Class
-  - `src.core.task.LifecycleManager.LifecycleManager.resumeTaskFromHistory.lastDiracMessage.find() callback` (L314-L316) - Function
-  - `src.core.task.LifecycleManager.LifecycleManager.resumeTaskFromHistory.pWaitFor() callback` (L334-L334) - Function
-  - `src.core.task.LifecycleManager.LifecycleManager.resumeTaskFromHistory.agoText` (L452-L463) - Class
-  - `src.core.task.LifecycleManager.LifecycleManager.resumeTaskFromHistory.agoText.<function>` (L452-L463) - Function
-  - `src.core.task.LifecycleManager.LifecycleManager.abortTask` (L544-L551) - Method
-  - `src.core.task.LifecycleManager.LifecycleManager.finalizeTaskRun` (L554-L561) - Method
-  - `src.core.task.LifecycleManager.LifecycleManager.performAbortTask` (L563-L673) - Method
-  - `src.core.task.LifecycleManager.LifecycleManager.releaseOwnedTaskResources` (L675-L678) - Method
-  - `src.core.task.LifecycleManager.LifecycleManager.performOwnedResourceCleanup` (L680-L706) - Method
-  - `src.core.task.LifecycleManager.LifecycleManager.performOwnedResourceCleanup.ToolRegistry.withExclusiveAccess() callback` (L684-L686) - Function
-  - `src.core.task.LifecycleManager.LifecycleManager.disposeTaskResources` (L708-L728) - Method
-  - `src.core.task.LifecycleManager.disposeTaskResources.attempt() callback` (L718-L718) - Function
-  - `src.core.task.LifecycleManager.LifecycleManager.disposeTaskResources.attempt() callback` (L725-L725) - Function
+  - `src.core.task.LifecycleManager.ResumeTaskOptions` (L36-L45) - Interface
+  - `src.core.task.LifecycleManager.LifecycleManager` (L47-L719) - Class
+  - `src.core.task.LifecycleManager.LifecycleManager.constructor` (L51-L51) - Constructor
+  - `src.core.task.LifecycleManager.LifecycleManager.setApi` (L53-L55) - Method
+  - `src.core.task.LifecycleManager.LifecycleManager.setBrowserSession` (L57-L59) - Method
+  - `src.core.task.LifecycleManager.LifecycleManager.getOperationalApi` (L61-L63) - Method
+  - `src.core.task.LifecycleManager.LifecycleManager.initializeCheckpoints` (L65-L120) - Method
+  - `src.core.task.LifecycleManager.LifecycleManager.initializeCheckpoints.lastCheckpointMessageIndex` (L93-L93) - Class
+  - `src.core.task.LifecycleManager.LifecycleManager.initializeCheckpoints.lastCheckpointMessageIndex.findLastIndex() callback` (L93-L93) - Function
+  - `src.core.task.LifecycleManager.LifecycleManager.initializeCheckpoints.commitPromise.then() callback` (L105-L111) - Function
+  - `src.core.task.LifecycleManager.LifecycleManager.initializeCheckpoints.catch() callback` (L112-L117) - Function
+  - `src.core.task.LifecycleManager.LifecycleManager.startTask` (L122-L238) - Method
+  - `src.core.task.LifecycleManager.LifecycleManager.resumeTaskFromHistory` (L240-L541) - Method
+  - `src.core.task.LifecycleManager.LifecycleManager.resumeTaskFromHistory.lastRelevantMessageIndex` (L257-L260) - Class
+  - `src.core.task.LifecycleManager.LifecycleManager.resumeTaskFromHistory.lastRelevantMessageIndex.findLastIndex() callback` (L259-L259) - Function
+  - `src.core.task.LifecycleManager.LifecycleManager.resumeTaskFromHistory.lastApiReqStartedIndex` (L265-L265) - Class
+  - `src.core.task.LifecycleManager.LifecycleManager.resumeTaskFromHistory.lastApiReqStartedIndex.findLastIndex() callback` (L265-L265) - Function
+  - `src.core.task.LifecycleManager.LifecycleManager.resumeTaskFromHistory.lastDiracMessage` (L308-L316) - Class
+  - `src.core.task.LifecycleManager.LifecycleManager.resumeTaskFromHistory.lastDiracMessage.find() callback` (L313-L315) - Function
+  - `src.core.task.LifecycleManager.LifecycleManager.resumeTaskFromHistory.pWaitFor() callback` (L333-L333) - Function
+  - `src.core.task.LifecycleManager.LifecycleManager.resumeTaskFromHistory.agoText` (L451-L462) - Class
+  - `src.core.task.LifecycleManager.LifecycleManager.resumeTaskFromHistory.agoText.<function>` (L451-L462) - Function
+  - `src.core.task.LifecycleManager.LifecycleManager.abortTask` (L543-L550) - Method
+  - `src.core.task.LifecycleManager.LifecycleManager.finalizeTaskRun` (L553-L560) - Method
+  - `src.core.task.LifecycleManager.LifecycleManager.performAbortTask` (L562-L672) - Method
+  - `src.core.task.LifecycleManager.LifecycleManager.releaseOwnedTaskResources` (L674-L677) - Method
+  - `src.core.task.LifecycleManager.LifecycleManager.performOwnedResourceCleanup` (L679-L696) - Method
+  - `src.core.task.LifecycleManager.LifecycleManager.performOwnedResourceCleanup.ToolRegistry.withExclusiveAccess() callback` (L683-L685) - Function
+  - `src.core.task.LifecycleManager.LifecycleManager.disposeTaskResources` (L698-L718) - Method
+  - `src.core.task.LifecycleManager.disposeTaskResources.attempt() callback` (L708-L708) - Function
+  - `src.core.task.LifecycleManager.LifecycleManager.disposeTaskResources.attempt() callback` (L715-L715) - Function
 - `src/core/task/TaskMessenger.ts`
   - `src.core.task.TaskMessenger.TaskCardParams` (L26-L28) - Interface
   - `src.core.task.TaskMessenger.TaskCardHandle` (L30-L32) - Interface
@@ -209,122 +209,123 @@ Orchestrates core task execution, API conversation loops, message state persiste
   - `src.core.task.ToolExecutor.ToolExecutor.isPlanModeRestricted` (L483-L495) - Method
   - `src.core.task.ToolExecutor.ToolExecutor.handleCompleteBlock` (L497-L554) - Method
 - `src/core/task/index.ts`
-  - `src.core.task.index.Task` (L143-L1342) - Class
+  - `src.core.task.index.Task` (L143-L1360) - Class
   - `src.core.task.index.Task.stateView` (L160-L162) - Method
-  - `src.core.task.index.Task.withStateLock` (L174-L176) - Method
-  - `src.core.task.index.Task.steeringContext` (L178-L188) - Method
-  - `src.core.task.index.Task.steeringContext.postStateToWebview` (L185-L185) - Method
-  - `src.core.task.index.Task.steeringContext.withStateLock` (L186-L186) - Method
-  - `src.core.task.index.Task.promptArtifactsContext` (L190-L201) - Method
-  - `src.core.task.index.Task.requestBuilderContext` (L203-L231) - Method
-  - `src.core.task.index.Task.requestBuilderContext.writePromptMetadataArtifacts` (L219-L229) - Method
-  - `src.core.task.index.Task.requestOutcomeContext` (L233-L253) - Method
-  - `src.core.task.index.Task.requestOutcomeContext.postStateToWebview` (L243-L243) - Method
-  - `src.core.task.index.Task.requestOutcomeContext.abortTask` (L244-L244) - Method
-  - `src.core.task.index.Task.requestOutcomeContext.handleContextWindowExceededError` (L245-L245) - Method
-  - `src.core.task.index.Task.requestOutcomeContext.reinitExistingTaskFromId` (L246-L246) - Method
-  - `src.core.task.index.Task.requestOutcomeContext.attemptApiRequest` (L247-L248) - Method
-  - `src.core.task.index.Task.requestOutcomeContext.recursivelyMakeDiracRequests` (L249-L250) - Method
-  - `src.core.task.index.Task.requestOutcomeContext.handleEmptyAssistantResponse` (L251-L251) - Method
-  - `src.core.task.index.Task.requestLoopContext` (L255-L274) - Method
-  - `src.core.task.index.Task.requestLoopContext.handleMistakeLimitReached` (L261-L261) - Method
-  - `src.core.task.index.Task.requestLoopContext.enqueuePreRequestSteeringMessages` (L262-L262) - Method
-  - `src.core.task.index.Task.requestLoopContext.resetStreamingState` (L263-L263) - Method
-  - `src.core.task.index.Task.requestLoopContext.initializeCheckpoints` (L264-L264) - Method
-  - `src.core.task.index.Task.requestLoopContext.determineContextCompaction` (L265-L265) - Method
-  - `src.core.task.index.Task.canAcceptSteeringMessage` (L276-L278) - Method
-  - `src.core.task.index.Task.enqueueSteeringMessage` (L280-L282) - Method
-  - `src.core.task.index.Task.claimSteeringMessages` (L284-L286) - Method
-  - `src.core.task.index.Task.commitSteeringClaim` (L288-L290) - Method
-  - `src.core.task.index.Task.settleConsumedSteeringClaim` (L292-L294) - Method
-  - `src.core.task.index.Task.rollbackSteeringClaim` (L296-L298) - Method
-  - `src.core.task.index.Task.appendQueuedSteeringToUserContent` (L300-L302) - Method
-  - `src.core.task.index.Task.appendQueuedSteeringToNextApiRequest` (L304-L306) - Method
-  - `src.core.task.index.Task.commitAttemptCompletion` (L308-L312) - Method
-  - `src.core.task.index.Task.setActiveHookExecution` (L314-L316) - Method
-  - `src.core.task.index.Task.clearActiveHookExecution` (L318-L320) - Method
-  - `src.core.task.index.Task.setContextCompactionObserver` (L323-L325) - Method
-  - `src.core.task.index.Task.notifyContextCompacted` (L327-L333) - Method
-  - `src.core.task.index.Task.getActiveHookExecution` (L335-L337) - Method
-  - `src.core.task.index.Task.constructor` (L406-L873) - Constructor
-  - `src.core.task.index.constructor.getWorkingConfiguration` (L490-L490) - Method
-  - `src.core.task.index.constructor.getRequestRuntime` (L491-L491) - Method
-  - `src.core.task.index.Task.constructor.shouldRunBackgroundCheck` (L508-L508) - Method
-  - `src.core.task.index.Task.constructor.catch() callback` (L595-L598) - Function
-  - `src.core.task.index.Task.constructor.effectiveApiConfiguration` (L614-L627) - Class
-  - `src.core.task.index.Task.constructor.effectiveApiConfiguration.onRetryAttempt` (L617-L626) - Method
-  - `src.core.task.index.Task.constructor.commandExecutorCallbacks` (L666-L683) - Class
-  - `src.core.task.index.Task.constructor.commandExecutorCallbacks.updateBackgroundCommandState` (L668-L672) - Method
-  - `src.core.task.index.Task.constructor.commandExecutorCallbacks.updateDiracMessage` (L673-L676) - Method
-  - `src.core.task.index.Task.constructor.commandExecutorCallbacks.getDiracMessages` (L677-L677) - Method
-  - `src.core.task.index.Task.constructor.commandExecutorCallbacks.addToUserMessageContent` (L678-L681) - Method
-  - `src.core.task.index.Task.constructor.commandExecutorCallbacks.getEnvironmentVariables` (L682-L682) - Method
-  - `src.core.task.index.Task.constructor.isTextCondensationAvailable` (L765-L775) - Method
-  - `src.core.task.index.Task.constructor.time` (L806-L806) - Method
-  - `src.core.task.index.Task.constructor.getApi` (L817-L817) - Method
-  - `src.core.task.index.Task.constructor.getWorkingConfiguration` (L830-L830) - Method
-  - `src.core.task.index.Task.constructor.getRequestRuntime` (L831-L831) - Method
-  - `src.core.task.index.Task.constructor.activateSkill` (L842-L842) - Method
-  - `src.core.task.index.Task.constructor.getPinnedContext` (L845-L845) - Method
-  - `src.core.task.index.Task.constructor.writePromptMetadataArtifacts` (L846-L846) - Method
-  - `src.core.task.index.Task.constructor.runLocalConversationCompaction` (L854-L854) - Method
-  - `src.core.task.index.Task.getWorkingConfiguration` (L876-L878) - Method
-  - `src.core.task.index.Task.applyWorkingConfigurationUpdate` (L886-L917) - Method
-  - `src.core.task.index.Task.applyWorkingConfigurationUpdate.mutationGate.withTransition() callback` (L890-L915) - Function
-  - `src.core.task.index.Task.applyWorkingConfigurationUpdate.mutationGate.withTransition() callback.withStateLock() callback` (L891-L915) - Function
-  - `src.core.task.index.Task.commitEnabledToolToggles` (L919-L936) - Method
-  - `src.core.task.index.commitEnabledToolToggles.applyWorkingConfigurationUpdate() callback` (L926-L930) - Function
-  - `src.core.task.index.Task.commitEnabledToolToggles.applyWorkingConfigurationUpdate() callback` (L931-L934) - Function
-  - `src.core.task.index.Task.withMutationAuthorization` (L938-L947) - Method
-  - `src.core.task.index.Task.withMutationAuthorization.mutationGate.withMutation() callback` (L944-L944) - Function
-  - `src.core.task.index.Task.createApiHandlerForRuntime` (L950-L968) - Method
-  - `src.core.task.index.Task.createApiHandlerForRuntime.onRetryAttempt` (L955-L964) - Method
-  - `src.core.task.index.Task.installApiHandler` (L971-L980) - Method
-  - `src.core.task.index.Task.applyCommittedModeEffects` (L982-L988) - Method
-  - `src.core.task.index.Task.getEnvironmentDetails` (L990-L992) - Method
-  - `src.core.task.index.Task.persistApiStopReason` (L994-L997) - Method
-  - `src.core.task.index.Task.handleMistakeLimitReached` (L999-L1011) - Method
-  - `src.core.task.index.Task.handleMistakeLimitReached.postStateToWebview` (L1007-L1007) - Method
-  - `src.core.task.index.Task.loadContext` (L1013-L1019) - Method
-  - `src.core.task.index.Task.resetTransientState` (L1023-L1031) - Method
-  - `src.core.task.index.Task.waitForFollowUp` (L1033-L1035) - Method
-  - `src.core.task.index.Task.addPermissionRule` (L1038-L1040) - Method
-  - `src.core.task.index.Task.listPermissionRules` (L1043-L1045) - Method
-  - `src.core.task.index.Task.deletePermissionRule` (L1048-L1050) - Method
-  - `src.core.task.index.Task.submitCardResponse` (L1052-L1063) - Method
-  - `src.core.task.index.Task.submitCardResponse.withStateLock() callback` (L1060-L1062) - Function
-  - `src.core.task.index.Task.saveCheckpointCallback` (L1065-L1070) - Method
-  - `src.core.task.index.Task.switchToActModeCallback` (L1072-L1074) - Method
-  - `src.core.task.index.Task.runUserPromptSubmitHook` (L1076-L1081) - Method
-  - `src.core.task.index.Task.startTask` (L1083-L1088) - Method
-  - `src.core.task.index.Task.startTask.runTaskLifecycle() callback` (L1084-L1087) - Function
-  - `src.core.task.index.Task.restoreQueuedSteeringFromTranscript` (L1090-L1092) - Method
-  - `src.core.task.index.Task.resumeTaskFromHistory` (L1094-L1099) - Method
-  - `src.core.task.index.Task.resumeTaskFromHistory.runTaskLifecycle() callback` (L1095-L1098) - Function
-  - `src.core.task.index.Task.markToolsDirty` (L1101-L1103) - Method
-  - `src.core.task.index.Task.initiateTaskLoop` (L1105-L1151) - Method
-  - `src.core.task.index.Task.runTaskLifecycle` (L1153-L1161) - Method
-  - `src.core.task.index.Task.taskRunOutcomeFromState` (L1163-L1186) - Method
-  - `src.core.task.index.Task.settleTaskRun` (L1188-L1211) - Method
-  - `src.core.task.index.Task.settleTaskRun.withStateLock() callback` (L1206-L1210) - Function
-  - `src.core.task.index.Task.shouldRunTaskCancelHook` (L1213-L1215) - Method
-  - `src.core.task.index.Task.abortTask` (L1217-L1224) - Method
-  - `src.core.task.index.Task.abortTask.withStateLock() callback` (L1218-L1218) - Function
-  - `src.core.task.index.Task.retirePersistence` (L1226-L1228) - Method
-  - `src.core.task.index.Task.executeCommandTool` (L1231-L1237) - Method
-  - `src.core.task.index.Task.cancelBackgroundCommand` (L1243-L1245) - Method
-  - `src.core.task.index.Task.cancelHookExecution` (L1247-L1249) - Method
-  - `src.core.task.index.Task.getCurrentProviderInfo` (L1251-L1265) - Method
-  - `src.core.task.index.Task.writePromptMetadataArtifacts` (L1267-L1275) - Method
-  - `src.core.task.index.Task.getApiRequestIdSafe` (L1277-L1283) - Method
-  - `src.core.task.index.Task.handleContextWindowExceededError` (L1285-L1287) - Method
-  - `src.core.task.index.Task.handleApiRequestError` (L1289-L1300) - Method
-  - `src.core.task.index.Task.resetStreamingState` (L1302-L1314) - Method
-  - `src.core.task.index.Task.attemptApiRequest` (L1316-L1319) - Method
-  - `src.core.task.index.Task.presentAssistantMessage` (L1321-L1323) - Method
-  - `src.core.task.index.Task.recursivelyMakeDiracRequests` (L1325-L1333) - Method
-  - `src.core.task.index.Task.initializeCheckpoints` (L1335-L1337) - Method
-  - `src.core.task.index.Task.determineContextCompaction` (L1339-L1341) - Method
+  - `src.core.task.index.Task.withStateLock` (L176-L178) - Method
+  - `src.core.task.index.Task.steeringContext` (L180-L190) - Method
+  - `src.core.task.index.Task.steeringContext.postStateToWebview` (L187-L187) - Method
+  - `src.core.task.index.Task.steeringContext.withStateLock` (L188-L188) - Method
+  - `src.core.task.index.Task.promptArtifactsContext` (L192-L203) - Method
+  - `src.core.task.index.Task.requestBuilderContext` (L205-L233) - Method
+  - `src.core.task.index.Task.requestBuilderContext.writePromptMetadataArtifacts` (L221-L231) - Method
+  - `src.core.task.index.Task.requestOutcomeContext` (L235-L255) - Method
+  - `src.core.task.index.Task.requestOutcomeContext.postStateToWebview` (L245-L245) - Method
+  - `src.core.task.index.Task.requestOutcomeContext.abortTask` (L246-L246) - Method
+  - `src.core.task.index.Task.requestOutcomeContext.handleContextWindowExceededError` (L247-L247) - Method
+  - `src.core.task.index.Task.requestOutcomeContext.reinitExistingTaskFromId` (L248-L248) - Method
+  - `src.core.task.index.Task.requestOutcomeContext.attemptApiRequest` (L249-L250) - Method
+  - `src.core.task.index.Task.requestOutcomeContext.recursivelyMakeDiracRequests` (L251-L252) - Method
+  - `src.core.task.index.Task.requestOutcomeContext.handleEmptyAssistantResponse` (L253-L253) - Method
+  - `src.core.task.index.Task.requestLoopContext` (L257-L276) - Method
+  - `src.core.task.index.Task.requestLoopContext.handleMistakeLimitReached` (L263-L263) - Method
+  - `src.core.task.index.Task.requestLoopContext.enqueuePreRequestSteeringMessages` (L264-L264) - Method
+  - `src.core.task.index.Task.requestLoopContext.resetStreamingState` (L265-L265) - Method
+  - `src.core.task.index.Task.requestLoopContext.initializeCheckpoints` (L266-L266) - Method
+  - `src.core.task.index.Task.requestLoopContext.determineContextCompaction` (L267-L267) - Method
+  - `src.core.task.index.Task.canAcceptSteeringMessage` (L278-L280) - Method
+  - `src.core.task.index.Task.enqueueSteeringMessage` (L282-L284) - Method
+  - `src.core.task.index.Task.claimSteeringMessages` (L286-L288) - Method
+  - `src.core.task.index.Task.commitSteeringClaim` (L290-L292) - Method
+  - `src.core.task.index.Task.settleConsumedSteeringClaim` (L294-L296) - Method
+  - `src.core.task.index.Task.rollbackSteeringClaim` (L298-L300) - Method
+  - `src.core.task.index.Task.appendQueuedSteeringToUserContent` (L302-L304) - Method
+  - `src.core.task.index.Task.appendQueuedSteeringToNextApiRequest` (L306-L308) - Method
+  - `src.core.task.index.Task.commitAttemptCompletion` (L310-L314) - Method
+  - `src.core.task.index.Task.setActiveHookExecution` (L316-L318) - Method
+  - `src.core.task.index.Task.clearActiveHookExecution` (L320-L322) - Method
+  - `src.core.task.index.Task.setContextCompactionObserver` (L325-L327) - Method
+  - `src.core.task.index.Task.notifyContextCompacted` (L329-L335) - Method
+  - `src.core.task.index.Task.getActiveHookExecution` (L337-L339) - Method
+  - `src.core.task.index.Task.constructor` (L408-L875) - Constructor
+  - `src.core.task.index.constructor.getWorkingConfiguration` (L492-L492) - Method
+  - `src.core.task.index.constructor.getRequestRuntime` (L493-L493) - Method
+  - `src.core.task.index.Task.constructor.shouldRunBackgroundCheck` (L510-L510) - Method
+  - `src.core.task.index.Task.constructor.catch() callback` (L597-L600) - Function
+  - `src.core.task.index.Task.constructor.effectiveApiConfiguration` (L616-L629) - Class
+  - `src.core.task.index.Task.constructor.effectiveApiConfiguration.onRetryAttempt` (L619-L628) - Method
+  - `src.core.task.index.Task.constructor.commandExecutorCallbacks` (L668-L685) - Class
+  - `src.core.task.index.Task.constructor.commandExecutorCallbacks.updateBackgroundCommandState` (L670-L674) - Method
+  - `src.core.task.index.Task.constructor.commandExecutorCallbacks.updateDiracMessage` (L675-L678) - Method
+  - `src.core.task.index.Task.constructor.commandExecutorCallbacks.getDiracMessages` (L679-L679) - Method
+  - `src.core.task.index.Task.constructor.commandExecutorCallbacks.addToUserMessageContent` (L680-L683) - Method
+  - `src.core.task.index.Task.constructor.commandExecutorCallbacks.getEnvironmentVariables` (L684-L684) - Method
+  - `src.core.task.index.Task.constructor.isTextCondensationAvailable` (L767-L777) - Method
+  - `src.core.task.index.Task.constructor.time` (L808-L808) - Method
+  - `src.core.task.index.Task.constructor.getApi` (L819-L819) - Method
+  - `src.core.task.index.Task.constructor.getWorkingConfiguration` (L832-L832) - Method
+  - `src.core.task.index.Task.constructor.getRequestRuntime` (L833-L833) - Method
+  - `src.core.task.index.Task.constructor.activateSkill` (L844-L844) - Method
+  - `src.core.task.index.Task.constructor.getPinnedContext` (L847-L847) - Method
+  - `src.core.task.index.Task.constructor.writePromptMetadataArtifacts` (L848-L848) - Method
+  - `src.core.task.index.Task.constructor.runLocalConversationCompaction` (L856-L856) - Method
+  - `src.core.task.index.Task.getWorkingConfiguration` (L878-L880) - Method
+  - `src.core.task.index.Task.applyWorkingConfigurationUpdate` (L888-L919) - Method
+  - `src.core.task.index.Task.applyWorkingConfigurationUpdate.mutationGate.withTransition() callback` (L892-L917) - Function
+  - `src.core.task.index.Task.applyWorkingConfigurationUpdate.mutationGate.withTransition() callback.withStateLock() callback` (L893-L917) - Function
+  - `src.core.task.index.Task.commitEnabledToolToggles` (L921-L938) - Method
+  - `src.core.task.index.commitEnabledToolToggles.applyWorkingConfigurationUpdate() callback` (L928-L932) - Function
+  - `src.core.task.index.Task.commitEnabledToolToggles.applyWorkingConfigurationUpdate() callback` (L933-L936) - Function
+  - `src.core.task.index.Task.withMutationAuthorization` (L940-L949) - Method
+  - `src.core.task.index.Task.withMutationAuthorization.mutationGate.withMutation() callback` (L946-L946) - Function
+  - `src.core.task.index.Task.createApiHandlerForRuntime` (L952-L970) - Method
+  - `src.core.task.index.Task.createApiHandlerForRuntime.onRetryAttempt` (L957-L966) - Method
+  - `src.core.task.index.Task.installApiHandler` (L973-L982) - Method
+  - `src.core.task.index.Task.applyCommittedModeEffects` (L984-L990) - Method
+  - `src.core.task.index.Task.getEnvironmentDetails` (L992-L994) - Method
+  - `src.core.task.index.Task.persistApiStopReason` (L996-L999) - Method
+  - `src.core.task.index.Task.handleMistakeLimitReached` (L1001-L1013) - Method
+  - `src.core.task.index.Task.handleMistakeLimitReached.postStateToWebview` (L1009-L1009) - Method
+  - `src.core.task.index.Task.loadContext` (L1015-L1021) - Method
+  - `src.core.task.index.Task.resetTransientState` (L1025-L1033) - Method
+  - `src.core.task.index.Task.waitForFollowUp` (L1035-L1037) - Method
+  - `src.core.task.index.Task.addPermissionRule` (L1040-L1042) - Method
+  - `src.core.task.index.Task.listPermissionRules` (L1045-L1047) - Method
+  - `src.core.task.index.Task.deletePermissionRule` (L1050-L1052) - Method
+  - `src.core.task.index.Task.submitCardResponse` (L1054-L1065) - Method
+  - `src.core.task.index.Task.submitCardResponse.withStateLock() callback` (L1062-L1064) - Function
+  - `src.core.task.index.Task.saveCheckpointCallback` (L1067-L1072) - Method
+  - `src.core.task.index.Task.switchToActModeCallback` (L1074-L1076) - Method
+  - `src.core.task.index.Task.runUserPromptSubmitHook` (L1078-L1083) - Method
+  - `src.core.task.index.Task.startTask` (L1085-L1090) - Method
+  - `src.core.task.index.Task.startTask.runTaskLifecycle() callback` (L1086-L1089) - Function
+  - `src.core.task.index.Task.restoreQueuedSteeringFromTranscript` (L1092-L1094) - Method
+  - `src.core.task.index.Task.resumeTaskFromHistory` (L1096-L1101) - Method
+  - `src.core.task.index.Task.resumeTaskFromHistory.runTaskLifecycle() callback` (L1097-L1100) - Function
+  - `src.core.task.index.Task.markToolsDirty` (L1103-L1105) - Method
+  - `src.core.task.index.Task.initiateTaskLoop` (L1107-L1153) - Method
+  - `src.core.task.index.Task.runTaskLifecycle` (L1155-L1163) - Method
+  - `src.core.task.index.Task.taskRunOutcomeFromState` (L1165-L1188) - Method
+  - `src.core.task.index.Task.settleTaskRun` (L1190-L1221) - Method
+  - `src.core.task.index.Task.settleTaskRun.withStateLock() callback` (L1216-L1220) - Function
+  - `src.core.task.index.Task.shouldRunTaskCancelHook` (L1223-L1225) - Method
+  - `src.core.task.index.Task.abortTask` (L1227-L1234) - Method
+  - `src.core.task.index.Task.abortTask.withStateLock() callback` (L1228-L1228) - Function
+  - `src.core.task.index.Task.retirePersistence` (L1237-L1240) - Method
+  - `src.core.task.index.Task.retirePersistenceAndReleaseLock` (L1242-L1246) - Method
+  - `src.core.task.index.Task.executeCommandTool` (L1249-L1255) - Method
+  - `src.core.task.index.Task.cancelBackgroundCommand` (L1261-L1263) - Method
+  - `src.core.task.index.Task.cancelHookExecution` (L1265-L1267) - Method
+  - `src.core.task.index.Task.getCurrentProviderInfo` (L1269-L1283) - Method
+  - `src.core.task.index.Task.writePromptMetadataArtifacts` (L1285-L1293) - Method
+  - `src.core.task.index.Task.getApiRequestIdSafe` (L1295-L1301) - Method
+  - `src.core.task.index.Task.handleContextWindowExceededError` (L1303-L1305) - Method
+  - `src.core.task.index.Task.handleApiRequestError` (L1307-L1318) - Method
+  - `src.core.task.index.Task.resetStreamingState` (L1320-L1332) - Method
+  - `src.core.task.index.Task.attemptApiRequest` (L1334-L1337) - Method
+  - `src.core.task.index.Task.presentAssistantMessage` (L1339-L1341) - Method
+  - `src.core.task.index.Task.recursivelyMakeDiracRequests` (L1343-L1351) - Method
+  - `src.core.task.index.Task.initializeCheckpoints` (L1353-L1355) - Method
+  - `src.core.task.index.Task.determineContextCompaction` (L1357-L1359) - Method
 - `src/core/task/message-state.ts`
   - `src.core.task.message-state.DiracMessageChange` (L34-L48) - Interface
   - `src.core.task.message-state.PresentationSnapshot` (L50-L54) - Interface

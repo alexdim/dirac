@@ -288,12 +288,12 @@ Implements subprocess-based terminal emulation, terminal instance registration, 
 
 
 ### Core Session & Goal Controller
-Coordinates primary application controller state, active Goal execution lifecycles, task history repair, and folder lock acquisition utilities.
+Coordinates core application controller state, Goal execution lifecycles, task history repair, and folder lock acquisition utilities.
 
 
 **Related Classes/Methods**:
 
-- `src.core.controller.index.Controller`:55-524
+- `src.core.controller.index.Controller`:55-528
 - `src.core.goal.GoalController.GoalController`:31-303
 - `src.core.locks.FolderLockUtils.getStandaloneLockManager`:30-38
 - `src.core.locks.FolderLockUtils.tryAcquireFolderLockWithRetry`:48-71
@@ -326,7 +326,7 @@ Coordinates primary application controller state, active Goal execution lifecycl
 - `src/core/controller/index.ts`
   - `src.core.controller.index.OutboundStatePublication` (L44-L48) - Interface
   - `src.core.controller.index.SelectedPresentation` (L50-L53) - Interface
-  - `src.core.controller.index.Controller` (L55-L524) - Class
+  - `src.core.controller.index.Controller` (L55-L528) - Class
   - `src.core.controller.index.Controller.task` (L77-L79) - Method
   - `src.core.controller.index.Controller.taskRunPromise` (L82-L84) - Method
   - `src.core.controller.index.Controller.onTaskReplaced` (L86-L88) - Method
@@ -359,36 +359,37 @@ Coordinates primary application controller state, active Goal execution lifecycl
   - `src.core.controller.index.Controller.completeRequestyAuth` (L290-L292) - Method
   - `src.core.controller.index.Controller.readOpenRouterModels` (L295-L297) - Method
   - `src.core.controller.index.Controller.getTaskWithId` (L301-L311) - Method
-  - `src.core.controller.index.Controller.exportTaskWithId` (L313-L315) - Method
-  - `src.core.controller.index.Controller.deleteTaskFromState` (L317-L321) - Method
-  - `src.core.controller.index.Controller.postStateToWebview` (L323-L325) - Method
-  - `src.core.controller.index.Controller.postPresentationToWebview` (L327-L329) - Method
-  - `src.core.controller.index.Controller.waitForGoalStartupReconciliation` (L331-L333) - Method
-  - `src.core.controller.index.Controller.getStateToPostToWebview` (L335-L338) - Method
-  - `src.core.controller.index.Controller.captureSelectedPresentation` (L340-L359) - Method
-  - `src.core.controller.index.Controller.getStatePublication` (L361-L387) - Method
-  - `src.core.controller.index.Controller.getStatePublication.acknowledge` (L378-L385) - Method
-  - `src.core.controller.index.Controller.createPresentationPublication` (L389-L416) - Method
-  - `src.core.controller.index.Controller.createPresentationPublication.state.uiActionState.projectUIActionState() callback` (L403-L403) - Function
-  - `src.core.controller.index.Controller.createPresentationPublication.acknowledge` (L412-L414) - Method
-  - `src.core.controller.index.Controller.assembleStateToPostToWebview` (L418-L445) - Method
-  - `src.core.controller.index.Controller.updateTaskHistory` (L447-L449) - Method
-  - `src.core.controller.index.Controller.updateGoalHistory` (L451-L453) - Method
-  - `src.core.controller.index.Controller.updateTelemetrySetting` (L455-L457) - Method
-  - `src.core.controller.index.Controller.toggleActModeForYoloMode` (L459-L462) - Method
-  - `src.core.controller.index.Controller.togglePlanActMode` (L464-L467) - Method
-  - `src.core.controller.index.Controller.enableInteractiveGoals` (L469-L471) - Method
-  - `src.core.controller.index.Controller.selectedGoalId` (L473-L475) - Method
-  - `src.core.controller.index.Controller.hasActiveGoal` (L477-L479) - Method
-  - `src.core.controller.index.Controller.selectGoal` (L481-L484) - Method
-  - `src.core.controller.index.Controller.resumeGoal` (L486-L489) - Method
-  - `src.core.controller.index.Controller.pauseGoal` (L491-L494) - Method
-  - `src.core.controller.index.Controller.stopGoal` (L496-L499) - Method
-  - `src.core.controller.index.Controller.steerGoal` (L501-L504) - Method
-  - `src.core.controller.index.Controller.sendGoalMessage` (L506-L513) - Method
-  - `src.core.controller.index.Controller.assertGoalSurfaceSupported` (L515-L523) - Method
-  - `src.core.controller.index.parseGoalRequest` (L526-L533) - Function
-  - `src.core.controller.index.isGoalResumeCommand` (L535-L537) - Function
+  - `src.core.controller.index.Controller.getPromptHistory` (L313-L315) - Method
+  - `src.core.controller.index.Controller.exportTaskWithId` (L317-L319) - Method
+  - `src.core.controller.index.Controller.deleteTaskFromState` (L321-L325) - Method
+  - `src.core.controller.index.Controller.postStateToWebview` (L327-L329) - Method
+  - `src.core.controller.index.Controller.postPresentationToWebview` (L331-L333) - Method
+  - `src.core.controller.index.Controller.waitForGoalStartupReconciliation` (L335-L337) - Method
+  - `src.core.controller.index.Controller.getStateToPostToWebview` (L339-L342) - Method
+  - `src.core.controller.index.Controller.captureSelectedPresentation` (L344-L363) - Method
+  - `src.core.controller.index.Controller.getStatePublication` (L365-L391) - Method
+  - `src.core.controller.index.Controller.getStatePublication.acknowledge` (L382-L389) - Method
+  - `src.core.controller.index.Controller.createPresentationPublication` (L393-L420) - Method
+  - `src.core.controller.index.Controller.createPresentationPublication.state.uiActionState.projectUIActionState() callback` (L407-L407) - Function
+  - `src.core.controller.index.Controller.createPresentationPublication.acknowledge` (L416-L418) - Method
+  - `src.core.controller.index.Controller.assembleStateToPostToWebview` (L422-L449) - Method
+  - `src.core.controller.index.Controller.updateTaskHistory` (L451-L453) - Method
+  - `src.core.controller.index.Controller.updateGoalHistory` (L455-L457) - Method
+  - `src.core.controller.index.Controller.updateTelemetrySetting` (L459-L461) - Method
+  - `src.core.controller.index.Controller.toggleActModeForYoloMode` (L463-L466) - Method
+  - `src.core.controller.index.Controller.togglePlanActMode` (L468-L471) - Method
+  - `src.core.controller.index.Controller.enableInteractiveGoals` (L473-L475) - Method
+  - `src.core.controller.index.Controller.selectedGoalId` (L477-L479) - Method
+  - `src.core.controller.index.Controller.hasActiveGoal` (L481-L483) - Method
+  - `src.core.controller.index.Controller.selectGoal` (L485-L488) - Method
+  - `src.core.controller.index.Controller.resumeGoal` (L490-L493) - Method
+  - `src.core.controller.index.Controller.pauseGoal` (L495-L498) - Method
+  - `src.core.controller.index.Controller.stopGoal` (L500-L503) - Method
+  - `src.core.controller.index.Controller.steerGoal` (L505-L508) - Method
+  - `src.core.controller.index.Controller.sendGoalMessage` (L510-L517) - Method
+  - `src.core.controller.index.Controller.assertGoalSurfaceSupported` (L519-L527) - Method
+  - `src.core.controller.index.parseGoalRequest` (L530-L537) - Function
+  - `src.core.controller.index.isGoalResumeCommand` (L539-L541) - Function
 - `src/core/goal/GoalController.ts`
   - `src.core.goal.GoalController.GoalControllerDependencies` (L21-L28) - Interface
   - `src.core.goal.GoalController.GoalController` (L31-L303) - Class

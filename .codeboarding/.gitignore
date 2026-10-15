@@ -1,6 +1,6 @@
 logs/
 cache/
 health/
-static_analysis.lock
+*.lock
 static_analysis.pkl
 static_analysis.sha

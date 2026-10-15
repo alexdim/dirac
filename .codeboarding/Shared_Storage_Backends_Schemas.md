@@ -178,15 +178,15 @@ Defines global state, user settings, secret schemas, and provider-specific model
   - `src.shared.storage.state-keys.USER_SETTINGS_FIELDS.browserSettings.transform` (L251-L251) - Method
   - `src.shared.storage.state-keys.USER_SETTINGS_FIELDS.autoCondenseContextLimits.transform` (L268-L273) - Method
   - `src.shared.storage.state-keys.USER_SETTINGS_FIELDS.autoCondenseContextLimits.transform.filter() callback` (L271-L271) - Function
-  - `src.shared.storage.state-keys.extractDefaults` (L444-L450) - Function
-  - `src.shared.storage.state-keys.extractDefaults.map() callback` (L447-L447) - Function
-  - `src.shared.storage.state-keys.extractDefaults.filter() callback` (L448-L448) - Function
-  - `src.shared.storage.state-keys.extractTransforms` (L452-L458) - Function
-  - `src.shared.storage.state-keys.extractTransforms.filter() callback` (L455-L455) - Function
-  - `src.shared.storage.state-keys.extractTransforms.map() callback` (L456-L456) - Function
-  - `src.shared.storage.state-keys.extractMetadata` (L460-L466) - Function
-  - `src.shared.storage.state-keys.extractMetadata.filter() callback` (L463-L463) - Function
-  - `src.shared.storage.state-keys.extractMetadata.map() callback` (L464-L464) - Function
+  - `src.shared.storage.state-keys.extractDefaults` (L445-L451) - Function
+  - `src.shared.storage.state-keys.extractDefaults.map() callback` (L448-L448) - Function
+  - `src.shared.storage.state-keys.extractDefaults.filter() callback` (L449-L449) - Function
+  - `src.shared.storage.state-keys.extractTransforms` (L453-L459) - Function
+  - `src.shared.storage.state-keys.extractTransforms.filter() callback` (L456-L456) - Function
+  - `src.shared.storage.state-keys.extractTransforms.map() callback` (L457-L457) - Function
+  - `src.shared.storage.state-keys.extractMetadata` (L461-L467) - Function
+  - `src.shared.storage.state-keys.extractMetadata.filter() callback` (L464-L464) - Function
+  - `src.shared.storage.state-keys.extractMetadata.map() callback` (L465-L465) - Function
 
 
 

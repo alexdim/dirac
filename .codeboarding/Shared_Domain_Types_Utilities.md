@@ -127,6 +127,14 @@ Defines core domain models, presentation state, API metrics, configuration types
   - `src.shared.historyItemFromProto.requiredString` (L69-L72) - Function
   - `src.shared.historyItemFromProto.requiredNonnegativeNumber` (L74-L82) - Function
   - `src.shared.historyItemFromProto.requiredGoalStatus` (L84-L89) - Function
+- `src/shared/messages/prompt-history.ts`
+  - `src.shared.messages.prompt-history.UserPrompt` (L3-L6) - Interface
+  - `src.shared.messages.prompt-history.getUserPrompts` (L9-L15) - Function
+  - `src.shared.messages.prompt-history.getUserPrompts.messages.flatMap() callback` (L10-L13) - Function
+  - `src.shared.messages.prompt-history.getRecentUniquePrompts` (L17-L20) - Function
+  - `src.shared.messages.prompt-history.getRecentUniquePrompts.newestFirst` (L18-L18) - Class
+  - `src.shared.messages.prompt-history.getRecentUniquePrompts.newestFirst.map() callback` (L18-L18) - Function
+  - `src.shared.messages.prompt-history.getRecentUniquePrompts.newestFirst.sort() callback` (L18-L18) - Function
 - `src/shared/net.ts`
   - `src.shared.net.fetch` (L113-L129) - Class
   - `src.shared.net.fetch.<function>` (L113-L129) - Function
@@ -401,8 +409,8 @@ Provides model catalogs, metadata, and type definitions for supported LLM provid
   - `src.shared.api.models.types.isFreeModel.overridePrices.modelInfo.thinkingConfig.outputPriceTiers.map() callback` (L198-L198) - Function
   - `src.shared.api.models.types.isFreeModel.overridePrices.every() callback` (L201-L201) - Function
 - `src/shared/api/models/vertex.ts`
-  - `src.shared.api.models.vertex.vertexGlobalModels` (L279-L281) - Class
-  - `src.shared.api.models.vertex.vertexGlobalModels.filter() callback` (L280-L280) - Function
+  - `src.shared.api.models.vertex.vertexGlobalModels` (L289-L291) - Class
+  - `src.shared.api.models.vertex.vertexGlobalModels.filter() callback` (L290-L290) - Function
 
 
 ### Protobuf Type Conversions

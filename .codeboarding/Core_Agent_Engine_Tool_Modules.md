@@ -38,7 +38,7 @@ graph LR
 
 ## Details
 
-Implements LLM API providers, system prompts, context management, controller RPC handlers, permissions, hooks, and agent tool modules.
+Implements LLM API providers, system prompts, context management, permissions, hooks, and agent tool modules that drive the AI agent's core capabilities.
 
 ### Task Execution & Tool Runtime [[Expand]](./Task_Execution_Tool_Runtime.md)
 Executes agent tasks, tool modules, subagents, goals, lifecycle hooks, command permissions, and conversation condensation.
@@ -46,7 +46,7 @@ Executes agent tasks, tool modules, subagents, goals, lifecycle hooks, command p
 
 **Related Classes/Methods**:
 
-- `src.core.task.TaskState.TaskState`:22-271
+- `src.core.task.TaskState.TaskState`:22-270
 - `src.core.task.ContextLoader.ContextLoader`:14-151
 - `src.core.task.TaskRequestBuilder.buildApiRequestParams`:68-293
 - `src.core.permissions.CommandPermissionController.CommandPermissionController`:29-319
@@ -177,16 +177,16 @@ Executes agent tasks, tool modules, subagents, goals, lifecycle hooks, command p
   - `src.core.goal.GoalTaskEnvironment.GoalChildToolEnvironmentFactory.constructor` (L189-L193) - Constructor
   - `src.core.goal.GoalTaskEnvironment.GoalChildToolEnvironmentFactory.create` (L195-L206) - Method
 - `src/core/goal/GoalTaskFactory.ts`
-  - `src.core.goal.GoalTaskFactory.GoalTaskBaseConstruction` (L17-L26) - Interface
-  - `src.core.goal.GoalTaskFactory.GoalTaskFactoryDependencies` (L33-L40) - Interface
-  - `src.core.goal.GoalTaskFactory.GoalTaskFactory` (L43-L133) - Class
-  - `src.core.goal.GoalTaskFactory.GoalTaskFactory.constructor` (L44-L44) - Constructor
-  - `src.core.goal.GoalTaskFactory.GoalTaskFactory.create` (L46-L104) - Method
-  - `src.core.goal.GoalTaskFactory.GoalTaskFactory.create.params` (L58-L97) - Class
-  - `src.core.goal.GoalTaskFactory.GoalTaskFactory.create.params.updateTaskHistory` (L60-L63) - Method
-  - `src.core.goal.GoalTaskFactory.GoalTaskFactory.create.params.reinitExistingTaskFromId` (L68-L70) - Method
-  - `src.core.goal.GoalTaskFactory.GoalTaskFactory.create.params.cancelTask` (L71-L73) - Method
-  - `src.core.goal.GoalTaskFactory.GoalTaskFactory.workingConfiguration` (L106-L132) - Method
+  - `src.core.goal.GoalTaskFactory.GoalTaskBaseConstruction` (L18-L27) - Interface
+  - `src.core.goal.GoalTaskFactory.GoalTaskFactoryDependencies` (L34-L41) - Interface
+  - `src.core.goal.GoalTaskFactory.GoalTaskFactory` (L44-L128) - Class
+  - `src.core.goal.GoalTaskFactory.GoalTaskFactory.constructor` (L45-L45) - Constructor
+  - `src.core.goal.GoalTaskFactory.GoalTaskFactory.create` (L47-L99) - Method
+  - `src.core.goal.GoalTaskFactory.GoalTaskFactory.create.params` (L53-L92) - Class
+  - `src.core.goal.GoalTaskFactory.GoalTaskFactory.create.params.updateTaskHistory` (L55-L58) - Method
+  - `src.core.goal.GoalTaskFactory.GoalTaskFactory.create.params.reinitExistingTaskFromId` (L63-L65) - Method
+  - `src.core.goal.GoalTaskFactory.GoalTaskFactory.create.params.cancelTask` (L66-L68) - Method
+  - `src.core.goal.GoalTaskFactory.GoalTaskFactory.workingConfiguration` (L101-L127) - Method
 - `src/core/goal/validateGoalRecord.ts`
   - `src.core.goal.validateGoalRecord.invalid` (L28-L30) - Function
   - `src.core.goal.validateGoalRecord.recordAt` (L32-L37) - Function
@@ -548,8 +548,7 @@ Executes agent tasks, tool modules, subagents, goals, lifecycle hooks, command p
   - `src.core.task.TaskExecutionProfile.isDiscoveredToolAvailableToTaskProfile` (L26-L29) - Function
   - `src.core.task.TaskExecutionProfile.taskProfileSystemInstructions` (L31-L66) - Function
 - `src/core/task/TaskLockUtils.ts`
-  - `src.core.task.TaskLockUtils.tryAcquireTaskLockWithRetry` (L17-L25) - Function
-  - `src.core.task.TaskLockUtils.releaseTaskLock` (L34-L36) - Function
+  - `src.core.task.TaskLockUtils.acquireTaskLock` (L6-L21) - Function
 - `src/core/task/TaskMistakeLimit.ts`
   - `src.core.task.TaskMistakeLimit.TaskMistakeLimitContext` (L13-L18) - Interface
   - `src.core.task.TaskMistakeLimit.handleMistakeLimitReached` (L20-L118) - Function
@@ -582,7 +581,7 @@ Executes agent tasks, tool modules, subagents, goals, lifecycle hooks, command p
 - `src/core/task/TaskState.ts`
   - `src.core.task.TaskState.CompletionVerificationFailure` (L11-L14) - Interface
   - `src.core.task.TaskState.TaskReplacementRequest` (L16-L20) - Interface
-  - `src.core.task.TaskState.TaskState` (L22-L271) - Class
+  - `src.core.task.TaskState.TaskState` (L22-L270) - Class
   - `src.core.task.TaskState.TaskState.isApiRequestActive` (L35-L37) - Method
   - `src.core.task.TaskState.TaskState.activeVoiceStreamId` (L38-L40) - Method
   - `src.core.task.TaskState.TaskState.isWaitingForFirstChunk` (L41-L43) - Method
@@ -694,16 +693,15 @@ Executes agent tasks, tool modules, subagents, goals, lifecycle hooks, command p
   - `src.core.task.context.FileContextLoader.FileContextLoader.readLineAt` (L298-L312) - Method
   - `src.core.task.context.FileContextLoader.FileContextLoader.assembleSymbolDefinitions` (L315-L336) - Method
 - `src/core/task/lifecycle/TaskAbortManager.ts`
-  - `src.core.task.lifecycle.TaskAbortManager.TaskAbortManager` (L10-L113) - Class
-  - `src.core.task.lifecycle.TaskAbortManager.TaskAbortManager.constructor` (L11-L11) - Constructor
-  - `src.core.task.lifecycle.TaskAbortManager.TaskAbortManager.abort` (L13-L26) - Method
-  - `src.core.task.lifecycle.TaskAbortManager.TaskAbortManager.cancelActiveHook` (L28-L38) - Method
-  - `src.core.task.lifecycle.TaskAbortManager.TaskAbortManager.cancelBackgroundCommand` (L40-L47) - Method
-  - `src.core.task.lifecycle.TaskAbortManager.TaskAbortManager.runTaskCancelHook` (L49-L74) - Method
-  - `src.core.task.lifecycle.TaskAbortManager.TaskAbortManager.saveStateAndPost` (L76-L83) - Method
-  - `src.core.task.lifecycle.TaskAbortManager.TaskAbortManager.disposeResources` (L85-L93) - Method
-  - `src.core.task.lifecycle.TaskAbortManager.TaskAbortManager.releaseLockIfNeeded` (L95-L104) - Method
-  - `src.core.task.lifecycle.TaskAbortManager.TaskAbortManager.postFinalState` (L106-L112) - Method
+  - `src.core.task.lifecycle.TaskAbortManager.TaskAbortManager` (L9-L101) - Class
+  - `src.core.task.lifecycle.TaskAbortManager.TaskAbortManager.constructor` (L10-L10) - Constructor
+  - `src.core.task.lifecycle.TaskAbortManager.TaskAbortManager.abort` (L12-L24) - Method
+  - `src.core.task.lifecycle.TaskAbortManager.TaskAbortManager.cancelActiveHook` (L26-L36) - Method
+  - `src.core.task.lifecycle.TaskAbortManager.TaskAbortManager.cancelBackgroundCommand` (L38-L45) - Method
+  - `src.core.task.lifecycle.TaskAbortManager.TaskAbortManager.runTaskCancelHook` (L47-L72) - Method
+  - `src.core.task.lifecycle.TaskAbortManager.TaskAbortManager.saveStateAndPost` (L74-L81) - Method
+  - `src.core.task.lifecycle.TaskAbortManager.TaskAbortManager.disposeResources` (L83-L91) - Method
+  - `src.core.task.lifecycle.TaskAbortManager.TaskAbortManager.postFinalState` (L94-L100) - Method
 - `src/core/task/recordUtilityModelUsage.ts`
   - `src.core.task.recordUtilityModelUsage.recordUtilityModelUsage` (L6-L33) - Function
 - `src/core/task/response/EmptyResponseHandler.ts`
@@ -1177,19 +1175,19 @@ Executes agent tasks, tool modules, subagents, goals, lifecycle hooks, command p
   - `src.core.task.tools.modules.edit_ast.AstEditApplier.AstEditApplier.errorMessage` (L127-L129) - Method
 - `src/core/task/tools/modules/edit_ast/AstEditApproval.ts`
   - `src.core.task.tools.modules.edit_ast.AstEditApproval.AstEditApprovalResult` (L13-L18) - Interface
-  - `src.core.task.tools.modules.edit_ast.AstEditApproval.AstEditApproval` (L21-L261) - Class
+  - `src.core.task.tools.modules.edit_ast.AstEditApproval.AstEditApproval` (L21-L251) - Class
   - `src.core.task.tools.modules.edit_ast.AstEditApproval.AstEditApproval.constructor` (L22-L22) - Constructor
-  - `src.core.task.tools.modules.edit_ast.AstEditApproval.AstEditApproval.request` (L24-L158) - Method
-  - `src.core.task.tools.modules.edit_ast.AstEditApproval.request.plan.files.map() callback` (L63-L68) - Function
-  - `src.core.task.tools.modules.edit_ast.AstEditApproval.AstEditApproval.request.plan.files.map() callback` (L99-L104) - Function
-  - `src.core.task.tools.modules.edit_ast.AstEditApproval.AstEditApproval.resolvePermissionDisposition` (L160-L186) - Method
-  - `src.core.task.tools.modules.edit_ast.AstEditApproval.AstEditApproval.createApprovalCard` (L188-L220) - Method
-  - `src.core.task.tools.modules.edit_ast.AstEditApproval.AstEditApproval.createApprovalCard.locations.plan.files.map() callback` (L207-L207) - Function
-  - `src.core.task.tools.modules.edit_ast.AstEditApproval.AstEditApproval.createApprovalCard.rawInput.targets.args.targets.map() callback` (L211-L211) - Function
-  - `src.core.task.tools.modules.edit_ast.AstEditApproval.AstEditApproval.finalizeApprovalCard` (L222-L245) - Method
-  - `src.core.task.tools.modules.edit_ast.AstEditApproval.AstEditApproval.updateProgressCards` (L247-L249) - Method
-  - `src.core.task.tools.modules.edit_ast.AstEditApproval.AstEditApproval.finalizeProgressCards` (L251-L256) - Method
-  - `src.core.task.tools.modules.edit_ast.AstEditApproval.AstEditApproval.errorMessage` (L258-L260) - Method
+  - `src.core.task.tools.modules.edit_ast.AstEditApproval.AstEditApproval.request` (L24-L148) - Method
+  - `src.core.task.tools.modules.edit_ast.AstEditApproval.request.plan.files.map() callback` (L53-L58) - Function
+  - `src.core.task.tools.modules.edit_ast.AstEditApproval.AstEditApproval.request.plan.files.map() callback` (L89-L94) - Function
+  - `src.core.task.tools.modules.edit_ast.AstEditApproval.AstEditApproval.resolvePermissionDisposition` (L150-L176) - Method
+  - `src.core.task.tools.modules.edit_ast.AstEditApproval.AstEditApproval.createApprovalCard` (L178-L210) - Method
+  - `src.core.task.tools.modules.edit_ast.AstEditApproval.AstEditApproval.createApprovalCard.locations.plan.files.map() callback` (L197-L197) - Function
+  - `src.core.task.tools.modules.edit_ast.AstEditApproval.AstEditApproval.createApprovalCard.rawInput.targets.args.targets.map() callback` (L201-L201) - Function
+  - `src.core.task.tools.modules.edit_ast.AstEditApproval.AstEditApproval.finalizeApprovalCard` (L212-L235) - Method
+  - `src.core.task.tools.modules.edit_ast.AstEditApproval.AstEditApproval.updateProgressCards` (L237-L239) - Method
+  - `src.core.task.tools.modules.edit_ast.AstEditApproval.AstEditApproval.finalizeProgressCards` (L241-L246) - Method
+  - `src.core.task.tools.modules.edit_ast.AstEditApproval.AstEditApproval.errorMessage` (L248-L250) - Method
 - `src/core/task/tools/modules/edit_ast/AstEditFormatter.ts`
   - `src.core.task.tools.modules.edit_ast.AstEditFormatter.AstEditFormatter` (L18-L138) - Class
   - `src.core.task.tools.modules.edit_ast.AstEditFormatter.AstEditFormatter.progressHeader` (L19-L22) - Method

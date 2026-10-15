@@ -142,8 +142,15 @@ export function useChatFooterStatus({ ctrl, mode, taskState }: UseChatFooterStat
 
 ### /Users/highlands/pools/Development/dirac/cli/src/hooks/useChatInputHandler.ts (lines 102-490)
 ```
+	goalStatus?: GoalStatus
+	handleGoalControl: (action: GoalLifecycleAction) => void
+	toggleGoalDetails: () => void
+	disarmGoalStopConfirmation: () => void
+}
+
 export function useChatInputHandler({
 	workspacePath,
+	inputColumns,
 	textInputRef,
 	cursorPosRef,
 	setTextInput,
@@ -153,6 +160,9 @@ export function useChatInputHandler({
 	handleAskShortcuts,
 	handleKeyboardSequence,
 	handleCtrlShortcut,
+	handleVimInput,
+	resetInput,
+	isVimNormal = false,
 	insertTextAtCursor,
 	toggleMode,
 	toggleAutoApproveAll,
@@ -171,6 +181,7 @@ export function useChatInputHandler({
 	setSelectedIndex,
 	setFileResults,
 	getHistoryItems,
+	navigateHistory,
 	historyIndex,
 	setHistoryIndex,
 	savedInput,
@@ -203,7 +214,8 @@ export function useChatInputHandler({
 	disarmGoalStopConfirmation,
 }: UseChatInputHandlerProps) {
 	useInput((input, key) => {
-		if (isMouseEscapeSequence(input) || isTerminalResponseSequence(input, key)) return
+		const isShiftEnter = (key.return && key.shift) || SHIFT_ENTER_SEQUENCES.has(input)
+		if (isMouseEscapeSequence(input) || (!isShiftEnter && isTerminalResponseSequence(input, key))) return
 		if (activePanel) {
 			disarmGoalStopConfirmation()
 			return
@@ -216,10 +228,7 @@ export function useChatInputHandler({
 		const localSlashCommandContext = {
 			mode,
 			setActivePanel,
-			resetInputLine: () => {
-				setTextInput("")
-				setCursorPos(0)
-			},
+			resetInputLine: resetInput,
 			clearViewAndResetTask,
 			handleExit,
 			enableFastMode,
@@ -237,6 +246,25 @@ export function useChatInputHandler({
 		}
 		disarmGoalStopConfirmation()
 
+		if (key.ctrl && !key.shift && !key.meta && (key.upArrow || key.downArrow)) {
+			navigateHistory(key.upArrow ? "older" : "newer")
+			return
+		}
+
+		// Newline chords belong to the composer in either editing mode.
+		if (isShiftEnter || (key.shift && key.downArrow)) {
+			insertTextAtCursor("\n")
+			return
+		}
+
+		if (handleVimInput?.(input, key)) {
+			if (key.escape) {
+				setSlashMenuDismissed(true)
+				setFileResults([])
+			}
+			return
+		}
+
 		if (handleAskShortcuts(input, key, currentTextInput)) return
 		if (handleKeyboardSequence(input)) return
 
@@ -251,8 +279,10 @@ export function useChatInputHandler({
 			}
 		}
 
-		const inSlashMenu = currentSlashInfo.inSlashMode && filteredCommands.length > 0 && !slashMenuDismissed
-		const inFileMenu = currentMentionInfo.inMentionMode && fileResults.length > 0 && !inSlashMenu
+		const inSlashMode = !isVimNormal && currentSlashInfo.inSlashMode
+		const inMentionMode = !isVimNormal && currentMentionInfo.inMentionMode
+		const inSlashMenu = inSlashMode && filteredCommands.length > 0 && !slashMenuDismissed
+		const inFileMenu = inMentionMode && fileResults.length > 0 && !inSlashMenu
 
 		if (inSlashMenu) {
 			if (key.upArrow) {
@@ -318,20 +348,6 @@ export function useChatInputHandler({
 				setSelectedIndex(0)
 				return
 			}
-		}
-
-		if (key.shift && key.downArrow) {
-			insertTextAtCursor("\n")
-			return
-		}
-
-		if (key.upArrow && !inSlashMenu && !inFileMenu && scrollableCardMaxOffset > 0) {
-			setCardScrollOffset(Math.min(cardScrollOffset + 1, scrollableCardMaxOffset))
-			return
-		}
-		if (key.downArrow && !inSlashMenu && !inFileMenu && cardScrollOffset > 0) {
-			setCardScrollOffset(Math.max(cardScrollOffset - 1, 0))
-			return
 		}
 
 		if (key.upArrow && !inSlashMenu && !inFileMenu && isEmptyConversation) {
@@ -473,7 +489,7 @@ export function useChatInputHandler({
 			return
 		}
 
-		if (key.return && (key.shift || key.meta || input === "\n")) {
+		if (key.return && (key.meta || input === "\n")) {
 			insertTextAtCursor("\n")
 			return
 		}
@@ -481,7 +497,7 @@ export function useChatInputHandler({
 			toggleAutoApproveAll()
 			return
 		}
-		if (key.tab && !currentMentionInfo.inMentionMode && !currentSlashInfo.inSlashMode) {
+		if (key.tab && !inMentionMode && !inSlashMode) {
 			toggleMode()
 			return
 		}
@@ -490,7 +506,7 @@ export function useChatInputHandler({
 			!key.shift &&
 			!key.meta &&
 			input !== "\n" &&
-			!currentMentionInfo.inMentionMode &&
+			!inMentionMode &&
 			(!isSpinnerActive || goalStatus !== undefined) &&
 			!isProcessing
 		) {
@@ -499,7 +515,7 @@ export function useChatInputHandler({
 				setSlashMenuDismissed(true)
 				return
 			}
-			if (currentSlashInfo.inSlashMode) return
+			if (inSlashMode) return
 			const { prompt: currentPrompt, imagePaths: currentImagePaths } = parseImagesFromInput(currentTextInput, workspacePath)
 			if (currentPrompt.trim() || currentImagePaths.length > 0) {
 				handleSubmit(currentPrompt.trim(), currentImagePaths)
@@ -515,22 +531,6 @@ export function useChatInputHandler({
 			setCursorPos((pos) => Math.min(currentTextInput.length, pos + 1))
 			return
 		}
-		if (key.upArrow && !inSlashMenu && !inFileMenu) {
-			setCursorPos(moveCursorUp(currentTextInput, currentCursorPos))
-			return
-		}
-		if (key.downArrow && !inSlashMenu && !inFileMenu) {
-			setCursorPos(moveCursorDown(currentTextInput, currentCursorPos))
-			return
-		}
-
-		if (input && !key.ctrl && !key.meta && !key.upArrow && !key.downArrow && !key.tab) {
-			if (cardScrollOffset > 0) setCardScrollOffset(0)
-
-			insertTextAtCursor(input)
-		}
-	})
-}
 ```
 
 

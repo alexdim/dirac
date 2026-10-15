@@ -807,7 +807,7 @@ Coordinates contained child tasks, verification runs, and event loops for durabl
 
 **Related Classes/Methods**:
 
-- `src.core.goal.GoalTaskHost.GoalTaskHost`:72-783
+- `src.core.goal.GoalTaskHost.GoalTaskHost`:72-788
 - `src.core.goal.GoalTaskHost.GoalTerminalGuardError`:55-60
 
 
@@ -970,115 +970,115 @@ Coordinates contained child tasks, verification runs, and event loops for durabl
   - `src.core.goal.GoalTaskHost.GoalTerminalGuardError` (L55-L60) - Class
   - `src.core.goal.GoalTaskHost.GoalTerminalGuardError.constructor` (L56-L59) - Constructor
   - `src.core.goal.GoalTaskHost.GoalChildTaskFactoryInput` (L62-L68) - Interface
-  - `src.core.goal.GoalTaskHost.GoalTaskHost` (L72-L783) - Class
+  - `src.core.goal.GoalTaskHost.GoalTaskHost` (L72-L788) - Class
   - `src.core.goal.GoalTaskHost.GoalTaskHost.constructor` (L82-L87) - Constructor
-  - `src.core.goal.GoalTaskHost.GoalTaskHost.startTask` (L89-L155) - Method
-  - `src.core.goal.GoalTaskHost.GoalTaskHost.startTask.registryMutex.withLock() callback` (L94-L154) - Function
+  - `src.core.goal.GoalTaskHost.GoalTaskHost.startTask` (L89-L160) - Method
+  - `src.core.goal.GoalTaskHost.GoalTaskHost.startTask.registryMutex.withLock() callback` (L94-L159) - Function
   - `src.core.goal.GoalTaskHost.GoalTaskHost.startTask.registryMutex.withLock() callback.store.update() callback` (L99-L111) - Function
   - `src.core.goal.GoalTaskHost.GoalTaskHost.startTask.registryMutex.withLock() callback.updateChild() callback` (L128-L132) - Function
-  - `src.core.goal.GoalTaskHost.GoalTaskHost.startVerification` (L157-L173) - Method
-  - `src.core.goal.GoalTaskHost.GoalTaskHost.startVerification.childSummary` (L159-L161) - Class
-  - `src.core.goal.GoalTaskHost.GoalTaskHost.startVerification.childSummary.goal.children.map() callback` (L160-L160) - Function
-  - `src.core.goal.GoalTaskHost.GoalTaskHost.recoverUnreadResponses` (L176-L242) - Method
-  - `src.core.goal.GoalTaskHost.GoalTaskHost.recoverUnreadResponses.responses` (L181-L183) - Class
-  - `src.core.goal.GoalTaskHost.GoalTaskHost.recoverUnreadResponses.responses.messages.filter() callback` (L182-L182) - Function
-  - `src.core.goal.GoalTaskHost.GoalTaskHost.recoverUnreadResponses.map() callback` (L185-L189) - Function
-  - `src.core.goal.GoalTaskHost.GoalTaskHost.recoverUnreadResponses.hasStaleInteractionEvent` (L192-L196) - Class
-  - `src.core.goal.GoalTaskHost.GoalTaskHost.recoverUnreadResponses.hasStaleInteractionEvent.record.events.some() callback` (L192-L196) - Function
-  - `src.core.goal.GoalTaskHost.GoalTaskHost.recoverUnreadResponses.hasStaleInteractionEvent.record.events.some() callback.child` (L194-L194) - Class
-  - `src.core.goal.GoalTaskHost.GoalTaskHost.recoverUnreadResponses.hasStaleInteractionEvent.record.events.some() callback.child.record.children.find() callback` (L194-L194) - Function
-  - `src.core.goal.GoalTaskHost.GoalTaskHost.recoverUnreadResponses.unread.sort() callback` (L199-L202) - Function
-  - `src.core.goal.GoalTaskHost.GoalTaskHost.recoverUnreadResponses.store.update() callback` (L205-L241) - Function
-  - `src.core.goal.GoalTaskHost.GoalTaskHost.recoverUnreadResponses.store.update() callback.goal.events.filter() callback` (L206-L210) - Function
-  - `src.core.goal.GoalTaskHost.GoalTaskHost.recoverUnreadResponses.store.update() callback.goal.events.filter() callback.child` (L208-L208) - Class
-  - `src.core.goal.GoalTaskHost.GoalTaskHost.recoverUnreadResponses.store.update() callback.goal.events.filter() callback.child.goal.children.find() callback` (L208-L208) - Function
-  - `src.core.goal.GoalTaskHost.GoalTaskHost.recoverUnreadResponses.store.update() callback.exists` (L213-L218) - Class
-  - `src.core.goal.GoalTaskHost.GoalTaskHost.recoverUnreadResponses.store.update() callback.exists.goal.events.some() callback` (L214-L217) - Function
-  - `src.core.goal.GoalTaskHost.GoalTaskHost.recoverUnreadResponses.store.update() callback.goal.events.sort() callback` (L231-L234) - Function
-  - `src.core.goal.GoalTaskHost.GoalTaskHost.listTasks` (L244-L271) - Method
-  - `src.core.goal.GoalTaskHost.GoalTaskHost.listTasks.tasks.tasks.map() callback` (L264-L268) - Function
-  - `src.core.goal.GoalTaskHost.GoalTaskHost.sendTaskMessage` (L273-L284) - Method
-  - `src.core.goal.GoalTaskHost.GoalTaskHost.sendTaskMessage.updateChild() callback` (L281-L283) - Function
-  - `src.core.goal.GoalTaskHost.GoalTaskHost.cancelTask` (L286-L311) - Method
-  - `src.core.goal.GoalTaskHost.GoalTaskHost.cancelTask.registryMutex.withLock() callback` (L287-L310) - Function
-  - `src.core.goal.GoalTaskHost.GoalTaskHost.readTaskTranscript` (L313-L323) - Method
-  - `src.core.goal.GoalTaskHost.GoalTaskHost.recordResponse` (L325-L341) - Method
-  - `src.core.goal.GoalTaskHost.GoalTaskHost.recordResponse.store.update() callback` (L326-L339) - Function
-  - `src.core.goal.GoalTaskHost.GoalTaskHost.recordActivity` (L343-L348) - Method
-  - `src.core.goal.GoalTaskHost.GoalTaskHost.recordActivity.store.update() callback` (L344-L347) - Function
-  - `src.core.goal.GoalTaskHost.GoalTaskHost.waitForInteraction` (L350-L383) - Method
-  - `src.core.goal.GoalTaskHost.GoalTaskHost.waitForInteraction.store.update() callback` (L357-L377) - Function
-  - `src.core.goal.GoalTaskHost.GoalTaskHost.waitForInteraction.<function>` (L380-L382) - Function
-  - `src.core.goal.GoalTaskHost.GoalTaskHost.resolveTaskInteraction` (L385-L430) - Method
-  - `src.core.goal.GoalTaskHost.GoalTaskHost.resolveTaskInteraction.task.updateChild() callback` (L422-L426) - Function
-  - `src.core.goal.GoalTaskHost.resolveTaskInteraction.task` (L422-L426) - Class
-  - `src.core.goal.GoalTaskHost.GoalTaskHost.recordUserSteering` (L432-L438) - Method
-  - `src.core.goal.GoalTaskHost.GoalTaskHost.recordUserSteering.store.update() callback` (L433-L436) - Function
-  - `src.core.goal.GoalTaskHost.GoalTaskHost.waitForEvents` (L440-L463) - Method
-  - `src.core.goal.GoalTaskHost.GoalTaskHost.waitForEvents.events.sort() callback` (L452-L452) - Function
-  - `src.core.goal.GoalTaskHost.waitForEvents.events` (L452-L452) - Class
-  - `src.core.goal.GoalTaskHost.GoalTaskHost.waitForEvents.wake` (L454-L457) - Class
-  - `src.core.goal.GoalTaskHost.GoalTaskHost.waitForEvents.wake.store.update() callback` (L454-L457) - Function
-  - `src.core.goal.GoalTaskHost.GoalTaskHost.acknowledgePersistedWake` (L466-L474) - Method
-  - `src.core.goal.GoalTaskHost.GoalTaskHost.rollbackUnpersistedWake` (L477-L482) - Method
-  - `src.core.goal.GoalTaskHost.GoalTaskHost.commitTerminalAttempt` (L484-L491) - Method
-  - `src.core.goal.GoalTaskHost.GoalTaskHost.commitTerminalAttempt.registryMutex.withLock() callback` (L485-L490) - Function
-  - `src.core.goal.GoalTaskHost.GoalTaskHost.guardTerminalTransition` (L493-L498) - Method
-  - `src.core.goal.GoalTaskHost.GoalTaskHost.guardTerminalTransition.registryMutex.withLock() callback` (L494-L497) - Function
-  - `src.core.goal.GoalTaskHost.GoalTaskHost.shutdown` (L500-L503) - Method
-  - `src.core.goal.GoalTaskHost.GoalTaskHost.performShutdown` (L505-L547) - Method
-  - `src.core.goal.GoalTaskHost.GoalTaskHost.performShutdown.registryMutex.withLock() callback` (L506-L546) - Function
-  - `src.core.goal.GoalTaskHost.GoalTaskHost.performShutdown.registryMutex.withLock() callback.interactions.map() callback` (L513-L519) - Function
-  - `src.core.goal.GoalTaskHost.GoalTaskHost.performShutdown.registryMutex.withLock() callback.map() callback` (L522-L535) - Function
-  - `src.core.goal.GoalTaskHost.GoalTaskHost.performShutdown.registryMutex.withLock() callback.store.update() callback` (L538-L540) - Function
-  - `src.core.goal.GoalTaskHost.GoalTaskHost.observeRun` (L549-L588) - Method
-  - `src.core.goal.GoalTaskHost.GoalTaskHost.observeRun.store.update() callback` (L551-L585) - Function
-  - `src.core.goal.GoalTaskHost.GoalTaskHost.recordStartupFailure` (L590-L603) - Method
-  - `src.core.goal.GoalTaskHost.GoalTaskHost.recordStartupFailure.store.update() callback` (L592-L600) - Function
-  - `src.core.goal.GoalTaskHost.GoalTaskHost.updateChild` (L605-L613) - Method
-  - `src.core.goal.GoalTaskHost.GoalTaskHost.updateChild.store.update() callback` (L607-L611) - Function
-  - `src.core.goal.GoalTaskHost.GoalTaskHost.childRecord` (L615-L617) - Method
-  - `src.core.goal.GoalTaskHost.GoalTaskHost.requireLiveChild` (L619-L623) - Method
-  - `src.core.goal.GoalTaskHost.GoalTaskHost.apiTranscript` (L625-L630) - Method
-  - `src.core.goal.GoalTaskHost.GoalTaskHost.responsePayload` (L632-L650) - Method
-  - `src.core.goal.GoalTaskHost.GoalTaskHost.responsePayload.responses` (L637-L639) - Class
-  - `src.core.goal.GoalTaskHost.GoalTaskHost.responsePayload.responses.messages.filter() callback` (L638-L638) - Function
-  - `src.core.goal.GoalTaskHost.GoalTaskHost.settleClaimedEvents` (L652-L662) - Method
-  - `src.core.goal.GoalTaskHost.GoalTaskHost.settleClaimedEvents.sequences` (L653-L653) - Class
-  - `src.core.goal.GoalTaskHost.GoalTaskHost.settleClaimedEvents.sequences.batch.events.map() callback` (L653-L653) - Function
-  - `src.core.goal.GoalTaskHost.GoalTaskHost.settleClaimedEvents.store.update() callback` (L654-L661) - Function
-  - `src.core.goal.GoalTaskHost.GoalTaskHost.settleClaimedEvents.store.update() callback.goal.events.filter() callback` (L660-L660) - Function
-  - `src.core.goal.GoalTaskHost.GoalTaskHost.waitForNotification` (L664-L685) - Method
-  - `src.core.goal.GoalTaskHost.GoalTaskHost.waitForNotification.<function>` (L665-L684) - Function
-  - `src.core.goal.GoalTaskHost.GoalTaskHost.waitForNotification.<function>.timer` (L677-L679) - Class
-  - `src.core.goal.GoalTaskHost.GoalTaskHost.waitForNotification.<function>.timer.setTimeout() callback` (L679-L679) - Function
-  - `src.core.goal.GoalTaskHost.waitForNotification.<function>.then() callback` (L681-L683) - Function
-  - `src.core.goal.GoalTaskHost.GoalTaskHost.waitForNotification.<function>.then() callback` (L683-L683) - Function
-  - `src.core.goal.GoalTaskHost.GoalTaskHost.notifyWaiter` (L687-L689) - Method
-  - `src.core.goal.GoalTaskHost.GoalTaskHost.formatWake` (L691-L747) - Method
-  - `src.core.goal.GoalTaskHost.GoalTaskHost.formatWake.lines` (L703-L707) - Class
-  - `src.core.goal.GoalTaskHost.GoalTaskHost.formatWake.lines.events.some() callback` (L706-L706) - Function
-  - `src.core.goal.GoalTaskHost.GoalTaskHost.formatWake.active` (L736-L736) - Class
-  - `src.core.goal.GoalTaskHost.GoalTaskHost.formatWake.active.record.children.filter() callback` (L736-L736) - Function
-  - `src.core.goal.GoalTaskHost.GoalTaskHost.assertNoLiveChildren` (L749-L758) - Method
-  - `src.core.goal.GoalTaskHost.GoalTaskHost.assertNoLiveChildren.active` (L751-L751) - Class
-  - `src.core.goal.GoalTaskHost.GoalTaskHost.assertNoLiveChildren.active.record.children.filter() callback` (L751-L751) - Function
-  - `src.core.goal.GoalTaskHost.GoalTaskHost.assertNoLiveChildren.active.map() callback` (L755-L755) - Function
-  - `src.core.goal.GoalTaskHost.GoalTaskHost.assertAcceptingWork` (L760-L762) - Method
-  - `src.core.goal.GoalTaskHost.GoalTaskHost.cancelPendingInteraction` (L764-L768) - Method
-  - `src.core.goal.GoalTaskHost.GoalTaskHost.cancelPendingInteractionByKey` (L770-L782) - Method
-  - `src.core.goal.GoalTaskHost.requireChild` (L785-L789) - Function
-  - `src.core.goal.GoalTaskHost.requireChild.child` (L786-L786) - Class
-  - `src.core.goal.GoalTaskHost.requireChild.child.goal.children.find() callback` (L786-L786) - Function
-  - `src.core.goal.GoalTaskHost.nextResponseCursor` (L791-L800) - Function
-  - `src.core.goal.GoalTaskHost.nextResponseCursor.goal.events.filter() callback` (L795-L796) - Function
-  - `src.core.goal.GoalTaskHost.nextResponseCursor.map() callback` (L798-L798) - Function
-  - `src.core.goal.GoalTaskHost.parseCursor` (L802-L807) - Function
-  - `src.core.goal.GoalTaskHost.boundedLimit` (L809-L815) - Function
-  - `src.core.goal.GoalTaskHost.interactionKey` (L817-L819) - Function
-  - `src.core.goal.GoalTaskHost.eventTieKey` (L821-L826) - Function
-  - `src.core.goal.GoalTaskHost.cardSnapshot` (L828-L854) - Function
-  - `src.core.goal.GoalTaskHost.formatDuration` (L856-L863) - Function
+  - `src.core.goal.GoalTaskHost.GoalTaskHost.startVerification` (L162-L178) - Method
+  - `src.core.goal.GoalTaskHost.GoalTaskHost.startVerification.childSummary` (L164-L166) - Class
+  - `src.core.goal.GoalTaskHost.GoalTaskHost.startVerification.childSummary.goal.children.map() callback` (L165-L165) - Function
+  - `src.core.goal.GoalTaskHost.GoalTaskHost.recoverUnreadResponses` (L181-L247) - Method
+  - `src.core.goal.GoalTaskHost.GoalTaskHost.recoverUnreadResponses.responses` (L186-L188) - Class
+  - `src.core.goal.GoalTaskHost.GoalTaskHost.recoverUnreadResponses.responses.messages.filter() callback` (L187-L187) - Function
+  - `src.core.goal.GoalTaskHost.GoalTaskHost.recoverUnreadResponses.map() callback` (L190-L194) - Function
+  - `src.core.goal.GoalTaskHost.GoalTaskHost.recoverUnreadResponses.hasStaleInteractionEvent` (L197-L201) - Class
+  - `src.core.goal.GoalTaskHost.GoalTaskHost.recoverUnreadResponses.hasStaleInteractionEvent.record.events.some() callback` (L197-L201) - Function
+  - `src.core.goal.GoalTaskHost.GoalTaskHost.recoverUnreadResponses.hasStaleInteractionEvent.record.events.some() callback.child` (L199-L199) - Class
+  - `src.core.goal.GoalTaskHost.GoalTaskHost.recoverUnreadResponses.hasStaleInteractionEvent.record.events.some() callback.child.record.children.find() callback` (L199-L199) - Function
+  - `src.core.goal.GoalTaskHost.GoalTaskHost.recoverUnreadResponses.unread.sort() callback` (L204-L207) - Function
+  - `src.core.goal.GoalTaskHost.GoalTaskHost.recoverUnreadResponses.store.update() callback` (L210-L246) - Function
+  - `src.core.goal.GoalTaskHost.GoalTaskHost.recoverUnreadResponses.store.update() callback.goal.events.filter() callback` (L211-L215) - Function
+  - `src.core.goal.GoalTaskHost.GoalTaskHost.recoverUnreadResponses.store.update() callback.goal.events.filter() callback.child` (L213-L213) - Class
+  - `src.core.goal.GoalTaskHost.GoalTaskHost.recoverUnreadResponses.store.update() callback.goal.events.filter() callback.child.goal.children.find() callback` (L213-L213) - Function
+  - `src.core.goal.GoalTaskHost.GoalTaskHost.recoverUnreadResponses.store.update() callback.exists` (L218-L223) - Class
+  - `src.core.goal.GoalTaskHost.GoalTaskHost.recoverUnreadResponses.store.update() callback.exists.goal.events.some() callback` (L219-L222) - Function
+  - `src.core.goal.GoalTaskHost.GoalTaskHost.recoverUnreadResponses.store.update() callback.goal.events.sort() callback` (L236-L239) - Function
+  - `src.core.goal.GoalTaskHost.GoalTaskHost.listTasks` (L249-L276) - Method
+  - `src.core.goal.GoalTaskHost.GoalTaskHost.listTasks.tasks.tasks.map() callback` (L269-L273) - Function
+  - `src.core.goal.GoalTaskHost.GoalTaskHost.sendTaskMessage` (L278-L289) - Method
+  - `src.core.goal.GoalTaskHost.GoalTaskHost.sendTaskMessage.updateChild() callback` (L286-L288) - Function
+  - `src.core.goal.GoalTaskHost.GoalTaskHost.cancelTask` (L291-L316) - Method
+  - `src.core.goal.GoalTaskHost.GoalTaskHost.cancelTask.registryMutex.withLock() callback` (L292-L315) - Function
+  - `src.core.goal.GoalTaskHost.GoalTaskHost.readTaskTranscript` (L318-L328) - Method
+  - `src.core.goal.GoalTaskHost.GoalTaskHost.recordResponse` (L330-L346) - Method
+  - `src.core.goal.GoalTaskHost.GoalTaskHost.recordResponse.store.update() callback` (L331-L344) - Function
+  - `src.core.goal.GoalTaskHost.GoalTaskHost.recordActivity` (L348-L353) - Method
+  - `src.core.goal.GoalTaskHost.GoalTaskHost.recordActivity.store.update() callback` (L349-L352) - Function
+  - `src.core.goal.GoalTaskHost.GoalTaskHost.waitForInteraction` (L355-L388) - Method
+  - `src.core.goal.GoalTaskHost.GoalTaskHost.waitForInteraction.store.update() callback` (L362-L382) - Function
+  - `src.core.goal.GoalTaskHost.GoalTaskHost.waitForInteraction.<function>` (L385-L387) - Function
+  - `src.core.goal.GoalTaskHost.GoalTaskHost.resolveTaskInteraction` (L390-L435) - Method
+  - `src.core.goal.GoalTaskHost.GoalTaskHost.resolveTaskInteraction.task.updateChild() callback` (L427-L431) - Function
+  - `src.core.goal.GoalTaskHost.resolveTaskInteraction.task` (L427-L431) - Class
+  - `src.core.goal.GoalTaskHost.GoalTaskHost.recordUserSteering` (L437-L443) - Method
+  - `src.core.goal.GoalTaskHost.GoalTaskHost.recordUserSteering.store.update() callback` (L438-L441) - Function
+  - `src.core.goal.GoalTaskHost.GoalTaskHost.waitForEvents` (L445-L468) - Method
+  - `src.core.goal.GoalTaskHost.GoalTaskHost.waitForEvents.events.sort() callback` (L457-L457) - Function
+  - `src.core.goal.GoalTaskHost.waitForEvents.events` (L457-L457) - Class
+  - `src.core.goal.GoalTaskHost.GoalTaskHost.waitForEvents.wake` (L459-L462) - Class
+  - `src.core.goal.GoalTaskHost.GoalTaskHost.waitForEvents.wake.store.update() callback` (L459-L462) - Function
+  - `src.core.goal.GoalTaskHost.GoalTaskHost.acknowledgePersistedWake` (L471-L479) - Method
+  - `src.core.goal.GoalTaskHost.GoalTaskHost.rollbackUnpersistedWake` (L482-L487) - Method
+  - `src.core.goal.GoalTaskHost.GoalTaskHost.commitTerminalAttempt` (L489-L496) - Method
+  - `src.core.goal.GoalTaskHost.GoalTaskHost.commitTerminalAttempt.registryMutex.withLock() callback` (L490-L495) - Function
+  - `src.core.goal.GoalTaskHost.GoalTaskHost.guardTerminalTransition` (L498-L503) - Method
+  - `src.core.goal.GoalTaskHost.GoalTaskHost.guardTerminalTransition.registryMutex.withLock() callback` (L499-L502) - Function
+  - `src.core.goal.GoalTaskHost.GoalTaskHost.shutdown` (L505-L508) - Method
+  - `src.core.goal.GoalTaskHost.GoalTaskHost.performShutdown` (L510-L552) - Method
+  - `src.core.goal.GoalTaskHost.GoalTaskHost.performShutdown.registryMutex.withLock() callback` (L511-L551) - Function
+  - `src.core.goal.GoalTaskHost.GoalTaskHost.performShutdown.registryMutex.withLock() callback.interactions.map() callback` (L518-L524) - Function
+  - `src.core.goal.GoalTaskHost.GoalTaskHost.performShutdown.registryMutex.withLock() callback.map() callback` (L527-L540) - Function
+  - `src.core.goal.GoalTaskHost.GoalTaskHost.performShutdown.registryMutex.withLock() callback.store.update() callback` (L543-L545) - Function
+  - `src.core.goal.GoalTaskHost.GoalTaskHost.observeRun` (L554-L593) - Method
+  - `src.core.goal.GoalTaskHost.GoalTaskHost.observeRun.store.update() callback` (L556-L590) - Function
+  - `src.core.goal.GoalTaskHost.GoalTaskHost.recordStartupFailure` (L595-L608) - Method
+  - `src.core.goal.GoalTaskHost.GoalTaskHost.recordStartupFailure.store.update() callback` (L597-L605) - Function
+  - `src.core.goal.GoalTaskHost.GoalTaskHost.updateChild` (L610-L618) - Method
+  - `src.core.goal.GoalTaskHost.GoalTaskHost.updateChild.store.update() callback` (L612-L616) - Function
+  - `src.core.goal.GoalTaskHost.GoalTaskHost.childRecord` (L620-L622) - Method
+  - `src.core.goal.GoalTaskHost.GoalTaskHost.requireLiveChild` (L624-L628) - Method
+  - `src.core.goal.GoalTaskHost.GoalTaskHost.apiTranscript` (L630-L635) - Method
+  - `src.core.goal.GoalTaskHost.GoalTaskHost.responsePayload` (L637-L655) - Method
+  - `src.core.goal.GoalTaskHost.GoalTaskHost.responsePayload.responses` (L642-L644) - Class
+  - `src.core.goal.GoalTaskHost.GoalTaskHost.responsePayload.responses.messages.filter() callback` (L643-L643) - Function
+  - `src.core.goal.GoalTaskHost.GoalTaskHost.settleClaimedEvents` (L657-L667) - Method
+  - `src.core.goal.GoalTaskHost.GoalTaskHost.settleClaimedEvents.sequences` (L658-L658) - Class
+  - `src.core.goal.GoalTaskHost.GoalTaskHost.settleClaimedEvents.sequences.batch.events.map() callback` (L658-L658) - Function
+  - `src.core.goal.GoalTaskHost.GoalTaskHost.settleClaimedEvents.store.update() callback` (L659-L666) - Function
+  - `src.core.goal.GoalTaskHost.GoalTaskHost.settleClaimedEvents.store.update() callback.goal.events.filter() callback` (L665-L665) - Function
+  - `src.core.goal.GoalTaskHost.GoalTaskHost.waitForNotification` (L669-L690) - Method
+  - `src.core.goal.GoalTaskHost.GoalTaskHost.waitForNotification.<function>` (L670-L689) - Function
+  - `src.core.goal.GoalTaskHost.GoalTaskHost.waitForNotification.<function>.timer` (L682-L684) - Class
+  - `src.core.goal.GoalTaskHost.GoalTaskHost.waitForNotification.<function>.timer.setTimeout() callback` (L684-L684) - Function
+  - `src.core.goal.GoalTaskHost.waitForNotification.<function>.then() callback` (L686-L688) - Function
+  - `src.core.goal.GoalTaskHost.GoalTaskHost.waitForNotification.<function>.then() callback` (L688-L688) - Function
+  - `src.core.goal.GoalTaskHost.GoalTaskHost.notifyWaiter` (L692-L694) - Method
+  - `src.core.goal.GoalTaskHost.GoalTaskHost.formatWake` (L696-L752) - Method
+  - `src.core.goal.GoalTaskHost.GoalTaskHost.formatWake.lines` (L708-L712) - Class
+  - `src.core.goal.GoalTaskHost.GoalTaskHost.formatWake.lines.events.some() callback` (L711-L711) - Function
+  - `src.core.goal.GoalTaskHost.GoalTaskHost.formatWake.active` (L741-L741) - Class
+  - `src.core.goal.GoalTaskHost.GoalTaskHost.formatWake.active.record.children.filter() callback` (L741-L741) - Function
+  - `src.core.goal.GoalTaskHost.GoalTaskHost.assertNoLiveChildren` (L754-L763) - Method
+  - `src.core.goal.GoalTaskHost.GoalTaskHost.assertNoLiveChildren.active` (L756-L756) - Class
+  - `src.core.goal.GoalTaskHost.GoalTaskHost.assertNoLiveChildren.active.record.children.filter() callback` (L756-L756) - Function
+  - `src.core.goal.GoalTaskHost.GoalTaskHost.assertNoLiveChildren.active.map() callback` (L760-L760) - Function
+  - `src.core.goal.GoalTaskHost.GoalTaskHost.assertAcceptingWork` (L765-L767) - Method
+  - `src.core.goal.GoalTaskHost.GoalTaskHost.cancelPendingInteraction` (L769-L773) - Method
+  - `src.core.goal.GoalTaskHost.GoalTaskHost.cancelPendingInteractionByKey` (L775-L787) - Method
+  - `src.core.goal.GoalTaskHost.requireChild` (L790-L794) - Function
+  - `src.core.goal.GoalTaskHost.requireChild.child` (L791-L791) - Class
+  - `src.core.goal.GoalTaskHost.requireChild.child.goal.children.find() callback` (L791-L791) - Function
+  - `src.core.goal.GoalTaskHost.nextResponseCursor` (L796-L805) - Function
+  - `src.core.goal.GoalTaskHost.nextResponseCursor.goal.events.filter() callback` (L800-L801) - Function
+  - `src.core.goal.GoalTaskHost.nextResponseCursor.map() callback` (L803-L803) - Function
+  - `src.core.goal.GoalTaskHost.parseCursor` (L807-L812) - Function
+  - `src.core.goal.GoalTaskHost.boundedLimit` (L814-L820) - Function
+  - `src.core.goal.GoalTaskHost.interactionKey` (L822-L824) - Function
+  - `src.core.goal.GoalTaskHost.eventTieKey` (L826-L831) - Function
+  - `src.core.goal.GoalTaskHost.cardSnapshot` (L833-L859) - Function
+  - `src.core.goal.GoalTaskHost.formatDuration` (L861-L868) - Function
 - `src/core/task/types/task-host.ts`
   - `src.core.task.types.task-host.ITaskHost` (L8-L11) - Interface
   - `src.core.task.types.task-host.ITaskHost.toggleActModeForYoloMode` (L9-L9) - Method

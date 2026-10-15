@@ -9,6 +9,7 @@ graph LR
     Chat_Message_Layout_Utilities["Chat Message & Layout Utilities"]
     CLI_Argument_Header_Parsers["CLI Argument & Header Parsers"]
     Ink_Rendering_Search_System_Helpers -- "restores console state and formats card display content via" --> Session_Lifecycle_Display_Task_Options
+    Ink_Rendering_Search_System_Helpers -- "calls" --> Terminal_Piped_Input_Handling
     Session_Lifecycle_Display_Task_Options -- "applies tool options, filters commands, and disposes loggers via" --> Ink_Rendering_Search_System_Helpers
     Session_Lifecycle_Display_Task_Options -- "emits task start notifications via" --> Task_History_Timeout_Start_Output
     Session_Lifecycle_Display_Task_Options -- "parses CLI header options using" --> CLI_Argument_Header_Parsers
@@ -27,7 +28,7 @@ Provides Ink app launching, timeline row estimation, fuzzy and file search, tool
 **Related Classes/Methods**:
 
 - `cli.src.utils.ink.runInkApp`:4-57
-- `cli.src.utils.timeline-rows.estimateTimelineMessageBodyRows`:31-44
+- `cli.src.utils.timeline-rows.estimateTimelineMessageBodyRows`:32-48
 - `cli.src.utils.acp-file-logger.disposeAcpFileLogger`:19-28
 - `cli.src.utils.tool-options.applyToolSelectionOptions`:65-76
 - `cli.src.utils.fuzzy-search.fuzzyFilter`:14-18
@@ -59,8 +60,25 @@ Provides Ink app launching, timeline row estimation, fuzzy and file search, tool
 - `cli/src/utils/color.ts`
   - `cli.src.utils.color.hslToHex` (L9-L52) - Function
 - `cli/src/utils/cursor.ts`
-  - `cli.src.utils.cursor.moveCursorUp` (L8-L23) - Function
-  - `cli.src.utils.cursor.moveCursorDown` (L28-L45) - Function
+  - `cli.src.utils.cursor.moveCursorVertically` (L3-L13) - Function
+  - `cli.src.utils.cursor.moveCursorVertically.currentColumn` (L10-L10) - Class
+  - `cli.src.utils.cursor.moveCursorVertically.currentColumn.cursorStops.reduce() callback` (L10-L10) - Function
+  - `cli.src.utils.cursor.moveCursorVertically.targetRow.cursorStops.reduce() callback` (L12-L12) - Function
+  - `cli.src.utils.cursor.moveCursorUp` (L16-L18) - Function
+  - `cli.src.utils.cursor.moveCursorDown` (L21-L23) - Function
+- `cli/src/utils/diff-layout.ts`
+  - `cli.src.utils.diff-layout.DiffLayout` (L10-L14) - Interface
+  - `cli.src.utils.diff-layout.createDiffLayout` (L20-L47) - Function
+  - `cli.src.utils.diff-layout.createDiffLayout.rows.diff.blocks.flatMap() callback` (L30-L45) - Function
+  - `cli.src.utils.diff-layout.createDiffLayout.rows.diff.blocks.flatMap() callback.blockRows` (L32-L43) - Class
+  - `cli.src.utils.diff-layout.createDiffLayout.rows.diff.blocks.flatMap() callback.blockRows.collapsed.flatMap() callback` (L34-L43) - Function
+  - `cli.src.utils.diff-layout.createDiffLayout.rows.diff.blocks.flatMap() callback.blockRows.collapsed.flatMap() callback.map() callback` (L38-L42) - Function
+  - `cli.src.utils.diff-layout.clipDiffRows` (L50-L55) - Function
+  - `cli.src.utils.diff-layout.collapseContext` (L57-L82) - Function
+  - `cli.src.utils.diff-layout.collapseContext.changeIndices` (L59-L59) - Class
+  - `cli.src.utils.diff-layout.collapseContext.changeIndices.lines.flatMap() callback` (L59-L59) - Function
+  - `cli.src.utils.diff-layout.collapseContext.lines.map() callback` (L60-L60) - Function
+  - `cli.src.utils.diff-layout.toSplitRows` (L84-L119) - Function
 - `cli/src/utils/file-search.ts`
   - `cli.src.utils.file-search.FileSearchResult` (L12-L16) - Interface
   - `cli.src.utils.file-search.checkRipgrep` (L44-L55) - Function
@@ -101,6 +119,41 @@ Provides Ink app launching, timeline row estimation, fuzzy and file search, tool
   - `cli.src.utils.goals.isResumableGoalStatus` (L15-L17) - Function
 - `cli/src/utils/ink.ts`
   - `cli.src.utils.ink.runInkApp` (L4-L57) - Function
+- `cli/src/utils/markdown.ts`
+  - `cli.src.utils.markdown.styleText` (L13-L21) - Function
+  - `cli.src.utils.markdown.truncateCell` (L23-L32) - Function
+  - `cli.src.utils.markdown.allocateColumnWidths` (L34-L41) - Function
+  - `cli.src.utils.markdown.allocateColumnWidths.widths` (L35-L35) - Class
+  - `cli.src.utils.markdown.allocateColumnWidths.widths.naturalWidths.map() callback` (L35-L35) - Function
+  - `cli.src.utils.markdown.allocateColumnWidths.naturalTotal` (L36-L36) - Class
+  - `cli.src.utils.markdown.allocateColumnWidths.naturalTotal.widths.reduce() callback` (L36-L36) - Function
+  - `cli.src.utils.markdown.allocateColumnWidths.expandableTotal` (L39-L39) - Class
+  - `cli.src.utils.markdown.allocateColumnWidths.expandableTotal.widths.reduce() callback` (L39-L39) - Function
+  - `cli.src.utils.markdown.allocateColumnWidths.widths.map() callback` (L40-L40) - Function
+  - `cli.src.utils.markdown.renderTokens` (L43-L45) - Function
+  - `cli.src.utils.markdown.renderTokens.tokens.map() callback` (L44-L44) - Function
+  - `cli.src.utils.markdown.renderToken` (L47-L157) - Function
+  - `cli.src.utils.markdown.renderToken.padWidth` (L64-L64) - Class
+  - `cli.src.utils.markdown.renderToken.padWidth.lines.map() callback` (L64-L64) - Function
+  - `cli.src.utils.markdown.renderToken.body` (L66-L71) - Class
+  - `cli.src.utils.markdown.renderToken.body.lines.map() callback` (L68-L69) - Function
+  - `cli.src.utils.markdown.renderToken.items.map() callback` (L78-L79) - Function
+  - `cli.src.utils.markdown.renderToken.headerTexts` (L111-L111) - Class
+  - `cli.src.utils.markdown.renderToken.headerTexts.header.map() callback` (L111-L111) - Function
+  - `cli.src.utils.markdown.renderToken.rowTexts` (L112-L112) - Class
+  - `cli.src.utils.markdown.renderToken.rowTexts.rows.map() callback` (L112-L112) - Function
+  - `cli.src.utils.markdown.renderToken.rowTexts.rows.map() callback.row.map() callback` (L112-L112) - Function
+  - `cli.src.utils.markdown.renderToken.naturalWidths.headerTexts.map() callback` (L113-L114) - Function
+  - `cli.src.utils.markdown.renderToken.naturalWidths` (L113-L115) - Class
+  - `cli.src.utils.markdown.renderToken.naturalWidths.headerTexts.map() callback.rowTexts.map() callback` (L114-L114) - Function
+  - `cli.src.utils.markdown.renderToken.map() callback` (L120-L121) - Function
+  - `cli.src.utils.markdown.renderToken.border` (L126-L127) - Class
+  - `cli.src.utils.markdown.renderToken.border.widths.map() callback` (L127-L127) - Function
+  - `cli.src.utils.markdown.renderToken.row` (L128-L136) - Class
+  - `cli.src.utils.markdown.renderToken.row.cells.map() callback` (L131-L134) - Function
+  - `cli.src.utils.markdown.renderToken.rowTexts.map() callback` (L142-L142) - Function
+  - `cli.src.utils.markdown.renderMarkdownLines` (L160-L164) - Function
+  - `cli.src.utils.markdown.clipMarkdownLines` (L166-L176) - Function
 - `cli/src/utils/model-selection.ts`
   - `cli.src.utils.model-selection.createModelSelectionPatch` (L8-L45) - Function
 - `cli/src/utils/output-channel.ts`
@@ -133,9 +186,9 @@ Provides Ink app launching, timeline row estimation, fuzzy and file search, tool
   - `cli.src.utils.text-clipping.summarizeFirstLine.line.map() callback` (L51-L51) - Function
   - `cli.src.utils.text-clipping.clipTextToWindow` (L70-L107) - Function
 - `cli/src/utils/timeline-rows.ts`
-  - `cli.src.utils.timeline-rows.estimateTimelineMessageRows` (L9-L29) - Function
-  - `cli.src.utils.timeline-rows.estimateTimelineMessageBodyRows` (L31-L44) - Function
-  - `cli.src.utils.timeline-rows.calculateTimelineBodyLineBudget` (L46-L62) - Function
+  - `cli.src.utils.timeline-rows.estimateTimelineMessageRows` (L10-L30) - Function
+  - `cli.src.utils.timeline-rows.estimateTimelineMessageBodyRows` (L32-L48) - Function
+  - `cli.src.utils.timeline-rows.calculateTimelineBodyLineBudget` (L50-L66) - Function
 - `cli/src/utils/tool-options.ts`
   - `cli.src.utils.tool-options.hasToolSelectionOptions` (L9-L11) - Function
   - `cli.src.utils.tool-options.toolIdentifiers` (L13-L15) - Function
@@ -377,6 +430,32 @@ Manages CLI task option application, plain-text task execution, console and card
   - `cli.src.utils.update.ParsedVersion` (L260-L264) - Interface
   - `cli.src.utils.update.parseVersion` (L270-L284) - Function
   - `cli.src.utils.update.compareVersions` (L292-L317) - Function
+- `cli/src/utils/vim-editor.ts`
+  - `cli.src.utils.vim-editor.VimSnapshot` (L3-L6) - Interface
+  - `cli.src.utils.vim-editor.VimEditorState` (L7-L16) - Interface
+  - `cli.src.utils.vim-editor.createVimEditor` (L21-L23) - Function
+  - `cli.src.utils.vim-editor.VimTextMotions` (L26-L135) - Class
+  - `cli.src.utils.vim-editor.VimTextMotions.constructor` (L30-L33) - Constructor
+  - `cli.src.utils.vim-editor.VimTextMotions.constructor.map() callback` (L31-L31) - Function
+  - `cli.src.utils.vim-editor.VimTextMotions.constructor.offsets.map() callback` (L32-L32) - Function
+  - `cli.src.utils.vim-editor.VimTextMotions.previous` (L35-L37) - Method
+  - `cli.src.utils.vim-editor.VimTextMotions.next` (L39-L41) - Method
+  - `cli.src.utils.vim-editor.VimTextMotions.lineStart` (L43-L45) - Method
+  - `cli.src.utils.vim-editor.VimTextMotions.lineEnd` (L47-L50) - Method
+  - `cli.src.utils.vim-editor.VimTextMotions.boundary` (L52-L62) - Method
+  - `cli.src.utils.vim-editor.VimTextMotions.normalCursor` (L64-L68) - Method
+  - `cli.src.utils.vim-editor.VimTextMotions.wordClass` (L70-L74) - Method
+  - `cli.src.utils.vim-editor.VimTextMotions.wordMotion` (L76-L93) - Method
+  - `cli.src.utils.vim-editor.VimTextMotions.wordEnd` (L95-L99) - Method
+  - `cli.src.utils.vim-editor.VimTextMotions.verticalMotion` (L101-L110) - Method
+  - `cli.src.utils.vim-editor.VimTextMotions.motion` (L112-L134) - Method
+  - `cli.src.utils.vim-editor.normalCursor` (L137-L139) - Function
+  - `cli.src.utils.vim-editor.clearCommand` (L141-L143) - Function
+  - `cli.src.utils.vim-editor.enterInsert` (L145-L147) - Function
+  - `cli.src.utils.vim-editor.deleteRange` (L149-L159) - Function
+  - `cli.src.utils.vim-editor.restoreHistory` (L161-L172) - Function
+  - `cli.src.utils.vim-editor.applyVimTextEdit` (L175-L184) - Function
+  - `cli.src.utils.vim-editor.applyVimKey` (L187-L269) - Function
 
 
 ### Provider Configuration & Model Metadata
@@ -456,18 +535,24 @@ Handles provider authentication, configuration importing, and model metadata res
 Manages interactive terminal input state, input viewport calculation, and piped standard input reading.
 
 
-**Related Classes/Methods**: _None_
+**Related Classes/Methods**:
+
+- `cli.src.utils.input-layout.getInputCursorRow`:60-65
+- `cli.src.utils.input-layout.getInputVisualRows`:27-58
+
 
 
 **Source Files:**
 
+- `cli/src/utils/input-layout.ts`
+  - `cli.src.utils.input-layout.CursorStop` (L3-L6) - Interface
+  - `cli.src.utils.input-layout.InputVisualRow` (L8-L12) - Interface
+  - `cli.src.utils.input-layout.getInputContentWidth` (L17-L20) - Function
+  - `cli.src.utils.input-layout.getInputVisualRows` (L27-L58) - Function
+  - `cli.src.utils.input-layout.getInputCursorRow` (L60-L65) - Function
 - `cli/src/utils/input-viewport.ts`
-  - `cli.src.utils.input-viewport.InputViewport` (L1-L6) - Interface
-  - `cli.src.utils.input-viewport.VisualRow` (L8-L11) - Interface
-  - `cli.src.utils.input-viewport.splitIntoVisualRows` (L13-L40) - Function
-  - `cli.src.utils.input-viewport.createInputViewport` (L47-L82) - Function
-  - `cli.src.utils.input-viewport.createInputViewport.cursorRow` (L66-L66) - Class
-  - `cli.src.utils.input-viewport.createInputViewport.cursorRow.rows.findIndex() callback` (L66-L66) - Function
+  - `cli.src.utils.input-viewport.InputViewport` (L3-L8) - Interface
+  - `cli.src.utils.input-viewport.createInputViewport` (L11-L39) - Function
 - `cli/src/utils/input.ts`
   - `cli.src.utils.input.isTerminalResponseSequence` (L18-L46) - Function
   - `cli.src.utils.input.isMouseEscapeSequence` (L48-L52) - Function

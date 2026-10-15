@@ -14,22 +14,23 @@ graph LR
     System_Git_Cost_Utilities["System, Git & Cost Utilities"]
     Root_Test_Setup_Model_Catalog_Updater["Root Test Setup & Model Catalog Updater"]
     Third_Party_Type_Declarations["Third-Party Type Declarations"]
+    Webview_UI_Components["Webview UI Components"]
     Core_Agent_Engine_Tool_Modules -- "drives task execution and tool orchestration in" --> Task_Lifecycle_Checkpoint_Management
     Core_Agent_Engine_Tool_Modules -- "computes API costs and executes filesystem/git helpers via" --> System_Git_Cost_Utilities
+    Core_Agent_Engine_Tool_Modules -- "references third-party type declarations" --> Third_Party_Type_Declarations
     Core_Agent_Engine_Tool_Modules -- "builds API handlers and configures CLI/Unbiased runtime via" --> CLI_ACP_Agent_Runtime
     Core_Agent_Engine_Tool_Modules -- "uses shared types, proto conversions, and logging from" --> Shared_Domain_Types_Utilities
-    Core_Agent_Engine_Tool_Modules -- "invokes host capabilities and image resolvers via" --> Host_Platform_VS_Code_Extension_Bridge
+    Core_Agent_Engine_Tool_Modules -- "uses host platform abstractions" --> Host_Platform_VS_Code_Extension_Bridge
     Core_Agent_Engine_Tool_Modules -- "queries controller state, feature flags, and telemetry in" --> Application_Controller_Browser_Standalone_Services
-    Core_Agent_Engine_Tool_Modules -- "resolves workspace paths, tools, and subagents through" --> Workspace_Tool_Registry_Subagent_Execution
+    Core_Agent_Engine_Tool_Modules -- "uses workspace and tool registry" --> Workspace_Tool_Registry_Subagent_Execution
     Core_Agent_Engine_Tool_Modules -- "uses AST, search, header, and error services from" --> Code_Intelligence_Error_Platform_Services
     Core_Agent_Engine_Tool_Modules -- "delegates external model, editor, and terminal operations to" --> Editor_Terminal_External_Tool_Integrations
     Core_Agent_Engine_Tool_Modules -- "reads and writes state and conversation storage via" --> State_Conversation_Storage
-    Core_Agent_Engine_Tool_Modules -- "evaluates glob patterns typed by" --> Third_Party_Type_Declarations
-    Task_Lifecycle_Checkpoint_Management -- "invokes context management, request builders, and tool modules in" --> Core_Agent_Engine_Tool_Modules
+    Task_Lifecycle_Checkpoint_Management -- "delegates to core engine and tools" --> Core_Agent_Engine_Tool_Modules
     Task_Lifecycle_Checkpoint_Management -- "uses filesystem, retry, and model helpers from" --> System_Git_Cost_Utilities
     Task_Lifecycle_Checkpoint_Management -- "manages ACP terminals and Unbiased API handlers in" --> CLI_ACP_Agent_Runtime
     Task_Lifecycle_Checkpoint_Management -- "uses logging and context-management helpers from" --> Shared_Domain_Types_Utilities
-    Task_Lifecycle_Checkpoint_Management -- "interacts with host UI and terminal managers in" --> Host_Platform_VS_Code_Extension_Bridge
+    Task_Lifecycle_Checkpoint_Management -- "uses host platform abstractions" --> Host_Platform_VS_Code_Extension_Bridge
     Task_Lifecycle_Checkpoint_Management -- "coordinates task state, locks, and telemetry with" --> Application_Controller_Browser_Standalone_Services
     Task_Lifecycle_Checkpoint_Management -- "manages file context trackers and tool registries in" --> Workspace_Tool_Registry_Subagent_Execution
     Task_Lifecycle_Checkpoint_Management -- "reports errors and telemetry events via" --> Code_Intelligence_Error_Platform_Services
@@ -42,6 +43,7 @@ graph LR
     System_Git_Cost_Utilities -- "delegates host environment operations to" --> Host_Platform_VS_Code_Extension_Bridge
     System_Git_Cost_Utilities -- "invokes browser, worktree, and anchor state helpers in" --> Application_Controller_Browser_Standalone_Services
     System_Git_Cost_Utilities -- "resolves workspace paths via" --> Workspace_Tool_Registry_Subagent_Execution
+    Webview_UI_Components -- "uses shared domain models" --> Shared_Domain_Types_Utilities
     CLI_ACP_Agent_Runtime -- "invokes core API providers, permissions, and controller handlers in" --> Core_Agent_Engine_Tool_Modules
     CLI_ACP_Agent_Runtime -- "manages and steers tasks and checkpoints in" --> Task_Lifecycle_Checkpoint_Management
     CLI_ACP_Agent_Runtime -- "uses git worktree and environment utilities from" --> System_Git_Cost_Utilities
@@ -77,7 +79,7 @@ graph LR
     Application_Controller_Browser_Standalone_Services -- "integrates Codex usage tracking and diff providers from" --> Editor_Terminal_External_Tool_Integrations
     Application_Controller_Browser_Standalone_Services -- "checks CLI installation and webview state in" --> CLI_ACP_Agent_Runtime
     Application_Controller_Browser_Standalone_Services -- "matches file globs using declarations in" --> Third_Party_Type_Declarations
-    Workspace_Tool_Registry_Subagent_Execution -- "invokes task state, hooks, and tool modules in" --> Core_Agent_Engine_Tool_Modules
+    Workspace_Tool_Registry_Subagent_Execution -- "delegates to core engine" --> Core_Agent_Engine_Tool_Modules
     Workspace_Tool_Registry_Subagent_Execution -- "instantiates and controls task lifecycles in" --> Task_Lifecycle_Checkpoint_Management
     Workspace_Tool_Registry_Subagent_Execution -- "uses git, retry, and cost utilities from" --> System_Git_Cost_Utilities
     Workspace_Tool_Registry_Subagent_Execution -- "uses file watcher helpers and logging from" --> Shared_Domain_Types_Utilities
@@ -112,6 +114,7 @@ graph LR
     State_Conversation_Storage -- "initializes distinct IDs and emits user telemetry via" --> Code_Intelligence_Error_Platform_Services
     State_Conversation_Storage -- "acquires file locks typed by" --> Third_Party_Type_Declarations
     State_Conversation_Storage -- "reports storage errors to telemetry in" --> Application_Controller_Browser_Standalone_Services
+    State_Conversation_Storage -- "calls" --> Workspace_Tool_Registry_Subagent_Execution
     click Core_Agent_Engine_Tool_Modules href "./Core_Agent_Engine_Tool_Modules.md" "Details"
     click CLI_ACP_Agent_Runtime href "./CLI_ACP_Agent_Runtime.md" "Details"
     click Shared_Domain_Types_Utilities href "./Shared_Domain_Types_Utilities.md" "Details"
@@ -133,7 +136,7 @@ graph LR
 The Dirac codebase is an AI coding agent platform that runs across a VS Code extension, standalone core service, and terminal CLI/ACP client. User commands and sessions enter through the Host Platform or CLI runtime, are coordinated by the Application Controller and Workspace/Task controllers, and drive the Task Lifecycle & Checkpoint Management loop, which invokes the Core Agent Engine, LLM providers, tool modules, code intelligence services, and editor/terminal integrations while persisting conversation state and history via the Storage layer.
 
 ### Core Agent Engine & Tool Modules [[Expand]](./Core_Agent_Engine_Tool_Modules.md)
-Implements LLM API providers, system prompts, context management, controller RPC handlers, permissions, hooks, and agent tool modules.
+Implements LLM API providers, system prompts, context management, permissions, hooks, and agent tool modules that drive the AI agent's core capabilities.
 
 
 **Related Classes/Methods**:
@@ -1801,16 +1804,16 @@ Implements LLM API providers, system prompts, context management, controller RPC
   - `src.core.goal.GoalTaskEnvironment.GoalChildToolEnvironmentFactory.constructor` (L189-L193) - Constructor
   - `src.core.goal.GoalTaskEnvironment.GoalChildToolEnvironmentFactory.create` (L195-L206) - Method
 - `src/core/goal/GoalTaskFactory.ts`
-  - `src.core.goal.GoalTaskFactory.GoalTaskBaseConstruction` (L17-L26) - Interface
-  - `src.core.goal.GoalTaskFactory.GoalTaskFactoryDependencies` (L33-L40) - Interface
-  - `src.core.goal.GoalTaskFactory.GoalTaskFactory` (L43-L133) - Class
-  - `src.core.goal.GoalTaskFactory.GoalTaskFactory.constructor` (L44-L44) - Constructor
-  - `src.core.goal.GoalTaskFactory.GoalTaskFactory.create` (L46-L104) - Method
-  - `src.core.goal.GoalTaskFactory.GoalTaskFactory.create.params` (L58-L97) - Class
-  - `src.core.goal.GoalTaskFactory.GoalTaskFactory.create.params.updateTaskHistory` (L60-L63) - Method
-  - `src.core.goal.GoalTaskFactory.GoalTaskFactory.create.params.reinitExistingTaskFromId` (L68-L70) - Method
-  - `src.core.goal.GoalTaskFactory.GoalTaskFactory.create.params.cancelTask` (L71-L73) - Method
-  - `src.core.goal.GoalTaskFactory.GoalTaskFactory.workingConfiguration` (L106-L132) - Method
+  - `src.core.goal.GoalTaskFactory.GoalTaskBaseConstruction` (L18-L27) - Interface
+  - `src.core.goal.GoalTaskFactory.GoalTaskFactoryDependencies` (L34-L41) - Interface
+  - `src.core.goal.GoalTaskFactory.GoalTaskFactory` (L44-L128) - Class
+  - `src.core.goal.GoalTaskFactory.GoalTaskFactory.constructor` (L45-L45) - Constructor
+  - `src.core.goal.GoalTaskFactory.GoalTaskFactory.create` (L47-L99) - Method
+  - `src.core.goal.GoalTaskFactory.GoalTaskFactory.create.params` (L53-L92) - Class
+  - `src.core.goal.GoalTaskFactory.GoalTaskFactory.create.params.updateTaskHistory` (L55-L58) - Method
+  - `src.core.goal.GoalTaskFactory.GoalTaskFactory.create.params.reinitExistingTaskFromId` (L63-L65) - Method
+  - `src.core.goal.GoalTaskFactory.GoalTaskFactory.create.params.cancelTask` (L66-L68) - Method
+  - `src.core.goal.GoalTaskFactory.GoalTaskFactory.workingConfiguration` (L101-L127) - Method
 - `src/core/goal/validateGoalRecord.ts`
   - `src.core.goal.validateGoalRecord.invalid` (L28-L30) - Function
   - `src.core.goal.validateGoalRecord.recordAt` (L32-L37) - Function
@@ -2342,8 +2345,7 @@ Implements LLM API providers, system prompts, context management, controller RPC
   - `src.core.task.TaskExecutionProfile.isDiscoveredToolAvailableToTaskProfile` (L26-L29) - Function
   - `src.core.task.TaskExecutionProfile.taskProfileSystemInstructions` (L31-L66) - Function
 - `src/core/task/TaskLockUtils.ts`
-  - `src.core.task.TaskLockUtils.tryAcquireTaskLockWithRetry` (L17-L25) - Function
-  - `src.core.task.TaskLockUtils.releaseTaskLock` (L34-L36) - Function
+  - `src.core.task.TaskLockUtils.acquireTaskLock` (L6-L21) - Function
 - `src/core/task/TaskMistakeLimit.ts`
   - `src.core.task.TaskMistakeLimit.TaskMistakeLimitContext` (L13-L18) - Interface
   - `src.core.task.TaskMistakeLimit.handleMistakeLimitReached` (L20-L118) - Function
@@ -2376,7 +2378,7 @@ Implements LLM API providers, system prompts, context management, controller RPC
 - `src/core/task/TaskState.ts`
   - `src.core.task.TaskState.CompletionVerificationFailure` (L11-L14) - Interface
   - `src.core.task.TaskState.TaskReplacementRequest` (L16-L20) - Interface
-  - `src.core.task.TaskState.TaskState` (L22-L271) - Class
+  - `src.core.task.TaskState.TaskState` (L22-L270) - Class
   - `src.core.task.TaskState.TaskState.isApiRequestActive` (L35-L37) - Method
   - `src.core.task.TaskState.TaskState.activeVoiceStreamId` (L38-L40) - Method
   - `src.core.task.TaskState.TaskState.isWaitingForFirstChunk` (L41-L43) - Method
@@ -2488,16 +2490,15 @@ Implements LLM API providers, system prompts, context management, controller RPC
   - `src.core.task.context.FileContextLoader.FileContextLoader.readLineAt` (L298-L312) - Method
   - `src.core.task.context.FileContextLoader.FileContextLoader.assembleSymbolDefinitions` (L315-L336) - Method
 - `src/core/task/lifecycle/TaskAbortManager.ts`
-  - `src.core.task.lifecycle.TaskAbortManager.TaskAbortManager` (L10-L113) - Class
-  - `src.core.task.lifecycle.TaskAbortManager.TaskAbortManager.constructor` (L11-L11) - Constructor
-  - `src.core.task.lifecycle.TaskAbortManager.TaskAbortManager.abort` (L13-L26) - Method
-  - `src.core.task.lifecycle.TaskAbortManager.TaskAbortManager.cancelActiveHook` (L28-L38) - Method
-  - `src.core.task.lifecycle.TaskAbortManager.TaskAbortManager.cancelBackgroundCommand` (L40-L47) - Method
-  - `src.core.task.lifecycle.TaskAbortManager.TaskAbortManager.runTaskCancelHook` (L49-L74) - Method
-  - `src.core.task.lifecycle.TaskAbortManager.TaskAbortManager.saveStateAndPost` (L76-L83) - Method
-  - `src.core.task.lifecycle.TaskAbortManager.TaskAbortManager.disposeResources` (L85-L93) - Method
-  - `src.core.task.lifecycle.TaskAbortManager.TaskAbortManager.releaseLockIfNeeded` (L95-L104) - Method
-  - `src.core.task.lifecycle.TaskAbortManager.TaskAbortManager.postFinalState` (L106-L112) - Method
+  - `src.core.task.lifecycle.TaskAbortManager.TaskAbortManager` (L9-L101) - Class
+  - `src.core.task.lifecycle.TaskAbortManager.TaskAbortManager.constructor` (L10-L10) - Constructor
+  - `src.core.task.lifecycle.TaskAbortManager.TaskAbortManager.abort` (L12-L24) - Method
+  - `src.core.task.lifecycle.TaskAbortManager.TaskAbortManager.cancelActiveHook` (L26-L36) - Method
+  - `src.core.task.lifecycle.TaskAbortManager.TaskAbortManager.cancelBackgroundCommand` (L38-L45) - Method
+  - `src.core.task.lifecycle.TaskAbortManager.TaskAbortManager.runTaskCancelHook` (L47-L72) - Method
+  - `src.core.task.lifecycle.TaskAbortManager.TaskAbortManager.saveStateAndPost` (L74-L81) - Method
+  - `src.core.task.lifecycle.TaskAbortManager.TaskAbortManager.disposeResources` (L83-L91) - Method
+  - `src.core.task.lifecycle.TaskAbortManager.TaskAbortManager.postFinalState` (L94-L100) - Method
 - `src/core/task/recordUtilityModelUsage.ts`
   - `src.core.task.recordUtilityModelUsage.recordUtilityModelUsage` (L6-L33) - Function
 - `src/core/task/response/EmptyResponseHandler.ts`
@@ -2971,19 +2972,19 @@ Implements LLM API providers, system prompts, context management, controller RPC
   - `src.core.task.tools.modules.edit_ast.AstEditApplier.AstEditApplier.errorMessage` (L127-L129) - Method
 - `src/core/task/tools/modules/edit_ast/AstEditApproval.ts`
   - `src.core.task.tools.modules.edit_ast.AstEditApproval.AstEditApprovalResult` (L13-L18) - Interface
-  - `src.core.task.tools.modules.edit_ast.AstEditApproval.AstEditApproval` (L21-L261) - Class
+  - `src.core.task.tools.modules.edit_ast.AstEditApproval.AstEditApproval` (L21-L251) - Class
   - `src.core.task.tools.modules.edit_ast.AstEditApproval.AstEditApproval.constructor` (L22-L22) - Constructor
-  - `src.core.task.tools.modules.edit_ast.AstEditApproval.AstEditApproval.request` (L24-L158) - Method
-  - `src.core.task.tools.modules.edit_ast.AstEditApproval.request.plan.files.map() callback` (L63-L68) - Function
-  - `src.core.task.tools.modules.edit_ast.AstEditApproval.AstEditApproval.request.plan.files.map() callback` (L99-L104) - Function
-  - `src.core.task.tools.modules.edit_ast.AstEditApproval.AstEditApproval.resolvePermissionDisposition` (L160-L186) - Method
-  - `src.core.task.tools.modules.edit_ast.AstEditApproval.AstEditApproval.createApprovalCard` (L188-L220) - Method
-  - `src.core.task.tools.modules.edit_ast.AstEditApproval.AstEditApproval.createApprovalCard.locations.plan.files.map() callback` (L207-L207) - Function
-  - `src.core.task.tools.modules.edit_ast.AstEditApproval.AstEditApproval.createApprovalCard.rawInput.targets.args.targets.map() callback` (L211-L211) - Function
-  - `src.core.task.tools.modules.edit_ast.AstEditApproval.AstEditApproval.finalizeApprovalCard` (L222-L245) - Method
-  - `src.core.task.tools.modules.edit_ast.AstEditApproval.AstEditApproval.updateProgressCards` (L247-L249) - Method
-  - `src.core.task.tools.modules.edit_ast.AstEditApproval.AstEditApproval.finalizeProgressCards` (L251-L256) - Method
-  - `src.core.task.tools.modules.edit_ast.AstEditApproval.AstEditApproval.errorMessage` (L258-L260) - Method
+  - `src.core.task.tools.modules.edit_ast.AstEditApproval.AstEditApproval.request` (L24-L148) - Method
+  - `src.core.task.tools.modules.edit_ast.AstEditApproval.request.plan.files.map() callback` (L53-L58) - Function
+  - `src.core.task.tools.modules.edit_ast.AstEditApproval.AstEditApproval.request.plan.files.map() callback` (L89-L94) - Function
+  - `src.core.task.tools.modules.edit_ast.AstEditApproval.AstEditApproval.resolvePermissionDisposition` (L150-L176) - Method
+  - `src.core.task.tools.modules.edit_ast.AstEditApproval.AstEditApproval.createApprovalCard` (L178-L210) - Method
+  - `src.core.task.tools.modules.edit_ast.AstEditApproval.AstEditApproval.createApprovalCard.locations.plan.files.map() callback` (L197-L197) - Function
+  - `src.core.task.tools.modules.edit_ast.AstEditApproval.AstEditApproval.createApprovalCard.rawInput.targets.args.targets.map() callback` (L201-L201) - Function
+  - `src.core.task.tools.modules.edit_ast.AstEditApproval.AstEditApproval.finalizeApprovalCard` (L212-L235) - Method
+  - `src.core.task.tools.modules.edit_ast.AstEditApproval.AstEditApproval.updateProgressCards` (L237-L239) - Method
+  - `src.core.task.tools.modules.edit_ast.AstEditApproval.AstEditApproval.finalizeProgressCards` (L241-L246) - Method
+  - `src.core.task.tools.modules.edit_ast.AstEditApproval.AstEditApproval.errorMessage` (L248-L250) - Method
 - `src/core/task/tools/modules/edit_ast/AstEditFormatter.ts`
   - `src.core.task.tools.modules.edit_ast.AstEditFormatter.AstEditFormatter` (L18-L138) - Class
   - `src.core.task.tools.modules.edit_ast.AstEditFormatter.AstEditFormatter.progressHeader` (L19-L22) - Method
@@ -5269,96 +5270,94 @@ Provides the terminal-based CLI interface, Agent Client Protocol (ACP) runtime, 
   - `cli.src.components.BedrockSetup.BedrockSetup.AUTH_METHODS.map() callback` (L257-L267) - Function
   - `cli.src.components.BedrockSetup.BedrockSetup.visibleRegions.map() callback` (L351-L361) - Function
 - `cli/src/components/ChatFooter.tsx`
-  - `cli.src.components.ChatFooter.ChatFooterProps` (L11-L29) - Interface
-  - `cli.src.components.ChatFooter.ChatFooter` (L31-L215) - Class
-  - `cli.src.components.ChatFooter.<function>` (L126-L141) - Function
-  - `cli.src.components.ChatFooter.ChatFooter.<function>` (L142-L150) - Function
+  - `cli.src.components.ChatFooter.ChatFooterProps` (L12-L31) - Interface
+  - `cli.src.components.ChatFooter.ChatFooter` (L33-L226) - Class
+  - `cli.src.components.ChatFooter.<function>` (L137-L152) - Function
+  - `cli.src.components.ChatFooter.ChatFooter.<function>` (L153-L161) - Function
 - `cli/src/components/ChatHeader.tsx`
   - `cli.src.components.ChatHeader.ChatHeaderProps` (L8-L12) - Interface
 - `cli/src/components/ChatInputBar.tsx`
-  - `cli.src.components.ChatInputBar.ChatInputBarProps` (L7-L16) - Interface
-  - `cli.src.components.ChatInputBar.ChatInputBar.viewport` (L39-L41) - Class
-  - `cli.src.components.ChatInputBar.ChatInputBar.viewport.useMemo() callback` (L39-L41) - Function
+  - `cli.src.components.ChatInputBar.ChatInputBarProps` (L8-L17) - Interface
+  - `cli.src.components.ChatInputBar.ChatInputBar.viewport` (L36-L38) - Class
+  - `cli.src.components.ChatInputBar.ChatInputBar.viewport.useMemo() callback` (L36-L38) - Function
 - `cli/src/components/ChatMessage.tsx`
-  - `cli.src.components.ChatMessage.ChatMessageProps` (L33-L46) - Interface
-  - `cli.src.components.ChatMessage.clipReasoningText` (L77-L80) - Function
-  - `cli.src.components.ChatMessage.padTextToVisualLines` (L82-L86) - Function
-  - `cli.src.components.ChatMessage.renderBoundedMarkdownMessage` (L254-L274) - Function
-  - `cli.src.components.ChatMessage.renderTimelineTail` (L277-L303) - Function
-  - `cli.src.components.ChatMessage.ChatMessageListProps` (L311-L317) - Interface
-  - `cli.src.components.ChatMessage.ChatMessageList` (L319-L372) - Class
-  - `cli.src.components.ChatMessage.ChatMessageList.displayMessages` (L327-L331) - Class
-  - `cli.src.components.ChatMessage.ChatMessageList.displayMessages.messages.filter() callback` (L327-L331) - Function
-  - `cli.src.components.ChatMessage.ChatMessageList.messagesToShow.map() callback` (L343-L369) - Function
+  - `cli.src.components.ChatMessage.ChatMessageProps` (L31-L44) - Interface
+  - `cli.src.components.ChatMessage.renderBoundedMarkdownMessage` (L237-L252) - Function
+  - `cli.src.components.ChatMessage.renderTimelineTail` (L255-L284) - Function
+  - `cli.src.components.ChatMessage.ChatMessageListProps` (L292-L298) - Interface
+  - `cli.src.components.ChatMessage.ChatMessageList` (L300-L353) - Class
+  - `cli.src.components.ChatMessage.ChatMessageList.displayMessages` (L308-L312) - Class
+  - `cli.src.components.ChatMessage.ChatMessageList.displayMessages.messages.filter() callback` (L308-L312) - Function
+  - `cli.src.components.ChatMessage.ChatMessageList.messagesToShow.map() callback` (L324-L350) - Function
 - `cli/src/components/ChatView.tsx`
-  - `cli.src.components.ChatView.ChatViewProps` (L96-L106) - Interface
-  - `cli.src.components.ChatView.ChatView` (L108-L1164) - Class
-  - `cli.src.components.ChatView.ChatView.quote` (L118-L118) - Class
-  - `cli.src.components.ChatView.ChatView.quote.useMemo() callback` (L118-L118) - Function
-  - `cli.src.components.ChatView.ChatView.ctrl` (L124-L124) - Class
-  - `cli.src.components.ChatView.ChatView.ctrl.useMemo() callback` (L124-L124) - Function
-  - `cli.src.components.ChatView.ChatView.resetComposerInputRef` (L126-L126) - Class
-  - `cli.src.components.ChatView.ChatView.resetComposerInputRef.useRef() callback` (L126-L126) - Function
-  - `cli.src.components.ChatView.ChatView.composerActionsRef` (L127-L137) - Class
-  - `cli.src.components.ChatView.ChatView.composerActionsRef.handleAskShortcuts` (L128-L128) - Method
-  - `cli.src.components.ChatView.ChatView.composerActionsRef.handleSubmit` (L129-L129) - Method
-  - `cli.src.components.ChatView.ChatView.composerActionsRef.handleExit` (L130-L130) - Method
-  - `cli.src.components.ChatView.ChatView.composerActionsRef.clearViewAndResetTask` (L131-L131) - Method
-  - `cli.src.components.ChatView.ChatView.composerActionsRef.handleButtonAction` (L132-L132) - Method
-  - `cli.src.components.ChatView.ChatView.composerActionsRef.toggleMode` (L133-L133) - Method
-  - `cli.src.components.ChatView.ChatView.composerActionsRef.toggleAutoApproveAll` (L134-L134) - Method
-  - `cli.src.components.ChatView.ChatView.composerActionsRef.enableFastMode` (L135-L135) - Method
-  - `cli.src.components.ChatView.ChatView.composerActionsRef.toggleQuietMode` (L136-L136) - Method
-  - `cli.src.components.ChatView.ChatView.shouldSuppressCardBody` (L154-L154) - Class
-  - `cli.src.components.ChatView.ChatView.shouldSuppressCardBody.useMemo() callback` (L154-L154) - Function
-  - `cli.src.components.ChatView.ChatView.shouldSuppressCardBody.useMemo() callback.createCardBodySuppressionPolicy() callback` (L154-L154) - Function
-  - `cli.src.components.ChatView.useEffect() callback` (L197-L199) - Function
-  - `cli.src.components.ChatView.ChatView.toggleAutoApproveAll.useCallback() callback` (L219-L224) - Function
-  - `cli.src.components.ChatView.ChatView.toggleQuietMode.useCallback() callback` (L226-L232) - Function
-  - `cli.src.components.ChatView.ChatView.toggleQuietMode.useCallback() callback.setQuietMode() callback` (L227-L231) - Function
-  - `cli.src.components.ChatView.ChatView.reportInteractionError` (L240-L248) - Class
-  - `cli.src.components.ChatView.ChatView.reportInteractionError.useCallback() callback` (L241-L246) - Function
-  - `cli.src.components.ChatView.ChatView.enableFastMode.useCallback() callback` (L250-L282) - Function
-  - `cli.src.components.ChatView.ChatView.disarmGoalStopConfirmation` (L305-L310) - Class
-  - `cli.src.components.ChatView.ChatView.disarmGoalStopConfirmation.useCallback() callback` (L305-L310) - Function
-  - `cli.src.components.ChatView.ChatView.toggleGoalDetails` (L312-L315) - Class
-  - `cli.src.components.ChatView.ChatView.toggleGoalDetails.useCallback() callback` (L312-L315) - Function
-  - `cli.src.components.ChatView.ChatView.toggleGoalDetails.useCallback() callback.setGoalDetailsExpanded() callback` (L314-L314) - Function
-  - `cli.src.components.ChatView.ChatView.handleGoalControl` (L331-L365) - Class
-  - `cli.src.components.ChatView.ChatView.handleGoalControl.useCallback() callback` (L332-L363) - Function
-  - `cli.src.components.ChatView.ChatView.handleGoalControl.useCallback() callback.setTimeout() callback` (L339-L343) - Function
-  - `cli.src.components.ChatView.ChatView.useEffect() callback.timeout` (L382-L387) - Class
-  - `cli.src.components.ChatView.ChatView.useEffect() callback.timeout.setTimeout() callback` (L382-L387) - Function
-  - `cli.src.components.ChatView.ChatView.useEffect() callback.timeout.setTimeout() callback.catch() callback` (L386-L386) - Function
-  - `cli.src.components.ChatView.ChatView.pendingAsk` (L395-L405) - Class
-  - `cli.src.components.ChatView.ChatView.pendingAsk.useMemo() callback` (L395-L405) - Function
-  - `cli.src.components.ChatView.ChatView.pendingAsk.useMemo() callback.find() callback` (L399-L402) - Function
-  - `cli.src.components.ChatView.ChatView.scrollableCardMaxOffset` (L427-L433) - Class
-  - `cli.src.components.ChatView.ChatView.scrollableCardMaxOffset.useMemo() callback` (L427-L433) - Function
-  - `cli.src.components.ChatView.ChatView.setActiveScrollOffset` (L442-L451) - Class
-  - `cli.src.components.ChatView.ChatView.setActiveScrollOffset.useCallback() callback` (L443-L449) - Function
-  - `cli.src.components.ChatView.ChatView.toggleMode.useCallback() callback` (L498-L511) - Function
-  - `cli.src.components.ChatView.ChatView.sendAskResponse` (L513-L532) - Class
-  - `cli.src.components.ChatView.ChatView.sendAskResponse.useCallback() callback` (L514-L530) - Function
-  - `cli.src.components.ChatView.ChatView.submitResumeResponse` (L534-L544) - Class
-  - `cli.src.components.ChatView.ChatView.submitResumeResponse.useCallback() callback` (L535-L542) - Function
-  - `cli.src.components.ChatView.ChatView.hasGlobalAction` (L549-L552) - Class
-  - `cli.src.components.ChatView.ChatView.hasGlobalAction.useCallback() callback` (L550-L550) - Function
-  - `cli.src.components.ChatView.ChatView.hasGlobalAction.useCallback() callback.uiActionState.globalButtons.some() callback` (L550-L550) - Function
-  - `cli.src.components.ChatView.ChatView.submitResumeTextResponse` (L555-L581) - Class
-  - `cli.src.components.ChatView.ChatView.submitResumeTextResponse.useCallback() callback` (L556-L572) - Function
-  - `cli.src.components.ChatView.ChatView.useEffect() callback` (L583-L592) - Function
-  - `cli.src.components.ChatView.ChatView.handleButtonAction.useCallback() callback` (L595-L642) - Function
-  - `cli.src.components.ChatView.ChatView.handleAskShortcuts.useCallback() callback` (L664-L697) - Function
-  - `cli.src.components.ChatView.ChatView.handleAskShortcuts.useCallback() callback.options` (L681-L681) - Class
-  - `cli.src.components.ChatView.ChatView.handleAskShortcuts.useCallback() callback.options.card.actions.map() callback` (L681-L681) - Function
-  - `cli.src.components.ChatView.ChatView.handleSubmit.useCallback() callback` (L702-L784) - Function
-  - `cli.src.components.ChatView.ChatView.renderTurnBoundary` (L834-L840) - Method
-  - `cli.src.components.ChatView.ChatView.renderDynamicItem` (L842-L874) - Method
-  - `cli.src.components.ChatView.ChatView.activityContent` (L878-L901) - Class
-  - `cli.src.components.ChatView.ChatView.activityContent.<function>` (L886-L895) - Function
-  - `cli.src.components.ChatView.ChatView.composerFooterContent` (L939-L1065) - Class
-  - `cli.src.components.ChatView.ChatView.composerFooterContent.availableCommands.map() callback` (L1034-L1034) - Function
+  - `cli.src.components.ChatView.ChatViewProps` (L99-L109) - Interface
+  - `cli.src.components.ChatView.ChatView` (L111-L1179) - Class
+  - `cli.src.components.ChatView.ChatView.quote` (L121-L121) - Class
+  - `cli.src.components.ChatView.ChatView.quote.useMemo() callback` (L121-L121) - Function
+  - `cli.src.components.ChatView.ChatView.ctrl` (L127-L127) - Class
+  - `cli.src.components.ChatView.ChatView.ctrl.useMemo() callback` (L127-L127) - Function
+  - `cli.src.components.ChatView.ChatView.resetComposerInputRef` (L129-L129) - Class
+  - `cli.src.components.ChatView.ChatView.resetComposerInputRef.useRef() callback` (L129-L129) - Function
+  - `cli.src.components.ChatView.ChatView.composerActionsRef` (L130-L140) - Class
+  - `cli.src.components.ChatView.ChatView.composerActionsRef.handleAskShortcuts` (L131-L131) - Method
+  - `cli.src.components.ChatView.ChatView.composerActionsRef.handleSubmit` (L132-L132) - Method
+  - `cli.src.components.ChatView.ChatView.composerActionsRef.handleExit` (L133-L133) - Method
+  - `cli.src.components.ChatView.ChatView.composerActionsRef.clearViewAndResetTask` (L134-L134) - Method
+  - `cli.src.components.ChatView.ChatView.composerActionsRef.handleButtonAction` (L135-L135) - Method
+  - `cli.src.components.ChatView.ChatView.composerActionsRef.toggleMode` (L136-L136) - Method
+  - `cli.src.components.ChatView.ChatView.composerActionsRef.toggleAutoApproveAll` (L137-L137) - Method
+  - `cli.src.components.ChatView.ChatView.composerActionsRef.enableFastMode` (L138-L138) - Method
+  - `cli.src.components.ChatView.ChatView.composerActionsRef.toggleQuietMode` (L139-L139) - Method
+  - `cli.src.components.ChatView.ChatView.shouldSuppressCardBody` (L157-L157) - Class
+  - `cli.src.components.ChatView.ChatView.shouldSuppressCardBody.useMemo() callback` (L157-L157) - Function
+  - `cli.src.components.ChatView.ChatView.shouldSuppressCardBody.useMemo() callback.createCardBodySuppressionPolicy() callback` (L157-L157) - Function
+  - `cli.src.components.ChatView.useEffect() callback` (L200-L202) - Function
+  - `cli.src.components.ChatView.ChatView.toggleAutoApproveAll.useCallback() callback` (L222-L227) - Function
+  - `cli.src.components.ChatView.ChatView.toggleQuietMode.useCallback() callback` (L229-L235) - Function
+  - `cli.src.components.ChatView.ChatView.toggleQuietMode.useCallback() callback.setQuietMode() callback` (L230-L234) - Function
+  - `cli.src.components.ChatView.ChatView.reportInteractionError` (L243-L251) - Class
+  - `cli.src.components.ChatView.ChatView.reportInteractionError.useCallback() callback` (L244-L249) - Function
+  - `cli.src.components.ChatView.ChatView.enableFastMode.useCallback() callback` (L253-L285) - Function
+  - `cli.src.components.ChatView.ChatView.disarmGoalStopConfirmation` (L308-L313) - Class
+  - `cli.src.components.ChatView.ChatView.disarmGoalStopConfirmation.useCallback() callback` (L308-L313) - Function
+  - `cli.src.components.ChatView.ChatView.toggleGoalDetails` (L315-L318) - Class
+  - `cli.src.components.ChatView.ChatView.toggleGoalDetails.useCallback() callback` (L315-L318) - Function
+  - `cli.src.components.ChatView.ChatView.toggleGoalDetails.useCallback() callback.setGoalDetailsExpanded() callback` (L317-L317) - Function
+  - `cli.src.components.ChatView.ChatView.handleGoalControl` (L334-L368) - Class
+  - `cli.src.components.ChatView.ChatView.handleGoalControl.useCallback() callback` (L335-L366) - Function
+  - `cli.src.components.ChatView.ChatView.handleGoalControl.useCallback() callback.setTimeout() callback` (L342-L346) - Function
+  - `cli.src.components.ChatView.ChatView.useEffect() callback.timeout` (L385-L390) - Class
+  - `cli.src.components.ChatView.ChatView.useEffect() callback.timeout.setTimeout() callback` (L385-L390) - Function
+  - `cli.src.components.ChatView.ChatView.useEffect() callback.timeout.setTimeout() callback.catch() callback` (L389-L389) - Function
+  - `cli.src.components.ChatView.ChatView.pendingAsk` (L398-L408) - Class
+  - `cli.src.components.ChatView.ChatView.pendingAsk.useMemo() callback` (L398-L408) - Function
+  - `cli.src.components.ChatView.ChatView.pendingAsk.useMemo() callback.find() callback` (L402-L405) - Function
+  - `cli.src.components.ChatView.ChatView.scrollableCardMaxOffset` (L430-L440) - Class
+  - `cli.src.components.ChatView.ChatView.scrollableCardMaxOffset.useMemo() callback` (L430-L440) - Function
+  - `cli.src.components.ChatView.ChatView.setActiveScrollOffset` (L451-L460) - Class
+  - `cli.src.components.ChatView.ChatView.setActiveScrollOffset.useCallback() callback` (L452-L458) - Function
+  - `cli.src.components.ChatView.ChatView.toggleMode.useCallback() callback` (L525-L538) - Function
+  - `cli.src.components.ChatView.ChatView.sendAskResponse` (L540-L559) - Class
+  - `cli.src.components.ChatView.ChatView.sendAskResponse.useCallback() callback` (L541-L557) - Function
+  - `cli.src.components.ChatView.ChatView.submitResumeResponse` (L561-L571) - Class
+  - `cli.src.components.ChatView.ChatView.submitResumeResponse.useCallback() callback` (L562-L569) - Function
+  - `cli.src.components.ChatView.ChatView.hasGlobalAction` (L576-L579) - Class
+  - `cli.src.components.ChatView.ChatView.hasGlobalAction.useCallback() callback` (L577-L577) - Function
+  - `cli.src.components.ChatView.ChatView.hasGlobalAction.useCallback() callback.uiActionState.globalButtons.some() callback` (L577-L577) - Function
+  - `cli.src.components.ChatView.ChatView.submitResumeTextResponse` (L581-L607) - Class
+  - `cli.src.components.ChatView.ChatView.submitResumeTextResponse.useCallback() callback` (L582-L598) - Function
+  - `cli.src.components.ChatView.ChatView.useEffect() callback` (L609-L618) - Function
+  - `cli.src.components.ChatView.ChatView.handleButtonAction.useCallback() callback` (L621-L668) - Function
+  - `cli.src.components.ChatView.ChatView.handleAskShortcuts.useCallback() callback` (L690-L723) - Function
+  - `cli.src.components.ChatView.ChatView.handleAskShortcuts.useCallback() callback.options` (L707-L707) - Class
+  - `cli.src.components.ChatView.ChatView.handleAskShortcuts.useCallback() callback.options.card.actions.map() callback` (L707-L707) - Function
+  - `cli.src.components.ChatView.ChatView.handleSubmit.useCallback() callback` (L728-L810) - Function
+  - `cli.src.components.ChatView.ChatView.renderTurnBoundary` (L848-L854) - Method
+  - `cli.src.components.ChatView.ChatView.renderDynamicItem` (L856-L888) - Method
+  - `cli.src.components.ChatView.ChatView.activityContent` (L892-L915) - Class
+  - `cli.src.components.ChatView.ChatView.activityContent.<function>` (L900-L909) - Function
+  - `cli.src.components.ChatView.ChatView.composerFooterContent` (L953-L1080) - Class
+  - `cli.src.components.ChatView.ChatView.composerFooterContent.availableCommands.map() callback` (L1048-L1048) - Function
 - `cli/src/components/Checkbox.tsx`
   - `cli.src.components.Checkbox.CheckboxProps` (L9-L13) - Interface
 - `cli/src/components/ConfigView.tsx`
@@ -5538,19 +5537,22 @@ Provides the terminal-based CLI interface, Agent Client Protocol (ACP) runtime, 
   - `cli.src.components.GoalSummary.GoalSummary.visibleChildren.map() callback` (L173-L184) - Function
 - `cli/src/components/HelpPanelContent.tsx`
   - `cli.src.components.HelpPanelContent.HelpPanelContentProps` (L15-L17) - Interface
-  - `cli.src.components.HelpPanelContent.HelpPanelContent` (L19-L116) - Class
+  - `cli.src.components.HelpPanelContent.HelpPanelContent` (L19-L120) - Class
   - `cli.src.components.HelpPanelContent.HelpPanelContent.useInput() callback` (L26-L33) - Function
-  - `cli.src.components.HelpPanelContent.map() callback` (L69-L77) - Function
-  - `cli.src.components.HelpPanelContent.HelpPanelContent.map() callback` (L97-L105) - Function
+  - `cli.src.components.HelpPanelContent.map() callback` (L73-L81) - Function
+  - `cli.src.components.HelpPanelContent.HelpPanelContent.map() callback` (L101-L109) - Function
 - `cli/src/components/HighlightedInput.tsx`
-  - `cli.src.components.HighlightedInput.HighlightedInputProps` (L11-L15) - Interface
-  - `cli.src.components.HighlightedInput.Segment` (L20-L24) - Interface
-  - `cli.src.components.HighlightedInput.parseInput` (L26-L109) - Function
-  - `cli.src.components.HighlightedInput.parseInput.highlights.sort() callback` (L61-L61) - Function
-  - `cli.src.components.HighlightedInput.HighlightedInput` (L111-L220) - Class
-  - `cli.src.components.HighlightedInput.segments.map() callback` (L118-L130) - Function
-  - `cli.src.components.HighlightedInput.HighlightedInput.renderSegmentWithCursor` (L140-L209) - Method
-  - `cli.src.components.HighlightedInput.HighlightedInput.segments.map() callback` (L216-L216) - Function
+  - `cli.src.components.HighlightedInput.HighlightedInputProps` (L14-L19) - Interface
+  - `cli.src.components.HighlightedInput.Segment` (L24-L28) - Interface
+  - `cli.src.components.HighlightedInput.parseInput` (L30-L113) - Function
+  - `cli.src.components.HighlightedInput.parseInput.highlights.sort() callback` (L65-L65) - Function
+  - `cli.src.components.HighlightedInput.HighlightedInput` (L115-L264) - Class
+  - `cli.src.components.HighlightedInput.segments.map() callback` (L122-L134) - Function
+  - `cli.src.components.HighlightedInput.HighlightedInput.renderSegmentWithCursor` (L144-L221) - Method
+  - `cli.src.components.HighlightedInput.HighlightedInput.rows.map() callback` (L228-L246) - Function
+  - `cli.src.components.HighlightedInput.HighlightedInput.rows.map() callback.rowSegments` (L229-L234) - Class
+  - `cli.src.components.HighlightedInput.HighlightedInput.rows.map() callback.rowSegments.segments.flatMap() callback` (L229-L234) - Function
+  - `cli.src.components.HighlightedInput.HighlightedInput.segments.map() callback` (L256-L256) - Function
 - `cli/src/components/HistoryPanelContent.tsx`
   - `cli.src.components.HistoryPanelContent.HistoryPanelContentProps` (L23-L27) - Interface
   - `cli.src.components.HistoryPanelContent.formatRelativeDate` (L29-L40) - Function
@@ -5681,9 +5683,9 @@ Provides the terminal-based CLI interface, Agent Client Protocol (ACP) runtime, 
   - `cli.src.components.Panel.Panel.currentTabIndex.tabs.findIndex() callback` (L33-L33) - Function
   - `cli.src.components.Panel.Panel.tabs.map() callback` (L48-L59) - Function
 - `cli/src/components/PermissionModal.tsx`
-  - `cli.src.components.PermissionModal.PermissionModalProps` (L10-L18) - Interface
-  - `cli.src.components.PermissionModal.renderFooter` (L60-L95) - Function
-  - `cli.src.components.PermissionModal.renderFooter.card.actions.map() callback` (L79-L87) - Function
+  - `cli.src.components.PermissionModal.PermissionModalProps` (L12-L20) - Interface
+  - `cli.src.components.PermissionModal.renderFooter` (L70-L105) - Function
+  - `cli.src.components.PermissionModal.renderFooter.card.actions.map() callback` (L89-L97) - Function
 - `cli/src/components/ProviderPicker.tsx`
   - `cli.src.components.ProviderPicker.isProviderConfigured` (L18-L102) - Function
   - `cli.src.components.ProviderPicker.ProviderPickerProps` (L104-L107) - Interface
@@ -5766,8 +5768,10 @@ Provides the terminal-based CLI interface, Agent Client Protocol (ACP) runtime, 
   - `cli.src.components.UnbiasedAuthView.UnbiasedAuthView.useInput() callback.setAttempt() callback` (L81-L81) - Function
   - `cli.src.components.UnbiasedAuthView.UnbiasedAuthView.useInput() callback.catch() callback` (L93-L94) - Function
 - `cli/src/components/modular-ui/CardBody.tsx`
-  - `cli.src.components.modular-ui.CardBody.CardBodyProps` (L11-L17) - Interface
-  - `cli.src.components.modular-ui.CardBody.renderContent` (L40-L50) - Function
+  - `cli.src.components.modular-ui.CardBody.CardBodyProps` (L12-L18) - Interface
+  - `cli.src.components.modular-ui.CardBody.CardBody.markdownLines` (L23-L26) - Class
+  - `cli.src.components.modular-ui.CardBody.CardBody.markdownLines.useMemo() callback` (L24-L24) - Function
+  - `cli.src.components.modular-ui.CardBody.renderContent` (L47-L57) - Function
 - `cli/src/components/modular-ui/CardHeader.tsx`
   - `cli.src.components.modular-ui.CardHeader.CardHeaderProps` (L8-L14) - Interface
   - `cli.src.components.modular-ui.CardHeader.getHeaderPresentation` (L16-L29) - Function
@@ -5776,66 +5780,20 @@ Provides the terminal-based CLI interface, Agent Client Protocol (ACP) runtime, 
   - `cli.src.components.modular-ui.CardInteractions.CardInteractions` (L12-L40) - Class
   - `cli.src.components.modular-ui.CardInteractions.CardInteractions.actions.map() callback` (L24-L35) - Function
 - `cli/src/components/modular-ui/Diff.tsx`
-  - `cli.src.components.modular-ui.Diff.DiffProps` (L8-L19) - Interface
-  - `cli.src.components.modular-ui.Diff.lineNumberForSide` (L32-L35) - Function
-  - `cli.src.components.modular-ui.Diff.lineTypeForSide` (L37-L43) - Function
-  - `cli.src.components.modular-ui.Diff.prefixForType` (L45-L49) - Function
-  - `cli.src.components.modular-ui.Diff.colorsForType` (L51-L59) - Function
-  - `cli.src.components.modular-ui.Diff.truncateLine` (L61-L66) - Function
-  - `cli.src.components.modular-ui.Diff.collapseContext` (L181-L243) - Function
-  - `cli.src.components.modular-ui.Diff.collapseContext.lines.map() callback` (L193-L193) - Function
-  - `cli.src.components.modular-ui.Diff.toSplitRows` (L245-L281) - Function
-  - `cli.src.components.modular-ui.Diff.shouldRenderSplit` (L283-L287) - Function
-  - `cli.src.components.modular-ui.Diff.Diff` (L290-L350) - Class
-  - `cli.src.components.modular-ui.Diff.Diff.diff` (L294-L297) - Class
-  - `cli.src.components.modular-ui.Diff.Diff.diff.useMemo() callback` (L294-L297) - Function
-  - `cli.src.components.modular-ui.Diff.Diff.gutterWidth` (L299-L302) - Class
-  - `cli.src.components.modular-ui.Diff.Diff.gutterWidth.useMemo() callback` (L299-L302) - Function
-  - `cli.src.components.modular-ui.Diff.Diff.collapsedBlocks` (L304-L307) - Class
-  - `cli.src.components.modular-ui.Diff.Diff.collapsedBlocks.useMemo() callback` (L304-L307) - Function
-  - `cli.src.components.modular-ui.Diff.Diff.collapsedBlocks.useMemo() callback.diff.blocks.map() callback` (L306-L306) - Function
-  - `cli.src.components.modular-ui.Diff.Diff.splitBlocks` (L309-L309) - Class
-  - `cli.src.components.modular-ui.Diff.Diff.splitBlocks.useMemo() callback` (L309-L309) - Function
-  - `cli.src.components.modular-ui.Diff.Diff.collapsedBlocks.map() callback` (L319-L347) - Function
-  - `cli.src.components.modular-ui.Diff.Diff.collapsedBlocks.map() callback.map() callback` (L323-L330) - Function
-  - `cli.src.components.modular-ui.Diff.Diff.collapsedBlocks.map() callback.displayLines.map() callback` (L331-L344) - Function
+  - `cli.src.components.modular-ui.Diff.DiffProps` (L9-L23) - Interface
+  - `cli.src.components.modular-ui.Diff.lineNumberForSide` (L28-L31) - Function
+  - `cli.src.components.modular-ui.Diff.lineTypeForSide` (L33-L39) - Function
+  - `cli.src.components.modular-ui.Diff.prefixForType` (L41-L45) - Function
+  - `cli.src.components.modular-ui.Diff.colorsForType` (L47-L55) - Function
+  - `cli.src.components.modular-ui.Diff.truncateLine` (L57-L62) - Function
+  - `cli.src.components.modular-ui.Diff.Diff` (L163-L203) - Class
+  - `cli.src.components.modular-ui.Diff.Diff.layout` (L166-L169) - Class
+  - `cli.src.components.modular-ui.Diff.Diff.layout.useMemo() callback` (L167-L167) - Function
+  - `cli.src.components.modular-ui.Diff.Diff.rows.map() callback` (L174-L200) - Function
 - `cli/src/components/modular-ui/Markdown.tsx`
-  - `cli.src.components.modular-ui.Markdown.truncateCell` (L7-L12) - Function
-  - `cli.src.components.modular-ui.Markdown.allocateColumnWidths` (L14-L25) - Function
-  - `cli.src.components.modular-ui.Markdown.allocateColumnWidths.widths` (L15-L15) - Class
-  - `cli.src.components.modular-ui.Markdown.allocateColumnWidths.widths.naturalWidths.map() callback` (L15-L15) - Function
-  - `cli.src.components.modular-ui.Markdown.allocateColumnWidths.naturalTotal` (L16-L16) - Class
-  - `cli.src.components.modular-ui.Markdown.allocateColumnWidths.naturalTotal.widths.reduce() callback` (L16-L16) - Function
-  - `cli.src.components.modular-ui.Markdown.allocateColumnWidths.expandableTotal` (L20-L20) - Class
-  - `cli.src.components.modular-ui.Markdown.allocateColumnWidths.expandableTotal.widths.reduce() callback` (L20-L20) - Function
-  - `cli.src.components.modular-ui.Markdown.allocateColumnWidths.widths.map() callback` (L21-L24) - Function
-  - `cli.src.components.modular-ui.Markdown.renderTokens` (L30-L32) - Function
-  - `cli.src.components.modular-ui.Markdown.renderTokens.tokens.map() callback` (L31-L31) - Function
-  - `cli.src.components.modular-ui.Markdown.renderToken` (L39-L254) - Function
-  - `cli.src.components.modular-ui.Markdown.renderToken.wrappedLines` (L69-L76) - Class
-  - `cli.src.components.modular-ui.Markdown.renderToken.wrappedLines.rawLines.flatMap() callback` (L69-L76) - Function
-  - `cli.src.components.modular-ui.Markdown.renderToken.padWidth` (L77-L77) - Class
-  - `cli.src.components.modular-ui.Markdown.renderToken.padWidth.wrappedLines.map() callback` (L77-L77) - Function
-  - `cli.src.components.modular-ui.Markdown.renderToken.wrappedLines.map() callback` (L82-L88) - Function
-  - `cli.src.components.modular-ui.Markdown.renderToken.items.map() callback` (L98-L104) - Function
-  - `cli.src.components.modular-ui.Markdown.renderToken.rowTexts` (L184-L184) - Class
-  - `cli.src.components.modular-ui.Markdown.renderToken.rowTexts.rows.map() callback` (L184-L184) - Function
-  - `cli.src.components.modular-ui.Markdown.renderToken.colWidths` (L185-L188) - Class
-  - `cli.src.components.modular-ui.Markdown.renderToken.colWidths.headerTexts.map() callback` (L185-L188) - Function
-  - `cli.src.components.modular-ui.Markdown.renderToken.colWidths.headerTexts.map() callback.maxRowWidth` (L186-L186) - Class
-  - `cli.src.components.modular-ui.Markdown.renderToken.colWidths.headerTexts.map() callback.maxRowWidth.rowTexts.reduce() callback` (L186-L186) - Function
-  - `cli.src.components.modular-ui.Markdown.renderToken.fallbackRows.map() callback` (L196-L204) - Function
-  - `cli.src.components.modular-ui.Markdown.renderToken.topBorder` (L209-L209) - Class
-  - `cli.src.components.modular-ui.Markdown.renderToken.topBorder.colWidths.map() callback` (L209-L209) - Function
-  - `cli.src.components.modular-ui.Markdown.renderToken.headerSep` (L210-L210) - Class
-  - `cli.src.components.modular-ui.Markdown.renderToken.headerSep.colWidths.map() callback` (L210-L210) - Function
-  - `cli.src.components.modular-ui.Markdown.renderToken.bottomBorder` (L211-L211) - Class
-  - `cli.src.components.modular-ui.Markdown.renderToken.bottomBorder.colWidths.map() callback` (L211-L211) - Function
-  - `cli.src.components.modular-ui.Markdown.renderToken.renderRow` (L212-L213) - Class
-  - `cli.src.components.modular-ui.Markdown.renderToken.renderRow.cells.map() callback` (L213-L213) - Function
-  - `cli.src.components.modular-ui.Markdown.renderToken.rowTexts.map() callback` (L219-L221) - Function
-  - `cli.src.components.modular-ui.Markdown.Markdown.tokens` (L263-L263) - Class
-  - `cli.src.components.modular-ui.Markdown.Markdown.tokens.useMemo() callback` (L263-L263) - Function
+  - `cli.src.components.modular-ui.Markdown.MarkdownProps` (L5-L12) - Interface
+  - `cli.src.components.modular-ui.Markdown.Markdown.lines` (L17-L17) - Class
+  - `cli.src.components.modular-ui.Markdown.Markdown.lines.useMemo() callback` (L17-L17) - Function
 - `cli/src/components/modular-ui/ModularCard.tsx`
   - `cli.src.components.modular-ui.ModularCard.ModularCardProps` (L9-L14) - Interface
 - `cli/src/components/modular-ui/TaskCompletionCard.tsx`
@@ -5859,62 +5817,62 @@ Provides the terminal-based CLI interface, Agent Client Protocol (ACP) runtime, 
   - `cli.src.components.settings.SettingsListView.SettingsListView` (L54-L160) - Class
   - `cli.src.components.settings.SettingsListView.SettingsListView.visibleItems.map() callback` (L63-L156) - Function
 - `cli/src/components/settings/SettingsPanelContent.tsx`
-  - `cli.src.components.settings.SettingsPanelContent.SettingsPanelContent` (L51-L810) - Class
+  - `cli.src.components.settings.SettingsPanelContent.SettingsPanelContent` (L51-L813) - Class
   - `cli.src.components.settings.SettingsPanelContent.SettingsPanelContent.runSettingsAction` (L94-L110) - Class
   - `cli.src.components.settings.SettingsPanelContent.SettingsPanelContent.runSettingsAction.useCallback() callback` (L94-L110) - Function
-  - `cli.src.components.settings.SettingsPanelContent.React.useEffect() callback` (L199-L203) - Function
-  - `cli.src.components.settings.SettingsPanelContent.SettingsPanelContent.React.useEffect() callback.then() callback` (L224-L226) - Function
-  - `cli.src.components.settings.SettingsPanelContent.SettingsPanelContent.React.useEffect() callback.catch() callback` (L227-L233) - Function
-  - `cli.src.components.settings.SettingsPanelContent.SettingsPanelContent.refreshModelIds` (L238-L238) - Class
-  - `cli.src.components.settings.SettingsPanelContent.SettingsPanelContent.refreshModelIds.useCallback() callback` (L238-L238) - Function
-  - `cli.src.components.settings.SettingsPanelContent.SettingsPanelContent.refreshModelIds.useCallback() callback.setModelRefreshKey() callback` (L238-L238) - Function
-  - `cli.src.components.settings.SettingsPanelContent.SettingsPanelContent.rebuildTaskApi` (L255-L260) - Class
-  - `cli.src.components.settings.SettingsPanelContent.SettingsPanelContent.rebuildTaskApi.useCallback() callback` (L256-L258) - Function
-  - `cli.src.components.settings.SettingsPanelContent.SettingsPanelContent.settingsSearchResults` (L307-L310) - Class
-  - `cli.src.components.settings.SettingsPanelContent.SettingsPanelContent.settingsSearchResults.CLI_SETTINGS_DESTINATIONS.map() callback` (L309-L309) - Function
-  - `cli.src.components.settings.SettingsPanelContent.SettingsPanelContent.React.useEffect() callback` (L312-L316) - Function
-  - `cli.src.components.settings.SettingsPanelContent.SettingsPanelContent.React.useEffect() callback.setSelectedIndex() callback` (L313-L314) - Function
-  - `cli.src.components.settings.SettingsPanelContent.SettingsPanelContent.updateUserApprovedCommands` (L399-L419) - Class
-  - `cli.src.components.settings.SettingsPanelContent.SettingsPanelContent.updateUserApprovedCommands.useCallback() callback` (L400-L417) - Function
-  - `cli.src.components.settings.SettingsPanelContent.SettingsPanelContent.updateUserApprovedCommands.useCallback() callback.runSettingsAction("approved command update") callback` (L401-L417) - Function
-  - `cli.src.components.settings.SettingsPanelContent.SettingsPanelContent.updateUserApprovedCommands.useCallback() callback.runSettingsAction("approved command update") callback.commitInteractiveSetting() callback` (L404-L414) - Function
-  - `cli.src.components.settings.SettingsPanelContent.updateUserApprovedCommands.useCallback() callback.runSettingsAction("approved command update") callback.commitInteractiveSetting() callback.persistInteractiveSettingWithRollback() callback` (L406-L409) - Function
-  - `cli.src.components.settings.SettingsPanelContent.SettingsPanelContent.updateUserApprovedCommands.useCallback() callback.runSettingsAction("approved command update") callback.commitInteractiveSetting() callback.persistInteractiveSettingWithRollback() callback` (L410-L413) - Function
-  - `cli.src.components.settings.SettingsPanelContent.SettingsPanelContent.openDestination` (L420-L437) - Class
-  - `cli.src.components.settings.SettingsPanelContent.SettingsPanelContent.openDestination.useCallback() callback` (L420-L437) - Function
-  - `cli.src.components.settings.SettingsPanelContent.SettingsPanelContent.returnHome` (L439-L446) - Class
-  - `cli.src.components.settings.SettingsPanelContent.SettingsPanelContent.returnHome.useCallback() callback` (L439-L446) - Function
-  - `cli.src.components.settings.SettingsPanelContent.SettingsPanelContent.returnHome.useCallback() callback.destinationIndex` (L444-L444) - Class
-  - `cli.src.components.settings.SettingsPanelContent.SettingsPanelContent.returnHome.useCallback() callback.destinationIndex.CLI_SETTINGS_DESTINATIONS.findIndex() callback` (L444-L444) - Function
-  - `cli.src.components.settings.SettingsPanelContent.SettingsPanelContent.activateSettingsItem` (L448-L476) - Class
-  - `cli.src.components.settings.SettingsPanelContent.SettingsPanelContent.activateSettingsItem.useCallback() callback` (L448-L476) - Function
-  - `cli.src.components.settings.SettingsPanelContent.SettingsPanelContent.activateSettingsItem.useCallback() callback.runSettingsAction("Unbiased sign-out") callback` (L468-L472) - Function
-  - `cli.src.components.settings.SettingsPanelContent.SettingsPanelContent.selectSearchResult` (L478-L484) - Class
-  - `cli.src.components.settings.SettingsPanelContent.SettingsPanelContent.selectSearchResult.useCallback() callback` (L479-L482) - Function
-  - `cli.src.components.settings.SettingsPanelContent.SettingsPanelContent.showSearchResultHelp` (L485-L487) - Class
-  - `cli.src.components.settings.SettingsPanelContent.SettingsPanelContent.showSearchResultHelp.useCallback() callback` (L485-L487) - Function
-  - `cli.src.components.settings.SettingsPanelContent.SettingsPanelContent.useInput() callback` (L490-L566) - Function
-  - `cli.src.components.settings.SettingsPanelContent.SettingsPanelContent.useInput() callback.runSettingsAction("save") callback` (L531-L531) - Function
-  - `cli.src.components.settings.SettingsPanelContent.useInput() callback.setEditValue() callback` (L532-L532) - Function
-  - `cli.src.components.settings.SettingsPanelContent.SettingsPanelContent.useInput() callback.setEditValue() callback` (L533-L533) - Function
-  - `cli.src.components.settings.SettingsPanelContent.useInput() callback.setHomeSelectedIndex() callback` (L547-L547) - Function
-  - `cli.src.components.settings.SettingsPanelContent.SettingsPanelContent.useInput() callback.setHomeSelectedIndex() callback` (L549-L549) - Function
-  - `cli.src.components.settings.SettingsPanelContent.SettingsPanelContent.renderContent` (L572-L768) - Class
-  - `cli.src.components.settings.SettingsPanelContent.renderContent.<function>` (L630-L642) - Function
-  - `cli.src.components.settings.SettingsPanelContent.SettingsPanelContent.renderContent.<function>.runSettingsAction("routing update") callback` (L635-L641) - Function
-  - `cli.src.components.settings.SettingsPanelContent.SettingsPanelContent.renderContent.<function>.runSettingsAction("routing update") callback.rebuildTaskApi() callback` (L636-L637) - Function
-  - `cli.src.components.settings.SettingsPanelContent.SettingsPanelContent.renderContent.<function>.runSettingsAction("provider update") callback` (L651-L651) - Function
-  - `cli.src.components.settings.SettingsPanelContent.SettingsPanelContent.renderContent.<function>.runSettingsAction("API key update") callback` (L666-L666) - Function
-  - `cli.src.components.settings.SettingsPanelContent.SettingsPanelContent.renderContent.<function>.runSettingsAction("Bedrock setup") callback` (L679-L679) - Function
-  - `cli.src.components.settings.SettingsPanelContent.SettingsPanelContent.renderContent.<function>.runSettingsAction("model update") callback` (L705-L705) - Function
-  - `cli.src.components.settings.SettingsPanelContent.SettingsPanelContent.renderContent.<function>.runSettingsAction("utility model selection") callback` (L715-L715) - Function
-  - `cli.src.components.settings.SettingsPanelContent.SettingsPanelContent.renderContent.<function>.runSettingsAction("language update") callback` (L725-L725) - Function
-  - `cli.src.components.settings.SettingsPanelContent.SettingsPanelContent.renderContent.<function>.runSettingsAction("custom Bedrock model update") callback` (L738-L738) - Function
-  - `cli.src.components.settings.SettingsPanelContent.SettingsPanelContent.renderContent.<function>` (L751-L761) - Function
-  - `cli.src.components.settings.SettingsPanelContent.SettingsPanelContent.renderContent.<function>.runSettingsAction("custom header update") callback` (L754-L759) - Function
-  - `cli.src.components.settings.SettingsPanelContent.SettingsPanelContent.renderContent.<function>.runSettingsAction("custom header update") callback.rebuildTaskApi() callback` (L755-L756) - Function
-  - `cli.src.components.settings.SettingsPanelContent.SettingsPanelContent.activeDestination` (L787-L787) - Class
-  - `cli.src.components.settings.SettingsPanelContent.SettingsPanelContent.activeDestination.CLI_SETTINGS_DESTINATIONS.find() callback` (L787-L787) - Function
+  - `cli.src.components.settings.SettingsPanelContent.React.useEffect() callback` (L200-L204) - Function
+  - `cli.src.components.settings.SettingsPanelContent.SettingsPanelContent.React.useEffect() callback.then() callback` (L225-L227) - Function
+  - `cli.src.components.settings.SettingsPanelContent.SettingsPanelContent.React.useEffect() callback.catch() callback` (L228-L234) - Function
+  - `cli.src.components.settings.SettingsPanelContent.SettingsPanelContent.refreshModelIds` (L239-L239) - Class
+  - `cli.src.components.settings.SettingsPanelContent.SettingsPanelContent.refreshModelIds.useCallback() callback` (L239-L239) - Function
+  - `cli.src.components.settings.SettingsPanelContent.SettingsPanelContent.refreshModelIds.useCallback() callback.setModelRefreshKey() callback` (L239-L239) - Function
+  - `cli.src.components.settings.SettingsPanelContent.SettingsPanelContent.rebuildTaskApi` (L256-L261) - Class
+  - `cli.src.components.settings.SettingsPanelContent.SettingsPanelContent.rebuildTaskApi.useCallback() callback` (L257-L259) - Function
+  - `cli.src.components.settings.SettingsPanelContent.SettingsPanelContent.settingsSearchResults` (L309-L312) - Class
+  - `cli.src.components.settings.SettingsPanelContent.SettingsPanelContent.settingsSearchResults.CLI_SETTINGS_DESTINATIONS.map() callback` (L311-L311) - Function
+  - `cli.src.components.settings.SettingsPanelContent.SettingsPanelContent.React.useEffect() callback` (L314-L318) - Function
+  - `cli.src.components.settings.SettingsPanelContent.SettingsPanelContent.React.useEffect() callback.setSelectedIndex() callback` (L315-L316) - Function
+  - `cli.src.components.settings.SettingsPanelContent.SettingsPanelContent.updateUserApprovedCommands` (L402-L422) - Class
+  - `cli.src.components.settings.SettingsPanelContent.SettingsPanelContent.updateUserApprovedCommands.useCallback() callback` (L403-L420) - Function
+  - `cli.src.components.settings.SettingsPanelContent.SettingsPanelContent.updateUserApprovedCommands.useCallback() callback.runSettingsAction("approved command update") callback` (L404-L420) - Function
+  - `cli.src.components.settings.SettingsPanelContent.SettingsPanelContent.updateUserApprovedCommands.useCallback() callback.runSettingsAction("approved command update") callback.commitInteractiveSetting() callback` (L407-L417) - Function
+  - `cli.src.components.settings.SettingsPanelContent.updateUserApprovedCommands.useCallback() callback.runSettingsAction("approved command update") callback.commitInteractiveSetting() callback.persistInteractiveSettingWithRollback() callback` (L409-L412) - Function
+  - `cli.src.components.settings.SettingsPanelContent.SettingsPanelContent.updateUserApprovedCommands.useCallback() callback.runSettingsAction("approved command update") callback.commitInteractiveSetting() callback.persistInteractiveSettingWithRollback() callback` (L413-L416) - Function
+  - `cli.src.components.settings.SettingsPanelContent.SettingsPanelContent.openDestination` (L423-L440) - Class
+  - `cli.src.components.settings.SettingsPanelContent.SettingsPanelContent.openDestination.useCallback() callback` (L423-L440) - Function
+  - `cli.src.components.settings.SettingsPanelContent.SettingsPanelContent.returnHome` (L442-L449) - Class
+  - `cli.src.components.settings.SettingsPanelContent.SettingsPanelContent.returnHome.useCallback() callback` (L442-L449) - Function
+  - `cli.src.components.settings.SettingsPanelContent.SettingsPanelContent.returnHome.useCallback() callback.destinationIndex` (L447-L447) - Class
+  - `cli.src.components.settings.SettingsPanelContent.SettingsPanelContent.returnHome.useCallback() callback.destinationIndex.CLI_SETTINGS_DESTINATIONS.findIndex() callback` (L447-L447) - Function
+  - `cli.src.components.settings.SettingsPanelContent.SettingsPanelContent.activateSettingsItem` (L451-L479) - Class
+  - `cli.src.components.settings.SettingsPanelContent.SettingsPanelContent.activateSettingsItem.useCallback() callback` (L451-L479) - Function
+  - `cli.src.components.settings.SettingsPanelContent.SettingsPanelContent.activateSettingsItem.useCallback() callback.runSettingsAction("Unbiased sign-out") callback` (L471-L475) - Function
+  - `cli.src.components.settings.SettingsPanelContent.SettingsPanelContent.selectSearchResult` (L481-L487) - Class
+  - `cli.src.components.settings.SettingsPanelContent.SettingsPanelContent.selectSearchResult.useCallback() callback` (L482-L485) - Function
+  - `cli.src.components.settings.SettingsPanelContent.SettingsPanelContent.showSearchResultHelp` (L488-L490) - Class
+  - `cli.src.components.settings.SettingsPanelContent.SettingsPanelContent.showSearchResultHelp.useCallback() callback` (L488-L490) - Function
+  - `cli.src.components.settings.SettingsPanelContent.SettingsPanelContent.useInput() callback` (L493-L569) - Function
+  - `cli.src.components.settings.SettingsPanelContent.SettingsPanelContent.useInput() callback.runSettingsAction("save") callback` (L534-L534) - Function
+  - `cli.src.components.settings.SettingsPanelContent.useInput() callback.setEditValue() callback` (L535-L535) - Function
+  - `cli.src.components.settings.SettingsPanelContent.SettingsPanelContent.useInput() callback.setEditValue() callback` (L536-L536) - Function
+  - `cli.src.components.settings.SettingsPanelContent.useInput() callback.setHomeSelectedIndex() callback` (L550-L550) - Function
+  - `cli.src.components.settings.SettingsPanelContent.SettingsPanelContent.useInput() callback.setHomeSelectedIndex() callback` (L552-L552) - Function
+  - `cli.src.components.settings.SettingsPanelContent.SettingsPanelContent.renderContent` (L575-L771) - Class
+  - `cli.src.components.settings.SettingsPanelContent.renderContent.<function>` (L633-L645) - Function
+  - `cli.src.components.settings.SettingsPanelContent.SettingsPanelContent.renderContent.<function>.runSettingsAction("routing update") callback` (L638-L644) - Function
+  - `cli.src.components.settings.SettingsPanelContent.SettingsPanelContent.renderContent.<function>.runSettingsAction("routing update") callback.rebuildTaskApi() callback` (L639-L640) - Function
+  - `cli.src.components.settings.SettingsPanelContent.SettingsPanelContent.renderContent.<function>.runSettingsAction("provider update") callback` (L654-L654) - Function
+  - `cli.src.components.settings.SettingsPanelContent.SettingsPanelContent.renderContent.<function>.runSettingsAction("API key update") callback` (L669-L669) - Function
+  - `cli.src.components.settings.SettingsPanelContent.SettingsPanelContent.renderContent.<function>.runSettingsAction("Bedrock setup") callback` (L682-L682) - Function
+  - `cli.src.components.settings.SettingsPanelContent.SettingsPanelContent.renderContent.<function>.runSettingsAction("model update") callback` (L708-L708) - Function
+  - `cli.src.components.settings.SettingsPanelContent.SettingsPanelContent.renderContent.<function>.runSettingsAction("utility model selection") callback` (L718-L718) - Function
+  - `cli.src.components.settings.SettingsPanelContent.SettingsPanelContent.renderContent.<function>.runSettingsAction("language update") callback` (L728-L728) - Function
+  - `cli.src.components.settings.SettingsPanelContent.SettingsPanelContent.renderContent.<function>.runSettingsAction("custom Bedrock model update") callback` (L741-L741) - Function
+  - `cli.src.components.settings.SettingsPanelContent.SettingsPanelContent.renderContent.<function>` (L754-L764) - Function
+  - `cli.src.components.settings.SettingsPanelContent.SettingsPanelContent.renderContent.<function>.runSettingsAction("custom header update") callback` (L757-L762) - Function
+  - `cli.src.components.settings.SettingsPanelContent.SettingsPanelContent.renderContent.<function>.runSettingsAction("custom header update") callback.rebuildTaskApi() callback` (L758-L759) - Function
+  - `cli.src.components.settings.SettingsPanelContent.SettingsPanelContent.activeDestination` (L790-L790) - Class
+  - `cli.src.components.settings.SettingsPanelContent.SettingsPanelContent.activeDestination.CLI_SETTINGS_DESTINATIONS.find() callback` (L790-L790) - Function
 - `cli/src/components/settings/SettingsSearchView.tsx`
   - `cli.src.components.settings.SettingsSearchView.SettingsSearchViewProps` (L10-L19) - Interface
   - `cli.src.components.settings.SettingsSearchView.SettingsSearchView` (L21-L120) - Class
@@ -5960,84 +5918,86 @@ Provides the terminal-based CLI interface, Agent Client Protocol (ACP) runtime, 
   - `cli.src.components.settings.hooks.useAuthStatus.useAuthStatus` (L6-L54) - Function
   - `cli.src.components.settings.hooks.useAuthStatus.useAuthStatus.useEffect() callback` (L13-L41) - Function
 - `cli/src/components/settings/hooks/useSettingsActions.ts`
-  - `cli.src.components.settings.hooks.useSettingsActions.UseSettingsActionsProps` (L43-L111) - Interface
-  - `cli.src.components.settings.hooks.useSettingsActions.useSettingsActions` (L113-L890) - Function
-  - `cli.src.components.settings.hooks.useSettingsActions.useSettingsActions.commitSettings` (L182-L201) - Class
-  - `cli.src.components.settings.hooks.useSettingsActions.useSettingsActions.commitSettings.useCallback() callback` (L183-L199) - Function
-  - `cli.src.components.settings.hooks.useSettingsActions.useSettingsActions.commitSettings.useCallback() callback.previous` (L184-L186) - Class
-  - `cli.src.components.settings.hooks.useSettingsActions.useSettingsActions.commitSettings.useCallback() callback.previous.map() callback` (L185-L185) - Function
-  - `cli.src.components.settings.hooks.useSettingsActions.useSettingsActions.commitSettings.useCallback() callback.rebuildTaskApi() callback` (L187-L197) - Function
-  - `cli.src.components.settings.hooks.useSettingsActions.commitSettings.useCallback() callback.rebuildTaskApi() callback.persistInteractiveSettingWithRollback() callback` (L189-L192) - Function
-  - `cli.src.components.settings.hooks.useSettingsActions.useSettingsActions.commitSettings.useCallback() callback.rebuildTaskApi() callback.persistInteractiveSettingWithRollback() callback` (L193-L196) - Function
-  - `cli.src.components.settings.hooks.useSettingsActions.toggleFeature` (L203-L211) - Class
-  - `cli.src.components.settings.hooks.useSettingsActions.useSettingsActions.toggleFeature.useCallback() callback` (L204-L209) - Function
-  - `cli.src.components.settings.hooks.useSettingsActions.useSettingsActions.toggleFeature.useCallback() callback.setFeatures() callback` (L208-L208) - Function
-  - `cli.src.components.settings.hooks.useSettingsActions.handleUtilityModelPresetSelect` (L213-L221) - Class
-  - `cli.src.components.settings.hooks.useSettingsActions.useSettingsActions.handleUtilityModelPresetSelect.useCallback() callback` (L214-L219) - Function
-  - `cli.src.components.settings.hooks.useSettingsActions.setReasoningEffortForMode` (L223-L241) - Class
-  - `cli.src.components.settings.hooks.useSettingsActions.useSettingsActions.setReasoningEffortForMode.useCallback() callback` (L224-L239) - Function
-  - `cli.src.components.settings.hooks.useSettingsActions.startCodexAuth` (L243-L245) - Class
-  - `cli.src.components.settings.hooks.useSettingsActions.useSettingsActions.startCodexAuth.useCallback() callback` (L243-L245) - Function
-  - `cli.src.components.settings.hooks.useSettingsActions.completeCodexAuth` (L247-L252) - Class
-  - `cli.src.components.settings.hooks.useSettingsActions.useSettingsActions.completeCodexAuth.useCallback() callback` (L247-L252) - Function
-  - `cli.src.components.settings.hooks.useSettingsActions.startGithubAuth` (L254-L279) - Class
-  - `cli.src.components.settings.hooks.useSettingsActions.useSettingsActions.startGithubAuth.useCallback() callback` (L254-L279) - Function
-  - `cli.src.components.settings.hooks.useSettingsActions.cancelGithubAuth` (L281-L286) - Class
-  - `cli.src.components.settings.hooks.useSettingsActions.useSettingsActions.cancelGithubAuth.useCallback() callback` (L281-L286) - Function
-  - `cli.src.components.settings.hooks.useSettingsActions.useSettingsActions.handleAction.useCallback() callback` (L288-L522) - Function
-  - `cli.src.components.settings.hooks.useSettingsActions.handleAction` (L288-L564) - Class
-  - `cli.src.components.settings.hooks.useSettingsActions.useSettingsActions.handleAction.useCallback() callback.setUtilityModelUseCases() callback` (L303-L303) - Function
-  - `cli.src.components.settings.hooks.useSettingsActions.handleAction.useCallback() callback.rebuildTaskApi() callback` (L322-L328) - Function
-  - `cli.src.components.settings.hooks.useSettingsActions.handleAction.useCallback() callback.rebuildTaskApi() callback.persistInteractiveSettingWithRollback() callback` (L324-L324) - Function
-  - `cli.src.components.settings.hooks.useSettingsActions.useSettingsActions.handleAction.useCallback() callback.isTool` (L423-L423) - Class
-  - `cli.src.components.settings.hooks.useSettingsActions.useSettingsActions.handleAction.useCallback() callback.isTool.availableTools.some() callback` (L423-L423) - Function
-  - `cli.src.components.settings.hooks.useSettingsActions.useSettingsActions.handleAction.useCallback() callback.previousToggles` (L426-L426) - Class
-  - `cli.src.components.settings.hooks.useSettingsActions.useSettingsActions.handleAction.useCallback() callback.previousToggles.ToolRegistry.withExclusiveAccess() callback` (L426-L426) - Function
-  - `cli.src.components.settings.hooks.useSettingsActions.useSettingsActions.handleAction.useCallback() callback.rebuildTaskApi() callback` (L428-L440) - Function
-  - `cli.src.components.settings.hooks.useSettingsActions.handleAction.useCallback() callback.rebuildTaskApi() callback.persistInteractiveSettingWithRollback() callback.ToolRegistry.withExclusiveAccess() callback` (L431-L434) - Function
-  - `cli.src.components.settings.hooks.useSettingsActions.useSettingsActions.handleAction.useCallback() callback.rebuildTaskApi() callback.persistInteractiveSettingWithRollback() callback` (L435-L439) - Function
-  - `cli.src.components.settings.hooks.useSettingsActions.useSettingsActions.handleAction.useCallback() callback.rebuildTaskApi() callback.persistInteractiveSettingWithRollback() callback.ToolRegistry.withExclusiveAccess() callback` (L436-L439) - Function
-  - `cli.src.components.settings.hooks.useSettingsActions.useSettingsActions.handleAction.useCallback() callback.setToolToggles() callback` (L442-L442) - Function
-  - `cli.src.components.settings.hooks.useSettingsActions.handleSave` (L566-L631) - Class
-  - `cli.src.components.settings.hooks.useSettingsActions.useSettingsActions.handleSave.useCallback() callback` (L567-L616) - Function
-  - `cli.src.components.settings.hooks.useSettingsActions.useSettingsActions.beginOpenRouterModelSelection` (L633-L638) - Class
-  - `cli.src.components.settings.hooks.useSettingsActions.useSettingsActions.beginOpenRouterModelSelection.useCallback() callback` (L633-L638) - Function
-  - `cli.src.components.settings.hooks.useSettingsActions.handleProviderSelect` (L640-L731) - Class
-  - `cli.src.components.settings.hooks.useSettingsActions.useSettingsActions.handleProviderSelect.useCallback() callback` (L641-L714) - Function
-  - `cli.src.components.settings.hooks.useSettingsActions.handleModelSelect` (L733-L778) - Class
-  - `cli.src.components.settings.hooks.useSettingsActions.useSettingsActions.handleModelSelect.useCallback() callback` (L734-L760) - Function
-  - `cli.src.components.settings.hooks.useSettingsActions.handleApiKeySubmit` (L780-L815) - Class
-  - `cli.src.components.settings.hooks.useSettingsActions.useSettingsActions.handleApiKeySubmit.useCallback() callback` (L781-L801) - Function
-  - `cli.src.components.settings.hooks.useSettingsActions.handleBedrockComplete` (L817-L827) - Class
-  - `cli.src.components.settings.hooks.useSettingsActions.useSettingsActions.handleBedrockComplete.useCallback() callback` (L818-L825) - Function
-  - `cli.src.components.settings.hooks.useSettingsActions.handleBedrockCustomFlowComplete` (L829-L854) - Class
-  - `cli.src.components.settings.hooks.useSettingsActions.useSettingsActions.handleBedrockCustomFlowComplete.useCallback() callback` (L830-L843) - Function
-  - `cli.src.components.settings.hooks.useSettingsActions.handleLanguageSelect` (L856-L863) - Class
-  - `cli.src.components.settings.hooks.useSettingsActions.useSettingsActions.handleLanguageSelect.useCallback() callback` (L857-L861) - Function
-  - `cli.src.components.settings.hooks.useSettingsActions.navigateItems` (L865-L870) - Class
-  - `cli.src.components.settings.hooks.useSettingsActions.useSettingsActions.navigateItems.useCallback() callback` (L866-L868) - Function
-  - `cli.src.components.settings.hooks.useSettingsActions.useSettingsActions.navigateItems.useCallback() callback.setSelectedIndex() callback` (L867-L867) - Function
+  - `cli.src.components.settings.hooks.useSettingsActions.UseSettingsActionsProps` (L43-L112) - Interface
+  - `cli.src.components.settings.hooks.useSettingsActions.useSettingsActions` (L114-L907) - Function
+  - `cli.src.components.settings.hooks.useSettingsActions.useSettingsActions.commitSettings` (L184-L203) - Class
+  - `cli.src.components.settings.hooks.useSettingsActions.useSettingsActions.commitSettings.useCallback() callback` (L185-L201) - Function
+  - `cli.src.components.settings.hooks.useSettingsActions.useSettingsActions.commitSettings.useCallback() callback.previous` (L186-L188) - Class
+  - `cli.src.components.settings.hooks.useSettingsActions.useSettingsActions.commitSettings.useCallback() callback.previous.map() callback` (L187-L187) - Function
+  - `cli.src.components.settings.hooks.useSettingsActions.useSettingsActions.commitSettings.useCallback() callback.rebuildTaskApi() callback` (L189-L199) - Function
+  - `cli.src.components.settings.hooks.useSettingsActions.commitSettings.useCallback() callback.rebuildTaskApi() callback.persistInteractiveSettingWithRollback() callback` (L191-L194) - Function
+  - `cli.src.components.settings.hooks.useSettingsActions.useSettingsActions.commitSettings.useCallback() callback.rebuildTaskApi() callback.persistInteractiveSettingWithRollback() callback` (L195-L198) - Function
+  - `cli.src.components.settings.hooks.useSettingsActions.toggleFeature` (L205-L213) - Class
+  - `cli.src.components.settings.hooks.useSettingsActions.useSettingsActions.toggleFeature.useCallback() callback` (L206-L211) - Function
+  - `cli.src.components.settings.hooks.useSettingsActions.useSettingsActions.toggleFeature.useCallback() callback.setFeatures() callback` (L210-L210) - Function
+  - `cli.src.components.settings.hooks.useSettingsActions.handleUtilityModelPresetSelect` (L215-L223) - Class
+  - `cli.src.components.settings.hooks.useSettingsActions.useSettingsActions.handleUtilityModelPresetSelect.useCallback() callback` (L216-L221) - Function
+  - `cli.src.components.settings.hooks.useSettingsActions.setReasoningEffortForMode` (L225-L243) - Class
+  - `cli.src.components.settings.hooks.useSettingsActions.useSettingsActions.setReasoningEffortForMode.useCallback() callback` (L226-L241) - Function
+  - `cli.src.components.settings.hooks.useSettingsActions.startCodexAuth` (L245-L247) - Class
+  - `cli.src.components.settings.hooks.useSettingsActions.useSettingsActions.startCodexAuth.useCallback() callback` (L245-L247) - Function
+  - `cli.src.components.settings.hooks.useSettingsActions.completeCodexAuth` (L249-L254) - Class
+  - `cli.src.components.settings.hooks.useSettingsActions.useSettingsActions.completeCodexAuth.useCallback() callback` (L249-L254) - Function
+  - `cli.src.components.settings.hooks.useSettingsActions.startGithubAuth` (L256-L281) - Class
+  - `cli.src.components.settings.hooks.useSettingsActions.useSettingsActions.startGithubAuth.useCallback() callback` (L256-L281) - Function
+  - `cli.src.components.settings.hooks.useSettingsActions.cancelGithubAuth` (L283-L288) - Class
+  - `cli.src.components.settings.hooks.useSettingsActions.useSettingsActions.cancelGithubAuth.useCallback() callback` (L283-L288) - Function
+  - `cli.src.components.settings.hooks.useSettingsActions.useSettingsActions.handleAction.useCallback() callback` (L290-L539) - Function
+  - `cli.src.components.settings.hooks.useSettingsActions.handleAction` (L290-L581) - Class
+  - `cli.src.components.settings.hooks.useSettingsActions.useSettingsActions.handleAction.useCallback() callback.setUtilityModelUseCases() callback` (L305-L305) - Function
+  - `cli.src.components.settings.hooks.useSettingsActions.handleAction.useCallback() callback.rebuildTaskApi() callback` (L324-L330) - Function
+  - `cli.src.components.settings.hooks.useSettingsActions.handleAction.useCallback() callback.rebuildTaskApi() callback.persistInteractiveSettingWithRollback() callback` (L326-L326) - Function
+  - `cli.src.components.settings.hooks.useSettingsActions.handleAction.useCallback() callback.persistInteractiveSettingWithRollback() callback` (L417-L420) - Function
+  - `cli.src.components.settings.hooks.useSettingsActions.useSettingsActions.handleAction.useCallback() callback.persistInteractiveSettingWithRollback() callback` (L421-L424) - Function
+  - `cli.src.components.settings.hooks.useSettingsActions.useSettingsActions.handleAction.useCallback() callback.isTool` (L440-L440) - Class
+  - `cli.src.components.settings.hooks.useSettingsActions.useSettingsActions.handleAction.useCallback() callback.isTool.availableTools.some() callback` (L440-L440) - Function
+  - `cli.src.components.settings.hooks.useSettingsActions.useSettingsActions.handleAction.useCallback() callback.previousToggles` (L443-L443) - Class
+  - `cli.src.components.settings.hooks.useSettingsActions.useSettingsActions.handleAction.useCallback() callback.previousToggles.ToolRegistry.withExclusiveAccess() callback` (L443-L443) - Function
+  - `cli.src.components.settings.hooks.useSettingsActions.useSettingsActions.handleAction.useCallback() callback.rebuildTaskApi() callback` (L445-L457) - Function
+  - `cli.src.components.settings.hooks.useSettingsActions.handleAction.useCallback() callback.rebuildTaskApi() callback.persistInteractiveSettingWithRollback() callback.ToolRegistry.withExclusiveAccess() callback` (L448-L451) - Function
+  - `cli.src.components.settings.hooks.useSettingsActions.useSettingsActions.handleAction.useCallback() callback.rebuildTaskApi() callback.persistInteractiveSettingWithRollback() callback` (L452-L456) - Function
+  - `cli.src.components.settings.hooks.useSettingsActions.useSettingsActions.handleAction.useCallback() callback.rebuildTaskApi() callback.persistInteractiveSettingWithRollback() callback.ToolRegistry.withExclusiveAccess() callback` (L453-L456) - Function
+  - `cli.src.components.settings.hooks.useSettingsActions.useSettingsActions.handleAction.useCallback() callback.setToolToggles() callback` (L459-L459) - Function
+  - `cli.src.components.settings.hooks.useSettingsActions.handleSave` (L583-L648) - Class
+  - `cli.src.components.settings.hooks.useSettingsActions.useSettingsActions.handleSave.useCallback() callback` (L584-L633) - Function
+  - `cli.src.components.settings.hooks.useSettingsActions.useSettingsActions.beginOpenRouterModelSelection` (L650-L655) - Class
+  - `cli.src.components.settings.hooks.useSettingsActions.useSettingsActions.beginOpenRouterModelSelection.useCallback() callback` (L650-L655) - Function
+  - `cli.src.components.settings.hooks.useSettingsActions.handleProviderSelect` (L657-L748) - Class
+  - `cli.src.components.settings.hooks.useSettingsActions.useSettingsActions.handleProviderSelect.useCallback() callback` (L658-L731) - Function
+  - `cli.src.components.settings.hooks.useSettingsActions.handleModelSelect` (L750-L795) - Class
+  - `cli.src.components.settings.hooks.useSettingsActions.useSettingsActions.handleModelSelect.useCallback() callback` (L751-L777) - Function
+  - `cli.src.components.settings.hooks.useSettingsActions.handleApiKeySubmit` (L797-L832) - Class
+  - `cli.src.components.settings.hooks.useSettingsActions.useSettingsActions.handleApiKeySubmit.useCallback() callback` (L798-L818) - Function
+  - `cli.src.components.settings.hooks.useSettingsActions.handleBedrockComplete` (L834-L844) - Class
+  - `cli.src.components.settings.hooks.useSettingsActions.useSettingsActions.handleBedrockComplete.useCallback() callback` (L835-L842) - Function
+  - `cli.src.components.settings.hooks.useSettingsActions.handleBedrockCustomFlowComplete` (L846-L871) - Class
+  - `cli.src.components.settings.hooks.useSettingsActions.useSettingsActions.handleBedrockCustomFlowComplete.useCallback() callback` (L847-L860) - Function
+  - `cli.src.components.settings.hooks.useSettingsActions.handleLanguageSelect` (L873-L880) - Class
+  - `cli.src.components.settings.hooks.useSettingsActions.useSettingsActions.handleLanguageSelect.useCallback() callback` (L874-L878) - Function
+  - `cli.src.components.settings.hooks.useSettingsActions.navigateItems` (L882-L887) - Class
+  - `cli.src.components.settings.hooks.useSettingsActions.useSettingsActions.navigateItems.useCallback() callback` (L883-L885) - Function
+  - `cli.src.components.settings.hooks.useSettingsActions.useSettingsActions.navigateItems.useCallback() callback.setSelectedIndex() callback` (L884-L884) - Function
 - `cli/src/components/settings/hooks/useSettingsItems.ts`
-  - `cli.src.components.settings.hooks.useSettingsItems.UseSettingsItemsProps` (L18-L51) - Interface
-  - `cli.src.components.settings.hooks.useSettingsItems.createModelItems` (L76-L334) - Function
-  - `cli.src.components.settings.hooks.useSettingsItems.createUtilityItems` (L336-L413) - Function
-  - `cli.src.components.settings.hooks.useSettingsItems.createApprovalItems` (L415-L529) - Function
-  - `cli.src.components.settings.hooks.useSettingsItems.createResponsesItems` (L531-L554) - Function
-  - `cli.src.components.settings.hooks.useSettingsItems.createRunningTaskItems` (L556-L573) - Function
-  - `cli.src.components.settings.hooks.useSettingsItems.createToolItems` (L575-L623) - Function
-  - `cli.src.components.settings.hooks.useSettingsItems.createToolItems.tools` (L588-L588) - Class
-  - `cli.src.components.settings.hooks.useSettingsItems.createToolItems.tools.availableTools.filter() callback` (L588-L588) - Function
-  - `cli.src.components.settings.hooks.useSettingsItems.createToolItems.tools.sort() callback` (L588-L588) - Function
-  - `cli.src.components.settings.hooks.useSettingsItems.createTerminalItems` (L625-L634) - Function
-  - `cli.src.components.settings.hooks.useSettingsItems.createGeneralItems` (L636-L675) - Function
-  - `cli.src.components.settings.hooks.useSettingsItems.createSettingsItems` (L677-L698) - Function
-  - `cli.src.components.settings.hooks.useSettingsItems.useSettingsItems` (L700-L738) - Function
-  - `cli.src.components.settings.hooks.useSettingsItems.useSettingsItems.useMemo() callback` (L702-L702) - Function
-  - `cli.src.components.settings.hooks.useSettingsItems.createSettingsSearchResults` (L764-L801) - Function
-  - `cli.src.components.settings.hooks.useSettingsItems.createSettingsSearchResults.destinations.flatMap() callback` (L768-L800) - Function
-  - `cli.src.components.settings.hooks.useSettingsItems.destinations.flatMap() callback.map() callback` (L771-L771) - Function
-  - `cli.src.components.settings.hooks.useSettingsItems.createSettingsSearchResults.destinations.flatMap() callback.filter() callback` (L773-L773) - Function
-  - `cli.src.components.settings.hooks.useSettingsItems.createSettingsSearchResults.destinations.flatMap() callback.map() callback` (L775-L799) - Function
+  - `cli.src.components.settings.hooks.useSettingsItems.UseSettingsItemsProps` (L18-L52) - Interface
+  - `cli.src.components.settings.hooks.useSettingsItems.createModelItems` (L77-L335) - Function
+  - `cli.src.components.settings.hooks.useSettingsItems.createUtilityItems` (L337-L414) - Function
+  - `cli.src.components.settings.hooks.useSettingsItems.createApprovalItems` (L416-L530) - Function
+  - `cli.src.components.settings.hooks.useSettingsItems.createResponsesItems` (L532-L555) - Function
+  - `cli.src.components.settings.hooks.useSettingsItems.createRunningTaskItems` (L557-L574) - Function
+  - `cli.src.components.settings.hooks.useSettingsItems.createToolItems` (L576-L624) - Function
+  - `cli.src.components.settings.hooks.useSettingsItems.createToolItems.tools` (L589-L589) - Class
+  - `cli.src.components.settings.hooks.useSettingsItems.createToolItems.tools.availableTools.filter() callback` (L589-L589) - Function
+  - `cli.src.components.settings.hooks.useSettingsItems.createToolItems.tools.sort() callback` (L589-L589) - Function
+  - `cli.src.components.settings.hooks.useSettingsItems.createTerminalItems` (L626-L642) - Function
+  - `cli.src.components.settings.hooks.useSettingsItems.createGeneralItems` (L644-L683) - Function
+  - `cli.src.components.settings.hooks.useSettingsItems.createSettingsItems` (L685-L706) - Function
+  - `cli.src.components.settings.hooks.useSettingsItems.useSettingsItems` (L708-L747) - Function
+  - `cli.src.components.settings.hooks.useSettingsItems.useSettingsItems.useMemo() callback` (L710-L710) - Function
+  - `cli.src.components.settings.hooks.useSettingsItems.createSettingsSearchResults` (L773-L810) - Function
+  - `cli.src.components.settings.hooks.useSettingsItems.createSettingsSearchResults.destinations.flatMap() callback` (L777-L809) - Function
+  - `cli.src.components.settings.hooks.useSettingsItems.destinations.flatMap() callback.map() callback` (L780-L780) - Function
+  - `cli.src.components.settings.hooks.useSettingsItems.createSettingsSearchResults.destinations.flatMap() callback.filter() callback` (L782-L782) - Function
+  - `cli.src.components.settings.hooks.useSettingsItems.createSettingsSearchResults.destinations.flatMap() callback.map() callback` (L784-L808) - Function
 - `cli/src/components/settings/navigation.ts`
   - `cli.src.components.settings.navigation.isSelectableSettingsItem` (L13-L15) - Function
   - `cli.src.components.settings.navigation.getFirstSelectableSettingsIndex` (L17-L20) - Function
@@ -6232,23 +6192,21 @@ Provides the terminal-based CLI interface, Agent Client Protocol (ACP) runtime, 
   - `cli.src.hooks.useChatFooterStatus.useChatFooterStatus.lastApiReqTotalTokens.useMemo() callback` (L98-L98) - Function
   - `cli.src.hooks.useChatFooterStatus.useChatFooterStatus.contextWindowSize.useMemo() callback` (L101-L126) - Function
 - `cli/src/hooks/useChatInputHandler.ts`
-  - `cli.src.hooks.useChatInputHandler.getGoalKeyboardShortcut` (L21-L32) - Function
-  - `cli.src.hooks.useChatInputHandler.UseChatInputHandlerProps` (L34-L100) - Interface
-  - `cli.src.hooks.useChatInputHandler.useChatInputHandler` (L102-L490) - Function
-  - `cli.src.hooks.useChatInputHandler.useChatInputHandler.useInput() callback` (L162-L489) - Function
-  - `cli.src.hooks.useChatInputHandler.useChatInputHandler.useInput() callback.localSlashCommandContext` (L173-L184) - Class
-  - `cli.src.hooks.useChatInputHandler.useChatInputHandler.useInput() callback.localSlashCommandContext.resetInputLine` (L176-L179) - Method
-  - `cli.src.hooks.useChatInputHandler.useInput() callback.setSelectedSlashIndex() callback` (L216-L216) - Function
-  - `cli.src.hooks.useChatInputHandler.useChatInputHandler.useInput() callback.setSelectedSlashIndex() callback` (L220-L220) - Function
-  - `cli.src.hooks.useChatInputHandler.useInput() callback.setSelectedIndex() callback` (L255-L255) - Function
-  - `cli.src.hooks.useChatInputHandler.useChatInputHandler.useInput() callback.setSelectedIndex() callback` (L259-L259) - Function
-  - `cli.src.hooks.useChatInputHandler.useChatInputHandler.useInput() callback.<function>` (L366-L376) - Function
-  - `cli.src.hooks.useChatInputHandler.useInput() callback.setPastedTexts() callback` (L391-L395) - Function
-  - `cli.src.hooks.useChatInputHandler.useChatInputHandler.useInput() callback.setTimeout() callback` (L398-L411) - Function
-  - `cli.src.hooks.useChatInputHandler.useChatInputHandler.useInput() callback.setTimeout() callback.setTextInput() callback` (L407-L407) - Function
-  - `cli.src.hooks.useChatInputHandler.useChatInputHandler.useInput() callback.setPastedTexts() callback` (L422-L426) - Function
-  - `cli.src.hooks.useChatInputHandler.useInput() callback.setCursorPos() callback` (L468-L468) - Function
-  - `cli.src.hooks.useChatInputHandler.useChatInputHandler.useInput() callback.setCursorPos() callback` (L472-L472) - Function
+  - `cli.src.hooks.useChatInputHandler.getGoalKeyboardShortcut` (L22-L33) - Function
+  - `cli.src.hooks.useChatInputHandler.UseChatInputHandlerProps` (L35-L106) - Interface
+  - `cli.src.hooks.useChatInputHandler.useChatInputHandler` (L108-L512) - Function
+  - `cli.src.hooks.useChatInputHandler.useChatInputHandler.useInput() callback` (L173-L511) - Function
+  - `cli.src.hooks.useChatInputHandler.useInput() callback.setSelectedSlashIndex() callback` (L246-L246) - Function
+  - `cli.src.hooks.useChatInputHandler.useChatInputHandler.useInput() callback.setSelectedSlashIndex() callback` (L250-L250) - Function
+  - `cli.src.hooks.useChatInputHandler.useInput() callback.setSelectedIndex() callback` (L285-L285) - Function
+  - `cli.src.hooks.useChatInputHandler.useChatInputHandler.useInput() callback.setSelectedIndex() callback` (L289-L289) - Function
+  - `cli.src.hooks.useChatInputHandler.useChatInputHandler.useInput() callback.<function>` (L382-L392) - Function
+  - `cli.src.hooks.useChatInputHandler.useInput() callback.setPastedTexts() callback` (L407-L411) - Function
+  - `cli.src.hooks.useChatInputHandler.useChatInputHandler.useInput() callback.setTimeout() callback` (L414-L427) - Function
+  - `cli.src.hooks.useChatInputHandler.useChatInputHandler.useInput() callback.setTimeout() callback.setTextInput() callback` (L423-L423) - Function
+  - `cli.src.hooks.useChatInputHandler.useChatInputHandler.useInput() callback.setPastedTexts() callback` (L438-L442) - Function
+  - `cli.src.hooks.useChatInputHandler.useInput() callback.setCursorPos() callback` (L484-L484) - Function
+  - `cli.src.hooks.useChatInputHandler.useChatInputHandler.useInput() callback.setCursorPos() callback` (L488-L488) - Function
 - `cli/src/hooks/useChatMessages.ts`
   - `cli.src.hooks.useChatMessages.useChatMessages` (L5-L38) - Function
   - `cli.src.hooks.useChatMessages.useChatMessages.timeline` (L11-L29) - Class
@@ -6294,64 +6252,81 @@ Provides the terminal-based CLI interface, Agent Client Protocol (ACP) runtime, 
   - `cli.src.hooks.useChatTimeline.createStaticTimelineItems` (L144-L156) - Function
   - `cli.src.hooks.useChatTimeline.createDynamicTimelineItems` (L158-L192) - Function
   - `cli.src.hooks.useChatTimeline.createDynamicTimelineItems.items.allocations.map() callback` (L187-L188) - Function
-  - `cli.src.hooks.useChatTimeline.createExclusiveMessagePlan` (L194-L223) - Function
-  - `cli.src.hooks.useChatTimeline.createProjectedMessageItem` (L225-L246) - Function
-  - `cli.src.hooks.useChatTimeline.estimateMessageRows` (L248-L254) - Function
-  - `cli.src.hooks.useChatTimeline.isMutableTimelineMessage` (L256-L259) - Function
-  - `cli.src.hooks.useChatTimeline.createTurnSeparatedMessageItems` (L261-L278) - Function
-  - `cli.src.hooks.useChatTimeline.startsNewChatTurn` (L280-L283) - Function
-  - `cli.src.hooks.useChatTimeline.createMessageItem` (L285-L292) - Function
-  - `cli.src.hooks.useChatTimeline.getMessageKind` (L294-L304) - Function
+  - `cli.src.hooks.useChatTimeline.createExclusiveMessagePlan` (L194-L224) - Function
+  - `cli.src.hooks.useChatTimeline.createProjectedMessageItem` (L226-L247) - Function
+  - `cli.src.hooks.useChatTimeline.estimateMessageRows` (L249-L255) - Function
+  - `cli.src.hooks.useChatTimeline.isMutableTimelineMessage` (L257-L260) - Function
+  - `cli.src.hooks.useChatTimeline.createTurnSeparatedMessageItems` (L262-L279) - Function
+  - `cli.src.hooks.useChatTimeline.startsNewChatTurn` (L281-L284) - Function
+  - `cli.src.hooks.useChatTimeline.createMessageItem` (L286-L293) - Function
+  - `cli.src.hooks.useChatTimeline.getMessageKind` (L295-L305) - Function
 - `cli/src/hooks/useComposer.ts`
-  - `cli.src.hooks.useComposer.PersistedInputState` (L42-L47) - Interface
-  - `cli.src.hooks.useComposer.ComposerActions` (L59-L73) - Interface
-  - `cli.src.hooks.useComposer.UseComposerProps` (L75-L97) - Interface
-  - `cli.src.hooks.useComposer.useComposer` (L99-L473) - Function
-  - `cli.src.hooks.useComposer.storageKey` (L137-L137) - Class
-  - `cli.src.hooks.useComposer.useComposer.storageKey.useMemo() callback` (L137-L137) - Function
-  - `cli.src.hooks.useComposer.textInputRef` (L138-L145) - Class
-  - `cli.src.hooks.useComposer.useComposer.textInputRef.useMemo() callback` (L139-L143) - Function
-  - `cli.src.hooks.useComposer.useComposer.textInputRef.useMemo() callback.current` (L140-L142) - Method
-  - `cli.src.hooks.useComposer.cursorPosRef` (L146-L153) - Class
-  - `cli.src.hooks.useComposer.useComposer.cursorPosRef.useMemo() callback` (L147-L151) - Function
-  - `cli.src.hooks.useComposer.useComposer.cursorPosRef.useMemo() callback.current` (L148-L150) - Method
-  - `cli.src.hooks.useComposer.useComposer.handleHome` (L187-L187) - Class
-  - `cli.src.hooks.useComposer.useComposer.handleHome.useCallback() callback` (L187-L187) - Function
-  - `cli.src.hooks.useComposer.useComposer.handleEnd` (L188-L188) - Class
-  - `cli.src.hooks.useComposer.useComposer.handleEnd.useCallback() callback` (L188-L188) - Function
-  - `cli.src.hooks.useComposer.useEffect() callback` (L202-L217) - Function
-  - `cli.src.hooks.useComposer.mentionInfo` (L237-L237) - Class
-  - `cli.src.hooks.useComposer.useComposer.mentionInfo.useMemo() callback` (L237-L237) - Function
-  - `cli.src.hooks.useComposer.slashInfo` (L238-L238) - Class
-  - `cli.src.hooks.useComposer.useComposer.slashInfo.useMemo() callback` (L238-L238) - Function
-  - `cli.src.hooks.useComposer.filteredCommands` (L239-L242) - Class
-  - `cli.src.hooks.useComposer.useComposer.filteredCommands.useMemo() callback` (L240-L240) - Function
-  - `cli.src.hooks.useComposer.useComposer.useEffect() callback.cliOnlyCommands` (L253-L258) - Class
-  - `cli.src.hooks.useComposer.useComposer.useEffect() callback.cliOnlyCommands.CLI_ONLY_COMMANDS.map() callback` (L253-L258) - Function
-  - `cli.src.hooks.useComposer.useEffect() callback.then() callback` (L264-L268) - Function
-  - `cli.src.hooks.useComposer.useComposer.useEffect() callback.then() callback.backendCommands` (L266-L266) - Class
-  - `cli.src.hooks.useComposer.useComposer.useEffect() callback.then() callback.backendCommands.response.commands.filter() callback` (L266-L266) - Function
-  - `cli.src.hooks.useComposer.useComposer.useEffect() callback.then() callback` (L269-L271) - Function
-  - `cli.src.hooks.useComposer.getHistoryItems` (L288-L304) - Class
-  - `cli.src.hooks.useComposer.useComposer.getHistoryItems.useCallback() callback` (L288-L304) - Function
-  - `cli.src.hooks.useComposer.useComposer.getHistoryItems.useCallback() callback.filtered` (L291-L302) - Class
-  - `cli.src.hooks.useComposer.useComposer.getHistoryItems.useCallback() callback.filtered.filter() callback` (L292-L297) - Function
-  - `cli.src.hooks.useComposer.useComposer.getHistoryItems.useCallback() callback.filtered.map() callback` (L300-L300) - Function
-  - `cli.src.hooks.useComposer.useComposer.useEffect() callback` (L306-L374) - Function
-  - `cli.src.hooks.useComposer.useEffect() callback.setTimeout() callback` (L325-L325) - Function
-  - `cli.src.hooks.useComposer.useComposer.useEffect() callback.setTimeout() callback` (L335-L370) - Function
-  - `cli.src.hooks.useComposer.useComposer.handleAskShortcuts` (L385-L385) - Method
-  - `cli.src.hooks.useComposer.useComposer.toggleMode` (L389-L389) - Method
-  - `cli.src.hooks.useComposer.useComposer.toggleAutoApproveAll` (L390-L390) - Method
-  - `cli.src.hooks.useComposer.useComposer.enableFastMode` (L391-L391) - Method
-  - `cli.src.hooks.useComposer.useComposer.toggleQuietMode` (L392-L392) - Method
-  - `cli.src.hooks.useComposer.useComposer.handleSubmit` (L393-L393) - Method
-  - `cli.src.hooks.useComposer.useComposer.handleExit` (L394-L394) - Method
-  - `cli.src.hooks.useComposer.useComposer.clearViewAndResetTask` (L395-L395) - Method
-  - `cli.src.hooks.useComposer.useComposer.handleButtonAction` (L415-L415) - Method
-  - `cli.src.hooks.useComposer.resetInput` (L437-L443) - Class
-  - `cli.src.hooks.useComposer.useComposer.resetInput.useCallback() callback` (L437-L443) - Function
-  - `cli.src.hooks.useComposer.useComposer.availableCommandNames.availableCommands.map() callback` (L459-L459) - Function
+  - `cli.src.hooks.useComposer.PersistedInputState` (L46-L52) - Interface
+  - `cli.src.hooks.useComposer.ComposerActions` (L64-L78) - Interface
+  - `cli.src.hooks.useComposer.UseComposerProps` (L80-L105) - Interface
+  - `cli.src.hooks.useComposer.useComposer` (L107-L558) - Function
+  - `cli.src.hooks.useComposer.useComposer.subscribeVimSetting` (L151-L151) - Class
+  - `cli.src.hooks.useComposer.useComposer.subscribeVimSetting.useCallback() callback` (L151-L151) - Function
+  - `cli.src.hooks.useComposer.useComposer.readVimSetting` (L152-L152) - Class
+  - `cli.src.hooks.useComposer.useComposer.readVimSetting.useCallback() callback` (L152-L152) - Function
+  - `cli.src.hooks.useComposer.setTextInput` (L160-L163) - Class
+  - `cli.src.hooks.useComposer.useComposer.setTextInput.useCallback() callback` (L161-L161) - Function
+  - `cli.src.hooks.useComposer.useComposer.setTextInput.useCallback() callback.editWithVimHistory() callback` (L161-L161) - Function
+  - `cli.src.hooks.useComposer.insertTextAtCursor` (L164-L167) - Class
+  - `cli.src.hooks.useComposer.useComposer.insertTextAtCursor.useCallback() callback` (L165-L165) - Function
+  - `cli.src.hooks.useComposer.useComposer.insertTextAtCursor.useCallback() callback.editWithVimHistory() callback` (L165-L165) - Function
+  - `cli.src.hooks.useComposer.handleCtrlShortcut` (L168-L171) - Class
+  - `cli.src.hooks.useComposer.useComposer.handleCtrlShortcut.useCallback() callback` (L169-L169) - Function
+  - `cli.src.hooks.useComposer.useComposer.handleCtrlShortcut.useCallback() callback.editWithVimHistory() callback` (L169-L169) - Function
+  - `cli.src.hooks.useComposer.textInputRef` (L172-L179) - Class
+  - `cli.src.hooks.useComposer.useComposer.textInputRef.useMemo() callback` (L173-L177) - Function
+  - `cli.src.hooks.useComposer.useComposer.textInputRef.useMemo() callback.current` (L174-L176) - Method
+  - `cli.src.hooks.useComposer.cursorPosRef` (L180-L187) - Class
+  - `cli.src.hooks.useComposer.useComposer.cursorPosRef.useMemo() callback` (L181-L185) - Function
+  - `cli.src.hooks.useComposer.useComposer.cursorPosRef.useMemo() callback.current` (L182-L184) - Method
+  - `cli.src.hooks.useComposer.useComposer.resetPasteChunks` (L221-L226) - Class
+  - `cli.src.hooks.useComposer.useComposer.resetPasteChunks.useCallback() callback` (L221-L226) - Function
+  - `cli.src.hooks.useComposer.useComposer.loadHistory` (L228-L231) - Class
+  - `cli.src.hooks.useComposer.useComposer.loadHistory.useCallback() callback` (L229-L229) - Function
+  - `cli.src.hooks.useComposer.useComposer.handleHome` (L259-L262) - Class
+  - `cli.src.hooks.useComposer.useComposer.handleHome.useCallback() callback` (L259-L262) - Function
+  - `cli.src.hooks.useComposer.useComposer.handleEnd` (L263-L266) - Class
+  - `cli.src.hooks.useComposer.useComposer.handleEnd.useCallback() callback` (L263-L266) - Function
+  - `cli.src.hooks.useComposer.useComposer.onBackspace` (L275-L278) - Method
+  - `cli.src.hooks.useComposer.useComposer.onDelete` (L279-L282) - Method
+  - `cli.src.hooks.useComposer.useEffect() callback` (L286-L292) - Function
+  - `cli.src.hooks.useComposer.mentionInfo` (L313-L313) - Class
+  - `cli.src.hooks.useComposer.useComposer.mentionInfo.useMemo() callback` (L313-L313) - Function
+  - `cli.src.hooks.useComposer.slashInfo` (L314-L314) - Class
+  - `cli.src.hooks.useComposer.useComposer.slashInfo.useMemo() callback` (L314-L314) - Function
+  - `cli.src.hooks.useComposer.filteredCommands` (L315-L318) - Class
+  - `cli.src.hooks.useComposer.useComposer.filteredCommands.useMemo() callback` (L316-L316) - Function
+  - `cli.src.hooks.useComposer.useComposer.useEffect() callback.cliOnlyCommands` (L329-L334) - Class
+  - `cli.src.hooks.useComposer.useComposer.useEffect() callback.cliOnlyCommands.CLI_ONLY_COMMANDS.map() callback` (L329-L334) - Function
+  - `cli.src.hooks.useComposer.useEffect() callback.then() callback` (L340-L344) - Function
+  - `cli.src.hooks.useComposer.useComposer.useEffect() callback.then() callback.backendCommands` (L342-L342) - Class
+  - `cli.src.hooks.useComposer.useComposer.useEffect() callback.then() callback.backendCommands.response.commands.filter() callback` (L342-L342) - Function
+  - `cli.src.hooks.useComposer.useComposer.useEffect() callback.then() callback` (L345-L347) - Function
+  - `cli.src.hooks.useComposer.getHistoryItems` (L364-L380) - Class
+  - `cli.src.hooks.useComposer.useComposer.getHistoryItems.useCallback() callback` (L364-L380) - Function
+  - `cli.src.hooks.useComposer.useComposer.getHistoryItems.useCallback() callback.filtered` (L367-L378) - Class
+  - `cli.src.hooks.useComposer.useComposer.getHistoryItems.useCallback() callback.filtered.filter() callback` (L368-L373) - Function
+  - `cli.src.hooks.useComposer.useComposer.getHistoryItems.useCallback() callback.filtered.map() callback` (L376-L376) - Function
+  - `cli.src.hooks.useComposer.useComposer.useEffect() callback` (L382-L450) - Function
+  - `cli.src.hooks.useComposer.useEffect() callback.setTimeout() callback` (L401-L401) - Function
+  - `cli.src.hooks.useComposer.useComposer.useEffect() callback.setTimeout() callback` (L411-L446) - Function
+  - `cli.src.hooks.useComposer.resetInput` (L452-L461) - Class
+  - `cli.src.hooks.useComposer.useComposer.resetInput.useCallback() callback` (L452-L461) - Function
+  - `cli.src.hooks.useComposer.useComposer.handleAskShortcuts` (L473-L473) - Method
+  - `cli.src.hooks.useComposer.useComposer.toggleMode` (L480-L480) - Method
+  - `cli.src.hooks.useComposer.useComposer.toggleAutoApproveAll` (L481-L481) - Method
+  - `cli.src.hooks.useComposer.useComposer.enableFastMode` (L482-L482) - Method
+  - `cli.src.hooks.useComposer.useComposer.toggleQuietMode` (L483-L483) - Method
+  - `cli.src.hooks.useComposer.useComposer.handleSubmit` (L484-L484) - Method
+  - `cli.src.hooks.useComposer.useComposer.handleExit` (L485-L485) - Method
+  - `cli.src.hooks.useComposer.useComposer.clearViewAndResetTask` (L486-L486) - Method
+  - `cli.src.hooks.useComposer.useComposer.handleButtonAction` (L507-L507) - Method
+  - `cli.src.hooks.useComposer.useComposer.availableCommandNames.availableCommands.map() callback` (L544-L544) - Function
 - `cli/src/hooks/useHomeEndKeys.ts`
   - `cli.src.hooks.useHomeEndKeys.UseHomeEndKeysOptions` (L14-L18) - Interface
   - `cli.src.hooks.useHomeEndKeys.useHomeEndKeys` (L24-L54) - Function
@@ -6364,6 +6339,17 @@ Provides the terminal-based CLI interface, Agent Client Protocol (ACP) runtime, 
   - `cli.src.hooks.useOcaAuth.useOcaAuth` (L29-L37) - Function
   - `cli.src.hooks.useOcaAuth.useOcaAuth.startAuth` (L32-L32) - Method
   - `cli.src.hooks.useOcaAuth.useOcaAuth.cancelAuth` (L33-L33) - Method
+- `cli/src/hooks/usePromptHistory.ts`
+  - `cli.src.hooks.usePromptHistory.Draft` (L4-L7) - Interface
+  - `cli.src.hooks.usePromptHistory.UsePromptHistoryProps` (L9-L17) - Interface
+  - `cli.src.hooks.usePromptHistory.usePromptHistory` (L20-L83) - Function
+  - `cli.src.hooks.usePromptHistory.resetHistory` (L28-L32) - Class
+  - `cli.src.hooks.usePromptHistory.usePromptHistory.resetHistory.useCallback() callback` (L28-L32) - Function
+  - `cli.src.hooks.usePromptHistory.usePromptHistory.useEffect() callback` (L34-L44) - Function
+  - `cli.src.hooks.usePromptHistory.usePromptHistory.useEffect() callback.history.catch() callback` (L40-L42) - Function
+  - `cli.src.hooks.usePromptHistory.navigateHistory` (L46-L80) - Class
+  - `cli.src.hooks.usePromptHistory.usePromptHistory.navigateHistory.useCallback() callback` (L46-L80) - Function
+  - `cli.src.hooks.usePromptHistory.usePromptHistory.navigateHistory.useCallback() callback.catch() callback` (L77-L79) - Function
 - `cli/src/hooks/useRawBackspaceKeys.ts`
   - `cli.src.hooks.useRawBackspaceKeys.UseRawBackspaceKeysOptions` (L22-L26) - Interface
   - `cli.src.hooks.useRawBackspaceKeys.useRawBackspaceKeys` (L33-L88) - Function
@@ -6394,55 +6380,60 @@ Provides the terminal-based CLI interface, Agent Client Protocol (ACP) runtime, 
   - `cli.src.hooks.useTextInput.parseKeyboardSequence` (L32-L40) - Function
   - `cli.src.hooks.useTextInput.findWordStart` (L45-L56) - Function
   - `cli.src.hooks.useTextInput.findWordEnd` (L61-L72) - Function
-  - `cli.src.hooks.useTextInput.UseTextInputReturn` (L74-L96) - Interface
-  - `cli.src.hooks.useTextInput.useTextInput` (L101-L297) - Function
-  - `cli.src.hooks.useTextInput.useTextInput.updateState` (L114-L121) - Class
-  - `cli.src.hooks.useTextInput.useTextInput.updateState.useCallback() callback` (L115-L119) - Function
-  - `cli.src.hooks.useTextInput.setText` (L124-L136) - Class
-  - `cli.src.hooks.useTextInput.useTextInput.setText.useCallback() callback` (L125-L134) - Function
-  - `cli.src.hooks.useTextInput.useTextInput.setText.useCallback() callback.updateState() callback` (L126-L133) - Function
-  - `cli.src.hooks.useTextInput.insertText` (L138-L147) - Class
-  - `cli.src.hooks.useTextInput.useTextInput.insertText.useCallback() callback` (L139-L145) - Function
-  - `cli.src.hooks.useTextInput.useTextInput.insertText.useCallback() callback.updateState() callback` (L141-L144) - Function
-  - `cli.src.hooks.useTextInput.setCursorPos` (L149-L160) - Class
-  - `cli.src.hooks.useTextInput.useTextInput.setCursorPos.useCallback() callback` (L150-L158) - Function
-  - `cli.src.hooks.useTextInput.useTextInput.setCursorPos.useCallback() callback.updateState() callback` (L151-L157) - Function
-  - `cli.src.hooks.useTextInput.deleteCharsBefore` (L163-L175) - Class
-  - `cli.src.hooks.useTextInput.useTextInput.deleteCharsBefore.useCallback() callback` (L164-L173) - Function
-  - `cli.src.hooks.useTextInput.useTextInput.deleteCharsBefore.useCallback() callback.updateState() callback` (L165-L172) - Function
-  - `cli.src.hooks.useTextInput.deleteCharBefore` (L177-L177) - Class
-  - `cli.src.hooks.useTextInput.useTextInput.deleteCharBefore.useCallback() callback` (L177-L177) - Function
-  - `cli.src.hooks.useTextInput.deleteCharsAfter` (L179-L191) - Class
-  - `cli.src.hooks.useTextInput.useTextInput.deleteCharsAfter.useCallback() callback` (L180-L189) - Function
-  - `cli.src.hooks.useTextInput.useTextInput.deleteCharsAfter.useCallback() callback.updateState() callback` (L181-L188) - Function
-  - `cli.src.hooks.useTextInput.useTextInput.deleteCharAfter` (L193-L193) - Class
-  - `cli.src.hooks.useTextInput.useTextInput.deleteCharAfter.useCallback() callback` (L193-L193) - Function
-  - `cli.src.hooks.useTextInput.useTextInput.deleteWordBefore` (L195-L206) - Class
-  - `cli.src.hooks.useTextInput.useTextInput.deleteWordBefore.useCallback() callback` (L195-L206) - Function
-  - `cli.src.hooks.useTextInput.useTextInput.deleteWordBefore.useCallback() callback.updateState() callback` (L196-L205) - Function
-  - `cli.src.hooks.useTextInput.useTextInput.deleteToStart` (L208-L218) - Class
-  - `cli.src.hooks.useTextInput.useTextInput.deleteToStart.useCallback() callback` (L208-L218) - Function
-  - `cli.src.hooks.useTextInput.useTextInput.deleteToStart.useCallback() callback.updateState() callback` (L209-L217) - Function
-  - `cli.src.hooks.useTextInput.useTextInput.deleteToEnd` (L220-L230) - Class
-  - `cli.src.hooks.useTextInput.useTextInput.deleteToEnd.useCallback() callback` (L220-L230) - Function
-  - `cli.src.hooks.useTextInput.useTextInput.deleteToEnd.useCallback() callback.updateState() callback` (L221-L229) - Function
-  - `cli.src.hooks.useTextInput.useTextInput.moveToStart` (L233-L233) - Class
-  - `cli.src.hooks.useTextInput.useTextInput.moveToStart.useCallback() callback` (L233-L233) - Function
-  - `cli.src.hooks.useTextInput.useTextInput.moveToEnd` (L234-L234) - Class
-  - `cli.src.hooks.useTextInput.useTextInput.moveToEnd.useCallback() callback` (L234-L234) - Function
-  - `cli.src.hooks.useTextInput.useTextInput.moveToEnd.useCallback() callback.setCursorPos() callback` (L234-L234) - Function
-  - `cli.src.hooks.useTextInput.useTextInput.moveWordLeft` (L235-L235) - Class
-  - `cli.src.hooks.useTextInput.useTextInput.moveWordLeft.useCallback() callback` (L235-L235) - Function
-  - `cli.src.hooks.useTextInput.useTextInput.moveWordLeft.useCallback() callback.setCursorPos() callback` (L235-L235) - Function
-  - `cli.src.hooks.useTextInput.useTextInput.moveWordRight` (L236-L236) - Class
-  - `cli.src.hooks.useTextInput.useTextInput.moveWordRight.useCallback() callback` (L236-L236) - Function
-  - `cli.src.hooks.useTextInput.useTextInput.moveWordRight.useCallback() callback.setCursorPos() callback` (L236-L236) - Function
-  - `cli.src.hooks.useTextInput.handleKeyboardSequence` (L239-L256) - Class
-  - `cli.src.hooks.useTextInput.useTextInput.handleKeyboardSequence.useCallback() callback` (L240-L254) - Function
-  - `cli.src.hooks.useTextInput.handleCtrlShortcut` (L258-L281) - Class
-  - `cli.src.hooks.useTextInput.useTextInput.handleCtrlShortcut.useCallback() callback` (L259-L279) - Function
-  - `cli.src.hooks.useTextInput.useTextInput.getText` (L294-L294) - Method
-  - `cli.src.hooks.useTextInput.useTextInput.getCursorPos` (L295-L295) - Method
+  - `cli.src.hooks.useTextInput.UseTextInputReturn` (L74-L97) - Interface
+  - `cli.src.hooks.useTextInput.useTextInput` (L102-L303) - Function
+  - `cli.src.hooks.useTextInput.useTextInput.updateState` (L115-L122) - Class
+  - `cli.src.hooks.useTextInput.useTextInput.updateState.useCallback() callback` (L116-L120) - Function
+  - `cli.src.hooks.useTextInput.setValue` (L124-L124) - Class
+  - `cli.src.hooks.useTextInput.useTextInput.setValue.useCallback() callback` (L124-L124) - Function
+  - `cli.src.hooks.useTextInput.useTextInput.setValue.useCallback() callback.updateState() callback` (L124-L124) - Function
+  - `cli.src.hooks.useTextInput.getText` (L125-L125) - Class
+  - `cli.src.hooks.useTextInput.useTextInput.getText.useCallback() callback` (L125-L125) - Function
+  - `cli.src.hooks.useTextInput.getCursorPos` (L126-L126) - Class
+  - `cli.src.hooks.useTextInput.useTextInput.getCursorPos.useCallback() callback` (L126-L126) - Function
+  - `cli.src.hooks.useTextInput.setText` (L129-L141) - Class
+  - `cli.src.hooks.useTextInput.useTextInput.setText.useCallback() callback` (L130-L139) - Function
+  - `cli.src.hooks.useTextInput.useTextInput.setText.useCallback() callback.updateState() callback` (L131-L138) - Function
+  - `cli.src.hooks.useTextInput.insertText` (L143-L152) - Class
+  - `cli.src.hooks.useTextInput.useTextInput.insertText.useCallback() callback` (L144-L150) - Function
+  - `cli.src.hooks.useTextInput.useTextInput.insertText.useCallback() callback.updateState() callback` (L146-L149) - Function
+  - `cli.src.hooks.useTextInput.setCursorPos` (L154-L165) - Class
+  - `cli.src.hooks.useTextInput.useTextInput.setCursorPos.useCallback() callback` (L155-L163) - Function
+  - `cli.src.hooks.useTextInput.useTextInput.setCursorPos.useCallback() callback.updateState() callback` (L156-L162) - Function
+  - `cli.src.hooks.useTextInput.deleteCharsBefore` (L168-L180) - Class
+  - `cli.src.hooks.useTextInput.useTextInput.deleteCharsBefore.useCallback() callback` (L169-L178) - Function
+  - `cli.src.hooks.useTextInput.useTextInput.deleteCharsBefore.useCallback() callback.updateState() callback` (L170-L177) - Function
+  - `cli.src.hooks.useTextInput.deleteCharBefore` (L182-L182) - Class
+  - `cli.src.hooks.useTextInput.useTextInput.deleteCharBefore.useCallback() callback` (L182-L182) - Function
+  - `cli.src.hooks.useTextInput.deleteCharsAfter` (L184-L196) - Class
+  - `cli.src.hooks.useTextInput.useTextInput.deleteCharsAfter.useCallback() callback` (L185-L194) - Function
+  - `cli.src.hooks.useTextInput.useTextInput.deleteCharsAfter.useCallback() callback.updateState() callback` (L186-L193) - Function
+  - `cli.src.hooks.useTextInput.useTextInput.deleteCharAfter` (L198-L198) - Class
+  - `cli.src.hooks.useTextInput.useTextInput.deleteCharAfter.useCallback() callback` (L198-L198) - Function
+  - `cli.src.hooks.useTextInput.useTextInput.deleteWordBefore` (L200-L211) - Class
+  - `cli.src.hooks.useTextInput.useTextInput.deleteWordBefore.useCallback() callback` (L200-L211) - Function
+  - `cli.src.hooks.useTextInput.useTextInput.deleteWordBefore.useCallback() callback.updateState() callback` (L201-L210) - Function
+  - `cli.src.hooks.useTextInput.useTextInput.deleteToStart` (L213-L223) - Class
+  - `cli.src.hooks.useTextInput.useTextInput.deleteToStart.useCallback() callback` (L213-L223) - Function
+  - `cli.src.hooks.useTextInput.useTextInput.deleteToStart.useCallback() callback.updateState() callback` (L214-L222) - Function
+  - `cli.src.hooks.useTextInput.useTextInput.deleteToEnd` (L225-L235) - Class
+  - `cli.src.hooks.useTextInput.useTextInput.deleteToEnd.useCallback() callback` (L225-L235) - Function
+  - `cli.src.hooks.useTextInput.useTextInput.deleteToEnd.useCallback() callback.updateState() callback` (L226-L234) - Function
+  - `cli.src.hooks.useTextInput.useTextInput.moveToStart` (L238-L238) - Class
+  - `cli.src.hooks.useTextInput.useTextInput.moveToStart.useCallback() callback` (L238-L238) - Function
+  - `cli.src.hooks.useTextInput.useTextInput.moveToEnd` (L239-L239) - Class
+  - `cli.src.hooks.useTextInput.useTextInput.moveToEnd.useCallback() callback` (L239-L239) - Function
+  - `cli.src.hooks.useTextInput.useTextInput.moveToEnd.useCallback() callback.setCursorPos() callback` (L239-L239) - Function
+  - `cli.src.hooks.useTextInput.useTextInput.moveWordLeft` (L240-L240) - Class
+  - `cli.src.hooks.useTextInput.useTextInput.moveWordLeft.useCallback() callback` (L240-L240) - Function
+  - `cli.src.hooks.useTextInput.useTextInput.moveWordLeft.useCallback() callback.setCursorPos() callback` (L240-L240) - Function
+  - `cli.src.hooks.useTextInput.useTextInput.moveWordRight` (L241-L241) - Class
+  - `cli.src.hooks.useTextInput.useTextInput.moveWordRight.useCallback() callback` (L241-L241) - Function
+  - `cli.src.hooks.useTextInput.useTextInput.moveWordRight.useCallback() callback.setCursorPos() callback` (L241-L241) - Function
+  - `cli.src.hooks.useTextInput.handleKeyboardSequence` (L244-L261) - Class
+  - `cli.src.hooks.useTextInput.useTextInput.handleKeyboardSequence.useCallback() callback` (L245-L259) - Function
+  - `cli.src.hooks.useTextInput.handleCtrlShortcut` (L263-L286) - Class
+  - `cli.src.hooks.useTextInput.useTextInput.handleCtrlShortcut.useCallback() callback` (L264-L284) - Function
 - `cli/src/hooks/useTranscriptPartition.ts`
   - `cli.src.hooks.useTranscriptPartition.TranscriptPartition` (L12-L17) - Interface
   - `cli.src.hooks.useTranscriptPartition.TranscriptRetention` (L19-L22) - Interface
@@ -6451,6 +6442,20 @@ Provides the terminal-based CLI interface, Agent Client Protocol (ACP) runtime, 
   - `cli.src.hooks.useTranscriptPartition.calculateVisibleBoundary` (L72-L87) - Function
   - `cli.src.hooks.useTranscriptPartition.sameItems` (L89-L91) - Function
   - `cli.src.hooks.useTranscriptPartition.sameItems.left.every() callback` (L90-L90) - Function
+- `cli/src/hooks/useVimInput.ts`
+  - `cli.src.hooks.useVimInput.UseVimInputProps` (L5-L10) - Interface
+  - `cli.src.hooks.useVimInput.useVimInput` (L12-L93) - Function
+  - `cli.src.hooks.useVimInput.useVimInput.updateEditor` (L16-L19) - Class
+  - `cli.src.hooks.useVimInput.useVimInput.updateEditor.useCallback() callback` (L16-L19) - Function
+  - `cli.src.hooks.useVimInput.useVimInput.useEffect() callback` (L21-L23) - Function
+  - `cli.src.hooks.useVimInput.restoreVimDraft` (L25-L31) - Class
+  - `cli.src.hooks.useVimInput.useVimInput.restoreVimDraft.useCallback() callback` (L26-L29) - Function
+  - `cli.src.hooks.useVimInput.resetVimInput` (L33-L35) - Class
+  - `cli.src.hooks.useVimInput.useVimInput.resetVimInput.useCallback() callback` (L33-L35) - Function
+  - `cli.src.hooks.useVimInput.editWithVimHistory` (L37-L49) - Class
+  - `cli.src.hooks.useVimInput.useVimInput.editWithVimHistory.useCallback() callback` (L38-L47) - Function
+  - `cli.src.hooks.useVimInput.handleVimInput` (L51-L83) - Class
+  - `cli.src.hooks.useVimInput.useVimInput.handleVimInput.useCallback() callback` (L52-L81) - Function
 - `cli/src/index.ts`
   - `cli.src.index.action() callback` (L246-L367) - Function
 - `cli/src/init.ts`
@@ -6558,8 +6563,25 @@ Provides the terminal-based CLI interface, Agent Client Protocol (ACP) runtime, 
   - `cli.src.utils.console.suppressConsoleUnlessVerbose.info` (L32-L32) - Function
   - `cli.src.utils.console.restoreConsole` (L38-L44) - Function
 - `cli/src/utils/cursor.ts`
-  - `cli.src.utils.cursor.moveCursorUp` (L8-L23) - Function
-  - `cli.src.utils.cursor.moveCursorDown` (L28-L45) - Function
+  - `cli.src.utils.cursor.moveCursorVertically` (L3-L13) - Function
+  - `cli.src.utils.cursor.moveCursorVertically.currentColumn` (L10-L10) - Class
+  - `cli.src.utils.cursor.moveCursorVertically.currentColumn.cursorStops.reduce() callback` (L10-L10) - Function
+  - `cli.src.utils.cursor.moveCursorVertically.targetRow.cursorStops.reduce() callback` (L12-L12) - Function
+  - `cli.src.utils.cursor.moveCursorUp` (L16-L18) - Function
+  - `cli.src.utils.cursor.moveCursorDown` (L21-L23) - Function
+- `cli/src/utils/diff-layout.ts`
+  - `cli.src.utils.diff-layout.DiffLayout` (L10-L14) - Interface
+  - `cli.src.utils.diff-layout.createDiffLayout` (L20-L47) - Function
+  - `cli.src.utils.diff-layout.createDiffLayout.rows.diff.blocks.flatMap() callback` (L30-L45) - Function
+  - `cli.src.utils.diff-layout.createDiffLayout.rows.diff.blocks.flatMap() callback.blockRows` (L32-L43) - Class
+  - `cli.src.utils.diff-layout.createDiffLayout.rows.diff.blocks.flatMap() callback.blockRows.collapsed.flatMap() callback` (L34-L43) - Function
+  - `cli.src.utils.diff-layout.createDiffLayout.rows.diff.blocks.flatMap() callback.blockRows.collapsed.flatMap() callback.map() callback` (L38-L42) - Function
+  - `cli.src.utils.diff-layout.clipDiffRows` (L50-L55) - Function
+  - `cli.src.utils.diff-layout.collapseContext` (L57-L82) - Function
+  - `cli.src.utils.diff-layout.collapseContext.changeIndices` (L59-L59) - Class
+  - `cli.src.utils.diff-layout.collapseContext.changeIndices.lines.flatMap() callback` (L59-L59) - Function
+  - `cli.src.utils.diff-layout.collapseContext.lines.map() callback` (L60-L60) - Function
+  - `cli.src.utils.diff-layout.toSplitRows` (L84-L119) - Function
 - `cli/src/utils/display.ts`
   - `cli.src.utils.display.centerText` (L22-L26) - Function
   - `cli.src.utils.display.colorize` (L28-L31) - Function
@@ -6697,17 +6719,54 @@ Provides the terminal-based CLI interface, Agent Client Protocol (ACP) runtime, 
   - `cli.src.utils.import-configs.getProviderDisplayName` (L246-L248) - Function
 - `cli/src/utils/ink.ts`
   - `cli.src.utils.ink.runInkApp` (L4-L57) - Function
+- `cli/src/utils/input-layout.ts`
+  - `cli.src.utils.input-layout.CursorStop` (L3-L6) - Interface
+  - `cli.src.utils.input-layout.InputVisualRow` (L8-L12) - Interface
+  - `cli.src.utils.input-layout.getInputContentWidth` (L17-L20) - Function
+  - `cli.src.utils.input-layout.getInputVisualRows` (L27-L58) - Function
+  - `cli.src.utils.input-layout.getInputCursorRow` (L60-L65) - Function
 - `cli/src/utils/input-viewport.ts`
-  - `cli.src.utils.input-viewport.InputViewport` (L1-L6) - Interface
-  - `cli.src.utils.input-viewport.VisualRow` (L8-L11) - Interface
-  - `cli.src.utils.input-viewport.splitIntoVisualRows` (L13-L40) - Function
-  - `cli.src.utils.input-viewport.createInputViewport` (L47-L82) - Function
-  - `cli.src.utils.input-viewport.createInputViewport.cursorRow` (L66-L66) - Class
-  - `cli.src.utils.input-viewport.createInputViewport.cursorRow.rows.findIndex() callback` (L66-L66) - Function
+  - `cli.src.utils.input-viewport.InputViewport` (L3-L8) - Interface
+  - `cli.src.utils.input-viewport.createInputViewport` (L11-L39) - Function
 - `cli/src/utils/input.ts`
   - `cli.src.utils.input.isTerminalResponseSequence` (L18-L46) - Function
   - `cli.src.utils.input.isMouseEscapeSequence` (L48-L52) - Function
   - `cli.src.utils.input.shouldIgnoreTerminalInput` (L54-L56) - Function
+- `cli/src/utils/markdown.ts`
+  - `cli.src.utils.markdown.styleText` (L13-L21) - Function
+  - `cli.src.utils.markdown.truncateCell` (L23-L32) - Function
+  - `cli.src.utils.markdown.allocateColumnWidths` (L34-L41) - Function
+  - `cli.src.utils.markdown.allocateColumnWidths.widths` (L35-L35) - Class
+  - `cli.src.utils.markdown.allocateColumnWidths.widths.naturalWidths.map() callback` (L35-L35) - Function
+  - `cli.src.utils.markdown.allocateColumnWidths.naturalTotal` (L36-L36) - Class
+  - `cli.src.utils.markdown.allocateColumnWidths.naturalTotal.widths.reduce() callback` (L36-L36) - Function
+  - `cli.src.utils.markdown.allocateColumnWidths.expandableTotal` (L39-L39) - Class
+  - `cli.src.utils.markdown.allocateColumnWidths.expandableTotal.widths.reduce() callback` (L39-L39) - Function
+  - `cli.src.utils.markdown.allocateColumnWidths.widths.map() callback` (L40-L40) - Function
+  - `cli.src.utils.markdown.renderTokens` (L43-L45) - Function
+  - `cli.src.utils.markdown.renderTokens.tokens.map() callback` (L44-L44) - Function
+  - `cli.src.utils.markdown.renderToken` (L47-L157) - Function
+  - `cli.src.utils.markdown.renderToken.padWidth` (L64-L64) - Class
+  - `cli.src.utils.markdown.renderToken.padWidth.lines.map() callback` (L64-L64) - Function
+  - `cli.src.utils.markdown.renderToken.body` (L66-L71) - Class
+  - `cli.src.utils.markdown.renderToken.body.lines.map() callback` (L68-L69) - Function
+  - `cli.src.utils.markdown.renderToken.items.map() callback` (L78-L79) - Function
+  - `cli.src.utils.markdown.renderToken.headerTexts` (L111-L111) - Class
+  - `cli.src.utils.markdown.renderToken.headerTexts.header.map() callback` (L111-L111) - Function
+  - `cli.src.utils.markdown.renderToken.rowTexts` (L112-L112) - Class
+  - `cli.src.utils.markdown.renderToken.rowTexts.rows.map() callback` (L112-L112) - Function
+  - `cli.src.utils.markdown.renderToken.rowTexts.rows.map() callback.row.map() callback` (L112-L112) - Function
+  - `cli.src.utils.markdown.renderToken.naturalWidths.headerTexts.map() callback` (L113-L114) - Function
+  - `cli.src.utils.markdown.renderToken.naturalWidths` (L113-L115) - Class
+  - `cli.src.utils.markdown.renderToken.naturalWidths.headerTexts.map() callback.rowTexts.map() callback` (L114-L114) - Function
+  - `cli.src.utils.markdown.renderToken.map() callback` (L120-L121) - Function
+  - `cli.src.utils.markdown.renderToken.border` (L126-L127) - Class
+  - `cli.src.utils.markdown.renderToken.border.widths.map() callback` (L127-L127) - Function
+  - `cli.src.utils.markdown.renderToken.row` (L128-L136) - Class
+  - `cli.src.utils.markdown.renderToken.row.cells.map() callback` (L131-L134) - Function
+  - `cli.src.utils.markdown.renderToken.rowTexts.map() callback` (L142-L142) - Function
+  - `cli.src.utils.markdown.renderMarkdownLines` (L160-L164) - Function
+  - `cli.src.utils.markdown.clipMarkdownLines` (L166-L176) - Function
 - `cli/src/utils/mode-selection.ts`
   - `cli.src.utils.mode-selection.ModeSelectionInput` (L13-L24) - Interface
   - `cli.src.utils.mode-selection.ModeSelectionResult` (L26-L31) - Interface
@@ -6901,9 +6960,9 @@ Provides the terminal-based CLI interface, Agent Client Protocol (ACP) runtime, 
   - `cli.src.utils.text-clipping.summarizeFirstLine.line.map() callback` (L51-L51) - Function
   - `cli.src.utils.text-clipping.clipTextToWindow` (L70-L107) - Function
 - `cli/src/utils/timeline-rows.ts`
-  - `cli.src.utils.timeline-rows.estimateTimelineMessageRows` (L9-L29) - Function
-  - `cli.src.utils.timeline-rows.estimateTimelineMessageBodyRows` (L31-L44) - Function
-  - `cli.src.utils.timeline-rows.calculateTimelineBodyLineBudget` (L46-L62) - Function
+  - `cli.src.utils.timeline-rows.estimateTimelineMessageRows` (L10-L30) - Function
+  - `cli.src.utils.timeline-rows.estimateTimelineMessageBodyRows` (L32-L48) - Function
+  - `cli.src.utils.timeline-rows.calculateTimelineBodyLineBudget` (L50-L66) - Function
 - `cli/src/utils/tool-options.ts`
   - `cli.src.utils.tool-options.hasToolSelectionOptions` (L9-L11) - Function
   - `cli.src.utils.tool-options.toolIdentifiers` (L13-L15) - Function
@@ -6937,6 +6996,32 @@ Provides the terminal-based CLI interface, Agent Client Protocol (ACP) runtime, 
   - `cli.src.utils.update.ParsedVersion` (L260-L264) - Interface
   - `cli.src.utils.update.parseVersion` (L270-L284) - Function
   - `cli.src.utils.update.compareVersions` (L292-L317) - Function
+- `cli/src/utils/vim-editor.ts`
+  - `cli.src.utils.vim-editor.VimSnapshot` (L3-L6) - Interface
+  - `cli.src.utils.vim-editor.VimEditorState` (L7-L16) - Interface
+  - `cli.src.utils.vim-editor.createVimEditor` (L21-L23) - Function
+  - `cli.src.utils.vim-editor.VimTextMotions` (L26-L135) - Class
+  - `cli.src.utils.vim-editor.VimTextMotions.constructor` (L30-L33) - Constructor
+  - `cli.src.utils.vim-editor.VimTextMotions.constructor.map() callback` (L31-L31) - Function
+  - `cli.src.utils.vim-editor.VimTextMotions.constructor.offsets.map() callback` (L32-L32) - Function
+  - `cli.src.utils.vim-editor.VimTextMotions.previous` (L35-L37) - Method
+  - `cli.src.utils.vim-editor.VimTextMotions.next` (L39-L41) - Method
+  - `cli.src.utils.vim-editor.VimTextMotions.lineStart` (L43-L45) - Method
+  - `cli.src.utils.vim-editor.VimTextMotions.lineEnd` (L47-L50) - Method
+  - `cli.src.utils.vim-editor.VimTextMotions.boundary` (L52-L62) - Method
+  - `cli.src.utils.vim-editor.VimTextMotions.normalCursor` (L64-L68) - Method
+  - `cli.src.utils.vim-editor.VimTextMotions.wordClass` (L70-L74) - Method
+  - `cli.src.utils.vim-editor.VimTextMotions.wordMotion` (L76-L93) - Method
+  - `cli.src.utils.vim-editor.VimTextMotions.wordEnd` (L95-L99) - Method
+  - `cli.src.utils.vim-editor.VimTextMotions.verticalMotion` (L101-L110) - Method
+  - `cli.src.utils.vim-editor.VimTextMotions.motion` (L112-L134) - Method
+  - `cli.src.utils.vim-editor.normalCursor` (L137-L139) - Function
+  - `cli.src.utils.vim-editor.clearCommand` (L141-L143) - Function
+  - `cli.src.utils.vim-editor.enterInsert` (L145-L147) - Function
+  - `cli.src.utils.vim-editor.deleteRange` (L149-L159) - Function
+  - `cli.src.utils.vim-editor.restoreHistory` (L161-L172) - Function
+  - `cli.src.utils.vim-editor.applyVimTextEdit` (L175-L184) - Function
+  - `cli.src.utils.vim-editor.applyVimKey` (L187-L269) - Function
 - `cli/src/vscode-context.ts`
   - `cli.src.vscode-context.readJson` (L21-L30) - Function
   - `cli.src.vscode-context.EnvironmentVariableCollection` (L33-L73) - Class
@@ -7240,8 +7325,8 @@ Defines shared domain models, protocol buffer conversions, logging, error helper
   - `src.shared.api.models.types.isFreeModel.overridePrices.modelInfo.thinkingConfig.outputPriceTiers.map() callback` (L198-L198) - Function
   - `src.shared.api.models.types.isFreeModel.overridePrices.every() callback` (L201-L201) - Function
 - `src/shared/api/models/vertex.ts`
-  - `src.shared.api.models.vertex.vertexGlobalModels` (L279-L281) - Class
-  - `src.shared.api.models.vertex.vertexGlobalModels.filter() callback` (L280-L280) - Function
+  - `src.shared.api.models.vertex.vertexGlobalModels` (L289-L291) - Class
+  - `src.shared.api.models.vertex.vertexGlobalModels.filter() callback` (L290-L290) - Function
 - `src/shared/array.ts`
   - `src.shared.array.findLastIndex` (L9-L17) - Function
   - `src.shared.array.findLast` (L19-L22) - Function
@@ -7322,6 +7407,14 @@ Defines shared domain models, protocol buffer conversions, logging, error helper
   - `src.shared.messages.metrics.DiracMessageModelInfo` (L3-L7) - Interface
   - `src.shared.messages.metrics.DiracTokensInfo` (L9-L14) - Interface
   - `src.shared.messages.metrics.DiracMessageMetricsInfo` (L16-L19) - Interface
+- `src/shared/messages/prompt-history.ts`
+  - `src.shared.messages.prompt-history.UserPrompt` (L3-L6) - Interface
+  - `src.shared.messages.prompt-history.getUserPrompts` (L9-L15) - Function
+  - `src.shared.messages.prompt-history.getUserPrompts.messages.flatMap() callback` (L10-L13) - Function
+  - `src.shared.messages.prompt-history.getRecentUniquePrompts` (L17-L20) - Function
+  - `src.shared.messages.prompt-history.getRecentUniquePrompts.newestFirst` (L18-L18) - Class
+  - `src.shared.messages.prompt-history.getRecentUniquePrompts.newestFirst.map() callback` (L18-L18) - Function
+  - `src.shared.messages.prompt-history.getRecentUniquePrompts.newestFirst.sort() callback` (L18-L18) - Function
 - `src/shared/net.ts`
   - `src.shared.net.fetch` (L113-L129) - Class
   - `src.shared.net.fetch.<function>` (L113-L129) - Function
@@ -8004,115 +8097,115 @@ Abstracts host environment capabilities and implements VS Code extension activat
   - `src.core.goal.GoalTaskHost.GoalTerminalGuardError` (L55-L60) - Class
   - `src.core.goal.GoalTaskHost.GoalTerminalGuardError.constructor` (L56-L59) - Constructor
   - `src.core.goal.GoalTaskHost.GoalChildTaskFactoryInput` (L62-L68) - Interface
-  - `src.core.goal.GoalTaskHost.GoalTaskHost` (L72-L783) - Class
+  - `src.core.goal.GoalTaskHost.GoalTaskHost` (L72-L788) - Class
   - `src.core.goal.GoalTaskHost.GoalTaskHost.constructor` (L82-L87) - Constructor
-  - `src.core.goal.GoalTaskHost.GoalTaskHost.startTask` (L89-L155) - Method
-  - `src.core.goal.GoalTaskHost.GoalTaskHost.startTask.registryMutex.withLock() callback` (L94-L154) - Function
+  - `src.core.goal.GoalTaskHost.GoalTaskHost.startTask` (L89-L160) - Method
+  - `src.core.goal.GoalTaskHost.GoalTaskHost.startTask.registryMutex.withLock() callback` (L94-L159) - Function
   - `src.core.goal.GoalTaskHost.GoalTaskHost.startTask.registryMutex.withLock() callback.store.update() callback` (L99-L111) - Function
   - `src.core.goal.GoalTaskHost.GoalTaskHost.startTask.registryMutex.withLock() callback.updateChild() callback` (L128-L132) - Function
-  - `src.core.goal.GoalTaskHost.GoalTaskHost.startVerification` (L157-L173) - Method
-  - `src.core.goal.GoalTaskHost.GoalTaskHost.startVerification.childSummary` (L159-L161) - Class
-  - `src.core.goal.GoalTaskHost.GoalTaskHost.startVerification.childSummary.goal.children.map() callback` (L160-L160) - Function
-  - `src.core.goal.GoalTaskHost.GoalTaskHost.recoverUnreadResponses` (L176-L242) - Method
-  - `src.core.goal.GoalTaskHost.GoalTaskHost.recoverUnreadResponses.responses` (L181-L183) - Class
-  - `src.core.goal.GoalTaskHost.GoalTaskHost.recoverUnreadResponses.responses.messages.filter() callback` (L182-L182) - Function
-  - `src.core.goal.GoalTaskHost.GoalTaskHost.recoverUnreadResponses.map() callback` (L185-L189) - Function
-  - `src.core.goal.GoalTaskHost.GoalTaskHost.recoverUnreadResponses.hasStaleInteractionEvent` (L192-L196) - Class
-  - `src.core.goal.GoalTaskHost.GoalTaskHost.recoverUnreadResponses.hasStaleInteractionEvent.record.events.some() callback` (L192-L196) - Function
-  - `src.core.goal.GoalTaskHost.GoalTaskHost.recoverUnreadResponses.hasStaleInteractionEvent.record.events.some() callback.child` (L194-L194) - Class
-  - `src.core.goal.GoalTaskHost.GoalTaskHost.recoverUnreadResponses.hasStaleInteractionEvent.record.events.some() callback.child.record.children.find() callback` (L194-L194) - Function
-  - `src.core.goal.GoalTaskHost.GoalTaskHost.recoverUnreadResponses.unread.sort() callback` (L199-L202) - Function
-  - `src.core.goal.GoalTaskHost.GoalTaskHost.recoverUnreadResponses.store.update() callback` (L205-L241) - Function
-  - `src.core.goal.GoalTaskHost.GoalTaskHost.recoverUnreadResponses.store.update() callback.goal.events.filter() callback` (L206-L210) - Function
-  - `src.core.goal.GoalTaskHost.GoalTaskHost.recoverUnreadResponses.store.update() callback.goal.events.filter() callback.child` (L208-L208) - Class
-  - `src.core.goal.GoalTaskHost.GoalTaskHost.recoverUnreadResponses.store.update() callback.goal.events.filter() callback.child.goal.children.find() callback` (L208-L208) - Function
-  - `src.core.goal.GoalTaskHost.GoalTaskHost.recoverUnreadResponses.store.update() callback.exists` (L213-L218) - Class
-  - `src.core.goal.GoalTaskHost.GoalTaskHost.recoverUnreadResponses.store.update() callback.exists.goal.events.some() callback` (L214-L217) - Function
-  - `src.core.goal.GoalTaskHost.GoalTaskHost.recoverUnreadResponses.store.update() callback.goal.events.sort() callback` (L231-L234) - Function
-  - `src.core.goal.GoalTaskHost.GoalTaskHost.listTasks` (L244-L271) - Method
-  - `src.core.goal.GoalTaskHost.GoalTaskHost.listTasks.tasks.tasks.map() callback` (L264-L268) - Function
-  - `src.core.goal.GoalTaskHost.GoalTaskHost.sendTaskMessage` (L273-L284) - Method
-  - `src.core.goal.GoalTaskHost.GoalTaskHost.sendTaskMessage.updateChild() callback` (L281-L283) - Function
-  - `src.core.goal.GoalTaskHost.GoalTaskHost.cancelTask` (L286-L311) - Method
-  - `src.core.goal.GoalTaskHost.GoalTaskHost.cancelTask.registryMutex.withLock() callback` (L287-L310) - Function
-  - `src.core.goal.GoalTaskHost.GoalTaskHost.readTaskTranscript` (L313-L323) - Method
-  - `src.core.goal.GoalTaskHost.GoalTaskHost.recordResponse` (L325-L341) - Method
-  - `src.core.goal.GoalTaskHost.GoalTaskHost.recordResponse.store.update() callback` (L326-L339) - Function
-  - `src.core.goal.GoalTaskHost.GoalTaskHost.recordActivity` (L343-L348) - Method
-  - `src.core.goal.GoalTaskHost.GoalTaskHost.recordActivity.store.update() callback` (L344-L347) - Function
-  - `src.core.goal.GoalTaskHost.GoalTaskHost.waitForInteraction` (L350-L383) - Method
-  - `src.core.goal.GoalTaskHost.GoalTaskHost.waitForInteraction.store.update() callback` (L357-L377) - Function
-  - `src.core.goal.GoalTaskHost.GoalTaskHost.waitForInteraction.<function>` (L380-L382) - Function
-  - `src.core.goal.GoalTaskHost.GoalTaskHost.resolveTaskInteraction` (L385-L430) - Method
-  - `src.core.goal.GoalTaskHost.GoalTaskHost.resolveTaskInteraction.task.updateChild() callback` (L422-L426) - Function
-  - `src.core.goal.GoalTaskHost.resolveTaskInteraction.task` (L422-L426) - Class
-  - `src.core.goal.GoalTaskHost.GoalTaskHost.recordUserSteering` (L432-L438) - Method
-  - `src.core.goal.GoalTaskHost.GoalTaskHost.recordUserSteering.store.update() callback` (L433-L436) - Function
-  - `src.core.goal.GoalTaskHost.GoalTaskHost.waitForEvents` (L440-L463) - Method
-  - `src.core.goal.GoalTaskHost.GoalTaskHost.waitForEvents.events.sort() callback` (L452-L452) - Function
-  - `src.core.goal.GoalTaskHost.waitForEvents.events` (L452-L452) - Class
-  - `src.core.goal.GoalTaskHost.GoalTaskHost.waitForEvents.wake` (L454-L457) - Class
-  - `src.core.goal.GoalTaskHost.GoalTaskHost.waitForEvents.wake.store.update() callback` (L454-L457) - Function
-  - `src.core.goal.GoalTaskHost.GoalTaskHost.acknowledgePersistedWake` (L466-L474) - Method
-  - `src.core.goal.GoalTaskHost.GoalTaskHost.rollbackUnpersistedWake` (L477-L482) - Method
-  - `src.core.goal.GoalTaskHost.GoalTaskHost.commitTerminalAttempt` (L484-L491) - Method
-  - `src.core.goal.GoalTaskHost.GoalTaskHost.commitTerminalAttempt.registryMutex.withLock() callback` (L485-L490) - Function
-  - `src.core.goal.GoalTaskHost.GoalTaskHost.guardTerminalTransition` (L493-L498) - Method
-  - `src.core.goal.GoalTaskHost.GoalTaskHost.guardTerminalTransition.registryMutex.withLock() callback` (L494-L497) - Function
-  - `src.core.goal.GoalTaskHost.GoalTaskHost.shutdown` (L500-L503) - Method
-  - `src.core.goal.GoalTaskHost.GoalTaskHost.performShutdown` (L505-L547) - Method
-  - `src.core.goal.GoalTaskHost.GoalTaskHost.performShutdown.registryMutex.withLock() callback` (L506-L546) - Function
-  - `src.core.goal.GoalTaskHost.GoalTaskHost.performShutdown.registryMutex.withLock() callback.interactions.map() callback` (L513-L519) - Function
-  - `src.core.goal.GoalTaskHost.GoalTaskHost.performShutdown.registryMutex.withLock() callback.map() callback` (L522-L535) - Function
-  - `src.core.goal.GoalTaskHost.GoalTaskHost.performShutdown.registryMutex.withLock() callback.store.update() callback` (L538-L540) - Function
-  - `src.core.goal.GoalTaskHost.GoalTaskHost.observeRun` (L549-L588) - Method
-  - `src.core.goal.GoalTaskHost.GoalTaskHost.observeRun.store.update() callback` (L551-L585) - Function
-  - `src.core.goal.GoalTaskHost.GoalTaskHost.recordStartupFailure` (L590-L603) - Method
-  - `src.core.goal.GoalTaskHost.GoalTaskHost.recordStartupFailure.store.update() callback` (L592-L600) - Function
-  - `src.core.goal.GoalTaskHost.GoalTaskHost.updateChild` (L605-L613) - Method
-  - `src.core.goal.GoalTaskHost.GoalTaskHost.updateChild.store.update() callback` (L607-L611) - Function
-  - `src.core.goal.GoalTaskHost.GoalTaskHost.childRecord` (L615-L617) - Method
-  - `src.core.goal.GoalTaskHost.GoalTaskHost.requireLiveChild` (L619-L623) - Method
-  - `src.core.goal.GoalTaskHost.GoalTaskHost.apiTranscript` (L625-L630) - Method
-  - `src.core.goal.GoalTaskHost.GoalTaskHost.responsePayload` (L632-L650) - Method
-  - `src.core.goal.GoalTaskHost.GoalTaskHost.responsePayload.responses` (L637-L639) - Class
-  - `src.core.goal.GoalTaskHost.GoalTaskHost.responsePayload.responses.messages.filter() callback` (L638-L638) - Function
-  - `src.core.goal.GoalTaskHost.GoalTaskHost.settleClaimedEvents` (L652-L662) - Method
-  - `src.core.goal.GoalTaskHost.GoalTaskHost.settleClaimedEvents.sequences` (L653-L653) - Class
-  - `src.core.goal.GoalTaskHost.GoalTaskHost.settleClaimedEvents.sequences.batch.events.map() callback` (L653-L653) - Function
-  - `src.core.goal.GoalTaskHost.GoalTaskHost.settleClaimedEvents.store.update() callback` (L654-L661) - Function
-  - `src.core.goal.GoalTaskHost.GoalTaskHost.settleClaimedEvents.store.update() callback.goal.events.filter() callback` (L660-L660) - Function
-  - `src.core.goal.GoalTaskHost.GoalTaskHost.waitForNotification` (L664-L685) - Method
-  - `src.core.goal.GoalTaskHost.GoalTaskHost.waitForNotification.<function>` (L665-L684) - Function
-  - `src.core.goal.GoalTaskHost.GoalTaskHost.waitForNotification.<function>.timer` (L677-L679) - Class
-  - `src.core.goal.GoalTaskHost.GoalTaskHost.waitForNotification.<function>.timer.setTimeout() callback` (L679-L679) - Function
-  - `src.core.goal.GoalTaskHost.waitForNotification.<function>.then() callback` (L681-L683) - Function
-  - `src.core.goal.GoalTaskHost.GoalTaskHost.waitForNotification.<function>.then() callback` (L683-L683) - Function
-  - `src.core.goal.GoalTaskHost.GoalTaskHost.notifyWaiter` (L687-L689) - Method
-  - `src.core.goal.GoalTaskHost.GoalTaskHost.formatWake` (L691-L747) - Method
-  - `src.core.goal.GoalTaskHost.GoalTaskHost.formatWake.lines` (L703-L707) - Class
-  - `src.core.goal.GoalTaskHost.GoalTaskHost.formatWake.lines.events.some() callback` (L706-L706) - Function
-  - `src.core.goal.GoalTaskHost.GoalTaskHost.formatWake.active` (L736-L736) - Class
-  - `src.core.goal.GoalTaskHost.GoalTaskHost.formatWake.active.record.children.filter() callback` (L736-L736) - Function
-  - `src.core.goal.GoalTaskHost.GoalTaskHost.assertNoLiveChildren` (L749-L758) - Method
-  - `src.core.goal.GoalTaskHost.GoalTaskHost.assertNoLiveChildren.active` (L751-L751) - Class
-  - `src.core.goal.GoalTaskHost.GoalTaskHost.assertNoLiveChildren.active.record.children.filter() callback` (L751-L751) - Function
-  - `src.core.goal.GoalTaskHost.GoalTaskHost.assertNoLiveChildren.active.map() callback` (L755-L755) - Function
-  - `src.core.goal.GoalTaskHost.GoalTaskHost.assertAcceptingWork` (L760-L762) - Method
-  - `src.core.goal.GoalTaskHost.GoalTaskHost.cancelPendingInteraction` (L764-L768) - Method
-  - `src.core.goal.GoalTaskHost.GoalTaskHost.cancelPendingInteractionByKey` (L770-L782) - Method
-  - `src.core.goal.GoalTaskHost.requireChild` (L785-L789) - Function
-  - `src.core.goal.GoalTaskHost.requireChild.child` (L786-L786) - Class
-  - `src.core.goal.GoalTaskHost.requireChild.child.goal.children.find() callback` (L786-L786) - Function
-  - `src.core.goal.GoalTaskHost.nextResponseCursor` (L791-L800) - Function
-  - `src.core.goal.GoalTaskHost.nextResponseCursor.goal.events.filter() callback` (L795-L796) - Function
-  - `src.core.goal.GoalTaskHost.nextResponseCursor.map() callback` (L798-L798) - Function
-  - `src.core.goal.GoalTaskHost.parseCursor` (L802-L807) - Function
-  - `src.core.goal.GoalTaskHost.boundedLimit` (L809-L815) - Function
-  - `src.core.goal.GoalTaskHost.interactionKey` (L817-L819) - Function
-  - `src.core.goal.GoalTaskHost.eventTieKey` (L821-L826) - Function
-  - `src.core.goal.GoalTaskHost.cardSnapshot` (L828-L854) - Function
-  - `src.core.goal.GoalTaskHost.formatDuration` (L856-L863) - Function
+  - `src.core.goal.GoalTaskHost.GoalTaskHost.startVerification` (L162-L178) - Method
+  - `src.core.goal.GoalTaskHost.GoalTaskHost.startVerification.childSummary` (L164-L166) - Class
+  - `src.core.goal.GoalTaskHost.GoalTaskHost.startVerification.childSummary.goal.children.map() callback` (L165-L165) - Function
+  - `src.core.goal.GoalTaskHost.GoalTaskHost.recoverUnreadResponses` (L181-L247) - Method
+  - `src.core.goal.GoalTaskHost.GoalTaskHost.recoverUnreadResponses.responses` (L186-L188) - Class
+  - `src.core.goal.GoalTaskHost.GoalTaskHost.recoverUnreadResponses.responses.messages.filter() callback` (L187-L187) - Function
+  - `src.core.goal.GoalTaskHost.GoalTaskHost.recoverUnreadResponses.map() callback` (L190-L194) - Function
+  - `src.core.goal.GoalTaskHost.GoalTaskHost.recoverUnreadResponses.hasStaleInteractionEvent` (L197-L201) - Class
+  - `src.core.goal.GoalTaskHost.GoalTaskHost.recoverUnreadResponses.hasStaleInteractionEvent.record.events.some() callback` (L197-L201) - Function
+  - `src.core.goal.GoalTaskHost.GoalTaskHost.recoverUnreadResponses.hasStaleInteractionEvent.record.events.some() callback.child` (L199-L199) - Class
+  - `src.core.goal.GoalTaskHost.GoalTaskHost.recoverUnreadResponses.hasStaleInteractionEvent.record.events.some() callback.child.record.children.find() callback` (L199-L199) - Function
+  - `src.core.goal.GoalTaskHost.GoalTaskHost.recoverUnreadResponses.unread.sort() callback` (L204-L207) - Function
+  - `src.core.goal.GoalTaskHost.GoalTaskHost.recoverUnreadResponses.store.update() callback` (L210-L246) - Function
+  - `src.core.goal.GoalTaskHost.GoalTaskHost.recoverUnreadResponses.store.update() callback.goal.events.filter() callback` (L211-L215) - Function
+  - `src.core.goal.GoalTaskHost.GoalTaskHost.recoverUnreadResponses.store.update() callback.goal.events.filter() callback.child` (L213-L213) - Class
+  - `src.core.goal.GoalTaskHost.GoalTaskHost.recoverUnreadResponses.store.update() callback.goal.events.filter() callback.child.goal.children.find() callback` (L213-L213) - Function
+  - `src.core.goal.GoalTaskHost.GoalTaskHost.recoverUnreadResponses.store.update() callback.exists` (L218-L223) - Class
+  - `src.core.goal.GoalTaskHost.GoalTaskHost.recoverUnreadResponses.store.update() callback.exists.goal.events.some() callback` (L219-L222) - Function
+  - `src.core.goal.GoalTaskHost.GoalTaskHost.recoverUnreadResponses.store.update() callback.goal.events.sort() callback` (L236-L239) - Function
+  - `src.core.goal.GoalTaskHost.GoalTaskHost.listTasks` (L249-L276) - Method
+  - `src.core.goal.GoalTaskHost.GoalTaskHost.listTasks.tasks.tasks.map() callback` (L269-L273) - Function
+  - `src.core.goal.GoalTaskHost.GoalTaskHost.sendTaskMessage` (L278-L289) - Method
+  - `src.core.goal.GoalTaskHost.GoalTaskHost.sendTaskMessage.updateChild() callback` (L286-L288) - Function
+  - `src.core.goal.GoalTaskHost.GoalTaskHost.cancelTask` (L291-L316) - Method
+  - `src.core.goal.GoalTaskHost.GoalTaskHost.cancelTask.registryMutex.withLock() callback` (L292-L315) - Function
+  - `src.core.goal.GoalTaskHost.GoalTaskHost.readTaskTranscript` (L318-L328) - Method
+  - `src.core.goal.GoalTaskHost.GoalTaskHost.recordResponse` (L330-L346) - Method
+  - `src.core.goal.GoalTaskHost.GoalTaskHost.recordResponse.store.update() callback` (L331-L344) - Function
+  - `src.core.goal.GoalTaskHost.GoalTaskHost.recordActivity` (L348-L353) - Method
+  - `src.core.goal.GoalTaskHost.GoalTaskHost.recordActivity.store.update() callback` (L349-L352) - Function
+  - `src.core.goal.GoalTaskHost.GoalTaskHost.waitForInteraction` (L355-L388) - Method
+  - `src.core.goal.GoalTaskHost.GoalTaskHost.waitForInteraction.store.update() callback` (L362-L382) - Function
+  - `src.core.goal.GoalTaskHost.GoalTaskHost.waitForInteraction.<function>` (L385-L387) - Function
+  - `src.core.goal.GoalTaskHost.GoalTaskHost.resolveTaskInteraction` (L390-L435) - Method
+  - `src.core.goal.GoalTaskHost.GoalTaskHost.resolveTaskInteraction.task.updateChild() callback` (L427-L431) - Function
+  - `src.core.goal.GoalTaskHost.resolveTaskInteraction.task` (L427-L431) - Class
+  - `src.core.goal.GoalTaskHost.GoalTaskHost.recordUserSteering` (L437-L443) - Method
+  - `src.core.goal.GoalTaskHost.GoalTaskHost.recordUserSteering.store.update() callback` (L438-L441) - Function
+  - `src.core.goal.GoalTaskHost.GoalTaskHost.waitForEvents` (L445-L468) - Method
+  - `src.core.goal.GoalTaskHost.GoalTaskHost.waitForEvents.events.sort() callback` (L457-L457) - Function
+  - `src.core.goal.GoalTaskHost.waitForEvents.events` (L457-L457) - Class
+  - `src.core.goal.GoalTaskHost.GoalTaskHost.waitForEvents.wake` (L459-L462) - Class
+  - `src.core.goal.GoalTaskHost.GoalTaskHost.waitForEvents.wake.store.update() callback` (L459-L462) - Function
+  - `src.core.goal.GoalTaskHost.GoalTaskHost.acknowledgePersistedWake` (L471-L479) - Method
+  - `src.core.goal.GoalTaskHost.GoalTaskHost.rollbackUnpersistedWake` (L482-L487) - Method
+  - `src.core.goal.GoalTaskHost.GoalTaskHost.commitTerminalAttempt` (L489-L496) - Method
+  - `src.core.goal.GoalTaskHost.GoalTaskHost.commitTerminalAttempt.registryMutex.withLock() callback` (L490-L495) - Function
+  - `src.core.goal.GoalTaskHost.GoalTaskHost.guardTerminalTransition` (L498-L503) - Method
+  - `src.core.goal.GoalTaskHost.GoalTaskHost.guardTerminalTransition.registryMutex.withLock() callback` (L499-L502) - Function
+  - `src.core.goal.GoalTaskHost.GoalTaskHost.shutdown` (L505-L508) - Method
+  - `src.core.goal.GoalTaskHost.GoalTaskHost.performShutdown` (L510-L552) - Method
+  - `src.core.goal.GoalTaskHost.GoalTaskHost.performShutdown.registryMutex.withLock() callback` (L511-L551) - Function
+  - `src.core.goal.GoalTaskHost.GoalTaskHost.performShutdown.registryMutex.withLock() callback.interactions.map() callback` (L518-L524) - Function
+  - `src.core.goal.GoalTaskHost.GoalTaskHost.performShutdown.registryMutex.withLock() callback.map() callback` (L527-L540) - Function
+  - `src.core.goal.GoalTaskHost.GoalTaskHost.performShutdown.registryMutex.withLock() callback.store.update() callback` (L543-L545) - Function
+  - `src.core.goal.GoalTaskHost.GoalTaskHost.observeRun` (L554-L593) - Method
+  - `src.core.goal.GoalTaskHost.GoalTaskHost.observeRun.store.update() callback` (L556-L590) - Function
+  - `src.core.goal.GoalTaskHost.GoalTaskHost.recordStartupFailure` (L595-L608) - Method
+  - `src.core.goal.GoalTaskHost.GoalTaskHost.recordStartupFailure.store.update() callback` (L597-L605) - Function
+  - `src.core.goal.GoalTaskHost.GoalTaskHost.updateChild` (L610-L618) - Method
+  - `src.core.goal.GoalTaskHost.GoalTaskHost.updateChild.store.update() callback` (L612-L616) - Function
+  - `src.core.goal.GoalTaskHost.GoalTaskHost.childRecord` (L620-L622) - Method
+  - `src.core.goal.GoalTaskHost.GoalTaskHost.requireLiveChild` (L624-L628) - Method
+  - `src.core.goal.GoalTaskHost.GoalTaskHost.apiTranscript` (L630-L635) - Method
+  - `src.core.goal.GoalTaskHost.GoalTaskHost.responsePayload` (L637-L655) - Method
+  - `src.core.goal.GoalTaskHost.GoalTaskHost.responsePayload.responses` (L642-L644) - Class
+  - `src.core.goal.GoalTaskHost.GoalTaskHost.responsePayload.responses.messages.filter() callback` (L643-L643) - Function
+  - `src.core.goal.GoalTaskHost.GoalTaskHost.settleClaimedEvents` (L657-L667) - Method
+  - `src.core.goal.GoalTaskHost.GoalTaskHost.settleClaimedEvents.sequences` (L658-L658) - Class
+  - `src.core.goal.GoalTaskHost.GoalTaskHost.settleClaimedEvents.sequences.batch.events.map() callback` (L658-L658) - Function
+  - `src.core.goal.GoalTaskHost.GoalTaskHost.settleClaimedEvents.store.update() callback` (L659-L666) - Function
+  - `src.core.goal.GoalTaskHost.GoalTaskHost.settleClaimedEvents.store.update() callback.goal.events.filter() callback` (L665-L665) - Function
+  - `src.core.goal.GoalTaskHost.GoalTaskHost.waitForNotification` (L669-L690) - Method
+  - `src.core.goal.GoalTaskHost.GoalTaskHost.waitForNotification.<function>` (L670-L689) - Function
+  - `src.core.goal.GoalTaskHost.GoalTaskHost.waitForNotification.<function>.timer` (L682-L684) - Class
+  - `src.core.goal.GoalTaskHost.GoalTaskHost.waitForNotification.<function>.timer.setTimeout() callback` (L684-L684) - Function
+  - `src.core.goal.GoalTaskHost.waitForNotification.<function>.then() callback` (L686-L688) - Function
+  - `src.core.goal.GoalTaskHost.GoalTaskHost.waitForNotification.<function>.then() callback` (L688-L688) - Function
+  - `src.core.goal.GoalTaskHost.GoalTaskHost.notifyWaiter` (L692-L694) - Method
+  - `src.core.goal.GoalTaskHost.GoalTaskHost.formatWake` (L696-L752) - Method
+  - `src.core.goal.GoalTaskHost.GoalTaskHost.formatWake.lines` (L708-L712) - Class
+  - `src.core.goal.GoalTaskHost.GoalTaskHost.formatWake.lines.events.some() callback` (L711-L711) - Function
+  - `src.core.goal.GoalTaskHost.GoalTaskHost.formatWake.active` (L741-L741) - Class
+  - `src.core.goal.GoalTaskHost.GoalTaskHost.formatWake.active.record.children.filter() callback` (L741-L741) - Function
+  - `src.core.goal.GoalTaskHost.GoalTaskHost.assertNoLiveChildren` (L754-L763) - Method
+  - `src.core.goal.GoalTaskHost.GoalTaskHost.assertNoLiveChildren.active` (L756-L756) - Class
+  - `src.core.goal.GoalTaskHost.GoalTaskHost.assertNoLiveChildren.active.record.children.filter() callback` (L756-L756) - Function
+  - `src.core.goal.GoalTaskHost.GoalTaskHost.assertNoLiveChildren.active.map() callback` (L760-L760) - Function
+  - `src.core.goal.GoalTaskHost.GoalTaskHost.assertAcceptingWork` (L765-L767) - Method
+  - `src.core.goal.GoalTaskHost.GoalTaskHost.cancelPendingInteraction` (L769-L773) - Method
+  - `src.core.goal.GoalTaskHost.GoalTaskHost.cancelPendingInteractionByKey` (L775-L787) - Method
+  - `src.core.goal.GoalTaskHost.requireChild` (L790-L794) - Function
+  - `src.core.goal.GoalTaskHost.requireChild.child` (L791-L791) - Class
+  - `src.core.goal.GoalTaskHost.requireChild.child.goal.children.find() callback` (L791-L791) - Function
+  - `src.core.goal.GoalTaskHost.nextResponseCursor` (L796-L805) - Function
+  - `src.core.goal.GoalTaskHost.nextResponseCursor.goal.events.filter() callback` (L800-L801) - Function
+  - `src.core.goal.GoalTaskHost.nextResponseCursor.map() callback` (L803-L803) - Function
+  - `src.core.goal.GoalTaskHost.parseCursor` (L807-L812) - Function
+  - `src.core.goal.GoalTaskHost.boundedLimit` (L814-L820) - Function
+  - `src.core.goal.GoalTaskHost.interactionKey` (L822-L824) - Function
+  - `src.core.goal.GoalTaskHost.eventTieKey` (L826-L831) - Function
+  - `src.core.goal.GoalTaskHost.cardSnapshot` (L833-L859) - Function
+  - `src.core.goal.GoalTaskHost.formatDuration` (L861-L868) - Function
 - `src/core/task/types/task-host.ts`
   - `src.core.task.types.task-host.ITaskHost` (L8-L11) - Interface
   - `src.core.task.types.task-host.ITaskHost.toggleActModeForYoloMode` (L9-L9) - Method
@@ -8769,7 +8862,7 @@ Coordinates top-level controller state, webview lifecycle, browser automation, i
 
 **Related Classes/Methods**:
 
-- `src.core.controller.index.Controller`:55-524
+- `src.core.controller.index.Controller`:55-528
 - `src.core.webview.WebviewProvider.DiracWebviewProvider`:12-297
 - `src.services.telemetry.TelemetryService.TelemetryService`:48-397
 - `src.services.feature-flags.FeatureFlagsService.FeatureFlagsService`:21-155
@@ -8812,7 +8905,7 @@ Coordinates top-level controller state, webview lifecycle, browser automation, i
 - `src/core/controller/index.ts`
   - `src.core.controller.index.OutboundStatePublication` (L44-L48) - Interface
   - `src.core.controller.index.SelectedPresentation` (L50-L53) - Interface
-  - `src.core.controller.index.Controller` (L55-L524) - Class
+  - `src.core.controller.index.Controller` (L55-L528) - Class
   - `src.core.controller.index.Controller.task` (L77-L79) - Method
   - `src.core.controller.index.Controller.taskRunPromise` (L82-L84) - Method
   - `src.core.controller.index.Controller.onTaskReplaced` (L86-L88) - Method
@@ -8845,36 +8938,37 @@ Coordinates top-level controller state, webview lifecycle, browser automation, i
   - `src.core.controller.index.Controller.completeRequestyAuth` (L290-L292) - Method
   - `src.core.controller.index.Controller.readOpenRouterModels` (L295-L297) - Method
   - `src.core.controller.index.Controller.getTaskWithId` (L301-L311) - Method
-  - `src.core.controller.index.Controller.exportTaskWithId` (L313-L315) - Method
-  - `src.core.controller.index.Controller.deleteTaskFromState` (L317-L321) - Method
-  - `src.core.controller.index.Controller.postStateToWebview` (L323-L325) - Method
-  - `src.core.controller.index.Controller.postPresentationToWebview` (L327-L329) - Method
-  - `src.core.controller.index.Controller.waitForGoalStartupReconciliation` (L331-L333) - Method
-  - `src.core.controller.index.Controller.getStateToPostToWebview` (L335-L338) - Method
-  - `src.core.controller.index.Controller.captureSelectedPresentation` (L340-L359) - Method
-  - `src.core.controller.index.Controller.getStatePublication` (L361-L387) - Method
-  - `src.core.controller.index.Controller.getStatePublication.acknowledge` (L378-L385) - Method
-  - `src.core.controller.index.Controller.createPresentationPublication` (L389-L416) - Method
-  - `src.core.controller.index.Controller.createPresentationPublication.state.uiActionState.projectUIActionState() callback` (L403-L403) - Function
-  - `src.core.controller.index.Controller.createPresentationPublication.acknowledge` (L412-L414) - Method
-  - `src.core.controller.index.Controller.assembleStateToPostToWebview` (L418-L445) - Method
-  - `src.core.controller.index.Controller.updateTaskHistory` (L447-L449) - Method
-  - `src.core.controller.index.Controller.updateGoalHistory` (L451-L453) - Method
-  - `src.core.controller.index.Controller.updateTelemetrySetting` (L455-L457) - Method
-  - `src.core.controller.index.Controller.toggleActModeForYoloMode` (L459-L462) - Method
-  - `src.core.controller.index.Controller.togglePlanActMode` (L464-L467) - Method
-  - `src.core.controller.index.Controller.enableInteractiveGoals` (L469-L471) - Method
-  - `src.core.controller.index.Controller.selectedGoalId` (L473-L475) - Method
-  - `src.core.controller.index.Controller.hasActiveGoal` (L477-L479) - Method
-  - `src.core.controller.index.Controller.selectGoal` (L481-L484) - Method
-  - `src.core.controller.index.Controller.resumeGoal` (L486-L489) - Method
-  - `src.core.controller.index.Controller.pauseGoal` (L491-L494) - Method
-  - `src.core.controller.index.Controller.stopGoal` (L496-L499) - Method
-  - `src.core.controller.index.Controller.steerGoal` (L501-L504) - Method
-  - `src.core.controller.index.Controller.sendGoalMessage` (L506-L513) - Method
-  - `src.core.controller.index.Controller.assertGoalSurfaceSupported` (L515-L523) - Method
-  - `src.core.controller.index.parseGoalRequest` (L526-L533) - Function
-  - `src.core.controller.index.isGoalResumeCommand` (L535-L537) - Function
+  - `src.core.controller.index.Controller.getPromptHistory` (L313-L315) - Method
+  - `src.core.controller.index.Controller.exportTaskWithId` (L317-L319) - Method
+  - `src.core.controller.index.Controller.deleteTaskFromState` (L321-L325) - Method
+  - `src.core.controller.index.Controller.postStateToWebview` (L327-L329) - Method
+  - `src.core.controller.index.Controller.postPresentationToWebview` (L331-L333) - Method
+  - `src.core.controller.index.Controller.waitForGoalStartupReconciliation` (L335-L337) - Method
+  - `src.core.controller.index.Controller.getStateToPostToWebview` (L339-L342) - Method
+  - `src.core.controller.index.Controller.captureSelectedPresentation` (L344-L363) - Method
+  - `src.core.controller.index.Controller.getStatePublication` (L365-L391) - Method
+  - `src.core.controller.index.Controller.getStatePublication.acknowledge` (L382-L389) - Method
+  - `src.core.controller.index.Controller.createPresentationPublication` (L393-L420) - Method
+  - `src.core.controller.index.Controller.createPresentationPublication.state.uiActionState.projectUIActionState() callback` (L407-L407) - Function
+  - `src.core.controller.index.Controller.createPresentationPublication.acknowledge` (L416-L418) - Method
+  - `src.core.controller.index.Controller.assembleStateToPostToWebview` (L422-L449) - Method
+  - `src.core.controller.index.Controller.updateTaskHistory` (L451-L453) - Method
+  - `src.core.controller.index.Controller.updateGoalHistory` (L455-L457) - Method
+  - `src.core.controller.index.Controller.updateTelemetrySetting` (L459-L461) - Method
+  - `src.core.controller.index.Controller.toggleActModeForYoloMode` (L463-L466) - Method
+  - `src.core.controller.index.Controller.togglePlanActMode` (L468-L471) - Method
+  - `src.core.controller.index.Controller.enableInteractiveGoals` (L473-L475) - Method
+  - `src.core.controller.index.Controller.selectedGoalId` (L477-L479) - Method
+  - `src.core.controller.index.Controller.hasActiveGoal` (L481-L483) - Method
+  - `src.core.controller.index.Controller.selectGoal` (L485-L488) - Method
+  - `src.core.controller.index.Controller.resumeGoal` (L490-L493) - Method
+  - `src.core.controller.index.Controller.pauseGoal` (L495-L498) - Method
+  - `src.core.controller.index.Controller.stopGoal` (L500-L503) - Method
+  - `src.core.controller.index.Controller.steerGoal` (L505-L508) - Method
+  - `src.core.controller.index.Controller.sendGoalMessage` (L510-L517) - Method
+  - `src.core.controller.index.Controller.assertGoalSurfaceSupported` (L519-L527) - Method
+  - `src.core.controller.index.parseGoalRequest` (L530-L537) - Function
+  - `src.core.controller.index.isGoalResumeCommand` (L539-L541) - Function
 - `src/core/controller/models/refreshBasetenModels.ts`
   - `src.core.controller.models.refreshBasetenModels.refreshBasetenModels` (L14-L27) - Function
   - `src.core.controller.models.refreshBasetenModels.parseBasetenResponse` (L29-L51) - Function
@@ -9692,7 +9786,7 @@ Manages multi-root workspace resolution, file context tracking, task controller 
 
 **Related Classes/Methods**:
 
-- `src.core.controller.task.TaskController.TaskController`:64-518
+- `src.core.controller.task.TaskController.TaskController`:64-495
 - `src.core.task.tools.registry.ToolRegistry.ToolRegistry`:71-680
 - `src.core.task.tools.subagent.SubagentRunner.SubagentRunner`:58-950
 - `src.core.workspace.WorkspaceResolver.WorkspaceResolver`:23-256
@@ -9749,7 +9843,7 @@ Manages multi-root workspace resolution, file context tracking, task controller 
   - `src.core.controller.historyItemWorkspace.historyItemBelongsToWorkspace` (L5-L9) - Function
 - `src/core/controller/task/TaskController.ts`
   - `src.core.controller.task.TaskController.ITaskControllerDependencies` (L36-L60) - Interface
-  - `src.core.controller.task.TaskController.TaskController` (L64-L518) - Class
+  - `src.core.controller.task.TaskController.TaskController` (L64-L495) - Class
   - `src.core.controller.task.TaskController.TaskController.taskRunPromise` (L76-L78) - Method
   - `src.core.controller.task.TaskController.TaskController.constructor` (L80-L92) - Constructor
   - `src.core.controller.task.TaskController.TaskController.task` (L98-L100) - Method
@@ -9770,20 +9864,20 @@ Manages multi-root workspace resolution, file context tracking, task controller 
   - `src.core.controller.task.TaskController.startHistoricalTaskAndWaitForRestore.taskRun.then() callback` (L218-L225) - Function
   - `src.core.controller.task.TaskController.TaskController.startHistoricalTaskAndWaitForRestore.taskRun.then() callback` (L226-L226) - Function
   - `src.core.controller.task.TaskController.TaskController.startHistoricalTaskAndWaitForRestore.abort.catch() callback` (L240-L241) - Function
-  - `src.core.controller.task.TaskController.TaskController.initTask` (L257-L389) - Method
-  - `src.core.controller.task.TaskController.TaskController.initTask.updateTaskHistory` (L344-L344) - Method
-  - `src.core.controller.task.TaskController.TaskController.initTask.postStateToWebview` (L345-L345) - Method
-  - `src.core.controller.task.TaskController.TaskController.initTask.postPresentationToWebview` (L346-L346) - Method
-  - `src.core.controller.task.TaskController.TaskController.initTask.reinitExistingTaskFromId` (L347-L347) - Method
-  - `src.core.controller.task.TaskController.TaskController.initTask.cancelTask` (L348-L348) - Method
-  - `src.core.controller.task.TaskController.TaskController.initTask.enqueuePreRequestSteeringMessages` (L369-L369) - Method
-  - `src.core.controller.task.TaskController.TaskController.reinitExistingTaskFromId` (L391-L408) - Method
-  - `src.core.controller.task.TaskController.TaskController.cancelTask` (L410-L476) - Method
-  - `src.core.controller.task.TaskController.TaskController.cancelTask.pWaitFor() callback` (L434-L437) - Function
-  - `src.core.controller.task.TaskController.TaskController.cancelTask.catch() callback` (L441-L443) - Function
-  - `src.core.controller.task.TaskController.TaskController.updateBackgroundCommandState` (L478-L486) - Method
-  - `src.core.controller.task.TaskController.TaskController.cancelBackgroundCommand` (L488-L494) - Method
-  - `src.core.controller.task.TaskController.TaskController.clearTask` (L496-L517) - Method
+  - `src.core.controller.task.TaskController.TaskController.initTask` (L257-L366) - Method
+  - `src.core.controller.task.TaskController.TaskController.initTask.updateTaskHistory` (L325-L325) - Method
+  - `src.core.controller.task.TaskController.TaskController.initTask.postStateToWebview` (L326-L326) - Method
+  - `src.core.controller.task.TaskController.TaskController.initTask.postPresentationToWebview` (L327-L327) - Method
+  - `src.core.controller.task.TaskController.TaskController.initTask.reinitExistingTaskFromId` (L328-L328) - Method
+  - `src.core.controller.task.TaskController.TaskController.initTask.cancelTask` (L329-L329) - Method
+  - `src.core.controller.task.TaskController.TaskController.initTask.enqueuePreRequestSteeringMessages` (L350-L350) - Method
+  - `src.core.controller.task.TaskController.TaskController.reinitExistingTaskFromId` (L368-L385) - Method
+  - `src.core.controller.task.TaskController.TaskController.cancelTask` (L387-L453) - Method
+  - `src.core.controller.task.TaskController.TaskController.cancelTask.pWaitFor() callback` (L411-L414) - Function
+  - `src.core.controller.task.TaskController.TaskController.cancelTask.catch() callback` (L418-L420) - Function
+  - `src.core.controller.task.TaskController.TaskController.updateBackgroundCommandState` (L455-L463) - Method
+  - `src.core.controller.task.TaskController.TaskController.cancelBackgroundCommand` (L465-L471) - Method
+  - `src.core.controller.task.TaskController.TaskController.clearTask` (L473-L494) - Method
 - `src/core/controller/workspace/WorkspaceController.ts`
   - `src.core.controller.workspace.WorkspaceController.WorkspaceController` (L10-L39) - Class
   - `src.core.controller.workspace.WorkspaceController.WorkspaceController.constructor` (L13-L18) - Constructor
@@ -10182,29 +10276,29 @@ Manages multi-root workspace resolution, file context tracking, task controller 
   - `src.core.task.tools.modules.execute_command.ExecuteCommandTool.NormalizedCommand` (L24-L28) - Interface
   - `src.core.task.tools.modules.execute_command.ExecuteCommandTool.WorkspaceHintMatch` (L30-L33) - Interface
   - `src.core.task.tools.modules.execute_command.ExecuteCommandTool.parseWorkspaceHint` (L35-L42) - Function
-  - `src.core.task.tools.modules.execute_command.ExecuteCommandTool.ExecuteCommandTool` (L74-L425) - Class
+  - `src.core.task.tools.modules.execute_command.ExecuteCommandTool.ExecuteCommandTool` (L74-L410) - Class
   - `src.core.task.tools.modules.execute_command.ExecuteCommandTool.ExecuteCommandTool.constructor` (L75-L81) - Constructor
   - `src.core.task.tools.modules.execute_command.ExecuteCommandTool.ExecuteCommandTool.spec` (L83-L85) - Method
   - `src.core.task.tools.modules.execute_command.ExecuteCommandTool.ExecuteCommandTool.supportedSurfaces` (L87-L89) - Method
   - `src.core.task.tools.modules.execute_command.ExecuteCommandTool.ExecuteCommandTool.processCall` (L91-L124) - Method
   - `src.core.task.tools.modules.execute_command.ExecuteCommandTool.ExecuteCommandTool.validateCommands` (L126-L143) - Method
-  - `src.core.task.tools.modules.execute_command.ExecuteCommandTool.ExecuteCommandTool.getCommandApprovalRequirement` (L145-L182) - Method
-  - `src.core.task.tools.modules.execute_command.ExecuteCommandTool.ExecuteCommandTool.getCommandApprovalRequirement.permissionResults` (L163-L169) - Class
-  - `src.core.task.tools.modules.execute_command.ExecuteCommandTool.ExecuteCommandTool.getCommandApprovalRequirement.permissionResults.commands.map() callback` (L163-L169) - Function
-  - `src.core.task.tools.modules.execute_command.ExecuteCommandTool.ExecuteCommandTool.getCommandApprovalRequirement.permissionResults.some() callback` (L170-L170) - Function
-  - `src.core.task.tools.modules.execute_command.ExecuteCommandTool.ExecuteCommandTool.getCommandApprovalRequirement.requiresApproval` (L177-L180) - Class
-  - `src.core.task.tools.modules.execute_command.ExecuteCommandTool.ExecuteCommandTool.getCommandApprovalRequirement.requiresApproval.permissionResults.some() callback` (L177-L180) - Function
-  - `src.core.task.tools.modules.execute_command.ExecuteCommandTool.ExecuteCommandTool.requestApproval` (L184-L245) - Method
-  - `src.core.task.tools.modules.execute_command.ExecuteCommandTool.ExecuteCommandTool.requestApproval.card.rawInput.commands.commands.map() callback` (L205-L205) - Function
-  - `src.core.task.tools.modules.execute_command.ExecuteCommandTool.ExecuteCommandTool.requestApproval.card.body.commands.map() callback` (L208-L212) - Function
-  - `src.core.task.tools.modules.execute_command.ExecuteCommandTool.ExecuteCommandTool.permissionCardLabel` (L247-L249) - Method
-  - `src.core.task.tools.modules.execute_command.ExecuteCommandTool.ExecuteCommandTool.resolvePermissionCard` (L251-L264) - Method
-  - `src.core.task.tools.modules.execute_command.ExecuteCommandTool.ExecuteCommandTool.executeCommands` (L266-L288) - Method
-  - `src.core.task.tools.modules.execute_command.ExecuteCommandTool.ExecuteCommandTool.executeSingleCommand` (L290-L374) - Method
-  - `src.core.task.tools.modules.execute_command.ExecuteCommandTool.ExecuteCommandTool.normalizeCommands` (L376-L398) - Method
-  - `src.core.task.tools.modules.execute_command.ExecuteCommandTool.ExecuteCommandTool.normalizeCommands.args.commands.forEach() callback` (L379-L383) - Function
-  - `src.core.task.tools.modules.execute_command.ExecuteCommandTool.ExecuteCommandTool.stripWorkspaceHint` (L400-L402) - Method
-  - `src.core.task.tools.modules.execute_command.ExecuteCommandTool.ExecuteCommandTool.wrapScript` (L404-L424) - Method
+  - `src.core.task.tools.modules.execute_command.ExecuteCommandTool.ExecuteCommandTool.getCommandApprovalRequirement` (L145-L172) - Method
+  - `src.core.task.tools.modules.execute_command.ExecuteCommandTool.ExecuteCommandTool.getCommandApprovalRequirement.permissionResults` (L153-L159) - Class
+  - `src.core.task.tools.modules.execute_command.ExecuteCommandTool.ExecuteCommandTool.getCommandApprovalRequirement.permissionResults.commands.map() callback` (L153-L159) - Function
+  - `src.core.task.tools.modules.execute_command.ExecuteCommandTool.ExecuteCommandTool.getCommandApprovalRequirement.permissionResults.some() callback` (L160-L160) - Function
+  - `src.core.task.tools.modules.execute_command.ExecuteCommandTool.ExecuteCommandTool.getCommandApprovalRequirement.requiresApproval` (L167-L170) - Class
+  - `src.core.task.tools.modules.execute_command.ExecuteCommandTool.ExecuteCommandTool.getCommandApprovalRequirement.requiresApproval.permissionResults.some() callback` (L167-L170) - Function
+  - `src.core.task.tools.modules.execute_command.ExecuteCommandTool.ExecuteCommandTool.requestApproval` (L174-L230) - Method
+  - `src.core.task.tools.modules.execute_command.ExecuteCommandTool.ExecuteCommandTool.requestApproval.card.rawInput.commands.commands.map() callback` (L193-L193) - Function
+  - `src.core.task.tools.modules.execute_command.ExecuteCommandTool.ExecuteCommandTool.requestApproval.card.body.commands.map() callback` (L196-L200) - Function
+  - `src.core.task.tools.modules.execute_command.ExecuteCommandTool.ExecuteCommandTool.permissionCardLabel` (L232-L234) - Method
+  - `src.core.task.tools.modules.execute_command.ExecuteCommandTool.ExecuteCommandTool.resolvePermissionCard` (L236-L249) - Method
+  - `src.core.task.tools.modules.execute_command.ExecuteCommandTool.ExecuteCommandTool.executeCommands` (L251-L273) - Method
+  - `src.core.task.tools.modules.execute_command.ExecuteCommandTool.ExecuteCommandTool.executeSingleCommand` (L275-L359) - Method
+  - `src.core.task.tools.modules.execute_command.ExecuteCommandTool.ExecuteCommandTool.normalizeCommands` (L361-L383) - Method
+  - `src.core.task.tools.modules.execute_command.ExecuteCommandTool.ExecuteCommandTool.normalizeCommands.args.commands.forEach() callback` (L364-L368) - Function
+  - `src.core.task.tools.modules.execute_command.ExecuteCommandTool.ExecuteCommandTool.stripWorkspaceHint` (L385-L387) - Method
+  - `src.core.task.tools.modules.execute_command.ExecuteCommandTool.ExecuteCommandTool.wrapScript` (L389-L409) - Method
 - `src/core/task/tools/modules/search_files/index.ts`
   - `src.core.task.tools.modules.search_files.index.SearchFilesArgs` (L15-L21) - Interface
   - `src.core.task.tools.modules.search_files.index.SearchPathInfo` (L23-L27) - Interface
@@ -11937,7 +12031,7 @@ Persists application state, API configurations, secrets, task metadata, and conv
 **Related Classes/Methods**:
 
 - `src.core.storage.StateManager.StateManager`:87-471
-- `src.core.controller.TaskHistoryController.TaskHistoryController`:38-152
+- `src.core.controller.TaskHistoryController.TaskHistoryController`:41-177
 - `src.core.storage.conversationHistory.getSavedApiConversationState`:40-53
 - `src.core.storage.taskHistory.readTaskHistoryFromState`:73-85
 
@@ -11946,26 +12040,33 @@ Persists application state, API configurations, secrets, task metadata, and conv
 **Source Files:**
 
 - `src/core/controller/TaskHistoryController.ts`
-  - `src.core.controller.TaskHistoryController.deleteRunStorage` (L26-L36) - Function
-  - `src.core.controller.TaskHistoryController.deleteRunStorage.goal.children.map() callback` (L34-L34) - Function
-  - `src.core.controller.TaskHistoryController.TaskHistoryController` (L38-L152) - Class
-  - `src.core.controller.TaskHistoryController.TaskHistoryController.constructor` (L39-L42) - Constructor
-  - `src.core.controller.TaskHistoryController.TaskHistoryController.readOpenRouterModels` (L44-L56) - Method
-  - `src.core.controller.TaskHistoryController.TaskHistoryController.getTaskWithId` (L58-L101) - Method
-  - `src.core.controller.TaskHistoryController.TaskHistoryController.getTaskWithId.runHistoryItem` (L68-L68) - Class
-  - `src.core.controller.TaskHistoryController.TaskHistoryController.getTaskWithId.runHistoryItem.history.find() callback` (L68-L68) - Function
-  - `src.core.controller.TaskHistoryController.TaskHistoryController.getRunHistoryItem` (L103-L107) - Method
-  - `src.core.controller.TaskHistoryController.TaskHistoryController.getRunHistoryItem.item` (L104-L104) - Class
-  - `src.core.controller.TaskHistoryController.TaskHistoryController.getRunHistoryItem.item.find() callback` (L104-L104) - Function
-  - `src.core.controller.TaskHistoryController.TaskHistoryController.getGoalHistoryItem` (L109-L113) - Method
-  - `src.core.controller.TaskHistoryController.TaskHistoryController.exportTaskWithId` (L115-L120) - Method
-  - `src.core.controller.TaskHistoryController.TaskHistoryController.deleteTaskFromState` (L122-L124) - Method
-  - `src.core.controller.TaskHistoryController.TaskHistoryController.updateRunHistory` (L126-L128) - Method
-  - `src.core.controller.TaskHistoryController.TaskHistoryController.updateTaskHistory` (L130-L133) - Method
-  - `src.core.controller.TaskHistoryController.TaskHistoryController.updateGoalHistory` (L135-L137) - Method
-  - `src.core.controller.TaskHistoryController.TaskHistoryController.deleteRunStorage` (L140-L142) - Method
-  - `src.core.controller.TaskHistoryController.TaskHistoryController.deleteRunWithId` (L144-L151) - Method
-  - `src.core.controller.TaskHistoryController.TaskHistoryController.deleteRunWithId.withTaskHistoryInventoryLock() callback` (L145-L150) - Function
+  - `src.core.controller.TaskHistoryController.deleteRunStorage` (L29-L39) - Function
+  - `src.core.controller.TaskHistoryController.deleteRunStorage.goal.children.map() callback` (L37-L37) - Function
+  - `src.core.controller.TaskHistoryController.TaskHistoryController` (L41-L177) - Class
+  - `src.core.controller.TaskHistoryController.TaskHistoryController.constructor` (L42-L45) - Constructor
+  - `src.core.controller.TaskHistoryController.TaskHistoryController.readOpenRouterModels` (L47-L59) - Method
+  - `src.core.controller.TaskHistoryController.TaskHistoryController.getTaskWithId` (L61-L104) - Method
+  - `src.core.controller.TaskHistoryController.TaskHistoryController.getTaskWithId.runHistoryItem` (L71-L71) - Class
+  - `src.core.controller.TaskHistoryController.TaskHistoryController.getTaskWithId.runHistoryItem.history.find() callback` (L71-L71) - Function
+  - `src.core.controller.TaskHistoryController.TaskHistoryController.getPromptHistory` (L107-L126) - Method
+  - `src.core.controller.TaskHistoryController.TaskHistoryController.getPromptHistory.runs` (L108-L118) - Class
+  - `src.core.controller.TaskHistoryController.TaskHistoryController.getPromptHistory.runs.filter() callback` (L111-L115) - Function
+  - `src.core.controller.TaskHistoryController.TaskHistoryController.getPromptHistory.runs.filter() callback.some() callback` (L114-L114) - Function
+  - `src.core.controller.TaskHistoryController.TaskHistoryController.getPromptHistory.runs.sort() callback` (L117-L117) - Function
+  - `src.core.controller.TaskHistoryController.TaskHistoryController.getPromptHistory.prompts` (L119-L124) - Class
+  - `src.core.controller.TaskHistoryController.TaskHistoryController.getPromptHistory.prompts.runs.map() callback` (L120-L123) - Function
+  - `src.core.controller.TaskHistoryController.TaskHistoryController.getRunHistoryItem` (L128-L132) - Method
+  - `src.core.controller.TaskHistoryController.TaskHistoryController.getRunHistoryItem.item` (L129-L129) - Class
+  - `src.core.controller.TaskHistoryController.TaskHistoryController.getRunHistoryItem.item.find() callback` (L129-L129) - Function
+  - `src.core.controller.TaskHistoryController.TaskHistoryController.getGoalHistoryItem` (L134-L138) - Method
+  - `src.core.controller.TaskHistoryController.TaskHistoryController.exportTaskWithId` (L140-L145) - Method
+  - `src.core.controller.TaskHistoryController.TaskHistoryController.deleteTaskFromState` (L147-L149) - Method
+  - `src.core.controller.TaskHistoryController.TaskHistoryController.updateRunHistory` (L151-L153) - Method
+  - `src.core.controller.TaskHistoryController.TaskHistoryController.updateTaskHistory` (L155-L158) - Method
+  - `src.core.controller.TaskHistoryController.TaskHistoryController.updateGoalHistory` (L160-L162) - Method
+  - `src.core.controller.TaskHistoryController.TaskHistoryController.deleteRunStorage` (L165-L167) - Method
+  - `src.core.controller.TaskHistoryController.TaskHistoryController.deleteRunWithId` (L169-L176) - Method
+  - `src.core.controller.TaskHistoryController.TaskHistoryController.deleteRunWithId.withTaskHistoryInventoryLock() callback` (L170-L175) - Function
 - `src/core/storage/StateManager.ts`
   - `src.core.storage.StateManager.StateManager` (L87-L471) - Class
   - `src.core.storage.StateManager.onPersistenceError` (L107-L109) - Method
@@ -12504,15 +12605,15 @@ Persists application state, API configurations, secrets, task metadata, and conv
   - `src.shared.storage.state-keys.USER_SETTINGS_FIELDS.browserSettings.transform` (L251-L251) - Method
   - `src.shared.storage.state-keys.USER_SETTINGS_FIELDS.autoCondenseContextLimits.transform` (L268-L273) - Method
   - `src.shared.storage.state-keys.USER_SETTINGS_FIELDS.autoCondenseContextLimits.transform.filter() callback` (L271-L271) - Function
-  - `src.shared.storage.state-keys.extractDefaults` (L444-L450) - Function
-  - `src.shared.storage.state-keys.extractDefaults.map() callback` (L447-L447) - Function
-  - `src.shared.storage.state-keys.extractDefaults.filter() callback` (L448-L448) - Function
-  - `src.shared.storage.state-keys.extractTransforms` (L452-L458) - Function
-  - `src.shared.storage.state-keys.extractTransforms.filter() callback` (L455-L455) - Function
-  - `src.shared.storage.state-keys.extractTransforms.map() callback` (L456-L456) - Function
-  - `src.shared.storage.state-keys.extractMetadata` (L460-L466) - Function
-  - `src.shared.storage.state-keys.extractMetadata.filter() callback` (L463-L463) - Function
-  - `src.shared.storage.state-keys.extractMetadata.map() callback` (L464-L464) - Function
+  - `src.shared.storage.state-keys.extractDefaults` (L445-L451) - Function
+  - `src.shared.storage.state-keys.extractDefaults.map() callback` (L448-L448) - Function
+  - `src.shared.storage.state-keys.extractDefaults.filter() callback` (L449-L449) - Function
+  - `src.shared.storage.state-keys.extractTransforms` (L453-L459) - Function
+  - `src.shared.storage.state-keys.extractTransforms.filter() callback` (L456-L456) - Function
+  - `src.shared.storage.state-keys.extractTransforms.map() callback` (L457-L457) - Function
+  - `src.shared.storage.state-keys.extractMetadata` (L461-L467) - Function
+  - `src.shared.storage.state-keys.extractMetadata.filter() callback` (L464-L464) - Function
+  - `src.shared.storage.state-keys.extractMetadata.map() callback` (L465-L465) - Function
 - `src/shared/storage/storage-context.ts`
   - `src.shared.storage.storage-context.StorageContext` (L15-L39) - Interface
   - `src.shared.storage.storage-context.StorageContextOptions` (L41-L62) - Interface
@@ -12533,10 +12634,10 @@ Executes the core task request loop, tool invocation pipeline, conversation stat
 
 **Related Classes/Methods**:
 
-- `src.core.task.index.Task`:143-1342
+- `src.core.task.index.Task`:143-1360
 - `src.core.task.TaskRequestLoop.recursivelyMakeDiracRequests`:47-447
 - `src.core.task.ToolExecutor.ToolExecutor`:51-555
-- `src.core.task.LifecycleManager.LifecycleManager`:48-729
+- `src.core.task.LifecycleManager.LifecycleManager`:47-719
 
 
 
@@ -12588,37 +12689,37 @@ Executes the core task request loop, tool invocation pipeline, conversation stat
   - `src.core.task.ApiConversationManager.prepareApiRequest.request.userContent.map() callback` (L458-L458) - Function
   - `src.core.task.ApiConversationManager.ApiConversationManager.prepareApiRequest.request.userContent.map() callback` (L486-L486) - Function
 - `src/core/task/LifecycleManager.ts`
-  - `src.core.task.LifecycleManager.ResumeTaskOptions` (L37-L46) - Interface
-  - `src.core.task.LifecycleManager.LifecycleManager` (L48-L729) - Class
-  - `src.core.task.LifecycleManager.LifecycleManager.constructor` (L52-L52) - Constructor
-  - `src.core.task.LifecycleManager.LifecycleManager.setApi` (L54-L56) - Method
-  - `src.core.task.LifecycleManager.LifecycleManager.setBrowserSession` (L58-L60) - Method
-  - `src.core.task.LifecycleManager.LifecycleManager.getOperationalApi` (L62-L64) - Method
-  - `src.core.task.LifecycleManager.LifecycleManager.initializeCheckpoints` (L66-L121) - Method
-  - `src.core.task.LifecycleManager.LifecycleManager.initializeCheckpoints.lastCheckpointMessageIndex` (L94-L94) - Class
-  - `src.core.task.LifecycleManager.LifecycleManager.initializeCheckpoints.lastCheckpointMessageIndex.findLastIndex() callback` (L94-L94) - Function
-  - `src.core.task.LifecycleManager.LifecycleManager.initializeCheckpoints.commitPromise.then() callback` (L106-L112) - Function
-  - `src.core.task.LifecycleManager.LifecycleManager.initializeCheckpoints.catch() callback` (L113-L118) - Function
-  - `src.core.task.LifecycleManager.LifecycleManager.startTask` (L123-L239) - Method
-  - `src.core.task.LifecycleManager.LifecycleManager.resumeTaskFromHistory` (L241-L542) - Method
-  - `src.core.task.LifecycleManager.LifecycleManager.resumeTaskFromHistory.lastRelevantMessageIndex` (L258-L261) - Class
-  - `src.core.task.LifecycleManager.LifecycleManager.resumeTaskFromHistory.lastRelevantMessageIndex.findLastIndex() callback` (L260-L260) - Function
-  - `src.core.task.LifecycleManager.LifecycleManager.resumeTaskFromHistory.lastApiReqStartedIndex` (L266-L266) - Class
-  - `src.core.task.LifecycleManager.LifecycleManager.resumeTaskFromHistory.lastApiReqStartedIndex.findLastIndex() callback` (L266-L266) - Function
-  - `src.core.task.LifecycleManager.LifecycleManager.resumeTaskFromHistory.lastDiracMessage` (L309-L317) - Class
-  - `src.core.task.LifecycleManager.LifecycleManager.resumeTaskFromHistory.lastDiracMessage.find() callback` (L314-L316) - Function
-  - `src.core.task.LifecycleManager.LifecycleManager.resumeTaskFromHistory.pWaitFor() callback` (L334-L334) - Function
-  - `src.core.task.LifecycleManager.LifecycleManager.resumeTaskFromHistory.agoText` (L452-L463) - Class
-  - `src.core.task.LifecycleManager.LifecycleManager.resumeTaskFromHistory.agoText.<function>` (L452-L463) - Function
-  - `src.core.task.LifecycleManager.LifecycleManager.abortTask` (L544-L551) - Method
-  - `src.core.task.LifecycleManager.LifecycleManager.finalizeTaskRun` (L554-L561) - Method
-  - `src.core.task.LifecycleManager.LifecycleManager.performAbortTask` (L563-L673) - Method
-  - `src.core.task.LifecycleManager.LifecycleManager.releaseOwnedTaskResources` (L675-L678) - Method
-  - `src.core.task.LifecycleManager.LifecycleManager.performOwnedResourceCleanup` (L680-L706) - Method
-  - `src.core.task.LifecycleManager.LifecycleManager.performOwnedResourceCleanup.ToolRegistry.withExclusiveAccess() callback` (L684-L686) - Function
-  - `src.core.task.LifecycleManager.LifecycleManager.disposeTaskResources` (L708-L728) - Method
-  - `src.core.task.LifecycleManager.disposeTaskResources.attempt() callback` (L718-L718) - Function
-  - `src.core.task.LifecycleManager.LifecycleManager.disposeTaskResources.attempt() callback` (L725-L725) - Function
+  - `src.core.task.LifecycleManager.ResumeTaskOptions` (L36-L45) - Interface
+  - `src.core.task.LifecycleManager.LifecycleManager` (L47-L719) - Class
+  - `src.core.task.LifecycleManager.LifecycleManager.constructor` (L51-L51) - Constructor
+  - `src.core.task.LifecycleManager.LifecycleManager.setApi` (L53-L55) - Method
+  - `src.core.task.LifecycleManager.LifecycleManager.setBrowserSession` (L57-L59) - Method
+  - `src.core.task.LifecycleManager.LifecycleManager.getOperationalApi` (L61-L63) - Method
+  - `src.core.task.LifecycleManager.LifecycleManager.initializeCheckpoints` (L65-L120) - Method
+  - `src.core.task.LifecycleManager.LifecycleManager.initializeCheckpoints.lastCheckpointMessageIndex` (L93-L93) - Class
+  - `src.core.task.LifecycleManager.LifecycleManager.initializeCheckpoints.lastCheckpointMessageIndex.findLastIndex() callback` (L93-L93) - Function
+  - `src.core.task.LifecycleManager.LifecycleManager.initializeCheckpoints.commitPromise.then() callback` (L105-L111) - Function
+  - `src.core.task.LifecycleManager.LifecycleManager.initializeCheckpoints.catch() callback` (L112-L117) - Function
+  - `src.core.task.LifecycleManager.LifecycleManager.startTask` (L122-L238) - Method
+  - `src.core.task.LifecycleManager.LifecycleManager.resumeTaskFromHistory` (L240-L541) - Method
+  - `src.core.task.LifecycleManager.LifecycleManager.resumeTaskFromHistory.lastRelevantMessageIndex` (L257-L260) - Class
+  - `src.core.task.LifecycleManager.LifecycleManager.resumeTaskFromHistory.lastRelevantMessageIndex.findLastIndex() callback` (L259-L259) - Function
+  - `src.core.task.LifecycleManager.LifecycleManager.resumeTaskFromHistory.lastApiReqStartedIndex` (L265-L265) - Class
+  - `src.core.task.LifecycleManager.LifecycleManager.resumeTaskFromHistory.lastApiReqStartedIndex.findLastIndex() callback` (L265-L265) - Function
+  - `src.core.task.LifecycleManager.LifecycleManager.resumeTaskFromHistory.lastDiracMessage` (L308-L316) - Class
+  - `src.core.task.LifecycleManager.LifecycleManager.resumeTaskFromHistory.lastDiracMessage.find() callback` (L313-L315) - Function
+  - `src.core.task.LifecycleManager.LifecycleManager.resumeTaskFromHistory.pWaitFor() callback` (L333-L333) - Function
+  - `src.core.task.LifecycleManager.LifecycleManager.resumeTaskFromHistory.agoText` (L451-L462) - Class
+  - `src.core.task.LifecycleManager.LifecycleManager.resumeTaskFromHistory.agoText.<function>` (L451-L462) - Function
+  - `src.core.task.LifecycleManager.LifecycleManager.abortTask` (L543-L550) - Method
+  - `src.core.task.LifecycleManager.LifecycleManager.finalizeTaskRun` (L553-L560) - Method
+  - `src.core.task.LifecycleManager.LifecycleManager.performAbortTask` (L562-L672) - Method
+  - `src.core.task.LifecycleManager.LifecycleManager.releaseOwnedTaskResources` (L674-L677) - Method
+  - `src.core.task.LifecycleManager.LifecycleManager.performOwnedResourceCleanup` (L679-L696) - Method
+  - `src.core.task.LifecycleManager.LifecycleManager.performOwnedResourceCleanup.ToolRegistry.withExclusiveAccess() callback` (L683-L685) - Function
+  - `src.core.task.LifecycleManager.LifecycleManager.disposeTaskResources` (L698-L718) - Method
+  - `src.core.task.LifecycleManager.disposeTaskResources.attempt() callback` (L708-L708) - Function
+  - `src.core.task.LifecycleManager.LifecycleManager.disposeTaskResources.attempt() callback` (L715-L715) - Function
 - `src/core/task/TaskMessenger.ts`
   - `src.core.task.TaskMessenger.TaskCardParams` (L26-L28) - Interface
   - `src.core.task.TaskMessenger.TaskCardHandle` (L30-L32) - Interface
@@ -12719,122 +12820,123 @@ Executes the core task request loop, tool invocation pipeline, conversation stat
   - `src.core.task.ToolExecutor.ToolExecutor.isPlanModeRestricted` (L483-L495) - Method
   - `src.core.task.ToolExecutor.ToolExecutor.handleCompleteBlock` (L497-L554) - Method
 - `src/core/task/index.ts`
-  - `src.core.task.index.Task` (L143-L1342) - Class
+  - `src.core.task.index.Task` (L143-L1360) - Class
   - `src.core.task.index.Task.stateView` (L160-L162) - Method
-  - `src.core.task.index.Task.withStateLock` (L174-L176) - Method
-  - `src.core.task.index.Task.steeringContext` (L178-L188) - Method
-  - `src.core.task.index.Task.steeringContext.postStateToWebview` (L185-L185) - Method
-  - `src.core.task.index.Task.steeringContext.withStateLock` (L186-L186) - Method
-  - `src.core.task.index.Task.promptArtifactsContext` (L190-L201) - Method
-  - `src.core.task.index.Task.requestBuilderContext` (L203-L231) - Method
-  - `src.core.task.index.Task.requestBuilderContext.writePromptMetadataArtifacts` (L219-L229) - Method
-  - `src.core.task.index.Task.requestOutcomeContext` (L233-L253) - Method
-  - `src.core.task.index.Task.requestOutcomeContext.postStateToWebview` (L243-L243) - Method
-  - `src.core.task.index.Task.requestOutcomeContext.abortTask` (L244-L244) - Method
-  - `src.core.task.index.Task.requestOutcomeContext.handleContextWindowExceededError` (L245-L245) - Method
-  - `src.core.task.index.Task.requestOutcomeContext.reinitExistingTaskFromId` (L246-L246) - Method
-  - `src.core.task.index.Task.requestOutcomeContext.attemptApiRequest` (L247-L248) - Method
-  - `src.core.task.index.Task.requestOutcomeContext.recursivelyMakeDiracRequests` (L249-L250) - Method
-  - `src.core.task.index.Task.requestOutcomeContext.handleEmptyAssistantResponse` (L251-L251) - Method
-  - `src.core.task.index.Task.requestLoopContext` (L255-L274) - Method
-  - `src.core.task.index.Task.requestLoopContext.handleMistakeLimitReached` (L261-L261) - Method
-  - `src.core.task.index.Task.requestLoopContext.enqueuePreRequestSteeringMessages` (L262-L262) - Method
-  - `src.core.task.index.Task.requestLoopContext.resetStreamingState` (L263-L263) - Method
-  - `src.core.task.index.Task.requestLoopContext.initializeCheckpoints` (L264-L264) - Method
-  - `src.core.task.index.Task.requestLoopContext.determineContextCompaction` (L265-L265) - Method
-  - `src.core.task.index.Task.canAcceptSteeringMessage` (L276-L278) - Method
-  - `src.core.task.index.Task.enqueueSteeringMessage` (L280-L282) - Method
-  - `src.core.task.index.Task.claimSteeringMessages` (L284-L286) - Method
-  - `src.core.task.index.Task.commitSteeringClaim` (L288-L290) - Method
-  - `src.core.task.index.Task.settleConsumedSteeringClaim` (L292-L294) - Method
-  - `src.core.task.index.Task.rollbackSteeringClaim` (L296-L298) - Method
-  - `src.core.task.index.Task.appendQueuedSteeringToUserContent` (L300-L302) - Method
-  - `src.core.task.index.Task.appendQueuedSteeringToNextApiRequest` (L304-L306) - Method
-  - `src.core.task.index.Task.commitAttemptCompletion` (L308-L312) - Method
-  - `src.core.task.index.Task.setActiveHookExecution` (L314-L316) - Method
-  - `src.core.task.index.Task.clearActiveHookExecution` (L318-L320) - Method
-  - `src.core.task.index.Task.setContextCompactionObserver` (L323-L325) - Method
-  - `src.core.task.index.Task.notifyContextCompacted` (L327-L333) - Method
-  - `src.core.task.index.Task.getActiveHookExecution` (L335-L337) - Method
-  - `src.core.task.index.Task.constructor` (L406-L873) - Constructor
-  - `src.core.task.index.constructor.getWorkingConfiguration` (L490-L490) - Method
-  - `src.core.task.index.constructor.getRequestRuntime` (L491-L491) - Method
-  - `src.core.task.index.Task.constructor.shouldRunBackgroundCheck` (L508-L508) - Method
-  - `src.core.task.index.Task.constructor.catch() callback` (L595-L598) - Function
-  - `src.core.task.index.Task.constructor.effectiveApiConfiguration` (L614-L627) - Class
-  - `src.core.task.index.Task.constructor.effectiveApiConfiguration.onRetryAttempt` (L617-L626) - Method
-  - `src.core.task.index.Task.constructor.commandExecutorCallbacks` (L666-L683) - Class
-  - `src.core.task.index.Task.constructor.commandExecutorCallbacks.updateBackgroundCommandState` (L668-L672) - Method
-  - `src.core.task.index.Task.constructor.commandExecutorCallbacks.updateDiracMessage` (L673-L676) - Method
-  - `src.core.task.index.Task.constructor.commandExecutorCallbacks.getDiracMessages` (L677-L677) - Method
-  - `src.core.task.index.Task.constructor.commandExecutorCallbacks.addToUserMessageContent` (L678-L681) - Method
-  - `src.core.task.index.Task.constructor.commandExecutorCallbacks.getEnvironmentVariables` (L682-L682) - Method
-  - `src.core.task.index.Task.constructor.isTextCondensationAvailable` (L765-L775) - Method
-  - `src.core.task.index.Task.constructor.time` (L806-L806) - Method
-  - `src.core.task.index.Task.constructor.getApi` (L817-L817) - Method
-  - `src.core.task.index.Task.constructor.getWorkingConfiguration` (L830-L830) - Method
-  - `src.core.task.index.Task.constructor.getRequestRuntime` (L831-L831) - Method
-  - `src.core.task.index.Task.constructor.activateSkill` (L842-L842) - Method
-  - `src.core.task.index.Task.constructor.getPinnedContext` (L845-L845) - Method
-  - `src.core.task.index.Task.constructor.writePromptMetadataArtifacts` (L846-L846) - Method
-  - `src.core.task.index.Task.constructor.runLocalConversationCompaction` (L854-L854) - Method
-  - `src.core.task.index.Task.getWorkingConfiguration` (L876-L878) - Method
-  - `src.core.task.index.Task.applyWorkingConfigurationUpdate` (L886-L917) - Method
-  - `src.core.task.index.Task.applyWorkingConfigurationUpdate.mutationGate.withTransition() callback` (L890-L915) - Function
-  - `src.core.task.index.Task.applyWorkingConfigurationUpdate.mutationGate.withTransition() callback.withStateLock() callback` (L891-L915) - Function
-  - `src.core.task.index.Task.commitEnabledToolToggles` (L919-L936) - Method
-  - `src.core.task.index.commitEnabledToolToggles.applyWorkingConfigurationUpdate() callback` (L926-L930) - Function
-  - `src.core.task.index.Task.commitEnabledToolToggles.applyWorkingConfigurationUpdate() callback` (L931-L934) - Function
-  - `src.core.task.index.Task.withMutationAuthorization` (L938-L947) - Method
-  - `src.core.task.index.Task.withMutationAuthorization.mutationGate.withMutation() callback` (L944-L944) - Function
-  - `src.core.task.index.Task.createApiHandlerForRuntime` (L950-L968) - Method
-  - `src.core.task.index.Task.createApiHandlerForRuntime.onRetryAttempt` (L955-L964) - Method
-  - `src.core.task.index.Task.installApiHandler` (L971-L980) - Method
-  - `src.core.task.index.Task.applyCommittedModeEffects` (L982-L988) - Method
-  - `src.core.task.index.Task.getEnvironmentDetails` (L990-L992) - Method
-  - `src.core.task.index.Task.persistApiStopReason` (L994-L997) - Method
-  - `src.core.task.index.Task.handleMistakeLimitReached` (L999-L1011) - Method
-  - `src.core.task.index.Task.handleMistakeLimitReached.postStateToWebview` (L1007-L1007) - Method
-  - `src.core.task.index.Task.loadContext` (L1013-L1019) - Method
-  - `src.core.task.index.Task.resetTransientState` (L1023-L1031) - Method
-  - `src.core.task.index.Task.waitForFollowUp` (L1033-L1035) - Method
-  - `src.core.task.index.Task.addPermissionRule` (L1038-L1040) - Method
-  - `src.core.task.index.Task.listPermissionRules` (L1043-L1045) - Method
-  - `src.core.task.index.Task.deletePermissionRule` (L1048-L1050) - Method
-  - `src.core.task.index.Task.submitCardResponse` (L1052-L1063) - Method
-  - `src.core.task.index.Task.submitCardResponse.withStateLock() callback` (L1060-L1062) - Function
-  - `src.core.task.index.Task.saveCheckpointCallback` (L1065-L1070) - Method
-  - `src.core.task.index.Task.switchToActModeCallback` (L1072-L1074) - Method
-  - `src.core.task.index.Task.runUserPromptSubmitHook` (L1076-L1081) - Method
-  - `src.core.task.index.Task.startTask` (L1083-L1088) - Method
-  - `src.core.task.index.Task.startTask.runTaskLifecycle() callback` (L1084-L1087) - Function
-  - `src.core.task.index.Task.restoreQueuedSteeringFromTranscript` (L1090-L1092) - Method
-  - `src.core.task.index.Task.resumeTaskFromHistory` (L1094-L1099) - Method
-  - `src.core.task.index.Task.resumeTaskFromHistory.runTaskLifecycle() callback` (L1095-L1098) - Function
-  - `src.core.task.index.Task.markToolsDirty` (L1101-L1103) - Method
-  - `src.core.task.index.Task.initiateTaskLoop` (L1105-L1151) - Method
-  - `src.core.task.index.Task.runTaskLifecycle` (L1153-L1161) - Method
-  - `src.core.task.index.Task.taskRunOutcomeFromState` (L1163-L1186) - Method
-  - `src.core.task.index.Task.settleTaskRun` (L1188-L1211) - Method
-  - `src.core.task.index.Task.settleTaskRun.withStateLock() callback` (L1206-L1210) - Function
-  - `src.core.task.index.Task.shouldRunTaskCancelHook` (L1213-L1215) - Method
-  - `src.core.task.index.Task.abortTask` (L1217-L1224) - Method
-  - `src.core.task.index.Task.abortTask.withStateLock() callback` (L1218-L1218) - Function
-  - `src.core.task.index.Task.retirePersistence` (L1226-L1228) - Method
-  - `src.core.task.index.Task.executeCommandTool` (L1231-L1237) - Method
-  - `src.core.task.index.Task.cancelBackgroundCommand` (L1243-L1245) - Method
-  - `src.core.task.index.Task.cancelHookExecution` (L1247-L1249) - Method
-  - `src.core.task.index.Task.getCurrentProviderInfo` (L1251-L1265) - Method
-  - `src.core.task.index.Task.writePromptMetadataArtifacts` (L1267-L1275) - Method
-  - `src.core.task.index.Task.getApiRequestIdSafe` (L1277-L1283) - Method
-  - `src.core.task.index.Task.handleContextWindowExceededError` (L1285-L1287) - Method
-  - `src.core.task.index.Task.handleApiRequestError` (L1289-L1300) - Method
-  - `src.core.task.index.Task.resetStreamingState` (L1302-L1314) - Method
-  - `src.core.task.index.Task.attemptApiRequest` (L1316-L1319) - Method
-  - `src.core.task.index.Task.presentAssistantMessage` (L1321-L1323) - Method
-  - `src.core.task.index.Task.recursivelyMakeDiracRequests` (L1325-L1333) - Method
-  - `src.core.task.index.Task.initializeCheckpoints` (L1335-L1337) - Method
-  - `src.core.task.index.Task.determineContextCompaction` (L1339-L1341) - Method
+  - `src.core.task.index.Task.withStateLock` (L176-L178) - Method
+  - `src.core.task.index.Task.steeringContext` (L180-L190) - Method
+  - `src.core.task.index.Task.steeringContext.postStateToWebview` (L187-L187) - Method
+  - `src.core.task.index.Task.steeringContext.withStateLock` (L188-L188) - Method
+  - `src.core.task.index.Task.promptArtifactsContext` (L192-L203) - Method
+  - `src.core.task.index.Task.requestBuilderContext` (L205-L233) - Method
+  - `src.core.task.index.Task.requestBuilderContext.writePromptMetadataArtifacts` (L221-L231) - Method
+  - `src.core.task.index.Task.requestOutcomeContext` (L235-L255) - Method
+  - `src.core.task.index.Task.requestOutcomeContext.postStateToWebview` (L245-L245) - Method
+  - `src.core.task.index.Task.requestOutcomeContext.abortTask` (L246-L246) - Method
+  - `src.core.task.index.Task.requestOutcomeContext.handleContextWindowExceededError` (L247-L247) - Method
+  - `src.core.task.index.Task.requestOutcomeContext.reinitExistingTaskFromId` (L248-L248) - Method
+  - `src.core.task.index.Task.requestOutcomeContext.attemptApiRequest` (L249-L250) - Method
+  - `src.core.task.index.Task.requestOutcomeContext.recursivelyMakeDiracRequests` (L251-L252) - Method
+  - `src.core.task.index.Task.requestOutcomeContext.handleEmptyAssistantResponse` (L253-L253) - Method
+  - `src.core.task.index.Task.requestLoopContext` (L257-L276) - Method
+  - `src.core.task.index.Task.requestLoopContext.handleMistakeLimitReached` (L263-L263) - Method
+  - `src.core.task.index.Task.requestLoopContext.enqueuePreRequestSteeringMessages` (L264-L264) - Method
+  - `src.core.task.index.Task.requestLoopContext.resetStreamingState` (L265-L265) - Method
+  - `src.core.task.index.Task.requestLoopContext.initializeCheckpoints` (L266-L266) - Method
+  - `src.core.task.index.Task.requestLoopContext.determineContextCompaction` (L267-L267) - Method
+  - `src.core.task.index.Task.canAcceptSteeringMessage` (L278-L280) - Method
+  - `src.core.task.index.Task.enqueueSteeringMessage` (L282-L284) - Method
+  - `src.core.task.index.Task.claimSteeringMessages` (L286-L288) - Method
+  - `src.core.task.index.Task.commitSteeringClaim` (L290-L292) - Method
+  - `src.core.task.index.Task.settleConsumedSteeringClaim` (L294-L296) - Method
+  - `src.core.task.index.Task.rollbackSteeringClaim` (L298-L300) - Method
+  - `src.core.task.index.Task.appendQueuedSteeringToUserContent` (L302-L304) - Method
+  - `src.core.task.index.Task.appendQueuedSteeringToNextApiRequest` (L306-L308) - Method
+  - `src.core.task.index.Task.commitAttemptCompletion` (L310-L314) - Method
+  - `src.core.task.index.Task.setActiveHookExecution` (L316-L318) - Method
+  - `src.core.task.index.Task.clearActiveHookExecution` (L320-L322) - Method
+  - `src.core.task.index.Task.setContextCompactionObserver` (L325-L327) - Method
+  - `src.core.task.index.Task.notifyContextCompacted` (L329-L335) - Method
+  - `src.core.task.index.Task.getActiveHookExecution` (L337-L339) - Method
+  - `src.core.task.index.Task.constructor` (L408-L875) - Constructor
+  - `src.core.task.index.constructor.getWorkingConfiguration` (L492-L492) - Method
+  - `src.core.task.index.constructor.getRequestRuntime` (L493-L493) - Method
+  - `src.core.task.index.Task.constructor.shouldRunBackgroundCheck` (L510-L510) - Method
+  - `src.core.task.index.Task.constructor.catch() callback` (L597-L600) - Function
+  - `src.core.task.index.Task.constructor.effectiveApiConfiguration` (L616-L629) - Class
+  - `src.core.task.index.Task.constructor.effectiveApiConfiguration.onRetryAttempt` (L619-L628) - Method
+  - `src.core.task.index.Task.constructor.commandExecutorCallbacks` (L668-L685) - Class
+  - `src.core.task.index.Task.constructor.commandExecutorCallbacks.updateBackgroundCommandState` (L670-L674) - Method
+  - `src.core.task.index.Task.constructor.commandExecutorCallbacks.updateDiracMessage` (L675-L678) - Method
+  - `src.core.task.index.Task.constructor.commandExecutorCallbacks.getDiracMessages` (L679-L679) - Method
+  - `src.core.task.index.Task.constructor.commandExecutorCallbacks.addToUserMessageContent` (L680-L683) - Method
+  - `src.core.task.index.Task.constructor.commandExecutorCallbacks.getEnvironmentVariables` (L684-L684) - Method
+  - `src.core.task.index.Task.constructor.isTextCondensationAvailable` (L767-L777) - Method
+  - `src.core.task.index.Task.constructor.time` (L808-L808) - Method
+  - `src.core.task.index.Task.constructor.getApi` (L819-L819) - Method
+  - `src.core.task.index.Task.constructor.getWorkingConfiguration` (L832-L832) - Method
+  - `src.core.task.index.Task.constructor.getRequestRuntime` (L833-L833) - Method
+  - `src.core.task.index.Task.constructor.activateSkill` (L844-L844) - Method
+  - `src.core.task.index.Task.constructor.getPinnedContext` (L847-L847) - Method
+  - `src.core.task.index.Task.constructor.writePromptMetadataArtifacts` (L848-L848) - Method
+  - `src.core.task.index.Task.constructor.runLocalConversationCompaction` (L856-L856) - Method
+  - `src.core.task.index.Task.getWorkingConfiguration` (L878-L880) - Method
+  - `src.core.task.index.Task.applyWorkingConfigurationUpdate` (L888-L919) - Method
+  - `src.core.task.index.Task.applyWorkingConfigurationUpdate.mutationGate.withTransition() callback` (L892-L917) - Function
+  - `src.core.task.index.Task.applyWorkingConfigurationUpdate.mutationGate.withTransition() callback.withStateLock() callback` (L893-L917) - Function
+  - `src.core.task.index.Task.commitEnabledToolToggles` (L921-L938) - Method
+  - `src.core.task.index.commitEnabledToolToggles.applyWorkingConfigurationUpdate() callback` (L928-L932) - Function
+  - `src.core.task.index.Task.commitEnabledToolToggles.applyWorkingConfigurationUpdate() callback` (L933-L936) - Function
+  - `src.core.task.index.Task.withMutationAuthorization` (L940-L949) - Method
+  - `src.core.task.index.Task.withMutationAuthorization.mutationGate.withMutation() callback` (L946-L946) - Function
+  - `src.core.task.index.Task.createApiHandlerForRuntime` (L952-L970) - Method
+  - `src.core.task.index.Task.createApiHandlerForRuntime.onRetryAttempt` (L957-L966) - Method
+  - `src.core.task.index.Task.installApiHandler` (L973-L982) - Method
+  - `src.core.task.index.Task.applyCommittedModeEffects` (L984-L990) - Method
+  - `src.core.task.index.Task.getEnvironmentDetails` (L992-L994) - Method
+  - `src.core.task.index.Task.persistApiStopReason` (L996-L999) - Method
+  - `src.core.task.index.Task.handleMistakeLimitReached` (L1001-L1013) - Method
+  - `src.core.task.index.Task.handleMistakeLimitReached.postStateToWebview` (L1009-L1009) - Method
+  - `src.core.task.index.Task.loadContext` (L1015-L1021) - Method
+  - `src.core.task.index.Task.resetTransientState` (L1025-L1033) - Method
+  - `src.core.task.index.Task.waitForFollowUp` (L1035-L1037) - Method
+  - `src.core.task.index.Task.addPermissionRule` (L1040-L1042) - Method
+  - `src.core.task.index.Task.listPermissionRules` (L1045-L1047) - Method
+  - `src.core.task.index.Task.deletePermissionRule` (L1050-L1052) - Method
+  - `src.core.task.index.Task.submitCardResponse` (L1054-L1065) - Method
+  - `src.core.task.index.Task.submitCardResponse.withStateLock() callback` (L1062-L1064) - Function
+  - `src.core.task.index.Task.saveCheckpointCallback` (L1067-L1072) - Method
+  - `src.core.task.index.Task.switchToActModeCallback` (L1074-L1076) - Method
+  - `src.core.task.index.Task.runUserPromptSubmitHook` (L1078-L1083) - Method
+  - `src.core.task.index.Task.startTask` (L1085-L1090) - Method
+  - `src.core.task.index.Task.startTask.runTaskLifecycle() callback` (L1086-L1089) - Function
+  - `src.core.task.index.Task.restoreQueuedSteeringFromTranscript` (L1092-L1094) - Method
+  - `src.core.task.index.Task.resumeTaskFromHistory` (L1096-L1101) - Method
+  - `src.core.task.index.Task.resumeTaskFromHistory.runTaskLifecycle() callback` (L1097-L1100) - Function
+  - `src.core.task.index.Task.markToolsDirty` (L1103-L1105) - Method
+  - `src.core.task.index.Task.initiateTaskLoop` (L1107-L1153) - Method
+  - `src.core.task.index.Task.runTaskLifecycle` (L1155-L1163) - Method
+  - `src.core.task.index.Task.taskRunOutcomeFromState` (L1165-L1188) - Method
+  - `src.core.task.index.Task.settleTaskRun` (L1190-L1221) - Method
+  - `src.core.task.index.Task.settleTaskRun.withStateLock() callback` (L1216-L1220) - Function
+  - `src.core.task.index.Task.shouldRunTaskCancelHook` (L1223-L1225) - Method
+  - `src.core.task.index.Task.abortTask` (L1227-L1234) - Method
+  - `src.core.task.index.Task.abortTask.withStateLock() callback` (L1228-L1228) - Function
+  - `src.core.task.index.Task.retirePersistence` (L1237-L1240) - Method
+  - `src.core.task.index.Task.retirePersistenceAndReleaseLock` (L1242-L1246) - Method
+  - `src.core.task.index.Task.executeCommandTool` (L1249-L1255) - Method
+  - `src.core.task.index.Task.cancelBackgroundCommand` (L1261-L1263) - Method
+  - `src.core.task.index.Task.cancelHookExecution` (L1265-L1267) - Method
+  - `src.core.task.index.Task.getCurrentProviderInfo` (L1269-L1283) - Method
+  - `src.core.task.index.Task.writePromptMetadataArtifacts` (L1285-L1293) - Method
+  - `src.core.task.index.Task.getApiRequestIdSafe` (L1295-L1301) - Method
+  - `src.core.task.index.Task.handleContextWindowExceededError` (L1303-L1305) - Method
+  - `src.core.task.index.Task.handleApiRequestError` (L1307-L1318) - Method
+  - `src.core.task.index.Task.resetStreamingState` (L1320-L1332) - Method
+  - `src.core.task.index.Task.attemptApiRequest` (L1334-L1337) - Method
+  - `src.core.task.index.Task.presentAssistantMessage` (L1339-L1341) - Method
+  - `src.core.task.index.Task.recursivelyMakeDiracRequests` (L1343-L1351) - Method
+  - `src.core.task.index.Task.initializeCheckpoints` (L1353-L1355) - Method
+  - `src.core.task.index.Task.determineContextCompaction` (L1357-L1359) - Method
 - `src/core/task/message-state.ts`
   - `src.core.task.message-state.DiracMessageChange` (L34-L48) - Interface
   - `src.core.task.message-state.PresentationSnapshot` (L50-L54) - Interface
@@ -13876,6 +13978,47 @@ Declares ambient TypeScript definitions for third-party glob matching and file l
   - `src.types.proper-lockfile.d."proper-lockfile".RetryOptions` (L2-L8) - Interface
   - `src.types.proper-lockfile.d."proper-lockfile".LockOptions` (L10-L15) - Interface
   - `src.types.proper-lockfile.d."proper-lockfile".lock` (L19-L19) - Function
+
+
+### Webview UI Components
+Provides React components for the webview interface, including history view items and modular chat preview components.
+
+
+**Related Classes/Methods**:
+
+- `webview-ui.src.features.history.components.HistoryViewItem.HistoryViewItem`:35-253
+- `webview-ui.src.features.modular-ui.chat.components.HistoryPreview.HistoryPreview`:14-226
+
+
+
+**Source Files:**
+
+- `webview-ui/src/features/history/components/HistoryViewItem.tsx`
+  - `webview-ui.src.features.history.components.HistoryViewItem.HistoryViewItem` (L35-L253) - Class
+  - `webview-ui.src.features.history.components.HistoryViewItem.HistoryViewItem.navigateToChat` (L45-L45) - Class
+  - `webview-ui.src.features.history.components.HistoryViewItem.HistoryViewItem.navigateToChat.useAppStore() callback` (L45-L45) - Function
+  - `webview-ui.src.features.history.components.HistoryViewItem.HistoryViewItem.isFavoritedItem` (L58-L61) - Class
+  - `webview-ui.src.features.history.components.HistoryViewItem.HistoryViewItem.isFavoritedItem.useMemo() callback` (L59-L59) - Function
+  - `webview-ui.src.features.history.components.HistoryViewItem.HistoryViewItem.showRun` (L63-L83) - Class
+  - `webview-ui.src.features.history.components.HistoryViewItem.HistoryViewItem.showRun.useCallback() callback` (L63-L83) - Function
+  - `webview-ui.src.features.history.components.HistoryViewItem.HistoryViewItem.formatDate` (L85-L93) - Class
+  - `webview-ui.src.features.history.components.HistoryViewItem.HistoryViewItem.formatDate.useCallback() callback` (L85-L93) - Function
+  - `webview-ui.src.features.history.components.HistoryViewItem.<function>` (L165-L165) - Function
+  - `webview-ui.src.features.history.components.HistoryViewItem.HistoryViewItem.<function>.setExpanded() callback` (L165-L165) - Function
+  - `webview-ui.src.features.history.components.HistoryViewItem.HistoryViewItem.<function>` (L237-L240) - Function
+  - `webview-ui.src.features.history.components.HistoryViewItem.HistoryViewItem.<function>.catch() callback` (L240-L240) - Function
+- `webview-ui/src/features/modular-ui/chat/components/HistoryPreview.tsx`
+  - `webview-ui.src.features.modular-ui.chat.components.HistoryPreview.HistoryPreview` (L14-L226) - Class
+  - `webview-ui.src.features.modular-ui.chat.components.HistoryPreview.HistoryPreview.taskHistory` (L15-L15) - Class
+  - `webview-ui.src.features.modular-ui.chat.components.HistoryPreview.HistoryPreview.taskHistory.useTaskStore() callback` (L15-L15) - Function
+  - `webview-ui.src.features.modular-ui.chat.components.HistoryPreview.HistoryPreview.quote` (L17-L17) - Class
+  - `webview-ui.src.features.modular-ui.chat.components.HistoryPreview.HistoryPreview.quote.useMemo() callback` (L17-L17) - Function
+  - `webview-ui.src.features.modular-ui.chat.components.HistoryPreview.HistoryPreview.recentRuns` (L18-L18) - Class
+  - `webview-ui.src.features.modular-ui.chat.components.HistoryPreview.HistoryPreview.recentRuns.taskHistory.filter() callback` (L18-L18) - Function
+  - `webview-ui.src.features.modular-ui.chat.components.HistoryPreview.HistoryPreview.handleHistorySelect` (L19-L28) - Class
+  - `webview-ui.src.features.modular-ui.chat.components.HistoryPreview.HistoryPreview.handleHistorySelect.openRun.catch() callback` (L24-L27) - Function
+  - `webview-ui.src.features.modular-ui.chat.components.HistoryPreview.HistoryPreview.formatDate` (L30-L36) - Method
+  - `webview-ui.src.features.modular-ui.chat.components.HistoryPreview.HistoryPreview.map() callback` (L177-L210) - Function
 
 
 

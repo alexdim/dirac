@@ -22,33 +22,40 @@ Manages runtime application state, settings cache, conversation history, and tas
 
 - `src.core.storage.StateManager.StateManager.initialize`:168-233
 - `src.core.storage.StateManagerSettings.buildEffectiveApiConfigurationFromCache`:125-141
-- `src.core.controller.TaskHistoryController.TaskHistoryController.readOpenRouterModels`:44-56
+- `src.core.controller.TaskHistoryController.TaskHistoryController.readOpenRouterModels`:47-59
 
 
 
 **Source Files:**
 
 - `src/core/controller/TaskHistoryController.ts`
-  - `src.core.controller.TaskHistoryController.deleteRunStorage` (L26-L36) - Function
-  - `src.core.controller.TaskHistoryController.deleteRunStorage.goal.children.map() callback` (L34-L34) - Function
-  - `src.core.controller.TaskHistoryController.TaskHistoryController` (L38-L152) - Class
-  - `src.core.controller.TaskHistoryController.TaskHistoryController.constructor` (L39-L42) - Constructor
-  - `src.core.controller.TaskHistoryController.TaskHistoryController.readOpenRouterModels` (L44-L56) - Method
-  - `src.core.controller.TaskHistoryController.TaskHistoryController.getTaskWithId` (L58-L101) - Method
-  - `src.core.controller.TaskHistoryController.TaskHistoryController.getTaskWithId.runHistoryItem` (L68-L68) - Class
-  - `src.core.controller.TaskHistoryController.TaskHistoryController.getTaskWithId.runHistoryItem.history.find() callback` (L68-L68) - Function
-  - `src.core.controller.TaskHistoryController.TaskHistoryController.getRunHistoryItem` (L103-L107) - Method
-  - `src.core.controller.TaskHistoryController.TaskHistoryController.getRunHistoryItem.item` (L104-L104) - Class
-  - `src.core.controller.TaskHistoryController.TaskHistoryController.getRunHistoryItem.item.find() callback` (L104-L104) - Function
-  - `src.core.controller.TaskHistoryController.TaskHistoryController.getGoalHistoryItem` (L109-L113) - Method
-  - `src.core.controller.TaskHistoryController.TaskHistoryController.exportTaskWithId` (L115-L120) - Method
-  - `src.core.controller.TaskHistoryController.TaskHistoryController.deleteTaskFromState` (L122-L124) - Method
-  - `src.core.controller.TaskHistoryController.TaskHistoryController.updateRunHistory` (L126-L128) - Method
-  - `src.core.controller.TaskHistoryController.TaskHistoryController.updateTaskHistory` (L130-L133) - Method
-  - `src.core.controller.TaskHistoryController.TaskHistoryController.updateGoalHistory` (L135-L137) - Method
-  - `src.core.controller.TaskHistoryController.TaskHistoryController.deleteRunStorage` (L140-L142) - Method
-  - `src.core.controller.TaskHistoryController.TaskHistoryController.deleteRunWithId` (L144-L151) - Method
-  - `src.core.controller.TaskHistoryController.TaskHistoryController.deleteRunWithId.withTaskHistoryInventoryLock() callback` (L145-L150) - Function
+  - `src.core.controller.TaskHistoryController.deleteRunStorage` (L29-L39) - Function
+  - `src.core.controller.TaskHistoryController.deleteRunStorage.goal.children.map() callback` (L37-L37) - Function
+  - `src.core.controller.TaskHistoryController.TaskHistoryController` (L41-L177) - Class
+  - `src.core.controller.TaskHistoryController.TaskHistoryController.constructor` (L42-L45) - Constructor
+  - `src.core.controller.TaskHistoryController.TaskHistoryController.readOpenRouterModels` (L47-L59) - Method
+  - `src.core.controller.TaskHistoryController.TaskHistoryController.getTaskWithId` (L61-L104) - Method
+  - `src.core.controller.TaskHistoryController.TaskHistoryController.getTaskWithId.runHistoryItem` (L71-L71) - Class
+  - `src.core.controller.TaskHistoryController.TaskHistoryController.getTaskWithId.runHistoryItem.history.find() callback` (L71-L71) - Function
+  - `src.core.controller.TaskHistoryController.TaskHistoryController.getPromptHistory` (L107-L126) - Method
+  - `src.core.controller.TaskHistoryController.TaskHistoryController.getPromptHistory.runs` (L108-L118) - Class
+  - `src.core.controller.TaskHistoryController.TaskHistoryController.getPromptHistory.runs.filter() callback` (L111-L115) - Function
+  - `src.core.controller.TaskHistoryController.TaskHistoryController.getPromptHistory.runs.filter() callback.some() callback` (L114-L114) - Function
+  - `src.core.controller.TaskHistoryController.TaskHistoryController.getPromptHistory.runs.sort() callback` (L117-L117) - Function
+  - `src.core.controller.TaskHistoryController.TaskHistoryController.getPromptHistory.prompts` (L119-L124) - Class
+  - `src.core.controller.TaskHistoryController.TaskHistoryController.getPromptHistory.prompts.runs.map() callback` (L120-L123) - Function
+  - `src.core.controller.TaskHistoryController.TaskHistoryController.getRunHistoryItem` (L128-L132) - Method
+  - `src.core.controller.TaskHistoryController.TaskHistoryController.getRunHistoryItem.item` (L129-L129) - Class
+  - `src.core.controller.TaskHistoryController.TaskHistoryController.getRunHistoryItem.item.find() callback` (L129-L129) - Function
+  - `src.core.controller.TaskHistoryController.TaskHistoryController.getGoalHistoryItem` (L134-L138) - Method
+  - `src.core.controller.TaskHistoryController.TaskHistoryController.exportTaskWithId` (L140-L145) - Method
+  - `src.core.controller.TaskHistoryController.TaskHistoryController.deleteTaskFromState` (L147-L149) - Method
+  - `src.core.controller.TaskHistoryController.TaskHistoryController.updateRunHistory` (L151-L153) - Method
+  - `src.core.controller.TaskHistoryController.TaskHistoryController.updateTaskHistory` (L155-L158) - Method
+  - `src.core.controller.TaskHistoryController.TaskHistoryController.updateGoalHistory` (L160-L162) - Method
+  - `src.core.controller.TaskHistoryController.TaskHistoryController.deleteRunStorage` (L165-L167) - Method
+  - `src.core.controller.TaskHistoryController.TaskHistoryController.deleteRunWithId` (L169-L176) - Method
+  - `src.core.controller.TaskHistoryController.TaskHistoryController.deleteRunWithId.withTaskHistoryInventoryLock() callback` (L170-L175) - Function
 - `src/core/storage/StateManager.ts`
   - `src.core.storage.StateManager.StateManager` (L87-L471) - Class
   - `src.core.storage.StateManager.onPersistenceError` (L107-L109) - Method
@@ -590,15 +597,15 @@ Provides low-level file and blob storage implementations, state and provider key
   - `src.shared.storage.state-keys.USER_SETTINGS_FIELDS.browserSettings.transform` (L251-L251) - Method
   - `src.shared.storage.state-keys.USER_SETTINGS_FIELDS.autoCondenseContextLimits.transform` (L268-L273) - Method
   - `src.shared.storage.state-keys.USER_SETTINGS_FIELDS.autoCondenseContextLimits.transform.filter() callback` (L271-L271) - Function
-  - `src.shared.storage.state-keys.extractDefaults` (L444-L450) - Function
-  - `src.shared.storage.state-keys.extractDefaults.map() callback` (L447-L447) - Function
-  - `src.shared.storage.state-keys.extractDefaults.filter() callback` (L448-L448) - Function
-  - `src.shared.storage.state-keys.extractTransforms` (L452-L458) - Function
-  - `src.shared.storage.state-keys.extractTransforms.filter() callback` (L455-L455) - Function
-  - `src.shared.storage.state-keys.extractTransforms.map() callback` (L456-L456) - Function
-  - `src.shared.storage.state-keys.extractMetadata` (L460-L466) - Function
-  - `src.shared.storage.state-keys.extractMetadata.filter() callback` (L463-L463) - Function
-  - `src.shared.storage.state-keys.extractMetadata.map() callback` (L464-L464) - Function
+  - `src.shared.storage.state-keys.extractDefaults` (L445-L451) - Function
+  - `src.shared.storage.state-keys.extractDefaults.map() callback` (L448-L448) - Function
+  - `src.shared.storage.state-keys.extractDefaults.filter() callback` (L449-L449) - Function
+  - `src.shared.storage.state-keys.extractTransforms` (L453-L459) - Function
+  - `src.shared.storage.state-keys.extractTransforms.filter() callback` (L456-L456) - Function
+  - `src.shared.storage.state-keys.extractTransforms.map() callback` (L457-L457) - Function
+  - `src.shared.storage.state-keys.extractMetadata` (L461-L467) - Function
+  - `src.shared.storage.state-keys.extractMetadata.filter() callback` (L464-L464) - Function
+  - `src.shared.storage.state-keys.extractMetadata.map() callback` (L465-L465) - Function
 - `src/shared/storage/storage-context.ts`
   - `src.shared.storage.storage-context.StorageContext` (L15-L39) - Interface
   - `src.shared.storage.storage-context.StorageContextOptions` (L41-L62) - Interface

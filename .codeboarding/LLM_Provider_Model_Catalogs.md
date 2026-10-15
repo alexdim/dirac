@@ -18,7 +18,7 @@ Defines model catalogs, pricing configurations, defaults, and reasoning capabili
 
 - `src.shared.api.models.anthropic.getAnthropicReasoningEffort`:97-103
 - `src.shared.api.models.anthropic.isAnthropicAdaptiveThinkingSupported`:111-142
-- `src.shared.api.models.vertex.vertexGlobalModels`:279-281
+- `src.shared.api.models.vertex.vertexGlobalModels`:289-291
 
 
 
@@ -32,8 +32,8 @@ Defines model catalogs, pricing configurations, defaults, and reasoning capabili
 - `src/shared/api/models/qwen-mainland.ts`
   - `src.shared.api.models.qwen-mainland.QwenApiRegions` (L4-L7) - Enum
 - `src/shared/api/models/vertex.ts`
-  - `src.shared.api.models.vertex.vertexGlobalModels` (L279-L281) - Class
-  - `src.shared.api.models.vertex.vertexGlobalModels.filter() callback` (L280-L280) - Function
+  - `src.shared.api.models.vertex.vertexGlobalModels` (L289-L291) - Class
+  - `src.shared.api.models.vertex.vertexGlobalModels.filter() callback` (L290-L290) - Function
 
 
 ### Core Model Schemas & OpenAI Model Definitions

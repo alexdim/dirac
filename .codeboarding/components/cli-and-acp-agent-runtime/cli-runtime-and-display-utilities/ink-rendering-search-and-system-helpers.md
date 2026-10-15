@@ -73,20 +73,20 @@ export async function runInkApp(element: any, cleanup: () => Promise<void>): Pro
 
 ### /Users/highlands/pools/Development/dirac/cli/src/utils/timeline-rows.ts (lines 31-44)
 ```
+
 export function estimateTimelineMessageBodyRows(
 	message: DiracMessage,
 	terminalColumns: number,
 	suppressCardBody = false,
 ): number {
 	if (message.content.type === DiracMessageType.MARKDOWN) {
-		return estimateVisualLineCount(message.content.content, Math.max(1, terminalColumns - MESSAGE_CONTENT_COLUMNS))
+		return renderMarkdownLines(message.content.content, Math.max(1, terminalColumns - MESSAGE_CONTENT_COLUMNS)).length
 	}
 
 	if (message.content.type !== DiracMessageType.CARD || suppressCardBody) return 0
 	const body = cardBodyForDisplay(message.content.card.body, message.content.card.renderType)
 	if (!body) return 0
-	return estimateVisualLineCount(body, Math.max(1, terminalColumns - CARD_BODY_COLUMNS))
-}
+	const width = Math.max(1, terminalColumns - CARD_BODY_COLUMNS)
 ```
 
 ### /Users/highlands/pools/Development/dirac/cli/src/utils/acp-file-logger.ts (lines 19-28)

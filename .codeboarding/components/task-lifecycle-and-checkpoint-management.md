@@ -37,6 +37,8 @@ export class Task {
 	}
 
 	private readonly conversationPersistenceHooks?: TaskConversationPersistenceHooks
+	private readonly releaseTaskLock?: () => Promise<void>
+	private persistenceRetirementPromise?: Promise<void>
 
 	// ONE mutex for ALL state modifications to prevent race conditions
 	private stateMutex = new Mutex()
@@ -301,7 +303,7 @@ export class Task {
 			historyItem,
 			taskId,
 			conversationUlid,
-			taskLockAcquired,
+			releaseTaskLock,
 			updateBackgroundCommandState,
 		} = params
 
@@ -326,7 +328,7 @@ export class Task {
 		this.workspaceManager = workspaceManager
 		this.cwd = cwd
 		this.taskId = taskId
-		this.taskState.taskLockAcquired = taskLockAcquired
+		this.releaseTaskLock = releaseTaskLock
 		this.terminalExecutionMode = vscodeTerminalExecutionMode || "vscodeTerminal"
 		this.switchToActMode = params.switchToActMode ?? (() => this.host.toggleActModeForYoloMode())
 		this.enqueuePreRequestSteeringMessages = params.enqueuePreRequestSteeringMessages ?? (async () => undefined)
@@ -1063,10 +1065,18 @@ export class Task {
 	private async settleTaskRun(candidate: TaskRunOutcome): Promise<TaskRunOutcome> {
 		let outcome = candidate
 		if (this.executionProfile !== "standalone") {
+			const failures: unknown[] = []
 			try {
 				await this.lifecycleManager.finalizeTaskRun()
 			} catch (error) {
-				const failures: unknown[] = [error]
+				failures.push(error)
+			}
+			try {
+				await this.retirePersistence()
+			} catch (error) {
+				failures.push(error)
+			}
+			if (failures.length > 0) {
 				if (candidate.kind === "failed") {
 					failures.unshift(new Error(`${candidate.error.name}: ${candidate.error.message}`))
 				}
@@ -1098,8 +1108,16 @@ export class Task {
 		return this.lifecycleManager.abortTask()
 	}
 
+	/** Retires this writer before releasing exclusive ownership, once per task instance. */
 	async retirePersistence(): Promise<void> {
+		this.persistenceRetirementPromise ??= this.retirePersistenceAndReleaseLock()
+		await this.persistenceRetirementPromise
+	}
+
+	private async retirePersistenceAndReleaseLock(): Promise<void> {
+		await this.messageStateHandler.flushPendingWrites()
 		await this.messageStateHandler.retirePersistence()
+		await this.releaseTaskLock?.()
 	}
 
 	// Tools
@@ -1197,24 +1215,6 @@ export class Task {
 		return this.responseProcessor.presentAssistantMessage()
 	}
 
-	async recursivelyMakeDiracRequests(userContent: DiracContent[], includeFileDetails = false): Promise<boolean> {
-		const runtime = createTaskRequestRuntime(this.workingConfiguration, this.api)
-		this.activeRequestRuntime = runtime
-		try {
-			return await recursivelyMakeDiracRequests(this.requestLoopContext(runtime), userContent, includeFileDetails)
-		} finally {
-			if (this.activeRequestRuntime === runtime) this.activeRequestRuntime = undefined
-		}
-	}
-
-	private async initializeCheckpoints(isFirstRequest: boolean): Promise<void> {
-		return this.lifecycleManager.initializeCheckpoints(isFirstRequest)
-	}
-
-	private async determineContextCompaction(previousApiReqIndex: number): Promise<boolean> {
-		return this.apiConversationManager.determineContextCompaction(previousApiReqIndex)
-	}
-}
 ```
 
 ### /Users/highlands/pools/Development/dirac/src/core/task/TaskRequestLoop.ts (lines 47-447)
@@ -2133,7 +2133,6 @@ export class ToolExecutor {
 
 ### /Users/highlands/pools/Development/dirac/src/core/task/LifecycleManager.ts (lines 48-729)
 ```
-export class LifecycleManager {
 	private abortPromise?: Promise<void>
 	private ownedResourceCleanupPromise?: Promise<void>
 
@@ -2779,15 +2778,6 @@ export class LifecycleManager {
 
 		failures.push(...(await this.disposeTaskResources()))
 
-		if (this.dependencies.taskState.taskLockAcquired) {
-			try {
-				await releaseTaskLock(this.dependencies.taskId)
-				this.dependencies.taskState.taskLockAcquired = false
-				Logger.info(`[Task ${this.dependencies.taskId}] Task lock released`)
-			} catch (error) {
-				failures.push(error)
-			}
-		}
 
 		if (failures.length === 1) throw failures[0]
 		if (failures.length > 1) throw new AggregateError(failures, "Task resource cleanup failed")
@@ -2815,6 +2805,7 @@ export class LifecycleManager {
 		return failures
 	}
 }
+
 ```
 
 

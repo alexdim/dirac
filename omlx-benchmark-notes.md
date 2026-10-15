@@ -159,3 +159,31 @@ curl -s -X PUT http://127.0.0.1:8000/admin/api/models/Tiel-Coder-35B-A3B-MLX-oQ4
   -H "Authorization: Bearer 1234" -H "Content-Type: application/json" \
   -d '{"external_engine":null}'
 ```
+
+---
+
+## 6. Production Validation — `codeboarding incremental` on `occamy-1.0-oQ4e-mtp` + Splash
+
+Executed `codeboarding incremental --local . --render md` on `dirac` (`v0.5.21`, 63 changed files across `A=12 M=51 D=0`):
+
+```bash
+env -u GOOGLE_API_KEY \
+  OPENAI_BASE_URL=http://127.0.0.1:8000/v1 \
+  OPENAI_API_KEY=1234 \
+  AGENT_MODEL=occamy-1.0-oQ4e-mtp \
+  CB_CTX_OPENAI_OCCAMY_1_0_OQ4E_MTP=131072,32768 \
+  DO_NOT_TRACK=1 CODEBOARDING_TELEMETRY=false \
+  codeboarding incremental --local . --render md
+```
+
+| Metric | Measured Value (`omlx--occamy-1.0-oQ4e-mtp-54ab0f1a.log`) |
+|---|---|
+| **Changed files analyzed** | 63 files (`15` root + `178` sub-components, `1,092` relations, `39` docs updated) |
+| **LLM calls** | 30 requests (including multi-turn `read_file` tool calls) |
+| **Total input tokens** | 366,474 tokens (up to 77,160 tokens in a single scope) |
+| **Splash prefix-cache hits** | **206,368 tokens cached (56.3% hit rate)** — 2,400-token system/tool header cached on every scope + 65,920-token hit on tool-call follow-up |
+| **Total output tokens** | 127,055 tokens (thinking + tool calls + structured JSON) |
+| **Decode throughput range** | **125.3 – 245.2 tok/s** (median **~173 tok/s**, **3.3 – 7.0 tok/cycle** DFlash2 acceptance) |
+| **Structured output success** | **19 / 20 scopes** on first pass (1 deterministic naming fallback) |
+| **LLM wall-clock duration** | **15 min 07 s** (`13:16:42` → `13:31:49`) |
+

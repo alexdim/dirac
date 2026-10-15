@@ -84,6 +84,11 @@ export class GoalTaskHost implements GoalChildSurfaceOwner {
 					failures.push(abortError)
 				}
 				try {
+					await task.retirePersistence()
+				} catch (retirementError) {
+					failures.push(retirementError)
+				}
+				try {
 					record = await this.recordStartupFailure(taskId, error)
 				} catch (recordError) {
 					failures.push(recordError)
@@ -722,11 +727,6 @@ ${childSummary || "No contained Tasks have been recorded."}
 		} catch (error) {
 			finalizationError = error
 		}
-		this.pendingInteractions.delete(key)
-		pending.reject(new Error(reason))
-		if (finalizationError) throw finalizationError
-	}
-}
 ```
 
 ### /Users/highlands/pools/Development/dirac/src/core/goal/GoalTaskHost.ts (lines 55-60)

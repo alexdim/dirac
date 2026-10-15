@@ -6,8 +6,8 @@ graph LR
     Storage_Directory_Provisioning["Storage Directory Provisioning"]
     Remote_Config_Cache_Storage_Filenames["Remote Config Cache & Storage Filenames"]
     State_Manager_Persistence -- "persists task history mutations and task settings via" --> Task_History_Task_Storage
-    Task_History_Task_Storage -- "queries and mutates task history state in" --> State_Manager_Persistence
-    Task_History_Task_Storage -- "loads saved conversation history from" --> Conversation_History_Operation_Log
+    Task_History_Task_Storage -- "reads and mutates in-memory state via" --> State_Manager_Persistence
+    Task_History_Task_Storage -- "reads conversation transcripts via" --> Conversation_History_Operation_Log
     Task_History_Task_Storage -- "ensures task, state, and cache directories via" --> Storage_Directory_Provisioning
     Conversation_History_Operation_Log -- "writes conversation files atomically via" --> Task_History_Task_Storage
     Conversation_History_Operation_Log -- "ensures task directories exist via" --> Storage_Directory_Provisioning
@@ -268,7 +268,7 @@ Controls task and run history lifecycle, persists task settings and metadata to 
 
 **Related Classes/Methods**:
 
-- `src.core.controller.TaskHistoryController.TaskHistoryController`:38-152
+- `src.core.controller.TaskHistoryController.TaskHistoryController`:41-177
 - `src.core.storage.taskHistory.applyTaskHistoryMutations`:238-285
 - `src.core.storage.taskStorage.readTaskSettingsFromStorage`:75-88
 - `src.core.storage.atomicWrite.atomicWriteFile`:5-14
@@ -278,26 +278,33 @@ Controls task and run history lifecycle, persists task settings and metadata to 
 **Source Files:**
 
 - `src/core/controller/TaskHistoryController.ts`
-  - `src.core.controller.TaskHistoryController.deleteRunStorage` (L26-L36) - Function
-  - `src.core.controller.TaskHistoryController.deleteRunStorage.goal.children.map() callback` (L34-L34) - Function
-  - `src.core.controller.TaskHistoryController.TaskHistoryController` (L38-L152) - Class
-  - `src.core.controller.TaskHistoryController.TaskHistoryController.constructor` (L39-L42) - Constructor
-  - `src.core.controller.TaskHistoryController.TaskHistoryController.readOpenRouterModels` (L44-L56) - Method
-  - `src.core.controller.TaskHistoryController.TaskHistoryController.getTaskWithId` (L58-L101) - Method
-  - `src.core.controller.TaskHistoryController.TaskHistoryController.getTaskWithId.runHistoryItem` (L68-L68) - Class
-  - `src.core.controller.TaskHistoryController.TaskHistoryController.getTaskWithId.runHistoryItem.history.find() callback` (L68-L68) - Function
-  - `src.core.controller.TaskHistoryController.TaskHistoryController.getRunHistoryItem` (L103-L107) - Method
-  - `src.core.controller.TaskHistoryController.TaskHistoryController.getRunHistoryItem.item` (L104-L104) - Class
-  - `src.core.controller.TaskHistoryController.TaskHistoryController.getRunHistoryItem.item.find() callback` (L104-L104) - Function
-  - `src.core.controller.TaskHistoryController.TaskHistoryController.getGoalHistoryItem` (L109-L113) - Method
-  - `src.core.controller.TaskHistoryController.TaskHistoryController.exportTaskWithId` (L115-L120) - Method
-  - `src.core.controller.TaskHistoryController.TaskHistoryController.deleteTaskFromState` (L122-L124) - Method
-  - `src.core.controller.TaskHistoryController.TaskHistoryController.updateRunHistory` (L126-L128) - Method
-  - `src.core.controller.TaskHistoryController.TaskHistoryController.updateTaskHistory` (L130-L133) - Method
-  - `src.core.controller.TaskHistoryController.TaskHistoryController.updateGoalHistory` (L135-L137) - Method
-  - `src.core.controller.TaskHistoryController.TaskHistoryController.deleteRunStorage` (L140-L142) - Method
-  - `src.core.controller.TaskHistoryController.TaskHistoryController.deleteRunWithId` (L144-L151) - Method
-  - `src.core.controller.TaskHistoryController.TaskHistoryController.deleteRunWithId.withTaskHistoryInventoryLock() callback` (L145-L150) - Function
+  - `src.core.controller.TaskHistoryController.deleteRunStorage` (L29-L39) - Function
+  - `src.core.controller.TaskHistoryController.deleteRunStorage.goal.children.map() callback` (L37-L37) - Function
+  - `src.core.controller.TaskHistoryController.TaskHistoryController` (L41-L177) - Class
+  - `src.core.controller.TaskHistoryController.TaskHistoryController.constructor` (L42-L45) - Constructor
+  - `src.core.controller.TaskHistoryController.TaskHistoryController.readOpenRouterModels` (L47-L59) - Method
+  - `src.core.controller.TaskHistoryController.TaskHistoryController.getTaskWithId` (L61-L104) - Method
+  - `src.core.controller.TaskHistoryController.TaskHistoryController.getTaskWithId.runHistoryItem` (L71-L71) - Class
+  - `src.core.controller.TaskHistoryController.TaskHistoryController.getTaskWithId.runHistoryItem.history.find() callback` (L71-L71) - Function
+  - `src.core.controller.TaskHistoryController.TaskHistoryController.getPromptHistory` (L107-L126) - Method
+  - `src.core.controller.TaskHistoryController.TaskHistoryController.getPromptHistory.runs` (L108-L118) - Class
+  - `src.core.controller.TaskHistoryController.TaskHistoryController.getPromptHistory.runs.filter() callback` (L111-L115) - Function
+  - `src.core.controller.TaskHistoryController.TaskHistoryController.getPromptHistory.runs.filter() callback.some() callback` (L114-L114) - Function
+  - `src.core.controller.TaskHistoryController.TaskHistoryController.getPromptHistory.runs.sort() callback` (L117-L117) - Function
+  - `src.core.controller.TaskHistoryController.TaskHistoryController.getPromptHistory.prompts` (L119-L124) - Class
+  - `src.core.controller.TaskHistoryController.TaskHistoryController.getPromptHistory.prompts.runs.map() callback` (L120-L123) - Function
+  - `src.core.controller.TaskHistoryController.TaskHistoryController.getRunHistoryItem` (L128-L132) - Method
+  - `src.core.controller.TaskHistoryController.TaskHistoryController.getRunHistoryItem.item` (L129-L129) - Class
+  - `src.core.controller.TaskHistoryController.TaskHistoryController.getRunHistoryItem.item.find() callback` (L129-L129) - Function
+  - `src.core.controller.TaskHistoryController.TaskHistoryController.getGoalHistoryItem` (L134-L138) - Method
+  - `src.core.controller.TaskHistoryController.TaskHistoryController.exportTaskWithId` (L140-L145) - Method
+  - `src.core.controller.TaskHistoryController.TaskHistoryController.deleteTaskFromState` (L147-L149) - Method
+  - `src.core.controller.TaskHistoryController.TaskHistoryController.updateRunHistory` (L151-L153) - Method
+  - `src.core.controller.TaskHistoryController.TaskHistoryController.updateTaskHistory` (L155-L158) - Method
+  - `src.core.controller.TaskHistoryController.TaskHistoryController.updateGoalHistory` (L160-L162) - Method
+  - `src.core.controller.TaskHistoryController.TaskHistoryController.deleteRunStorage` (L165-L167) - Method
+  - `src.core.controller.TaskHistoryController.TaskHistoryController.deleteRunWithId` (L169-L176) - Method
+  - `src.core.controller.TaskHistoryController.TaskHistoryController.deleteRunWithId.withTaskHistoryInventoryLock() callback` (L170-L175) - Function
 - `src/core/storage/atomicWrite.ts`
   - `src.core.storage.atomicWrite.atomicWriteFile` (L5-L14) - Function
   - `src.core.storage.atomicWrite.atomicWriteFile.catch() callback` (L11-L11) - Function

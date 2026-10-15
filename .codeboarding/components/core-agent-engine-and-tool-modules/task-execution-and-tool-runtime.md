@@ -224,7 +224,6 @@ export class TaskState {
 	totalToolCallCount = 0
 
 	lastAutoCondenseTriggerIndex?: number
-	taskLockAcquired = false
 	initialCheckpointCommitPromise?: Promise<string | undefined>
 	availableSkills: SkillMetadata[] = []
 	discoveredSkillsCache?: SkillMetadata[]
@@ -265,6 +264,7 @@ export class TaskState {
 	pendingUserImages?: string[]
 	pendingUserFiles?: string[]
 }
+
 ```
 
 ### /Users/highlands/pools/Development/dirac/src/core/task/ContextLoader.ts (lines 14-151)
