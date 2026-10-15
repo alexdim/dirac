@@ -56,27 +56,18 @@ Feasible variants:
 
 The entire implementation is readable locally at `~/Library/Application Support/pipx/venvs/codeboarding/lib/python3.12/site-packages/` (`static_analyzer/`, `diagram_analysis/`, `agents/`, `output_generators/`).
 
-## Coverage gaps (real source files not analyzed)
+## Coverage gaps (remaining un-analyzed files)
 
-Snapshot of `file_coverage.json` after the incremental run of 2026-10-15 ~17:41 (webview expansion run): 2,538 total files, **1,567 analyzed** (was 1,270), 972 skipped. Only **one code file** remains un-analyzed: `cli/dirac.rb` (Ruby, no extractor). Backend and frontend source are now fully covered; the remaining gaps are non-TS file types.
+Snapshot of `file_coverage.json` after the incremental run of 2026-10-15 ~17:41: 2,538 total files, **1,567 analyzed**, 972 skipped. All TypeScript source (backend `src/` + `cli/` + `webview-ui/`) is covered. Remaining gaps are file types with no extractor:
 
-### 1. `webview-ui/` React frontend — 310 files — FIXED (root cause: solution-style tsconfig)
+- **`cli/dirac.rb`** — the only un-analyzed code file (Ruby).
+- **Protobuf contracts — 19 files**: `proto/dirac/` (extension↔core gRPC: `task`, `browser`, `checkpoints`, `commands`, `common`, `file`, `goal`, `hooks`, `models`, `slash`, `state`, `ui`, `web`, `worktree`) and `proto/host/` (host-IDE bridge: `diff`, `env`, `testing`, `window`, `workspace`). The "Dirac Protocol Message Definitions" component exists but its sources were never extracted.
+- **Build/release scripts — 16 files** in `scripts/`: `add-endpoints-to-{jetbrains,npm,vsix}.sh`, `build-cli-artifact.sh`, `check-architecture.sh`, `package-cli.sh`, `publish.sh`, `publish-extension.sh` (deprecated shim), `proto-lint.sh`, `install.sh`, `test-install.sh`, `test-bundled-endpoints.sh`, `run-extension-host.sh`, `rundiraccore.sh`, `get-vscode-usages.sh`, `review-by-category.sh`.
 
-Scope 16 ("Webview UI Components") sampled only 2/~600 files because `webview-ui/tsconfig.json` is a solution file (`files: []` + `references:` → `tsc --showConfig` returns zero owned files, so `typescript_config_scanner` skipped the whole project; the scanner only discovers `tsconfig.json`/`jsconfig.json` filenames, never `tsconfig.app.json`). Fix applied: replaced `files: []` with `include: ["src/**/*"]` in `webview-ui/tsconfig.json` (safe — nothing in the build reads this file; typecheck targets `tsconfig.app.json`/`tsconfig.node.json` directly). Then removed the 320 `webview-ui/*` entries from `fingerprint.json` so the incremental diff treats them as added (A=320). Result: 301 webview files analyzed, component 16 now has real semantics and 3 relations in `overview.md`. Worth reporting upstream: solution-style tsconfigs should fall back to resolving `references:` leaf projects.
+Everything else skipped is intentional: ~800 test files, ~120 docs/locales/assets, ~60 configs (`*.json`, `*.html`, `*.css`, `*.svg`).
 
-### 2. Protobuf contracts — 19 files (unsupported file type)
+### Upstream-reportable bugs found while fixing coverage
 
-`proto/dirac/` — the extension↔core gRPC surface: `task.proto` (TaskService: cancel/clear/size), `browser.proto` (BrowserService: Chrome discovery/relaunch), `checkpoints.proto`, `commands.proto`, `common.proto`, `file.proto`, `goal.proto`, `hooks.proto`, `models.proto`, `slash.proto`, `state.proto`, `ui.proto`, `web.proto`, `worktree.proto`.
-`proto/host/` — the host-IDE bridge surface: `diff.proto`, `env.proto`, `testing.proto`, `window.proto`, `workspace.proto`.
-
-The "Dirac Protocol Message Definitions" component exists in the docs but its sources were never extracted.
-
-### 3. Build/release scripts — 16 files (unsupported file type)
-
-`scripts/`: `add-endpoints-to-{jetbrains,npm,vsix}.sh` (enterprise endpoint injection), `build-cli-artifact.sh` (CLI release via GitHub Actions), `check-architecture.sh` (TECH-DEBT-PLAN architecture guard), `package-cli.sh`, `publish.sh` (unified resumable publisher), `publish-extension.sh` (deprecated shim → publish.sh), `proto-lint.sh`, `install.sh`, `test-install.sh`, `test-bundled-endpoints.sh`, `run-extension-host.sh`, `rundiraccore.sh`, `get-vscode-usages.sh`, `review-by-category.sh` (PR #125 helper).
-
-### 4. Previously over-ignored — FIXED in commit e171bd4b
-
-`src/hosts/vscode/hostbridge/env/*` (9 files, caught by `env/` venv pattern), `src/services/temp/*` (2 files, caught by `temp/`), `hostbridge/testing/getWebviewHtml.ts` (`**/testing/**`), `vite.config.ts`/`vitest.config.ts`/`platform.config.ts` (`*.config.*`). All now analyzed; spawned the new "VS Code Hostbridge Environment Services" component.
-
-Everything else skipped is intentional or non-source: ~800 test files (`__tests__`, `*.test.*`, e2e), ~120 docs/locales/assets, and ~60 config/metadata files (`*.json`, `*.html`, `*.css`, `*.svg`).
+- **Solution-style tsconfig silently drops packages**: `typescript_config_scanner` only discovers `tsconfig.json`/`jsconfig.json`; a monorepo package whose `tsconfig.json` is `files: []` + `references:` yields zero owned files from `tsc --showConfig` and the entire package is skipped (cost us all 310 `webview-ui` files). It should resolve `references:` leaf projects. Workaround committed: `webview-ui/tsconfig.json` now uses `include: ["src/**/*"]`.
+- **`.codeboardingignore` stock patterns over-match real source**: `env/` (meant for Python venvs) swallowed `src/hosts/vscode/hostbridge/env/`, `temp/` swallowed `src/services/temp/`, `**/testing/**` swallowed `hostbridge/testing/`, `*.config.*` swallowed `platform.config.ts`. Fixed with trailing negations (commit `e171bd4b`); patterns should be root-anchored or file-type-scoped upstream.
+- **Incremental fingerprint trick**: deleting entries from `.codeboarding/fingerprint.json` forces the next `incremental` run to treat those files as added (A=N) — useful for re-analyzing previously-capped scopes without touching source.
