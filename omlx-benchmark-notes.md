@@ -187,3 +187,27 @@ env -u GOOGLE_API_KEY \
 | **Structured output success** | **19 / 20 scopes** on first pass (1 deterministic naming fallback) |
 | **LLM wall-clock duration** | **15 min 07 s** (`13:16:42` → `13:31:49`) |
 
+---
+
+## 7. Dense 27B Benchmarks (`Dirk-Qwen3.8-27B-MLX-oQ4e` & `Qwen3.8-27B-oQ4e-mtp`)
+
+### Checkpoint & Community Update Status (Verified 2026-10-15)
+
+- **`peculiar-ragdoll/Dirk-Qwen3.8-27B-MLX-oQ4e`**: Local checkpoint matches HF `main` (`sha: 17bdf113...`, last modified `2026-09-10`). No newer Dirk 27B oQ4e revision exists upstream.
+- **`Jundot/Qwen3.8-27B-oQ4e-mtp`**: Local checkpoint matches HF `main` (`sha: 49c1d603...`, last modified `2026-10-12`). All files identical.
+- **`omlx.ai` community optimal settings (`ga7gloxj` / `7jkq3hk3`)**: Community entries on M5 Max 64 GB switched from `turboquant_kv_enabled: true` + `mtp_fixed_depth: 3` to **raw KV (`turboquant_kv_enabled: false`) + `mtp_adaptive_max_depth: 4` + `qwen35_oq_a8_enabled: true`** (`1,376.8 PP / 63.9 TG t/s` on `code_python` @4k; `997.1 PP / 98.5 TG t/s` on `code_mixed`).
+- **Splash DFlash2 Drafter**: Downloaded `incoai/Qwen3.8-27B-DFlash2` to `/Users/highlands/.lmstudio/models/incoai/Qwen3.8-27B-DFlash2`. Splash calibrated ANE FFN offload (`ane_ffn: state=split, share=0.32, minimum_rows=1589, 21.0 ms vs 25.8 ms GPU alone`).
+
+### Why `VLMBatchedEngine` (`override=null`) Beats Both `BatchedEngine` (`override="llm"`) and Splash on Dense 27B `oQ4e`
+
+On dense `qwen3_5` (Qwen3.8-27B), `VLMBatchedEngine` (`engine/vlm.py`) compiles **`qwen35_packed_linear` (`Qwen packed 4-bit projections: 296 layers`)** and enables `oQ A8` prefill across **1,266 modules** (versus 0 packed projections and only 986 `oQ A8` modules on `BatchedEngine` when `model_type_override: "llm"` was set on Dirk), alongside `qwen35_gdn_prework` and `qwen35_verify_sdpa_split`. Removing `model_type_override: "llm"` from `Dirk-Qwen3.8-27B-MLX-oQ4e` reduced its 64-layer backbone verify step from **64.4–74.7 ms/cycle** to **41.3–46.7 ms/cycle** (+72%–85% decode, +58% prefill). Conversely, Splash 1.3.2 is slower than `VLMBatchedEngine` on mixed-bit `oQ4e` dense 27B checkpoints and uses ~8.5 GB more RAM.
+
+| Model & Engine Configuration | Prefill @ 1k / 4k | Decode @ 1k / 4k (`thinking=off`, 128t) | Decode @ 1k / 4k (`thinking=on`, 256t) | Batch x2 / x4 TG @ 1k | Memory (Actual / Planned) | Verdict |
+|---|---:|---:|---:|---:|---:|---|
+| **`Qwen3.8-27B-oQ4e-mtp` + MLX (`VLMBatchedEngine`, `override=null`)** | **960.8 / 1,183.2 t/s** (1,376.8 raw bench) | **65.7 / 63.9 t/s** (15.3–15.8 ms TPOT) | **68.8 / 58.8 t/s** (14.6–17.1 ms TPOT) | — | **16.76 GB** | **Best 27B config (applied)** |
+| **`Dirk-Qwen3.8-27B-MLX-oQ4e` + MLX (`VLMBatchedEngine`, `override=null`)** | **977.6 / 1,216.0 t/s** | **59.8 / 60.4 t/s** (16.7–16.8 ms TPOT) | **51.9 / 62.5 t/s** (16.1–19.4 ms TPOT) | — | **16.15 GB** | **Best Dirk config (applied; +72–85% over `llm` override)** |
+| `Dirk-Qwen3.8-27B-MLX-oQ4e` + MLX (`BatchedEngine`, `override="llm"` — old setting) | 617.9 / 776.7 t/s | 38.1 / 35.0 t/s (26.5–28.8 ms TPOT) | 34.6 / 33.7 t/s (29.0–29.8 ms TPOT) | — | 15.16 GB | Missing `qwen35_packed_linear` (296 layers) & VLM Metal patches |
+| `Dirk-Qwen3.8-27B-MLX-oQ4e` + **Splash 1.3.2** (`DFlash2` + `ane_ffn` 0.32) | 639.8 / 756.5 t/s | 45.1 (40t) / 69.5 t/s | — | 88.5 (76t) / 214.3 t/s (336t) | 24.75 GB | Slower prefill & higher memory than MLX `VLMBatchedEngine` |
+| `Qwen3.8-27B-oQ4e-mtp` + **Splash 1.3.2** (`DFlash2` + `ane_ffn` 0.32) | 580.6 / 603.5 t/s | 51.1 / 36.4 t/s (19.7–27.7 ms TPOT) | — | 87.7 (256t) / 174.1 t/s (512t) | 25.08 / 26.93 GB | Slower prefill & decode than MLX `VLMBatchedEngine` |
+
+
