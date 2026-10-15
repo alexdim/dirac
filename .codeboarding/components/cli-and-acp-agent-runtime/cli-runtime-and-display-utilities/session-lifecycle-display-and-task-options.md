@@ -679,4 +679,5 @@ export function cardBodyForDisplay(body: string | undefined, renderType: RenderT
 - `cli/src/utils/standalone-card-policy.ts`
 - `cli/src/utils/state.ts`
 - `cli/src/utils/update.ts`
+- `cli/src/utils/vim-editor.ts`
 

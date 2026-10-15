@@ -13,7 +13,7 @@ Executes agent tasks, tool modules, subagents, goals, lifecycle hooks, command p
 
 ## Key References:
 
-### /Users/highlands/pools/Development/dirac/src/core/task/TaskState.ts (lines 22-271)
+### /Users/highlands/pools/Development/dirac/src/core/task/TaskState.ts (lines 22-270)
 ```
 export class TaskState {
 	status: TaskStatus = TaskStatus.IDLE
@@ -264,7 +264,6 @@ export class TaskState {
 	pendingUserImages?: string[]
 	pendingUserFiles?: string[]
 }
-
 ```
 
 ### /Users/highlands/pools/Development/dirac/src/core/task/ContextLoader.ts (lines 14-151)

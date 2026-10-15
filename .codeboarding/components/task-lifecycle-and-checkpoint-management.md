@@ -13,7 +13,7 @@ Executes the core task request loop, tool invocation pipeline, conversation stat
 
 ## Key References:
 
-### /Users/highlands/pools/Development/dirac/src/core/task/index.ts (lines 143-1342)
+### /Users/highlands/pools/Development/dirac/src/core/task/index.ts (lines 143-1360)
 ```
 export class Task {
 	// Core task variables
@@ -1215,6 +1215,24 @@ export class Task {
 		return this.responseProcessor.presentAssistantMessage()
 	}
 
+	async recursivelyMakeDiracRequests(userContent: DiracContent[], includeFileDetails = false): Promise<boolean> {
+		const runtime = createTaskRequestRuntime(this.workingConfiguration, this.api)
+		this.activeRequestRuntime = runtime
+		try {
+			return await recursivelyMakeDiracRequests(this.requestLoopContext(runtime), userContent, includeFileDetails)
+		} finally {
+			if (this.activeRequestRuntime === runtime) this.activeRequestRuntime = undefined
+		}
+	}
+
+	private async initializeCheckpoints(isFirstRequest: boolean): Promise<void> {
+		return this.lifecycleManager.initializeCheckpoints(isFirstRequest)
+	}
+
+	private async determineContextCompaction(previousApiReqIndex: number): Promise<boolean> {
+		return this.apiConversationManager.determineContextCompaction(previousApiReqIndex)
+	}
+}
 ```
 
 ### /Users/highlands/pools/Development/dirac/src/core/task/TaskRequestLoop.ts (lines 47-447)
@@ -2131,8 +2149,9 @@ export class ToolExecutor {
 }
 ```
 
-### /Users/highlands/pools/Development/dirac/src/core/task/LifecycleManager.ts (lines 48-729)
+### /Users/highlands/pools/Development/dirac/src/core/task/LifecycleManager.ts (lines 47-719)
 ```
+export class LifecycleManager {
 	private abortPromise?: Promise<void>
 	private ownedResourceCleanupPromise?: Promise<void>
 
@@ -2805,7 +2824,6 @@ export class ToolExecutor {
 		return failures
 	}
 }
-
 ```
 
 

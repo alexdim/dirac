@@ -7,7 +7,7 @@ component_name: Terminal Commands & Ink UI Components
 
 ## Component Description
 
-Implements CLI subcommands, React Ink terminal views, settings subpages, theme constants, and mocked VS Code extension context for interactive terminal execution.
+Implements CLI subcommands and React Ink terminal views, plus theme constants and mocked VS Code context, to drive interactive terminal sessions.
 
 ---
 

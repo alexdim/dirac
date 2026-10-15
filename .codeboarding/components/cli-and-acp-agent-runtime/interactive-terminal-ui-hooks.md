@@ -140,14 +140,8 @@ export function useChatFooterStatus({ ctrl, mode, taskState }: UseChatFooterStat
 }
 ```
 
-### /Users/highlands/pools/Development/dirac/cli/src/hooks/useChatInputHandler.ts (lines 102-490)
+### /Users/highlands/pools/Development/dirac/cli/src/hooks/useChatInputHandler.ts (lines 108-512)
 ```
-	goalStatus?: GoalStatus
-	handleGoalControl: (action: GoalLifecycleAction) => void
-	toggleGoalDetails: () => void
-	disarmGoalStopConfirmation: () => void
-}
-
 export function useChatInputHandler({
 	workspacePath,
 	inputColumns,
@@ -531,6 +525,28 @@ export function useChatInputHandler({
 			setCursorPos((pos) => Math.min(currentTextInput.length, pos + 1))
 			return
 		}
+		if ((key.upArrow || key.downArrow) && !inSlashMenu && !inFileMenu) {
+			const nextCursorPos = key.upArrow
+				? moveCursorUp(currentTextInput, currentCursorPos, inputColumns)
+				: moveCursorDown(currentTextInput, currentCursorPos, inputColumns)
+			if (nextCursorPos !== currentCursorPos) {
+				setCursorPos(nextCursorPos)
+				return
+			}
+
+			// Scroll the response only when the cursor cannot move farther in the prompt.
+			const nextScrollOffset = key.upArrow
+				? Math.min(cardScrollOffset + 1, scrollableCardMaxOffset)
+				: Math.max(cardScrollOffset - 1, 0)
+			if (nextScrollOffset !== cardScrollOffset) setCardScrollOffset(nextScrollOffset)
+			return
+		}
+
+		if (input && !key.ctrl && !key.meta && !key.upArrow && !key.downArrow && !key.tab) {
+			insertTextAtCursor(input)
+		}
+	})
+}
 ```
 
 
@@ -544,9 +560,11 @@ export function useChatInputHandler({
 - `cli/src/hooks/useComposer.ts`
 - `cli/src/hooks/useHomeEndKeys.ts`
 - `cli/src/hooks/useOcaAuth.ts`
+- `cli/src/hooks/usePromptHistory.ts`
 - `cli/src/hooks/useRawBackspaceKeys.ts`
 - `cli/src/hooks/useScrollableList.ts`
 - `cli/src/hooks/useTerminalSize.ts`
 - `cli/src/hooks/useTextInput.ts`
 - `cli/src/hooks/useTranscriptPartition.ts`
+- `cli/src/hooks/useVimInput.ts`
 

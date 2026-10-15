@@ -13,7 +13,7 @@ Coordinates top-level controller state, webview lifecycle, browser automation, i
 
 ## Key References:
 
-### /Users/highlands/pools/Development/dirac/src/core/controller/index.ts (lines 55-524)
+### /Users/highlands/pools/Development/dirac/src/core/controller/index.ts (lines 55-528)
 ```
 export class Controller implements ITaskHost {
 	public discoveredSkillsCache?: SkillMetadata[]
@@ -485,6 +485,10 @@ export class Controller implements ITaskHost {
 			throw new Error("Invocation tool-selection options cannot be used with Goals.")
 		}
 		if (!this.goalRoutingEnabled) {
+			throw new Error("Goals require the interactive VS Code or CLI surface; ACP and unattended CLI are unsupported.")
+		}
+	}
+}
 ```
 
 ### /Users/highlands/pools/Development/dirac/src/core/webview/WebviewProvider.ts (lines 12-297)

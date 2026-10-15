@@ -3149,11 +3149,13 @@ export class UnbiasedHandler implements ApiHandler {
 - `cli/src/hooks/useComposer.ts`
 - `cli/src/hooks/useHomeEndKeys.ts`
 - `cli/src/hooks/useOcaAuth.ts`
+- `cli/src/hooks/usePromptHistory.ts`
 - `cli/src/hooks/useRawBackspaceKeys.ts`
 - `cli/src/hooks/useScrollableList.ts`
 - `cli/src/hooks/useTerminalSize.ts`
 - `cli/src/hooks/useTextInput.ts`
 - `cli/src/hooks/useTranscriptPartition.ts`
+- `cli/src/hooks/useVimInput.ts`
 - `cli/src/index.ts`
 - `cli/src/init.ts`
 - `cli/src/initCoreServices.ts`
@@ -3172,6 +3174,7 @@ export class UnbiasedHandler implements ApiHandler {
 - `cli/src/utils/command-parsers.ts`
 - `cli/src/utils/console.ts`
 - `cli/src/utils/cursor.ts`
+- `cli/src/utils/diff-layout.ts`
 - `cli/src/utils/display.ts`
 - `cli/src/utils/errors.ts`
 - `cli/src/utils/file-search.ts`
@@ -3181,8 +3184,10 @@ export class UnbiasedHandler implements ApiHandler {
 - `cli/src/utils/icon-mapping.ts`
 - `cli/src/utils/import-configs.ts`
 - `cli/src/utils/ink.ts`
+- `cli/src/utils/input-layout.ts`
 - `cli/src/utils/input-viewport.ts`
 - `cli/src/utils/input.ts`
+- `cli/src/utils/markdown.ts`
 - `cli/src/utils/mode-selection.ts`
 - `cli/src/utils/mode.ts`
 - `cli/src/utils/model-metadata.ts`
@@ -3210,6 +3215,7 @@ export class UnbiasedHandler implements ApiHandler {
 - `cli/src/utils/timeline-rows.ts`
 - `cli/src/utils/tool-options.ts`
 - `cli/src/utils/update.ts`
+- `cli/src/utils/vim-editor.ts`
 - `cli/src/vscode-context.ts`
 - `private/plans/scc-prototype.mjs`
 - `src/core/api/index.ts`

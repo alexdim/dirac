@@ -13,7 +13,7 @@ Coordinates contained child tasks, verification runs, and event loops for durabl
 
 ## Key References:
 
-### /Users/highlands/pools/Development/dirac/src/core/goal/GoalTaskHost.ts (lines 72-783)
+### /Users/highlands/pools/Development/dirac/src/core/goal/GoalTaskHost.ts (lines 72-788)
 ```
 export class GoalTaskHost implements GoalChildSurfaceOwner {
 	private readonly registryMutex = new Mutex()
@@ -727,6 +727,11 @@ ${childSummary || "No contained Tasks have been recorded."}
 		} catch (error) {
 			finalizationError = error
 		}
+		this.pendingInteractions.delete(key)
+		pending.reject(new Error(reason))
+		if (finalizationError) throw finalizationError
+	}
+}
 ```
 
 ### /Users/highlands/pools/Development/dirac/src/core/goal/GoalTaskHost.ts (lines 55-60)

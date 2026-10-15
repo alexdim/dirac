@@ -313,6 +313,7 @@ export function convertProtoToApiConfiguration(protoConfig: ProtoApiConfiguratio
 - `src/shared/icons.ts`
 - `src/shared/internal/account.ts`
 - `src/shared/messages/metrics.ts`
+- `src/shared/messages/prompt-history.ts`
 - `src/shared/net.ts`
 - `src/shared/openai-codex-auth.ts`
 - `src/shared/openai-codex-usage.ts`

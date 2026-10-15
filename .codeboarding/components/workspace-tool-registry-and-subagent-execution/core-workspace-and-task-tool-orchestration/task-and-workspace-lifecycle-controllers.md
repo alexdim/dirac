@@ -13,7 +13,7 @@ Coordinates task initialization and workspace manager lifecycle operations from 
 
 ## Key References:
 
-### /Users/highlands/pools/Development/dirac/src/core/controller/task/TaskController.ts (lines 64-518)
+### /Users/highlands/pools/Development/dirac/src/core/controller/task/TaskController.ts (lines 64-495)
 ```
 export class TaskController {
 	private _task?: Task
@@ -447,7 +447,6 @@ export class TaskController {
 		}
 	}
 }
-
 ```
 
 ### /Users/highlands/pools/Development/dirac/src/core/controller/workspace/WorkspaceController.ts (lines 10-39)

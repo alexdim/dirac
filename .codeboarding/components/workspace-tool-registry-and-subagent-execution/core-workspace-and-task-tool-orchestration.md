@@ -7,7 +7,7 @@ component_name: Core Workspace & Task Tool Orchestration
 
 ## Component Description
 
-Manages core workspace root resolution, context and mention loading, hook discovery, tool registry, and subagent execution within task workflows.
+Orchestrates core workspace root resolution, context and mention loading, hook discovery, tool registry lifecycle, and subagent execution within task workflows.
 
 ---
 

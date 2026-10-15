@@ -7,13 +7,13 @@ component_name: Core Session & Goal Controller
 
 ## Component Description
 
-Coordinates primary application controller state, active Goal execution lifecycles, task history repair, and folder lock acquisition utilities.
+Coordinates core application controller state, Goal execution lifecycles, task history repair, and folder lock acquisition utilities.
 
 ---
 
 ## Key References:
 
-### /Users/highlands/pools/Development/dirac/src/core/controller/index.ts (lines 55-524)
+### /Users/highlands/pools/Development/dirac/src/core/controller/index.ts (lines 55-528)
 ```
 export class Controller implements ITaskHost {
 	public discoveredSkillsCache?: SkillMetadata[]
@@ -485,6 +485,10 @@ export class Controller implements ITaskHost {
 			throw new Error("Invocation tool-selection options cannot be used with Goals.")
 		}
 		if (!this.goalRoutingEnabled) {
+			throw new Error("Goals require the interactive VS Code or CLI surface; ACP and unattended CLI are unsupported.")
+		}
+	}
+}
 ```
 
 ### /Users/highlands/pools/Development/dirac/src/core/goal/GoalController.ts (lines 31-303)

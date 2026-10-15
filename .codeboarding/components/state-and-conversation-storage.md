@@ -402,11 +402,8 @@ export class StateManager {
 }
 ```
 
-### /Users/highlands/pools/Development/dirac/src/core/controller/TaskHistoryController.ts (lines 38-152)
+### /Users/highlands/pools/Development/dirac/src/core/controller/TaskHistoryController.ts (lines 41-177)
 ```
-	await deleteTaskDirectory(item.id)
-}
-
 export class TaskHistoryController {
 	constructor(
 		private readonly stateManager: import("@core/storage/StateManager").StateManager,
@@ -519,6 +516,31 @@ export class TaskHistoryController {
 
 	async updateRunHistory(item: RunHistoryItem): Promise<RunHistoryItem[]> {
 		return this.stateManager.upsertTaskHistoryItem(item)
+	}
+
+	async updateTaskHistory(item: HistoryItem): Promise<RunHistoryItem[]> {
+		if (!isTaskHistoryItem(item)) throw new Error(`Goal ${item.id} cannot be written through updateTaskHistory`)
+		return this.updateRunHistory(item)
+	}
+
+	async updateGoalHistory(item: GoalHistoryItem): Promise<RunHistoryItem[]> {
+		return this.updateRunHistory(item)
+	}
+
+	/** Deletes complete run storage. Goal children remain private and are cascaded from goal.json. */
+	async deleteRunStorage(id: string): Promise<void> {
+		await deleteRunStorage(this.getRunHistoryItem(id), this.goalStore)
+	}
+
+	async deleteRunWithId(id: string): Promise<RunHistoryItem[]> {
+		return withTaskHistoryInventoryLock(async () => {
+			await this.deleteRunStorage(id)
+			const history = await this.deleteTaskFromState(id)
+			await this.stateManager.flushPendingState()
+			return history
+		})
+	}
+}
 ```
 
 ### /Users/highlands/pools/Development/dirac/src/core/storage/conversationHistory.ts (lines 40-53)

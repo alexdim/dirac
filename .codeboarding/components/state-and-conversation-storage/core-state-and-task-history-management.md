@@ -104,11 +104,8 @@ export function buildEffectiveApiConfigurationFromCache(
 }
 ```
 
-### /Users/highlands/pools/Development/dirac/src/core/controller/TaskHistoryController.ts (lines 44-56)
+### /Users/highlands/pools/Development/dirac/src/core/controller/TaskHistoryController.ts (lines 47-59)
 ```
-		private readonly goalStore = new GoalStore(),
-	) {}
-
 	async readOpenRouterModels(): Promise<Record<string, import("@shared/api").ModelInfo> | undefined> {
 		const openRouterModelsFilePath = path.join(await ensureCacheDirectoryExists(), GlobalFileNames.openRouterModels)
 		try {
@@ -119,6 +116,9 @@ export function buildEffectiveApiConfigurationFromCache(
 			}
 		} catch (error) {
 			Logger.error("Error reading cached OpenRouter models:", error)
+		}
+		return undefined
+	}
 ```
 
 

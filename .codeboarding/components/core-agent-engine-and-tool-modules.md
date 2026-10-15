@@ -7,7 +7,7 @@ component_name: Core Agent Engine & Tool Modules
 
 ## Component Description
 
-Implements LLM API providers, system prompts, context management, controller RPC handlers, permissions, hooks, and agent tool modules.
+Implements LLM API providers, system prompts, context management, permissions, hooks, and agent tool modules that drive the AI agent's core capabilities.
 
 ---
 

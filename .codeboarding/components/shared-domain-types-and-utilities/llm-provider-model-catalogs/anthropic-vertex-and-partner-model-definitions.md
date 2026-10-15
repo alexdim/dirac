@@ -60,11 +60,11 @@ export function isAnthropicAdaptiveThinkingSupported(modelId: string, info?: Mod
 }
 ```
 
-### /Users/highlands/pools/Development/dirac/src/shared/api/models/vertex.ts (lines 279-281)
+### /Users/highlands/pools/Development/dirac/src/shared/api/models/vertex.ts (lines 289-291)
 ```
-	},
-	"gemini-2.0-flash-thinking-exp-01-21": {
-		...MODEL_CAPABILITIES["gemini-2.0-flash-thinking-exp-01-21"],
+export const vertexGlobalModels: Record<string, ModelInfo> = Object.fromEntries(
+	Object.entries(vertexModels).filter(([_k, v]) => Object.hasOwn(v, "supportsGlobalEndpoint")),
+) as Record<string, ModelInfo>
 ```
 
 

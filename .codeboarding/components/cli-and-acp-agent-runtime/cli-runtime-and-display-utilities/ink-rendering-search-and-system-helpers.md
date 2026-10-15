@@ -71,9 +71,8 @@ export async function runInkApp(element: any, cleanup: () => Promise<void>): Pro
 }
 ```
 
-### /Users/highlands/pools/Development/dirac/cli/src/utils/timeline-rows.ts (lines 31-44)
+### /Users/highlands/pools/Development/dirac/cli/src/utils/timeline-rows.ts (lines 32-48)
 ```
-
 export function estimateTimelineMessageBodyRows(
 	message: DiracMessage,
 	terminalColumns: number,
@@ -87,6 +86,10 @@ export function estimateTimelineMessageBodyRows(
 	const body = cardBodyForDisplay(message.content.card.body, message.content.card.renderType)
 	if (!body) return 0
 	const width = Math.max(1, terminalColumns - CARD_BODY_COLUMNS)
+	return message.content.card.renderType === "markdown"
+		? renderMarkdownLines(body, width).length
+		: estimateVisualLineCount(body, width)
+}
 ```
 
 ### /Users/highlands/pools/Development/dirac/cli/src/utils/acp-file-logger.ts (lines 19-28)
@@ -137,11 +140,13 @@ export function fuzzyFilter<T>(items: readonly T[], query: string, selector: (it
 - `cli/src/utils/browser.ts`
 - `cli/src/utils/color.ts`
 - `cli/src/utils/cursor.ts`
+- `cli/src/utils/diff-layout.ts`
 - `cli/src/utils/file-search.ts`
 - `cli/src/utils/fuzzy-search.ts`
 - `cli/src/utils/git.ts`
 - `cli/src/utils/goals.ts`
 - `cli/src/utils/ink.ts`
+- `cli/src/utils/markdown.ts`
 - `cli/src/utils/model-selection.ts`
 - `cli/src/utils/output-channel.ts`
 - `cli/src/utils/path.ts`

@@ -50,6 +50,7 @@ export function toError(error: unknown): Error {
 - `src/shared/getApiMetrics.ts`
 - `src/shared/goal.ts`
 - `src/shared/historyItemFromProto.ts`
+- `src/shared/messages/prompt-history.ts`
 - `src/shared/net.ts`
 - `src/shared/openai-codex-auth.ts`
 - `src/shared/openai-codex-usage.ts`

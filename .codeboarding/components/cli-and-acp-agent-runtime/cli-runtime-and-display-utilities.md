@@ -207,6 +207,7 @@ export function computeDiff(content: string): ComputedDiff {
 - `cli/src/utils/command-parsers.ts`
 - `cli/src/utils/console.ts`
 - `cli/src/utils/cursor.ts`
+- `cli/src/utils/diff-layout.ts`
 - `cli/src/utils/display.ts`
 - `cli/src/utils/errors.ts`
 - `cli/src/utils/file-search.ts`
@@ -216,8 +217,10 @@ export function computeDiff(content: string): ComputedDiff {
 - `cli/src/utils/icon-mapping.ts`
 - `cli/src/utils/import-configs.ts`
 - `cli/src/utils/ink.ts`
+- `cli/src/utils/input-layout.ts`
 - `cli/src/utils/input-viewport.ts`
 - `cli/src/utils/input.ts`
+- `cli/src/utils/markdown.ts`
 - `cli/src/utils/mode-selection.ts`
 - `cli/src/utils/mode.ts`
 - `cli/src/utils/model-metadata.ts`
@@ -245,4 +248,5 @@ export function computeDiff(content: string): ComputedDiff {
 - `cli/src/utils/timeline-rows.ts`
 - `cli/src/utils/tool-options.ts`
 - `cli/src/utils/update.ts`
+- `cli/src/utils/vim-editor.ts`
 
