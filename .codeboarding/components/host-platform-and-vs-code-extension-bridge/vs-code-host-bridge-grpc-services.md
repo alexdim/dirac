@@ -161,6 +161,7 @@ export async function executeCommandInTerminal(
 - `src/hosts/vscode/hostbridge/diff/saveDocument.ts`
 - `src/hosts/vscode/hostbridge/diff/scrollDiff.ts`
 - `src/hosts/vscode/hostbridge/diff/truncateDocument.ts`
+- `src/hosts/vscode/hostbridge/testing/getWebviewHtml.ts`
 - `src/hosts/vscode/hostbridge/window/getActiveEditor.ts`
 - `src/hosts/vscode/hostbridge/window/getOpenTabs.ts`
 - `src/hosts/vscode/hostbridge/window/getVisibleTabs.ts`

@@ -7,7 +7,7 @@ component_name: Host Platform & VS Code Extension Bridge
 
 ## Component Description
 
-Abstracts host environment capabilities and implements VS Code extension activation, hostbridge gRPC services, diff views, terminals, and goal loops.
+Abstracts host environment capabilities, implements VS Code extension activation, hostbridge gRPC services, diff views, terminals, and goal loops.
 
 ---
 
@@ -1390,6 +1390,7 @@ export class GoalLoop {
 - `src/hosts/vscode/hostbridge/diff/saveDocument.ts`
 - `src/hosts/vscode/hostbridge/diff/scrollDiff.ts`
 - `src/hosts/vscode/hostbridge/diff/truncateDocument.ts`
+- `src/hosts/vscode/hostbridge/testing/getWebviewHtml.ts`
 - `src/hosts/vscode/hostbridge/window/getActiveEditor.ts`
 - `src/hosts/vscode/hostbridge/window/getOpenTabs.ts`
 - `src/hosts/vscode/hostbridge/window/getVisibleTabs.ts`

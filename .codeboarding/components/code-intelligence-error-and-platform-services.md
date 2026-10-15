@@ -1049,6 +1049,7 @@ export class BannerService {
 - `src/services/telemetry/providers/opentelemetry/OpenTelemetryClientProvider.ts`
 - `src/services/telemetry/providers/opentelemetry/OpenTelemetryExporterFactory.ts`
 - `src/services/telemetry/providers/opentelemetry/OpenTelemetryTelemetryProvider.ts`
+- `src/services/temp/DiracTempManager.ts`
 - `src/services/tree-sitter/index.ts`
 - `src/services/tree-sitter/languageParser.ts`
 - `src/services/uri/SharedUriHandler.ts`

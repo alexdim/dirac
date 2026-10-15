@@ -336,4 +336,5 @@ export class ServiceRegistry {
 
 - `src/hosts/vscode/hostbridge-grpc-handler.ts`
 - `src/hosts/vscode/hostbridge-grpc-service.ts`
+- `src/hosts/vscode/hostbridge/testing/getWebviewHtml.ts`
 
