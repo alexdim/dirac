@@ -44,7 +44,9 @@ graph LR
     System_Git_Cost_Utilities -- "delegates host environment operations to" --> Host_Platform_VS_Code_Extension_Bridge
     System_Git_Cost_Utilities -- "invokes browser, worktree, and anchor state helpers in" --> Application_Controller_Browser_Standalone_Services
     System_Git_Cost_Utilities -- "resolves workspace paths via" --> Workspace_Tool_Registry_Subagent_Execution
-    Webview_UI_Components -- "uses shared domain models" --> Shared_Domain_Types_Utilities
+    Webview_UI_Components -- "uses task lifecycle message types" --> Task_Lifecycle_Checkpoint_Management
+    Webview_UI_Components -- "uses shared domain utilities" --> Shared_Domain_Types_Utilities
+    Webview_UI_Components -- "uses storage type validators" --> State_Conversation_Storage
     CLI_ACP_Agent_Runtime -- "invokes core API providers, permissions, and controller handlers in" --> Core_Agent_Engine_Tool_Modules
     CLI_ACP_Agent_Runtime -- "manages and steers tasks and checkpoints in" --> Task_Lifecycle_Checkpoint_Management
     CLI_ACP_Agent_Runtime -- "uses git worktree and environment utilities from" --> System_Git_Cost_Utilities
@@ -135,7 +137,7 @@ graph LR
 
 ## Details
 
-The Dirac codebase is an AI coding agent platform that runs across a VS Code extension, standalone core service, and terminal CLI/ACP client. User commands and sessions enter through the Host Platform or CLI runtime, are coordinated by the Application Controller and Workspace/Task controllers, and drive the Task Lifecycle & Checkpoint Management loop, which invokes the Core Agent Engine, LLM providers, tool modules, code intelligence services, and editor/terminal integrations while persisting conversation state and history via the Storage layer. This incremental analysis covers the four changed components: the Host Platform bridge, platform services, webview UI, and the newly split-out VS Code hostbridge environment services.
+"The webview-ui scope implements the React-based webview interface that runs inside the VS Code extension host. The App root component hydrates state via gRPC client services (StateServiceClient, UiServiceClient) and renders the ChatView, HistoryView, SettingsView, and WorktreesView panels. The chatStore Zustand store drives the modular chat UI by applying presentation operations from the task lifecycle layer, computing derived presentation state (visible messages, API metrics), and handling card interactions. Settings views bind to storage types for model picker and inference configuration. The UI layer communicates outbound to the task lifecycle/checkpoint layer for message status, to shared utilities for API metrics and subagent usage, and to storage type definitions for settings selectors."
 
 ### Core Agent Engine & Tool Modules [[Expand]](./Core_Agent_Engine_Tool_Modules.md)
 Implements LLM API providers, system prompts, context management, permissions, hooks, and agent tool modules that drive the AI agent's core capabilities.
@@ -14002,18 +14004,121 @@ Declares ambient TypeScript definitions for third-party glob matching and file l
 
 
 ### Webview UI Components
-Provides React components for the webview interface, including history view items and modular chat preview components.
+Provides React components for the webview interface, including the chat store, modular chat views, history view, settings panels, and shared UI primitives.
 
 
 **Related Classes/Methods**:
 
-- `webview-ui.src.features.history.components.HistoryViewItem.HistoryViewItem`:35-253
-- `webview-ui.src.features.modular-ui.chat.components.HistoryPreview.HistoryPreview`:14-226
+- `webview-ui.src.features.chat.store.chatStore.ChatState`:17-45
+- `webview-ui.src.features.modular-ui.chat.ModularChatView.ModularChatView`:29-172
+- `webview-ui.src.features.settings.components.SettingsView.SettingsView.SettingsView`:113-234
+- `webview-ui.src.features.modular-ui.ModularCard.ModularCard`:17-71
 
 
 
 **Source Files:**
 
+- `webview-ui/src/App.stories.tsx`
+  - `webview-ui.src.App.stories.ExtensionStateProviderMock` (L32-L37) - Class
+  - `webview-ui.src.App.stories.ExtensionStateProviderMock.useEffect() callback` (L33-L35) - Function
+  - `webview-ui.src.App.stories.createStoryDecorator` (L299-L312) - Class
+  - `webview-ui.src.App.stories.createStoryDecorator.<function>` (L301-L312) - Function
+  - `webview-ui.src.App.stories.createStoryDecorator.<function>.mockState` (L302-L302) - Class
+  - `webview-ui.src.App.stories.createStoryDecorator.<function>.mockState.useMemo() callback` (L302-L302) - Function
+  - `webview-ui.src.App.stories.DiffEditNewFormatStreaming.decorators.<function>` (L900-L994) - Function
+  - `webview-ui.src.App.stories.DiffEditNewFormatStreaming.decorators.<function>.mockState` (L905-L913) - Class
+  - `webview-ui.src.App.stories.DiffEditNewFormatStreaming.decorators.<function>.mockState.useMemo() callback` (L906-L911) - Function
+  - `webview-ui.src.App.stories.DiffEditNewFormatStreaming.decorators.<function>.useEffect() callback` (L915-L983) - Function
+  - `webview-ui.src.App.stories.DiffEditNewFormatStreaming.decorators.<function>.useEffect() callback.timer1` (L939-L946) - Class
+  - `webview-ui.src.App.stories.DiffEditNewFormatStreaming.decorators.<function>.useEffect() callback.timer1.setTimeout() callback` (L939-L946) - Function
+  - `webview-ui.src.App.stories.DiffEditNewFormatStreaming.decorators.<function>.useEffect() callback.timer1.setTimeout() callback.setMessages() callback` (L940-L945) - Function
+  - `webview-ui.src.App.stories.DiffEditNewFormatStreaming.decorators.<function>.useEffect() callback.timer2` (L949-L961) - Class
+  - `webview-ui.src.App.stories.DiffEditNewFormatStreaming.decorators.<function>.useEffect() callback.timer2.setTimeout() callback` (L949-L961) - Function
+  - `webview-ui.src.App.stories.DiffEditNewFormatStreaming.decorators.<function>.useEffect() callback.timer2.setTimeout() callback.setMessages() callback` (L950-L960) - Function
+  - `webview-ui.src.App.stories.DiffEditNewFormatStreaming.decorators.<function>.useEffect() callback.timer3` (L964-L976) - Class
+  - `webview-ui.src.App.stories.DiffEditNewFormatStreaming.decorators.<function>.useEffect() callback.timer3.setTimeout() callback` (L964-L976) - Function
+  - `webview-ui.src.App.stories.DiffEditNewFormatStreaming.decorators.<function>.useEffect() callback.timer3.setTimeout() callback.setMessages() callback` (L965-L975) - Function
+  - `webview-ui.src.App.stories.DiffEditReplaceDiffFormatStreaming.decorators.<function>` (L1038-L1110) - Function
+  - `webview-ui.src.App.stories.DiffEditReplaceDiffFormatStreaming.decorators.<function>.mockState` (L1043-L1051) - Class
+  - `webview-ui.src.App.stories.DiffEditReplaceDiffFormatStreaming.decorators.<function>.mockState.useMemo() callback` (L1044-L1049) - Function
+  - `webview-ui.src.App.stories.DiffEditReplaceDiffFormatStreaming.decorators.<function>.useEffect() callback` (L1053-L1099) - Function
+  - `webview-ui.src.App.stories.DiffEditReplaceDiffFormatStreaming.decorators.<function>.useEffect() callback.intervalId` (L1077-L1096) - Class
+  - `webview-ui.src.App.stories.DiffEditReplaceDiffFormatStreaming.decorators.<function>.useEffect() callback.intervalId.setInterval() callback` (L1077-L1096) - Function
+  - `webview-ui.src.App.stories.DiffEditReplaceDiffFormatStreaming.decorators.<function>.useEffect() callback.intervalId.setInterval() callback.setMessages() callback` (L1083-L1093) - Function
+- `webview-ui/src/app/App.tsx`
+  - `webview-ui.src.app.App.AppContent` (L14-L100) - Class
+  - `webview-ui.src.app.App.AppContent.hydrate` (L32-L32) - Class
+  - `webview-ui.src.app.App.AppContent.hydrate.useAppStore() callback` (L32-L32) - Function
+  - `webview-ui.src.app.App.AppContent.remoteNotes` (L33-L33) - Class
+  - `webview-ui.src.app.App.AppContent.remoteNotes.useSettingsStore() callback` (L33-L33) - Function
+  - `webview-ui.src.app.App.useEffect() callback` (L37-L40) - Function
+  - `webview-ui.src.app.App.AppContent.useEffect() callback` (L42-L57) - Function
+  - `webview-ui.src.app.App.AppContent.useEffect() callback.then() callback` (L51-L53) - Function
+  - `webview-ui.src.app.App.AppContent.useEffect() callback.catch() callback` (L54-L56) - Function
+  - `webview-ui.src.app.App.AppContent.closeReleaseNotes` (L59-L71) - Class
+  - `webview-ui.src.app.App.AppContent.closeReleaseNotes.useCallback() callback` (L59-L71) - Function
+  - `webview-ui.src.app.App.AppContent.closeReleaseNotes.useCallback() callback.then() callback` (L65-L67) - Function
+  - `webview-ui.src.app.App.AppContent.closeReleaseNotes.useCallback() callback.catch() callback` (L68-L70) - Function
+- `webview-ui/src/app/Providers.tsx`
+  - `webview-ui.src.app.Providers.Providers` (L6-L16) - Function
+- `webview-ui/src/app/store/appStore.ts`
+  - `webview-ui.src.app.store.appStore.AppState` (L12-L58) - Interface
+  - `webview-ui.src.app.store.appStore.useAppStore` (L60-L228) - Class
+  - `webview-ui.src.app.store.appStore.useAppStore.create() callback` (L60-L228) - Function
+  - `webview-ui.src.app.store.appStore.useAppStore.create() callback.onRelinquishControl` (L62-L62) - Method
+  - `webview-ui.src.app.store.appStore.useAppStore.create() callback.setShowSettings` (L77-L77) - Method
+  - `webview-ui.src.app.store.appStore.useAppStore.create() callback.setSettingsTargetSection` (L78-L78) - Method
+  - `webview-ui.src.app.store.appStore.useAppStore.create() callback.setShowHistory` (L79-L79) - Method
+  - `webview-ui.src.app.store.appStore.useAppStore.create() callback.setShowAccount` (L80-L80) - Method
+  - `webview-ui.src.app.store.appStore.useAppStore.create() callback.setShowWorktrees` (L81-L81) - Method
+  - `webview-ui.src.app.store.appStore.useAppStore.create() callback.setShowAnnouncement` (L82-L82) - Method
+  - `webview-ui.src.app.store.appStore.useAppStore.create() callback.setShowWelcome` (L83-L83) - Method
+  - `webview-ui.src.app.store.appStore.useAppStore.create() callback.setExpandTaskHeader` (L84-L84) - Method
+  - `webview-ui.src.app.store.appStore.useAppStore.create() callback.setDidHydrateState` (L85-L85) - Method
+  - `webview-ui.src.app.store.appStore.useAppStore.create() callback.setShouldShowAnnouncement` (L86-L86) - Method
+  - `webview-ui.src.app.store.appStore.useAppStore.create() callback.navigateToSettings` (L88-L95) - Method
+  - `webview-ui.src.app.store.appStore.useAppStore.create() callback.navigateToSettingsModelPicker` (L96-L103) - Method
+  - `webview-ui.src.app.store.appStore.useAppStore.create() callback.navigateToHistory` (L104-L110) - Method
+  - `webview-ui.src.app.store.appStore.useAppStore.create() callback.navigateToAccount` (L111-L117) - Method
+  - `webview-ui.src.app.store.appStore.useAppStore.create() callback.navigateToWorktrees` (L118-L124) - Method
+  - `webview-ui.src.app.store.appStore.useAppStore.create() callback.navigateToChat` (L125-L131) - Method
+  - `webview-ui.src.app.store.appStore.useAppStore.create() callback.hideSettings` (L133-L137) - Method
+  - `webview-ui.src.app.store.appStore.useAppStore.create() callback.hideHistory` (L138-L138) - Method
+  - `webview-ui.src.app.store.appStore.useAppStore.create() callback.hideAccount` (L139-L139) - Method
+  - `webview-ui.src.app.store.appStore.useAppStore.create() callback.hideWorktrees` (L140-L140) - Method
+  - `webview-ui.src.app.store.appStore.useAppStore.create() callback.hideAnnouncement` (L141-L141) - Method
+  - `webview-ui.src.app.store.appStore.useAppStore.create() callback.hydrate` (L143-L227) - Method
+  - `webview-ui.src.app.store.appStore.useAppStore.create() callback.hydrate.catch() callback` (L169-L171) - Function
+  - `webview-ui.src.app.store.appStore.useAppStore.create() callback.hydrate.cleanupState` (L174-L193) - Class
+  - `webview-ui.src.app.store.appStore.useAppStore.create() callback.hydrate.cleanupState.onResponse` (L175-L188) - Method
+  - `webview-ui.src.app.store.appStore.useAppStore.create() callback.hydrate.cleanupState.onResponse.catch() callback` (L183-L183) - Function
+  - `webview-ui.src.app.store.appStore.useAppStore.create() callback.hydrate.cleanupState.onError` (L189-L191) - Method
+  - `webview-ui.src.app.store.appStore.useAppStore.create() callback.hydrate.cleanupState.onComplete` (L192-L192) - Method
+  - `webview-ui.src.app.store.appStore.useAppStore.create() callback.hydrate.cleanupHistory` (L196-L200) - Class
+  - `webview-ui.src.app.store.appStore.useAppStore.create() callback.hydrate.cleanupHistory.onResponse` (L197-L197) - Method
+  - `webview-ui.src.app.store.appStore.useAppStore.create() callback.hydrate.cleanupHistory.onError` (L198-L198) - Method
+  - `webview-ui.src.app.store.appStore.useAppStore.create() callback.hydrate.cleanupHistory.onComplete` (L199-L199) - Method
+  - `webview-ui.src.app.store.appStore.useAppStore.create() callback.hydrate.cleanupSettings` (L202-L206) - Class
+  - `webview-ui.src.app.store.appStore.useAppStore.create() callback.hydrate.cleanupSettings.onResponse` (L203-L203) - Method
+  - `webview-ui.src.app.store.appStore.useAppStore.create() callback.hydrate.cleanupSettings.onError` (L204-L204) - Method
+  - `webview-ui.src.app.store.appStore.useAppStore.create() callback.hydrate.cleanupSettings.onComplete` (L205-L205) - Method
+  - `webview-ui.src.app.store.appStore.useAppStore.create() callback.hydrate.cleanupChat` (L208-L212) - Class
+  - `webview-ui.src.app.store.appStore.useAppStore.create() callback.hydrate.cleanupChat.onResponse` (L209-L209) - Method
+  - `webview-ui.src.app.store.appStore.useAppStore.create() callback.hydrate.cleanupChat.onError` (L210-L210) - Method
+  - `webview-ui.src.app.store.appStore.useAppStore.create() callback.hydrate.cleanupChat.onComplete` (L211-L211) - Method
+  - `webview-ui.src.app.store.appStore.useAppStore.create() callback.hydrate.cleanupAccount` (L214-L218) - Class
+  - `webview-ui.src.app.store.appStore.useAppStore.create() callback.hydrate.cleanupAccount.onResponse` (L215-L215) - Method
+  - `webview-ui.src.app.store.appStore.useAppStore.create() callback.hydrate.cleanupAccount.onError` (L216-L216) - Method
+  - `webview-ui.src.app.store.appStore.useAppStore.create() callback.hydrate.cleanupAccount.onComplete` (L217-L217) - Method
+- `webview-ui/src/config/StorybookDecorator.tsx`
+  - `webview-ui.src.config.StorybookDecorator.ThemeHandler` (L13-L37) - Class
+  - `webview-ui.src.config.StorybookDecorator.ThemeHandler.React.useEffect() callback` (L14-L34) - Function
+  - `webview-ui.src.config.StorybookDecorator.ThemeHandler.React.useEffect() callback.forEach() callback` (L19-L21) - Function
+  - `webview-ui.src.config.StorybookDecorator.ThemeHandler.React.useEffect() callback.<function>` (L28-L33) - Function
+  - `webview-ui.src.config.StorybookDecorator.ThemeHandler.React.useEffect() callback.<function>.forEach() callback` (L30-L32) - Function
+  - `webview-ui.src.config.StorybookDecorator.StorybookDecoratorProvider` (L38-L50) - Function
+  - `webview-ui.src.config.StorybookDecorator.ExtensionStateProviderWithOverrides` (L52-L62) - Class
+  - `webview-ui.src.config.StorybookDecorator.ExtensionStateProviderWithOverrides.React.useEffect() callback` (L56-L60) - Function
 - `webview-ui/src/config/platform.config.ts`
   - `webview-ui.src.config.platform.config.PlatformConfig` (L3-L12) - Interface
   - `webview-ui.src.config.platform.config.PlatformType` (L14-L17) - Enum
@@ -14032,6 +14137,266 @@ Provides React components for the webview interface, including history view item
   - `webview-ui.src.config.platform.config.messageDecoders` (L119-L122) - Class
   - `webview-ui.src.config.platform.config.messageDecoders.none` (L120-L120) - Method
   - `webview-ui.src.config.platform.config.messageDecoders.json` (L121-L121) - Method
+- `webview-ui/src/context/DiracAuthContext.tsx`
+  - `webview-ui.src.context.DiracAuthContext.DiracUser` (L5-L11) - Interface
+  - `webview-ui.src.context.DiracAuthContext.DiracAuthContextType` (L13-L17) - Interface
+  - `webview-ui.src.context.DiracAuthContext.useDiracSignIn` (L42-L47) - Class
+  - `webview-ui.src.context.DiracAuthContext.useDiracSignIn.handleSignIn` (L45-L45) - Method
+- `webview-ui/src/entities/task/store/taskStore.ts`
+  - `webview-ui.src.entities.task.store.taskStore.TaskState` (L4-L13) - Interface
+  - `webview-ui.src.entities.task.store.taskStore.useTaskStore` (L15-L23) - Class
+  - `webview-ui.src.entities.task.store.taskStore.useTaskStore.create() callback` (L15-L23) - Function
+  - `webview-ui.src.entities.task.store.taskStore.useTaskStore.create() callback.setTaskHistory` (L20-L20) - Method
+  - `webview-ui.src.entities.task.store.taskStore.useTaskStore.create() callback.setTotalTasksSize` (L21-L21) - Method
+  - `webview-ui.src.entities.task.store.taskStore.useTaskStore.create() callback.setCurrentTaskItem` (L22-L22) - Method
+- `webview-ui/src/entities/user/store/userStore.ts`
+  - `webview-ui.src.entities.user.store.userStore.UserState` (L3-L9) - Interface
+  - `webview-ui.src.entities.user.store.userStore.useUserStore` (L11-L16) - Class
+  - `webview-ui.src.entities.user.store.userStore.useUserStore.create() callback` (L11-L16) - Function
+  - `webview-ui.src.entities.user.store.userStore.useUserStore.create() callback.setUserInfo` (L15-L15) - Method
+- `webview-ui/src/features/banners/hooks/useBannerAction.ts`
+  - `webview-ui.src.features.banners.hooks.useBannerAction.useBannerAction` (L9-L66) - Function
+  - `webview-ui.src.features.banners.hooks.useBannerAction.useBannerAction.openRouterModels` (L10-L10) - Class
+  - `webview-ui.src.features.banners.hooks.useBannerAction.useBannerAction.openRouterModels.useSettingsStore() callback` (L10-L10) - Function
+  - `webview-ui.src.features.banners.hooks.useBannerAction.useBannerAction.navigateToAccount` (L11-L11) - Class
+  - `webview-ui.src.features.banners.hooks.useBannerAction.useBannerAction.navigateToAccount.useAppStore() callback` (L11-L11) - Function
+  - `webview-ui.src.features.banners.hooks.useBannerAction.useBannerAction.navigateToSettings` (L12-L12) - Class
+  - `webview-ui.src.features.banners.hooks.useBannerAction.useBannerAction.navigateToSettings.useAppStore() callback` (L12-L12) - Function
+  - `webview-ui.src.features.banners.hooks.useBannerAction.useBannerAction.navigateToSettingsModelPicker` (L13-L13) - Class
+  - `webview-ui.src.features.banners.hooks.useBannerAction.useBannerAction.navigateToSettingsModelPicker.useAppStore() callback` (L13-L13) - Function
+  - `webview-ui.src.features.banners.hooks.useBannerAction.useBannerAction.useCallback() callback` (L17-L63) - Function
+  - `webview-ui.src.features.banners.hooks.useBannerAction.useBannerAction.useCallback() callback.catch() callback` (L55-L56) - Function
+- `webview-ui/src/features/chat/components/ChatView/ChatView.tsx`
+  - `webview-ui.src.features.chat.components.ChatView.ChatView.ChatViewContent` (L12-L29) - Class
+  - `webview-ui.src.features.chat.components.ChatView.ChatView.ChatViewContent.useMount() callback` (L16-L19) - Function
+- `webview-ui/src/features/chat/store/chatStore.ts`
+  - `webview-ui.src.features.chat.store.chatStore.ChatState` (L17-L45) - Interface
+  - `webview-ui.src.features.chat.store.chatStore.isVisibleMessage` (L47-L60) - Function
+  - `webview-ui.src.features.chat.store.chatStore.rebuildDerivedPresentation` (L62-L97) - Function
+  - `webview-ui.src.features.chat.store.chatStore.cardsById` (L99-L105) - Function
+  - `webview-ui.src.features.chat.store.chatStore.indexMessages` (L107-L111) - Function
+  - `webview-ui.src.features.chat.store.chatStore.synchronizeResolvedCardCollapse` (L113-L142) - Function
+  - `webview-ui.src.features.chat.store.chatStore.synchronizeResolvedCardCollapse.collapsedCardIds` (L115-L127) - Class
+  - `webview-ui.src.features.chat.store.chatStore.synchronizeResolvedCardCollapse.collapsedCardIds.messages.flatMap() callback` (L115-L127) - Function
+  - `webview-ui.src.features.chat.store.chatStore.messageForOperation` (L144-L154) - Function
+  - `webview-ui.src.features.chat.store.chatStore.applyOperation` (L156-L223) - Function
+  - `webview-ui.src.features.chat.store.chatStore.recordPresentationAppend` (L225-L233) - Function
+  - `webview-ui.src.features.chat.store.chatStore.materializePresentationAppend` (L235-L268) - Function
+  - `webview-ui.src.features.chat.store.chatStore.updateDerivedPresentation` (L270-L340) - Function
+  - `webview-ui.src.features.chat.store.chatStore.operationCanChangeApiMetrics` (L342-L345) - Function
+  - `webview-ui.src.features.chat.store.chatStore.sameApiMetrics` (L347-L356) - Function
+  - `webview-ui.src.features.chat.store.chatStore.addApiMetrics` (L358-L371) - Function
+  - `webview-ui.src.features.chat.store.chatStore.resolvedCardIdBeforeAndAfter` (L373-L382) - Function
+  - `webview-ui.src.features.chat.store.chatStore.useChatStore` (L384-L510) - Class
+  - `webview-ui.src.features.chat.store.chatStore.useChatStore.create() callback` (L384-L510) - Function
+  - `webview-ui.src.features.chat.store.chatStore.useChatStore.create() callback.setDiracMessages` (L407-L414) - Method
+  - `webview-ui.src.features.chat.store.chatStore.useChatStore.create() callback.setDiracMessages.set() callback` (L408-L414) - Function
+  - `webview-ui.src.features.chat.store.chatStore.useChatStore.create() callback.setCardCollapsedState` (L415-L425) - Method
+  - `webview-ui.src.features.chat.store.chatStore.useChatStore.create() callback.setCardCollapsedState.set() callback` (L416-L425) - Function
+  - `webview-ui.src.features.chat.store.chatStore.useChatStore.create() callback.clearCardCollapsedStates` (L426-L426) - Method
+  - `webview-ui.src.features.chat.store.chatStore.useChatStore.create() callback.applyExtensionState` (L428-L446) - Method
+  - `webview-ui.src.features.chat.store.chatStore.useChatStore.create() callback.applyExtensionState.set() callback` (L429-L446) - Function
+  - `webview-ui.src.features.chat.store.chatStore.useChatStore.create() callback.applyPresentationBatch` (L448-L509) - Method
+  - `webview-ui.src.features.chat.store.chatStore.useChatStore.create() callback.applyPresentationBatch.set() callback` (L450-L507) - Function
+- `webview-ui/src/features/dirac-rules/components/DiracRulesToggleModal.tsx`
+  - `webview-ui.src.features.dirac-rules.components.DiracRulesToggleModal.DiracRulesToggleModal` (L28-L819) - Class
+  - `webview-ui.src.features.dirac-rules.components.DiracRulesToggleModal.useEffect() callback` (L75-L79) - Function
+  - `webview-ui.src.features.dirac-rules.components.DiracRulesToggleModal.DiracRulesToggleModal.refreshRules.useCallback() callback` (L81-L111) - Function
+  - `webview-ui.src.features.dirac-rules.components.DiracRulesToggleModal.DiracRulesToggleModal.refreshRules` (L81-L119) - Class
+  - `webview-ui.src.features.dirac-rules.components.DiracRulesToggleModal.DiracRulesToggleModal.useEffect() callback.refreshHooks` (L134-L149) - Class
+  - `webview-ui.src.features.dirac-rules.components.DiracRulesToggleModal.DiracRulesToggleModal.useEffect() callback.refreshHooks.then() callback` (L138-L143) - Function
+  - `webview-ui.src.features.dirac-rules.components.DiracRulesToggleModal.DiracRulesToggleModal.useEffect() callback.refreshHooks.catch() callback` (L144-L148) - Function
+  - `webview-ui.src.features.dirac-rules.components.DiracRulesToggleModal.DiracRulesToggleModal.refreshSkills` (L163-L175) - Class
+  - `webview-ui.src.features.dirac-rules.components.DiracRulesToggleModal.DiracRulesToggleModal.refreshSkills.useCallback() callback` (L163-L175) - Function
+  - `webview-ui.src.features.dirac-rules.components.DiracRulesToggleModal.DiracRulesToggleModal.useEffect() callback.pollInterval` (L182-L182) - Class
+  - `webview-ui.src.features.dirac-rules.components.DiracRulesToggleModal.DiracRulesToggleModal.useEffect() callback.pollInterval.setInterval() callback` (L182-L182) - Function
+  - `webview-ui.src.features.dirac-rules.components.DiracRulesToggleModal.DiracRulesToggleModal.globalRules` (L187-L189) - Class
+  - `webview-ui.src.features.dirac-rules.components.DiracRulesToggleModal.DiracRulesToggleModal.globalRules.map() callback` (L188-L188) - Function
+  - `webview-ui.src.features.dirac-rules.components.DiracRulesToggleModal.DiracRulesToggleModal.globalRules.sort() callback` (L189-L189) - Function
+  - `webview-ui.src.features.dirac-rules.components.DiracRulesToggleModal.DiracRulesToggleModal.localRules` (L192-L194) - Class
+  - `webview-ui.src.features.dirac-rules.components.DiracRulesToggleModal.DiracRulesToggleModal.localRules.map() callback` (L193-L193) - Function
+  - `webview-ui.src.features.dirac-rules.components.DiracRulesToggleModal.DiracRulesToggleModal.localRules.sort() callback` (L194-L194) - Function
+  - `webview-ui.src.features.dirac-rules.components.DiracRulesToggleModal.DiracRulesToggleModal.cursorRules` (L196-L198) - Class
+  - `webview-ui.src.features.dirac-rules.components.DiracRulesToggleModal.DiracRulesToggleModal.cursorRules.map() callback` (L197-L197) - Function
+  - `webview-ui.src.features.dirac-rules.components.DiracRulesToggleModal.DiracRulesToggleModal.cursorRules.sort() callback` (L198-L198) - Function
+  - `webview-ui.src.features.dirac-rules.components.DiracRulesToggleModal.DiracRulesToggleModal.windsurfRules` (L200-L202) - Class
+  - `webview-ui.src.features.dirac-rules.components.DiracRulesToggleModal.DiracRulesToggleModal.windsurfRules.map() callback` (L201-L201) - Function
+  - `webview-ui.src.features.dirac-rules.components.DiracRulesToggleModal.DiracRulesToggleModal.windsurfRules.sort() callback` (L202-L202) - Function
+  - `webview-ui.src.features.dirac-rules.components.DiracRulesToggleModal.DiracRulesToggleModal.agentsRules` (L204-L206) - Class
+  - `webview-ui.src.features.dirac-rules.components.DiracRulesToggleModal.DiracRulesToggleModal.agentsRules.map() callback` (L205-L205) - Function
+  - `webview-ui.src.features.dirac-rules.components.DiracRulesToggleModal.DiracRulesToggleModal.agentsRules.sort() callback` (L206-L206) - Function
+  - `webview-ui.src.features.dirac-rules.components.DiracRulesToggleModal.DiracRulesToggleModal.localWorkflows` (L208-L210) - Class
+  - `webview-ui.src.features.dirac-rules.components.DiracRulesToggleModal.DiracRulesToggleModal.localWorkflows.map() callback` (L209-L209) - Function
+  - `webview-ui.src.features.dirac-rules.components.DiracRulesToggleModal.DiracRulesToggleModal.localWorkflows.sort() callback` (L210-L210) - Function
+  - `webview-ui.src.features.dirac-rules.components.DiracRulesToggleModal.DiracRulesToggleModal.globalWorkflows` (L212-L214) - Class
+  - `webview-ui.src.features.dirac-rules.components.DiracRulesToggleModal.DiracRulesToggleModal.globalWorkflows.map() callback` (L213-L213) - Function
+  - `webview-ui.src.features.dirac-rules.components.DiracRulesToggleModal.DiracRulesToggleModal.globalWorkflows.sort() callback` (L214-L214) - Function
+  - `webview-ui.src.features.dirac-rules.components.DiracRulesToggleModal.DiracRulesToggleModal.toggleRule` (L225-L248) - Class
+  - `webview-ui.src.features.dirac-rules.components.DiracRulesToggleModal.DiracRulesToggleModal.toggleRule.then() callback` (L233-L244) - Function
+  - `webview-ui.src.features.dirac-rules.components.DiracRulesToggleModal.DiracRulesToggleModal.toggleRule.catch() callback` (L245-L247) - Function
+  - `webview-ui.src.features.dirac-rules.components.DiracRulesToggleModal.DiracRulesToggleModal.toggleCursorRule` (L250-L266) - Class
+  - `webview-ui.src.features.dirac-rules.components.DiracRulesToggleModal.DiracRulesToggleModal.toggleCursorRule.then() callback` (L257-L262) - Function
+  - `webview-ui.src.features.dirac-rules.components.DiracRulesToggleModal.DiracRulesToggleModal.toggleCursorRule.catch() callback` (L263-L265) - Function
+  - `webview-ui.src.features.dirac-rules.components.DiracRulesToggleModal.DiracRulesToggleModal.toggleWindsurfRule` (L268-L283) - Class
+  - `webview-ui.src.features.dirac-rules.components.DiracRulesToggleModal.DiracRulesToggleModal.toggleWindsurfRule.then() callback` (L275-L279) - Function
+  - `webview-ui.src.features.dirac-rules.components.DiracRulesToggleModal.DiracRulesToggleModal.toggleWindsurfRule.catch() callback` (L280-L282) - Function
+  - `webview-ui.src.features.dirac-rules.components.DiracRulesToggleModal.DiracRulesToggleModal.toggleAgentsRule` (L285-L300) - Class
+  - `webview-ui.src.features.dirac-rules.components.DiracRulesToggleModal.DiracRulesToggleModal.toggleAgentsRule.then() callback` (L292-L296) - Function
+  - `webview-ui.src.features.dirac-rules.components.DiracRulesToggleModal.DiracRulesToggleModal.toggleAgentsRule.catch() callback` (L297-L299) - Function
+  - `webview-ui.src.features.dirac-rules.components.DiracRulesToggleModal.DiracRulesToggleModal.toggleHook` (L303-L318) - Class
+  - `webview-ui.src.features.dirac-rules.components.DiracRulesToggleModal.DiracRulesToggleModal.toggleHook.then() callback` (L311-L314) - Function
+  - `webview-ui.src.features.dirac-rules.components.DiracRulesToggleModal.DiracRulesToggleModal.toggleHook.catch() callback` (L315-L317) - Function
+  - `webview-ui.src.features.dirac-rules.components.DiracRulesToggleModal.DiracRulesToggleModal.toggleWorkflow` (L320-L340) - Class
+  - `webview-ui.src.features.dirac-rules.components.DiracRulesToggleModal.DiracRulesToggleModal.toggleWorkflow.then() callback` (L328-L336) - Function
+  - `webview-ui.src.features.dirac-rules.components.DiracRulesToggleModal.DiracRulesToggleModal.toggleWorkflow.catch() callback` (L337-L339) - Function
+  - `webview-ui.src.features.dirac-rules.components.DiracRulesToggleModal.DiracRulesToggleModal.toggleRemoteRule` (L343-L360) - Class
+  - `webview-ui.src.features.dirac-rules.components.DiracRulesToggleModal.DiracRulesToggleModal.toggleRemoteRule.then() callback` (L351-L356) - Function
+  - `webview-ui.src.features.dirac-rules.components.DiracRulesToggleModal.DiracRulesToggleModal.toggleRemoteRule.catch() callback` (L357-L359) - Function
+  - `webview-ui.src.features.dirac-rules.components.DiracRulesToggleModal.DiracRulesToggleModal.toggleRemoteWorkflow` (L363-L379) - Class
+  - `webview-ui.src.features.dirac-rules.components.DiracRulesToggleModal.DiracRulesToggleModal.toggleRemoteWorkflow.then() callback` (L371-L375) - Function
+  - `webview-ui.src.features.dirac-rules.components.DiracRulesToggleModal.DiracRulesToggleModal.toggleRemoteWorkflow.catch() callback` (L376-L378) - Function
+  - `webview-ui.src.features.dirac-rules.components.DiracRulesToggleModal.DiracRulesToggleModal.toggleSkill` (L382-L407) - Class
+  - `webview-ui.src.features.dirac-rules.components.DiracRulesToggleModal.DiracRulesToggleModal.toggleSkill.then() callback` (L390-L403) - Function
+  - `webview-ui.src.features.dirac-rules.components.DiracRulesToggleModal.DiracRulesToggleModal.toggleSkill.then() callback.setGlobalSkills() callback` (L399-L399) - Function
+  - `webview-ui.src.features.dirac-rules.components.DiracRulesToggleModal.DiracRulesToggleModal.toggleSkill.then() callback.setGlobalSkills() callback.prev.map() callback` (L399-L399) - Function
+  - `webview-ui.src.features.dirac-rules.components.DiracRulesToggleModal.DiracRulesToggleModal.toggleSkill.then() callback.setLocalSkills() callback` (L401-L401) - Function
+  - `webview-ui.src.features.dirac-rules.components.DiracRulesToggleModal.DiracRulesToggleModal.toggleSkill.then() callback.setLocalSkills() callback.prev.map() callback` (L401-L401) - Function
+  - `webview-ui.src.features.dirac-rules.components.DiracRulesToggleModal.DiracRulesToggleModal.toggleSkill.catch() callback` (L404-L406) - Function
+  - `webview-ui.src.features.dirac-rules.components.DiracRulesToggleModal.DiracRulesToggleModal.useClickAway() callback` (L410-L412) - Function
+  - `webview-ui.src.features.dirac-rules.components.DiracRulesToggleModal.DiracRulesToggleModal.useEffect() callback` (L415-L424) - Function
+  - `webview-ui.src.features.dirac-rules.components.DiracRulesToggleModal.DiracRulesToggleModal.remoteGlobalRules.map() callback` (L526-L540) - Function
+  - `webview-ui.src.features.dirac-rules.components.DiracRulesToggleModal.DiracRulesToggleModal.remoteGlobalWorkflows.map() callback` (L615-L630) - Function
+  - `webview-ui.src.features.dirac-rules.components.DiracRulesToggleModal.DiracRulesToggleModal.globalHooks.sort() callback` (L694-L694) - Function
+  - `webview-ui.src.features.dirac-rules.components.DiracRulesToggleModal.DiracRulesToggleModal.globalHooks.map() callback` (L714-L714) - Function
+  - `webview-ui.src.features.dirac-rules.components.DiracRulesToggleModal.DiracRulesToggleModal.workspaceHooks.map() callback` (L722-L759) - Function
+  - `webview-ui.src.features.dirac-rules.components.DiracRulesToggleModal.DiracRulesToggleModal.workspaceHooks.map() callback.workspace.hooks.sort() callback` (L731-L731) - Function
+  - `webview-ui.src.features.dirac-rules.components.DiracRulesToggleModal.DiracRulesToggleModal.workspaceHooks.map() callback.map() callback` (L732-L750) - Function
+  - `webview-ui.src.features.dirac-rules.components.DiracRulesToggleModal.DiracRulesToggleModal.workspaceHooks.map() callback.workspace.hooks.map() callback` (L752-L752) - Function
+  - `webview-ui.src.features.dirac-rules.components.DiracRulesToggleModal.DiracRulesToggleModal.globalSkills.sort() callback` (L768-L768) - Function
+  - `webview-ui.src.features.dirac-rules.components.DiracRulesToggleModal.map() callback.<function>` (L773-L777) - Function
+  - `webview-ui.src.features.dirac-rules.components.DiracRulesToggleModal.DiracRulesToggleModal.map() callback.<function>.setGlobalSkills() callback` (L774-L775) - Function
+  - `webview-ui.src.features.dirac-rules.components.DiracRulesToggleModal.DiracRulesToggleModal.map() callback.<function>.setGlobalSkills() callback.skills.filter() callback` (L775-L775) - Function
+  - `webview-ui.src.features.dirac-rules.components.DiracRulesToggleModal.DiracRulesToggleModal.localSkills.sort() callback` (L793-L793) - Function
+  - `webview-ui.src.features.dirac-rules.components.DiracRulesToggleModal.DiracRulesToggleModal.map() callback` (L794-L808) - Function
+  - `webview-ui.src.features.dirac-rules.components.DiracRulesToggleModal.DiracRulesToggleModal.map() callback.<function>` (L798-L802) - Function
+  - `webview-ui.src.features.dirac-rules.components.DiracRulesToggleModal.DiracRulesToggleModal.map() callback.<function>.setLocalSkills() callback` (L799-L800) - Function
+  - `webview-ui.src.features.dirac-rules.components.DiracRulesToggleModal.DiracRulesToggleModal.map() callback.<function>.setLocalSkills() callback.skills.filter() callback` (L800-L800) - Function
+- `webview-ui/src/features/dirac-rules/components/HookRow.tsx`
+  - `webview-ui.src.features.dirac-rules.components.HookRow.HookRowProps` (L8-L17) - Interface
+  - `webview-ui.src.features.dirac-rules.components.HookRow.HookRow.handleEditClick` (L29-L33) - Class
+  - `webview-ui.src.features.dirac-rules.components.HookRow.HookRow.handleEditClick.catch() callback` (L30-L31) - Function
+  - `webview-ui.src.features.dirac-rules.components.HookRow.HookRow.handleDeleteClick` (L35-L49) - Class
+  - `webview-ui.src.features.dirac-rules.components.HookRow.HookRow.handleDeleteClick.then() callback` (L43-L47) - Function
+  - `webview-ui.src.features.dirac-rules.components.HookRow.HookRow.handleDeleteClick.catch() callback` (L48-L48) - Function
+- `webview-ui/src/features/dirac-rules/components/NewRuleRow.tsx`
+  - `webview-ui.src.features.dirac-rules.components.NewRuleRow.NewRuleRowProps` (L9-L15) - Interface
+  - `webview-ui.src.features.dirac-rules.components.NewRuleRow.NewRuleRow` (L28-L270) - Class
+  - `webview-ui.src.features.dirac-rules.components.NewRuleRow.NewRuleRow.availableHookTypes` (L37-L37) - Class
+  - `webview-ui.src.features.dirac-rules.components.NewRuleRow.NewRuleRow.availableHookTypes.useMemo() callback` (L37-L37) - Function
+  - `webview-ui.src.features.dirac-rules.components.NewRuleRow.NewRuleRow.availableHookTypes.useMemo() callback.HOOK_TYPES.filter() callback` (L37-L37) - Function
+  - `webview-ui.src.features.dirac-rules.components.NewRuleRow.NewRuleRow.useEffect() callback` (L40-L44) - Function
+  - `webview-ui.src.features.dirac-rules.components.NewRuleRow.NewRuleRow.useClickAway() callback` (L46-L52) - Function
+  - `webview-ui.src.features.dirac-rules.components.NewRuleRow.NewRuleRow.getExtension` (L54-L60) - Method
+  - `webview-ui.src.features.dirac-rules.components.NewRuleRow.NewRuleRow.isValidExtension` (L62-L64) - Method
+  - `webview-ui.src.features.dirac-rules.components.NewRuleRow.NewRuleRow.handleCreateHook` (L66-L81) - Method
+  - `webview-ui.src.features.dirac-rules.components.NewRuleRow.NewRuleRow.handleSubmit` (L83-L144) - Method
+  - `webview-ui.src.features.dirac-rules.components.NewRuleRow.NewRuleRow.handleKeyDown` (L146-L151) - Method
+  - `webview-ui.src.features.dirac-rules.components.NewRuleRow.availableHookTypes.map() callback` (L176-L176) - Function
+  - `webview-ui.src.features.dirac-rules.components.NewRuleRow.NewRuleRow.availableHookTypes.map() callback` (L203-L207) - Function
+- `webview-ui/src/features/dirac-rules/components/RuleRow.tsx`
+  - `webview-ui.src.features.dirac-rules.components.RuleRow.isWin32Path` (L10-L12) - Function
+  - `webview-ui.src.features.dirac-rules.components.RuleRow.splitPath` (L14-L17) - Function
+  - `webview-ui.src.features.dirac-rules.components.RuleRow.getDisplayNameFromPath` (L19-L22) - Function
+  - `webview-ui.src.features.dirac-rules.components.RuleRow.getSkillDisplayNameFromSkillMdPath` (L24-L29) - Function
+  - `webview-ui.src.features.dirac-rules.components.RuleRow.RuleRow.handleEditClick` (L103-L109) - Class
+  - `webview-ui.src.features.dirac-rules.components.RuleRow.RuleRow.handleEditClick.catch() callback` (L106-L107) - Function
+  - `webview-ui.src.features.dirac-rules.components.RuleRow.RuleRow.handleDeleteClick` (L111-L132) - Class
+  - `webview-ui.src.features.dirac-rules.components.RuleRow.handleDeleteClick.then() callback` (L119-L119) - Function
+  - `webview-ui.src.features.dirac-rules.components.RuleRow.handleDeleteClick.catch() callback` (L120-L120) - Function
+  - `webview-ui.src.features.dirac-rules.components.RuleRow.RuleRow.handleDeleteClick.then() callback` (L129-L129) - Function
+  - `webview-ui.src.features.dirac-rules.components.RuleRow.RuleRow.handleDeleteClick.catch() callback` (L130-L130) - Function
+- `webview-ui/src/features/dirac-rules/components/RulesToggleList.tsx`
+  - `webview-ui.src.features.dirac-rules.components.RulesToggleList.RulesToggleList` (L4-L66) - Class
+  - `webview-ui.src.features.dirac-rules.components.RulesToggleList.RulesToggleList.rules.map() callback` (L39-L51) - Function
+- `webview-ui/src/features/history/components/HistoryView/HistoryView.tsx`
+  - `webview-ui.src.features.history.components.HistoryView.HistoryView.HistoryView` (L65-L493) - Class
+  - `webview-ui.src.features.history.components.HistoryView.HistoryView.HistoryView.taskHistory` (L66-L66) - Class
+  - `webview-ui.src.features.history.components.HistoryView.HistoryView.HistoryView.taskHistory.useTaskStore() callback` (L66-L66) - Function
+  - `webview-ui.src.features.history.components.HistoryView.HistoryView.HistoryView.setTaskHistory` (L67-L67) - Class
+  - `webview-ui.src.features.history.components.HistoryView.HistoryView.HistoryView.setTaskHistory.useTaskStore() callback` (L67-L67) - Function
+  - `webview-ui.src.features.history.components.HistoryView.HistoryView.HistoryView.totalTasksSize` (L68-L68) - Class
+  - `webview-ui.src.features.history.components.HistoryView.HistoryView.HistoryView.totalTasksSize.useTaskStore() callback` (L68-L68) - Function
+  - `webview-ui.src.features.history.components.HistoryView.HistoryView.HistoryView.setTotalTasksSize` (L69-L69) - Class
+  - `webview-ui.src.features.history.components.HistoryView.HistoryView.HistoryView.setTotalTasksSize.useTaskStore() callback` (L69-L69) - Function
+  - `webview-ui.src.features.history.components.HistoryView.HistoryView.HistoryView.onRelinquishControl` (L70-L70) - Class
+  - `webview-ui.src.features.history.components.HistoryView.HistoryView.HistoryView.onRelinquishControl.useAppStore() callback` (L70-L70) - Function
+  - `webview-ui.src.features.history.components.HistoryView.HistoryView.HistoryView.environment` (L71-L71) - Class
+  - `webview-ui.src.features.history.components.HistoryView.HistoryView.HistoryView.environment.useAppStore() callback` (L71-L71) - Function
+  - `webview-ui.src.features.history.components.HistoryView.HistoryView.HistoryView.loadTaskHistory` (L86-L113) - Class
+  - `webview-ui.src.features.history.components.HistoryView.HistoryView.HistoryView.loadTaskHistory.useCallback() callback` (L86-L113) - Function
+  - `webview-ui.src.features.history.components.HistoryView.HistoryView.useEffect() callback` (L115-L117) - Function
+  - `webview-ui.src.features.history.components.HistoryView.HistoryView.HistoryView.fetchTotalTasksSize` (L119-L126) - Class
+  - `webview-ui.src.features.history.components.HistoryView.HistoryView.HistoryView.fetchTotalTasksSize.useCallback() callback` (L119-L126) - Function
+  - `webview-ui.src.features.history.components.HistoryView.HistoryView.HistoryView.useEffect() callback.onRelinquishControl() callback` (L133-L136) - Function
+  - `webview-ui.src.features.history.components.HistoryView.HistoryView.HistoryView.useEffect() callback` (L150-L153) - Function
+  - `webview-ui.src.features.history.components.HistoryView.HistoryView.HistoryView.useEffect() callback.visibleTaskIds` (L151-L151) - Class
+  - `webview-ui.src.features.history.components.HistoryView.HistoryView.HistoryView.useEffect() callback.visibleTaskIds.tasks.map() callback` (L151-L151) - Function
+  - `webview-ui.src.features.history.components.HistoryView.HistoryView.HistoryView.useEffect() callback.setSelectedItems() callback` (L152-L152) - Function
+  - `webview-ui.src.features.history.components.HistoryView.HistoryView.HistoryView.useEffect() callback.setSelectedItems() callback.selected.filter() callback` (L152-L152) - Function
+  - `webview-ui.src.features.history.components.HistoryView.HistoryView.HistoryView.handleHistorySelect` (L155-L162) - Class
+  - `webview-ui.src.features.history.components.HistoryView.HistoryView.HistoryView.handleHistorySelect.useCallback() callback` (L155-L162) - Function
+  - `webview-ui.src.features.history.components.HistoryView.HistoryView.HistoryView.handleHistorySelect.useCallback() callback.setSelectedItems() callback` (L156-L161) - Function
+  - `webview-ui.src.features.history.components.HistoryView.HistoryView.HistoryView.handleHistorySelect.useCallback() callback.setSelectedItems() callback.selected.filter() callback` (L160-L160) - Function
+  - `webview-ui.src.features.history.components.HistoryView.HistoryView.HistoryView.toggleFavorite` (L164-L194) - Class
+  - `webview-ui.src.features.history.components.HistoryView.HistoryView.HistoryView.toggleFavorite.useCallback() callback` (L165-L192) - Function
+  - `webview-ui.src.features.history.components.HistoryView.HistoryView.toggleFavorite.useCallback() callback.setPendingFavoriteToggles() callback` (L167-L167) - Function
+  - `webview-ui.src.features.history.components.HistoryView.HistoryView.HistoryView.toggleFavorite.useCallback() callback.setTasks() callback` (L168-L171) - Function
+  - `webview-ui.src.features.history.components.HistoryView.HistoryView.HistoryView.toggleFavorite.useCallback() callback.setTasks() callback.currentTasks.filter() callback` (L170-L170) - Function
+  - `webview-ui.src.features.history.components.HistoryView.HistoryView.HistoryView.toggleFavorite.useCallback() callback.setTasks() callback.currentTasks.map() callback` (L171-L171) - Function
+  - `webview-ui.src.features.history.components.HistoryView.HistoryView.HistoryView.toggleFavorite.useCallback() callback.currentHistory.map() callback` (L174-L174) - Function
+  - `webview-ui.src.features.history.components.HistoryView.HistoryView.HistoryView.toggleFavorite.useCallback() callback.latestHistory.map() callback` (L182-L182) - Function
+  - `webview-ui.src.features.history.components.HistoryView.HistoryView.HistoryView.toggleFavorite.useCallback() callback.setPendingFavoriteToggles() callback` (L186-L190) - Function
+  - `webview-ui.src.features.history.components.HistoryView.HistoryView.HistoryView.deleteTasks` (L198-L215) - Class
+  - `webview-ui.src.features.history.components.HistoryView.HistoryView.HistoryView.deleteTasks.useCallback() callback` (L199-L213) - Function
+  - `webview-ui.src.features.history.components.HistoryView.HistoryView.HistoryView.deleteAllHistory` (L217-L230) - Class
+  - `webview-ui.src.features.history.components.HistoryView.HistoryView.HistoryView.deleteAllHistory.useCallback() callback` (L217-L230) - Function
+  - `webview-ui.src.features.history.components.HistoryView.HistoryView.HistoryView.fuse` (L232-L244) - Class
+  - `webview-ui.src.features.history.components.HistoryView.HistoryView.HistoryView.fuse.useMemo() callback` (L233-L242) - Function
+  - `webview-ui.src.features.history.components.HistoryView.HistoryView.HistoryView.taskHistorySearchResults` (L246-L268) - Class
+  - `webview-ui.src.features.history.components.HistoryView.HistoryView.HistoryView.taskHistorySearchResults.useMemo() callback` (L246-L268) - Function
+  - `webview-ui.src.features.history.components.HistoryView.HistoryView.HistoryView.taskHistorySearchResults.useMemo() callback.results` (L247-L252) - Class
+  - `webview-ui.src.features.history.components.HistoryView.HistoryView.HistoryView.taskHistorySearchResults.useMemo() callback.results.filter() callback` (L250-L250) - Function
+  - `webview-ui.src.features.history.components.HistoryView.HistoryView.HistoryView.taskHistorySearchResults.useMemo() callback.results.map() callback` (L251-L251) - Function
+  - `webview-ui.src.features.history.components.HistoryView.HistoryView.HistoryView.taskHistorySearchResults.useMemo() callback.sort() callback` (L256-L267) - Function
+  - `webview-ui.src.features.history.components.HistoryView.HistoryView.HistoryView.selectedItemsSize` (L292-L295) - Class
+  - `webview-ui.src.features.history.components.HistoryView.HistoryView.HistoryView.selectedItemsSize.useMemo() callback` (L292-L295) - Function
+  - `webview-ui.src.features.history.components.HistoryView.HistoryView.HistoryView.selectedItemsSize.useMemo() callback.reduce() callback` (L294-L294) - Function
+  - `webview-ui.src.features.history.components.HistoryView.HistoryView.HistoryView.selectedItemsSize.useMemo() callback.tasks.filter() callback` (L294-L294) - Function
+  - `webview-ui.src.features.history.components.HistoryView.HistoryView.HistoryView.selectedItemIds` (L297-L297) - Class
+  - `webview-ui.src.features.history.components.HistoryView.HistoryView.HistoryView.selectedItemIds.useMemo() callback` (L297-L297) - Function
+  - `webview-ui.src.features.history.components.HistoryView.HistoryView.HistoryView.allVisibleSelected` (L298-L299) - Class
+  - `webview-ui.src.features.history.components.HistoryView.HistoryView.HistoryView.allVisibleSelected.taskHistorySearchResults.every() callback` (L299-L299) - Function
+  - `webview-ui.src.features.history.components.HistoryView.HistoryView.HistoryView.renderHistoryItem` (L302-L325) - Class
+  - `webview-ui.src.features.history.components.HistoryView.HistoryView.HistoryView.renderHistoryItem.useCallback() callback` (L303-L314) - Function
+  - `webview-ui.src.features.history.components.HistoryView.HistoryView.<function>` (L393-L402) - Function
+  - `webview-ui.src.features.history.components.HistoryView.HistoryView.HistoryView.<function>.setShowCurrentWorkspaceOnly() callback` (L400-L400) - Function
+  - `webview-ui.src.features.history.components.HistoryView.HistoryView.HistoryView.<function>.setShowFavoritesOnly() callback` (L401-L401) - Function
+  - `webview-ui.src.features.history.components.HistoryView.HistoryView.HistoryView.map() callback` (L408-L436) - Function
+  - `webview-ui.src.features.history.components.HistoryView.HistoryView.HistoryView.<function>` (L457-L457) - Function
+  - `webview-ui.src.features.history.components.HistoryView.HistoryView.HistoryView.<function>.taskHistorySearchResults.map() callback` (L457-L457) - Function
+  - `webview-ui.src.features.history.components.HistoryView.HistoryView.historyCost` (L495-L497) - Function
+  - `webview-ui.src.features.history.components.HistoryView.HistoryView.historyTokens` (L499-L502) - Function
+  - `webview-ui.src.features.history.components.HistoryView.HistoryView.escapeHtml` (L505-L515) - Class
+  - `webview-ui.src.features.history.components.HistoryView.HistoryView.escapeHtml.value.replace() callback` (L506-L515) - Function
+  - `webview-ui.src.features.history.components.HistoryView.HistoryView.highlight` (L517-L564) - Class
+  - `webview-ui.src.features.history.components.HistoryView.HistoryView.highlight.set` (L518-L523) - Method
+  - `webview-ui.src.features.history.components.HistoryView.HistoryView.highlight.mergeRegions` (L525-L536) - Class
+  - `webview-ui.src.features.history.components.HistoryView.HistoryView.highlight.mergeRegions.regions.sort() callback` (L527-L527) - Function
+  - `webview-ui.src.features.history.components.HistoryView.HistoryView.highlight.generateHighlightedText` (L538-L551) - Class
+  - `webview-ui.src.features.history.components.HistoryView.HistoryView.highlight.generateHighlightedText.mergedRegions.forEach() callback` (L543-L549) - Function
+  - `webview-ui.src.features.history.components.HistoryView.HistoryView.highlight.fuseSearchResult.filter() callback` (L554-L554) - Function
+  - `webview-ui.src.features.history.components.HistoryView.HistoryView.highlight.map() callback` (L555-L563) - Function
+  - `webview-ui.src.features.history.components.HistoryView.HistoryView.highlight.map() callback.matches.forEach() callback` (L557-L561) - Function
 - `webview-ui/src/features/history/components/HistoryViewItem.tsx`
   - `webview-ui.src.features.history.components.HistoryViewItem.HistoryViewItem` (L35-L253) - Class
   - `webview-ui.src.features.history.components.HistoryViewItem.HistoryViewItem.navigateToChat` (L45-L45) - Class
@@ -14046,6 +14411,191 @@ Provides React components for the webview interface, including history view item
   - `webview-ui.src.features.history.components.HistoryViewItem.HistoryViewItem.<function>.setExpanded() callback` (L165-L165) - Function
   - `webview-ui.src.features.history.components.HistoryViewItem.HistoryViewItem.<function>` (L237-L240) - Function
   - `webview-ui.src.features.history.components.HistoryViewItem.HistoryViewItem.<function>.catch() callback` (L240-L240) - Function
+- `webview-ui/src/features/modular-ui/ApiStatusOverlay.tsx`
+  - `webview-ui.src.features.modular-ui.ApiStatusOverlay.ApiStatusOverlayProps` (L5-L7) - Interface
+  - `webview-ui.src.features.modular-ui.ApiStatusOverlay.ApiStatusOverlay` (L9-L39) - Class
+  - `webview-ui.src.features.modular-ui.ApiStatusOverlay.ApiStatusOverlay.memo() callback` (L9-L39) - Function
+- `webview-ui/src/features/modular-ui/CheckpointMarker.tsx`
+  - `webview-ui.src.features.modular-ui.CheckpointMarker.CheckpointMarkerProps` (L14-L16) - Interface
+  - `webview-ui.src.features.modular-ui.CheckpointMarker.CheckpointMarker` (L33-L312) - Class
+  - `webview-ui.src.features.modular-ui.CheckpointMarker.CheckpointMarker.scheduleCloseRestore` (L47-L54) - Class
+  - `webview-ui.src.features.modular-ui.CheckpointMarker.CheckpointMarker.scheduleCloseRestore.useCallback() callback` (L47-L54) - Function
+  - `webview-ui.src.features.modular-ui.CheckpointMarker.CheckpointMarker.scheduleCloseRestore.useCallback() callback.setTimeout() callback` (L51-L53) - Function
+  - `webview-ui.src.features.modular-ui.CheckpointMarker.CheckpointMarker.cancelCloseRestore` (L56-L61) - Class
+  - `webview-ui.src.features.modular-ui.CheckpointMarker.CheckpointMarker.cancelCloseRestore.useCallback() callback` (L56-L61) - Function
+  - `webview-ui.src.features.modular-ui.CheckpointMarker.useEffect() callback` (L64-L71) - Function
+  - `webview-ui.src.features.modular-ui.CheckpointMarker.CheckpointMarker.useEffect() callback` (L104-L113) - Function
+  - `webview-ui.src.features.modular-ui.CheckpointMarker.CheckpointMarker.useEffect() callback.onRelinquishControl() callback` (L105-L112) - Function
+  - `webview-ui.src.features.modular-ui.CheckpointMarker.CheckpointMarker.handleRestoreTask` (L115-L130) - Method
+  - `webview-ui.src.features.modular-ui.CheckpointMarker.CheckpointMarker.handleRestoreWorkspace` (L132-L147) - Method
+  - `webview-ui.src.features.modular-ui.CheckpointMarker.CheckpointMarker.handleRestoreBoth` (L149-L164) - Method
+  - `webview-ui.src.features.modular-ui.CheckpointMarker.CheckpointMarker.handleMouseEnter` (L166-L168) - Method
+  - `webview-ui.src.features.modular-ui.CheckpointMarker.CheckpointMarker.handleMouseLeave` (L170-L172) - Method
+  - `webview-ui.src.features.modular-ui.CheckpointMarker.CheckpointMarker.handleControlsMouseEnter` (L174-L176) - Method
+  - `webview-ui.src.features.modular-ui.CheckpointMarker.CheckpointMarker.handleControlsMouseLeave` (L178-L180) - Method
+  - `webview-ui.src.features.modular-ui.CheckpointMarker.CheckpointMarker.<function>` (L211-L224) - Function
+  - `webview-ui.src.features.modular-ui.CheckpointMarker.DottedLine` (L315-L323) - Function
+  - `webview-ui.src.features.modular-ui.CheckpointMarker.CheckpointButton` (L326-L374) - Function
+- `webview-ui/src/features/modular-ui/ModularCard.tsx`
+  - `webview-ui.src.features.modular-ui.ModularCard.ModularCardProps` (L9-L13) - Interface
+  - `webview-ui.src.features.modular-ui.ModularCard.ModularCard` (L17-L71) - Class
+  - `webview-ui.src.features.modular-ui.ModularCard.ModularCard.storedCollapsed` (L18-L18) - Class
+  - `webview-ui.src.features.modular-ui.ModularCard.ModularCard.storedCollapsed.useChatStore() callback` (L18-L18) - Function
+  - `webview-ui.src.features.modular-ui.ModularCard.ModularCard.userToggled` (L19-L19) - Class
+  - `webview-ui.src.features.modular-ui.ModularCard.ModularCard.userToggled.useChatStore() callback` (L19-L19) - Function
+  - `webview-ui.src.features.modular-ui.ModularCard.ModularCard.setCardCollapsedState` (L20-L20) - Class
+  - `webview-ui.src.features.modular-ui.ModularCard.ModularCard.setCardCollapsedState.useChatStore() callback` (L20-L20) - Function
+  - `webview-ui.src.features.modular-ui.ModularCard.ModularCard.useLayoutEffect() callback` (L32-L37) - Function
+  - `webview-ui.src.features.modular-ui.ModularCard.ModularCard.toggleCollapsed` (L44-L46) - Method
+- `webview-ui/src/features/modular-ui/ModularDiffView.tsx`
+  - `webview-ui.src.features.modular-ui.ModularDiffView.ModularDiffViewProps` (L6-L8) - Interface
+  - `webview-ui.src.features.modular-ui.ModularDiffView.ModularDiffView` (L10-L35) - Class
+  - `webview-ui.src.features.modular-ui.ModularDiffView.ModularDiffView.memo() callback` (L10-L35) - Function
+  - `webview-ui.src.features.modular-ui.ModularDiffView.ModularDiffView.memo() callback.pre` (L27-L27) - Method
+  - `webview-ui.src.features.modular-ui.ModularDiffView.ModularDiffView.memo() callback.code` (L28-L28) - Method
+- `webview-ui/src/features/modular-ui/ModularMarkdown.stories.tsx`
+  - `webview-ui.src.features.modular-ui.ModularMarkdown.stories.ExpandableUserMessage` (L21-L32) - Function
+  - `webview-ui.src.features.modular-ui.ModularMarkdown.stories.ExpandableUserMessage.<function>` (L28-L28) - Function
+  - `webview-ui.src.features.modular-ui.ModularMarkdown.stories.ExpandableUserMessage.<function>.setIsExpanded() callback` (L28-L28) - Function
+  - `webview-ui.src.features.modular-ui.ModularMarkdown.stories.PastedBuildOutput` (L45-L51) - Class
+  - `webview-ui.src.features.modular-ui.ModularMarkdown.stories.PastedBuildOutput.render` (L50-L50) - Method
+- `webview-ui/src/features/modular-ui/ModularMarkdown.tsx`
+  - `webview-ui.src.features.modular-ui.ModularMarkdown.ModularMarkdownProps` (L14-L27) - Interface
+  - `webview-ui.src.features.modular-ui.ModularMarkdown.ModularMarkdown` (L29-L108) - Class
+  - `webview-ui.src.features.modular-ui.ModularMarkdown.ModularMarkdown.memo() callback` (L30-L107) - Function
+- `webview-ui/src/features/modular-ui/ReasoningTimeline.tsx`
+  - `webview-ui.src.features.modular-ui.ReasoningTimeline.ReasoningTimelineProps` (L4-L6) - Interface
+  - `webview-ui.src.features.modular-ui.ReasoningTimeline.ReasoningTimeline` (L8-L23) - Class
+  - `webview-ui.src.features.modular-ui.ReasoningTimeline.ReasoningTimeline.memo() callback` (L8-L23) - Function
+  - `webview-ui.src.features.modular-ui.ReasoningTimeline.ReasoningTimeline.memo() callback.steps` (L10-L10) - Class
+  - `webview-ui.src.features.modular-ui.ReasoningTimeline.ReasoningTimeline.memo() callback.steps.filter() callback` (L10-L10) - Function
+  - `webview-ui.src.features.modular-ui.ReasoningTimeline.ReasoningTimeline.memo() callback.steps.map() callback` (L16-L20) - Function
+- `webview-ui/src/features/modular-ui/chat/ModularChatTextArea.tsx`
+  - `webview-ui.src.features.modular-ui.chat.ModularChatTextArea.ModularChatTextAreaProps` (L21-L55) - Interface
+  - `webview-ui.src.features.modular-ui.chat.ModularChatTextArea.ModularChatTextArea` (L57-L276) - Class
+  - `webview-ui.src.features.modular-ui.chat.ModularChatTextArea.ModularChatTextArea.traits` (L98-L101) - Class
+  - `webview-ui.src.features.modular-ui.chat.ModularChatTextArea.ModularChatTextArea.traits.useMemo() callback` (L99-L99) - Function
+  - `webview-ui.src.features.modular-ui.chat.ModularChatTextArea.ModularChatTextArea.overlayDecorator` (L105-L108) - Class
+  - `webview-ui.src.features.modular-ui.chat.ModularChatTextArea.ModularChatTextArea.overlayDecorator.useMemo() callback` (L106-L106) - Function
+  - `webview-ui.src.features.modular-ui.chat.ModularChatTextArea.ModularChatTextArea.actionDecorator` (L109-L165) - Class
+  - `webview-ui.src.features.modular-ui.chat.ModularChatTextArea.ModularChatTextArea.actionDecorator.useMemo() callback` (L110-L137) - Function
+  - `webview-ui.src.features.modular-ui.chat.ModularChatTextArea.ModularChatTextArea.decorators` (L167-L170) - Class
+  - `webview-ui.src.features.modular-ui.chat.ModularChatTextArea.ModularChatTextArea.decorators.useMemo() callback` (L168-L168) - Function
+  - `webview-ui.src.features.modular-ui.chat.ModularChatTextArea.ModularChatTextArea.handleModeToggleWithInput` (L183-L187) - Class
+  - `webview-ui.src.features.modular-ui.chat.ModularChatTextArea.ModularChatTextArea.handleModeToggleWithInput.useCallback() callback` (L183-L187) - Function
+  - `webview-ui.src.features.modular-ui.chat.ModularChatTextArea.ModularChatTextArea.onKeyDown` (L190-L202) - Method
+  - `webview-ui.src.features.modular-ui.chat.ModularChatTextArea.decorators.map() callback` (L209-L213) - Function
+  - `webview-ui.src.features.modular-ui.chat.ModularChatTextArea.ModularChatTextArea.decorators.map() callback` (L270-L272) - Function
+- `webview-ui/src/features/modular-ui/chat/ModularChatView.tsx`
+  - `webview-ui.src.features.modular-ui.chat.ModularChatView.ModularChatView` (L29-L172) - Class
+  - `webview-ui.src.features.modular-ui.chat.ModularChatView.ModularChatView.version` (L31-L31) - Class
+  - `webview-ui.src.features.modular-ui.chat.ModularChatView.ModularChatView.version.useAppStore() callback` (L31-L31) - Function
+  - `webview-ui.src.features.modular-ui.chat.ModularChatView.ModularChatView.goal` (L41-L41) - Class
+  - `webview-ui.src.features.modular-ui.chat.ModularChatView.ModularChatView.goal.useChatStore() callback` (L41-L41) - Function
+  - `webview-ui.src.features.modular-ui.chat.ModularChatView.ModularChatView.taskHistory` (L42-L42) - Class
+  - `webview-ui.src.features.modular-ui.chat.ModularChatView.ModularChatView.taskHistory.useTaskStore() callback` (L42-L42) - Function
+  - `webview-ui.src.features.modular-ui.chat.ModularChatView.ModularChatView.apiConfiguration` (L43-L43) - Class
+  - `webview-ui.src.features.modular-ui.chat.ModularChatView.ModularChatView.apiConfiguration.useSettingsStore() callback` (L43-L43) - Function
+  - `webview-ui.src.features.modular-ui.chat.ModularChatView.ModularChatView.telemetrySetting` (L44-L44) - Class
+  - `webview-ui.src.features.modular-ui.chat.ModularChatView.ModularChatView.telemetrySetting.useSettingsStore() callback` (L44-L44) - Function
+  - `webview-ui.src.features.modular-ui.chat.ModularChatView.ModularChatView.mode` (L45-L45) - Class
+  - `webview-ui.src.features.modular-ui.chat.ModularChatView.ModularChatView.mode.useSettingsStore() callback` (L45-L45) - Function
+  - `webview-ui.src.features.modular-ui.chat.ModularChatView.ModularChatView.useMount() callback` (L59-L61) - Function
+  - `webview-ui.src.features.modular-ui.chat.ModularChatView.ModularChatView.useEffect() callback` (L64-L73) - Function
+  - `webview-ui.src.features.modular-ui.chat.ModularChatView.ModularChatView.useEffect() callback.timer` (L65-L69) - Class
+  - `webview-ui.src.features.modular-ui.chat.ModularChatView.ModularChatView.useEffect() callback.timer.setTimeout() callback` (L65-L69) - Function
+  - `webview-ui.src.features.modular-ui.chat.ModularChatView.ModularChatView.placeholderText` (L77-L87) - Class
+  - `webview-ui.src.features.modular-ui.chat.ModularChatView.ModularChatView.placeholderText.useMemo() callback` (L77-L87) - Function
+  - `webview-ui.src.features.modular-ui.chat.ModularChatView.ModularChatView.context` (L89-L138) - Class
+  - `webview-ui.src.features.modular-ui.chat.ModularChatView.ModularChatView.context.useMemo() callback` (L90-L114) - Function
+  - `webview-ui.src.features.modular-ui.chat.ModularChatView.ModularChatView.sections` (L140-L140) - Class
+  - `webview-ui.src.features.modular-ui.chat.ModularChatView.ModularChatView.sections.useMemo() callback` (L140-L140) - Function
+  - `webview-ui.src.features.modular-ui.chat.ModularChatView.ModularChatView.decorators` (L142-L142) - Class
+  - `webview-ui.src.features.modular-ui.chat.ModularChatView.ModularChatView.decorators.useMemo() callback` (L142-L142) - Function
+  - `webview-ui.src.features.modular-ui.chat.ModularChatView.ModularChatView.sections.map() callback` (L154-L158) - Function
+  - `webview-ui.src.features.modular-ui.chat.ModularChatView.ModularChatView.decorators.map() callback` (L162-L164) - Function
+- `webview-ui/src/features/modular-ui/chat/components/ActionButtons.tsx`
+  - `webview-ui.src.features.modular-ui.chat.components.ActionButtons.ActionButtonsProps` (L9-L18) - Interface
+  - `webview-ui.src.features.modular-ui.chat.components.ActionButtons.ActionButtons` (L20-L147) - Class
+  - `webview-ui.src.features.modular-ui.chat.components.ActionButtons.ActionButtons.activeCard` (L33-L38) - Class
+  - `webview-ui.src.features.modular-ui.chat.components.ActionButtons.ActionButtons.activeCard.useChatStore() callback` (L33-L38) - Function
+  - `webview-ui.src.features.modular-ui.chat.components.ActionButtons.useEffect() callback` (L41-L45) - Function
+  - `webview-ui.src.features.modular-ui.chat.components.ActionButtons.ActionButtons.handleActionClick` (L61-L77) - Class
+  - `webview-ui.src.features.modular-ui.chat.components.ActionButtons.ActionButtons.handleActionClick.useCallback() callback` (L62-L75) - Function
+  - `webview-ui.src.features.modular-ui.chat.components.ActionButtons.ActionButtons.handleKeyDown` (L84-L93) - Class
+  - `webview-ui.src.features.modular-ui.chat.components.ActionButtons.ActionButtons.handleKeyDown.useCallback() callback` (L85-L91) - Function
+  - `webview-ui.src.features.modular-ui.chat.components.ActionButtons.ActionButtons.useEffect() callback` (L95-L99) - Function
+  - `webview-ui.src.features.modular-ui.chat.components.ActionButtons.ActionButtons.allButtons.map() callback` (L135-L144) - Function
+- `webview-ui/src/features/modular-ui/chat/components/AutoApprove/AutoApproveBar.tsx`
+  - `webview-ui.src.features.modular-ui.chat.components.AutoApprove.AutoApproveBar.AutoApproveBarProps` (L7-L9) - Interface
+  - `webview-ui.src.features.modular-ui.chat.components.AutoApprove.AutoApproveBar.getAutonomySummary` (L18-L29) - Function
+  - `webview-ui.src.features.modular-ui.chat.components.AutoApprove.AutoApproveBar.AutoApproveBar` (L31-L81) - Class
+  - `webview-ui.src.features.modular-ui.chat.components.AutoApprove.AutoApproveBar.AutoApproveBar.<function>` (L65-L65) - Function
+  - `webview-ui.src.features.modular-ui.chat.components.AutoApprove.AutoApproveBar.AutoApproveBar.<function>.setIsModalVisible() callback` (L65-L65) - Function
+- `webview-ui/src/features/modular-ui/chat/components/AutoApprove/AutoApproveMenuItem.tsx`
+  - `webview-ui.src.features.modular-ui.chat.components.AutoApprove.AutoApproveMenuItem.AutoApproveMenuItemProps` (L5-L11) - Interface
+- `webview-ui/src/features/modular-ui/chat/components/AutoApprove/AutoApproveModal.tsx`
+  - `webview-ui.src.features.modular-ui.chat.components.AutoApprove.AutoApproveModal.AutoApproveModalProps` (L15-L19) - Interface
+  - `webview-ui.src.features.modular-ui.chat.components.AutoApprove.AutoApproveModal.AutoApproveModal` (L21-L132) - Class
+  - `webview-ui.src.features.modular-ui.chat.components.AutoApprove.AutoApproveModal.AutoApproveModal.navigateToSettings` (L22-L22) - Class
+  - `webview-ui.src.features.modular-ui.chat.components.AutoApprove.AutoApproveModal.AutoApproveModal.navigateToSettings.useAppStore() callback` (L22-L22) - Function
+  - `webview-ui.src.features.modular-ui.chat.components.AutoApprove.AutoApproveModal.AutoApproveModal.useClickAway() callback` (L37-L39) - Function
+  - `webview-ui.src.features.modular-ui.chat.components.AutoApprove.AutoApproveModal.AutoApproveModal.ACTION_METADATA.map() callback` (L50-L58) - Function
+- `webview-ui/src/features/modular-ui/chat/components/AutoApprove/AutoApproveSettingsAPI.ts`
+  - `webview-ui.src.features.modular-ui.chat.components.AutoApprove.AutoApproveSettingsAPI.updateAutoApproveSettings` (L9-L16) - Function
+- `webview-ui/src/features/modular-ui/chat/components/AutoApprove/types.ts`
+  - `webview-ui.src.features.modular-ui.chat.components.AutoApprove.types.ActionMetadata` (L3-L11) - Interface
+- `webview-ui/src/features/modular-ui/chat/components/ChatLayout.tsx`
+  - `webview-ui.src.features.modular-ui.chat.components.ChatLayout.ChatLayoutProps` (L4-L7) - Interface
+- `webview-ui/src/features/modular-ui/chat/components/ChatRow.tsx`
+  - `webview-ui.src.features.modular-ui.chat.components.ChatRow.ChatRow` (L5-L28) - Class
+  - `webview-ui.src.features.modular-ui.chat.components.ChatRow.memo() callback` (L6-L12) - Function
+  - `webview-ui.src.features.modular-ui.chat.components.ChatRow.ChatRow.memo() callback` (L13-L27) - Function
+- `webview-ui/src/features/modular-ui/chat/components/ContextMenu.tsx`
+  - `webview-ui.src.features.modular-ui.chat.components.ContextMenu.ContextMenuProps` (L6-L16) - Interface
+  - `webview-ui.src.features.modular-ui.chat.components.ContextMenu.ContextMenu` (L18-L261) - Class
+  - `webview-ui.src.features.modular-ui.chat.components.ContextMenu.ContextMenu.filteredOptions` (L35-L38) - Class
+  - `webview-ui.src.features.modular-ui.chat.components.ContextMenu.ContextMenu.filteredOptions.useMemo() callback` (L35-L38) - Function
+  - `webview-ui.src.features.modular-ui.chat.components.ContextMenu.useEffect() callback` (L41-L64) - Function
+  - `webview-ui.src.features.modular-ui.chat.components.ContextMenu.ContextMenu.useEffect() callback.setTimeout() callback` (L49-L53) - Function
+  - `webview-ui.src.features.modular-ui.chat.components.ContextMenu.ContextMenu.useEffect() callback` (L66-L80) - Function
+  - `webview-ui.src.features.modular-ui.chat.components.ContextMenu.ContextMenu.getOptionLabel` (L89-L110) - Class
+  - `webview-ui.src.features.modular-ui.chat.components.ContextMenu.ContextMenu.getOptionLabel.useCallback() callback` (L89-L110) - Function
+  - `webview-ui.src.features.modular-ui.chat.components.ContextMenu.ContextMenu.renderOptionContent` (L112-L152) - Method
+  - `webview-ui.src.features.modular-ui.chat.components.ContextMenu.ContextMenu.getIconForOption` (L154-L173) - Method
+  - `webview-ui.src.features.modular-ui.chat.components.ContextMenu.ContextMenu.isOptionSelectable` (L175-L177) - Method
+  - `webview-ui.src.features.modular-ui.chat.components.ContextMenu.ContextMenu.handleSelect` (L186-L194) - Class
+  - `webview-ui.src.features.modular-ui.chat.components.ContextMenu.ContextMenu.handleSelect.useCallback() callback` (L187-L192) - Function
+  - `webview-ui.src.features.modular-ui.chat.components.ContextMenu.ContextMenu.filteredOptions.map() callback` (L219-L257) - Function
+- `webview-ui/src/features/modular-ui/chat/components/GoalHeader/GoalHeader.tsx`
+  - `webview-ui.src.features.modular-ui.chat.components.GoalHeader.GoalHeader.plainTextObjective` (L41-L53) - Function
+  - `webview-ui.src.features.modular-ui.chat.components.GoalHeader.GoalHeader.formatDuration` (L55-L64) - Function
+  - `webview-ui.src.features.modular-ui.chat.components.GoalHeader.GoalHeader.formatTokens` (L66-L68) - Function
+  - `webview-ui.src.features.modular-ui.chat.components.GoalHeader.GoalHeader.formatCost` (L70-L72) - Function
+  - `webview-ui.src.features.modular-ui.chat.components.GoalHeader.GoalHeader.Metric` (L74-L81) - Function
+  - `webview-ui.src.features.modular-ui.chat.components.GoalHeader.GoalHeader.AccountingMetrics` (L83-L95) - Function
+  - `webview-ui.src.features.modular-ui.chat.components.GoalHeader.GoalHeader.ChildSummary` (L97-L114) - Function
+  - `webview-ui.src.features.modular-ui.chat.components.GoalHeader.GoalHeader.GoalHeaderProps` (L116-L118) - Interface
+  - `webview-ui.src.features.modular-ui.chat.components.GoalHeader.GoalHeader.GoalHeader` (L120-L411) - Class
+  - `webview-ui.src.features.modular-ui.chat.components.GoalHeader.GoalHeader.GoalHeader.objectivePreview` (L130-L130) - Class
+  - `webview-ui.src.features.modular-ui.chat.components.GoalHeader.GoalHeader.GoalHeader.objectivePreview.useMemo() callback` (L130-L130) - Function
+  - `webview-ui.src.features.modular-ui.chat.components.GoalHeader.GoalHeader.GoalHeader.taskChildren` (L131-L131) - Class
+  - `webview-ui.src.features.modular-ui.chat.components.GoalHeader.GoalHeader.GoalHeader.taskChildren.useMemo() callback` (L131-L131) - Function
+  - `webview-ui.src.features.modular-ui.chat.components.GoalHeader.GoalHeader.GoalHeader.taskChildren.useMemo() callback.goal.children.filter() callback` (L131-L131) - Function
+  - `webview-ui.src.features.modular-ui.chat.components.GoalHeader.GoalHeader.GoalHeader.pendingChildren` (L132-L132) - Class
+  - `webview-ui.src.features.modular-ui.chat.components.GoalHeader.GoalHeader.GoalHeader.pendingChildren.useMemo() callback` (L132-L132) - Function
+  - `webview-ui.src.features.modular-ui.chat.components.GoalHeader.GoalHeader.GoalHeader.pendingChildren.useMemo() callback.goal.children.filter() callback` (L132-L132) - Function
+  - `webview-ui.src.features.modular-ui.chat.components.GoalHeader.GoalHeader.GoalHeader.runControl` (L137-L159) - Class
+  - `webview-ui.src.features.modular-ui.chat.components.GoalHeader.GoalHeader.GoalHeader.runControl.useCallback() callback` (L138-L157) - Function
+  - `webview-ui.src.features.modular-ui.chat.components.GoalHeader.GoalHeader.GoalHeader.confirmStop` (L161-L165) - Class
+  - `webview-ui.src.features.modular-ui.chat.components.GoalHeader.GoalHeader.GoalHeader.confirmStop.useCallback() callback` (L161-L165) - Function
+  - `webview-ui.src.features.modular-ui.chat.components.GoalHeader.GoalHeader.GoalHeader.confirmStop.useCallback() callback.window.setTimeout() callback` (L164-L164) - Function
+  - `webview-ui.src.features.modular-ui.chat.components.GoalHeader.GoalHeader.<function>` (L176-L176) - Function
+  - `webview-ui.src.features.modular-ui.chat.components.GoalHeader.GoalHeader.GoalHeader.<function>.setIsExpanded() callback` (L176-L176) - Function
+  - `webview-ui.src.features.modular-ui.chat.components.GoalHeader.GoalHeader.GoalHeader.pendingChildren.map() callback` (L305-L309) - Function
+  - `webview-ui.src.features.modular-ui.chat.components.GoalHeader.GoalHeader.GoalHeader.taskChildren.map() callback` (L333-L335) - Function
+  - `webview-ui.src.features.modular-ui.chat.components.GoalHeader.GoalHeader.GoalHeader.<function>` (L370-L373) - Function
+  - `webview-ui.src.features.modular-ui.chat.components.GoalHeader.GoalHeader.GoalHeader.<function>.window.setTimeout() callback` (L372-L372) - Function
 - `webview-ui/src/features/modular-ui/chat/components/HistoryPreview.tsx`
   - `webview-ui.src.features.modular-ui.chat.components.HistoryPreview.HistoryPreview` (L14-L226) - Class
   - `webview-ui.src.features.modular-ui.chat.components.HistoryPreview.HistoryPreview.taskHistory` (L15-L15) - Class
@@ -14058,6 +14608,2191 @@ Provides React components for the webview interface, including history view item
   - `webview-ui.src.features.modular-ui.chat.components.HistoryPreview.HistoryPreview.handleHistorySelect.openRun.catch() callback` (L24-L27) - Function
   - `webview-ui.src.features.modular-ui.chat.components.HistoryPreview.HistoryPreview.formatDate` (L30-L36) - Method
   - `webview-ui.src.features.modular-ui.chat.components.HistoryPreview.HistoryPreview.map() callback` (L177-L210) - Function
+- `webview-ui/src/features/modular-ui/chat/components/InputPrimitive.tsx`
+  - `webview-ui.src.features.modular-ui.chat.components.InputPrimitive.InputPrimitiveProps` (L5-L22) - Interface
+  - `webview-ui.src.features.modular-ui.chat.components.InputPrimitive.InputPrimitive` (L24-L71) - Class
+  - `webview-ui.src.features.modular-ui.chat.components.InputPrimitive.InputPrimitive.forwardRef() callback` (L25-L70) - Function
+- `webview-ui/src/features/modular-ui/chat/components/MessageRow.tsx`
+  - `webview-ui.src.features.modular-ui.chat.components.MessageRow.MessageRenderer` (L7-L90) - Class
+  - `webview-ui.src.features.modular-ui.chat.components.MessageRow.MessageRenderer.memo() callback` (L8-L89) - Function
+- `webview-ui/src/features/modular-ui/chat/components/MessagesArea.tsx`
+  - `webview-ui.src.features.modular-ui.chat.components.MessagesArea.MessagesAreaProps` (L9-L15) - Interface
+  - `webview-ui.src.features.modular-ui.chat.components.MessagesArea.MessagesArea.stableMessageHandlers` (L48-L56) - Class
+  - `webview-ui.src.features.modular-ui.chat.components.MessagesArea.MessagesArea.stableMessageHandlers.useMemo() callback` (L49-L54) - Function
+  - `webview-ui.src.features.modular-ui.chat.components.MessagesArea.MessagesArea.stableMessageHandlers.useMemo() callback.executeButtonAction` (L50-L50) - Method
+  - `webview-ui.src.features.modular-ui.chat.components.MessagesArea.MessagesArea.stableMessageHandlers.useMemo() callback.handleSendMessage` (L51-L51) - Method
+  - `webview-ui.src.features.modular-ui.chat.components.MessagesArea.MessagesArea.stableMessageHandlers.useMemo() callback.handleTaskCloseButtonClick` (L52-L52) - Method
+  - `webview-ui.src.features.modular-ui.chat.components.MessagesArea.MessagesArea.stableMessageHandlers.useMemo() callback.startNewTask` (L53-L53) - Method
+  - `webview-ui.src.features.modular-ui.chat.components.MessagesArea.MessagesArea.itemContent` (L58-L80) - Class
+  - `webview-ui.src.features.modular-ui.chat.components.MessagesArea.MessagesArea.itemContent.useCallback() callback` (L59-L70) - Function
+- `webview-ui/src/features/modular-ui/chat/components/ModularWelcomeSection.tsx`
+  - `webview-ui.src.features.modular-ui.chat.components.ModularWelcomeSection.ModularWelcomeSectionProps` (L20-L26) - Interface
+  - `webview-ui.src.features.modular-ui.chat.components.ModularWelcomeSection.ModularWelcomeSection` (L28-L260) - Class
+  - `webview-ui.src.features.modular-ui.chat.components.ModularWelcomeSection.useEffect() callback` (L49-L60) - Function
+  - `webview-ui.src.features.modular-ui.chat.components.ModularWelcomeSection.ModularWelcomeSection.useEffect() callback.then() callback` (L51-L58) - Function
+  - `webview-ui.src.features.modular-ui.chat.components.ModularWelcomeSection.ModularWelcomeSection.useEffect() callback.then() callback.current` (L55-L55) - Class
+  - `webview-ui.src.features.modular-ui.chat.components.ModularWelcomeSection.ModularWelcomeSection.useEffect() callback.then() callback.current.result.worktrees.find() callback` (L55-L55) - Function
+  - `webview-ui.src.features.modular-ui.chat.components.ModularWelcomeSection.ModularWelcomeSection.useEffect() callback.catch() callback` (L59-L59) - Function
+  - `webview-ui.src.features.modular-ui.chat.components.ModularWelcomeSection.ModularWelcomeSection.navigateToWorktrees` (L64-L64) - Class
+  - `webview-ui.src.features.modular-ui.chat.components.ModularWelcomeSection.ModularWelcomeSection.navigateToWorktrees.useAppStore() callback` (L64-L64) - Function
+  - `webview-ui.src.features.modular-ui.chat.components.ModularWelcomeSection.ModularWelcomeSection.useEffect() callback.setTimeout() callback` (L73-L77) - Function
+  - `webview-ui.src.features.modular-ui.chat.components.ModularWelcomeSection.ModularWelcomeSection.useEffect() callback` (L88-L97) - Function
+  - `webview-ui.src.features.modular-ui.chat.components.ModularWelcomeSection.ModularWelcomeSection.handleCloseWhatsNewModal` (L99-L108) - Class
+  - `webview-ui.src.features.modular-ui.chat.components.ModularWelcomeSection.ModularWelcomeSection.handleCloseWhatsNewModal.useCallback() callback` (L99-L108) - Function
+  - `webview-ui.src.features.modular-ui.chat.components.ModularWelcomeSection.ModularWelcomeSection.handleWorktreeClick` (L111-L116) - Class
+  - `webview-ui.src.features.modular-ui.chat.components.ModularWelcomeSection.ModularWelcomeSection.handleWorktreeClick.useCallback() callback` (L111-L116) - Function
+  - `webview-ui.src.features.modular-ui.chat.components.ModularWelcomeSection.ModularWelcomeSection.isBannerDismissed` (L121-L143) - Class
+  - `webview-ui.src.features.modular-ui.chat.components.ModularWelcomeSection.ModularWelcomeSection.isBannerDismissed.useCallback() callback` (L122-L141) - Function
+  - `webview-ui.src.features.modular-ui.chat.components.ModularWelcomeSection.ModularWelcomeSection.isBannerDismissed.useCallback() callback.dismissedBanners.some() callback` (L125-L125) - Function
+  - `webview-ui.src.features.modular-ui.chat.components.ModularWelcomeSection.ModularWelcomeSection.bannerConfig` (L148-L164) - Class
+  - `webview-ui.src.features.modular-ui.chat.components.ModularWelcomeSection.ModularWelcomeSection.bannerConfig.useMemo() callback` (L148-L164) - Function
+  - `webview-ui.src.features.modular-ui.chat.components.ModularWelcomeSection.ModularWelcomeSection.bannerConfig.useMemo() callback.BANNER_DATA.filter() callback` (L149-L163) - Function
+  - `webview-ui.src.features.modular-ui.chat.components.ModularWelcomeSection.ModularWelcomeSection.handleBannerDismiss` (L169-L179) - Class
+  - `webview-ui.src.features.modular-ui.chat.components.ModularWelcomeSection.ModularWelcomeSection.handleBannerDismiss.useCallback() callback` (L169-L179) - Function
+  - `webview-ui.src.features.modular-ui.chat.components.ModularWelcomeSection.ModularWelcomeSection.activeBanners` (L185-L201) - Class
+  - `webview-ui.src.features.modular-ui.chat.components.ModularWelcomeSection.ModularWelcomeSection.activeBanners.useMemo() callback` (L185-L201) - Function
+  - `webview-ui.src.features.modular-ui.chat.components.ModularWelcomeSection.ModularWelcomeSection.activeBanners.useMemo() callback.hardcodedBanners.bannerConfig.map() callback` (L186-L190) - Function
+  - `webview-ui.src.features.modular-ui.chat.components.ModularWelcomeSection.ModularWelcomeSection.activeBanners.useMemo() callback.hardcodedBanners` (L186-L191) - Class
+  - `webview-ui.src.features.modular-ui.chat.components.ModularWelcomeSection.ModularWelcomeSection.activeBanners.useMemo() callback.extensionStateBanners.map() callback` (L193-L197) - Function
+  - `webview-ui.src.features.modular-ui.chat.components.ModularWelcomeSection.ModularWelcomeSection.activeBanners.useMemo() callback.extensionStateBanners` (L193-L198) - Class
+- `webview-ui/src/features/modular-ui/chat/components/SlashCommandMenu.tsx`
+  - `webview-ui.src.features.modular-ui.chat.components.SlashCommandMenu.SlashCommandMenuProps` (L8-L14) - Interface
+  - `webview-ui.src.features.modular-ui.chat.components.SlashCommandMenu.SlashCommandMenu` (L16-L150) - Class
+  - `webview-ui.src.features.modular-ui.chat.components.SlashCommandMenu.SlashCommandMenu.availableSkills` (L25-L25) - Class
+  - `webview-ui.src.features.modular-ui.chat.components.SlashCommandMenu.SlashCommandMenu.availableSkills.useSettingsStore() callback` (L25-L25) - Function
+  - `webview-ui.src.features.modular-ui.chat.components.SlashCommandMenu.SlashCommandMenu.localWorkflowToggles` (L26-L26) - Class
+  - `webview-ui.src.features.modular-ui.chat.components.SlashCommandMenu.SlashCommandMenu.localWorkflowToggles.useSettingsStore() callback` (L26-L26) - Function
+  - `webview-ui.src.features.modular-ui.chat.components.SlashCommandMenu.SlashCommandMenu.globalWorkflowToggles` (L27-L27) - Class
+  - `webview-ui.src.features.modular-ui.chat.components.SlashCommandMenu.SlashCommandMenu.globalWorkflowToggles.useSettingsStore() callback` (L27-L27) - Function
+  - `webview-ui.src.features.modular-ui.chat.components.SlashCommandMenu.SlashCommandMenu.remoteWorkflowToggles` (L28-L28) - Class
+  - `webview-ui.src.features.modular-ui.chat.components.SlashCommandMenu.SlashCommandMenu.remoteWorkflowToggles.useSettingsStore() callback` (L28-L28) - Function
+  - `webview-ui.src.features.modular-ui.chat.components.SlashCommandMenu.SlashCommandMenu.remoteWorkflows` (L29-L29) - Class
+  - `webview-ui.src.features.modular-ui.chat.components.SlashCommandMenu.SlashCommandMenu.remoteWorkflows.useSettingsStore() callback` (L29-L29) - Function
+  - `webview-ui.src.features.modular-ui.chat.components.SlashCommandMenu.SlashCommandMenu.defaultCommands` (L39-L39) - Class
+  - `webview-ui.src.features.modular-ui.chat.components.SlashCommandMenu.SlashCommandMenu.defaultCommands.filteredCommands.filter() callback` (L39-L39) - Function
+  - `webview-ui.src.features.modular-ui.chat.components.SlashCommandMenu.SlashCommandMenu.workflowCommands` (L40-L40) - Class
+  - `webview-ui.src.features.modular-ui.chat.components.SlashCommandMenu.SlashCommandMenu.workflowCommands.filteredCommands.filter() callback` (L40-L40) - Function
+  - `webview-ui.src.features.modular-ui.chat.components.SlashCommandMenu.SlashCommandMenu.skillCommands` (L41-L41) - Class
+  - `webview-ui.src.features.modular-ui.chat.components.SlashCommandMenu.SlashCommandMenu.skillCommands.filteredCommands.filter() callback` (L41-L41) - Function
+  - `webview-ui.src.features.modular-ui.chat.components.SlashCommandMenu.SlashCommandMenu.getCommandLabel` (L43-L46) - Class
+  - `webview-ui.src.features.modular-ui.chat.components.SlashCommandMenu.SlashCommandMenu.getCommandLabel.useCallback() callback` (L43-L46) - Function
+  - `webview-ui.src.features.modular-ui.chat.components.SlashCommandMenu.SlashCommandMenu.handleClick` (L54-L59) - Class
+  - `webview-ui.src.features.modular-ui.chat.components.SlashCommandMenu.SlashCommandMenu.handleClick.useCallback() callback` (L55-L57) - Function
+  - `webview-ui.src.features.modular-ui.chat.components.SlashCommandMenu.SlashCommandMenu.useEffect() callback` (L61-L75) - Function
+  - `webview-ui.src.features.modular-ui.chat.components.SlashCommandMenu.SlashCommandMenu.renderCommandSection` (L77-L117) - Class
+  - `webview-ui.src.features.modular-ui.chat.components.SlashCommandMenu.SlashCommandMenu.renderCommandSection.commands.map() callback` (L89-L114) - Function
+- `webview-ui/src/features/modular-ui/chat/components/TaskHeader/CheckpointError.tsx`
+  - `webview-ui.src.features.modular-ui.chat.components.TaskHeader.CheckpointError.CheckpointErrorProps` (L5-L8) - Interface
+  - `webview-ui.src.features.modular-ui.chat.components.TaskHeader.CheckpointError.CheckpointError.messages` (L13-L20) - Class
+  - `webview-ui.src.features.modular-ui.chat.components.TaskHeader.CheckpointError.CheckpointError.messages.useMemo() callback` (L13-L20) - Function
+- `webview-ui/src/features/modular-ui/chat/components/TaskHeader/ContextWindow.tsx`
+  - `webview-ui.src.features.modular-ui.chat.components.TaskHeader.ContextWindow.ContextWindowInfoProps` (L14-L19) - Interface
+  - `webview-ui.src.features.modular-ui.chat.components.TaskHeader.ContextWindow.ContextWindowProgressProps` (L21-L24) - Interface
+  - `webview-ui.src.features.modular-ui.chat.components.TaskHeader.ContextWindow.ConfirmationDialog` (L26-L52) - Class
+  - `webview-ui.src.features.modular-ui.chat.components.TaskHeader.ContextWindow.ConfirmationDialog.memo() callback` (L29-L52) - Function
+  - `webview-ui.src.features.modular-ui.chat.components.TaskHeader.ContextWindow.ContextWindow` (L55-L197) - Class
+  - `webview-ui.src.features.modular-ui.chat.components.TaskHeader.ContextWindow.ContextWindow.tokenData` (L80-L89) - Class
+  - `webview-ui.src.features.modular-ui.chat.components.TaskHeader.ContextWindow.ContextWindow.tokenData.useMemo() callback` (L80-L89) - Function
+  - `webview-ui.src.features.modular-ui.chat.components.TaskHeader.ContextWindow.ContextWindow.handleCompactClick` (L94-L101) - Class
+  - `webview-ui.src.features.modular-ui.chat.components.TaskHeader.ContextWindow.ContextWindow.handleCompactClick.useCallback() callback` (L95-L99) - Function
+  - `webview-ui.src.features.modular-ui.chat.components.TaskHeader.ContextWindow.ContextWindow.handleConfirm` (L103-L111) - Class
+  - `webview-ui.src.features.modular-ui.chat.components.TaskHeader.ContextWindow.ContextWindow.handleConfirm.useCallback() callback` (L104-L109) - Function
+  - `webview-ui.src.features.modular-ui.chat.components.TaskHeader.ContextWindow.ContextWindow.handleCancel` (L113-L117) - Class
+  - `webview-ui.src.features.modular-ui.chat.components.TaskHeader.ContextWindow.ContextWindow.handleCancel.useCallback() callback` (L113-L117) - Function
+  - `webview-ui.src.features.modular-ui.chat.components.TaskHeader.ContextWindow.ContextWindow.debounceCloseHover` (L119-L125) - Class
+  - `webview-ui.src.features.modular-ui.chat.components.TaskHeader.ContextWindow.ContextWindow.debounceCloseHover.useCallback() callback` (L119-L125) - Function
+  - `webview-ui.src.features.modular-ui.chat.components.TaskHeader.ContextWindow.ContextWindow.debounceCloseHover.useCallback() callback.showHover` (L122-L122) - Class
+  - `webview-ui.src.features.modular-ui.chat.components.TaskHeader.ContextWindow.ContextWindow.debounceCloseHover.useCallback() callback.showHover.debounce() callback` (L122-L122) - Function
+  - `webview-ui.src.features.modular-ui.chat.components.TaskHeader.ContextWindow.ContextWindow.handleFocus` (L127-L129) - Class
+  - `webview-ui.src.features.modular-ui.chat.components.TaskHeader.ContextWindow.ContextWindow.handleFocus.useCallback() callback` (L127-L129) - Function
+  - `webview-ui.src.features.modular-ui.chat.components.TaskHeader.ContextWindow.ContextWindow.useEffect() callback` (L132-L149) - Function
+- `webview-ui/src/features/modular-ui/chat/components/TaskHeader/ContextWindowSummary.tsx`
+  - `webview-ui.src.features.modular-ui.chat.components.TaskHeader.ContextWindowSummary.TokenUsageInfoProps` (L8-L13) - Interface
+  - `webview-ui.src.features.modular-ui.chat.components.TaskHeader.ContextWindowSummary.TokenDetail` (L15-L19) - Interface
+  - `webview-ui.src.features.modular-ui.chat.components.TaskHeader.ContextWindowSummary.TaskContextWindowButtonsProps` (L21-L28) - Interface
+  - `webview-ui.src.features.modular-ui.chat.components.TaskHeader.ContextWindowSummary.AccordionItem` (L31-L61) - Class
+  - `webview-ui.src.features.modular-ui.chat.components.TaskHeader.ContextWindowSummary.AccordionItem.memo() callback` (L37-L61) - Function
+  - `webview-ui.src.features.modular-ui.chat.components.TaskHeader.ContextWindowSummary.AccordionItem.memo() callback.handleClick` (L38-L45) - Class
+  - `webview-ui.src.features.modular-ui.chat.components.TaskHeader.ContextWindowSummary.AccordionItem.memo() callback.handleClick.useCallback() callback` (L39-L43) - Function
+  - `webview-ui.src.features.modular-ui.chat.components.TaskHeader.ContextWindowSummary.TokenUsageDetails` (L72-L96) - Class
+  - `webview-ui.src.features.modular-ui.chat.components.TaskHeader.ContextWindowSummary.TokenUsageDetails.memo() callback` (L72-L96) - Function
+  - `webview-ui.src.features.modular-ui.chat.components.TaskHeader.ContextWindowSummary.TokenUsageDetails.memo() callback.contextTokenDetails` (L73-L76) - Class
+  - `webview-ui.src.features.modular-ui.chat.components.TaskHeader.ContextWindowSummary.TokenUsageDetails.memo() callback.contextTokenDetails.useMemo() callback` (L73-L76) - Function
+  - `webview-ui.src.features.modular-ui.chat.components.TaskHeader.ContextWindowSummary.TokenUsageDetails.memo() callback.contextTokenDetails.useMemo() callback.TOKEN_DETAILS_CONFIG.map() callback` (L75-L75) - Function
+  - `webview-ui.src.features.modular-ui.chat.components.TaskHeader.ContextWindowSummary.TokenUsageDetails.memo() callback.contextTokenDetails.useMemo() callback.filter() callback` (L75-L75) - Function
+  - `webview-ui.src.features.modular-ui.chat.components.TaskHeader.ContextWindowSummary.TokenUsageDetails.memo() callback.contextTokenDetails.map() callback` (L84-L93) - Function
+  - `webview-ui.src.features.modular-ui.chat.components.TaskHeader.ContextWindowSummary.ContextWindowSummary.lastApiReqInfo` (L106-L106) - Class
+  - `webview-ui.src.features.modular-ui.chat.components.TaskHeader.ContextWindowSummary.ContextWindowSummary.lastApiReqInfo.useChatStore() callback` (L106-L106) - Function
+  - `webview-ui.src.features.modular-ui.chat.components.TaskHeader.ContextWindowSummary.ContextWindowSummary.toggleSection` (L117-L131) - Class
+  - `webview-ui.src.features.modular-ui.chat.components.TaskHeader.ContextWindowSummary.ContextWindowSummary.toggleSection.useCallback() callback` (L117-L131) - Function
+  - `webview-ui.src.features.modular-ui.chat.components.TaskHeader.ContextWindowSummary.ContextWindowSummary.toggleSection.useCallback() callback.setExpandedSections() callback` (L122-L130) - Function
+- `webview-ui/src/features/modular-ui/chat/components/TaskHeader/Highlights.tsx`
+  - `webview-ui.src.features.modular-ui.chat.components.TaskHeader.Highlights.highlightMentions` (L27-L53) - Class
+  - `webview-ui.src.features.modular-ui.chat.components.TaskHeader.Highlights.highlightMentions.<function>` (L45-L45) - Function
+- `webview-ui/src/features/modular-ui/chat/components/TaskHeader/TaskHeader.tsx`
+  - `webview-ui.src.features.modular-ui.chat.components.TaskHeader.TaskHeader.TaskHeaderProps` (L21-L28) - Interface
+  - `webview-ui.src.features.modular-ui.chat.components.TaskHeader.TaskHeader.TaskHeader.navigateToSettings` (L52-L52) - Class
+  - `webview-ui.src.features.modular-ui.chat.components.TaskHeader.TaskHeader.TaskHeader.navigateToSettings.useAppStore() callback` (L52-L52) - Function
+  - `webview-ui.src.features.modular-ui.chat.components.TaskHeader.TaskHeader.TaskHeader.currentTaskItem` (L53-L53) - Class
+  - `webview-ui.src.features.modular-ui.chat.components.TaskHeader.TaskHeader.TaskHeader.currentTaskItem.useTaskStore() callback` (L53-L53) - Function
+  - `webview-ui.src.features.modular-ui.chat.components.TaskHeader.TaskHeader.TaskHeader.highlightedText` (L58-L58) - Class
+  - `webview-ui.src.features.modular-ui.chat.components.TaskHeader.TaskHeader.TaskHeader.highlightedText.useMemo() callback` (L58-L58) - Function
+  - `webview-ui.src.features.modular-ui.chat.components.TaskHeader.TaskHeader.TaskHeader.lastApiReqTotalTokens` (L63-L70) - Class
+  - `webview-ui.src.features.modular-ui.chat.components.TaskHeader.TaskHeader.TaskHeader.lastApiReqTotalTokens.useMemo() callback` (L64-L68) - Function
+  - `webview-ui.src.features.modular-ui.chat.components.TaskHeader.TaskHeader.TaskHeader.tokenPercentage` (L72-L75) - Class
+  - `webview-ui.src.features.modular-ui.chat.components.TaskHeader.TaskHeader.TaskHeader.tokenPercentage.useMemo() callback` (L72-L75) - Function
+  - `webview-ui.src.features.modular-ui.chat.components.TaskHeader.TaskHeader.TaskHeader.toggleTaskExpanded` (L79-L79) - Class
+  - `webview-ui.src.features.modular-ui.chat.components.TaskHeader.TaskHeader.TaskHeader.toggleTaskExpanded.useCallback() callback` (L79-L79) - Function
+  - `webview-ui.src.features.modular-ui.chat.components.TaskHeader.TaskHeader.TaskHeader.handleCheckpointSettingsClick` (L81-L83) - Class
+  - `webview-ui.src.features.modular-ui.chat.components.TaskHeader.TaskHeader.TaskHeader.handleCheckpointSettingsClick.useCallback() callback` (L81-L83) - Function
+- `webview-ui/src/features/modular-ui/chat/components/TaskHeader/buttons/CopyTaskButton.tsx`
+  - `webview-ui.src.features.modular-ui.chat.components.TaskHeader.buttons.CopyTaskButton.CopyTaskButton.handleCopy` (L15-L26) - Class
+  - `webview-ui.src.features.modular-ui.chat.components.TaskHeader.buttons.CopyTaskButton.CopyTaskButton.handleCopy.useCallback() callback` (L15-L26) - Function
+  - `webview-ui.src.features.modular-ui.chat.components.TaskHeader.buttons.CopyTaskButton.CopyTaskButton.handleCopy.useCallback() callback.setTimeout() callback` (L21-L21) - Function
+- `webview-ui/src/features/modular-ui/chat/components/TaskHeader/buttons/DeleteTaskButton.tsx`
+  - `webview-ui.src.features.modular-ui.chat.components.TaskHeader.buttons.DeleteTaskButton.DeleteTaskButton` (L9-L31) - Class
+  - `webview-ui.src.features.modular-ui.chat.components.TaskHeader.buttons.DeleteTaskButton.DeleteTaskButton.<function>` (L20-L24) - Function
+- `webview-ui/src/features/modular-ui/chat/components/TaskHeader/buttons/OpenDiskConversationHistoryButton.tsx`
+  - `webview-ui.src.features.modular-ui.chat.components.TaskHeader.buttons.OpenDiskConversationHistoryButton.OpenDiskConversationHistoryButton.handleOpenDiskConversationHistory` (L12-L20) - Class
+  - `webview-ui.src.features.modular-ui.chat.components.TaskHeader.buttons.OpenDiskConversationHistoryButton.OpenDiskConversationHistoryButton.handleOpenDiskConversationHistory.catch() callback` (L17-L19) - Function
+- `webview-ui/src/features/modular-ui/chat/components/TaskHeader/getCostLabel.ts`
+  - `webview-ui.src.features.modular-ui.chat.components.TaskHeader.getCostLabel.getCostLabel` (L4-L9) - Function
+- `webview-ui/src/features/modular-ui/chat/components/TaskStatusIndicator.tsx`
+  - `webview-ui.src.features.modular-ui.chat.components.TaskStatusIndicator.useAsciiSpinnerFrame` (L16-L33) - Function
+  - `webview-ui.src.features.modular-ui.chat.components.TaskStatusIndicator.useAsciiSpinnerFrame.useEffect() callback` (L19-L30) - Function
+  - `webview-ui.src.features.modular-ui.chat.components.TaskStatusIndicator.useAsciiSpinnerFrame.useEffect() callback.interval` (L25-L27) - Class
+  - `webview-ui.src.features.modular-ui.chat.components.TaskStatusIndicator.useAsciiSpinnerFrame.useEffect() callback.interval.window.setInterval() callback` (L25-L27) - Function
+  - `webview-ui.src.features.modular-ui.chat.components.TaskStatusIndicator.useAsciiSpinnerFrame.useEffect() callback.interval.window.setInterval() callback.setFrameIndex() callback` (L26-L26) - Function
+  - `webview-ui.src.features.modular-ui.chat.components.TaskStatusIndicator.TaskStatusIndicatorProps` (L35-L38) - Interface
+  - `webview-ui.src.features.modular-ui.chat.components.TaskStatusIndicator.TaskStatusIndicator.projection` (L41-L41) - Class
+  - `webview-ui.src.features.modular-ui.chat.components.TaskStatusIndicator.TaskStatusIndicator.projection.useMemo() callback` (L41-L41) - Function
+- `webview-ui/src/features/modular-ui/chat/components/VirtuosoItemRenderer.tsx`
+  - `webview-ui.src.features.modular-ui.chat.components.VirtuosoItemRenderer.MessageRendererProps` (L8-L17) - Interface
+  - `webview-ui.src.features.modular-ui.chat.components.VirtuosoItemRenderer.MessageRenderer` (L20-L79) - Class
+  - `webview-ui.src.features.modular-ui.chat.components.VirtuosoItemRenderer.MessageRenderer.memo() callback` (L21-L78) - Function
+  - `webview-ui.src.features.modular-ui.chat.components.VirtuosoItemRenderer.MessageRenderer.memo() callback.message` (L31-L34) - Class
+  - `webview-ui.src.features.modular-ui.chat.components.VirtuosoItemRenderer.MessageRenderer.memo() callback.message.useChatStore() callback` (L31-L34) - Function
+- `webview-ui/src/features/modular-ui/chat/context/InteractionStateContext.tsx`
+  - `webview-ui.src.features.modular-ui.chat.context.InteractionStateContext.InteractionState` (L7-L12) - Enum
+  - `webview-ui.src.features.modular-ui.chat.context.InteractionStateContext.InteractionStateContextType` (L14-L17) - Interface
+  - `webview-ui.src.features.modular-ui.chat.context.InteractionStateContext.projectInteractionState` (L21-L50) - Function
+  - `webview-ui.src.features.modular-ui.chat.context.InteractionStateContext.InteractionStateProvider.mode` (L67-L67) - Class
+  - `webview-ui.src.features.modular-ui.chat.context.InteractionStateContext.InteractionStateProvider.mode.useSettingsStore() callback` (L67-L67) - Function
+  - `webview-ui.src.features.modular-ui.chat.context.InteractionStateContext.InteractionStateProvider.interactionState` (L69-L79) - Class
+  - `webview-ui.src.features.modular-ui.chat.context.InteractionStateContext.InteractionStateProvider.interactionState.useMemo() callback` (L70-L77) - Function
+  - `webview-ui.src.features.modular-ui.chat.context.InteractionStateContext.InteractionStateProvider.value` (L81-L87) - Class
+  - `webview-ui.src.features.modular-ui.chat.context.InteractionStateContext.InteractionStateProvider.value.useMemo() callback` (L82-L85) - Function
+- `webview-ui/src/features/modular-ui/chat/decorators/ActionDecorator.tsx`
+  - `webview-ui.src.features.modular-ui.chat.decorators.ActionDecorator.ActionDecoratorProps` (L13-L39) - Interface
+  - `webview-ui.src.features.modular-ui.chat.decorators.ActionDecorator.createActionDecorator` (L46-L280) - Class
+  - `webview-ui.src.features.modular-ui.chat.decorators.ActionDecorator.createActionDecorator.renderAction` (L48-L279) - Method
+  - `webview-ui.src.features.modular-ui.chat.decorators.ActionDecorator.createActionDecorator.renderAction.props.modelProviderPresets.map() callback` (L108-L137) - Function
+  - `webview-ui.src.features.modular-ui.chat.decorators.ActionDecorator.createActionDecorator.renderAction.props.reasoningEffortOptions.map() callback` (L171-L190) - Function
+  - `webview-ui.src.features.modular-ui.chat.decorators.ActionDecorator.createActionDecorator.renderAction.map() callback` (L253-L273) - Function
+- `webview-ui/src/features/modular-ui/chat/decorators/HighlightDecorator.tsx`
+  - `webview-ui.src.features.modular-ui.chat.decorators.HighlightDecorator.collectHighlightRanges` (L11-L32) - Function
+  - `webview-ui.src.features.modular-ui.chat.decorators.HighlightDecorator.collectHighlightRanges.ranges.sort() callback` (L31-L31) - Function
+  - `webview-ui.src.features.modular-ui.chat.decorators.HighlightDecorator.renderHighlightedText` (L34-L53) - Function
+  - `webview-ui.src.features.modular-ui.chat.decorators.HighlightDecorator.HighlightDecorator` (L55-L58) - Class
+  - `webview-ui.src.features.modular-ui.chat.decorators.HighlightDecorator.HighlightDecorator.renderHighlight` (L57-L57) - Method
+- `webview-ui/src/features/modular-ui/chat/decorators/OverlayDecorator.tsx`
+  - `webview-ui.src.features.modular-ui.chat.decorators.OverlayDecorator.OverlayDecoratorProps` (L6-L9) - Interface
+  - `webview-ui.src.features.modular-ui.chat.decorators.OverlayDecorator.createOverlayDecorator` (L11-L41) - Class
+  - `webview-ui.src.features.modular-ui.chat.decorators.OverlayDecorator.createOverlayDecorator.renderOverlay` (L13-L40) - Method
+- `webview-ui/src/features/modular-ui/chat/decorators/view/ActionButtonsDecorator.tsx`
+  - `webview-ui.src.features.modular-ui.chat.decorators.view.ActionButtonsDecorator.ActionButtonsDecorator` (L4-L18) - Class
+  - `webview-ui.src.features.modular-ui.chat.decorators.view.ActionButtonsDecorator.ActionButtonsDecorator.render` (L6-L17) - Method
+- `webview-ui/src/features/modular-ui/chat/decorators/view/AutoApproveDecorator.tsx`
+  - `webview-ui.src.features.modular-ui.chat.decorators.view.AutoApproveDecorator.AutoApproveDecorator` (L4-L7) - Class
+  - `webview-ui.src.features.modular-ui.chat.decorators.view.AutoApproveDecorator.AutoApproveDecorator.render` (L6-L6) - Method
+- `webview-ui/src/features/modular-ui/chat/hooks/useChatState.ts`
+  - `webview-ui.src.features.modular-ui.chat.hooks.useChatState.useChatState` (L10-L91) - Function
+  - `webview-ui.src.features.modular-ui.chat.hooks.useChatState.useChatState.presentationState` (L26-L36) - Class
+  - `webview-ui.src.features.modular-ui.chat.hooks.useChatState.useChatState.presentationState.useShallow() callback` (L27-L35) - Function
+  - `webview-ui.src.features.modular-ui.chat.hooks.useChatState.clearExpandedRows` (L40-L43) - Class
+  - `webview-ui.src.features.modular-ui.chat.hooks.useChatState.useChatState.clearExpandedRows.useCallback() callback` (L40-L43) - Function
+  - `webview-ui.src.features.modular-ui.chat.hooks.useChatState.resetState` (L46-L51) - Class
+  - `webview-ui.src.features.modular-ui.chat.hooks.useChatState.useChatState.resetState.useCallback() callback` (L46-L51) - Function
+  - `webview-ui.src.features.modular-ui.chat.hooks.useChatState.handleFocusChange` (L54-L56) - Class
+  - `webview-ui.src.features.modular-ui.chat.hooks.useChatState.useChatState.handleFocusChange.useCallback() callback` (L54-L56) - Function
+  - `webview-ui.src.features.modular-ui.chat.hooks.useChatState.useChatState.useEffect() callback` (L59-L61) - Function
+- `webview-ui/src/features/modular-ui/chat/hooks/useMessageHandlers.ts`
+  - `webview-ui.src.features.modular-ui.chat.hooks.useMessageHandlers.useMessageHandlers` (L15-L346) - Function
+  - `webview-ui.src.features.modular-ui.chat.hooks.useMessageHandlers.useMessageHandlers.backgroundCommandRunning` (L17-L17) - Class
+  - `webview-ui.src.features.modular-ui.chat.hooks.useMessageHandlers.useMessageHandlers.backgroundCommandRunning.useSettingsStore() callback` (L17-L17) - Function
+  - `webview-ui.src.features.modular-ui.chat.hooks.useMessageHandlers.useMessageHandlers.setExpandTaskHeader` (L18-L18) - Class
+  - `webview-ui.src.features.modular-ui.chat.hooks.useMessageHandlers.useMessageHandlers.setExpandTaskHeader.useSettingsStore() callback` (L18-L18) - Function
+  - `webview-ui.src.features.modular-ui.chat.hooks.useMessageHandlers.useMessageHandlers.goal` (L19-L19) - Class
+  - `webview-ui.src.features.modular-ui.chat.hooks.useMessageHandlers.useMessageHandlers.goal.useChatStore() callback` (L19-L19) - Function
+  - `webview-ui.src.features.modular-ui.chat.hooks.useMessageHandlers.useMessageHandlers.activeCard` (L30-L37) - Class
+  - `webview-ui.src.features.modular-ui.chat.hooks.useMessageHandlers.useMessageHandlers.activeCard.useChatStore() callback` (L30-L37) - Function
+  - `webview-ui.src.features.modular-ui.chat.hooks.useMessageHandlers.handleSendMessage` (L41-L157) - Class
+  - `webview-ui.src.features.modular-ui.chat.hooks.useMessageHandlers.useMessageHandlers.handleSendMessage.useCallback() callback` (L42-L143) - Function
+  - `webview-ui.src.features.modular-ui.chat.hooks.useMessageHandlers.handleSendMessage.useCallback() callback.isResume` (L71-L78) - Class
+  - `webview-ui.src.features.modular-ui.chat.hooks.useMessageHandlers.handleSendMessage.useCallback() callback.isResume.uiActionState.cardButtons.some() callback` (L75-L77) - Function
+  - `webview-ui.src.features.modular-ui.chat.hooks.useMessageHandlers.useMessageHandlers.handleSendMessage.useCallback() callback.isResume` (L96-L103) - Class
+  - `webview-ui.src.features.modular-ui.chat.hooks.useMessageHandlers.useMessageHandlers.handleSendMessage.useCallback() callback.isResume.uiActionState.cardButtons.some() callback` (L100-L102) - Function
+  - `webview-ui.src.features.modular-ui.chat.hooks.useMessageHandlers.startNewTask` (L160-L163) - Class
+  - `webview-ui.src.features.modular-ui.chat.hooks.useMessageHandlers.useMessageHandlers.startNewTask.useCallback() callback` (L160-L163) - Function
+  - `webview-ui.src.features.modular-ui.chat.hooks.useMessageHandlers.useMessageHandlers.clearInputState` (L166-L171) - Class
+  - `webview-ui.src.features.modular-ui.chat.hooks.useMessageHandlers.useMessageHandlers.clearInputState.useCallback() callback` (L166-L171) - Function
+  - `webview-ui.src.features.modular-ui.chat.hooks.useMessageHandlers.executeButtonAction` (L174-L333) - Class
+  - `webview-ui.src.features.modular-ui.chat.hooks.useMessageHandlers.useMessageHandlers.executeButtonAction.useCallback() callback` (L175-L331) - Function
+  - `webview-ui.src.features.modular-ui.chat.hooks.useMessageHandlers.executeButtonAction.useCallback() callback.catch() callback` (L277-L278) - Function
+  - `webview-ui.src.features.modular-ui.chat.hooks.useMessageHandlers.useMessageHandlers.executeButtonAction.useCallback() callback.catch() callback` (L297-L298) - Function
+  - `webview-ui.src.features.modular-ui.chat.hooks.useMessageHandlers.handleTaskCloseButtonClick` (L336-L338) - Class
+  - `webview-ui.src.features.modular-ui.chat.hooks.useMessageHandlers.useMessageHandlers.handleTaskCloseButtonClick.useCallback() callback` (L336-L338) - Function
+- `webview-ui/src/features/modular-ui/chat/hooks/useModularInput.ts`
+  - `webview-ui.src.features.modular-ui.chat.hooks.useModularInput.UseModularInputProps` (L4-L12) - Interface
+  - `webview-ui.src.features.modular-ui.chat.hooks.useModularInput.useModularInput` (L14-L112) - Class
+  - `webview-ui.src.features.modular-ui.chat.hooks.useModularInput.context` (L38-L53) - Class
+  - `webview-ui.src.features.modular-ui.chat.hooks.useModularInput.useModularInput.context.useMemo() callback` (L39-L51) - Function
+  - `webview-ui.src.features.modular-ui.chat.hooks.useModularInput.useModularInput.useEffect() callback` (L56-L58) - Function
+  - `webview-ui.src.features.modular-ui.chat.hooks.useModularInput.useModularInput.useEffect() callback.traits.forEach() callback` (L57-L57) - Function
+  - `webview-ui.src.features.modular-ui.chat.hooks.useModularInput.handleKeyDown` (L60-L70) - Class
+  - `webview-ui.src.features.modular-ui.chat.hooks.useModularInput.useModularInput.handleKeyDown.useCallback() callback` (L61-L68) - Function
+  - `webview-ui.src.features.modular-ui.chat.hooks.useModularInput.handleInputChange` (L72-L82) - Class
+  - `webview-ui.src.features.modular-ui.chat.hooks.useModularInput.useModularInput.handleInputChange.useCallback() callback` (L73-L80) - Function
+  - `webview-ui.src.features.modular-ui.chat.hooks.useModularInput.useModularInput.handleInputChange.useCallback() callback.traits.forEach() callback` (L79-L79) - Function
+  - `webview-ui.src.features.modular-ui.chat.hooks.useModularInput.handlePaste` (L84-L89) - Class
+  - `webview-ui.src.features.modular-ui.chat.hooks.useModularInput.useModularInput.handlePaste.useCallback() callback` (L85-L87) - Function
+  - `webview-ui.src.features.modular-ui.chat.hooks.useModularInput.useModularInput.handlePaste.useCallback() callback.traits.forEach() callback` (L86-L86) - Function
+  - `webview-ui.src.features.modular-ui.chat.hooks.useModularInput.handleDrop` (L91-L96) - Class
+  - `webview-ui.src.features.modular-ui.chat.hooks.useModularInput.useModularInput.handleDrop.useCallback() callback` (L92-L94) - Function
+  - `webview-ui.src.features.modular-ui.chat.hooks.useModularInput.useModularInput.handleDrop.useCallback() callback.traits.forEach() callback` (L93-L93) - Function
+  - `webview-ui.src.features.modular-ui.chat.hooks.useModularInput.updateCursorPosition` (L98-L102) - Class
+  - `webview-ui.src.features.modular-ui.chat.hooks.useModularInput.useModularInput.updateCursorPosition.useCallback() callback` (L98-L102) - Function
+- `webview-ui/src/features/modular-ui/chat/hooks/useScrollBehavior.ts`
+  - `webview-ui.src.features.modular-ui.chat.hooks.useScrollBehavior.useScrollBehavior` (L8-L344) - Function
+  - `webview-ui.src.features.modular-ui.chat.hooks.useScrollBehavior.useScrollBehavior.stopFollowing` (L36-L41) - Class
+  - `webview-ui.src.features.modular-ui.chat.hooks.useScrollBehavior.useScrollBehavior.stopFollowing.useCallback() callback` (L36-L41) - Function
+  - `webview-ui.src.features.modular-ui.chat.hooks.useScrollBehavior.useScrollBehavior.startFollowing` (L43-L46) - Class
+  - `webview-ui.src.features.modular-ui.chat.hooks.useScrollBehavior.useScrollBehavior.startFollowing.useCallback() callback` (L43-L46) - Function
+  - `webview-ui.src.features.modular-ui.chat.hooks.useScrollBehavior.useScrollBehavior.resumeFollowingIfAtBottom` (L48-L59) - Class
+  - `webview-ui.src.features.modular-ui.chat.hooks.useScrollBehavior.useScrollBehavior.resumeFollowingIfAtBottom.useCallback() callback` (L49-L57) - Function
+  - `webview-ui.src.features.modular-ui.chat.hooks.useScrollBehavior.useScrollBehavior.resumeFollowingIfAtBottom.useCallback() callback.requestAnimationFrame() callback` (L51-L56) - Function
+  - `webview-ui.src.features.modular-ui.chat.hooks.useScrollBehavior.useScrollBehavior.scrollToBottom` (L61-L74) - Class
+  - `webview-ui.src.features.modular-ui.chat.hooks.useScrollBehavior.useScrollBehavior.scrollToBottom.useCallback() callback` (L62-L72) - Function
+  - `webview-ui.src.features.modular-ui.chat.hooks.useScrollBehavior.useScrollBehavior.scrollToBottom.useCallback() callback.requestAnimationFrame() callback` (L65-L71) - Function
+  - `webview-ui.src.features.modular-ui.chat.hooks.useScrollBehavior.scrollToBottomAuto` (L76-L78) - Class
+  - `webview-ui.src.features.modular-ui.chat.hooks.useScrollBehavior.useScrollBehavior.scrollToBottomAuto.useCallback() callback` (L76-L78) - Function
+  - `webview-ui.src.features.modular-ui.chat.hooks.useScrollBehavior.scrollToBottomSmooth` (L80-L83) - Class
+  - `webview-ui.src.features.modular-ui.chat.hooks.useScrollBehavior.useScrollBehavior.scrollToBottomSmooth.useCallback() callback` (L80-L83) - Function
+  - `webview-ui.src.features.modular-ui.chat.hooks.useScrollBehavior.scrollToTop` (L85-L96) - Class
+  - `webview-ui.src.features.modular-ui.chat.hooks.useScrollBehavior.useScrollBehavior.scrollToTop.useCallback() callback` (L85-L96) - Function
+  - `webview-ui.src.features.modular-ui.chat.hooks.useScrollBehavior.useScrollBehavior.scrollToTop.useCallback() callback.requestAnimationFrame() callback` (L88-L95) - Function
+  - `webview-ui.src.features.modular-ui.chat.hooks.useScrollBehavior.scrollToMessage` (L98-L124) - Class
+  - `webview-ui.src.features.modular-ui.chat.hooks.useScrollBehavior.useScrollBehavior.scrollToMessage.useCallback() callback` (L99-L122) - Function
+  - `webview-ui.src.features.modular-ui.chat.hooks.useScrollBehavior.useScrollBehavior.scrollToMessage.useCallback() callback.requestAnimationFrame() callback` (L114-L121) - Function
+  - `webview-ui.src.features.modular-ui.chat.hooks.useScrollBehavior.toggleRowExpansion` (L126-L164) - Class
+  - `webview-ui.src.features.modular-ui.chat.hooks.useScrollBehavior.useScrollBehavior.toggleRowExpansion.useCallback() callback` (L127-L162) - Function
+  - `webview-ui.src.features.modular-ui.chat.hooks.useScrollBehavior.useScrollBehavior.toggleRowExpansion.useCallback() callback.lastMessage` (L135-L141) - Class
+  - `webview-ui.src.features.modular-ui.chat.hooks.useScrollBehavior.useScrollBehavior.toggleRowExpansion.useCallback() callback.lastMessage.<function>` (L136-L140) - Function
+  - `webview-ui.src.features.modular-ui.chat.hooks.useScrollBehavior.useScrollBehavior.toggleRowExpansion.useCallback() callback.setExpandedRows() callback` (L146-L149) - Function
+  - `webview-ui.src.features.modular-ui.chat.hooks.useScrollBehavior.useEffect() callback` (L166-L170) - Function
+  - `webview-ui.src.features.modular-ui.chat.hooks.useScrollBehavior.useScrollBehavior.lastRenderedMessage` (L173-L173) - Class
+  - `webview-ui.src.features.modular-ui.chat.hooks.useScrollBehavior.useScrollBehavior.lastRenderedMessage.useChatStore() callback` (L173-L173) - Function
+  - `webview-ui.src.features.modular-ui.chat.hooks.useScrollBehavior.handleAtBottomStateChange` (L185-L195) - Class
+  - `webview-ui.src.features.modular-ui.chat.hooks.useScrollBehavior.useScrollBehavior.handleAtBottomStateChange.useCallback() callback` (L185-L195) - Function
+  - `webview-ui.src.features.modular-ui.chat.hooks.useScrollBehavior.handleListHeightChanged` (L197-L213) - Class
+  - `webview-ui.src.features.modular-ui.chat.hooks.useScrollBehavior.useScrollBehavior.handleListHeightChanged.useCallback() callback` (L197-L213) - Function
+  - `webview-ui.src.features.modular-ui.chat.hooks.useScrollBehavior.useScrollBehavior.handleListHeightChanged.useCallback() callback.requestAnimationFrame() callback` (L204-L212) - Function
+  - `webview-ui.src.features.modular-ui.chat.hooks.useScrollBehavior.handleScrollWheel` (L215-L222) - Class
+  - `webview-ui.src.features.modular-ui.chat.hooks.useScrollBehavior.useScrollBehavior.handleScrollWheel.useCallback() callback` (L216-L220) - Function
+  - `webview-ui.src.features.modular-ui.chat.hooks.useScrollBehavior.handleScrollKeyDown` (L224-L243) - Class
+  - `webview-ui.src.features.modular-ui.chat.hooks.useScrollBehavior.useScrollBehavior.handleScrollKeyDown.useCallback() callback` (L225-L241) - Function
+  - `webview-ui.src.features.modular-ui.chat.hooks.useScrollBehavior.handleScrollPointerDown` (L245-L259) - Class
+  - `webview-ui.src.features.modular-ui.chat.hooks.useScrollBehavior.useScrollBehavior.handleScrollPointerDown.useCallback() callback` (L246-L257) - Function
+  - `webview-ui.src.features.modular-ui.chat.hooks.useScrollBehavior.handleScrollPointerUp` (L261-L268) - Class
+  - `webview-ui.src.features.modular-ui.chat.hooks.useScrollBehavior.useScrollBehavior.handleScrollPointerUp.useCallback() callback` (L262-L266) - Function
+  - `webview-ui.src.features.modular-ui.chat.hooks.useScrollBehavior.handleScrollTouchStart` (L270-L272) - Class
+  - `webview-ui.src.features.modular-ui.chat.hooks.useScrollBehavior.useScrollBehavior.handleScrollTouchStart.useCallback() callback` (L270-L272) - Function
+  - `webview-ui.src.features.modular-ui.chat.hooks.useScrollBehavior.handleScrollTouchMove` (L274-L286) - Class
+  - `webview-ui.src.features.modular-ui.chat.hooks.useScrollBehavior.useScrollBehavior.handleScrollTouchMove.useCallback() callback` (L275-L284) - Function
+  - `webview-ui.src.features.modular-ui.chat.hooks.useScrollBehavior.handleScrollTouchEnd` (L288-L294) - Class
+  - `webview-ui.src.features.modular-ui.chat.hooks.useScrollBehavior.useScrollBehavior.handleScrollTouchEnd.useCallback() callback` (L289-L292) - Function
+  - `webview-ui.src.features.modular-ui.chat.hooks.useScrollBehavior.followOutput` (L296-L303) - Class
+  - `webview-ui.src.features.modular-ui.chat.hooks.useScrollBehavior.useScrollBehavior.followOutput.useCallback() callback` (L296-L303) - Function
+  - `webview-ui.src.features.modular-ui.chat.hooks.useScrollBehavior.useScrollBehavior.useEffect() callback` (L307-L321) - Function
+- `webview-ui/src/features/modular-ui/chat/sections/GoalSection.tsx`
+  - `webview-ui.src.features.modular-ui.chat.sections.GoalSection.GoalSection` (L4-L11) - Class
+  - `webview-ui.src.features.modular-ui.chat.sections.GoalSection.GoalSection.shouldRender` (L6-L6) - Method
+  - `webview-ui.src.features.modular-ui.chat.sections.GoalSection.GoalSection.render` (L7-L10) - Method
+- `webview-ui/src/features/modular-ui/chat/sections/InputSection.tsx`
+  - `webview-ui.src.features.modular-ui.chat.sections.InputSection.InputSectionContent` (L17-L151) - Class
+  - `webview-ui.src.features.modular-ui.chat.sections.InputSection.InputSectionContent.navigateToSettings` (L18-L18) - Class
+  - `webview-ui.src.features.modular-ui.chat.sections.InputSection.InputSectionContent.navigateToSettings.useAppStore() callback` (L18-L18) - Function
+  - `webview-ui.src.features.modular-ui.chat.sections.InputSection.InputSectionContent.activeModelProviderPresetId` (L36-L41) - Class
+  - `webview-ui.src.features.modular-ui.chat.sections.InputSection.InputSectionContent.activeModelProviderPresetId.modelProviderPresets.find() callback` (L37-L40) - Function
+  - `webview-ui.src.features.modular-ui.chat.sections.InputSection.<function>` (L82-L97) - Function
+  - `webview-ui.src.features.modular-ui.chat.sections.InputSection.InputSectionContent.<function>` (L117-L134) - Function
+  - `webview-ui.src.features.modular-ui.chat.sections.InputSection.InputSection` (L153-L157) - Class
+  - `webview-ui.src.features.modular-ui.chat.sections.InputSection.InputSection.shouldRender` (L155-L155) - Method
+  - `webview-ui.src.features.modular-ui.chat.sections.InputSection.InputSection.render` (L156-L156) - Method
+- `webview-ui/src/features/modular-ui/chat/sections/MessagesSection.tsx`
+  - `webview-ui.src.features.modular-ui.chat.sections.MessagesSection.MessagesSection` (L4-L16) - Class
+  - `webview-ui.src.features.modular-ui.chat.sections.MessagesSection.MessagesSection.shouldRender` (L6-L6) - Method
+  - `webview-ui.src.features.modular-ui.chat.sections.MessagesSection.MessagesSection.render` (L7-L15) - Method
+- `webview-ui/src/features/modular-ui/chat/sections/TaskSection.tsx`
+  - `webview-ui.src.features.modular-ui.chat.sections.TaskSection.TaskSection` (L4-L17) - Class
+  - `webview-ui.src.features.modular-ui.chat.sections.TaskSection.TaskSection.shouldRender` (L6-L6) - Method
+  - `webview-ui.src.features.modular-ui.chat.sections.TaskSection.TaskSection.render` (L7-L16) - Method
+- `webview-ui/src/features/modular-ui/chat/sections/WelcomeSection.tsx`
+  - `webview-ui.src.features.modular-ui.chat.sections.WelcomeSection.WelcomeSection` (L4-L16) - Class
+  - `webview-ui.src.features.modular-ui.chat.sections.WelcomeSection.WelcomeSection.shouldRender` (L6-L6) - Method
+  - `webview-ui.src.features.modular-ui.chat.sections.WelcomeSection.WelcomeSection.render` (L7-L15) - Method
+- `webview-ui/src/features/modular-ui/chat/traits/useFileHandlingTrait.ts`
+  - `webview-ui.src.features.modular-ui.chat.traits.useFileHandlingTrait.getImageDimensions` (L9-L25) - Class
+  - `webview-ui.src.features.modular-ui.chat.traits.useFileHandlingTrait.getImageDimensions.<function>` (L10-L24) - Function
+  - `webview-ui.src.features.modular-ui.chat.traits.useFileHandlingTrait.getImageDimensions.<function>.onload` (L12-L18) - Function
+  - `webview-ui.src.features.modular-ui.chat.traits.useFileHandlingTrait.getImageDimensions.<function>.onerror` (L19-L22) - Function
+  - `webview-ui.src.features.modular-ui.chat.traits.useFileHandlingTrait.useFileHandlingTrait.readImageFiles` (L28-L58) - Class
+  - `webview-ui.src.features.modular-ui.chat.traits.useFileHandlingTrait.useFileHandlingTrait.readImageFiles.useCallback() callback` (L28-L58) - Function
+  - `webview-ui.src.features.modular-ui.chat.traits.useFileHandlingTrait.useFileHandlingTrait.readImageFiles.useCallback() callback.imageFiles.map() callback` (L31-L55) - Function
+  - `webview-ui.src.features.modular-ui.chat.traits.useFileHandlingTrait.useFileHandlingTrait.readImageFiles.useCallback() callback.imageFiles.map() callback.<function>` (L32-L55) - Function
+  - `webview-ui.src.features.modular-ui.chat.traits.useFileHandlingTrait.useFileHandlingTrait.readImageFiles.useCallback() callback.imageFiles.map() callback.<function>.onloadend` (L34-L53) - Function
+  - `webview-ui.src.features.modular-ui.chat.traits.useFileHandlingTrait.onPaste` (L60-L128) - Class
+  - `webview-ui.src.features.modular-ui.chat.traits.useFileHandlingTrait.useFileHandlingTrait.onPaste.imageItems` (L65-L68) - Class
+  - `webview-ui.src.features.modular-ui.chat.traits.useFileHandlingTrait.useFileHandlingTrait.onPaste.imageItems.filter() callback` (L65-L68) - Function
+  - `webview-ui.src.features.modular-ui.chat.traits.useFileHandlingTrait.useFileHandlingTrait.onPaste.imagePromises` (L72-L96) - Class
+  - `webview-ui.src.features.modular-ui.chat.traits.useFileHandlingTrait.useFileHandlingTrait.onPaste.imagePromises.imageItems.map() callback` (L72-L96) - Function
+  - `webview-ui.src.features.modular-ui.chat.traits.useFileHandlingTrait.useFileHandlingTrait.onPaste.imagePromises.imageItems.map() callback.<function>` (L75-L95) - Function
+  - `webview-ui.src.features.modular-ui.chat.traits.useFileHandlingTrait.useFileHandlingTrait.onPaste.imagePromises.imageItems.map() callback.<function>.onloadend` (L77-L93) - Function
+  - `webview-ui.src.features.modular-ui.chat.traits.useFileHandlingTrait.useFileHandlingTrait.onPaste.dataUrls` (L99-L99) - Class
+  - `webview-ui.src.features.modular-ui.chat.traits.useFileHandlingTrait.useFileHandlingTrait.onPaste.dataUrls.imageDataArray.filter() callback` (L99-L99) - Function
+  - `webview-ui.src.features.modular-ui.chat.traits.useFileHandlingTrait.useFileHandlingTrait.onPaste.setSelectedImages() callback` (L107-L107) - Function
+  - `webview-ui.src.features.modular-ui.chat.traits.useFileHandlingTrait.useFileHandlingTrait.onPaste.setTimeout() callback` (L123-L126) - Function
+  - `webview-ui.src.features.modular-ui.chat.traits.useFileHandlingTrait.onDrop` (L130-L209) - Class
+  - `webview-ui.src.features.modular-ui.chat.traits.useFileHandlingTrait.useFileHandlingTrait.onDrop.uris.map() callback` (L143-L143) - Function
+  - `webview-ui.src.features.modular-ui.chat.traits.useFileHandlingTrait.useFileHandlingTrait.onDrop.map() callback` (L150-L150) - Function
+  - `webview-ui.src.features.modular-ui.chat.traits.useFileHandlingTrait.useFileHandlingTrait.onDrop.validUris` (L153-L155) - Class
+  - `webview-ui.src.features.modular-ui.chat.traits.useFileHandlingTrait.useFileHandlingTrait.onDrop.validUris.uris.filter() callback` (L154-L154) - Function
+  - `webview-ui.src.features.modular-ui.chat.traits.useFileHandlingTrait.useFileHandlingTrait.onDrop.imageFiles` (L190-L193) - Class
+  - `webview-ui.src.features.modular-ui.chat.traits.useFileHandlingTrait.useFileHandlingTrait.onDrop.imageFiles.files.filter() callback` (L190-L193) - Function
+  - `webview-ui.src.features.modular-ui.chat.traits.useFileHandlingTrait.useFileHandlingTrait.onDrop.dataUrls` (L197-L197) - Class
+  - `webview-ui.src.features.modular-ui.chat.traits.useFileHandlingTrait.useFileHandlingTrait.onDrop.dataUrls.imageDataArray.filter() callback` (L197-L197) - Function
+  - `webview-ui.src.features.modular-ui.chat.traits.useFileHandlingTrait.useFileHandlingTrait.onDrop.setSelectedImages() callback` (L205-L205) - Function
+- `webview-ui/src/features/modular-ui/chat/traits/useMentionTrait.ts`
+  - `webview-ui.src.features.modular-ui.chat.traits.useMentionTrait.useMentionTrait.handleMentionSelect.useCallback() callback` (L42-L79) - Function
+  - `webview-ui.src.features.modular-ui.chat.traits.useMentionTrait.useMentionTrait.handleMentionSelect.useCallback() callback.setTimeout() callback` (L75-L78) - Function
+  - `webview-ui.src.features.modular-ui.chat.traits.useMentionTrait.onInputChange` (L81-L171) - Class
+  - `webview-ui.src.features.modular-ui.chat.traits.useMentionTrait.useMentionTrait.onInputChange.setTimeout() callback` (L115-L162) - Function
+  - `webview-ui.src.features.modular-ui.chat.traits.useMentionTrait.onInputChange.setTimeout() callback.then() callback` (L118-L122) - Function
+  - `webview-ui.src.features.modular-ui.chat.traits.useMentionTrait.onInputChange.setTimeout() callback.catch() callback` (L123-L127) - Function
+  - `webview-ui.src.features.modular-ui.chat.traits.useMentionTrait.useMentionTrait.onInputChange.setTimeout() callback.then() callback` (L138-L154) - Function
+  - `webview-ui.src.features.modular-ui.chat.traits.useMentionTrait.useMentionTrait.onInputChange.setTimeout() callback.then() callback.hasRealOptions` (L145-L149) - Class
+  - `webview-ui.src.features.modular-ui.chat.traits.useMentionTrait.useMentionTrait.onInputChange.setTimeout() callback.then() callback.hasRealOptions.options.some() callback` (L146-L148) - Function
+  - `webview-ui.src.features.modular-ui.chat.traits.useMentionTrait.useMentionTrait.onInputChange.setTimeout() callback.catch() callback` (L155-L160) - Function
+  - `webview-ui.src.features.modular-ui.chat.traits.useMentionTrait.onKeyDown` (L173-L260) - Class
+  - `webview-ui.src.features.modular-ui.chat.traits.useMentionTrait.useMentionTrait.onKeyDown.selectableOptions` (L186-L188) - Class
+  - `webview-ui.src.features.modular-ui.chat.traits.useMentionTrait.useMentionTrait.onKeyDown.selectableOptions.options.filter() callback` (L187-L187) - Function
+  - `webview-ui.src.features.modular-ui.chat.traits.useMentionTrait.useMentionTrait.onKeyDown.setTimeout() callback` (L247-L249) - Function
+- `webview-ui/src/features/modular-ui/chat/traits/useModeTrait.ts`
+  - `webview-ui.src.features.modular-ui.chat.traits.useModeTrait.useModeTrait` (L6-L59) - Class
+  - `webview-ui.src.features.modular-ui.chat.traits.useModeTrait.useModeTrait.onModeToggle.useCallback() callback` (L13-L45) - Function
+  - `webview-ui.src.features.modular-ui.chat.traits.useModeTrait.useModeTrait.onModeToggle.useCallback() callback.setTimeout() callback` (L41-L43) - Function
+  - `webview-ui.src.features.modular-ui.chat.traits.useModeTrait.useModeTrait.onModeToggle` (L54-L54) - Method
+  - `webview-ui.src.features.modular-ui.chat.traits.useModeTrait.useModeTrait.attach` (L55-L57) - Method
+- `webview-ui/src/features/modular-ui/chat/traits/useSlashCommandTrait.ts`
+  - `webview-ui.src.features.modular-ui.chat.traits.useSlashCommandTrait.useSlashCommandTrait.availableSkills` (L24-L24) - Class
+  - `webview-ui.src.features.modular-ui.chat.traits.useSlashCommandTrait.useSlashCommandTrait.availableSkills.useSettingsStore() callback` (L24-L24) - Function
+  - `webview-ui.src.features.modular-ui.chat.traits.useSlashCommandTrait.useSlashCommandTrait.localWorkflowToggles` (L25-L25) - Class
+  - `webview-ui.src.features.modular-ui.chat.traits.useSlashCommandTrait.useSlashCommandTrait.localWorkflowToggles.useSettingsStore() callback` (L25-L25) - Function
+  - `webview-ui.src.features.modular-ui.chat.traits.useSlashCommandTrait.useSlashCommandTrait.globalWorkflowToggles` (L26-L26) - Class
+  - `webview-ui.src.features.modular-ui.chat.traits.useSlashCommandTrait.useSlashCommandTrait.globalWorkflowToggles.useSettingsStore() callback` (L26-L26) - Function
+  - `webview-ui.src.features.modular-ui.chat.traits.useSlashCommandTrait.useSlashCommandTrait.remoteWorkflowToggles` (L27-L27) - Class
+  - `webview-ui.src.features.modular-ui.chat.traits.useSlashCommandTrait.useSlashCommandTrait.remoteWorkflowToggles.useSettingsStore() callback` (L27-L27) - Function
+  - `webview-ui.src.features.modular-ui.chat.traits.useSlashCommandTrait.useSlashCommandTrait.remoteWorkflows` (L28-L28) - Class
+  - `webview-ui.src.features.modular-ui.chat.traits.useSlashCommandTrait.useSlashCommandTrait.remoteWorkflows.useSettingsStore() callback` (L28-L28) - Function
+  - `webview-ui.src.features.modular-ui.chat.traits.useSlashCommandTrait.useSlashCommandTrait.handleSlashCommandSelect.useCallback() callback` (L30-L52) - Function
+  - `webview-ui.src.features.modular-ui.chat.traits.useSlashCommandTrait.useSlashCommandTrait.handleSlashCommandSelect.useCallback() callback.setTimeout() callback` (L48-L51) - Function
+  - `webview-ui.src.features.modular-ui.chat.traits.useSlashCommandTrait.onKeyDown` (L72-L147) - Class
+  - `webview-ui.src.features.modular-ui.chat.traits.useSlashCommandTrait.useSlashCommandTrait.onKeyDown.setTimeout() callback` (L137-L139) - Function
+- `webview-ui/src/features/modular-ui/chat/types.ts`
+  - `webview-ui.src.features.modular-ui.chat.types.ModularInputContext` (L7-L20) - Interface
+  - `webview-ui.src.features.modular-ui.chat.types.InputTrait` (L22-L34) - Interface
+  - `webview-ui.src.features.modular-ui.chat.types.InputDecorator` (L36-L44) - Interface
+  - `webview-ui.src.features.modular-ui.chat.types.ChatViewContext` (L46-L66) - Interface
+  - `webview-ui.src.features.modular-ui.chat.types.ChatSection` (L68-L72) - Interface
+  - `webview-ui.src.features.modular-ui.chat.types.ChatViewProps` (L74-L79) - Interface
+  - `webview-ui.src.features.modular-ui.chat.types.ChatViewDecorator` (L81-L84) - Interface
+- `webview-ui/src/features/modular-ui/chat/types/chatRowTypes.ts`
+  - `webview-ui.src.features.modular-ui.chat.types.chatRowTypes.ChatRowProps` (L3-L15) - Interface
+  - `webview-ui.src.features.modular-ui.chat.types.chatRowTypes.DisplayUnit` (L19-L33) - Interface
+- `webview-ui/src/features/modular-ui/chat/types/chatTypes.ts`
+  - `webview-ui.src.features.modular-ui.chat.types.chatTypes.ChatViewProps` (L13-L18) - Interface
+  - `webview-ui.src.features.modular-ui.chat.types.chatTypes.ChatState` (L23-L57) - Interface
+  - `webview-ui.src.features.modular-ui.chat.types.chatTypes.MessageHandlers` (L62-L74) - Interface
+  - `webview-ui.src.features.modular-ui.chat.types.chatTypes.ScrollBehavior` (L79-L99) - Interface
+  - `webview-ui.src.features.modular-ui.chat.types.chatTypes.ButtonState` (L104-L108) - Interface
+  - `webview-ui.src.features.modular-ui.chat.types.chatTypes.InputState` (L113-L119) - Interface
+  - `webview-ui.src.features.modular-ui.chat.types.chatTypes.TaskSectionProps` (L124-L145) - Interface
+  - `webview-ui.src.features.modular-ui.chat.types.chatTypes.WelcomeSectionProps` (L150-L158) - Interface
+  - `webview-ui.src.features.modular-ui.chat.types.chatTypes.InputSectionProps` (L163-L173) - Interface
+- `webview-ui/src/features/modular-ui/chat/utils/messageUtils.ts`
+  - `webview-ui.src.features.modular-ui.chat.utils.messageUtils.filterVisibleMessages` (L14-L47) - Function
+  - `webview-ui.src.features.modular-ui.chat.utils.messageUtils.filterVisibleMessages.messages.filter() callback` (L27-L46) - Function
+- `webview-ui/src/features/modular-ui/chat/utils/text-utils.ts`
+  - `webview-ui.src.features.modular-ui.chat.utils.text-utils.insertTextAtCursor` (L4-L16) - Function
+  - `webview-ui.src.features.modular-ui.chat.utils.text-utils.getCursorCoordinates` (L22-L31) - Function
+- `webview-ui/src/features/modular-ui/components/CardActions.tsx`
+  - `webview-ui.src.features.modular-ui.components.CardActions.CardActionsProps` (L8-L12) - Interface
+  - `webview-ui.src.features.modular-ui.components.CardActions.CardActions` (L14-L79) - Class
+  - `webview-ui.src.features.modular-ui.components.CardActions.CardActions.actions.map() callback` (L33-L55) - Function
+- `webview-ui/src/features/modular-ui/components/CardContent.tsx`
+  - `webview-ui.src.features.modular-ui.components.CardContent.CardContentProps` (L7-L12) - Interface
+- `webview-ui/src/features/modular-ui/components/CardStatusIcon.tsx`
+  - `webview-ui.src.features.modular-ui.components.CardStatusIcon.CardStatusIconProps` (L14-L17) - Interface
+- `webview-ui/src/features/modular-ui/components/IncrementalText.tsx`
+  - `webview-ui.src.features.modular-ui.components.IncrementalText.IncrementalTextProps` (L4-L8) - Interface
+  - `webview-ui.src.features.modular-ui.components.IncrementalText.IncrementalText` (L11-L48) - Function
+  - `webview-ui.src.features.modular-ui.components.IncrementalText.IncrementalText.append` (L12-L12) - Class
+  - `webview-ui.src.features.modular-ui.components.IncrementalText.IncrementalText.append.useChatStore() callback` (L12-L12) - Function
+  - `webview-ui.src.features.modular-ui.components.IncrementalText.IncrementalText.useLayoutEffect() callback` (L18-L41) - Function
+- `webview-ui/src/features/modular-ui/components/MarkdownRow.tsx`
+  - `webview-ui.src.features.modular-ui.components.MarkdownRow.MarkdownRow` (L4-L10) - Class
+  - `webview-ui.src.features.modular-ui.components.MarkdownRow.MarkdownRow.memo() callback` (L4-L10) - Function
+- `webview-ui/src/features/modular-ui/components/ModularCardBody.tsx`
+  - `webview-ui.src.features.modular-ui.components.ModularCardBody.ModularCardBodyProps` (L8-L13) - Interface
+  - `webview-ui.src.features.modular-ui.components.ModularCardBody.resolveCardBodyPresentation` (L17-L24) - Function
+  - `webview-ui.src.features.modular-ui.components.ModularCardBody.ModularCardBody` (L26-L59) - Class
+  - `webview-ui.src.features.modular-ui.components.ModularCardBody.ModularCardBody.decorators` (L28-L28) - Class
+  - `webview-ui.src.features.modular-ui.components.ModularCardBody.ModularCardBody.decorators.useMemo() callback` (L28-L28) - Function
+  - `webview-ui.src.features.modular-ui.components.ModularCardBody.ModularCardBody.decorators.useMemo() callback.CARD_DECORATORS.filter() callback` (L28-L28) - Function
+  - `webview-ui.src.features.modular-ui.components.ModularCardBody.ModularCardBody.presentation` (L29-L29) - Class
+  - `webview-ui.src.features.modular-ui.components.ModularCardBody.ModularCardBody.presentation.useMemo() callback` (L29-L29) - Function
+  - `webview-ui.src.features.modular-ui.components.ModularCardBody.ModularCardBody.bodyWrapper` (L32-L32) - Class
+  - `webview-ui.src.features.modular-ui.components.ModularCardBody.ModularCardBody.bodyWrapper.decorators.find() callback` (L32-L32) - Function
+  - `webview-ui.src.features.modular-ui.components.ModularCardBody.ModularCardBody.suppressDefaultActions` (L33-L33) - Class
+  - `webview-ui.src.features.modular-ui.components.ModularCardBody.ModularCardBody.suppressDefaultActions.decorators.some() callback` (L33-L33) - Function
+  - `webview-ui.src.features.modular-ui.components.ModularCardBody.ModularCardBody.decorators.map() callback` (L52-L54) - Function
+- `webview-ui/src/features/modular-ui/components/ModularCardHeader.tsx`
+  - `webview-ui.src.features.modular-ui.components.ModularCardHeader.ModularCardHeaderProps` (L16-L22) - Interface
+  - `webview-ui.src.features.modular-ui.components.ModularCardHeader.ModularCardHeader` (L24-L111) - Class
+  - `webview-ui.src.features.modular-ui.components.ModularCardHeader.ModularCardHeader.decorators` (L37-L37) - Class
+  - `webview-ui.src.features.modular-ui.components.ModularCardHeader.ModularCardHeader.decorators.useMemo() callback` (L37-L37) - Function
+  - `webview-ui.src.features.modular-ui.components.ModularCardHeader.ModularCardHeader.decorators.useMemo() callback.CARD_DECORATORS.filter() callback` (L37-L37) - Function
+  - `webview-ui.src.features.modular-ui.components.ModularCardHeader.ModularCardHeader.useEffect() callback` (L41-L47) - Function
+  - `webview-ui.src.features.modular-ui.components.ModularCardHeader.ModularCardHeader.useEffect() callback.timer` (L45-L45) - Class
+  - `webview-ui.src.features.modular-ui.components.ModularCardHeader.ModularCardHeader.useEffect() callback.timer.setInterval() callback` (L45-L45) - Function
+  - `webview-ui.src.features.modular-ui.components.ModularCardHeader.ModularCardHeader.decorators.some() callback` (L95-L95) - Function
+  - `webview-ui.src.features.modular-ui.components.ModularCardHeader.ModularCardHeader.<function>` (L99-L99) - Function
+  - `webview-ui.src.features.modular-ui.components.ModularCardHeader.ModularCardHeader.decorators.map() callback` (L106-L108) - Function
+  - `webview-ui.src.features.modular-ui.components.ModularCardHeader.getCardFilePath` (L112-L114) - Function
+  - `webview-ui.src.features.modular-ui.components.ModularCardHeader.getSubagentCardElapsedTime` (L117-L125) - Function
+- `webview-ui/src/features/modular-ui/components/QuoteButton.tsx`
+  - `webview-ui.src.features.modular-ui.components.QuoteButton.QuoteButtonProps` (L5-L9) - Interface
+- `webview-ui/src/features/modular-ui/components/SubagentAvatar.tsx`
+  - `webview-ui.src.features.modular-ui.components.SubagentAvatar.SubagentAvatarProps` (L5-L8) - Interface
+  - `webview-ui.src.features.modular-ui.components.SubagentAvatar.getSubagentAvatarInitial` (L10-L13) - Function
+  - `webview-ui.src.features.modular-ui.components.SubagentAvatar.getSubagentAvatarAccent` (L15-L18) - Function
+- `webview-ui/src/features/modular-ui/components/TaskFeedbackButtons.tsx`
+  - `webview-ui.src.features.modular-ui.components.TaskFeedbackButtons.TaskFeedbackButtonsProps` (L8-L12) - Interface
+  - `webview-ui.src.features.modular-ui.components.TaskFeedbackButtons.TaskFeedbackButtons` (L14-L106) - Class
+  - `webview-ui.src.features.modular-ui.components.TaskFeedbackButtons.TaskFeedbackButtons.useEffect() callback` (L19-L30) - Function
+  - `webview-ui.src.features.modular-ui.components.TaskFeedbackButtons.TaskFeedbackButtons.handleFeedback` (L37-L63) - Method
+- `webview-ui/src/features/modular-ui/components/ThinkingRow.tsx`
+  - `webview-ui.src.features.modular-ui.components.ThinkingRow.ThinkingRowProps` (L8-L19) - Interface
+  - `webview-ui.src.features.modular-ui.components.ThinkingRow.ThinkingRow` (L21-L187) - Class
+  - `webview-ui.src.features.modular-ui.components.ThinkingRow.ThinkingRow.memo() callback` (L22-L186) - Function
+  - `webview-ui.src.features.modular-ui.components.ThinkingRow.memo() callback.useEffect() callback` (L36-L48) - Function
+  - `webview-ui.src.features.modular-ui.components.ThinkingRow.ThinkingRow.memo() callback.useEffect() callback.setInterval() callback` (L39-L41) - Function
+  - `webview-ui.src.features.modular-ui.components.ThinkingRow.ThinkingRow.memo() callback.useEffect() callback.setInterval() callback.setThinkingTime() callback` (L40-L40) - Function
+  - `webview-ui.src.features.modular-ui.components.ThinkingRow.ThinkingRow.memo() callback.checkScrollable` (L59-L65) - Class
+  - `webview-ui.src.features.modular-ui.components.ThinkingRow.ThinkingRow.memo() callback.checkScrollable.useCallback() callback` (L59-L65) - Function
+  - `webview-ui.src.features.modular-ui.components.ThinkingRow.ThinkingRow.memo() callback.setScrollElement` (L67-L73) - Class
+  - `webview-ui.src.features.modular-ui.components.ThinkingRow.ThinkingRow.memo() callback.setScrollElement.useCallback() callback` (L68-L71) - Function
+  - `webview-ui.src.features.modular-ui.components.ThinkingRow.ThinkingRow.memo() callback.useEffect() callback` (L75-L77) - Function
+  - `webview-ui.src.features.modular-ui.components.ThinkingRow.formatTime` (L191-L198) - Function
+- `webview-ui/src/features/modular-ui/components/UserMessageContent.tsx`
+  - `webview-ui.src.features.modular-ui.components.UserMessageContent.splitLines` (L11-L13) - Function
+  - `webview-ui.src.features.modular-ui.components.UserMessageContent.isLongUserMessage` (L15-L21) - Function
+  - `webview-ui.src.features.modular-ui.components.UserMessageContent.createCollapsedPreview` (L23-L25) - Function
+  - `webview-ui.src.features.modular-ui.components.UserMessageContent.UserMessageContentProps` (L27-L31) - Interface
+  - `webview-ui.src.features.modular-ui.components.UserMessageContent.UserMessageContent` (L33-L82) - Class
+  - `webview-ui.src.features.modular-ui.components.UserMessageContent.UserMessageContent.memo() callback` (L33-L82) - Function
+- `webview-ui/src/features/modular-ui/decorators/AskQuestionDecorator.tsx`
+  - `webview-ui.src.features.modular-ui.decorators.AskQuestionDecorator.isAskQuestionCard` (L8-L10) - Function
+  - `webview-ui.src.features.modular-ui.decorators.AskQuestionDecorator.AskQuestionChoicesProps` (L12-L16) - Interface
+  - `webview-ui.src.features.modular-ui.decorators.AskQuestionDecorator.AskQuestionChoices` (L18-L61) - Class
+  - `webview-ui.src.features.modular-ui.decorators.AskQuestionDecorator.AskQuestionChoices.actions.map() callback` (L33-L50) - Function
+  - `webview-ui.src.features.modular-ui.decorators.AskQuestionDecorator.AskQuestionDecorator` (L63-L90) - Class
+  - `webview-ui.src.features.modular-ui.decorators.AskQuestionDecorator.AskQuestionDecorator.renderBodyWrapper` (L66-L87) - Method
+  - `webview-ui.src.features.modular-ui.decorators.AskQuestionDecorator.AskQuestionDecorator.renderFooterExtra` (L89-L89) - Method
+- `webview-ui/src/features/modular-ui/decorators/BugReportDecorator.tsx`
+  - `webview-ui.src.features.modular-ui.decorators.BugReportDecorator.BugReportDecorator` (L6-L52) - Class
+  - `webview-ui.src.features.modular-ui.decorators.BugReportDecorator.BugReportDecorator.shouldApply` (L8-L9) - Method
+  - `webview-ui.src.features.modular-ui.decorators.BugReportDecorator.BugReportDecorator.renderBodyWrapper` (L10-L51) - Method
+- `webview-ui/src/features/modular-ui/decorators/CompletionDecorator.tsx`
+  - `webview-ui.src.features.modular-ui.decorators.CompletionDecorator.CompletionDecorator` (L8-L30) - Class
+  - `webview-ui.src.features.modular-ui.decorators.CompletionDecorator.CompletionDecorator.shouldApply` (L10-L10) - Method
+  - `webview-ui.src.features.modular-ui.decorators.CompletionDecorator.CompletionDecorator.renderBodyWrapper` (L11-L13) - Method
+  - `webview-ui.src.features.modular-ui.decorators.CompletionDecorator.CompletionDecorator.renderFooterExtra` (L14-L29) - Method
+- `webview-ui/src/features/modular-ui/decorators/DiffDecorator.tsx`
+  - `webview-ui.src.features.modular-ui.decorators.DiffDecorator.DiffDecorator` (L8-L31) - Class
+  - `webview-ui.src.features.modular-ui.decorators.DiffDecorator.DiffDecorator.shouldApply` (L10-L10) - Method
+  - `webview-ui.src.features.modular-ui.decorators.DiffDecorator.DiffDecorator.renderHeaderActions` (L11-L30) - Method
+  - `webview-ui.src.features.modular-ui.decorators.DiffDecorator.DiffDecorator.renderHeaderActions.handleOpenFile` (L12-L20) - Class
+  - `webview-ui.src.features.modular-ui.decorators.DiffDecorator.DiffDecorator.renderHeaderActions.handleOpenFile.catch() callback` (L16-L17) - Function
+- `webview-ui/src/features/modular-ui/decorators/HookDecorator.tsx`
+  - `webview-ui.src.features.modular-ui.decorators.HookDecorator.HookDecorator` (L8-L40) - Class
+  - `webview-ui.src.features.modular-ui.decorators.HookDecorator.HookDecorator.shouldApply` (L10-L10) - Method
+  - `webview-ui.src.features.modular-ui.decorators.HookDecorator.HookDecorator.renderHeaderActions` (L11-L39) - Method
+  - `webview-ui.src.features.modular-ui.decorators.HookDecorator.HookDecorator.renderHeaderActions.<function>` (L28-L33) - Function
+  - `webview-ui.src.features.modular-ui.decorators.HookDecorator.HookDecorator.renderHeaderActions.<function>.catch() callback` (L30-L31) - Function
+- `webview-ui/src/features/modular-ui/decorators/SearchDecorator.tsx`
+  - `webview-ui.src.features.modular-ui.decorators.SearchDecorator.SearchDecorator` (L6-L64) - Class
+  - `webview-ui.src.features.modular-ui.decorators.SearchDecorator.SearchDecorator.shouldApply` (L8-L9) - Method
+  - `webview-ui.src.features.modular-ui.decorators.SearchDecorator.SearchDecorator.renderBodyWrapper` (L10-L63) - Method
+  - `webview-ui.src.features.modular-ui.decorators.SearchDecorator.SearchDecorator.renderBodyWrapper.sections.map() callback` (L50-L60) - Function
+- `webview-ui/src/features/modular-ui/decorators/TerminalDecorator.tsx`
+  - `webview-ui.src.features.modular-ui.decorators.TerminalDecorator.TerminalDecorator` (L7-L40) - Class
+  - `webview-ui.src.features.modular-ui.decorators.TerminalDecorator.TerminalDecorator.shouldApply` (L9-L9) - Method
+  - `webview-ui.src.features.modular-ui.decorators.TerminalDecorator.TerminalDecorator.renderHeaderActions` (L10-L14) - Method
+  - `webview-ui.src.features.modular-ui.decorators.TerminalDecorator.TerminalDecorator.renderFooterExtra` (L15-L39) - Method
+  - `webview-ui.src.features.modular-ui.decorators.TerminalDecorator.TerminalDecorator.renderFooterExtra.<function>` (L29-L33) - Function
+  - `webview-ui.src.features.modular-ui.decorators.TerminalDecorator.TerminalDecorator.renderFooterExtra.<function>.catch() callback` (L30-L31) - Function
+- `webview-ui/src/features/modular-ui/decorators/types.ts`
+  - `webview-ui.src.features.modular-ui.decorators.types.CardDecorator` (L4-L16) - Interface
+- `webview-ui/src/features/modular-ui/hooks/useQuoteLogic.ts`
+  - `webview-ui.src.features.modular-ui.hooks.useQuoteLogic.handleQuoteClick` (L13-L17) - Class
+  - `webview-ui.src.features.modular-ui.hooks.useQuoteLogic.useQuoteLogic.handleQuoteClick.useCallback() callback` (L13-L17) - Function
+  - `webview-ui.src.features.modular-ui.hooks.useQuoteLogic.handleMouseUp` (L19-L66) - Class
+  - `webview-ui.src.features.modular-ui.hooks.useQuoteLogic.useQuoteLogic.handleMouseUp.useCallback() callback` (L19-L66) - Function
+  - `webview-ui.src.features.modular-ui.hooks.useQuoteLogic.useQuoteLogic.handleMouseUp.useCallback() callback.setTimeout() callback` (L23-L65) - Function
+- `webview-ui/src/features/modular-ui/types.ts`
+  - `webview-ui.src.features.modular-ui.types.QuoteButtonState` (L1-L6) - Interface
+- `webview-ui/src/features/modular-ui/utils/newTaskCard.ts`
+  - `webview-ui.src.features.modular-ui.utils.newTaskCard.isNewTaskCard` (L5-L7) - Function
+  - `webview-ui.src.features.modular-ui.utils.newTaskCard.findActiveNewTaskCard` (L9-L16) - Function
+  - `webview-ui.src.features.modular-ui.utils.newTaskCard.findActiveNewTaskCard.activeMessage` (L12-L12) - Class
+  - `webview-ui.src.features.modular-ui.utils.newTaskCard.findActiveNewTaskCard.activeMessage.messages.find() callback` (L12-L12) - Function
+- `webview-ui/src/features/settings/components/ApiOptions.tsx`
+  - `webview-ui.src.features.settings.components.ApiOptions.ApiOptionsProps` (L53-L59) - Interface
+  - `webview-ui.src.features.settings.components.ApiOptions."vscode".LanguageModelChatSelector` (L77-L82) - Interface
+  - `webview-ui.src.features.settings.components.ApiOptions.ApiOptions` (L85-L552) - Class
+  - `webview-ui.src.features.settings.components.ApiOptions.ApiOptions.apiConfiguration` (L86-L86) - Class
+  - `webview-ui.src.features.settings.components.ApiOptions.ApiOptions.apiConfiguration.useSettingsStore() callback` (L86-L86) - Function
+  - `webview-ui.src.features.settings.components.ApiOptions.ApiOptions.remoteConfigSettings` (L87-L87) - Class
+  - `webview-ui.src.features.settings.components.ApiOptions.ApiOptions.remoteConfigSettings.useSettingsStore() callback` (L87-L87) - Function
+  - `webview-ui.src.features.settings.components.ApiOptions.ApiOptions.apiConfigurationError` (L88-L88) - Class
+  - `webview-ui.src.features.settings.components.ApiOptions.ApiOptions.apiConfigurationError.useSettingsStore() callback` (L88-L88) - Function
+  - `webview-ui.src.features.settings.components.ApiOptions.ApiOptions.planActSeparateModelsSetting` (L89-L89) - Class
+  - `webview-ui.src.features.settings.components.ApiOptions.ApiOptions.planActSeparateModelsSetting.useSettingsStore() callback` (L89-L89) - Function
+  - `webview-ui.src.features.settings.components.ApiOptions.ApiOptions.providerOptions` (L108-L126) - Class
+  - `webview-ui.src.features.settings.components.ApiOptions.ApiOptions.providerOptions.useMemo() callback` (L108-L126) - Function
+  - `webview-ui.src.features.settings.components.ApiOptions.providerOptions.useMemo() callback.providers.filter() callback` (L113-L113) - Function
+  - `webview-ui.src.features.settings.components.ApiOptions.ApiOptions.providerOptions.useMemo() callback.providers.filter() callback` (L122-L122) - Function
+  - `webview-ui.src.features.settings.components.ApiOptions.ApiOptions.currentProviderLabel` (L128-L130) - Class
+  - `webview-ui.src.features.settings.components.ApiOptions.ApiOptions.currentProviderLabel.useMemo() callback` (L128-L130) - Function
+  - `webview-ui.src.features.settings.components.ApiOptions.ApiOptions.currentProviderLabel.useMemo() callback.providerOptions.find() callback` (L129-L129) - Function
+  - `webview-ui.src.features.settings.components.ApiOptions.useEffect() callback` (L133-L137) - Function
+  - `webview-ui.src.features.settings.components.ApiOptions.ApiOptions.searchableItems` (L139-L144) - Class
+  - `webview-ui.src.features.settings.components.ApiOptions.ApiOptions.searchableItems.useMemo() callback` (L139-L144) - Function
+  - `webview-ui.src.features.settings.components.ApiOptions.ApiOptions.searchableItems.useMemo() callback.providerOptions.map() callback` (L140-L143) - Function
+  - `webview-ui.src.features.settings.components.ApiOptions.ApiOptions.fuse` (L146-L156) - Class
+  - `webview-ui.src.features.settings.components.ApiOptions.ApiOptions.fuse.useMemo() callback` (L146-L156) - Function
+  - `webview-ui.src.features.settings.components.ApiOptions.ApiOptions.providerSearchResults` (L158-L160) - Class
+  - `webview-ui.src.features.settings.components.ApiOptions.ApiOptions.providerSearchResults.useMemo() callback` (L158-L160) - Function
+  - `webview-ui.src.features.settings.components.ApiOptions.ApiOptions.providerSearchResults.useMemo() callback.map() callback` (L159-L159) - Function
+  - `webview-ui.src.features.settings.components.ApiOptions.ApiOptions.handleProviderChange` (L162-L179) - Method
+  - `webview-ui.src.features.settings.components.ApiOptions.ApiOptions.handlePendingOpenRouterModelSelected` (L181-L209) - Method
+  - `webview-ui.src.features.settings.components.ApiOptions.ApiOptions.handleKeyDown` (L211-L237) - Class
+  - `webview-ui.src.features.settings.components.ApiOptions.handleKeyDown.setSelectedIndex() callback` (L219-L219) - Function
+  - `webview-ui.src.features.settings.components.ApiOptions.ApiOptions.handleKeyDown.setSelectedIndex() callback` (L223-L223) - Function
+  - `webview-ui.src.features.settings.components.ApiOptions.ApiOptions.useEffect() callback` (L263-L270) - Function
+  - `webview-ui.src.features.settings.components.ApiOptions.ApiOptions.providerSearchResults.map() callback` (L350-L363) - Function
+- `webview-ui/src/features/settings/components/AutoCondenseContextLimitSetting.tsx`
+  - `webview-ui.src.features.settings.components.AutoCondenseContextLimitSetting.AutoCondenseContextLimitSettingProps` (L12-L14) - Interface
+- `webview-ui/src/features/settings/components/BasetenModelPicker.tsx`
+  - `webview-ui.src.features.settings.components.BasetenModelPicker.BasetenModelPickerProps` (L13-L16) - Interface
+  - `webview-ui.src.features.settings.components.BasetenModelPicker.BasetenModelPicker` (L18-L275) - Class
+  - `webview-ui.src.features.settings.components.BasetenModelPicker.BasetenModelPicker.handleModelChange` (L30-L46) - Method
+  - `webview-ui.src.features.settings.components.BasetenModelPicker.BasetenModelPicker.useMount() callback` (L53-L55) - Function
+  - `webview-ui.src.features.settings.components.BasetenModelPicker.useEffect() callback` (L56-L59) - Function
+  - `webview-ui.src.features.settings.components.BasetenModelPicker.BasetenModelPicker.useEffect() callback.timer` (L63-L65) - Class
+  - `webview-ui.src.features.settings.components.BasetenModelPicker.BasetenModelPicker.useEffect() callback.timer.setTimeout() callback` (L63-L65) - Function
+  - `webview-ui.src.features.settings.components.BasetenModelPicker.BasetenModelPicker.allBasetenModels` (L83-L86) - Class
+  - `webview-ui.src.features.settings.components.BasetenModelPicker.BasetenModelPicker.allBasetenModels.useMemo() callback` (L83-L86) - Function
+  - `webview-ui.src.features.settings.components.BasetenModelPicker.BasetenModelPicker.modelIds` (L88-L90) - Class
+  - `webview-ui.src.features.settings.components.BasetenModelPicker.BasetenModelPicker.modelIds.useMemo() callback` (L88-L90) - Function
+  - `webview-ui.src.features.settings.components.BasetenModelPicker.BasetenModelPicker.modelIds.useMemo() callback.sort() callback` (L89-L89) - Function
+  - `webview-ui.src.features.settings.components.BasetenModelPicker.BasetenModelPicker.searchableItems` (L92-L97) - Class
+  - `webview-ui.src.features.settings.components.BasetenModelPicker.BasetenModelPicker.searchableItems.useMemo() callback` (L92-L97) - Function
+  - `webview-ui.src.features.settings.components.BasetenModelPicker.BasetenModelPicker.searchableItems.useMemo() callback.modelIds.map() callback` (L93-L96) - Function
+  - `webview-ui.src.features.settings.components.BasetenModelPicker.BasetenModelPicker.fuse` (L99-L109) - Class
+  - `webview-ui.src.features.settings.components.BasetenModelPicker.BasetenModelPicker.fuse.useMemo() callback` (L99-L109) - Function
+  - `webview-ui.src.features.settings.components.BasetenModelPicker.BasetenModelPicker.modelSearchResults` (L111-L116) - Class
+  - `webview-ui.src.features.settings.components.BasetenModelPicker.BasetenModelPicker.modelSearchResults.useMemo() callback` (L111-L116) - Function
+  - `webview-ui.src.features.settings.components.BasetenModelPicker.BasetenModelPicker.parseHighlightedText` (L119-L138) - Class
+  - `webview-ui.src.features.settings.components.BasetenModelPicker.BasetenModelPicker.parseHighlightedText.React.useCallback() callback` (L119-L138) - Function
+  - `webview-ui.src.features.settings.components.BasetenModelPicker.BasetenModelPicker.parseHighlightedText.React.useCallback() callback.parts.map() callback` (L124-L136) - Function
+  - `webview-ui.src.features.settings.components.BasetenModelPicker.BasetenModelPicker.parseHighlightedText.React.useCallback() callback.filter() callback` (L137-L137) - Function
+  - `webview-ui.src.features.settings.components.BasetenModelPicker.BasetenModelPicker.handleKeyDown` (L140-L166) - Class
+  - `webview-ui.src.features.settings.components.BasetenModelPicker.handleKeyDown.setSelectedIndex() callback` (L148-L148) - Function
+  - `webview-ui.src.features.settings.components.BasetenModelPicker.BasetenModelPicker.handleKeyDown.setSelectedIndex() callback` (L152-L152) - Function
+  - `webview-ui.src.features.settings.components.BasetenModelPicker.BasetenModelPicker.hasInfo` (L168-L170) - Class
+  - `webview-ui.src.features.settings.components.BasetenModelPicker.BasetenModelPicker.hasInfo.useMemo() callback` (L168-L170) - Function
+  - `webview-ui.src.features.settings.components.BasetenModelPicker.BasetenModelPicker.useEffect() callback` (L179-L186) - Function
+  - `webview-ui.src.features.settings.components.BasetenModelPicker.BasetenModelPicker.modelSearchResults.map() callback` (L240-L257) - Function
+- `webview-ui/src/features/settings/components/FeaturedModelCard.tsx`
+  - `webview-ui.src.features.settings.components.FeaturedModelCard.FeaturedModelCardProps` (L4-L10) - Interface
+- `webview-ui/src/features/settings/components/GroqModelPicker.tsx`
+  - `webview-ui.src.features.settings.components.GroqModelPicker.GroqModelPickerProps` (L13-L16) - Interface
+  - `webview-ui.src.features.settings.components.GroqModelPicker.GroqModelPicker` (L18-L258) - Class
+  - `webview-ui.src.features.settings.components.GroqModelPicker.GroqModelPicker.handleModelChange` (L30-L46) - Method
+  - `webview-ui.src.features.settings.components.GroqModelPicker.GroqModelPicker.useMount() callback` (L52-L54) - Function
+  - `webview-ui.src.features.settings.components.GroqModelPicker.useEffect() callback` (L57-L60) - Function
+  - `webview-ui.src.features.settings.components.GroqModelPicker.GroqModelPicker.useEffect() callback.timer` (L64-L66) - Class
+  - `webview-ui.src.features.settings.components.GroqModelPicker.GroqModelPicker.useEffect() callback.timer.setTimeout() callback` (L64-L66) - Function
+  - `webview-ui.src.features.settings.components.GroqModelPicker.GroqModelPicker.allGroqModels` (L84-L87) - Class
+  - `webview-ui.src.features.settings.components.GroqModelPicker.GroqModelPicker.allGroqModels.useMemo() callback` (L84-L87) - Function
+  - `webview-ui.src.features.settings.components.GroqModelPicker.GroqModelPicker.modelIds` (L89-L91) - Class
+  - `webview-ui.src.features.settings.components.GroqModelPicker.GroqModelPicker.modelIds.useMemo() callback` (L89-L91) - Function
+  - `webview-ui.src.features.settings.components.GroqModelPicker.GroqModelPicker.modelIds.useMemo() callback.sort() callback` (L90-L90) - Function
+  - `webview-ui.src.features.settings.components.GroqModelPicker.GroqModelPicker.searchableItems` (L93-L98) - Class
+  - `webview-ui.src.features.settings.components.GroqModelPicker.GroqModelPicker.searchableItems.useMemo() callback` (L93-L98) - Function
+  - `webview-ui.src.features.settings.components.GroqModelPicker.GroqModelPicker.searchableItems.useMemo() callback.modelIds.map() callback` (L94-L97) - Function
+  - `webview-ui.src.features.settings.components.GroqModelPicker.GroqModelPicker.fuse` (L100-L110) - Class
+  - `webview-ui.src.features.settings.components.GroqModelPicker.GroqModelPicker.fuse.useMemo() callback` (L100-L110) - Function
+  - `webview-ui.src.features.settings.components.GroqModelPicker.GroqModelPicker.modelSearchResults` (L112-L117) - Class
+  - `webview-ui.src.features.settings.components.GroqModelPicker.GroqModelPicker.modelSearchResults.useMemo() callback` (L112-L117) - Function
+  - `webview-ui.src.features.settings.components.GroqModelPicker.GroqModelPicker.handleKeyDown` (L119-L145) - Class
+  - `webview-ui.src.features.settings.components.GroqModelPicker.handleKeyDown.setSelectedIndex() callback` (L127-L127) - Function
+  - `webview-ui.src.features.settings.components.GroqModelPicker.GroqModelPicker.handleKeyDown.setSelectedIndex() callback` (L131-L131) - Function
+  - `webview-ui.src.features.settings.components.GroqModelPicker.GroqModelPicker.hasInfo` (L147-L153) - Class
+  - `webview-ui.src.features.settings.components.GroqModelPicker.GroqModelPicker.hasInfo.useMemo() callback` (L147-L153) - Function
+  - `webview-ui.src.features.settings.components.GroqModelPicker.GroqModelPicker.hasInfo.useMemo() callback.modelIds.some() callback` (L149-L149) - Function
+  - `webview-ui.src.features.settings.components.GroqModelPicker.GroqModelPicker.useEffect() callback` (L162-L169) - Function
+  - `webview-ui.src.features.settings.components.GroqModelPicker.GroqModelPicker.modelSearchResults.map() callback` (L223-L240) - Function
+- `webview-ui/src/features/settings/components/HuggingFaceModelPicker.tsx`
+  - `webview-ui.src.features.settings.components.HuggingFaceModelPicker.HuggingFaceModelPickerProps` (L15-L18) - Interface
+  - `webview-ui.src.features.settings.components.HuggingFaceModelPicker.HuggingFaceModelPicker` (L20-L238) - Class
+  - `webview-ui.src.features.settings.components.HuggingFaceModelPicker.HuggingFaceModelPicker.handleModelChange` (L31-L47) - Method
+  - `webview-ui.src.features.settings.components.HuggingFaceModelPicker.HuggingFaceModelPicker.useMount() callback` (L53-L64) - Function
+  - `webview-ui.src.features.settings.components.HuggingFaceModelPicker.HuggingFaceModelPicker.useMount() callback.then() callback` (L55-L60) - Function
+  - `webview-ui.src.features.settings.components.HuggingFaceModelPicker.HuggingFaceModelPicker.useMount() callback.catch() callback` (L61-L63) - Function
+  - `webview-ui.src.features.settings.components.HuggingFaceModelPicker.useEffect() callback` (L67-L70) - Function
+  - `webview-ui.src.features.settings.components.HuggingFaceModelPicker.HuggingFaceModelPicker.allModels` (L85-L88) - Class
+  - `webview-ui.src.features.settings.components.HuggingFaceModelPicker.HuggingFaceModelPicker.allModels.useMemo() callback` (L85-L88) - Function
+  - `webview-ui.src.features.settings.components.HuggingFaceModelPicker.HuggingFaceModelPicker.allModels.useMemo() callback.fallbackModels` (L86-L86) - Class
+  - `webview-ui.src.features.settings.components.HuggingFaceModelPicker.HuggingFaceModelPicker.allModels.useMemo() callback.fallbackModels.filter() callback` (L86-L86) - Function
+  - `webview-ui.src.features.settings.components.HuggingFaceModelPicker.HuggingFaceModelPicker.modelIds` (L90-L92) - Class
+  - `webview-ui.src.features.settings.components.HuggingFaceModelPicker.HuggingFaceModelPicker.modelIds.useMemo() callback` (L90-L92) - Function
+  - `webview-ui.src.features.settings.components.HuggingFaceModelPicker.HuggingFaceModelPicker.modelIds.useMemo() callback.sort() callback` (L91-L91) - Function
+  - `webview-ui.src.features.settings.components.HuggingFaceModelPicker.HuggingFaceModelPicker.searchableItems` (L94-L99) - Class
+  - `webview-ui.src.features.settings.components.HuggingFaceModelPicker.HuggingFaceModelPicker.searchableItems.useMemo() callback` (L94-L99) - Function
+  - `webview-ui.src.features.settings.components.HuggingFaceModelPicker.HuggingFaceModelPicker.searchableItems.useMemo() callback.modelIds.map() callback` (L95-L98) - Function
+  - `webview-ui.src.features.settings.components.HuggingFaceModelPicker.HuggingFaceModelPicker.fuse` (L101-L110) - Class
+  - `webview-ui.src.features.settings.components.HuggingFaceModelPicker.HuggingFaceModelPicker.fuse.useMemo() callback` (L101-L110) - Function
+  - `webview-ui.src.features.settings.components.HuggingFaceModelPicker.HuggingFaceModelPicker.modelSearchResults` (L112-L117) - Class
+  - `webview-ui.src.features.settings.components.HuggingFaceModelPicker.HuggingFaceModelPicker.modelSearchResults.useMemo() callback` (L112-L117) - Function
+  - `webview-ui.src.features.settings.components.HuggingFaceModelPicker.HuggingFaceModelPicker.handleKeyDown` (L119-L146) - Class
+  - `webview-ui.src.features.settings.components.HuggingFaceModelPicker.handleKeyDown.setSelectedIndex() callback` (L127-L127) - Function
+  - `webview-ui.src.features.settings.components.HuggingFaceModelPicker.HuggingFaceModelPicker.handleKeyDown.setSelectedIndex() callback` (L131-L131) - Function
+  - `webview-ui.src.features.settings.components.HuggingFaceModelPicker.HuggingFaceModelPicker.useEffect() callback` (L148-L163) - Function
+  - `webview-ui.src.features.settings.components.HuggingFaceModelPicker.HuggingFaceModelPicker.modelSearchResults.map() callback` (L211-L229) - Function
+- `webview-ui/src/features/settings/components/InferenceSpeedSelector.tsx`
+  - `webview-ui.src.features.settings.components.InferenceSpeedSelector.InferenceSpeedSelectorProps` (L16-L21) - Interface
+  - `webview-ui.src.features.settings.components.InferenceSpeedSelector.InferenceSpeedSelector` (L23-L81) - Class
+  - `webview-ui.src.features.settings.components.InferenceSpeedSelector.InferenceSpeedSelector.useEffect() callback` (L32-L39) - Function
+  - `webview-ui.src.features.settings.components.InferenceSpeedSelector.InferenceSpeedSelector.selectableSpeeds` (L41-L41) - Class
+  - `webview-ui.src.features.settings.components.InferenceSpeedSelector.InferenceSpeedSelector.selectableSpeeds.allowedSpeeds.filter() callback` (L41-L41) - Function
+  - `webview-ui.src.features.settings.components.InferenceSpeedSelector.InferenceSpeedSelector.<function>` (L51-L56) - Function
+  - `webview-ui.src.features.settings.components.InferenceSpeedSelector.InferenceSpeedSelector.selectableSpeeds.map() callback` (L63-L67) - Function
+- `webview-ui/src/features/settings/components/ModelDescriptionMarkdown.tsx`
+  - `webview-ui.src.features.settings.components.ModelDescriptionMarkdown.ModelDescriptionMarkdownProps` (L6-L9) - Interface
+  - `webview-ui.src.features.settings.components.ModelDescriptionMarkdown.ModelDescriptionMarkdown` (L11-L60) - Class
+  - `webview-ui.src.features.settings.components.ModelDescriptionMarkdown.ModelDescriptionMarkdown.memo() callback` (L11-L60) - Function
+  - `webview-ui.src.features.settings.components.ModelDescriptionMarkdown.memo() callback.useEffect() callback` (L18-L23) - Function
+  - `webview-ui.src.features.settings.components.ModelDescriptionMarkdown.ModelDescriptionMarkdown.memo() callback.useEffect() callback` (L25-L31) - Function
+- `webview-ui/src/features/settings/components/OpenRouterModelPicker.tsx`
+  - `webview-ui.src.features.settings.components.OpenRouterModelPicker.OpenRouterModelPickerProps` (L40-L46) - Interface
+  - `webview-ui.src.features.settings.components.OpenRouterModelPicker.resolveRankedModelIds` (L48-L58) - Function
+  - `webview-ui.src.features.settings.components.OpenRouterModelPicker.resolveRankedModelId` (L60-L70) - Function
+  - `webview-ui.src.features.settings.components.OpenRouterModelPicker.resolveRankedModelId.find() callback` (L68-L68) - Function
+  - `webview-ui.src.features.settings.components.OpenRouterModelPicker.OpenRouterModelPicker` (L72-L399) - Class
+  - `webview-ui.src.features.settings.components.OpenRouterModelPicker.OpenRouterModelPicker.handleModelChange` (L98-L117) - Method
+  - `webview-ui.src.features.settings.components.OpenRouterModelPicker.useEffect() callback` (L122-L127) - Function
+  - `webview-ui.src.features.settings.components.OpenRouterModelPicker.OpenRouterModelPicker.modelIds` (L148-L157) - Class
+  - `webview-ui.src.features.settings.components.OpenRouterModelPicker.OpenRouterModelPicker.modelIds.useMemo() callback` (L148-L157) - Function
+  - `webview-ui.src.features.settings.components.OpenRouterModelPicker.OpenRouterModelPicker.modelIds.useMemo() callback.alphabetizedModelIds` (L151-L151) - Class
+  - `webview-ui.src.features.settings.components.OpenRouterModelPicker.OpenRouterModelPicker.modelIds.useMemo() callback.alphabetizedModelIds.filteredModelIds.sort() callback` (L151-L151) - Function
+  - `webview-ui.src.features.settings.components.OpenRouterModelPicker.OpenRouterModelPicker.modelIds.useMemo() callback.rankedModelIds.filter() callback` (L152-L153) - Function
+  - `webview-ui.src.features.settings.components.OpenRouterModelPicker.OpenRouterModelPicker.modelIds.useMemo() callback.rankedModelIds` (L152-L154) - Class
+  - `webview-ui.src.features.settings.components.OpenRouterModelPicker.OpenRouterModelPicker.modelIds.useMemo() callback.alphabetizedModelIds.filter() callback` (L156-L156) - Function
+  - `webview-ui.src.features.settings.components.OpenRouterModelPicker.OpenRouterModelPicker.searchableItems` (L159-L164) - Class
+  - `webview-ui.src.features.settings.components.OpenRouterModelPicker.OpenRouterModelPicker.searchableItems.useMemo() callback` (L159-L164) - Function
+  - `webview-ui.src.features.settings.components.OpenRouterModelPicker.OpenRouterModelPicker.searchableItems.useMemo() callback.modelIds.map() callback` (L160-L163) - Function
+  - `webview-ui.src.features.settings.components.OpenRouterModelPicker.OpenRouterModelPicker.fuse` (L166-L176) - Class
+  - `webview-ui.src.features.settings.components.OpenRouterModelPicker.OpenRouterModelPicker.fuse.useMemo() callback` (L166-L176) - Function
+  - `webview-ui.src.features.settings.components.OpenRouterModelPicker.OpenRouterModelPicker.modelSearchResults` (L178-L191) - Class
+  - `webview-ui.src.features.settings.components.OpenRouterModelPicker.OpenRouterModelPicker.modelSearchResults.useMemo() callback` (L178-L191) - Function
+  - `webview-ui.src.features.settings.components.OpenRouterModelPicker.OpenRouterModelPicker.modelSearchResults.useMemo() callback.favoritedModels` (L182-L182) - Class
+  - `webview-ui.src.features.settings.components.OpenRouterModelPicker.OpenRouterModelPicker.modelSearchResults.useMemo() callback.favoritedModels.searchableItems.filter() callback` (L182-L182) - Function
+  - `webview-ui.src.features.settings.components.OpenRouterModelPicker.OpenRouterModelPicker.modelSearchResults.useMemo() callback.searchResults` (L185-L187) - Class
+  - `webview-ui.src.features.settings.components.OpenRouterModelPicker.OpenRouterModelPicker.modelSearchResults.useMemo() callback.searchResults.filter() callback` (L186-L186) - Function
+  - `webview-ui.src.features.settings.components.OpenRouterModelPicker.OpenRouterModelPicker.modelSearchResults.useMemo() callback.searchResults.searchableItems.filter() callback` (L187-L187) - Function
+  - `webview-ui.src.features.settings.components.OpenRouterModelPicker.OpenRouterModelPicker.handleKeyDown` (L193-L224) - Class
+  - `webview-ui.src.features.settings.components.OpenRouterModelPicker.handleKeyDown.setSelectedIndex() callback` (L201-L201) - Function
+  - `webview-ui.src.features.settings.components.OpenRouterModelPicker.OpenRouterModelPicker.handleKeyDown.setSelectedIndex() callback` (L205-L205) - Function
+  - `webview-ui.src.features.settings.components.OpenRouterModelPicker.OpenRouterModelPicker.hasInfo` (L226-L232) - Class
+  - `webview-ui.src.features.settings.components.OpenRouterModelPicker.OpenRouterModelPicker.hasInfo.useMemo() callback` (L226-L232) - Function
+  - `webview-ui.src.features.settings.components.OpenRouterModelPicker.OpenRouterModelPicker.hasInfo.useMemo() callback.modelIds.some() callback` (L228-L228) - Function
+  - `webview-ui.src.features.settings.components.OpenRouterModelPicker.OpenRouterModelPicker.useEffect() callback` (L241-L248) - Function
+  - `webview-ui.src.features.settings.components.OpenRouterModelPicker.OpenRouterModelPicker.modelSearchResults.map() callback` (L317-L344) - Function
+  - `webview-ui.src.features.settings.components.OpenRouterModelPicker.OpenRouterModelPicker.modelSearchResults.map() callback.<function>` (L334-L339) - Function
+  - `webview-ui.src.features.settings.components.OpenRouterModelPicker.OpenRouterModelPicker.modelSearchResults.map() callback.<function>.catch() callback` (L338-L338) - Function
+  - `webview-ui.src.features.settings.components.OpenRouterModelPicker.OpenRouterModelPicker.<function>` (L387-L387) - Function
+  - `webview-ui.src.features.settings.components.OpenRouterModelPicker.OpenRouterModelPicker.<function>.setCustomModelAdvancedExpanded() callback` (L387-L387) - Function
+- `webview-ui/src/features/settings/components/OpenRouterRoutingControls.tsx`
+  - `webview-ui.src.features.settings.components.OpenRouterRoutingControls.OpenRouterProviderSelector` (L9-L259) - Function
+  - `webview-ui.src.features.settings.components.OpenRouterRoutingControls.OpenRouterProviderSelector.apiConfiguration` (L10-L10) - Class
+  - `webview-ui.src.features.settings.components.OpenRouterRoutingControls.OpenRouterProviderSelector.apiConfiguration.useSettingsStore() callback` (L10-L10) - Function
+  - `webview-ui.src.features.settings.components.OpenRouterRoutingControls.OpenRouterProviderSelector.endpointState.useSettingsStore() callback` (L11-L11) - Function
+  - `webview-ui.src.features.settings.components.OpenRouterRoutingControls.OpenRouterProviderSelector.endpointState` (L11-L14) - Class
+  - `webview-ui.src.features.settings.components.OpenRouterRoutingControls.OpenRouterProviderSelector.fetchOpenRouterEndpoints` (L15-L15) - Class
+  - `webview-ui.src.features.settings.components.OpenRouterRoutingControls.OpenRouterProviderSelector.fetchOpenRouterEndpoints.useSettingsStore() callback` (L15-L15) - Function
+  - `webview-ui.src.features.settings.components.OpenRouterRoutingControls.useEffect() callback` (L25-L27) - Function
+  - `webview-ui.src.features.settings.components.OpenRouterRoutingControls.OpenRouterProviderSelector.endpointsByTag` (L46-L49) - Class
+  - `webview-ui.src.features.settings.components.OpenRouterRoutingControls.OpenRouterProviderSelector.endpointsByTag.useMemo() callback` (L47-L47) - Function
+  - `webview-ui.src.features.settings.components.OpenRouterRoutingControls.OpenRouterProviderSelector.endpointsByTag.useMemo() callback.endpointState.endpoints.map() callback` (L47-L47) - Function
+  - `webview-ui.src.features.settings.components.OpenRouterRoutingControls.OpenRouterProviderSelector.availableEndpoints` (L50-L56) - Class
+  - `webview-ui.src.features.settings.components.OpenRouterRoutingControls.OpenRouterProviderSelector.availableEndpoints.useMemo() callback` (L51-L54) - Function
+  - `webview-ui.src.features.settings.components.OpenRouterRoutingControls.OpenRouterProviderSelector.availableEndpoints.useMemo() callback.endpointState.endpoints.filter() callback` (L53-L53) - Function
+  - `webview-ui.src.features.settings.components.OpenRouterRoutingControls.OpenRouterProviderSelector.matchingEndpoints` (L57-L63) - Class
+  - `webview-ui.src.features.settings.components.OpenRouterRoutingControls.OpenRouterProviderSelector.matchingEndpoints.useMemo() callback` (L57-L63) - Function
+  - `webview-ui.src.features.settings.components.OpenRouterRoutingControls.OpenRouterProviderSelector.matchingEndpoints.useMemo() callback.availableEndpoints.filter() callback` (L59-L62) - Function
+  - `webview-ui.src.features.settings.components.OpenRouterRoutingControls.OpenRouterProviderSelector.useEffect() callback` (L74-L76) - Function
+  - `webview-ui.src.features.settings.components.OpenRouterRoutingControls.OpenRouterProviderSelector.removeProvider` (L93-L95) - Class
+  - `webview-ui.src.features.settings.components.OpenRouterRoutingControls.OpenRouterProviderSelector.removeProvider.pinnedProviders.filter() callback` (L94-L94) - Function
+  - `webview-ui.src.features.settings.components.OpenRouterRoutingControls.OpenRouterProviderSelector.handleKeyDown` (L97-L120) - Class
+  - `webview-ui.src.features.settings.components.OpenRouterRoutingControls.handleKeyDown.setSelectedIndex() callback` (L102-L102) - Function
+  - `webview-ui.src.features.settings.components.OpenRouterRoutingControls.OpenRouterProviderSelector.handleKeyDown.setSelectedIndex() callback` (L106-L106) - Function
+  - `webview-ui.src.features.settings.components.OpenRouterRoutingControls.OpenRouterProviderSelector.pinnedProviders.map() callback` (L144-L164) - Function
+  - `webview-ui.src.features.settings.components.OpenRouterRoutingControls.OpenRouterProviderSelector.matchingEndpoints.map() callback` (L187-L225) - Function
+  - `webview-ui.src.features.settings.components.OpenRouterRoutingControls.OpenRouterRoutingControls` (L261-L290) - Function
+  - `webview-ui.src.features.settings.components.OpenRouterRoutingControls.OpenRouterRoutingControls.apiConfiguration` (L262-L262) - Class
+  - `webview-ui.src.features.settings.components.OpenRouterRoutingControls.OpenRouterRoutingControls.apiConfiguration.useSettingsStore() callback` (L262-L262) - Function
+  - `webview-ui.src.features.settings.components.OpenRouterRoutingControls.formatEndpointDetails` (L292-L301) - Function
+  - `webview-ui.src.features.settings.components.OpenRouterRoutingControls.getEndpointSearchText` (L303-L305) - Function
+  - `webview-ui.src.features.settings.components.OpenRouterRoutingControls.compareEndpointsByCachePricing` (L307-L312) - Function
+  - `webview-ui.src.features.settings.components.OpenRouterRoutingControls.formatEndpointPricing` (L314-L318) - Function
+  - `webview-ui.src.features.settings.components.OpenRouterRoutingControls.formatEndpointPricing.map() callback` (L316-L316) - Function
+  - `webview-ui.src.features.settings.components.OpenRouterRoutingControls.formatPricingPerMillion` (L320-L322) - Function
+  - `webview-ui.src.features.settings.components.OpenRouterRoutingControls.formatEndpointStatus` (L324-L327) - Function
+- `webview-ui/src/features/settings/components/ReasoningEffortSelector.tsx`
+  - `webview-ui.src.features.settings.components.ReasoningEffortSelector.ReasoningEffortSelectorProps` (L16-L22) - Interface
+  - `webview-ui.src.features.settings.components.ReasoningEffortSelector.ReasoningEffortSelector` (L24-L71) - Class
+  - `webview-ui.src.features.settings.components.ReasoningEffortSelector.ReasoningEffortSelector.<function>` (L45-L46) - Function
+  - `webview-ui.src.features.settings.components.ReasoningEffortSelector.ReasoningEffortSelector.allowedEfforts.map() callback` (L53-L57) - Function
+- `webview-ui/src/features/settings/components/RequestyModelPicker.tsx`
+  - `webview-ui.src.features.settings.components.RequestyModelPicker.RequestyModelPickerProps` (L16-L20) - Interface
+  - `webview-ui.src.features.settings.components.RequestyModelPicker.RequestyModelPicker` (L22-L261) - Class
+  - `webview-ui.src.features.settings.components.RequestyModelPicker.RequestyModelPicker.handleModelChange` (L36-L57) - Method
+  - `webview-ui.src.features.settings.components.RequestyModelPicker.RequestyModelPicker.useMount() callback` (L63-L65) - Function
+  - `webview-ui.src.features.settings.components.RequestyModelPicker.useEffect() callback` (L67-L78) - Function
+  - `webview-ui.src.features.settings.components.RequestyModelPicker.RequestyModelPicker.modelIds` (L80-L82) - Class
+  - `webview-ui.src.features.settings.components.RequestyModelPicker.RequestyModelPicker.modelIds.useMemo() callback` (L80-L82) - Function
+  - `webview-ui.src.features.settings.components.RequestyModelPicker.RequestyModelPicker.modelIds.useMemo() callback.sort() callback` (L81-L81) - Function
+  - `webview-ui.src.features.settings.components.RequestyModelPicker.RequestyModelPicker.searchableItems` (L84-L89) - Class
+  - `webview-ui.src.features.settings.components.RequestyModelPicker.RequestyModelPicker.searchableItems.useMemo() callback` (L84-L89) - Function
+  - `webview-ui.src.features.settings.components.RequestyModelPicker.RequestyModelPicker.searchableItems.useMemo() callback.modelIds.map() callback` (L85-L88) - Function
+  - `webview-ui.src.features.settings.components.RequestyModelPicker.RequestyModelPicker.fuse` (L91-L101) - Class
+  - `webview-ui.src.features.settings.components.RequestyModelPicker.RequestyModelPicker.fuse.useMemo() callback` (L91-L101) - Function
+  - `webview-ui.src.features.settings.components.RequestyModelPicker.RequestyModelPicker.modelSearchResults` (L103-L109) - Class
+  - `webview-ui.src.features.settings.components.RequestyModelPicker.RequestyModelPicker.modelSearchResults.useMemo() callback` (L103-L109) - Function
+  - `webview-ui.src.features.settings.components.RequestyModelPicker.RequestyModelPicker.handleKeyDown` (L111-L137) - Class
+  - `webview-ui.src.features.settings.components.RequestyModelPicker.handleKeyDown.setSelectedIndex() callback` (L119-L119) - Function
+  - `webview-ui.src.features.settings.components.RequestyModelPicker.RequestyModelPicker.handleKeyDown.setSelectedIndex() callback` (L123-L123) - Function
+  - `webview-ui.src.features.settings.components.RequestyModelPicker.RequestyModelPicker.hasInfo` (L139-L145) - Class
+  - `webview-ui.src.features.settings.components.RequestyModelPicker.RequestyModelPicker.hasInfo.useMemo() callback` (L139-L145) - Function
+  - `webview-ui.src.features.settings.components.RequestyModelPicker.RequestyModelPicker.hasInfo.useMemo() callback.modelIds.some() callback` (L141-L141) - Function
+  - `webview-ui.src.features.settings.components.RequestyModelPicker.RequestyModelPicker.useEffect() callback` (L154-L161) - Function
+  - `webview-ui.src.features.settings.components.RequestyModelPicker.RequestyModelPicker.showBudgetSlider` (L163-L165) - Class
+  - `webview-ui.src.features.settings.components.RequestyModelPicker.RequestyModelPicker.showBudgetSlider.useMemo() callback` (L163-L165) - Function
+  - `webview-ui.src.features.settings.components.RequestyModelPicker.RequestyModelPicker.modelSearchResults.map() callback` (L218-L233) - Function
+- `webview-ui/src/features/settings/components/SettingsSlider.tsx`
+  - `webview-ui.src.features.settings.components.SettingsSlider.SettingsSliderProps` (L5-L15) - Interface
+- `webview-ui/src/features/settings/components/SettingsView/SettingsView.tsx`
+  - `webview-ui.src.features.settings.components.SettingsView.SettingsView.SettingsTab` (L38-L41) - Interface
+  - `webview-ui.src.features.settings.components.SettingsView.SettingsView.ResolvedTarget` (L55-L58) - Interface
+  - `webview-ui.src.features.settings.components.SettingsView.SettingsView.resolveSettingsTarget` (L90-L94) - Function
+  - `webview-ui.src.features.settings.components.SettingsView.SettingsView.resolveSettingsTarget.SETTINGS_TABS.some() callback` (L92-L92) - Function
+  - `webview-ui.src.features.settings.components.SettingsView.SettingsView.SettingsViewProps` (L108-L111) - Interface
+  - `webview-ui.src.features.settings.components.SettingsView.SettingsView.SettingsView` (L113-L234) - Class
+  - `webview-ui.src.features.settings.components.SettingsView.SettingsView.SettingsView.version` (L114-L114) - Class
+  - `webview-ui.src.features.settings.components.SettingsView.SettingsView.SettingsView.version.useSettingsStore() callback` (L114-L114) - Function
+  - `webview-ui.src.features.settings.components.SettingsView.SettingsView.SettingsView.environment` (L115-L115) - Class
+  - `webview-ui.src.features.settings.components.SettingsView.SettingsView.SettingsView.environment.useSettingsStore() callback` (L115-L115) - Function
+  - `webview-ui.src.features.settings.components.SettingsView.SettingsView.SettingsView.selectTarget` (L120-L124) - Class
+  - `webview-ui.src.features.settings.components.SettingsView.SettingsView.SettingsView.selectTarget.useCallback() callback` (L120-L124) - Function
+  - `webview-ui.src.features.settings.components.SettingsView.SettingsView.useEffect() callback` (L125-L125) - Function
+  - `webview-ui.src.features.settings.components.SettingsView.SettingsView.SettingsView.useEffect() callback` (L126-L136) - Function
+  - `webview-ui.src.features.settings.components.SettingsView.SettingsView.SettingsView.useEffect() callback.requestAnimationFrame() callback` (L128-L135) - Function
+  - `webview-ui.src.features.settings.components.SettingsView.SettingsView.SettingsView.useEffect() callback.requestAnimationFrame() callback.window.setTimeout() callback` (L133-L133) - Function
+  - `webview-ui.src.features.settings.components.SettingsView.SettingsView.SettingsView.handleMessage` (L138-L146) - Class
+  - `webview-ui.src.features.settings.components.SettingsView.SettingsView.SettingsView.handleMessage.useCallback() callback` (L139-L144) - Function
+  - `webview-ui.src.features.settings.components.SettingsView.SettingsView.SettingsView.handleResetState` (L149-L155) - Class
+  - `webview-ui.src.features.settings.components.SettingsView.SettingsView.SettingsView.handleResetState.useCallback() callback` (L149-L155) - Function
+  - `webview-ui.src.features.settings.components.SettingsView.SettingsView.SettingsView.renderSectionHeader` (L157-L169) - Class
+  - `webview-ui.src.features.settings.components.SettingsView.SettingsView.SettingsView.renderSectionHeader.useCallback() callback` (L157-L169) - Function
+  - `webview-ui.src.features.settings.components.SettingsView.SettingsView.SettingsView.renderSectionHeader.useCallback() callback.tab` (L158-L158) - Class
+  - `webview-ui.src.features.settings.components.SettingsView.SettingsView.SettingsView.renderSectionHeader.useCallback() callback.tab.SETTINGS_TABS.find() callback` (L158-L158) - Function
+  - `webview-ui.src.features.settings.components.SettingsView.SettingsView.SettingsView.ActiveContent` (L171-L179) - Class
+  - `webview-ui.src.features.settings.components.SettingsView.SettingsView.SettingsView.ActiveContent.useMemo() callback` (L171-L179) - Function
+  - `webview-ui.src.features.settings.components.SettingsView.SettingsView.SettingsView.SETTINGS_TABS.map() callback` (L191-L222) - Function
+- `webview-ui/src/features/settings/components/ThinkingBudgetSlider.tsx`
+  - `webview-ui.src.features.settings.components.ThinkingBudgetSlider.RangeInput` (L19-L62) - Class
+  - `webview-ui.src.features.settings.components.ThinkingBudgetSlider.RangeInput.<function>` (L28-L35) - Function
+  - `webview-ui.src.features.settings.components.ThinkingBudgetSlider.ThinkingBudgetSliderProps` (L64-L68) - Interface
+  - `webview-ui.src.features.settings.components.ThinkingBudgetSlider.ThinkingBudgetSlider` (L70-L173) - Class
+  - `webview-ui.src.features.settings.components.ThinkingBudgetSlider.ThinkingBudgetSlider.onToggle` (L81-L91) - Class
+  - `webview-ui.src.features.settings.components.ThinkingBudgetSlider.ThinkingBudgetSlider.onToggle.useCallback() callback` (L81-L91) - Function
+  - `webview-ui.src.features.settings.components.ThinkingBudgetSlider.useEffect() callback` (L93-L101) - Function
+  - `webview-ui.src.features.settings.components.ThinkingBudgetSlider.ThinkingBudgetSlider.useEffect() callback` (L103-L114) - Function
+  - `webview-ui.src.features.settings.components.ThinkingBudgetSlider.ThinkingBudgetSlider.handleSliderChange` (L116-L120) - Class
+  - `webview-ui.src.features.settings.components.ThinkingBudgetSlider.ThinkingBudgetSlider.handleSliderChange.useCallback() callback` (L116-L120) - Function
+  - `webview-ui.src.features.settings.components.ThinkingBudgetSlider.ThinkingBudgetSlider.handleSliderComplete` (L122-L128) - Method
+  - `webview-ui.src.features.settings.components.ThinkingBudgetSlider.ThinkingBudgetSlider.handleToggleChange` (L130-L134) - Method
+- `webview-ui/src/features/settings/components/UseCustomPromptCheckbox.tsx`
+  - `webview-ui.src.features.settings.components.UseCustomPromptCheckbox.CustomPromptCheckboxProps` (L6-L8) - Interface
+  - `webview-ui.src.features.settings.components.UseCustomPromptCheckbox.UseCustomPromptCheckbox.toggleCompactPrompt` (L17-L20) - Class
+  - `webview-ui.src.features.settings.components.UseCustomPromptCheckbox.UseCustomPromptCheckbox.toggleCompactPrompt.useCallback() callback` (L17-L20) - Function
+- `webview-ui/src/features/settings/components/UtilityModelSelection.tsx`
+  - `webview-ui.src.features.settings.components.UtilityModelSelection.getProviderModels` (L34-L43) - Function
+  - `webview-ui.src.features.settings.components.UtilityModelSelection.getProviderModels.staticModels.ALL_MODEL_MAPS.filter() callback` (L35-L35) - Function
+  - `webview-ui.src.features.settings.components.UtilityModelSelection.getProviderModels.staticModels` (L35-L38) - Class
+  - `webview-ui.src.features.settings.components.UtilityModelSelection.getProviderModels.staticModels.reduce() callback` (L36-L36) - Function
+  - `webview-ui.src.features.settings.components.UtilityModelSelection.getProviderLabel` (L45-L47) - Function
+  - `webview-ui.src.features.settings.components.UtilityModelSelection.getProviderLabel.PROVIDERS.list.find() callback` (L46-L46) - Function
+  - `webview-ui.src.features.settings.components.UtilityModelSelection.UtilityModelSelection` (L49-L235) - Class
+  - `webview-ui.src.features.settings.components.UtilityModelSelection.UtilityModelSelection.dynamicModels` (L66-L87) - Class
+  - `webview-ui.src.features.settings.components.UtilityModelSelection.UtilityModelSelection.dynamicModels.useMemo() callback` (L67-L76) - Function
+  - `webview-ui.src.features.settings.components.UtilityModelSelection.useEffect() callback` (L89-L89) - Function
+  - `webview-ui.src.features.settings.components.UtilityModelSelection.UtilityModelSelection.useEffect() callback` (L91-L91) - Function
+  - `webview-ui.src.features.settings.components.UtilityModelSelection.UtilityModelSelection.models` (L96-L96) - Class
+  - `webview-ui.src.features.settings.components.UtilityModelSelection.UtilityModelSelection.models.useMemo() callback` (L96-L96) - Function
+  - `webview-ui.src.features.settings.components.UtilityModelSelection.UtilityModelSelection.persistSelection` (L103-L106) - Method
+  - `webview-ui.src.features.settings.components.UtilityModelSelection.UtilityModelSelection.handleProviderChange` (L108-L112) - Method
+  - `webview-ui.src.features.settings.components.UtilityModelSelection.UtilityModelSelection.handleModelChange` (L114-L124) - Method
+  - `webview-ui.src.features.settings.components.UtilityModelSelection.UtilityModelSelection.persistPermissionPolicy` (L126-L137) - Method
+  - `webview-ui.src.features.settings.components.UtilityModelSelection.UtilityModelSelection.ALL_PROVIDERS.map() callback` (L158-L162) - Function
+  - `webview-ui.src.features.settings.components.UtilityModelSelection.UtilityModelSelection.USE_CASES.map() callback` (L176-L194) - Function
+- `webview-ui/src/features/settings/components/VercelModelPicker.tsx`
+  - `webview-ui.src.features.settings.components.VercelModelPicker.VercelModelPickerProps` (L17-L20) - Interface
+  - `webview-ui.src.features.settings.components.VercelModelPicker.VercelModelPicker` (L22-L310) - Class
+  - `webview-ui.src.features.settings.components.VercelModelPicker.VercelModelPicker.handleModelChange` (L34-L49) - Method
+  - `webview-ui.src.features.settings.components.VercelModelPicker.useEffect() callback` (L61-L64) - Function
+  - `webview-ui.src.features.settings.components.VercelModelPicker.VercelModelPicker.modelIds` (L79-L81) - Class
+  - `webview-ui.src.features.settings.components.VercelModelPicker.VercelModelPicker.modelIds.useMemo() callback` (L79-L81) - Function
+  - `webview-ui.src.features.settings.components.VercelModelPicker.VercelModelPicker.modelIds.useMemo() callback.sort() callback` (L80-L80) - Function
+  - `webview-ui.src.features.settings.components.VercelModelPicker.VercelModelPicker.searchableItems` (L83-L88) - Class
+  - `webview-ui.src.features.settings.components.VercelModelPicker.VercelModelPicker.searchableItems.useMemo() callback` (L83-L88) - Function
+  - `webview-ui.src.features.settings.components.VercelModelPicker.VercelModelPicker.searchableItems.useMemo() callback.modelIds.map() callback` (L84-L87) - Function
+  - `webview-ui.src.features.settings.components.VercelModelPicker.VercelModelPicker.fuse` (L90-L100) - Class
+  - `webview-ui.src.features.settings.components.VercelModelPicker.VercelModelPicker.fuse.useMemo() callback` (L90-L100) - Function
+  - `webview-ui.src.features.settings.components.VercelModelPicker.VercelModelPicker.modelSearchResults` (L102-L106) - Class
+  - `webview-ui.src.features.settings.components.VercelModelPicker.VercelModelPicker.modelSearchResults.useMemo() callback` (L102-L106) - Function
+  - `webview-ui.src.features.settings.components.VercelModelPicker.VercelModelPicker.handleKeyDown` (L108-L137) - Class
+  - `webview-ui.src.features.settings.components.VercelModelPicker.handleKeyDown.setSelectedIndex() callback` (L116-L116) - Function
+  - `webview-ui.src.features.settings.components.VercelModelPicker.VercelModelPicker.handleKeyDown.setSelectedIndex() callback` (L120-L120) - Function
+  - `webview-ui.src.features.settings.components.VercelModelPicker.VercelModelPicker.hasInfo` (L139-L145) - Class
+  - `webview-ui.src.features.settings.components.VercelModelPicker.VercelModelPicker.hasInfo.useMemo() callback` (L139-L145) - Function
+  - `webview-ui.src.features.settings.components.VercelModelPicker.VercelModelPicker.hasInfo.useMemo() callback.modelIds.some() callback` (L141-L141) - Function
+  - `webview-ui.src.features.settings.components.VercelModelPicker.VercelModelPicker.useEffect() callback` (L154-L161) - Function
+  - `webview-ui.src.features.settings.components.VercelModelPicker.VercelModelPicker.showReasoningEffort` (L164-L164) - Class
+  - `webview-ui.src.features.settings.components.VercelModelPicker.VercelModelPicker.showReasoningEffort.useMemo() callback` (L164-L164) - Function
+  - `webview-ui.src.features.settings.components.VercelModelPicker.VercelModelPicker.showBudgetSlider` (L166-L185) - Class
+  - `webview-ui.src.features.settings.components.VercelModelPicker.VercelModelPicker.showBudgetSlider.useMemo() callback` (L166-L185) - Function
+  - `webview-ui.src.features.settings.components.VercelModelPicker.VercelModelPicker.modelSearchResults.map() callback` (L245-L258) - Function
+- `webview-ui/src/features/settings/components/common/ApiKeyField.tsx`
+  - `webview-ui.src.features.settings.components.common.ApiKeyField.ApiKeyFieldProps` (L7-L14) - Interface
+- `webview-ui/src/features/settings/components/common/BaseUrlField.tsx`
+  - `webview-ui.src.features.settings.components.common.BaseUrlField.BaseUrlFieldProps` (L8-L16) - Interface
+- `webview-ui/src/features/settings/components/common/DebouncedTextField.tsx`
+  - `webview-ui.src.features.settings.components.common.DebouncedTextField.DebouncedTextFieldProps` (L7-L21) - Interface
+  - `webview-ui.src.features.settings.components.common.DebouncedTextField.DebouncedTextField` (L27-L63) - Class
+  - `webview-ui.src.features.settings.components.common.DebouncedTextField.DebouncedTextField.<function>` (L42-L45) - Function
+- `webview-ui/src/features/settings/components/common/ErrorMessage.tsx`
+  - `webview-ui.src.features.settings.components.common.ErrorMessage.ErrorMessageProps` (L6-L9) - Interface
+- `webview-ui/src/features/settings/components/common/ModelAutocomplete.tsx`
+  - `webview-ui.src.features.settings.components.common.ModelAutocomplete.ModelAutocompleteProps` (L8-L15) - Interface
+  - `webview-ui.src.features.settings.components.common.ModelAutocomplete.ModelAutocomplete` (L19-L241) - Class
+  - `webview-ui.src.features.settings.components.common.ModelAutocomplete.useEffect() callback` (L40-L42) - Function
+  - `webview-ui.src.features.settings.components.common.ModelAutocomplete.ModelAutocomplete.modelIds` (L57-L59) - Class
+  - `webview-ui.src.features.settings.components.common.ModelAutocomplete.ModelAutocomplete.modelIds.useMemo() callback` (L57-L59) - Function
+  - `webview-ui.src.features.settings.components.common.ModelAutocomplete.ModelAutocomplete.modelIds.useMemo() callback.sort() callback` (L58-L58) - Function
+  - `webview-ui.src.features.settings.components.common.ModelAutocomplete.ModelAutocomplete.searchableItems` (L61-L66) - Class
+  - `webview-ui.src.features.settings.components.common.ModelAutocomplete.ModelAutocomplete.searchableItems.useMemo() callback` (L61-L66) - Function
+  - `webview-ui.src.features.settings.components.common.ModelAutocomplete.ModelAutocomplete.searchableItems.useMemo() callback.modelIds.map() callback` (L62-L65) - Function
+  - `webview-ui.src.features.settings.components.common.ModelAutocomplete.ModelAutocomplete.fuse` (L68-L78) - Class
+  - `webview-ui.src.features.settings.components.common.ModelAutocomplete.ModelAutocomplete.fuse.useMemo() callback` (L68-L78) - Function
+  - `webview-ui.src.features.settings.components.common.ModelAutocomplete.ModelAutocomplete.modelSearchResults` (L80-L85) - Class
+  - `webview-ui.src.features.settings.components.common.ModelAutocomplete.ModelAutocomplete.modelSearchResults.useMemo() callback` (L80-L85) - Function
+  - `webview-ui.src.features.settings.components.common.ModelAutocomplete.ModelAutocomplete.handleModelChange` (L87-L91) - Method
+  - `webview-ui.src.features.settings.components.common.ModelAutocomplete.ModelAutocomplete.handleKeyDown` (L93-L123) - Class
+  - `webview-ui.src.features.settings.components.common.ModelAutocomplete.handleKeyDown.setSelectedIndex() callback` (L101-L101) - Function
+  - `webview-ui.src.features.settings.components.common.ModelAutocomplete.ModelAutocomplete.handleKeyDown.setSelectedIndex() callback` (L105-L105) - Function
+  - `webview-ui.src.features.settings.components.common.ModelAutocomplete.ModelAutocomplete.useEffect() callback` (L134-L141) - Function
+  - `webview-ui.src.features.settings.components.common.ModelAutocomplete.ModelAutocomplete.<function>` (L167-L175) - Function
+  - `webview-ui.src.features.settings.components.common.ModelAutocomplete.ModelAutocomplete.<function>.setTimeout() callback` (L169-L174) - Function
+  - `webview-ui.src.features.settings.components.common.ModelAutocomplete.ModelAutocomplete.modelSearchResults.map() callback` (L215-L234) - Function
+- `webview-ui/src/features/settings/components/common/ModelInfoView.tsx`
+  - `webview-ui.src.features.settings.components.common.ModelInfoView.getModelPrices` (L101-L105) - Class
+  - `webview-ui.src.features.settings.components.common.ModelInfoView.getModelPrices.prices.filter() callback` (L104-L104) - Function
+  - `webview-ui.src.features.settings.components.common.ModelInfoView.formatModelPriceDetails` (L116-L127) - Class
+  - `webview-ui.src.features.settings.components.common.ModelInfoView.formatModelPriceDetails.map() callback` (L126-L126) - Function
+  - `webview-ui.src.features.settings.components.common.ModelInfoView.formatWeekdays` (L139-L142) - Class
+  - `webview-ui.src.features.settings.components.common.ModelInfoView.formatWeekdays.weekdays.map() callback` (L141-L141) - Function
+  - `webview-ui.src.features.settings.components.common.ModelInfoView.formatTiers` (L168-L203) - Class
+  - `webview-ui.src.features.settings.components.common.ModelInfoView.formatTiers.tiers.map() callback` (L177-L201) - Function
+  - `webview-ui.src.features.settings.components.common.ModelInfoView.formatTiers.filter() callback` (L202-L202) - Function
+  - `webview-ui.src.features.settings.components.common.ModelInfoView.ModelInfoViewProps` (L207-L212) - Interface
+  - `webview-ui.src.features.settings.components.common.ModelInfoView.ModelInfoView` (L216-L355) - Class
+  - `webview-ui.src.features.settings.components.common.ModelInfoView.ModelInfoView.modelInfo.pricingSchedule.periods.map() callback` (L316-L321) - Function
+- `webview-ui/src/features/settings/components/common/ModelSelector.tsx`
+  - `webview-ui.src.features.settings.components.common.ModelSelector.DropdownContainer.styled.div.attrs() callback` (L9-L13) - Function
+  - `webview-ui.src.features.settings.components.common.ModelSelector.DropdownContainer` (L9-L22) - Class
+  - `webview-ui.src.features.settings.components.common.ModelSelector.ModelSelectorProps` (L27-L33) - Interface
+  - `webview-ui.src.features.settings.components.common.ModelSelector.ModelSelector` (L49-L65) - Class
+  - `webview-ui.src.features.settings.components.common.ModelSelector.ModelSelector.map() callback` (L57-L61) - Function
+- `webview-ui/src/features/settings/components/common/RemotelyConfiguredInputWrapper.tsx`
+  - `webview-ui.src.features.settings.components.common.RemotelyConfiguredInputWrapper.RemotelyConfiguredInputWrapper` (L3-L10) - Function
+- `webview-ui/src/features/settings/components/providers/AihubmixProvider.tsx`
+  - `webview-ui.src.features.settings.components.providers.AihubmixProvider.AIhubmixProviderProps` (L16-L20) - Interface
+  - `webview-ui.src.features.settings.components.providers.AihubmixProvider.AIhubmixProvider` (L25-L119) - Class
+  - `webview-ui.src.features.settings.components.providers.AihubmixProvider.AIhubmixProvider.ensureSelectedPresent` (L32-L43) - Method
+  - `webview-ui.src.features.settings.components.providers.AihubmixProvider.AIhubmixProvider.useEffect() callback` (L47-L74) - Function
+  - `webview-ui.src.features.settings.components.providers.AihubmixProvider.AIhubmixProvider.useEffect() callback.then() callback` (L61-L70) - Function
+  - `webview-ui.src.features.settings.components.providers.AihubmixProvider.AIhubmixProvider.useEffect() callback.catch() callback` (L71-L73) - Function
+  - `webview-ui.src.features.settings.components.providers.AihubmixProvider.AIhubmixProvider.<function>` (L91-L110) - Function
+- `webview-ui/src/features/settings/components/providers/AnthropicProvider.tsx`
+  - `webview-ui.src.features.settings.components.providers.AnthropicProvider.SUPPORTED_ANTHROPIC_THINKING_MODELS` (L16-L18) - Class
+  - `webview-ui.src.features.settings.components.providers.AnthropicProvider.SUPPORTED_ANTHROPIC_THINKING_MODELS.filter() callback` (L17-L17) - Function
+  - `webview-ui.src.features.settings.components.providers.AnthropicProvider.SUPPORTED_ANTHROPIC_THINKING_MODELS.map() callback` (L18-L18) - Function
+  - `webview-ui.src.features.settings.components.providers.AnthropicProvider.AnthropicProviderProps` (L23-L27) - Interface
+- `webview-ui/src/features/settings/components/providers/BasetenProvider.tsx`
+  - `webview-ui.src.features.settings.components.providers.BasetenProvider.BasetenProviderProps` (L10-L14) - Interface
+- `webview-ui/src/features/settings/components/providers/BedrockProvider.tsx`
+  - `webview-ui.src.features.settings.components.providers.BedrockProvider.BedrockProviderProps` (L43-L47) - Interface
+  - `webview-ui.src.features.settings.components.providers.BedrockProvider.BedrockProvider` (L49-L544) - Class
+  - `webview-ui.src.features.settings.components.providers.BedrockProvider.useEffect() callback` (L67-L69) - Function
+  - `webview-ui.src.features.settings.components.providers.BedrockProvider.BedrockProvider.fuse` (L71-L80) - Class
+  - `webview-ui.src.features.settings.components.providers.BedrockProvider.BedrockProvider.fuse.useMemo() callback` (L71-L80) - Function
+  - `webview-ui.src.features.settings.components.providers.BedrockProvider.BedrockProvider.regionSearchResults` (L82-L87) - Class
+  - `webview-ui.src.features.settings.components.providers.BedrockProvider.BedrockProvider.regionSearchResults.useMemo() callback` (L82-L87) - Function
+  - `webview-ui.src.features.settings.components.providers.BedrockProvider.BedrockProvider.regionSearchResults.useMemo() callback.map() callback` (L86-L86) - Function
+  - `webview-ui.src.features.settings.components.providers.BedrockProvider.BedrockProvider.handleRegionChange` (L89-L92) - Method
+  - `webview-ui.src.features.settings.components.providers.BedrockProvider.BedrockProvider.handleKeyDown` (L94-L124) - Class
+  - `webview-ui.src.features.settings.components.providers.BedrockProvider.handleKeyDown.setSelectedIndex() callback` (L102-L102) - Function
+  - `webview-ui.src.features.settings.components.providers.BedrockProvider.BedrockProvider.handleKeyDown.setSelectedIndex() callback` (L106-L106) - Function
+  - `webview-ui.src.features.settings.components.providers.BedrockProvider.BedrockProvider.useEffect() callback` (L148-L155) - Function
+  - `webview-ui.src.features.settings.components.providers.BedrockProvider.<function>` (L160-L163) - Function
+  - `webview-ui.src.features.settings.components.providers.BedrockProvider.BedrockProvider.regionSearchResults.map() callback` (L284-L304) - Function
+  - `webview-ui.src.features.settings.components.providers.BedrockProvider.map() callback` (L461-L468) - Function
+  - `webview-ui.src.features.settings.components.providers.BedrockProvider.BedrockProvider.<function>` (L500-L508) - Function
+  - `webview-ui.src.features.settings.components.providers.BedrockProvider.BedrockProvider.map() callback` (L512-L519) - Function
+- `webview-ui/src/features/settings/components/providers/CerebrasProvider.tsx`
+  - `webview-ui.src.features.settings.components.providers.CerebrasProvider.CerebrasProviderProps` (L13-L17) - Interface
+  - `webview-ui.src.features.settings.components.providers.CerebrasProvider.CerebrasProvider` (L22-L58) - Class
+  - `webview-ui.src.features.settings.components.providers.CerebrasProvider.CerebrasProvider.<function>` (L43-L48) - Function
+- `webview-ui/src/features/settings/components/providers/ClaudeCodeProvider.tsx`
+  - `webview-ui.src.features.settings.components.providers.ClaudeCodeProvider.ClaudeCodeProviderProps` (L27-L31) - Interface
+  - `webview-ui.src.features.settings.components.providers.ClaudeCodeProvider.ClaudeCodeProvider` (L36-L99) - Class
+  - `webview-ui.src.features.settings.components.providers.ClaudeCodeProvider.ClaudeCodeProvider.<function>` (L68-L73) - Function
+- `webview-ui/src/features/settings/components/providers/DeepSeekProvider.tsx`
+  - `webview-ui.src.features.settings.components.providers.DeepSeekProvider.DeepSeekProviderProps` (L18-L22) - Interface
+  - `webview-ui.src.features.settings.components.providers.DeepSeekProvider.DeepSeekProvider` (L27-L68) - Class
+  - `webview-ui.src.features.settings.components.providers.DeepSeekProvider.DeepSeekProvider.<function>` (L49-L54) - Function
+- `webview-ui/src/features/settings/components/providers/DifyProvider.tsx`
+  - `webview-ui.src.features.settings.components.providers.DifyProvider.DifyProviderProps` (L10-L14) - Interface
+- `webview-ui/src/features/settings/components/providers/DoubaoProvider.tsx`
+  - `webview-ui.src.features.settings.components.providers.DoubaoProvider.DoubaoProviderProps` (L13-L17) - Interface
+  - `webview-ui.src.features.settings.components.providers.DoubaoProvider.DoubaoProvider` (L22-L58) - Class
+  - `webview-ui.src.features.settings.components.providers.DoubaoProvider.DoubaoProvider.<function>` (L43-L48) - Function
+- `webview-ui/src/features/settings/components/providers/FireworksProvider.tsx`
+  - `webview-ui.src.features.settings.components.providers.FireworksProvider.FireworksProviderProps` (L13-L17) - Interface
+  - `webview-ui.src.features.settings.components.providers.FireworksProvider.FireworksProvider` (L22-L55) - Class
+  - `webview-ui.src.features.settings.components.providers.FireworksProvider.FireworksProvider.<function>` (L39-L48) - Function
+- `webview-ui/src/features/settings/components/providers/GeminiProvider.tsx`
+  - `webview-ui.src.features.settings.components.providers.GeminiProvider.GeminiProviderProps` (L17-L21) - Interface
+  - `webview-ui.src.features.settings.components.providers.GeminiProvider.GeminiProvider` (L26-L88) - Class
+  - `webview-ui.src.features.settings.components.providers.GeminiProvider.GeminiProvider.<function>` (L55-L60) - Function
+- `webview-ui/src/features/settings/components/providers/GithubCopilotProvider.tsx`
+  - `webview-ui.src.features.settings.components.providers.GithubCopilotProvider.GithubCopilotProviderProps` (L13-L17) - Interface
+  - `webview-ui.src.features.settings.components.providers.GithubCopilotProvider.GithubCopilotProvider` (L19-L76) - Class
+  - `webview-ui.src.features.settings.components.providers.GithubCopilotProvider.GithubCopilotProvider.isAuthenticated` (L22-L22) - Class
+  - `webview-ui.src.features.settings.components.providers.GithubCopilotProvider.GithubCopilotProvider.isAuthenticated.useSettingsStore() callback` (L22-L22) - Function
+  - `webview-ui.src.features.settings.components.providers.GithubCopilotProvider.GithubCopilotProvider.email` (L23-L23) - Class
+  - `webview-ui.src.features.settings.components.providers.GithubCopilotProvider.GithubCopilotProvider.email.useSettingsStore() callback` (L23-L23) - Function
+  - `webview-ui.src.features.settings.components.providers.GithubCopilotProvider.GithubCopilotProvider.models` (L28-L28) - Class
+  - `webview-ui.src.features.settings.components.providers.GithubCopilotProvider.GithubCopilotProvider.models.useSettingsStore() callback` (L28-L28) - Function
+  - `webview-ui.src.features.settings.components.providers.GithubCopilotProvider.GithubCopilotProvider.useEffect() callback` (L30-L32) - Function
+  - `webview-ui.src.features.settings.components.providers.GithubCopilotProvider.GithubCopilotProvider.handleLogin` (L34-L40) - Method
+  - `webview-ui.src.features.settings.components.providers.GithubCopilotProvider.GithubCopilotProvider.<function>` (L62-L67) - Function
+- `webview-ui/src/features/settings/components/providers/GroqProvider.tsx`
+  - `webview-ui.src.features.settings.components.providers.GroqProvider.GroqProviderProps` (L10-L14) - Interface
+- `webview-ui/src/features/settings/components/providers/HuaweiCloudMaasProvider.tsx`
+  - `webview-ui.src.features.settings.components.providers.HuaweiCloudMaasProvider.HuaweiCloudMaasProviderProps` (L10-L14) - Interface
+  - `webview-ui.src.features.settings.components.providers.HuaweiCloudMaasProvider.HuaweiCloudMaasProvider` (L16-L65) - Class
+  - `webview-ui.src.features.settings.components.providers.HuaweiCloudMaasProvider.HuaweiCloudMaasProvider.<function>` (L35-L57) - Function
+- `webview-ui/src/features/settings/components/providers/HuggingFaceProvider.tsx`
+  - `webview-ui.src.features.settings.components.providers.HuggingFaceProvider.HuggingFaceProviderProps` (L11-L15) - Interface
+- `webview-ui/src/features/settings/components/providers/LMStudioProvider.tsx`
+  - `webview-ui.src.features.settings.components.providers.LMStudioProvider.LMStudioProviderProps` (L17-L21) - Interface
+  - `webview-ui.src.features.settings.components.providers.LMStudioProvider.LMStudioApiModel` (L23-L34) - Interface
+  - `webview-ui.src.features.settings.components.providers.LMStudioProvider.LMStudioProvider` (L39-L173) - Class
+  - `webview-ui.src.features.settings.components.providers.LMStudioProvider.LMStudioProvider.currentLMStudioModel` (L47-L50) - Class
+  - `webview-ui.src.features.settings.components.providers.LMStudioProvider.LMStudioProvider.currentLMStudioModel.useMemo() callback` (L48-L48) - Function
+  - `webview-ui.src.features.settings.components.providers.LMStudioProvider.LMStudioProvider.currentLMStudioModel.useMemo() callback.lmStudioModels.find() callback` (L48-L48) - Function
+  - `webview-ui.src.features.settings.components.providers.LMStudioProvider.LMStudioProvider.endpoint` (L51-L54) - Class
+  - `webview-ui.src.features.settings.components.providers.LMStudioProvider.LMStudioProvider.endpoint.useMemo() callback` (L52-L52) - Function
+  - `webview-ui.src.features.settings.components.providers.LMStudioProvider.LMStudioProvider.requestLmStudioModels` (L57-L70) - Class
+  - `webview-ui.src.features.settings.components.providers.LMStudioProvider.LMStudioProvider.requestLmStudioModels.useCallback() callback` (L57-L70) - Function
+  - `webview-ui.src.features.settings.components.providers.LMStudioProvider.LMStudioProvider.requestLmStudioModels.useCallback() callback.then() callback` (L61-L66) - Function
+  - `webview-ui.src.features.settings.components.providers.LMStudioProvider.LMStudioProvider.requestLmStudioModels.useCallback() callback.then() callback.models` (L63-L63) - Class
+  - `webview-ui.src.features.settings.components.providers.LMStudioProvider.LMStudioProvider.requestLmStudioModels.useCallback() callback.then() callback.models.response.values.map() callback` (L63-L63) - Function
+  - `webview-ui.src.features.settings.components.providers.LMStudioProvider.LMStudioProvider.requestLmStudioModels.useCallback() callback.catch() callback` (L67-L69) - Function
+  - `webview-ui.src.features.settings.components.providers.LMStudioProvider.useEffect() callback` (L72-L74) - Function
+  - `webview-ui.src.features.settings.components.providers.LMStudioProvider.LMStudioProvider.useEffect() callback` (L79-L86) - Function
+  - `webview-ui.src.features.settings.components.providers.LMStudioProvider.<function>` (L109-L119) - Function
+  - `webview-ui.src.features.settings.components.providers.LMStudioProvider.LMStudioProvider.lmStudioModels.map() callback` (L121-L125) - Function
+  - `webview-ui.src.features.settings.components.providers.LMStudioProvider.LMStudioProvider.<function>` (L131-L139) - Function
+- `webview-ui/src/features/settings/components/providers/LiteLlmProvider.tsx`
+  - `webview-ui.src.features.settings.components.providers.LiteLlmProvider.LiteLlmProviderProps` (L20-L24) - Interface
+  - `webview-ui.src.features.settings.components.providers.LiteLlmProvider.LiteLlmProvider` (L26-L165) - Class
+  - `webview-ui.src.features.settings.components.providers.LiteLlmProvider.LiteLlmProvider.handleModelChange` (L35-L47) - Method
+  - `webview-ui.src.features.settings.components.providers.LiteLlmProvider.LiteLlmProvider.onRefreshModels` (L49-L56) - Method
+  - `webview-ui.src.features.settings.components.providers.LiteLlmProvider.<function>` (L64-L75) - Function
+  - `webview-ui.src.features.settings.components.providers.LiteLlmProvider.LiteLlmProvider.<function>` (L89-L100) - Function
+- `webview-ui/src/features/settings/components/providers/MiniMaxProvider.tsx`
+  - `webview-ui.src.features.settings.components.providers.MiniMaxProvider.MinimaxProviderProps` (L15-L19) - Interface
+  - `webview-ui.src.features.settings.components.providers.MiniMaxProvider.MinimaxProvider` (L24-L93) - Class
+  - `webview-ui.src.features.settings.components.providers.MiniMaxProvider.MinimaxProvider.<function>` (L74-L79) - Function
+- `webview-ui/src/features/settings/components/providers/MistralProvider.tsx`
+  - `webview-ui.src.features.settings.components.providers.MistralProvider.MistralProviderProps` (L13-L17) - Interface
+  - `webview-ui.src.features.settings.components.providers.MistralProvider.MistralProvider` (L22-L58) - Class
+  - `webview-ui.src.features.settings.components.providers.MistralProvider.MistralProvider.<function>` (L43-L48) - Function
+- `webview-ui/src/features/settings/components/providers/MoonshotProvider.tsx`
+  - `webview-ui.src.features.settings.components.providers.MoonshotProvider.MoonshotProviderProps` (L15-L19) - Interface
+  - `webview-ui.src.features.settings.components.providers.MoonshotProvider.MoonshotProvider` (L24-L113) - Class
+  - `webview-ui.src.features.settings.components.providers.MoonshotProvider.<function>` (L38-L50) - Function
+  - `webview-ui.src.features.settings.components.providers.MoonshotProvider.MoonshotProvider.<function>` (L88-L104) - Function
+- `webview-ui/src/features/settings/components/providers/NebiusProvider.tsx`
+  - `webview-ui.src.features.settings.components.providers.NebiusProvider.NebiusProviderProps` (L13-L17) - Interface
+  - `webview-ui.src.features.settings.components.providers.NebiusProvider.NebiusProvider` (L22-L58) - Class
+  - `webview-ui.src.features.settings.components.providers.NebiusProvider.NebiusProvider.<function>` (L43-L48) - Function
+- `webview-ui/src/features/settings/components/providers/NousresearchProvider.tsx`
+  - `webview-ui.src.features.settings.components.providers.NousresearchProvider.NousResearchProviderProps` (L13-L17) - Interface
+  - `webview-ui.src.features.settings.components.providers.NousresearchProvider.NousResearchProvider` (L22-L69) - Class
+  - `webview-ui.src.features.settings.components.providers.NousresearchProvider.NousResearchProvider.<function>` (L42-L47) - Function
+- `webview-ui/src/features/settings/components/providers/OpenAICompatible.tsx`
+  - `webview-ui.src.features.settings.components.providers.OpenAICompatible.OpenAICompatibleProviderProps` (L26-L30) - Interface
+  - `webview-ui.src.features.settings.components.providers.OpenAICompatible.OpenAICompatibleProvider` (L35-L603) - Class
+  - `webview-ui.src.features.settings.components.providers.OpenAICompatible.OpenAICompatibleProvider.useEffect() callback` (L54-L60) - Function
+  - `webview-ui.src.features.settings.components.providers.OpenAICompatible.OpenAICompatibleProvider.currentProfile` (L65-L65) - Class
+  - `webview-ui.src.features.settings.components.providers.OpenAICompatible.OpenAICompatibleProvider.currentProfile.profiles.find() callback` (L65-L65) - Function
+  - `webview-ui.src.features.settings.components.providers.OpenAICompatible.OpenAICompatibleProvider.persistOpenAiHeaders` (L67-L76) - Method
+  - `webview-ui.src.features.settings.components.providers.OpenAICompatible.OpenAICompatibleProvider.persistOpenAiHeaders.openAiCompatibleProfiles.profiles.map() callback` (L72-L73) - Function
+  - `webview-ui.src.features.settings.components.providers.OpenAICompatible.OpenAICompatibleProvider.handleProfileChange` (L78-L102) - Method
+  - `webview-ui.src.features.settings.components.providers.OpenAICompatible.OpenAICompatibleProvider.handleProfileChange.profile` (L85-L85) - Class
+  - `webview-ui.src.features.settings.components.providers.OpenAICompatible.OpenAICompatibleProvider.handleProfileChange.profile.profiles.find() callback` (L85-L85) - Function
+  - `webview-ui.src.features.settings.components.providers.OpenAICompatible.OpenAICompatibleProvider.handleNewProfile` (L104-L111) - Method
+  - `webview-ui.src.features.settings.components.providers.OpenAICompatible.OpenAICompatibleProvider.handleSaveProfile` (L113-L141) - Method
+  - `webview-ui.src.features.settings.components.providers.OpenAICompatible.OpenAICompatibleProvider.handleSaveProfile.existingIndex` (L128-L128) - Class
+  - `webview-ui.src.features.settings.components.providers.OpenAICompatible.OpenAICompatibleProvider.handleSaveProfile.existingIndex.updatedProfiles.findIndex() callback` (L128-L128) - Function
+  - `webview-ui.src.features.settings.components.providers.OpenAICompatible.OpenAICompatibleProvider.handleDeleteProfile` (L143-L181) - Method
+  - `webview-ui.src.features.settings.components.providers.OpenAICompatible.OpenAICompatibleProvider.handleDeleteProfile.prevProfile` (L147-L147) - Class
+  - `webview-ui.src.features.settings.components.providers.OpenAICompatible.OpenAICompatibleProvider.handleDeleteProfile.prevProfile.profiles.find() callback` (L147-L147) - Function
+  - `webview-ui.src.features.settings.components.providers.OpenAICompatible.OpenAICompatibleProvider.handleDeleteProfile.updatedProfiles` (L173-L173) - Class
+  - `webview-ui.src.features.settings.components.providers.OpenAICompatible.OpenAICompatibleProvider.handleDeleteProfile.updatedProfiles.profiles.filter() callback` (L173-L173) - Function
+  - `webview-ui.src.features.settings.components.providers.OpenAICompatible.OpenAICompatibleProvider.onRefreshModels` (L183-L192) - Method
+  - `webview-ui.src.features.settings.components.providers.OpenAICompatible.OpenAICompatibleProvider.debouncedRefreshOpenAiModels` (L194-L207) - Class
+  - `webview-ui.src.features.settings.components.providers.OpenAICompatible.OpenAICompatibleProvider.debouncedRefreshOpenAiModels.useCallback() callback` (L195-L205) - Function
+  - `webview-ui.src.features.settings.components.providers.OpenAICompatible.OpenAICompatibleProvider.debouncedRefreshOpenAiModels.useCallback() callback.setTimeout() callback` (L201-L203) - Function
+  - `webview-ui.src.features.settings.components.providers.OpenAICompatible.OpenAICompatibleProvider.profiles.map() callback` (L224-L228) - Function
+  - `webview-ui.src.features.settings.components.providers.OpenAICompatible.<function>` (L287-L299) - Function
+  - `webview-ui.src.features.settings.components.providers.OpenAICompatible.OpenAICompatibleProvider.<function>.<function>` (L339-L345) - Function
+  - `webview-ui.src.features.settings.components.providers.OpenAICompatible.OpenAICompatibleProvider.<function>.headerEntries.map() callback` (L351-L391) - Function
+  - `webview-ui.src.features.settings.components.providers.OpenAICompatible.<function>.headerEntries.map() callback.<function>` (L356-L365) - Function
+  - `webview-ui.src.features.settings.components.providers.OpenAICompatible.OpenAICompatibleProvider.<function>.headerEntries.map() callback.<function>` (L384-L387) - Function
+  - `webview-ui.src.features.settings.components.providers.OpenAICompatible.OpenAICompatibleProvider.<function>.setModelConfigurationSelected() callback` (L415-L415) - Function
+  - `webview-ui.src.features.settings.components.providers.OpenAICompatible.OpenAICompatibleProvider.<function>` (L549-L557) - Function
+- `webview-ui/src/features/settings/components/providers/OpenAINative.tsx`
+  - `webview-ui.src.features.settings.components.providers.OpenAINative.OpenAINativeProviderProps` (L19-L23) - Interface
+- `webview-ui/src/features/settings/components/providers/OpenAiCodexProvider.tsx`
+  - `webview-ui.src.features.settings.components.providers.OpenAiCodexProvider.OpenAiCodexProviderProps` (L22-L26) - Interface
+  - `webview-ui.src.features.settings.components.providers.OpenAiCodexProvider.OpenAiCodexProvider` (L29-L129) - Class
+  - `webview-ui.src.features.settings.components.providers.OpenAiCodexProvider.OpenAiCodexProvider.navigateToSettings` (L39-L39) - Class
+  - `webview-ui.src.features.settings.components.providers.OpenAiCodexProvider.OpenAiCodexProvider.navigateToSettings.useAppStore() callback` (L39-L39) - Function
+  - `webview-ui.src.features.settings.components.providers.OpenAiCodexProvider.OpenAiCodexProvider.useEffect() callback` (L43-L59) - Function
+  - `webview-ui.src.features.settings.components.providers.OpenAiCodexProvider.OpenAiCodexProvider.handleSignOut` (L62-L69) - Method
+  - `webview-ui.src.features.settings.components.providers.OpenAiCodexProvider.OpenAiCodexProvider.setSelectedModel` (L75-L87) - Method
+- `webview-ui/src/features/settings/components/providers/OpenRouterProvider.tsx`
+  - `webview-ui.src.features.settings.components.providers.OpenRouterProvider.OpenRouterProviderProps` (L50-L57) - Interface
+- `webview-ui/src/features/settings/components/providers/QwenCodeProvider.tsx`
+  - `webview-ui.src.features.settings.components.providers.QwenCodeProvider.QwenCodeProviderProps` (L13-L17) - Interface
+  - `webview-ui.src.features.settings.components.providers.QwenCodeProvider.QwenCodeProvider` (L22-L86) - Class
+  - `webview-ui.src.features.settings.components.providers.QwenCodeProvider.QwenCodeProvider.<function>` (L74-L77) - Function
+- `webview-ui/src/features/settings/components/providers/QwenProvider.tsx`
+  - `webview-ui.src.features.settings.components.providers.QwenProvider.QwenProviderProps` (L30-L34) - Interface
+  - `webview-ui.src.features.settings.components.providers.QwenProvider.QwenProvider` (L42-L118) - Class
+  - `webview-ui.src.features.settings.components.providers.QwenProvider.QwenProvider.qwenModels` (L50-L53) - Class
+  - `webview-ui.src.features.settings.components.providers.QwenProvider.QwenProvider.qwenModels.useMemo() callback` (L51-L51) - Function
+  - `webview-ui.src.features.settings.components.providers.QwenProvider.QwenProvider.qwenApiOptions.map() callback` (L69-L73) - Function
+  - `webview-ui.src.features.settings.components.providers.QwenProvider.QwenProvider.<function>` (L98-L103) - Function
+- `webview-ui/src/features/settings/components/providers/RequestyProvider.tsx`
+  - `webview-ui.src.features.settings.components.providers.RequestyProvider.RequestyProviderProps` (L14-L18) - Interface
+  - `webview-ui.src.features.settings.components.providers.RequestyProvider.RequestyProvider` (L23-L72) - Class
+  - `webview-ui.src.features.settings.components.providers.RequestyProvider.RequestyProvider.<function>` (L42-L49) - Function
+- `webview-ui/src/features/settings/components/providers/SambanovaProvider.tsx`
+  - `webview-ui.src.features.settings.components.providers.SambanovaProvider.SambanovaProviderProps` (L13-L17) - Interface
+  - `webview-ui.src.features.settings.components.providers.SambanovaProvider.SambanovaProvider` (L22-L58) - Class
+  - `webview-ui.src.features.settings.components.providers.SambanovaProvider.SambanovaProvider.<function>` (L43-L48) - Function
+- `webview-ui/src/features/settings/components/providers/TogetherProvider.tsx`
+  - `webview-ui.src.features.settings.components.providers.TogetherProvider.TogetherProviderProps` (L11-L15) - Interface
+  - `webview-ui.src.features.settings.components.providers.TogetherProvider.TogetherProvider` (L20-L55) - Class
+  - `webview-ui.src.features.settings.components.providers.TogetherProvider.TogetherProvider.<function>` (L35-L36) - Function
+- `webview-ui/src/features/settings/components/providers/UnbiasedProvider.tsx`
+  - `webview-ui.src.features.settings.components.providers.UnbiasedProvider.UnbiasedProviderProps` (L15-L19) - Interface
+  - `webview-ui.src.features.settings.components.providers.UnbiasedProvider.UnbiasedProvider` (L21-L271) - Function
+  - `webview-ui.src.features.settings.components.providers.UnbiasedProvider.useEffect() callback` (L40-L76) - Function
+  - `webview-ui.src.features.settings.components.providers.UnbiasedProvider.useEffect() callback.then() callback` (L50-L66) - Function
+  - `webview-ui.src.features.settings.components.providers.UnbiasedProvider.UnbiasedProvider.useEffect() callback.then() callback.models.map() callback` (L55-L62) - Function
+  - `webview-ui.src.features.settings.components.providers.UnbiasedProvider.UnbiasedProvider.useEffect() callback.then() callback` (L67-L71) - Function
+  - `webview-ui.src.features.settings.components.providers.UnbiasedProvider.UnbiasedProvider.useEffect() callback` (L103-L106) - Function
+  - `webview-ui.src.features.settings.components.providers.UnbiasedProvider.UnbiasedProvider.signIn` (L110-L137) - Class
+  - `webview-ui.src.features.settings.components.providers.UnbiasedProvider.UnbiasedProvider.signIn.onResponse` (L117-L124) - Method
+  - `webview-ui.src.features.settings.components.providers.UnbiasedProvider.UnbiasedProvider.signIn.onError` (L125-L129) - Method
+  - `webview-ui.src.features.settings.components.providers.UnbiasedProvider.UnbiasedProvider.signIn.onComplete` (L130-L135) - Method
+  - `webview-ui.src.features.settings.components.providers.UnbiasedProvider.<function>` (L201-L204) - Function
+  - `webview-ui.src.features.settings.components.providers.UnbiasedProvider.UnbiasedProvider.<function>.catch() callback` (L204-L204) - Function
+  - `webview-ui.src.features.settings.components.providers.UnbiasedProvider.UnbiasedProvider.<function>` (L242-L247) - Function
+- `webview-ui/src/features/settings/components/providers/VSCodeLmProvider.tsx`
+  - `webview-ui.src.features.settings.components.providers.VSCodeLmProvider.VSCodeLmProviderProps` (L13-L15) - Interface
+  - `webview-ui.src.features.settings.components.providers.VSCodeLmProvider.VSCodeLmProvider` (L17-L93) - Class
+  - `webview-ui.src.features.settings.components.providers.VSCodeLmProvider.VSCodeLmProvider.requestVsCodeLmModels` (L25-L35) - Class
+  - `webview-ui.src.features.settings.components.providers.VSCodeLmProvider.VSCodeLmProvider.requestVsCodeLmModels.useCallback() callback` (L25-L35) - Function
+  - `webview-ui.src.features.settings.components.providers.VSCodeLmProvider.VSCodeLmProvider.useEffect() callback` (L37-L39) - Function
+  - `webview-ui.src.features.settings.components.providers.VSCodeLmProvider.VSCodeLmProvider.<function>` (L52-L64) - Function
+  - `webview-ui.src.features.settings.components.providers.VSCodeLmProvider.VSCodeLmProvider.vsCodeLmModels.map() callback` (L72-L76) - Function
+- `webview-ui/src/features/settings/components/providers/VercelAIGatewayProvider.tsx`
+  - `webview-ui.src.features.settings.components.providers.VercelAIGatewayProvider.VercelAIGatewayProviderProps` (L11-L15) - Interface
+- `webview-ui/src/features/settings/components/providers/VertexProvider.tsx`
+  - `webview-ui.src.features.settings.components.providers.VertexProvider.VertexProviderProps` (L20-L24) - Interface
+  - `webview-ui.src.features.settings.components.providers.VertexProvider.VertexProvider` (L48-L170) - Class
+  - `webview-ui.src.features.settings.components.providers.VertexProvider.VertexProvider.REGIONS.map() callback` (L98-L102) - Function
+  - `webview-ui.src.features.settings.components.providers.VertexProvider.VertexProvider.<function>` (L133-L138) - Function
+- `webview-ui/src/features/settings/components/providers/WandbProvider.tsx`
+  - `webview-ui.src.features.settings.components.providers.WandbProvider.WandbProviderProps` (L10-L14) - Interface
+  - `webview-ui.src.features.settings.components.providers.WandbProvider.WandbProvider` (L16-L52) - Class
+  - `webview-ui.src.features.settings.components.providers.WandbProvider.WandbProvider.<function>` (L37-L42) - Function
+- `webview-ui/src/features/settings/components/providers/XaiProvider.tsx`
+  - `webview-ui.src.features.settings.components.providers.XaiProvider.XaiProviderProps` (L18-L22) - Interface
+  - `webview-ui.src.features.settings.components.providers.XaiProvider.XaiProvider` (L24-L85) - Class
+  - `webview-ui.src.features.settings.components.providers.XaiProvider.XaiProvider.<function>` (L62-L67) - Function
+- `webview-ui/src/features/settings/components/providers/ZAiProvider.tsx`
+  - `webview-ui.src.features.settings.components.providers.ZAiProvider.ZAiProviderProps` (L20-L24) - Interface
+  - `webview-ui.src.features.settings.components.providers.ZAiProvider.ZAiProvider` (L29-L110) - Class
+  - `webview-ui.src.features.settings.components.providers.ZAiProvider.ZAiProvider.zaiModels` (L39-L42) - Class
+  - `webview-ui.src.features.settings.components.providers.ZAiProvider.ZAiProvider.zaiModels.useMemo() callback` (L40-L40) - Function
+  - `webview-ui.src.features.settings.components.providers.ZAiProvider.ZAiProvider.<function>` (L87-L92) - Function
+- `webview-ui/src/features/settings/components/providers/openai-codex/OpenAiCodexAccountCard.tsx`
+  - `webview-ui.src.features.settings.components.providers.openai-codex.OpenAiCodexAccountCard.OpenAiCodexAccountCardProps` (L6-L12) - Interface
+  - `webview-ui.src.features.settings.components.providers.openai-codex.OpenAiCodexAccountCard.OpenAiCodexAccountCard` (L14-L64) - Function
+- `webview-ui/src/features/settings/components/providers/openai-codex/OpenAiCodexActivity.tsx`
+  - `webview-ui.src.features.settings.components.providers.openai-codex.OpenAiCodexActivity.OpenAiCodexActivityProps` (L11-L15) - Interface
+  - `webview-ui.src.features.settings.components.providers.openai-codex.OpenAiCodexActivity.OpenAiCodexActivity` (L17-L81) - Function
+  - `webview-ui.src.features.settings.components.providers.openai-codex.OpenAiCodexActivity.OpenAiCodexActivity.buckets` (L19-L19) - Class
+  - `webview-ui.src.features.settings.components.providers.openai-codex.OpenAiCodexActivity.OpenAiCodexActivity.buckets.useMemo() callback` (L19-L19) - Function
+  - `webview-ui.src.features.settings.components.providers.openai-codex.OpenAiCodexActivity.OpenAiCodexActivity.peak` (L20-L20) - Class
+  - `webview-ui.src.features.settings.components.providers.openai-codex.OpenAiCodexActivity.OpenAiCodexActivity.peak.buckets.map() callback` (L20-L20) - Function
+  - `webview-ui.src.features.settings.components.providers.openai-codex.OpenAiCodexActivity.OpenAiCodexActivity.<function>` (L27-L27) - Function
+  - `webview-ui.src.features.settings.components.providers.openai-codex.OpenAiCodexActivity.OpenAiCodexActivity.<function>.setExpanded() callback` (L27-L27) - Function
+  - `webview-ui.src.features.settings.components.providers.openai-codex.OpenAiCodexActivity.OpenAiCodexActivity.buckets.map() callback` (L56-L67) - Function
+  - `webview-ui.src.features.settings.components.providers.openai-codex.OpenAiCodexActivity.ActivityFact` (L83-L90) - Function
+  - `webview-ui.src.features.settings.components.providers.openai-codex.OpenAiCodexActivity.formatDays` (L92-L95) - Function
+- `webview-ui/src/features/settings/components/providers/openai-codex/OpenAiCodexLimitRow.tsx`
+  - `webview-ui.src.features.settings.components.providers.openai-codex.OpenAiCodexLimitRow.OpenAiCodexLimitRowProps` (L5-L10) - Interface
+  - `webview-ui.src.features.settings.components.providers.openai-codex.OpenAiCodexLimitRow.OpenAiCodexLimitRow` (L12-L38) - Function
+- `webview-ui/src/features/settings/components/providers/openai-codex/OpenAiCodexProvider.stories.tsx`
+  - `webview-ui.src.features.settings.components.providers.openai-codex.OpenAiCodexProvider.stories.meta.args.onRefresh` (L9-L9) - Method
+  - `webview-ui.src.features.settings.components.providers.openai-codex.OpenAiCodexProvider.stories.CreditsAndActivity.args.snapshot.activity.dailyUsageBuckets.Array.from() callback` (L66-L69) - Function
+- `webview-ui/src/features/settings/components/providers/openai-codex/OpenAiCodexSignIn.tsx`
+  - `webview-ui.src.features.settings.components.providers.openai-codex.OpenAiCodexSignIn.OpenAiCodexSignIn` (L7-L150) - Function
+  - `webview-ui.src.features.settings.components.providers.openai-codex.OpenAiCodexSignIn.OpenAiCodexSignIn.useEffect() callback` (L25-L28) - Function
+  - `webview-ui.src.features.settings.components.providers.openai-codex.OpenAiCodexSignIn.OpenAiCodexSignIn.start` (L32-L51) - Class
+  - `webview-ui.src.features.settings.components.providers.openai-codex.OpenAiCodexSignIn.OpenAiCodexSignIn.start.onResponse` (L38-L41) - Method
+  - `webview-ui.src.features.settings.components.providers.openai-codex.OpenAiCodexSignIn.OpenAiCodexSignIn.start.onError` (L42-L46) - Method
+  - `webview-ui.src.features.settings.components.providers.openai-codex.OpenAiCodexSignIn.OpenAiCodexSignIn.start.onComplete` (L47-L49) - Method
+- `webview-ui/src/features/settings/components/providers/openai-codex/OpenAiCodexUsagePanel.tsx`
+  - `webview-ui.src.features.settings.components.providers.openai-codex.OpenAiCodexUsagePanel.OpenAiCodexUsagePanelProps` (L15-L22) - Interface
+  - `webview-ui.src.features.settings.components.providers.openai-codex.OpenAiCodexUsagePanel.OpenAiCodexUsagePanel` (L24-L154) - Function
+  - `webview-ui.src.features.settings.components.providers.openai-codex.OpenAiCodexUsagePanel.OpenAiCodexUsagePanel.windows` (L34-L34) - Class
+  - `webview-ui.src.features.settings.components.providers.openai-codex.OpenAiCodexUsagePanel.OpenAiCodexUsagePanel.windows.useMemo() callback` (L34-L34) - Function
+  - `webview-ui.src.features.settings.components.providers.openai-codex.OpenAiCodexUsagePanel.OpenAiCodexUsagePanel.displayedWindows` (L35-L35) - Class
+  - `webview-ui.src.features.settings.components.providers.openai-codex.OpenAiCodexUsagePanel.OpenAiCodexUsagePanel.displayedWindows.windows.filter() callback` (L35-L35) - Function
+  - `webview-ui.src.features.settings.components.providers.openai-codex.OpenAiCodexUsagePanel.useEffect() callback` (L38-L41) - Function
+  - `webview-ui.src.features.settings.components.providers.openai-codex.OpenAiCodexUsagePanel.OpenAiCodexUsagePanel.useEffect() callback.interval` (L39-L39) - Class
+  - `webview-ui.src.features.settings.components.providers.openai-codex.OpenAiCodexUsagePanel.OpenAiCodexUsagePanel.useEffect() callback.interval.window.setInterval() callback` (L39-L39) - Function
+  - `webview-ui.src.features.settings.components.providers.openai-codex.OpenAiCodexUsagePanel.OpenAiCodexUsagePanel.useEffect() callback` (L43-L53) - Function
+  - `webview-ui.src.features.settings.components.providers.openai-codex.OpenAiCodexUsagePanel.OpenAiCodexUsagePanel.displayedWindows.map() callback` (L78-L90) - Function
+  - `webview-ui.src.features.settings.components.providers.openai-codex.OpenAiCodexUsagePanel.FactRow` (L156-L163) - Function
+- `webview-ui/src/features/settings/components/providers/openai-codex/formatOpenAiCodexUsage.ts`
+  - `webview-ui.src.features.settings.components.providers.openai-codex.formatOpenAiCodexUsage.OpenAiCodexDisplayWindow` (L10-L15) - Interface
+  - `webview-ui.src.features.settings.components.providers.openai-codex.formatOpenAiCodexUsage.clampOpenAiCodexPercent` (L17-L20) - Function
+  - `webview-ui.src.features.settings.components.providers.openai-codex.formatOpenAiCodexUsage.getOpenAiCodexRemainingPercent` (L22-L24) - Function
+  - `webview-ui.src.features.settings.components.providers.openai-codex.formatOpenAiCodexUsage.formatOpenAiCodexRemaining` (L26-L30) - Function
+  - `webview-ui.src.features.settings.components.providers.openai-codex.formatOpenAiCodexUsage.formatOpenAiCodexPlan` (L32-L59) - Function
+  - `webview-ui.src.features.settings.components.providers.openai-codex.formatOpenAiCodexUsage.humanizeOpenAiCodexValue` (L61-L65) - Function
+  - `webview-ui.src.features.settings.components.providers.openai-codex.formatOpenAiCodexUsage.humanizeOpenAiCodexValue.spaced.replace() callback` (L64-L64) - Function
+  - `webview-ui.src.features.settings.components.providers.openai-codex.formatOpenAiCodexUsage.approximately` (L67-L69) - Function
+  - `webview-ui.src.features.settings.components.providers.openai-codex.formatOpenAiCodexUsage.formatOpenAiCodexWindowDuration` (L71-L89) - Function
+  - `webview-ui.src.features.settings.components.providers.openai-codex.formatOpenAiCodexUsage.selectOpenAiCodexDisplayWindows` (L91-L119) - Function
+  - `webview-ui.src.features.settings.components.providers.openai-codex.formatOpenAiCodexUsage.selectOpenAiCodexDisplayWindows.buckets` (L93-L97) - Class
+  - `webview-ui.src.features.settings.components.providers.openai-codex.formatOpenAiCodexUsage.selectOpenAiCodexDisplayWindows.buckets.sort() callback` (L93-L97) - Function
+  - `webview-ui.src.features.settings.components.providers.openai-codex.formatOpenAiCodexUsage.selectOpenAiCodexDisplayWindows.buckets.flatMap() callback` (L99-L118) - Function
+  - `webview-ui.src.features.settings.components.providers.openai-codex.formatOpenAiCodexUsage.selectOpenAiCodexDisplayWindows.buckets.flatMap() callback.windows.sort() callback` (L117-L117) - Function
+  - `webview-ui.src.features.settings.components.providers.openai-codex.formatOpenAiCodexUsage.formatRelativeDuration` (L121-L129) - Function
+  - `webview-ui.src.features.settings.components.providers.openai-codex.formatOpenAiCodexUsage.formatOpenAiCodexReset` (L131-L156) - Function
+  - `webview-ui.src.features.settings.components.providers.openai-codex.formatOpenAiCodexUsage.getOpenAiCodexQuotaFetchedAt` (L158-L160) - Function
+  - `webview-ui.src.features.settings.components.providers.openai-codex.formatOpenAiCodexUsage.formatOpenAiCodexActivityDate` (L162-L175) - Function
+  - `webview-ui.src.features.settings.components.providers.openai-codex.formatOpenAiCodexUsage.formatOpenAiCodexFreshness` (L177-L186) - Function
+  - `webview-ui.src.features.settings.components.providers.openai-codex.formatOpenAiCodexUsage.formatOpenAiCodexNumber` (L188-L190) - Function
+  - `webview-ui.src.features.settings.components.providers.openai-codex.formatOpenAiCodexUsage.formatOpenAiCodexDuration` (L192-L198) - Function
+- `webview-ui/src/features/settings/components/sections/AboutSection.tsx`
+  - `webview-ui.src.features.settings.components.sections.AboutSection.AboutSectionProps` (L4-L7) - Interface
+- `webview-ui/src/features/settings/components/sections/ApiConfigurationSection.tsx`
+  - `webview-ui.src.features.settings.components.sections.ApiConfigurationSection.ApiConfigurationSectionProps` (L13-L15) - Interface
+  - `webview-ui.src.features.settings.components.sections.ApiConfigurationSection.ApiConfigurationSection` (L17-L90) - Class
+  - `webview-ui.src.features.settings.components.sections.ApiConfigurationSection.ApiConfigurationSection.<function>` (L64-L79) - Function
+- `webview-ui/src/features/settings/components/sections/ApprovalsSettingsSection.tsx`
+  - `webview-ui.src.features.settings.components.sections.ApprovalsSettingsSection.ApprovalsSettingsSectionProps` (L14-L16) - Interface
+  - `webview-ui.src.features.settings.components.sections.ApprovalsSettingsSection.ApprovalsSettingsSection` (L18-L134) - Class
+  - `webview-ui.src.features.settings.components.sections.ApprovalsSettingsSection.ApprovalsSettingsSection.navigateToSettings` (L19-L19) - Class
+  - `webview-ui.src.features.settings.components.sections.ApprovalsSettingsSection.ApprovalsSettingsSection.navigateToSettings.useAppStore() callback` (L19-L19) - Function
+  - `webview-ui.src.features.settings.components.sections.ApprovalsSettingsSection.ApprovalsSettingsSection.ACTION_METADATA.map() callback` (L49-L57) - Function
+- `webview-ui/src/features/settings/components/sections/BrowserSettingsSection.tsx`
+  - `webview-ui.src.features.settings.components.sections.BrowserSettingsSection.BrowserSettingsSectionProps` (L21-L23) - Interface
+  - `webview-ui.src.features.settings.components.sections.BrowserSettingsSection.BrowserSettingsSection` (L57-L382) - Class
+  - `webview-ui.src.features.settings.components.sections.BrowserSettingsSection.useEffect() callback` (L67-L74) - Function
+  - `webview-ui.src.features.settings.components.sections.BrowserSettingsSection.BrowserSettingsSection.useEffect() callback.timer` (L69-L71) - Class
+  - `webview-ui.src.features.settings.components.sections.BrowserSettingsSection.BrowserSettingsSection.useEffect() callback.timer.setTimeout() callback` (L69-L71) - Function
+  - `webview-ui.src.features.settings.components.sections.BrowserSettingsSection.BrowserSettingsSection.useEffect() callback.then() callback` (L79-L82) - Function
+  - `webview-ui.src.features.settings.components.sections.BrowserSettingsSection.BrowserSettingsSection.useEffect() callback.catch() callback` (L83-L85) - Function
+  - `webview-ui.src.features.settings.components.sections.BrowserSettingsSection.BrowserSettingsSection.checkConnectionOnce` (L89-L109) - Class
+  - `webview-ui.src.features.settings.components.sections.BrowserSettingsSection.BrowserSettingsSection.checkConnectionOnce.useCallback() callback` (L89-L109) - Function
+  - `webview-ui.src.features.settings.components.sections.BrowserSettingsSection.checkConnectionOnce.useCallback() callback.then() callback` (L92-L94) - Function
+  - `webview-ui.src.features.settings.components.sections.BrowserSettingsSection.checkConnectionOnce.useCallback() callback.catch() callback` (L95-L98) - Function
+  - `webview-ui.src.features.settings.components.sections.BrowserSettingsSection.BrowserSettingsSection.checkConnectionOnce.useCallback() callback.then() callback` (L101-L103) - Function
+  - `webview-ui.src.features.settings.components.sections.BrowserSettingsSection.BrowserSettingsSection.checkConnectionOnce.useCallback() callback.catch() callback` (L104-L107) - Function
+  - `webview-ui.src.features.settings.components.sections.BrowserSettingsSection.BrowserSettingsSection.useEffect() callback` (L112-L124) - Function
+  - `webview-ui.src.features.settings.components.sections.BrowserSettingsSection.BrowserSettingsSection.useEffect() callback.pollInterval` (L119-L121) - Class
+  - `webview-ui.src.features.settings.components.sections.BrowserSettingsSection.BrowserSettingsSection.useEffect() callback.pollInterval.setInterval() callback` (L119-L121) - Function
+  - `webview-ui.src.features.settings.components.sections.BrowserSettingsSection.BrowserSettingsSection.handleViewportChange` (L126-L137) - Method
+  - `webview-ui.src.features.settings.components.sections.BrowserSettingsSection.BrowserSettingsSection.relaunchChromeDebugMode` (L139-L159) - Class
+  - `webview-ui.src.features.settings.components.sections.BrowserSettingsSection.BrowserSettingsSection.relaunchChromeDebugMode.then() callback` (L144-L150) - Function
+  - `webview-ui.src.features.settings.components.sections.BrowserSettingsSection.BrowserSettingsSection.relaunchChromeDebugMode.catch() callback` (L151-L158) - Function
+  - `webview-ui.src.features.settings.components.sections.BrowserSettingsSection.BrowserSettingsSection.find() callback` (L198-L204) - Function
+  - `webview-ui.src.features.settings.components.sections.BrowserSettingsSection.BrowserSettingsSection.map() callback` (L206-L210) - Function
+  - `webview-ui.src.features.settings.components.sections.BrowserSettingsSection.<function>` (L235-L242) - Function
+  - `webview-ui.src.features.settings.components.sections.BrowserSettingsSection.BrowserSettingsSection.<function>` (L363-L363) - Function
+- `webview-ui/src/features/settings/components/sections/DebugSection.tsx`
+  - `webview-ui.src.features.settings.components.sections.DebugSection.DebugSectionProps` (L6-L9) - Interface
+  - `webview-ui.src.features.settings.components.sections.DebugSection.DebugSection` (L11-L40) - Class
+  - `webview-ui.src.features.settings.components.sections.DebugSection.DebugSection.<function>` (L29-L32) - Function
+  - `webview-ui.src.features.settings.components.sections.DebugSection.DebugSection.<function>.catch() callback` (L31-L31) - Function
+  - `webview-ui.src.features.settings.components.sections.DebugSection.DebugSection.<function>.finally() callback` (L32-L32) - Function
+- `webview-ui/src/features/settings/components/sections/FeatureSettingsSection.tsx`
+  - `webview-ui.src.features.settings.components.sections.FeatureSettingsSection.FeatureCheckboxProps` (L10-L20) - Interface
+  - `webview-ui.src.features.settings.components.sections.FeatureSettingsSection.FeatureToggle` (L23-L31) - Interface
+  - `webview-ui.src.features.settings.components.sections.FeatureSettingsSection.FeatureRow` (L131-L183) - Class
+  - `webview-ui.src.features.settings.components.sections.FeatureSettingsSection.FeatureRow.memo() callback` (L132-L182) - Function
+  - `webview-ui.src.features.settings.components.sections.FeatureSettingsSection.FeatureSettingsSectionProps` (L185-L187) - Interface
+  - `webview-ui.src.features.settings.components.sections.FeatureSettingsSection.FeatureSettingsSection` (L189-L334) - Class
+  - `webview-ui.src.features.settings.components.sections.FeatureSettingsSection.FeatureSettingsSection.handleFeatureChange` (L231-L239) - Class
+  - `webview-ui.src.features.settings.components.sections.FeatureSettingsSection.FeatureSettingsSection.handleFeatureChange.useCallback() callback` (L231-L239) - Function
+  - `webview-ui.src.features.settings.components.sections.FeatureSettingsSection.FeatureSettingsSection.agentFeatures.map() callback` (L252-L264) - Function
+  - `webview-ui.src.features.settings.components.sections.FeatureSettingsSection.FeatureSettingsSection.editorFeatures.map() callback` (L274-L284) - Function
+  - `webview-ui.src.features.settings.components.sections.FeatureSettingsSection.FeatureSettingsSection.experimentalFeatures.map() callback` (L294-L307) - Function
+  - `webview-ui.src.features.settings.components.sections.FeatureSettingsSection.FeatureSettingsSection.advancedFeatures.map() callback` (L317-L327) - Function
+- `webview-ui/src/features/settings/components/sections/GeneralSettingsSection.tsx`
+  - `webview-ui.src.features.settings.components.sections.GeneralSettingsSection.GeneralSettingsSectionProps` (L9-L13) - Interface
+  - `webview-ui.src.features.settings.components.sections.GeneralSettingsSection.GeneralSettingsSection` (L15-L118) - Class
+  - `webview-ui.src.features.settings.components.sections.GeneralSettingsSection.GeneralSettingsSection.<function>` (L99-L104) - Function
+  - `webview-ui.src.features.settings.components.sections.GeneralSettingsSection.GeneralSettingsSection.<function>.then() callback` (L100-L103) - Function
+  - `webview-ui.src.features.settings.components.sections.GeneralSettingsSection.GeneralSettingsSection.<function>.then() callback.finally() callback` (L103-L103) - Function
+- `webview-ui/src/features/settings/components/sections/ResponsesContextSection.tsx`
+  - `webview-ui.src.features.settings.components.sections.ResponsesContextSection.ResponsesContextSectionProps` (L11-L13) - Interface
+- `webview-ui/src/features/settings/components/sections/RunningTasksSection.tsx`
+  - `webview-ui.src.features.settings.components.sections.RunningTasksSection.RunningTasksSectionProps` (L6-L8) - Interface
+  - `webview-ui.src.features.settings.components.sections.RunningTasksSection.TaskSetting` (L18-L25) - Interface
+  - `webview-ui.src.features.settings.components.sections.RunningTasksSection.RunningTasksSection` (L27-L113) - Class
+  - `webview-ui.src.features.settings.components.sections.RunningTasksSection.RunningTasksSection.settings.filter() callback` (L91-L91) - Function
+  - `webview-ui.src.features.settings.components.sections.RunningTasksSection.RunningTasksSection.map() callback` (L92-L108) - Function
+- `webview-ui/src/features/settings/components/sections/TerminalSettingsSection.tsx`
+  - `webview-ui.src.features.settings.components.sections.TerminalSettingsSection.TerminalSettingsSectionProps` (L12-L14) - Interface
+  - `webview-ui.src.features.settings.components.sections.TerminalSettingsSection.TerminalSettingsSection` (L16-L180) - Class
+  - `webview-ui.src.features.settings.components.sections.TerminalSettingsSection.TerminalSettingsSection.useEffect() callback` (L28-L30) - Function
+  - `webview-ui.src.features.settings.components.sections.TerminalSettingsSection.TerminalSettingsSection.handleTimeoutChange` (L35-L62) - Class
+  - `webview-ui.src.features.settings.components.sections.TerminalSettingsSection.TerminalSettingsSection.handleTimeoutChange.then() callback` (L51-L58) - Function
+  - `webview-ui.src.features.settings.components.sections.TerminalSettingsSection.TerminalSettingsSection.handleTimeoutChange.catch() callback` (L59-L61) - Function
+  - `webview-ui.src.features.settings.components.sections.TerminalSettingsSection.TerminalSettingsSection.handleInputBlur` (L64-L69) - Method
+  - `webview-ui.src.features.settings.components.sections.TerminalSettingsSection.TerminalSettingsSection.handleTerminalReuseChange` (L71-L75) - Method
+  - `webview-ui.src.features.settings.components.sections.TerminalSettingsSection.TerminalSettingsSection.handleExecutionModeChange` (L77-L81) - Method
+  - `webview-ui.src.features.settings.components.sections.TerminalSettingsSection.TerminalSettingsSection.handleDefaultTerminalProfileChange` (L84-L90) - Method
+  - `webview-ui.src.features.settings.components.sections.TerminalSettingsSection.TerminalSettingsSection.profilesToShow.map() callback` (L108-L112) - Function
+- `webview-ui/src/features/settings/components/sections/ToolTogglePanel.tsx`
+  - `webview-ui.src.features.settings.components.sections.ToolTogglePanel.ToolToggleRowProps` (L21-L26) - Interface
+  - `webview-ui.src.features.settings.components.sections.ToolTogglePanel.ToolToggleRow` (L28-L67) - Class
+  - `webview-ui.src.features.settings.components.sections.ToolTogglePanel.ToolToggleRow.memo() callback` (L28-L67) - Function
+  - `webview-ui.src.features.settings.components.sections.ToolTogglePanel.ToolTogglePanelProps` (L70-L72) - Interface
+  - `webview-ui.src.features.settings.components.sections.ToolTogglePanel.ToolTogglePanel` (L74-L167) - Class
+  - `webview-ui.src.features.settings.components.sections.ToolTogglePanel.ToolTogglePanel.filteredTools` (L78-L84) - Class
+  - `webview-ui.src.features.settings.components.sections.ToolTogglePanel.ToolTogglePanel.filteredTools.useMemo() callback` (L78-L84) - Function
+  - `webview-ui.src.features.settings.components.sections.ToolTogglePanel.ToolTogglePanel.filteredTools.useMemo() callback.availableTools.filter() callback` (L82-L82) - Function
+  - `webview-ui.src.features.settings.components.sections.ToolTogglePanel.ToolTogglePanel.groupedTools` (L86-L95) - Class
+  - `webview-ui.src.features.settings.components.sections.ToolTogglePanel.ToolTogglePanel.groupedTools.useMemo() callback` (L86-L95) - Function
+  - `webview-ui.src.features.settings.components.sections.ToolTogglePanel.ToolTogglePanel.groupedTools.useMemo() callback.tools` (L89-L89) - Class
+  - `webview-ui.src.features.settings.components.sections.ToolTogglePanel.ToolTogglePanel.groupedTools.useMemo() callback.tools.filteredTools.filter() callback` (L89-L89) - Function
+  - `webview-ui.src.features.settings.components.sections.ToolTogglePanel.ToolTogglePanel.groupedTools.useMemo() callback.tools.sort() callback` (L91-L91) - Function
+  - `webview-ui.src.features.settings.components.sections.ToolTogglePanel.ToolTogglePanel.handleToggle` (L97-L107) - Class
+  - `webview-ui.src.features.settings.components.sections.ToolTogglePanel.ToolTogglePanel.handleToggle.useCallback() callback` (L98-L105) - Function
+  - `webview-ui.src.features.settings.components.sections.ToolTogglePanel.ToolTogglePanel.handleToggle.useCallback() callback.catch() callback` (L101-L103) - Function
+  - `webview-ui.src.features.settings.components.sections.ToolTogglePanel.ToolTogglePanel.isToolEnabled` (L109-L118) - Class
+  - `webview-ui.src.features.settings.components.sections.ToolTogglePanel.ToolTogglePanel.isToolEnabled.useCallback() callback` (L110-L116) - Function
+  - `webview-ui.src.features.settings.components.sections.ToolTogglePanel.ToolTogglePanel.SOURCE_ORDER.map() callback` (L140-L161) - Function
+  - `webview-ui.src.features.settings.components.sections.ToolTogglePanel.ToolTogglePanel.SOURCE_ORDER.map() callback.tools.map() callback` (L149-L157) - Function
+- `webview-ui/src/features/settings/components/sections/ToolsSettingsSection.tsx`
+  - `webview-ui.src.features.settings.components.sections.ToolsSettingsSection.ToolsSettingsSectionProps` (L7-L9) - Interface
+- `webview-ui/src/features/settings/components/sections/UserApprovedCommandsSection.tsx`
+  - `webview-ui.src.features.settings.components.sections.UserApprovedCommandsSection.UserApprovedCommandsSectionProps` (L9-L11) - Interface
+  - `webview-ui.src.features.settings.components.sections.UserApprovedCommandsSection.UserApprovedCommandsSection` (L13-L225) - Class
+  - `webview-ui.src.features.settings.components.sections.UserApprovedCommandsSection.UserApprovedCommandsSection.userApprovedCommands` (L14-L14) - Class
+  - `webview-ui.src.features.settings.components.sections.UserApprovedCommandsSection.UserApprovedCommandsSection.userApprovedCommands.useSettingsStore() callback` (L14-L14) - Function
+  - `webview-ui.src.features.settings.components.sections.UserApprovedCommandsSection.useEffect() callback` (L24-L26) - Function
+  - `webview-ui.src.features.settings.components.sections.UserApprovedCommandsSection.UserApprovedCommandsSection.useEffect() callback` (L28-L31) - Function
+  - `webview-ui.src.features.settings.components.sections.UserApprovedCommandsSection.UserApprovedCommandsSection.cancelEdit` (L33-L38) - Method
+  - `webview-ui.src.features.settings.components.sections.UserApprovedCommandsSection.UserApprovedCommandsSection.persistCommands` (L40-L56) - Method
+  - `webview-ui.src.features.settings.components.sections.UserApprovedCommandsSection.UserApprovedCommandsSection.save` (L58-L83) - Method
+  - `webview-ui.src.features.settings.components.sections.UserApprovedCommandsSection.UserApprovedCommandsSection.save.duplicate` (L70-L73) - Class
+  - `webview-ui.src.features.settings.components.sections.UserApprovedCommandsSection.UserApprovedCommandsSection.save.duplicate.userApprovedCommands.some() callback` (L71-L72) - Function
+  - `webview-ui.src.features.settings.components.sections.UserApprovedCommandsSection.UserApprovedCommandsSection.edit` (L85-L91) - Method
+  - `webview-ui.src.features.settings.components.sections.UserApprovedCommandsSection.UserApprovedCommandsSection.remove` (L93-L96) - Class
+  - `webview-ui.src.features.settings.components.sections.UserApprovedCommandsSection.UserApprovedCommandsSection.remove.userApprovedCommands.filter() callback` (L95-L95) - Function
+  - `webview-ui.src.features.settings.components.sections.UserApprovedCommandsSection.UserApprovedCommandsSection.userApprovedCommands.map() callback` (L198-L219) - Function
+- `webview-ui/src/features/settings/components/sections/UtilityModelSection.tsx`
+  - `webview-ui.src.features.settings.components.sections.UtilityModelSection.UtilityModelSectionProps` (L4-L6) - Interface
+- `webview-ui/src/features/settings/components/utils/providerUtils.ts`
+  - `webview-ui.src.features.settings.components.utils.providerUtils.getReasoningEffortOptionsForModelId` (L73-L75) - Function
+  - `webview-ui.src.features.settings.components.utils.providerUtils.resolveReasoningEffortForModelId` (L77-L83) - Function
+  - `webview-ui.src.features.settings.components.utils.providerUtils.supportsReasoningEffortForModelId` (L85-L87) - Function
+  - `webview-ui.src.features.settings.components.utils.providerUtils.getModelsForProvider` (L94-L172) - Function
+  - `webview-ui.src.features.settings.components.utils.providerUtils.NormalizedApiConfig` (L179-L183) - Interface
+  - `webview-ui.src.features.settings.components.utils.providerUtils.normalizeApiConfiguration` (L188-L476) - Function
+  - `webview-ui.src.features.settings.components.utils.providerUtils.getModeSpecificFields` (L484-L553) - Function
+  - `webview-ui.src.features.settings.components.utils.providerUtils.syncModeConfigurations` (L559-L735) - Function
+- `webview-ui/src/features/settings/components/utils/settingsHandlers.ts`
+  - `webview-ui.src.features.settings.components.utils.settingsHandlers.createUpdateSettingsRequest` (L4-L11) - Function
+  - `webview-ui.src.features.settings.components.utils.settingsHandlers.updateSetting` (L18-L22) - Class
+  - `webview-ui.src.features.settings.components.utils.settingsHandlers.updateSetting.catch() callback` (L19-L21) - Function
+- `webview-ui/src/features/settings/components/utils/useApiConfigurationHandlers.ts`
+  - `webview-ui.src.features.settings.components.utils.useApiConfigurationHandlers.useApiConfigurationHandlers.planActSeparateModelsSetting` (L16-L16) - Class
+  - `webview-ui.src.features.settings.components.utils.useApiConfigurationHandlers.useApiConfigurationHandlers.planActSeparateModelsSetting.useSettingsStore() callback` (L16-L16) - Function
+  - `webview-ui.src.features.settings.components.utils.useApiConfigurationHandlers.handleFieldsChange` (L18-L104) - Class
+  - `webview-ui.src.features.settings.components.utils.useApiConfigurationHandlers.useApiConfigurationHandlers.handleFieldsChange.useCallback() callback` (L18-L104) - Function
+  - `webview-ui.src.features.settings.components.utils.useApiConfigurationHandlers.useApiConfigurationHandlers.handleFieldsChange.useCallback() callback.operation` (L43-L100) - Class
+  - `webview-ui.src.features.settings.components.utils.useApiConfigurationHandlers.useApiConfigurationHandlers.handleFieldsChange.useCallback() callback.operation.apiConfigurationPersistenceQueue.then() callback` (L43-L100) - Function
+  - `webview-ui.src.features.settings.components.utils.useApiConfigurationHandlers.useApiConfigurationHandlers.handleFieldsChange.useCallback() callback.operation.then() callback` (L102-L102) - Function
+  - `webview-ui.src.features.settings.components.utils.useApiConfigurationHandlers.handleFieldChange` (L106-L110) - Class
+  - `webview-ui.src.features.settings.components.utils.useApiConfigurationHandlers.useApiConfigurationHandlers.handleFieldChange.useCallback() callback` (L107-L108) - Function
+  - `webview-ui.src.features.settings.components.utils.useApiConfigurationHandlers.handleModeFieldChange` (L112-L127) - Class
+  - `webview-ui.src.features.settings.components.utils.useApiConfigurationHandlers.useApiConfigurationHandlers.handleModeFieldChange.useCallback() callback` (L113-L125) - Function
+  - `webview-ui.src.features.settings.components.utils.useApiConfigurationHandlers.handleModeFieldsChange` (L129-L147) - Class
+  - `webview-ui.src.features.settings.components.utils.useApiConfigurationHandlers.useApiConfigurationHandlers.handleModeFieldsChange.useCallback() callback` (L130-L145) - Function
+  - `webview-ui.src.features.settings.components.utils.useApiConfigurationHandlers.useApiConfigurationHandlers.handleModeFieldsChange.useCallback() callback.forEach() callback` (L136-L143) - Function
+- `webview-ui/src/features/settings/components/utils/useDebouncedInput.ts`
+  - `webview-ui.src.features.settings.components.utils.useDebouncedInput.useDebouncedInput` (L13-L50) - Function
+  - `webview-ui.src.features.settings.components.utils.useDebouncedInput.useDebouncedInput.useEffect() callback` (L24-L35) - Function
+  - `webview-ui.src.features.settings.components.utils.useDebouncedInput.useDebouncedInput.useDebounceEffect() callback` (L39-L44) - Function
+- `webview-ui/src/features/settings/store/modelsStore.ts`
+  - `webview-ui.src.features.settings.store.modelsStore.ModelsState` (L13-L34) - Interface
+  - `webview-ui.src.features.settings.store.modelsStore.useModelsStore` (L36-L63) - Class
+  - `webview-ui.src.features.settings.store.modelsStore.useModelsStore.create() callback` (L36-L63) - Function
+  - `webview-ui.src.features.settings.store.modelsStore.useModelsStore.create() callback.setOnboardingModels` (L54-L54) - Method
+  - `webview-ui.src.features.settings.store.modelsStore.useModelsStore.create() callback.setOpenRouterModels` (L55-L55) - Method
+  - `webview-ui.src.features.settings.store.modelsStore.useModelsStore.create() callback.setVercelAiGatewayModels` (L56-L56) - Method
+  - `webview-ui.src.features.settings.store.modelsStore.useModelsStore.create() callback.setLiteLlmModels` (L57-L57) - Method
+  - `webview-ui.src.features.settings.store.modelsStore.useModelsStore.create() callback.setOpenAiModels` (L58-L58) - Method
+  - `webview-ui.src.features.settings.store.modelsStore.useModelsStore.create() callback.setRequestyModels` (L59-L59) - Method
+  - `webview-ui.src.features.settings.store.modelsStore.useModelsStore.create() callback.setGroqModels` (L60-L60) - Method
+  - `webview-ui.src.features.settings.store.modelsStore.useModelsStore.create() callback.setBasetenModels` (L61-L61) - Method
+  - `webview-ui.src.features.settings.store.modelsStore.useModelsStore.create() callback.setHuggingFaceModels` (L62-L62) - Method
+- `webview-ui/src/features/settings/store/settingsStore.ts`
+  - `webview-ui.src.features.settings.store.settingsStore.OpenRouterEndpointState` (L34-L38) - Interface
+  - `webview-ui.src.features.settings.store.settingsStore.SettingsState` (L40-L194) - Interface
+  - `webview-ui.src.features.settings.store.settingsStore.useSettingsStore` (L198-L585) - Class
+  - `webview-ui.src.features.settings.store.settingsStore.useSettingsStore.create() callback` (L198-L585) - Function
+  - `webview-ui.src.features.settings.store.settingsStore.useSettingsStore.create() callback.navigateToAccount` (L278-L278) - Method
+  - `webview-ui.src.features.settings.store.settingsStore.useSettingsStore.create() callback.setShowWelcome` (L279-L279) - Method
+  - `webview-ui.src.features.settings.store.settingsStore.useSettingsStore.create() callback.refreshTerminalProfiles` (L282-L291) - Method
+  - `webview-ui.src.features.settings.store.settingsStore.useSettingsStore.create() callback.fetchOpenRouterEndpoints` (L295-L337) - Method
+  - `webview-ui.src.features.settings.store.settingsStore.create() callback.fetchOpenRouterEndpoints.set() callback` (L297-L302) - Function
+  - `webview-ui.src.features.settings.store.settingsStore.useSettingsStore.create() callback.fetchOpenRouterEndpoints.set() callback` (L326-L335) - Function
+  - `webview-ui.src.features.settings.store.settingsStore.useSettingsStore.create() callback.refreshOpenRouterModels` (L338-L347) - Method
+  - `webview-ui.src.features.settings.store.settingsStore.useSettingsStore.create() callback.refreshOpenRouterModelRankings` (L348-L355) - Method
+  - `webview-ui.src.features.settings.store.settingsStore.useSettingsStore.create() callback.refreshOpenAiModels` (L356-L376) - Method
+  - `webview-ui.src.features.settings.store.settingsStore.useSettingsStore.create() callback.refreshOpenAiModels.response.values.forEach() callback` (L366-L370) - Function
+  - `webview-ui.src.features.settings.store.settingsStore.useSettingsStore.create() callback.refreshVercelAiGatewayModels` (L379-L388) - Method
+  - `webview-ui.src.features.settings.store.settingsStore.useSettingsStore.create() callback.refreshLiteLlmModels` (L391-L403) - Method
+  - `webview-ui.src.features.settings.store.settingsStore.useSettingsStore.create() callback.refreshOpenAiCodexUsage` (L425-L456) - Method
+  - `webview-ui.src.features.settings.store.settingsStore.useSettingsStore.create() callback.onRelinquishControl` (L468-L468) - Method
+  - `webview-ui.src.features.settings.store.settingsStore.useSettingsStore.create() callback.setDiracMessages` (L469-L469) - Method
+  - `webview-ui.src.features.settings.store.settingsStore.useSettingsStore.create() callback.setTaskHistory` (L470-L470) - Method
+  - `webview-ui.src.features.settings.store.settingsStore.useSettingsStore.create() callback.setExpandTaskHeader` (L471-L471) - Method
+  - `webview-ui.src.features.settings.store.settingsStore.useSettingsStore.create() callback.setTotalTasksSize` (L472-L472) - Method
+  - `webview-ui.src.features.settings.store.settingsStore.useSettingsStore.create() callback.setGlobalDiracRulesToggles` (L473-L473) - Method
+  - `webview-ui.src.features.settings.store.settingsStore.useSettingsStore.create() callback.setLocalDiracRulesToggles` (L474-L474) - Method
+  - `webview-ui.src.features.settings.store.settingsStore.useSettingsStore.create() callback.setLocalCursorRulesToggles` (L475-L475) - Method
+  - `webview-ui.src.features.settings.store.settingsStore.useSettingsStore.create() callback.setLocalWindsurfRulesToggles` (L476-L476) - Method
+  - `webview-ui.src.features.settings.store.settingsStore.useSettingsStore.create() callback.setLocalAgentsRulesToggles` (L477-L477) - Method
+  - `webview-ui.src.features.settings.store.settingsStore.useSettingsStore.create() callback.setLocalWorkflowToggles` (L478-L478) - Method
+  - `webview-ui.src.features.settings.store.settingsStore.useSettingsStore.create() callback.setGlobalWorkflowToggles` (L479-L479) - Method
+  - `webview-ui.src.features.settings.store.settingsStore.useSettingsStore.create() callback.setGlobalSkillsToggles` (L480-L480) - Method
+  - `webview-ui.src.features.settings.store.settingsStore.useSettingsStore.create() callback.setLocalSkillsToggles` (L481-L481) - Method
+  - `webview-ui.src.features.settings.store.settingsStore.useSettingsStore.create() callback.setRemoteRulesToggles` (L482-L482) - Method
+  - `webview-ui.src.features.settings.store.settingsStore.useSettingsStore.create() callback.setRemoteWorkflowToggles` (L483-L483) - Method
+  - `webview-ui.src.features.settings.store.settingsStore.useSettingsStore.create() callback.setAvailableTools` (L484-L484) - Method
+  - `webview-ui.src.features.settings.store.settingsStore.useSettingsStore.create() callback.setToolToggles` (L485-L485) - Method
+  - `webview-ui.src.features.settings.store.settingsStore.useSettingsStore.create() callback.setGroqModels` (L486-L486) - Method
+  - `webview-ui.src.features.settings.store.settingsStore.useSettingsStore.create() callback.setHuggingFaceModels` (L487-L487) - Method
+  - `webview-ui.src.features.settings.store.settingsStore.useSettingsStore.create() callback.setRequestyModels` (L488-L488) - Method
+  - `webview-ui.src.features.settings.store.settingsStore.useSettingsStore.create() callback.refreshBasetenModels` (L489-L502) - Method
+  - `webview-ui.src.features.settings.store.settingsStore.useSettingsStore.create() callback.refreshGroqModels` (L503-L515) - Method
+  - `webview-ui.src.features.settings.store.settingsStore.useSettingsStore.create() callback.refreshHuggingFaceModels` (L516-L523) - Method
+  - `webview-ui.src.features.settings.store.settingsStore.useSettingsStore.create() callback.refreshRequestyModels` (L524-L536) - Method
+  - `webview-ui.src.features.settings.store.settingsStore.useSettingsStore.create() callback.beginAutoApproveAllUpdate` (L537-L542) - Method
+  - `webview-ui.src.features.settings.store.settingsStore.useSettingsStore.create() callback.finishAutoApproveAllUpdate` (L543-L548) - Method
+  - `webview-ui.src.features.settings.store.settingsStore.useSettingsStore.create() callback.setSettings` (L550-L584) - Method
+  - `webview-ui.src.features.settings.store.settingsStore.useSettingsStore.create() callback.setSettings.set() callback` (L551-L584) - Function
+- `webview-ui/src/features/worktrees/components/CreateWorktreeModal.tsx`
+  - `webview-ui.src.features.worktrees.components.CreateWorktreeModal.CreateWorktreeModalProps` (L8-L15) - Interface
+  - `webview-ui.src.features.worktrees.components.CreateWorktreeModal.CreateWorktreeModal` (L17-L225) - Class
+  - `webview-ui.src.features.worktrees.components.CreateWorktreeModal.CreateWorktreeModal.closeModal` (L27-L29) - Class
+  - `webview-ui.src.features.worktrees.components.CreateWorktreeModal.CreateWorktreeModal.closeModal.useCallback() callback` (L27-L29) - Function
+  - `webview-ui.src.features.worktrees.components.CreateWorktreeModal.useEffect() callback` (L31-L63) - Function
+  - `webview-ui.src.features.worktrees.components.CreateWorktreeModal.CreateWorktreeModal.useEffect() callback.then() callback` (L50-L55) - Function
+  - `webview-ui.src.features.worktrees.components.CreateWorktreeModal.CreateWorktreeModal.useEffect() callback.catch() callback` (L56-L59) - Function
+  - `webview-ui.src.features.worktrees.components.CreateWorktreeModal.CreateWorktreeModal.useEffect() callback.finally() callback` (L60-L62) - Function
+  - `webview-ui.src.features.worktrees.components.CreateWorktreeModal.CreateWorktreeModal.useEffect() callback` (L65-L72) - Function
+  - `webview-ui.src.features.worktrees.components.CreateWorktreeModal.CreateWorktreeModal.handleCreateWorktree` (L74-L112) - Class
+  - `webview-ui.src.features.worktrees.components.CreateWorktreeModal.CreateWorktreeModal.handleCreateWorktree.useCallback() callback` (L74-L112) - Function
+- `webview-ui/src/features/worktrees/components/DeleteWorktreeModal.tsx`
+  - `webview-ui.src.features.worktrees.components.DeleteWorktreeModal.DeleteWorktreeModalProps` (L6-L12) - Interface
+  - `webview-ui.src.features.worktrees.components.DeleteWorktreeModal.DeleteWorktreeModal` (L14-L123) - Class
+  - `webview-ui.src.features.worktrees.components.DeleteWorktreeModal.DeleteWorktreeModal.closeModal` (L19-L21) - Class
+  - `webview-ui.src.features.worktrees.components.DeleteWorktreeModal.DeleteWorktreeModal.closeModal.useCallback() callback` (L19-L21) - Function
+  - `webview-ui.src.features.worktrees.components.DeleteWorktreeModal.useEffect() callback` (L23-L29) - Function
+  - `webview-ui.src.features.worktrees.components.DeleteWorktreeModal.DeleteWorktreeModal.useEffect() callback` (L31-L38) - Function
+  - `webview-ui.src.features.worktrees.components.DeleteWorktreeModal.DeleteWorktreeModal.handleDelete` (L40-L52) - Class
+  - `webview-ui.src.features.worktrees.components.DeleteWorktreeModal.DeleteWorktreeModal.handleDelete.useCallback() callback` (L40-L52) - Function
+- `webview-ui/src/features/worktrees/components/WorktreesView.tsx`
+  - `webview-ui.src.features.worktrees.components.WorktreesView.WorktreesView` (L25-L617) - Class
+  - `webview-ui.src.features.worktrees.components.WorktreesView.WorktreesView.environment` (L26-L26) - Class
+  - `webview-ui.src.features.worktrees.components.WorktreesView.WorktreesView.environment.useSettingsStore() callback` (L26-L26) - Function
+  - `webview-ui.src.features.worktrees.components.WorktreesView.WorktreesView.isMainWorktree` (L52-L60) - Class
+  - `webview-ui.src.features.worktrees.components.WorktreesView.WorktreesView.isMainWorktree.useCallback() callback` (L53-L58) - Function
+  - `webview-ui.src.features.worktrees.components.WorktreesView.WorktreesView.loadWorktrees` (L63-L92) - Class
+  - `webview-ui.src.features.worktrees.components.WorktreesView.WorktreesView.loadWorktrees.useCallback() callback` (L63-L92) - Function
+  - `webview-ui.src.features.worktrees.components.WorktreesView.WorktreesView.loadWorktrees.useCallback() callback.loadWorktreesPromiseRef.current.then() callback` (L66-L66) - Function
+  - `webview-ui.src.features.worktrees.components.WorktreesView.WorktreesView.loadWorktrees.useCallback() callback.operation` (L69-L85) - Class
+  - `webview-ui.src.features.worktrees.components.WorktreesView.WorktreesView.loadWorktrees.useCallback() callback.operation.<function>` (L69-L85) - Function
+  - `webview-ui.src.features.worktrees.components.WorktreesView.WorktreesView.loadWorktrees.useCallback() callback.operation.<function>.setWorktrees() callback` (L72-L73) - Function
+  - `webview-ui.src.features.worktrees.components.WorktreesView.WorktreesView.loadWorktrees.useCallback() callback.operation.finally() callback` (L88-L90) - Function
+  - `webview-ui.src.features.worktrees.components.WorktreesView.WorktreesView.loadWorktreeIncludeStatus` (L95-L104) - Class
+  - `webview-ui.src.features.worktrees.components.WorktreesView.WorktreesView.loadWorktreeIncludeStatus.useCallback() callback` (L95-L104) - Function
+  - `webview-ui.src.features.worktrees.components.WorktreesView.WorktreesView.handleCreateWorktreeInclude` (L107-L123) - Class
+  - `webview-ui.src.features.worktrees.components.WorktreesView.WorktreesView.handleCreateWorktreeInclude.useCallback() callback` (L107-L123) - Function
+  - `webview-ui.src.features.worktrees.components.WorktreesView.useEffect() callback` (L126-L129) - Function
+  - `webview-ui.src.features.worktrees.components.WorktreesView.WorktreesView.useEffect() callback` (L132-L135) - Function
+  - `webview-ui.src.features.worktrees.components.WorktreesView.WorktreesView.handleDeleteWorktree` (L137-L154) - Class
+  - `webview-ui.src.features.worktrees.components.WorktreesView.WorktreesView.handleDeleteWorktree.useCallback() callback` (L138-L152) - Function
+  - `webview-ui.src.features.worktrees.components.WorktreesView.WorktreesView.handleDeleteWorktree.useCallback() callback.setWorktrees() callback` (L145-L145) - Function
+  - `webview-ui.src.features.worktrees.components.WorktreesView.WorktreesView.handleDeleteWorktree.useCallback() callback.setWorktrees() callback.previous.filter() callback` (L145-L145) - Function
+  - `webview-ui.src.features.worktrees.components.WorktreesView.WorktreesView.handleSwitchWorktree` (L156-L167) - Class
+  - `webview-ui.src.features.worktrees.components.WorktreesView.WorktreesView.handleSwitchWorktree.useCallback() callback` (L156-L167) - Function
+  - `webview-ui.src.features.worktrees.components.WorktreesView.WorktreesView.getMainBranch` (L170-L173) - Class
+  - `webview-ui.src.features.worktrees.components.WorktreesView.WorktreesView.getMainBranch.useCallback() callback` (L170-L173) - Function
+  - `webview-ui.src.features.worktrees.components.WorktreesView.WorktreesView.openMergeModal` (L176-L181) - Class
+  - `webview-ui.src.features.worktrees.components.WorktreesView.WorktreesView.openMergeModal.useCallback() callback` (L176-L181) - Function
+  - `webview-ui.src.features.worktrees.components.WorktreesView.WorktreesView.closeMergeModal` (L184-L188) - Class
+  - `webview-ui.src.features.worktrees.components.WorktreesView.WorktreesView.closeMergeModal.useCallback() callback` (L184-L188) - Function
+  - `webview-ui.src.features.worktrees.components.WorktreesView.WorktreesView.handleMergeWorktree` (L191-L219) - Class
+  - `webview-ui.src.features.worktrees.components.WorktreesView.WorktreesView.handleMergeWorktree.useCallback() callback` (L191-L219) - Function
+  - `webview-ui.src.features.worktrees.components.WorktreesView.WorktreesView.handleAskDiracToResolve` (L222-L239) - Class
+  - `webview-ui.src.features.worktrees.components.WorktreesView.WorktreesView.handleAskDiracToResolve.useCallback() callback` (L222-L239) - Function
+  - `webview-ui.src.features.worktrees.components.WorktreesView.WorktreesView.worktrees.map() callback` (L350-L457) - Function
+  - `webview-ui.src.features.worktrees.components.WorktreesView.WorktreesView.map() callback` (L541-L543) - Function
+- `webview-ui/src/lib/utils.ts`
+  - `webview-ui.src.lib.utils.cn` (L4-L6) - Function
+- `webview-ui/src/setupTests.ts`
+  - `webview-ui.src.setupTests.value.mockImplementation() callback` (L9-L18) - Function
+  - `webview-ui.src.setupTests.vi.stubGlobal("acquireVsCodeApi") callback` (L22-L26) - Function
+- `webview-ui/src/shared/api/grpc-client-base.ts`
+  - `webview-ui.src.shared.api.grpc-client-base.Callbacks` (L11-L15) - Interface
+  - `webview-ui.src.shared.api.grpc-client-base.ProtoBusClient` (L17-L117) - Class
+  - `webview-ui.src.shared.api.grpc-client-base.ProtoBusClient.makeUnaryRequest` (L20-L58) - Method
+  - `webview-ui.src.shared.api.grpc-client-base.ProtoBusClient.makeUnaryRequest.<function>` (L26-L57) - Function
+  - `webview-ui.src.shared.api.grpc-client-base.ProtoBusClient.makeStreamingRequest` (L60-L116) - Method
+  - `webview-ui.src.shared.api.grpc-client-base.ProtoBusClient.makeStreamingRequest.<function>` (L107-L115) - Function
+- `webview-ui/src/shared/api/grpc-client.ts`
+  - `webview-ui.src.shared.api.grpc-client.BrowserServiceClient` (L7-L24) - Class
+  - `webview-ui.src.shared.api.grpc-client.BrowserServiceClient.getBrowserConnectionInfo` (L9-L11) - Method
+  - `webview-ui.src.shared.api.grpc-client.BrowserServiceClient.testBrowserConnection` (L12-L14) - Method
+  - `webview-ui.src.shared.api.grpc-client.BrowserServiceClient.discoverBrowser` (L15-L17) - Method
+  - `webview-ui.src.shared.api.grpc-client.BrowserServiceClient.getDetectedChromePath` (L18-L20) - Method
+  - `webview-ui.src.shared.api.grpc-client.BrowserServiceClient.relaunchChromeDebugMode` (L21-L23) - Method
+  - `webview-ui.src.shared.api.grpc-client.CheckpointsServiceClient` (L25-L39) - Class
+  - `webview-ui.src.shared.api.grpc-client.CheckpointsServiceClient.checkpointDiff` (L27-L29) - Method
+  - `webview-ui.src.shared.api.grpc-client.CheckpointsServiceClient.checkpointRestore` (L30-L32) - Method
+  - `webview-ui.src.shared.api.grpc-client.CheckpointsServiceClient.subscribeToCheckpoints` (L33-L35) - Method
+  - `webview-ui.src.shared.api.grpc-client.CheckpointsServiceClient.getCwdHash` (L36-L38) - Method
+  - `webview-ui.src.shared.api.grpc-client.CommandsServiceClient` (L40-L54) - Class
+  - `webview-ui.src.shared.api.grpc-client.CommandsServiceClient.addToDirac` (L42-L44) - Method
+  - `webview-ui.src.shared.api.grpc-client.CommandsServiceClient.fixWithDirac` (L45-L47) - Method
+  - `webview-ui.src.shared.api.grpc-client.CommandsServiceClient.explainWithDirac` (L48-L50) - Method
+  - `webview-ui.src.shared.api.grpc-client.CommandsServiceClient.improveWithDirac` (L51-L53) - Method
+  - `webview-ui.src.shared.api.grpc-client.FileServiceClient` (L55-L138) - Class
+  - `webview-ui.src.shared.api.grpc-client.FileServiceClient.copyToClipboard` (L57-L59) - Method
+  - `webview-ui.src.shared.api.grpc-client.FileServiceClient.openFile` (L60-L62) - Method
+  - `webview-ui.src.shared.api.grpc-client.FileServiceClient.openImage` (L63-L65) - Method
+  - `webview-ui.src.shared.api.grpc-client.FileServiceClient.openMention` (L66-L68) - Method
+  - `webview-ui.src.shared.api.grpc-client.FileServiceClient.deleteRuleFile` (L69-L71) - Method
+  - `webview-ui.src.shared.api.grpc-client.FileServiceClient.createRuleFile` (L72-L74) - Method
+  - `webview-ui.src.shared.api.grpc-client.FileServiceClient.searchCommits` (L75-L77) - Method
+  - `webview-ui.src.shared.api.grpc-client.FileServiceClient.selectFiles` (L78-L80) - Method
+  - `webview-ui.src.shared.api.grpc-client.FileServiceClient.getRelativePaths` (L81-L83) - Method
+  - `webview-ui.src.shared.api.grpc-client.FileServiceClient.searchFiles` (L84-L86) - Method
+  - `webview-ui.src.shared.api.grpc-client.FileServiceClient.toggleDiracRule` (L87-L89) - Method
+  - `webview-ui.src.shared.api.grpc-client.FileServiceClient.toggleCursorRule` (L90-L92) - Method
+  - `webview-ui.src.shared.api.grpc-client.FileServiceClient.toggleWindsurfRule` (L93-L95) - Method
+  - `webview-ui.src.shared.api.grpc-client.FileServiceClient.toggleAgentsRule` (L96-L98) - Method
+  - `webview-ui.src.shared.api.grpc-client.FileServiceClient.refreshRules` (L99-L101) - Method
+  - `webview-ui.src.shared.api.grpc-client.FileServiceClient.openDiskConversationHistory` (L102-L104) - Method
+  - `webview-ui.src.shared.api.grpc-client.FileServiceClient.toggleWorkflow` (L105-L107) - Method
+  - `webview-ui.src.shared.api.grpc-client.FileServiceClient.ifFileExistsRelativePath` (L108-L110) - Method
+  - `webview-ui.src.shared.api.grpc-client.FileServiceClient.openFileRelativePath` (L111-L113) - Method
+  - `webview-ui.src.shared.api.grpc-client.FileServiceClient.refreshHooks` (L114-L116) - Method
+  - `webview-ui.src.shared.api.grpc-client.FileServiceClient.toggleHook` (L117-L119) - Method
+  - `webview-ui.src.shared.api.grpc-client.FileServiceClient.createHook` (L120-L122) - Method
+  - `webview-ui.src.shared.api.grpc-client.FileServiceClient.deleteHook` (L123-L125) - Method
+  - `webview-ui.src.shared.api.grpc-client.FileServiceClient.refreshSkills` (L126-L128) - Method
+  - `webview-ui.src.shared.api.grpc-client.FileServiceClient.toggleSkill` (L129-L131) - Method
+  - `webview-ui.src.shared.api.grpc-client.FileServiceClient.createSkillFile` (L132-L134) - Method
+  - `webview-ui.src.shared.api.grpc-client.FileServiceClient.deleteSkillFile` (L135-L137) - Method
+  - `webview-ui.src.shared.api.grpc-client.GoalServiceClient` (L139-L159) - Class
+  - `webview-ui.src.shared.api.grpc-client.GoalServiceClient.selectGoal` (L141-L143) - Method
+  - `webview-ui.src.shared.api.grpc-client.GoalServiceClient.resumeGoal` (L144-L146) - Method
+  - `webview-ui.src.shared.api.grpc-client.GoalServiceClient.pauseGoal` (L147-L149) - Method
+  - `webview-ui.src.shared.api.grpc-client.GoalServiceClient.stopGoal` (L150-L152) - Method
+  - `webview-ui.src.shared.api.grpc-client.GoalServiceClient.steerGoal` (L153-L155) - Method
+  - `webview-ui.src.shared.api.grpc-client.GoalServiceClient.sendGoalMessage` (L156-L158) - Method
+  - `webview-ui.src.shared.api.grpc-client.ModelsServiceClient` (L160-L234) - Class
+  - `webview-ui.src.shared.api.grpc-client.ModelsServiceClient.getLmStudioModels` (L162-L164) - Method
+  - `webview-ui.src.shared.api.grpc-client.ModelsServiceClient.getVsCodeLmModels` (L165-L167) - Method
+  - `webview-ui.src.shared.api.grpc-client.ModelsServiceClient.refreshOpenRouterModelsRpc` (L168-L170) - Method
+  - `webview-ui.src.shared.api.grpc-client.ModelsServiceClient.refreshUnbiasedModelsRpc` (L171-L173) - Method
+  - `webview-ui.src.shared.api.grpc-client.ModelsServiceClient.fetchOpenRouterModelRankings` (L174-L176) - Method
+  - `webview-ui.src.shared.api.grpc-client.ModelsServiceClient.refreshHuggingFaceModels` (L177-L179) - Method
+  - `webview-ui.src.shared.api.grpc-client.ModelsServiceClient.refreshOpenAiModels` (L180-L182) - Method
+  - `webview-ui.src.shared.api.grpc-client.ModelsServiceClient.refreshRequestyModels` (L183-L185) - Method
+  - `webview-ui.src.shared.api.grpc-client.ModelsServiceClient.refreshLiteLlmModelsRpc` (L186-L188) - Method
+  - `webview-ui.src.shared.api.grpc-client.ModelsServiceClient.subscribeToOpenRouterModels` (L189-L191) - Method
+  - `webview-ui.src.shared.api.grpc-client.ModelsServiceClient.subscribeToLiteLlmModels` (L192-L194) - Method
+  - `webview-ui.src.shared.api.grpc-client.ModelsServiceClient.updateApiConfigurationProto` (L195-L197) - Method
+  - `webview-ui.src.shared.api.grpc-client.ModelsServiceClient.updateApiConfiguration` (L198-L200) - Method
+  - `webview-ui.src.shared.api.grpc-client.ModelsServiceClient.updateApiConfigurationPartial` (L201-L203) - Method
+  - `webview-ui.src.shared.api.grpc-client.ModelsServiceClient.authenticateOpenAiCodex` (L204-L206) - Method
+  - `webview-ui.src.shared.api.grpc-client.ModelsServiceClient.authenticateUnbiased` (L207-L209) - Method
+  - `webview-ui.src.shared.api.grpc-client.ModelsServiceClient.signOutUnbiased` (L210-L212) - Method
+  - `webview-ui.src.shared.api.grpc-client.ModelsServiceClient.signOutOpenAiCodex` (L213-L215) - Method
+  - `webview-ui.src.shared.api.grpc-client.ModelsServiceClient.refreshOpenAiCodexUsage` (L216-L218) - Method
+  - `webview-ui.src.shared.api.grpc-client.ModelsServiceClient.refreshGroqModelsRpc` (L219-L221) - Method
+  - `webview-ui.src.shared.api.grpc-client.ModelsServiceClient.refreshBasetenModelsRpc` (L222-L224) - Method
+  - `webview-ui.src.shared.api.grpc-client.ModelsServiceClient.getAihubmixModels` (L225-L227) - Method
+  - `webview-ui.src.shared.api.grpc-client.ModelsServiceClient.refreshVercelAiGatewayModelsRpc` (L228-L230) - Method
+  - `webview-ui.src.shared.api.grpc-client.ModelsServiceClient.getOpenRouterEndpoints` (L231-L233) - Method
+  - `webview-ui.src.shared.api.grpc-client.SlashServiceClient` (L235-L243) - Class
+  - `webview-ui.src.shared.api.grpc-client.SlashServiceClient.condense` (L237-L239) - Method
+  - `webview-ui.src.shared.api.grpc-client.SlashServiceClient.getAvailableSlashCommands` (L240-L242) - Method
+  - `webview-ui.src.shared.api.grpc-client.StateServiceClient` (L244-L327) - Class
+  - `webview-ui.src.shared.api.grpc-client.StateServiceClient.getLatestState` (L246-L248) - Method
+  - `webview-ui.src.shared.api.grpc-client.StateServiceClient.updateTerminalConnectionTimeout` (L249-L251) - Method
+  - `webview-ui.src.shared.api.grpc-client.StateServiceClient.updateTerminalReuseEnabled` (L252-L254) - Method
+  - `webview-ui.src.shared.api.grpc-client.StateServiceClient.getAvailableTerminalProfiles` (L255-L257) - Method
+  - `webview-ui.src.shared.api.grpc-client.StateServiceClient.subscribeToState` (L258-L260) - Method
+  - `webview-ui.src.shared.api.grpc-client.StateServiceClient.toggleFavoriteModel` (L261-L263) - Method
+  - `webview-ui.src.shared.api.grpc-client.StateServiceClient.activateModelProviderPreset` (L264-L266) - Method
+  - `webview-ui.src.shared.api.grpc-client.StateServiceClient.resetState` (L267-L269) - Method
+  - `webview-ui.src.shared.api.grpc-client.StateServiceClient.togglePlanActModeProto` (L270-L272) - Method
+  - `webview-ui.src.shared.api.grpc-client.StateServiceClient.updateAutoApprovalSettings` (L273-L275) - Method
+  - `webview-ui.src.shared.api.grpc-client.StateServiceClient.updateSettings` (L276-L278) - Method
+  - `webview-ui.src.shared.api.grpc-client.StateServiceClient.updateSettingsCli` (L279-L281) - Method
+  - `webview-ui.src.shared.api.grpc-client.StateServiceClient.updateTaskSettings` (L282-L284) - Method
+  - `webview-ui.src.shared.api.grpc-client.StateServiceClient.updateTelemetrySetting` (L285-L287) - Method
+  - `webview-ui.src.shared.api.grpc-client.StateServiceClient.captureOnboardingProgress` (L288-L290) - Method
+  - `webview-ui.src.shared.api.grpc-client.StateServiceClient.setWelcomeViewCompleted` (L291-L293) - Method
+  - `webview-ui.src.shared.api.grpc-client.StateServiceClient.updateInfoBannerVersion` (L294-L296) - Method
+  - `webview-ui.src.shared.api.grpc-client.StateServiceClient.updateModelBannerVersion` (L297-L299) - Method
+  - `webview-ui.src.shared.api.grpc-client.StateServiceClient.updateCliBannerVersion` (L300-L302) - Method
+  - `webview-ui.src.shared.api.grpc-client.StateServiceClient.dismissBanner` (L303-L305) - Method
+  - `webview-ui.src.shared.api.grpc-client.StateServiceClient.trackBannerEvent` (L306-L308) - Method
+  - `webview-ui.src.shared.api.grpc-client.StateServiceClient.installDiracCli` (L309-L311) - Method
+  - `webview-ui.src.shared.api.grpc-client.StateServiceClient.checkCliInstallation` (L312-L314) - Method
+  - `webview-ui.src.shared.api.grpc-client.StateServiceClient.getProcessInfo` (L315-L317) - Method
+  - `webview-ui.src.shared.api.grpc-client.StateServiceClient.flushPendingState` (L318-L320) - Method
+  - `webview-ui.src.shared.api.grpc-client.StateServiceClient.testOtelConnection` (L321-L323) - Method
+  - `webview-ui.src.shared.api.grpc-client.StateServiceClient.testPromptUploading` (L324-L326) - Method
+  - `webview-ui.src.shared.api.grpc-client.TaskServiceClient` (L328-L378) - Class
+  - `webview-ui.src.shared.api.grpc-client.TaskServiceClient.cancelTask` (L330-L332) - Method
+  - `webview-ui.src.shared.api.grpc-client.TaskServiceClient.cancelBackgroundCommand` (L333-L335) - Method
+  - `webview-ui.src.shared.api.grpc-client.TaskServiceClient.clearTask` (L336-L338) - Method
+  - `webview-ui.src.shared.api.grpc-client.TaskServiceClient.getTotalTasksSize` (L339-L341) - Method
+  - `webview-ui.src.shared.api.grpc-client.TaskServiceClient.deleteTasksWithIds` (L342-L344) - Method
+  - `webview-ui.src.shared.api.grpc-client.TaskServiceClient.newTask` (L345-L347) - Method
+  - `webview-ui.src.shared.api.grpc-client.TaskServiceClient.showTaskWithId` (L348-L350) - Method
+  - `webview-ui.src.shared.api.grpc-client.TaskServiceClient.exportTaskWithId` (L351-L353) - Method
+  - `webview-ui.src.shared.api.grpc-client.TaskServiceClient.toggleTaskFavorite` (L354-L356) - Method
+  - `webview-ui.src.shared.api.grpc-client.TaskServiceClient.getTaskHistory` (L357-L359) - Method
+  - `webview-ui.src.shared.api.grpc-client.TaskServiceClient.askResponse` (L360-L362) - Method
+  - `webview-ui.src.shared.api.grpc-client.TaskServiceClient.steerTask` (L363-L365) - Method
+  - `webview-ui.src.shared.api.grpc-client.TaskServiceClient.taskFeedback` (L366-L368) - Method
+  - `webview-ui.src.shared.api.grpc-client.TaskServiceClient.taskCompletionViewChanges` (L369-L371) - Method
+  - `webview-ui.src.shared.api.grpc-client.TaskServiceClient.executeQuickWin` (L372-L374) - Method
+  - `webview-ui.src.shared.api.grpc-client.TaskServiceClient.deleteAllTaskHistory` (L375-L377) - Method
+  - `webview-ui.src.shared.api.grpc-client.UiServiceClient` (L379-L429) - Class
+  - `webview-ui.src.shared.api.grpc-client.UiServiceClient.scrollToSettings` (L381-L383) - Method
+  - `webview-ui.src.shared.api.grpc-client.UiServiceClient.setTerminalExecutionMode` (L384-L386) - Method
+  - `webview-ui.src.shared.api.grpc-client.UiServiceClient.onDidShowAnnouncement` (L387-L389) - Method
+  - `webview-ui.src.shared.api.grpc-client.UiServiceClient.subscribeToAddToInput` (L390-L392) - Method
+  - `webview-ui.src.shared.api.grpc-client.UiServiceClient.subscribeToHistoryButtonClicked` (L393-L395) - Method
+  - `webview-ui.src.shared.api.grpc-client.UiServiceClient.subscribeToChatButtonClicked` (L396-L398) - Method
+  - `webview-ui.src.shared.api.grpc-client.UiServiceClient.subscribeToAccountButtonClicked` (L399-L401) - Method
+  - `webview-ui.src.shared.api.grpc-client.UiServiceClient.subscribeToSettingsButtonClicked` (L402-L404) - Method
+  - `webview-ui.src.shared.api.grpc-client.UiServiceClient.subscribeToWorktreesButtonClicked` (L405-L407) - Method
+  - `webview-ui.src.shared.api.grpc-client.UiServiceClient.initializeWebview` (L408-L410) - Method
+  - `webview-ui.src.shared.api.grpc-client.UiServiceClient.subscribeToRelinquishControl` (L411-L413) - Method
+  - `webview-ui.src.shared.api.grpc-client.UiServiceClient.subscribeToShowWebview` (L414-L416) - Method
+  - `webview-ui.src.shared.api.grpc-client.UiServiceClient.getWebviewHtml` (L417-L419) - Method
+  - `webview-ui.src.shared.api.grpc-client.UiServiceClient.openUrl` (L420-L422) - Method
+  - `webview-ui.src.shared.api.grpc-client.UiServiceClient.openWalkthrough` (L423-L425) - Method
+  - `webview-ui.src.shared.api.grpc-client.UiServiceClient.githubCopilotLogin` (L426-L428) - Method
+  - `webview-ui.src.shared.api.grpc-client.WebServiceClient` (L430-L441) - Class
+  - `webview-ui.src.shared.api.grpc-client.WebServiceClient.checkIsImageUrl` (L432-L434) - Method
+  - `webview-ui.src.shared.api.grpc-client.WebServiceClient.fetchOpenGraphData` (L435-L437) - Method
+  - `webview-ui.src.shared.api.grpc-client.WebServiceClient.openInBrowser` (L438-L440) - Method
+  - `webview-ui.src.shared.api.grpc-client.WorktreeServiceClient` (L442-L477) - Class
+  - `webview-ui.src.shared.api.grpc-client.WorktreeServiceClient.listWorktrees` (L444-L446) - Method
+  - `webview-ui.src.shared.api.grpc-client.WorktreeServiceClient.createWorktree` (L447-L449) - Method
+  - `webview-ui.src.shared.api.grpc-client.WorktreeServiceClient.deleteWorktree` (L450-L452) - Method
+  - `webview-ui.src.shared.api.grpc-client.WorktreeServiceClient.switchWorktree` (L453-L455) - Method
+  - `webview-ui.src.shared.api.grpc-client.WorktreeServiceClient.getAvailableBranches` (L456-L458) - Method
+  - `webview-ui.src.shared.api.grpc-client.WorktreeServiceClient.getWorktreeDefaults` (L459-L461) - Method
+  - `webview-ui.src.shared.api.grpc-client.WorktreeServiceClient.getWorktreeIncludeStatus` (L462-L464) - Method
+  - `webview-ui.src.shared.api.grpc-client.WorktreeServiceClient.createWorktreeInclude` (L465-L467) - Method
+  - `webview-ui.src.shared.api.grpc-client.WorktreeServiceClient.checkoutBranch` (L468-L470) - Method
+  - `webview-ui.src.shared.api.grpc-client.WorktreeServiceClient.mergeWorktree` (L471-L473) - Method
+  - `webview-ui.src.shared.api.grpc-client.WorktreeServiceClient.trackWorktreeViewOpened` (L474-L476) - Method
+- `webview-ui/src/shared/api/vscode.ts`
+  - `webview-ui.src.shared.api.vscode.VSCodeAPI` (L9-L22) - Class
+  - `webview-ui.src.shared.api.vscode.VSCodeAPI.postMessage` (L10-L12) - Method
+  - `webview-ui.src.shared.api.vscode.VSCodeAPI.onMessage` (L14-L21) - Method
+- `webview-ui/src/shared/hooks/useAutoApproveActions.ts`
+  - `webview-ui.src.shared.hooks.useAutoApproveActions.useAutoApproveActions` (L7-L79) - Function
+  - `webview-ui.src.shared.hooks.useAutoApproveActions.isChecked` (L11-L25) - Class
+  - `webview-ui.src.shared.hooks.useAutoApproveActions.useAutoApproveActions.isChecked.useCallback() callback` (L12-L23) - Function
+  - `webview-ui.src.shared.hooks.useAutoApproveActions.updateAction` (L28-L58) - Class
+  - `webview-ui.src.shared.hooks.useAutoApproveActions.useAutoApproveActions.updateAction.useCallback() callback` (L29-L56) - Function
+  - `webview-ui.src.shared.hooks.useAutoApproveActions.updateNotifications` (L61-L72) - Class
+  - `webview-ui.src.shared.hooks.useAutoApproveActions.useAutoApproveActions.updateNotifications.useCallback() callback` (L62-L70) - Function
+- `webview-ui/src/shared/hooks/useAutoApproveAll.ts`
+  - `webview-ui.src.shared.hooks.useAutoApproveAll.useAutoApproveAll` (L5-L42) - Function
+  - `webview-ui.src.shared.hooks.useAutoApproveAll.updateAutoApproveAll` (L14-L39) - Class
+  - `webview-ui.src.shared.hooks.useAutoApproveAll.useAutoApproveAll.updateAutoApproveAll.useCallback() callback` (L15-L32) - Function
+- `webview-ui/src/shared/hooks/useAutoScroll.ts`
+  - `webview-ui.src.shared.hooks.useAutoScroll.UseAutoScrollOptions` (L3-L7) - Interface
+  - `webview-ui.src.shared.hooks.useAutoScroll.useAutoScroll` (L13-L66) - Class
+  - `webview-ui.src.shared.hooks.useAutoScroll.useAutoScroll.scrollRef` (L19-L39) - Class
+  - `webview-ui.src.shared.hooks.useAutoScroll.useAutoScroll.scrollRef.useCallback() callback` (L20-L37) - Function
+  - `webview-ui.src.shared.hooks.useAutoScroll.useAutoScroll.scrollRef.useCallback() callback.current` (L36-L36) - Function
+  - `webview-ui.src.shared.hooks.useAutoScroll.useLayoutEffect() callback` (L41-L55) - Function
+  - `webview-ui.src.shared.hooks.useAutoScroll.useAutoScroll.useLayoutEffect() callback.requestAnimationFrame() callback` (L44-L48) - Function
+  - `webview-ui.src.shared.hooks.useAutoScroll.useAutoScroll.useLayoutEffect() callback` (L58-L61) - Function
+- `webview-ui/src/shared/hooks/useMenuAnnouncement.ts`
+  - `webview-ui.src.shared.hooks.useMenuAnnouncement.UseMenuAnnouncementOptions` (L3-L12) - Interface
+  - `webview-ui.src.shared.hooks.useMenuAnnouncement.UseMenuAnnouncementResult` (L14-L17) - Interface
+  - `webview-ui.src.shared.hooks.useMenuAnnouncement.useMenuAnnouncement` (L24-L80) - Function
+  - `webview-ui.src.shared.hooks.useMenuAnnouncement.useMenuAnnouncement.useEffect() callback` (L36-L75) - Function
+  - `webview-ui.src.shared.hooks.useMenuAnnouncement.useMenuAnnouncement.useEffect() callback.setTimeout() callback` (L63-L65) - Function
+- `webview-ui/src/shared/hooks/useRelinquishControl.ts`
+  - `webview-ui.src.shared.hooks.useRelinquishControl.useRelinquishControl` (L5-L32) - Class
+  - `webview-ui.src.shared.hooks.useRelinquishControl.useRelinquishControl.onRelinquishControl` (L8-L13) - Class
+  - `webview-ui.src.shared.hooks.useRelinquishControl.useRelinquishControl.onRelinquishControl.useCallback() callback` (L8-L13) - Function
+  - `webview-ui.src.shared.hooks.useRelinquishControl.useRelinquishControl.useEffect() callback` (L15-L29) - Function
+  - `webview-ui.src.shared.hooks.useRelinquishControl.useRelinquishControl.useEffect() callback.cleanup` (L16-L26) - Class
+  - `webview-ui.src.shared.hooks.useRelinquishControl.useRelinquishControl.useEffect() callback.cleanup.onResponse` (L17-L21) - Method
+  - `webview-ui.src.shared.hooks.useRelinquishControl.useRelinquishControl.useEffect() callback.cleanup.onResponse.relinquishControlCallbacks.current.forEach() callback` (L18-L20) - Function
+  - `webview-ui.src.shared.hooks.useRelinquishControl.useRelinquishControl.useEffect() callback.cleanup.onError` (L22-L24) - Method
+  - `webview-ui.src.shared.hooks.useRelinquishControl.useRelinquishControl.useEffect() callback.cleanup.onComplete` (L25-L25) - Method
+- `webview-ui/src/shared/lib/bannerUtils.tsx`
+  - `webview-ui.src.shared.lib.bannerUtils.convertBannerData` (L9-L35) - Function
+  - `webview-ui.src.shared.lib.bannerUtils.convertBannerData.filteredActions` (L19-L23) - Class
+  - `webview-ui.src.shared.lib.bannerUtils.convertBannerData.filteredActions.banner.actions.map() callback` (L20-L23) - Function
+  - `webview-ui.src.shared.lib.bannerUtils.convertBannerData.filteredActions.banner.actions.map() callback.onClick` (L22-L22) - Method
+  - `webview-ui.src.shared.lib.bannerUtils.convertBannerData.onDismiss` (L33-L33) - Method
+- `webview-ui/src/shared/lib/context-mentions.ts`
+  - `webview-ui.src.shared.lib.context-mentions.SearchResult` (L5-L10) - Interface
+  - `webview-ui.src.shared.lib.context-mentions.insertMention` (L12-L47) - Function
+  - `webview-ui.src.shared.lib.context-mentions.insertMentionDirectly` (L49-L62) - Function
+  - `webview-ui.src.shared.lib.context-mentions.removeMention` (L64-L80) - Function
+  - `webview-ui.src.shared.lib.context-mentions.ContextMenuOptionType` (L82-L91) - Enum
+  - `webview-ui.src.shared.lib.context-mentions.ContextMenuQueryItem` (L93-L99) - Interface
+  - `webview-ui.src.shared.lib.context-mentions.getContextMenuEntries` (L101-L114) - Function
+  - `webview-ui.src.shared.lib.context-mentions.getContextMenuOptionIndex` (L116-L118) - Function
+  - `webview-ui.src.shared.lib.context-mentions.getContextMenuOptionIndex.findIndex() callback` (L117-L117) - Function
+  - `webview-ui.src.shared.lib.context-mentions.getContextMenuOptions` (L120-L288) - Function
+  - `webview-ui.src.shared.lib.context-mentions.getContextMenuOptions.searchResultItems` (L133-L143) - Class
+  - `webview-ui.src.shared.lib.context-mentions.getContextMenuOptions.searchResultItems.dynamicSearchResults.map() callback` (L133-L143) - Function
+  - `webview-ui.src.shared.lib.context-mentions.getContextMenuOptions.files` (L147-L155) - Class
+  - `webview-ui.src.shared.lib.context-mentions.getContextMenuOptions.files.searchResultItems.filter() callback` (L148-L148) - Function
+  - `webview-ui.src.shared.lib.context-mentions.getContextMenuOptions.files.map() callback` (L149-L155) - Function
+  - `webview-ui.src.shared.lib.context-mentions.getContextMenuOptions.folders` (L160-L168) - Class
+  - `webview-ui.src.shared.lib.context-mentions.getContextMenuOptions.folders.searchResultItems.filter() callback` (L161-L161) - Function
+  - `webview-ui.src.shared.lib.context-mentions.getContextMenuOptions.folders.map() callback` (L162-L168) - Function
+  - `webview-ui.src.shared.lib.context-mentions.getContextMenuOptions.commits` (L173-L173) - Class
+  - `webview-ui.src.shared.lib.context-mentions.getContextMenuOptions.commits.queryItems.filter() callback` (L173-L173) - Function
+  - `webview-ui.src.shared.lib.context-mentions.getContextMenuOptions.map() callback` (L177-L177) - Function
+  - `webview-ui.src.shared.lib.context-mentions.getContextMenuOptions.exactMatches` (L209-L211) - Class
+  - `webview-ui.src.shared.lib.context-mentions.getContextMenuOptions.exactMatches.queryItems.filter() callback` (L210-L210) - Function
+  - `webview-ui.src.shared.lib.context-mentions.getContextMenuOptions.searchableItems` (L226-L229) - Class
+  - `webview-ui.src.shared.lib.context-mentions.getContextMenuOptions.searchableItems.queryItems.map() callback` (L226-L229) - Function
+  - `webview-ui.src.shared.lib.context-mentions.getContextMenuOptions.fzf` (L232-L234) - Class
+  - `webview-ui.src.shared.lib.context-mentions.getContextMenuOptions.fzf.selector` (L233-L233) - Method
+  - `webview-ui.src.shared.lib.context-mentions.getContextMenuOptions.matchingItems` (L237-L237) - Class
+  - `webview-ui.src.shared.lib.context-mentions.getContextMenuOptions.matchingItems.map() callback` (L237-L237) - Function
+  - `webview-ui.src.shared.lib.context-mentions.getContextMenuOptions.fileMatches` (L240-L242) - Class
+  - `webview-ui.src.shared.lib.context-mentions.getContextMenuOptions.fileMatches.matchingItems.filter() callback` (L241-L241) - Function
+  - `webview-ui.src.shared.lib.context-mentions.getContextMenuOptions.gitMatches` (L243-L243) - Class
+  - `webview-ui.src.shared.lib.context-mentions.getContextMenuOptions.gitMatches.matchingItems.filter() callback` (L243-L243) - Function
+  - `webview-ui.src.shared.lib.context-mentions.getContextMenuOptions.otherMatches` (L244-L249) - Class
+  - `webview-ui.src.shared.lib.context-mentions.getContextMenuOptions.otherMatches.matchingItems.filter() callback` (L245-L248) - Function
+  - `webview-ui.src.shared.lib.context-mentions.getContextMenuOptions.searchResultItems.filter() callback` (L258-L258) - Function
+  - `webview-ui.src.shared.lib.context-mentions.getContextMenuOptions.deduped` (L273-L282) - Class
+  - `webview-ui.src.shared.lib.context-mentions.getContextMenuOptions.deduped.allItems.filter() callback` (L273-L282) - Function
+  - `webview-ui.src.shared.lib.context-mentions.shouldShowContextMenu` (L290-L331) - Function
+- `webview-ui/src/shared/lib/environmentColors.ts`
+  - `webview-ui.src.shared.lib.environmentColors.getDiracEnvironmentClassname` (L31-L53) - Function
+- `webview-ui/src/shared/lib/format.ts`
+  - `webview-ui.src.shared.lib.format.formatLargeNumber` (L3-L14) - Function
+  - `webview-ui.src.shared.lib.format.formatDollars` (L17-L23) - Function
+  - `webview-ui.src.shared.lib.format.formatCreditsBalance` (L39-L41) - Function
+  - `webview-ui.src.shared.lib.format.formatTimestamp` (L43-L56) - Function
+  - `webview-ui.src.shared.lib.format.formatSize` (L58-L64) - Function
+  - `webview-ui.src.shared.lib.format.formatSeconds` (L65-L76) - Function
+- `webview-ui/src/shared/lib/getConfiguredProviders.ts`
+  - `webview-ui.src.shared.lib.getConfiguredProviders.getConfiguredProviders` (L9-L210) - Function
+  - `webview-ui.src.shared.lib.getConfiguredProviders.getProviderLabel` (L216-L219) - Function
+  - `webview-ui.src.shared.lib.getConfiguredProviders.getProviderLabel.providerEntry` (L217-L217) - Class
+  - `webview-ui.src.shared.lib.getConfiguredProviders.getProviderLabel.providerEntry.PROVIDERS.list.find() callback` (L217-L217) - Function
+- `webview-ui/src/shared/lib/getLanguageFromPath.ts`
+  - `webview-ui.src.shared.lib.getLanguageFromPath.getLanguageFromPath` (L86-L89) - Function
+- `webview-ui/src/shared/lib/hooks.ts`
+  - `webview-ui.src.shared.lib.hooks.useMetaKeyDetection` (L4-L16) - Class
+  - `webview-ui.src.shared.lib.hooks.useMetaKeyDetection.useEffect() callback` (L8-L13) - Function
+  - `webview-ui.src.shared.lib.hooks.useShortcut` (L18-L90) - Class
+  - `webview-ui.src.shared.lib.hooks.useShortcut.useLayoutEffect() callback` (L22-L24) - Function
+  - `webview-ui.src.shared.lib.hooks.useShortcut.handleKeyDown` (L26-L81) - Class
+  - `webview-ui.src.shared.lib.hooks.useShortcut.handleKeyDown.useCallback() callback` (L27-L79) - Function
+  - `webview-ui.src.shared.lib.hooks.useShortcut.handleKeyDown.useCallback() callback.keyArray.every() callback` (L57-L57) - Function
+  - `webview-ui.src.shared.lib.hooks.useShortcut.handleKeyDown.useCallback() callback.setKeyCombo() callback` (L68-L68) - Function
+  - `webview-ui.src.shared.lib.hooks.useShortcut.useEffect() callback` (L83-L89) - Function
+- `webview-ui/src/shared/lib/platformUtils.ts`
+  - `webview-ui.src.shared.lib.platformUtils.NavigatorUAData` (L1-L4) - Interface
+  - `webview-ui.src.shared.lib.platformUtils.getCurrentPlatform` (L49-L59) - Function
+- `webview-ui/src/shared/lib/slash-commands.ts`
+  - `webview-ui.src.shared.lib.slash-commands.getWorkflowCommands` (L10-L71) - Function
+  - `webview-ui.src.shared.lib.slash-commands.getWorkflowCommands.globalWorkflows` (L36-L52) - Class
+  - `webview-ui.src.shared.lib.slash-commands.getWorkflowCommands.globalWorkflows.filter() callback` (L37-L37) - Function
+  - `webview-ui.src.shared.lib.slash-commands.getWorkflowCommands.globalWorkflows.flatMap() callback` (L38-L52) - Function
+  - `webview-ui.src.shared.lib.slash-commands.removeSlashCommand` (L85-L103) - Function
+  - `webview-ui.src.shared.lib.slash-commands.shouldShowSlashCommandsMenu` (L110-L146) - Function
+  - `webview-ui.src.shared.lib.slash-commands.getMatchingSlashCommands` (L151-L178) - Function
+  - `webview-ui.src.shared.lib.slash-commands.getMatchingSlashCommands.skillCommands` (L165-L169) - Class
+  - `webview-ui.src.shared.lib.slash-commands.getMatchingSlashCommands.skillCommands.availableSkills.map() callback` (L165-L169) - Function
+  - `webview-ui.src.shared.lib.slash-commands.getMatchingSlashCommands.allCommands.filter() callback` (L177-L177) - Function
+  - `webview-ui.src.shared.lib.slash-commands.insertSlashCommand` (L183-L201) - Function
+  - `webview-ui.src.shared.lib.slash-commands.validateSlashCommand` (L207-L246) - Function
+  - `webview-ui.src.shared.lib.slash-commands.validateSlashCommand.skillCommands` (L225-L229) - Class
+  - `webview-ui.src.shared.lib.slash-commands.validateSlashCommand.skillCommands.availableSkills.map() callback` (L225-L229) - Function
+  - `webview-ui.src.shared.lib.slash-commands.validateSlashCommand.exactMatch` (L233-L233) - Class
+  - `webview-ui.src.shared.lib.slash-commands.validateSlashCommand.exactMatch.allCommands.some() callback` (L233-L233) - Function
+  - `webview-ui.src.shared.lib.slash-commands.validateSlashCommand.partialMatch` (L239-L239) - Class
+  - `webview-ui.src.shared.lib.slash-commands.validateSlashCommand.partialMatch.allCommands.some() callback` (L239-L239) - Function
+- `webview-ui/src/shared/lib/useDebounceEffect.ts`
+  - `webview-ui.src.shared.lib.useDebounceEffect.useDebounceEffect` (L10-L41) - Function
+  - `webview-ui.src.shared.lib.useDebounceEffect.useEffect() callback` (L15-L17) - Function
+  - `webview-ui.src.shared.lib.useDebounceEffect.useDebounceEffect.useEffect() callback` (L19-L40) - Function
+  - `webview-ui.src.shared.lib.useDebounceEffect.useDebounceEffect.useEffect() callback.setTimeout() callback` (L26-L29) - Function
+- `webview-ui/src/shared/lib/useThrottledValue.ts`
+  - `webview-ui.src.shared.lib.useThrottledValue.useThrottledValue` (L7-L48) - Function
+  - `webview-ui.src.shared.lib.useThrottledValue.useEffect() callback` (L13-L35) - Function
+  - `webview-ui.src.shared.lib.useThrottledValue.useThrottledValue.useEffect() callback.setTimeout() callback` (L30-L34) - Function
+  - `webview-ui.src.shared.lib.useThrottledValue.useThrottledValue.useEffect() callback` (L38-L43) - Function
+- `webview-ui/src/shared/lib/validate.ts`
+  - `webview-ui.src.shared.lib.validate.validateApiConfiguration` (L5-L148) - Function
+  - `webview-ui.src.shared.lib.validate.validateModelId` (L150-L167) - Function
+- `webview-ui/src/shared/lib/vscStyles.ts`
+  - `webview-ui.src.shared.lib.vscStyles.getAsVar` (L26-L28) - Function
+  - `webview-ui.src.shared.lib.vscStyles.hexToRGB` (L30-L34) - Function
+  - `webview-ui.src.shared.lib.vscStyles.colorToHex` (L36-L44) - Function
+  - `webview-ui.src.shared.lib.vscStyles.colorToHex.rgbValues.map() callback` (L43-L43) - Function
+- `webview-ui/src/shared/ui/AlertDialog.tsx`
+  - `webview-ui.src.shared.ui.AlertDialog.AlertDialogProps` (L6-L10) - Interface
+  - `webview-ui.src.shared.ui.AlertDialog.AlertDialog` (L12-L32) - Function
+  - `webview-ui.src.shared.ui.AlertDialog.AlertDialogContent` (L34-L45) - Function
+  - `webview-ui.src.shared.ui.AlertDialog.AlertDialogHeader` (L47-L49) - Function
+  - `webview-ui.src.shared.ui.AlertDialog.AlertDialogFooter` (L51-L53) - Function
+  - `webview-ui.src.shared.ui.AlertDialog.AlertDialogTitle` (L55-L62) - Function
+  - `webview-ui.src.shared.ui.AlertDialog.AlertDialogDescription` (L64-L66) - Function
+  - `webview-ui.src.shared.ui.AlertDialog.AlertDialogAction` (L68-L70) - Function
+  - `webview-ui.src.shared.ui.AlertDialog.AlertDialogCancel` (L72-L74) - Function
+  - `webview-ui.src.shared.ui.AlertDialog.UnsavedChangesDialog` (L76-L119) - Function
+- `webview-ui/src/shared/ui/BannerCarousel.tsx`
+  - `webview-ui.src.shared.ui.BannerCarousel.BannerActions` (L7-L11) - Interface
+  - `webview-ui.src.shared.ui.BannerCarousel.BannerData` (L13-L20) - Interface
+  - `webview-ui.src.shared.ui.BannerCarousel.BannerCarouselProps` (L22-L24) - Interface
+  - `webview-ui.src.shared.ui.BannerCarousel.BannerCardContentProps` (L26-L31) - Interface
+  - `webview-ui.src.shared.ui.BannerCarousel.BannerCardContent` (L33-L76) - Class
+  - `webview-ui.src.shared.ui.BannerCarousel.BannerCardContent.useEffect() callback` (L36-L38) - Function
+  - `webview-ui.src.shared.ui.BannerCarousel.BannerCardContent.banner.actions.map() callback` (L67-L71) - Function
+  - `webview-ui.src.shared.ui.BannerCarousel.BannerCarousel` (L78-L218) - Class
+  - `webview-ui.src.shared.ui.BannerCarousel.BannerCarousel.safeCurrentIndex` (L85-L88) - Class
+  - `webview-ui.src.shared.ui.BannerCarousel.BannerCarousel.safeCurrentIndex.useMemo() callback` (L86-L86) - Function
+  - `webview-ui.src.shared.ui.BannerCarousel.BannerCarousel.transitionToIndex` (L90-L96) - Class
+  - `webview-ui.src.shared.ui.BannerCarousel.BannerCarousel.transitionToIndex.useCallback() callback` (L90-L96) - Function
+  - `webview-ui.src.shared.ui.BannerCarousel.BannerCarousel.transitionToIndex.useCallback() callback.setTimeout() callback` (L92-L95) - Function
+  - `webview-ui.src.shared.ui.BannerCarousel.BannerCarousel.handlePrevious` (L98-L102) - Class
+  - `webview-ui.src.shared.ui.BannerCarousel.BannerCarousel.handlePrevious.useCallback() callback` (L98-L102) - Function
+  - `webview-ui.src.shared.ui.BannerCarousel.BannerCarousel.handleNext` (L104-L108) - Class
+  - `webview-ui.src.shared.ui.BannerCarousel.BannerCarousel.handleNext.useCallback() callback` (L104-L108) - Function
+  - `webview-ui.src.shared.ui.BannerCarousel.BannerCarousel.useEffect() callback` (L118-L133) - Function
+  - `webview-ui.src.shared.ui.BannerCarousel.BannerCarousel.useEffect() callback.setInterval() callback` (L124-L126) - Function
+  - `webview-ui.src.shared.ui.BannerCarousel.BannerCarousel.useEffect() callback.setInterval() callback.setCurrentIndex() callback` (L125-L125) - Function
+  - `webview-ui.src.shared.ui.BannerCarousel.BannerCarousel.banners.map() callback` (L180-L193) - Function
+- `webview-ui/src/shared/ui/BrowserSettingsMenu.tsx`
+  - `webview-ui.src.shared.ui.BrowserSettingsMenu.ConnectionInfo` (L8-L12) - Interface
+  - `webview-ui.src.shared.ui.BrowserSettingsMenu.BrowserSettingsMenu` (L14-L204) - Class
+  - `webview-ui.src.shared.ui.BrowserSettingsMenu.BrowserSettingsMenu.browserSettings` (L15-L15) - Class
+  - `webview-ui.src.shared.ui.BrowserSettingsMenu.BrowserSettingsMenu.browserSettings.useSettingsStore() callback` (L15-L15) - Function
+  - `webview-ui.src.shared.ui.BrowserSettingsMenu.BrowserSettingsMenu.navigateToSettings` (L16-L16) - Class
+  - `webview-ui.src.shared.ui.BrowserSettingsMenu.BrowserSettingsMenu.navigateToSettings.useAppStore() callback` (L16-L16) - Function
+  - `webview-ui.src.shared.ui.BrowserSettingsMenu.useEffect() callback` (L27-L43) - Function
+  - `webview-ui.src.shared.ui.BrowserSettingsMenu.BrowserSettingsMenu.useEffect() callback.<function>` (L29-L40) - Function
+  - `webview-ui.src.shared.ui.BrowserSettingsMenu.BrowserSettingsMenu.useEffect() callback.handleClickOutside` (L47-L55) - Class
+  - `webview-ui.src.shared.ui.BrowserSettingsMenu.BrowserSettingsMenu.useEffect() callback.handleClickOutside.some() callback` (L51-L51) - Function
+  - `webview-ui.src.shared.ui.BrowserSettingsMenu.BrowserSettingsMenu.openBrowserSettings` (L65-L67) - Method
+  - `webview-ui.src.shared.ui.BrowserSettingsMenu.BrowserSettingsMenu.toggleInfoPopover` (L69-L89) - Method
+  - `webview-ui.src.shared.ui.BrowserSettingsMenu.BrowserSettingsMenu.getIconClass` (L92-L97) - Method
+  - `webview-ui.src.shared.ui.BrowserSettingsMenu.BrowserSettingsMenu.getIconColor` (L100-L108) - Method
+  - `webview-ui.src.shared.ui.BrowserSettingsMenu.BrowserSettingsMenu.useEffect() callback` (L111-L133) - Function
+- `webview-ui/src/shared/ui/CopyButton.tsx`
+  - `webview-ui.src.shared.ui.CopyButton.CopyButtonProps` (L8-L13) - Interface
+  - `webview-ui.src.shared.ui.CopyButton.WithCopyButtonProps` (L15-L25) - Interface
+  - `webview-ui.src.shared.ui.CopyButton.CopyButton.handleCopy` (L41-L55) - Class
+  - `webview-ui.src.shared.ui.CopyButton.CopyButton.handleCopy.useCallback() callback` (L41-L55) - Function
+  - `webview-ui.src.shared.ui.CopyButton.CopyButton.handleCopy.useCallback() callback.setTimeout() callback` (L49-L49) - Function
+  - `webview-ui.src.shared.ui.CopyButton.WithCopyButton` (L73-L107) - Class
+  - `webview-ui.src.shared.ui.CopyButton.WithCopyButton.forwardRef() callback` (L74-L106) - Function
+- `webview-ui/src/shared/ui/Demo.tsx`
+  - `webview-ui.src.shared.ui.Demo.Demo` (L23-L121) - Function
+  - `webview-ui.src.shared.ui.Demo.Demo.rowData.map() callback` (L66-L73) - Function
+- `webview-ui/src/shared/ui/LightMarkdown.tsx`
+  - `webview-ui.src.shared.ui.LightMarkdown.LightMarkdownProps` (L3-L6) - Interface
+  - `webview-ui.src.shared.ui.LightMarkdown.parseInlineEmphasis` (L25-L92) - Function
+  - `webview-ui.src.shared.ui.LightMarkdown.parseTextToNodes` (L97-L151) - Function
+  - `webview-ui.src.shared.ui.LightMarkdown.lines.map() callback` (L110-L114) - Function
+  - `webview-ui.src.shared.ui.LightMarkdown.parseTextToNodes.lines.map() callback` (L144-L148) - Function
+  - `webview-ui.src.shared.ui.LightMarkdown.LightMarkdown.content` (L159-L159) - Class
+  - `webview-ui.src.shared.ui.LightMarkdown.LightMarkdown.content.React.useMemo() callback` (L159-L159) - Function
+- `webview-ui/src/shared/ui/MarkdownBlock.tsx`
+  - `webview-ui.src.shared.ui.MarkdownBlock.UnistNode` (L23-L32) - Interface
+  - `webview-ui.src.shared.ui.MarkdownBlock.TextNode` (L34-L37) - Interface
+  - `webview-ui.src.shared.ui.MarkdownBlock.CodeNode` (L39-L43) - Interface
+  - `webview-ui.src.shared.ui.MarkdownBlock.InlineCodeNode` (L45-L48) - Interface
+  - `webview-ui.src.shared.ui.MarkdownBlock.StrongNode` (L50-L53) - Interface
+  - `webview-ui.src.shared.ui.MarkdownBlock.InlineCodeWithFileCheck` (L107-L172) - Class
+  - `webview-ui.src.shared.ui.MarkdownBlock.InlineCodeWithFileCheck.useEffect() callback` (L113-L143) - Function
+  - `webview-ui.src.shared.ui.MarkdownBlock.InlineCodeWithFileCheck.useEffect() callback.then() callback` (L127-L132) - Function
+  - `webview-ui.src.shared.ui.MarkdownBlock.InlineCodeWithFileCheck.useEffect() callback.catch() callback` (L133-L138) - Function
+  - `webview-ui.src.shared.ui.MarkdownBlock.InlineCodeWithFileCheck.<function>` (L164-L164) - Function
+  - `webview-ui.src.shared.ui.MarkdownBlock.ActModeHighlight` (L177-L213) - Class
+  - `webview-ui.src.shared.ui.MarkdownBlock.ActModeHighlight.goal` (L179-L179) - Class
+  - `webview-ui.src.shared.ui.MarkdownBlock.ActModeHighlight.goal.useChatStore() callback` (L179-L179) - Function
+  - `webview-ui.src.shared.ui.MarkdownBlock.ActModeHighlight.<function>` (L189-L198) - Function
+  - `webview-ui.src.shared.ui.MarkdownBlock.remarkUrlToLink` (L220-L248) - Class
+  - `webview-ui.src.shared.ui.MarkdownBlock.remarkUrlToLink.<function>` (L221-L247) - Function
+  - `webview-ui.src.shared.ui.MarkdownBlock.remarkUrlToLink.<function>.visit("text") callback` (L222-L246) - Function
+  - `webview-ui.src.shared.ui.MarkdownBlock.remarkUrlToLink.<function>.visit("text") callback.parts.forEach() callback` (L232-L243) - Function
+  - `webview-ui.src.shared.ui.MarkdownBlock.remarkHighlightActMode` (L253-L303) - Class
+  - `webview-ui.src.shared.ui.MarkdownBlock.remarkHighlightActMode.<function>` (L254-L302) - Function
+  - `webview-ui.src.shared.ui.MarkdownBlock.remarkHighlightActMode.<function>.visit("text") callback` (L255-L301) - Function
+  - `webview-ui.src.shared.ui.MarkdownBlock.remarkHighlightActMode.<function>.visit("text") callback.parts.forEach() callback` (L271-L298) - Function
+  - `webview-ui.src.shared.ui.MarkdownBlock.remarkColorStats` (L308-L360) - Class
+  - `webview-ui.src.shared.ui.MarkdownBlock.remarkColorStats.<function>` (L309-L359) - Function
+  - `webview-ui.src.shared.ui.MarkdownBlock.remarkColorStats.<function>.visit("text") callback` (L310-L358) - Function
+  - `webview-ui.src.shared.ui.MarkdownBlock.remarkPreventBoldFilenames` (L365-L399) - Class
+  - `webview-ui.src.shared.ui.MarkdownBlock.remarkPreventBoldFilenames.<function>` (L366-L398) - Function
+  - `webview-ui.src.shared.ui.MarkdownBlock.remarkPreventBoldFilenames.<function>.visit("strong") callback` (L367-L397) - Function
+  - `webview-ui.src.shared.ui.MarkdownBlock.remarkMarkPotentialFilePaths` (L404-L414) - Class
+  - `webview-ui.src.shared.ui.MarkdownBlock.remarkMarkPotentialFilePaths.<function>` (L405-L413) - Function
+  - `webview-ui.src.shared.ui.MarkdownBlock.remarkMarkPotentialFilePaths.<function>.visit("inlineCode") callback` (L406-L412) - Function
+  - `webview-ui.src.shared.ui.MarkdownBlock.remarkAddDefaultLanguage` (L419-L429) - Class
+  - `webview-ui.src.shared.ui.MarkdownBlock.remarkAddDefaultLanguage.<function>` (L420-L428) - Function
+  - `webview-ui.src.shared.ui.MarkdownBlock.remarkAddDefaultLanguage.<function>.visit("code") callback` (L421-L427) - Function
+  - `webview-ui.src.shared.ui.MarkdownBlock.parseMarkdownIntoBlocks` (L433-L440) - Function
+  - `webview-ui.src.shared.ui.MarkdownBlock.parseMarkdownIntoBlocks.tokens.map() callback` (L436-L436) - Function
+  - `webview-ui.src.shared.ui.MarkdownBlock.MARKDOWN_COMPONENTS` (L443-L483) - Class
+  - `webview-ui.src.shared.ui.MarkdownBlock.MARKDOWN_COMPONENTS.pre` (L444-L452) - Method
+  - `webview-ui.src.shared.ui.MarkdownBlock.MARKDOWN_COMPONENTS.code` (L453-L460) - Method
+  - `webview-ui.src.shared.ui.MarkdownBlock.MARKDOWN_COMPONENTS.strong` (L461-L479) - Method
+  - `webview-ui.src.shared.ui.MarkdownBlock.MARKDOWN_COMPONENTS.strong.childrenText` (L462-L472) - Class
+  - `webview-ui.src.shared.ui.MarkdownBlock.MARKDOWN_COMPONENTS.strong.childrenText.map() callback` (L463-L471) - Function
+  - `webview-ui.src.shared.ui.MarkdownBlock.MARKDOWN_COMPONENTS.img` (L480-L480) - Method
+  - `webview-ui.src.shared.ui.MarkdownBlock.MARKDOWN_COMPONENTS.statPlus` (L481-L481) - Method
+  - `webview-ui.src.shared.ui.MarkdownBlock.MARKDOWN_COMPONENTS.statMinus` (L482-L482) - Method
+  - `webview-ui.src.shared.ui.MarkdownBlock.MemoizedMarkdownBlock` (L485-L509) - Class
+  - `webview-ui.src.shared.ui.MarkdownBlock.MemoizedMarkdownBlock.memo() callback` (L505-L508) - Function
+  - `webview-ui.src.shared.ui.MarkdownBlock.MemoizedMarkdown` (L513-L519) - Class
+  - `webview-ui.src.shared.ui.MarkdownBlock.MemoizedMarkdown.memo() callback` (L513-L519) - Function
+  - `webview-ui.src.shared.ui.MarkdownBlock.MemoizedMarkdown.memo() callback.blocks` (L514-L514) - Class
+  - `webview-ui.src.shared.ui.MarkdownBlock.MemoizedMarkdown.memo() callback.blocks.useMemo() callback` (L514-L514) - Function
+  - `webview-ui.src.shared.ui.MarkdownBlock.MemoizedMarkdown.memo() callback.blocks.map() callback` (L515-L518) - Function
+  - `webview-ui.src.shared.ui.MarkdownBlock.MarkdownBlockProps` (L523-L527) - Interface
+  - `webview-ui.src.shared.ui.MarkdownBlock.MarkdownBlock` (L529-L541) - Class
+  - `webview-ui.src.shared.ui.MarkdownBlock.MarkdownBlock.memo() callback` (L529-L541) - Function
+- `webview-ui/src/shared/ui/MermaidBlock.tsx`
+  - `webview-ui.src.shared.ui.MermaidBlock.MermaidBlockProps` (L56-L58) - Interface
+  - `webview-ui.src.shared.ui.MermaidBlock.MermaidBlock` (L62-L150) - Function
+  - `webview-ui.src.shared.ui.MermaidBlock.MermaidBlock.useEffect() callback` (L69-L97) - Function
+  - `webview-ui.src.shared.ui.MermaidBlock.MermaidBlock.useEffect() callback.timer` (L74-L91) - Class
+  - `webview-ui.src.shared.ui.MermaidBlock.MermaidBlock.useEffect() callback.timer.window.setTimeout() callback` (L74-L91) - Function
+  - `webview-ui.src.shared.ui.MermaidBlock.MermaidBlock.useLayoutEffect() callback` (L99-L104) - Function
+  - `webview-ui.src.shared.ui.MermaidBlock.svgToPng` (L152-L191) - Function
+  - `webview-ui.src.shared.ui.MermaidBlock.svgToPng.base64` (L166-L166) - Class
+  - `webview-ui.src.shared.ui.MermaidBlock.svgToPng.base64.Array.from() callback` (L166-L166) - Function
+  - `webview-ui.src.shared.ui.MermaidBlock.svgToPng.<function>` (L169-L190) - Function
+  - `webview-ui.src.shared.ui.MermaidBlock.svgToPng.<function>.onload` (L171-L187) - Function
+  - `webview-ui.src.shared.ui.MermaidBlock.svgToPng.<function>.onerror` (L188-L188) - Function
+- `webview-ui/src/shared/ui/Navbar.tsx`
+  - `webview-ui.src.shared.ui.Navbar.Navbar` (L8-L70) - Class
+  - `webview-ui.src.shared.ui.Navbar.Navbar.navigateToHistory` (L9-L9) - Class
+  - `webview-ui.src.shared.ui.Navbar.Navbar.navigateToHistory.useAppStore() callback` (L9-L9) - Function
+  - `webview-ui.src.shared.ui.Navbar.Navbar.navigateToSettings` (L10-L10) - Class
+  - `webview-ui.src.shared.ui.Navbar.Navbar.navigateToSettings.useAppStore() callback` (L10-L10) - Function
+  - `webview-ui.src.shared.ui.Navbar.Navbar.navigateToChat` (L11-L11) - Class
+  - `webview-ui.src.shared.ui.Navbar.Navbar.navigateToChat.useAppStore() callback` (L11-L11) - Function
+  - `webview-ui.src.shared.ui.Navbar.Navbar.SETTINGS_TABS` (L13-L45) - Class
+  - `webview-ui.src.shared.ui.Navbar.Navbar.SETTINGS_TABS.useMemo() callback` (L14-L43) - Function
+  - `webview-ui.src.shared.ui.Navbar.SETTINGS_TABS.useMemo() callback.navigate` (L20-L27) - Method
+  - `webview-ui.src.shared.ui.Navbar.Navbar.SETTINGS_TABS.useMemo() callback.navigate.catch() callback` (L23-L25) - Function
+  - `webview-ui.src.shared.ui.Navbar.Navbar.SETTINGS_TABS.useMemo() callback.navigate.finally() callback` (L26-L26) - Function
+  - `webview-ui.src.shared.ui.Navbar.Navbar.SETTINGS_TABS.map() callback` (L51-L67) - Function
+- `webview-ui/src/shared/ui/PopupModalContainer.tsx`
+  - `webview-ui.src.shared.ui.PopupModalContainer.PopupModalContainerProps` (L4-L9) - Interface
+- `webview-ui/src/shared/ui/QuotedMessagePreview.tsx`
+  - `webview-ui.src.shared.ui.QuotedMessagePreview.QuotedMessagePreviewProps` (L66-L70) - Interface
+- `webview-ui/src/shared/ui/ReleaseNotesModal.tsx`
+  - `webview-ui.src.shared.ui.ReleaseNotesModal.ReleaseNotesModalProps` (L8-L14) - Interface
+  - `webview-ui.src.shared.ui.ReleaseNotesModal.markdownComponents` (L16-L23) - Class
+  - `webview-ui.src.shared.ui.ReleaseNotesModal.markdownComponents.a` (L17-L21) - Method
+  - `webview-ui.src.shared.ui.ReleaseNotesModal.markdownComponents.p` (L22-L22) - Method
+  - `webview-ui.src.shared.ui.ReleaseNotesModal.openAction` (L25-L27) - Function
+  - `webview-ui.src.shared.ui.ReleaseNotesModal.ReleaseNotesModal` (L29-L173) - Class
+  - `webview-ui.src.shared.ui.ReleaseNotesModal.ReleaseNotesModal.releaseNotes.releases.map() callback` (L69-L133) - Function
+  - `webview-ui.src.shared.ui.ReleaseNotesModal.ReleaseNotesModal.releaseNotes.releases.map() callback.release.highlights.map() callback` (L84-L106) - Function
+  - `webview-ui.src.shared.ui.ReleaseNotesModal.ReleaseNotesModal.releaseNotes.releases.map() callback.release.highlights.map() callback.highlight.actions.map() callback` (L94-L102) - Function
+  - `webview-ui.src.shared.ui.ReleaseNotesModal.ReleaseNotesModal.releaseNotes.releases.map() callback.release.fixes.map() callback` (L115-L117) - Function
+  - `webview-ui.src.shared.ui.ReleaseNotesModal.ReleaseNotesModal.releaseNotes.releases.map() callback.<function>` (L123-L127) - Function
+  - `webview-ui.src.shared.ui.ReleaseNotesModal.ReleaseNotesModal.remoteNotes.map() callback` (L139-L164) - Function
+  - `webview-ui.src.shared.ui.ReleaseNotesModal.ReleaseNotesModal.remoteNotes.map() callback.note.actions.map() callback` (L149-L160) - Function
+- `webview-ui/src/shared/ui/ScreenReaderAnnounce.tsx`
+  - `webview-ui.src.shared.ui.ScreenReaderAnnounce.ScreenReaderAnnounceProps` (L3-L8) - Interface
+- `webview-ui/src/shared/ui/SuccessButton.tsx`
+  - `webview-ui.src.shared.ui.SuccessButton.SuccessButtonTWProps` (L3-L3) - Interface
+- `webview-ui/src/shared/ui/Tab.tsx`
+  - `webview-ui.src.shared.ui.Tab.TabList` (L30-L67) - Class
+  - `webview-ui.src.shared.ui.Tab.TabList.forwardRef() callback` (L36-L67) - Function
+  - `webview-ui.src.shared.ui.Tab.TabList.forwardRef() callback.selection` (L38-L38) - Class
+  - `webview-ui.src.shared.ui.Tab.TabList.forwardRef() callback.selection.useMemo() callback` (L38-L38) - Function
+  - `webview-ui.src.shared.ui.Tab.TabList.forwardRef() callback.handleKeyDown` (L39-L60) - Class
+  - `webview-ui.src.shared.ui.Tab.TabList.forwardRef() callback.handleKeyDown.useCallback() callback` (L40-L58) - Function
+  - `webview-ui.src.shared.ui.Tab.TabList.forwardRef() callback.handleKeyDown.useCallback() callback.currentIndex` (L49-L49) - Class
+  - `webview-ui.src.shared.ui.Tab.TabList.forwardRef() callback.handleKeyDown.useCallback() callback.currentIndex.tabs.findIndex() callback` (L49-L49) - Function
+  - `webview-ui.src.shared.ui.Tab.TabTrigger` (L69-L97) - Class
+  - `webview-ui.src.shared.ui.Tab.TabTrigger.forwardRef() callback` (L74-L97) - Function
+- `webview-ui/src/shared/ui/TabButton.tsx`
+  - `webview-ui.src.shared.ui.TabButton.TabButtonProps` (L4-L6) - Interface
+- `webview-ui/src/shared/ui/TelemetryBanner.tsx`
+  - `webview-ui.src.shared.ui.TelemetryBanner.TelemetryBanner.navigateToSettings` (L11-L11) - Class
+  - `webview-ui.src.shared.ui.TelemetryBanner.TelemetryBanner.navigateToSettings.useAppStore() callback` (L11-L11) - Function
+  - `webview-ui.src.shared.ui.TelemetryBanner.TelemetryBanner.handleClose` (L13-L15) - Class
+  - `webview-ui.src.shared.ui.TelemetryBanner.TelemetryBanner.handleClose.useCallback() callback` (L13-L15) - Function
+  - `webview-ui.src.shared.ui.TelemetryBanner.TelemetryBanner.handleOpenSettings` (L17-L20) - Class
+  - `webview-ui.src.shared.ui.TelemetryBanner.TelemetryBanner.handleOpenSettings.useCallback() callback` (L17-L20) - Function
+- `webview-ui/src/shared/ui/Thumbnails.tsx`
+  - `webview-ui.src.shared.ui.Thumbnails.ThumbnailsProps` (L7-L15) - Interface
+  - `webview-ui.src.shared.ui.Thumbnails.Thumbnails` (L17-L188) - Class
+  - `webview-ui.src.shared.ui.Thumbnails.Thumbnails.useLayoutEffect() callback` (L22-L32) - Function
+  - `webview-ui.src.shared.ui.Thumbnails.Thumbnails.handleDeleteImages` (L34-L36) - Class
+  - `webview-ui.src.shared.ui.Thumbnails.Thumbnails.handleDeleteImages.setImages() callback` (L35-L35) - Function
+  - `webview-ui.src.shared.ui.Thumbnails.Thumbnails.handleDeleteImages.setImages() callback.prevImages.filter() callback` (L35-L35) - Function
+  - `webview-ui.src.shared.ui.Thumbnails.Thumbnails.handleDeleteFiles` (L38-L40) - Class
+  - `webview-ui.src.shared.ui.Thumbnails.Thumbnails.handleDeleteFiles.setFiles() callback` (L39-L39) - Function
+  - `webview-ui.src.shared.ui.Thumbnails.Thumbnails.handleDeleteFiles.setFiles() callback.prevFiles.filter() callback` (L39-L39) - Function
+  - `webview-ui.src.shared.ui.Thumbnails.Thumbnails.handleImageClick` (L45-L49) - Class
+  - `webview-ui.src.shared.ui.Thumbnails.Thumbnails.handleImageClick.catch() callback` (L46-L47) - Function
+  - `webview-ui.src.shared.ui.Thumbnails.Thumbnails.handleFileClick` (L51-L55) - Class
+  - `webview-ui.src.shared.ui.Thumbnails.Thumbnails.handleFileClick.catch() callback` (L52-L53) - Function
+  - `webview-ui.src.shared.ui.Thumbnails.Thumbnails.images.map() callback` (L66-L111) - Function
+  - `webview-ui.src.shared.ui.Thumbnails.Thumbnails.files.map() callback` (L113-L185) - Function
+- `webview-ui/src/shared/ui/VSCodeButtonLink.tsx`
+  - `webview-ui.src.shared.ui.VSCodeButtonLink.VSCodeButtonLinkProps` (L4-L8) - Interface
+- `webview-ui/src/shared/ui/WhatsNewItems.tsx`
+  - `webview-ui.src.shared.ui.WhatsNewItems.WhatsNewItemsProps` (L5-L11) - Interface
+  - `webview-ui.src.shared.ui.WhatsNewItems.WhatsNewItems` (L15-L100) - Class
+  - `webview-ui.src.shared.ui.WhatsNewItems.WhatsNewItems.InlineModelLink` (L22-L28) - Method
+  - `webview-ui.src.shared.ui.WhatsNewItems.WhatsNewItems.welcomeBanners.map() callback` (L35-L77) - Function
+  - `webview-ui.src.shared.ui.WhatsNewItems.WhatsNewItems.welcomeBanners.map() callback.a` (L41-L49) - Method
+  - `webview-ui.src.shared.ui.WhatsNewItems.WhatsNewItems.welcomeBanners.map() callback.code` (L50-L50) - Method
+  - `webview-ui.src.shared.ui.WhatsNewItems.WhatsNewItems.welcomeBanners.map() callback.p` (L51-L51) - Method
+  - `webview-ui.src.shared.ui.WhatsNewItems.WhatsNewItems.welcomeBanners.map() callback.banner.actions.map() callback` (L58-L73) - Function
+- `webview-ui/src/shared/ui/WhatsNewModal.tsx`
+  - `webview-ui.src.shared.ui.WhatsNewModal.WhatsNewModalProps` (L14-L20) - Interface
+  - `webview-ui.src.shared.ui.WhatsNewModal.WhatsNewModal.openRouterModels` (L23-L23) - Class
+  - `webview-ui.src.shared.ui.WhatsNewModal.WhatsNewModal.openRouterModels.useSettingsStore() callback` (L23-L23) - Function
+  - `webview-ui.src.shared.ui.WhatsNewModal.WhatsNewModal.navigateToSettingsModelPicker` (L24-L24) - Class
+  - `webview-ui.src.shared.ui.WhatsNewModal.WhatsNewModal.navigateToSettingsModelPicker.useAppStore() callback` (L24-L24) - Function
+  - `webview-ui.src.shared.ui.WhatsNewModal.WhatsNewModal.navigateToModelPicker` (L27-L46) - Class
+  - `webview-ui.src.shared.ui.WhatsNewModal.WhatsNewModal.navigateToModelPicker.useCallback() callback` (L28-L44) - Function
+- `webview-ui/src/shared/ui/alert.tsx`
+  - `webview-ui.src.shared.ui.alert.Alert` (L24-L59) - Class
+  - `webview-ui.src.shared.ui.alert.Alert.React.forwardRef() callback` (L28-L59) - Function
+  - `webview-ui.src.shared.ui.alert.AlertTitle` (L62-L70) - Class
+  - `webview-ui.src.shared.ui.alert.AlertTitle.React.forwardRef() callback` (L63-L69) - Function
+  - `webview-ui.src.shared.ui.alert.AlertDescription` (L73-L75) - Class
+  - `webview-ui.src.shared.ui.alert.AlertDescription.React.forwardRef() callback` (L74-L74) - Function
+- `webview-ui/src/shared/ui/badge.stories.tsx`
+  - `webview-ui.src.shared.ui.badge.stories.Default` (L20-L48) - Class
+  - `webview-ui.src.shared.ui.badge.stories.Default.types.map() callback` (L32-L44) - Function
+  - `webview-ui.src.shared.ui.badge.stories.Default.types.map() callback.variants.map() callback` (L36-L41) - Function
+  - `webview-ui.src.shared.ui.badge.stories.Dismissible` (L50-L71) - Class
+  - `webview-ui.src.shared.ui.badge.stories.Dismissible.variants.map() callback` (L56-L67) - Function
+- `webview-ui/src/shared/ui/badge.tsx`
+  - `webview-ui.src.shared.ui.badge.BadgeProps` (L32-L32) - Interface
+  - `webview-ui.src.shared.ui.badge.Badge` (L34-L36) - Function
+- `webview-ui/src/shared/ui/button.stories.tsx`
+  - `webview-ui.src.shared.ui.button.stories.Overview` (L21-L51) - Class
+  - `webview-ui.src.shared.ui.button.stories.Overview.sizes.map() callback` (L32-L48) - Function
+  - `webview-ui.src.shared.ui.button.stories.Overview.sizes.map() callback.variants.map() callback` (L35-L46) - Function
+- `webview-ui/src/shared/ui/button.tsx`
+  - `webview-ui.src.shared.ui.button.ButtonProps` (L46-L48) - Interface
+  - `webview-ui.src.shared.ui.button.Button` (L50-L55) - Class
+  - `webview-ui.src.shared.ui.button.Button.React.forwardRef() callback` (L51-L54) - Function
+- `webview-ui/src/shared/ui/dialog.stories.tsx`
+  - `webview-ui.src.shared.ui.dialog.stories.Interactive` (L43-L131) - Class
+  - `webview-ui.src.shared.ui.dialog.stories.Interactive.render` (L95-L130) - Method
+  - `webview-ui.src.shared.ui.dialog.stories.Overview` (L134-L240) - Class
+  - `webview-ui.src.shared.ui.dialog.stories.Overview.variants.map() callback` (L208-L236) - Function
+- `webview-ui/src/shared/ui/dialog.tsx`
+  - `webview-ui.src.shared.ui.dialog.DialogOverlay` (L15-L27) - Class
+  - `webview-ui.src.shared.ui.dialog.DialogOverlay.React.forwardRef() callback` (L18-L27) - Function
+  - `webview-ui.src.shared.ui.dialog.DialogContentProps` (L30-L32) - Interface
+  - `webview-ui.src.shared.ui.dialog.DialogContent` (L34-L55) - Class
+  - `webview-ui.src.shared.ui.dialog.DialogContent.React.forwardRef() callback` (L35-L54) - Function
+  - `webview-ui.src.shared.ui.dialog.DialogTitle` (L68-L73) - Class
+  - `webview-ui.src.shared.ui.dialog.DialogTitle.React.forwardRef() callback` (L71-L73) - Function
+  - `webview-ui.src.shared.ui.dialog.DialogDescription` (L76-L81) - Class
+  - `webview-ui.src.shared.ui.dialog.DialogDescription.React.forwardRef() callback` (L79-L81) - Function
+- `webview-ui/src/shared/ui/hooks/useOpenRouterKeyInfo.ts`
+  - `webview-ui.src.shared.ui.hooks.useOpenRouterKeyInfo.getOpenRouterKeyInfo` (L27-L59) - Function
+  - `webview-ui.src.shared.ui.hooks.useOpenRouterKeyInfo.useOpenRouterKeyInfo` (L67-L148) - Class
+  - `webview-ui.src.shared.ui.hooks.useOpenRouterKeyInfo.useOpenRouterKeyInfo.useEffect() callback` (L74-L145) - Function
+  - `webview-ui.src.shared.ui.hooks.useOpenRouterKeyInfo.useOpenRouterKeyInfo.useEffect() callback.then() callback` (L116-L123) - Function
+  - `webview-ui.src.shared.ui.hooks.useOpenRouterKeyInfo.useOpenRouterKeyInfo.useEffect() callback.catch() callback` (L124-L134) - Function
+  - `webview-ui.src.shared.ui.hooks.useOpenRouterKeyInfo.useOpenRouterKeyInfo.useEffect() callback.finally() callback` (L135-L139) - Function
+- `webview-ui/src/shared/ui/hover-card.tsx`
+  - `webview-ui.src.shared.ui.hover-card.HoverCardContent.constructor` (L10-L33) - Constructor
+  - `webview-ui.src.shared.ui.hover-card.HoverCardContent` (L10-L35) - Class
+- `webview-ui/src/shared/ui/input.tsx`
+  - `webview-ui.src.shared.ui.input.Input` (L5-L17) - Class
+  - `webview-ui.src.shared.ui.input.Input.React.forwardRef() callback` (L5-L17) - Function
+- `webview-ui/src/shared/ui/item.tsx`
+  - `webview-ui.src.shared.ui.item.ItemGroup` (L7-L9) - Function
+  - `webview-ui.src.shared.ui.item.ItemSeparator` (L11-L13) - Function
+  - `webview-ui.src.shared.ui.item.Item` (L37-L54) - Function
+  - `webview-ui.src.shared.ui.item.ItemMedia` (L72-L81) - Function
+  - `webview-ui.src.shared.ui.item.ItemContent` (L83-L91) - Function
+  - `webview-ui.src.shared.ui.item.ItemTitle` (L93-L101) - Function
+  - `webview-ui.src.shared.ui.item.ItemDescription` (L103-L115) - Function
+  - `webview-ui.src.shared.ui.item.ItemActions` (L117-L119) - Function
+  - `webview-ui.src.shared.ui.item.ItemHeader` (L121-L129) - Function
+  - `webview-ui.src.shared.ui.item.ItemFooter` (L131-L135) - Function
+- `webview-ui/src/shared/ui/label.tsx`
+  - `webview-ui.src.shared.ui.label.Label` (L9-L12) - Class
+  - `webview-ui.src.shared.ui.label.Label.React.forwardRef() callback` (L12-L12) - Function
+- `webview-ui/src/shared/ui/popover.tsx`
+  - `webview-ui.src.shared.ui.popover.PopoverContent.constructor` (L12-L43) - Constructor
+  - `webview-ui.src.shared.ui.popover.PopoverContent` (L12-L45) - Class
+- `webview-ui/src/shared/ui/progress.tsx`
+  - `webview-ui.src.shared.ui.progress.Progress` (L10-L23) - Class
+  - `webview-ui.src.shared.ui.progress.Progress.React.forwardRef() callback` (L13-L23) - Function
+- `webview-ui/src/shared/ui/select.stories.tsx`
+  - `webview-ui.src.shared.ui.select.stories.Interactive` (L40-L134) - Class
+  - `webview-ui.src.shared.ui.select.stories.Interactive.render` (L81-L133) - Method
+  - `webview-ui.src.shared.ui.select.stories.render.map() callback` (L102-L106) - Function
+  - `webview-ui.src.shared.ui.select.stories.Interactive.render.map() callback` (L111-L115) - Function
+  - `webview-ui.src.shared.ui.select.stories.Interactive.render.args.items.map() callback` (L119-L126) - Function
+  - `webview-ui.src.shared.ui.select.stories.Overview` (L137-L221) - Class
+  - `webview-ui.src.shared.ui.select.stories.Overview.variants.map() callback` (L177-L217) - Function
+  - `webview-ui.src.shared.ui.select.stories.Overview.variants.map() callback.variant.groups.map() callback` (L186-L198) - Function
+  - `webview-ui.src.shared.ui.select.stories.Overview.variants.map() callback.variant.groups.map() callback.group.items.map() callback` (L190-L194) - Function
+  - `webview-ui.src.shared.ui.select.stories.Overview.variants.map() callback.variant.items.map() callback` (L202-L211) - Function
+- `webview-ui/src/shared/ui/select.tsx`
+  - `webview-ui.src.shared.ui.select.Select` (L9-L11) - Function
+  - `webview-ui.src.shared.ui.select.SelectGroup` (L13-L15) - Function
+  - `webview-ui.src.shared.ui.select.SelectValue` (L17-L19) - Function
+  - `webview-ui.src.shared.ui.select.SelectTrigger` (L21-L48) - Function
+  - `webview-ui.src.shared.ui.select.SelectContent` (L50-L83) - Function
+  - `webview-ui.src.shared.ui.select.SelectLabel` (L85-L93) - Function
+  - `webview-ui.src.shared.ui.select.SelectItem` (L95-L112) - Function
+  - `webview-ui.src.shared.ui.select.SelectSeparator` (L114-L122) - Function
+  - `webview-ui.src.shared.ui.select.SelectScrollUpButton` (L124-L133) - Function
+  - `webview-ui.src.shared.ui.select.SelectScrollDownButton` (L135-L144) - Function
+- `webview-ui/src/shared/ui/separator.tsx`
+  - `webview-ui.src.shared.ui.separator.Separator` (L6-L24) - Function
+- `webview-ui/src/shared/ui/slider.tsx`
+  - `webview-ui.src.shared.ui.slider.Slider` (L6-L19) - Class
+  - `webview-ui.src.shared.ui.slider.Slider.React.forwardRef() callback` (L9-L19) - Function
+- `webview-ui/src/shared/ui/switch.tsx`
+  - `webview-ui.src.shared.ui.switch.SwitchProps` (L19-L21) - Interface
+  - `webview-ui.src.shared.ui.switch.Switch` (L23-L41) - Class
+  - `webview-ui.src.shared.ui.switch.Switch.React.forwardRef() callback` (L24-L40) - Function
+- `webview-ui/src/shared/ui/tooltip.tsx`
+  - `webview-ui.src.shared.ui.tooltip.TooltipProvider` (L6-L8) - Function
+  - `webview-ui.src.shared.ui.tooltip.Tooltip` (L10-L16) - Function
+  - `webview-ui.src.shared.ui.tooltip.TooltipTrigger` (L18-L20) - Function
+  - `webview-ui.src.shared.ui.tooltip.TooltipContent` (L22-L56) - Function
 - `webview-ui/vite.config.ts`
   - `webview-ui.vite.config.writePortToFile` (L10-L27) - Class
   - `webview-ui.vite.config.writePortToFile.configureServer` (L13-L25) - Method

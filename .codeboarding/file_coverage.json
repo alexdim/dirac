@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generated_at": "2026-10-15T14:01:32.780298+00:00",
+  "generated_at": "2026-10-15T14:41:48.640125+00:00",
   "analyzed_files": [
     "cli/acp-spawn-debug.mjs",
     "cli/scripts/acp-probe.mts",
@@ -1268,9 +1268,306 @@
     "src/utils/worktree-include.ts",
     "test-setup.js",
     "update_models.js",
+    "webview-ui/src/App.stories.tsx",
+    "webview-ui/src/app/App.tsx",
+    "webview-ui/src/app/Providers.tsx",
+    "webview-ui/src/app/main.tsx",
+    "webview-ui/src/app/store/appStore.ts",
+    "webview-ui/src/assets/DiracCompactIcon.tsx",
+    "webview-ui/src/assets/DiracLogoVariable.tsx",
+    "webview-ui/src/assets/DiscordIcon.tsx",
+    "webview-ui/src/assets/GitHubIcon.tsx",
+    "webview-ui/src/assets/LinkedInIcon.tsx",
+    "webview-ui/src/assets/RedditIcon.tsx",
+    "webview-ui/src/assets/XIcon.tsx",
+    "webview-ui/src/config/StorybookDecorator.tsx",
     "webview-ui/src/config/platform.config.ts",
+    "webview-ui/src/constants.ts",
+    "webview-ui/src/context/DiracAuthContext.tsx",
+    "webview-ui/src/context/PlatformContext.tsx",
+    "webview-ui/src/entities/task/store/taskStore.ts",
+    "webview-ui/src/entities/user/store/userStore.ts",
+    "webview-ui/src/features/banners/hooks/useBannerAction.ts",
+    "webview-ui/src/features/chat/components/ChatView/ChatView.tsx",
+    "webview-ui/src/features/chat/store/chatStore.ts",
+    "webview-ui/src/features/dirac-rules/components/DiracRulesToggleModal.tsx",
+    "webview-ui/src/features/dirac-rules/components/HookRow.tsx",
+    "webview-ui/src/features/dirac-rules/components/NewRuleRow.tsx",
+    "webview-ui/src/features/dirac-rules/components/RuleRow.tsx",
+    "webview-ui/src/features/dirac-rules/components/RulesToggleList.tsx",
+    "webview-ui/src/features/history/components/HistoryView/HistoryView.tsx",
     "webview-ui/src/features/history/components/HistoryViewItem.tsx",
+    "webview-ui/src/features/modular-ui/ApiStatusOverlay.tsx",
+    "webview-ui/src/features/modular-ui/CheckpointMarker.tsx",
+    "webview-ui/src/features/modular-ui/ModularCard.tsx",
+    "webview-ui/src/features/modular-ui/ModularDiffView.tsx",
+    "webview-ui/src/features/modular-ui/ModularMarkdown.stories.tsx",
+    "webview-ui/src/features/modular-ui/ModularMarkdown.tsx",
+    "webview-ui/src/features/modular-ui/ReasoningTimeline.tsx",
+    "webview-ui/src/features/modular-ui/chat/ModularChatTextArea.tsx",
+    "webview-ui/src/features/modular-ui/chat/ModularChatView.tsx",
+    "webview-ui/src/features/modular-ui/chat/components/ActionButtons.tsx",
+    "webview-ui/src/features/modular-ui/chat/components/AutoApprove/AutoApproveBar.tsx",
+    "webview-ui/src/features/modular-ui/chat/components/AutoApprove/AutoApproveMenuItem.tsx",
+    "webview-ui/src/features/modular-ui/chat/components/AutoApprove/AutoApproveModal.tsx",
+    "webview-ui/src/features/modular-ui/chat/components/AutoApprove/AutoApproveSettingsAPI.ts",
+    "webview-ui/src/features/modular-ui/chat/components/AutoApprove/constants.ts",
+    "webview-ui/src/features/modular-ui/chat/components/AutoApprove/types.ts",
+    "webview-ui/src/features/modular-ui/chat/components/ChatLayout.tsx",
+    "webview-ui/src/features/modular-ui/chat/components/ChatRow.tsx",
+    "webview-ui/src/features/modular-ui/chat/components/ContextMenu.tsx",
+    "webview-ui/src/features/modular-ui/chat/components/GoalHeader/GoalHeader.tsx",
     "webview-ui/src/features/modular-ui/chat/components/HistoryPreview.tsx",
+    "webview-ui/src/features/modular-ui/chat/components/InputPrimitive.tsx",
+    "webview-ui/src/features/modular-ui/chat/components/MessageRow.tsx",
+    "webview-ui/src/features/modular-ui/chat/components/MessagesArea.tsx",
+    "webview-ui/src/features/modular-ui/chat/components/ModularWelcomeSection.tsx",
+    "webview-ui/src/features/modular-ui/chat/components/SlashCommandMenu.tsx",
+    "webview-ui/src/features/modular-ui/chat/components/TaskHeader/CheckpointError.tsx",
+    "webview-ui/src/features/modular-ui/chat/components/TaskHeader/ContextWindow.tsx",
+    "webview-ui/src/features/modular-ui/chat/components/TaskHeader/ContextWindowSummary.tsx",
+    "webview-ui/src/features/modular-ui/chat/components/TaskHeader/Highlights.tsx",
+    "webview-ui/src/features/modular-ui/chat/components/TaskHeader/TaskHeader.tsx",
+    "webview-ui/src/features/modular-ui/chat/components/TaskHeader/buttons/CompactTaskButton.tsx",
+    "webview-ui/src/features/modular-ui/chat/components/TaskHeader/buttons/CopyTaskButton.tsx",
+    "webview-ui/src/features/modular-ui/chat/components/TaskHeader/buttons/DeleteTaskButton.tsx",
+    "webview-ui/src/features/modular-ui/chat/components/TaskHeader/buttons/NewTaskButton.tsx",
+    "webview-ui/src/features/modular-ui/chat/components/TaskHeader/buttons/OpenDiskConversationHistoryButton.tsx",
+    "webview-ui/src/features/modular-ui/chat/components/TaskHeader/getCostLabel.ts",
+    "webview-ui/src/features/modular-ui/chat/components/TaskStatusIndicator.tsx",
+    "webview-ui/src/features/modular-ui/chat/components/VirtuosoItemRenderer.tsx",
+    "webview-ui/src/features/modular-ui/chat/constants.ts",
+    "webview-ui/src/features/modular-ui/chat/context/InteractionStateContext.tsx",
+    "webview-ui/src/features/modular-ui/chat/decorators/ActionDecorator.tsx",
+    "webview-ui/src/features/modular-ui/chat/decorators/HighlightDecorator.tsx",
+    "webview-ui/src/features/modular-ui/chat/decorators/OverlayDecorator.tsx",
+    "webview-ui/src/features/modular-ui/chat/decorators/view/ActionButtonsDecorator.tsx",
+    "webview-ui/src/features/modular-ui/chat/decorators/view/AutoApproveDecorator.tsx",
+    "webview-ui/src/features/modular-ui/chat/hooks/index.ts",
+    "webview-ui/src/features/modular-ui/chat/hooks/useChatState.ts",
+    "webview-ui/src/features/modular-ui/chat/hooks/useMessageHandlers.ts",
+    "webview-ui/src/features/modular-ui/chat/hooks/useModularInput.ts",
+    "webview-ui/src/features/modular-ui/chat/hooks/useScrollBehavior.ts",
+    "webview-ui/src/features/modular-ui/chat/sections/GoalSection.tsx",
+    "webview-ui/src/features/modular-ui/chat/sections/InputSection.tsx",
+    "webview-ui/src/features/modular-ui/chat/sections/MessagesSection.tsx",
+    "webview-ui/src/features/modular-ui/chat/sections/TaskSection.tsx",
+    "webview-ui/src/features/modular-ui/chat/sections/WelcomeSection.tsx",
+    "webview-ui/src/features/modular-ui/chat/traits/useFileHandlingTrait.ts",
+    "webview-ui/src/features/modular-ui/chat/traits/useMentionTrait.ts",
+    "webview-ui/src/features/modular-ui/chat/traits/useModeTrait.ts",
+    "webview-ui/src/features/modular-ui/chat/traits/useSlashCommandTrait.ts",
+    "webview-ui/src/features/modular-ui/chat/types.ts",
+    "webview-ui/src/features/modular-ui/chat/types/chatRowTypes.ts",
+    "webview-ui/src/features/modular-ui/chat/types/chatTypes.ts",
+    "webview-ui/src/features/modular-ui/chat/utils/buttonConfig.ts",
+    "webview-ui/src/features/modular-ui/chat/utils/messageUtils.ts",
+    "webview-ui/src/features/modular-ui/chat/utils/text-utils.ts",
+    "webview-ui/src/features/modular-ui/components/CardActions.tsx",
+    "webview-ui/src/features/modular-ui/components/CardContent.tsx",
+    "webview-ui/src/features/modular-ui/components/CardStatusIcon.tsx",
+    "webview-ui/src/features/modular-ui/components/IncrementalText.tsx",
+    "webview-ui/src/features/modular-ui/components/MarkdownRow.tsx",
+    "webview-ui/src/features/modular-ui/components/ModularCardBody.tsx",
+    "webview-ui/src/features/modular-ui/components/ModularCardHeader.tsx",
+    "webview-ui/src/features/modular-ui/components/QuoteButton.tsx",
+    "webview-ui/src/features/modular-ui/components/SubagentAvatar.tsx",
+    "webview-ui/src/features/modular-ui/components/TaskFeedbackButtons.tsx",
+    "webview-ui/src/features/modular-ui/components/ThinkingRow.tsx",
+    "webview-ui/src/features/modular-ui/components/UserMessageContent.tsx",
+    "webview-ui/src/features/modular-ui/decorators/AskQuestionDecorator.tsx",
+    "webview-ui/src/features/modular-ui/decorators/BugReportDecorator.tsx",
+    "webview-ui/src/features/modular-ui/decorators/CompletionDecorator.tsx",
+    "webview-ui/src/features/modular-ui/decorators/DiffDecorator.tsx",
+    "webview-ui/src/features/modular-ui/decorators/HookDecorator.tsx",
+    "webview-ui/src/features/modular-ui/decorators/NewTaskDecorator.ts",
+    "webview-ui/src/features/modular-ui/decorators/SearchDecorator.tsx",
+    "webview-ui/src/features/modular-ui/decorators/TerminalDecorator.tsx",
+    "webview-ui/src/features/modular-ui/decorators/index.ts",
+    "webview-ui/src/features/modular-ui/decorators/types.ts",
+    "webview-ui/src/features/modular-ui/hooks/useQuoteLogic.ts",
+    "webview-ui/src/features/modular-ui/index.ts",
+    "webview-ui/src/features/modular-ui/types.ts",
+    "webview-ui/src/features/modular-ui/utils/cardUtils.ts",
+    "webview-ui/src/features/modular-ui/utils/newTaskCard.ts",
+    "webview-ui/src/features/settings/components/ApiOptions.tsx",
+    "webview-ui/src/features/settings/components/AutoCondenseContextLimitSetting.tsx",
+    "webview-ui/src/features/settings/components/BasetenModelPicker.tsx",
+    "webview-ui/src/features/settings/components/CollapsibleContent.tsx",
+    "webview-ui/src/features/settings/components/FeaturedModelCard.tsx",
+    "webview-ui/src/features/settings/components/GroqModelPicker.tsx",
+    "webview-ui/src/features/settings/components/HuggingFaceModelPicker.tsx",
+    "webview-ui/src/features/settings/components/InferenceSpeedSelector.tsx",
+    "webview-ui/src/features/settings/components/ModelDescriptionMarkdown.tsx",
+    "webview-ui/src/features/settings/components/OpenRouterModelPicker.tsx",
+    "webview-ui/src/features/settings/components/OpenRouterRoutingControls.tsx",
+    "webview-ui/src/features/settings/components/PreferredLanguageSetting.tsx",
+    "webview-ui/src/features/settings/components/ReasoningEffortSelector.tsx",
+    "webview-ui/src/features/settings/components/RequestyModelPicker.tsx",
+    "webview-ui/src/features/settings/components/Section.tsx",
+    "webview-ui/src/features/settings/components/SectionHeader.tsx",
+    "webview-ui/src/features/settings/components/SettingsSlider.tsx",
+    "webview-ui/src/features/settings/components/SettingsView/SettingsView.tsx",
+    "webview-ui/src/features/settings/components/TerminalOutputLineLimitSlider.tsx",
+    "webview-ui/src/features/settings/components/ThinkingBudgetSlider.tsx",
+    "webview-ui/src/features/settings/components/UseCustomPromptCheckbox.tsx",
+    "webview-ui/src/features/settings/components/UtilityModelSelection.tsx",
+    "webview-ui/src/features/settings/components/VercelModelPicker.tsx",
+    "webview-ui/src/features/settings/components/common/ApiKeyField.tsx",
+    "webview-ui/src/features/settings/components/common/BaseUrlField.tsx",
+    "webview-ui/src/features/settings/components/common/DebouncedTextField.tsx",
+    "webview-ui/src/features/settings/components/common/ErrorMessage.tsx",
+    "webview-ui/src/features/settings/components/common/ModelAutocomplete.tsx",
+    "webview-ui/src/features/settings/components/common/ModelInfoView.tsx",
+    "webview-ui/src/features/settings/components/common/ModelSelector.tsx",
+    "webview-ui/src/features/settings/components/common/RemotelyConfiguredInputWrapper.tsx",
+    "webview-ui/src/features/settings/components/providers/AihubmixProvider.tsx",
+    "webview-ui/src/features/settings/components/providers/AnthropicProvider.tsx",
+    "webview-ui/src/features/settings/components/providers/BasetenProvider.tsx",
+    "webview-ui/src/features/settings/components/providers/BedrockProvider.tsx",
+    "webview-ui/src/features/settings/components/providers/CerebrasProvider.tsx",
+    "webview-ui/src/features/settings/components/providers/ClaudeCodeProvider.tsx",
+    "webview-ui/src/features/settings/components/providers/DeepSeekProvider.tsx",
+    "webview-ui/src/features/settings/components/providers/DifyProvider.tsx",
+    "webview-ui/src/features/settings/components/providers/DoubaoProvider.tsx",
+    "webview-ui/src/features/settings/components/providers/FireworksProvider.tsx",
+    "webview-ui/src/features/settings/components/providers/GeminiProvider.tsx",
+    "webview-ui/src/features/settings/components/providers/GithubCopilotProvider.tsx",
+    "webview-ui/src/features/settings/components/providers/GroqProvider.tsx",
+    "webview-ui/src/features/settings/components/providers/HuaweiCloudMaasProvider.tsx",
+    "webview-ui/src/features/settings/components/providers/HuggingFaceProvider.tsx",
+    "webview-ui/src/features/settings/components/providers/LMStudioProvider.tsx",
+    "webview-ui/src/features/settings/components/providers/LiteLlmProvider.tsx",
+    "webview-ui/src/features/settings/components/providers/MiniMaxProvider.tsx",
+    "webview-ui/src/features/settings/components/providers/MistralProvider.tsx",
+    "webview-ui/src/features/settings/components/providers/MoonshotProvider.tsx",
+    "webview-ui/src/features/settings/components/providers/NebiusProvider.tsx",
+    "webview-ui/src/features/settings/components/providers/NousresearchProvider.tsx",
+    "webview-ui/src/features/settings/components/providers/OpenAICompatible.tsx",
+    "webview-ui/src/features/settings/components/providers/OpenAINative.tsx",
+    "webview-ui/src/features/settings/components/providers/OpenAiCodexProvider.tsx",
+    "webview-ui/src/features/settings/components/providers/OpenRouterProvider.tsx",
+    "webview-ui/src/features/settings/components/providers/QwenCodeProvider.tsx",
+    "webview-ui/src/features/settings/components/providers/QwenProvider.tsx",
+    "webview-ui/src/features/settings/components/providers/RequestyProvider.tsx",
+    "webview-ui/src/features/settings/components/providers/SambanovaProvider.tsx",
+    "webview-ui/src/features/settings/components/providers/TogetherProvider.tsx",
+    "webview-ui/src/features/settings/components/providers/UnbiasedProvider.tsx",
+    "webview-ui/src/features/settings/components/providers/VSCodeLmProvider.tsx",
+    "webview-ui/src/features/settings/components/providers/VercelAIGatewayProvider.tsx",
+    "webview-ui/src/features/settings/components/providers/VertexProvider.tsx",
+    "webview-ui/src/features/settings/components/providers/WandbProvider.tsx",
+    "webview-ui/src/features/settings/components/providers/XaiProvider.tsx",
+    "webview-ui/src/features/settings/components/providers/ZAiProvider.tsx",
+    "webview-ui/src/features/settings/components/providers/openai-codex/OpenAiCodexAccountCard.tsx",
+    "webview-ui/src/features/settings/components/providers/openai-codex/OpenAiCodexActivity.tsx",
+    "webview-ui/src/features/settings/components/providers/openai-codex/OpenAiCodexLimitRow.tsx",
+    "webview-ui/src/features/settings/components/providers/openai-codex/OpenAiCodexProvider.stories.tsx",
+    "webview-ui/src/features/settings/components/providers/openai-codex/OpenAiCodexSignIn.tsx",
+    "webview-ui/src/features/settings/components/providers/openai-codex/OpenAiCodexUsagePanel.tsx",
+    "webview-ui/src/features/settings/components/providers/openai-codex/formatOpenAiCodexUsage.ts",
+    "webview-ui/src/features/settings/components/sections/AboutSection.tsx",
+    "webview-ui/src/features/settings/components/sections/ApiConfigurationSection.tsx",
+    "webview-ui/src/features/settings/components/sections/ApprovalsSettingsSection.tsx",
+    "webview-ui/src/features/settings/components/sections/BrowserSettingsSection.tsx",
+    "webview-ui/src/features/settings/components/sections/DebugSection.tsx",
+    "webview-ui/src/features/settings/components/sections/FeatureSettingsSection.tsx",
+    "webview-ui/src/features/settings/components/sections/GeneralSettingsSection.tsx",
+    "webview-ui/src/features/settings/components/sections/ResponsesContextSection.tsx",
+    "webview-ui/src/features/settings/components/sections/RunningTasksSection.tsx",
+    "webview-ui/src/features/settings/components/sections/TerminalSettingsSection.tsx",
+    "webview-ui/src/features/settings/components/sections/ToolTogglePanel.tsx",
+    "webview-ui/src/features/settings/components/sections/ToolsSettingsSection.tsx",
+    "webview-ui/src/features/settings/components/sections/UserApprovedCommandsSection.tsx",
+    "webview-ui/src/features/settings/components/sections/UtilityModelSection.tsx",
+    "webview-ui/src/features/settings/components/utils/pricingUtils.ts",
+    "webview-ui/src/features/settings/components/utils/providerUtils.ts",
+    "webview-ui/src/features/settings/components/utils/settingsHandlers.ts",
+    "webview-ui/src/features/settings/components/utils/useApiConfigurationHandlers.ts",
+    "webview-ui/src/features/settings/components/utils/useDebouncedInput.ts",
+    "webview-ui/src/features/settings/store/modelsStore.ts",
+    "webview-ui/src/features/settings/store/settingsStore.ts",
+    "webview-ui/src/features/worktrees/components/CreateWorktreeModal.tsx",
+    "webview-ui/src/features/worktrees/components/DeleteWorktreeModal.tsx",
+    "webview-ui/src/features/worktrees/components/WorktreesView.tsx",
+    "webview-ui/src/lib/utils.ts",
+    "webview-ui/src/setupTests.ts",
+    "webview-ui/src/shared/api/grpc-client-base.ts",
+    "webview-ui/src/shared/api/grpc-client.ts",
+    "webview-ui/src/shared/api/vscode.ts",
+    "webview-ui/src/shared/hooks/useAutoApproveActions.ts",
+    "webview-ui/src/shared/hooks/useAutoApproveAll.ts",
+    "webview-ui/src/shared/hooks/useAutoScroll.ts",
+    "webview-ui/src/shared/hooks/useMenuAnnouncement.ts",
+    "webview-ui/src/shared/hooks/useRelinquishControl.ts",
+    "webview-ui/src/shared/lib/bannerUtils.tsx",
+    "webview-ui/src/shared/lib/context-mentions.ts",
+    "webview-ui/src/shared/lib/environmentColors.ts",
+    "webview-ui/src/shared/lib/format.ts",
+    "webview-ui/src/shared/lib/getConfiguredProviders.ts",
+    "webview-ui/src/shared/lib/getLanguageFromPath.ts",
+    "webview-ui/src/shared/lib/hooks.ts",
+    "webview-ui/src/shared/lib/platformUtils.ts",
+    "webview-ui/src/shared/lib/slash-commands.ts",
+    "webview-ui/src/shared/lib/useDebounceEffect.ts",
+    "webview-ui/src/shared/lib/useThrottledValue.ts",
+    "webview-ui/src/shared/lib/validate.ts",
+    "webview-ui/src/shared/lib/vscStyles.ts",
+    "webview-ui/src/shared/ui/AlertDialog.tsx",
+    "webview-ui/src/shared/ui/BannerCarousel.tsx",
+    "webview-ui/src/shared/ui/BrowserSettingsMenu.tsx",
+    "webview-ui/src/shared/ui/CopyButton.tsx",
+    "webview-ui/src/shared/ui/Demo.tsx",
+    "webview-ui/src/shared/ui/LightMarkdown.tsx",
+    "webview-ui/src/shared/ui/MarkdownBlock.stories.tsx",
+    "webview-ui/src/shared/ui/MarkdownBlock.tsx",
+    "webview-ui/src/shared/ui/MermaidBlock.tsx",
+    "webview-ui/src/shared/ui/Navbar.tsx",
+    "webview-ui/src/shared/ui/PopupModalContainer.tsx",
+    "webview-ui/src/shared/ui/ProgressIndicator.tsx",
+    "webview-ui/src/shared/ui/QuotedMessagePreview.tsx",
+    "webview-ui/src/shared/ui/ReleaseNotesModal.tsx",
+    "webview-ui/src/shared/ui/ScreenReaderAnnounce.tsx",
+    "webview-ui/src/shared/ui/SuccessButton.tsx",
+    "webview-ui/src/shared/ui/Tab.tsx",
+    "webview-ui/src/shared/ui/TabButton.tsx",
+    "webview-ui/src/shared/ui/TelemetryBanner.tsx",
+    "webview-ui/src/shared/ui/Thumbnails.tsx",
+    "webview-ui/src/shared/ui/UnsafeImage.tsx",
+    "webview-ui/src/shared/ui/VSCodeButtonLink.tsx",
+    "webview-ui/src/shared/ui/ViewHeader.tsx",
+    "webview-ui/src/shared/ui/WhatsNewItems.tsx",
+    "webview-ui/src/shared/ui/WhatsNewModal.tsx",
+    "webview-ui/src/shared/ui/alert.stories.tsx",
+    "webview-ui/src/shared/ui/alert.tsx",
+    "webview-ui/src/shared/ui/badge.stories.tsx",
+    "webview-ui/src/shared/ui/badge.tsx",
+    "webview-ui/src/shared/ui/button.stories.tsx",
+    "webview-ui/src/shared/ui/button.tsx",
+    "webview-ui/src/shared/ui/dialog.stories.tsx",
+    "webview-ui/src/shared/ui/dialog.tsx",
+    "webview-ui/src/shared/ui/hooks/useOpenRouterKeyInfo.ts",
+    "webview-ui/src/shared/ui/hover-card.stories.tsx",
+    "webview-ui/src/shared/ui/hover-card.tsx",
+    "webview-ui/src/shared/ui/input.stories.tsx",
+    "webview-ui/src/shared/ui/input.tsx",
+    "webview-ui/src/shared/ui/item.stories.tsx",
+    "webview-ui/src/shared/ui/item.tsx",
+    "webview-ui/src/shared/ui/label.tsx",
+    "webview-ui/src/shared/ui/popover.stories.tsx",
+    "webview-ui/src/shared/ui/popover.tsx",
+    "webview-ui/src/shared/ui/progress.stories.tsx",
+    "webview-ui/src/shared/ui/progress.tsx",
+    "webview-ui/src/shared/ui/select.stories.tsx",
+    "webview-ui/src/shared/ui/select.tsx",
+    "webview-ui/src/shared/ui/separator.stories.tsx",
+    "webview-ui/src/shared/ui/separator.tsx",
+    "webview-ui/src/shared/ui/slider.tsx",
+    "webview-ui/src/shared/ui/switch.stories.tsx",
+    "webview-ui/src/shared/ui/switch.tsx",
+    "webview-ui/src/shared/ui/tooltip.stories.tsx",
+    "webview-ui/src/shared/ui/tooltip.tsx",
+    "webview-ui/src/vite-env.d.ts",
     "webview-ui/vite.config.ts"
   ],
   "not_analyzed_files": [
@@ -4963,26 +5260,6 @@
       "reason": "other"
     },
     {
-      "path": "webview-ui/src/App.stories.tsx",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/app/App.tsx",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/app/Providers.tsx",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/app/main.tsx",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/app/store/appStore.ts",
-      "reason": "other"
-    },
-    {
       "path": "webview-ui/src/app/styles/focusStyles.test.ts",
       "reason": "codeboardingignore"
     },
@@ -4999,38 +5276,6 @@
       "reason": "other"
     },
     {
-      "path": "webview-ui/src/assets/DiracCompactIcon.tsx",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/assets/DiracLogoVariable.tsx",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/assets/DiscordIcon.tsx",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/assets/GitHubIcon.tsx",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/assets/LinkedInIcon.tsx",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/assets/RedditIcon.tsx",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/assets/XIcon.tsx",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/config/StorybookDecorator.tsx",
-      "reason": "other"
-    },
-    {
       "path": "webview-ui/src/config/__tests__/platform.config.test.ts",
       "reason": "codeboardingignore"
     },
@@ -5039,388 +5284,48 @@
       "reason": "other"
     },
     {
-      "path": "webview-ui/src/constants.ts",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/context/DiracAuthContext.tsx",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/context/PlatformContext.tsx",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/entities/task/store/taskStore.ts",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/entities/user/store/userStore.ts",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/features/banners/hooks/useBannerAction.ts",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/features/chat/components/ChatView/ChatView.tsx",
-      "reason": "other"
-    },
-    {
       "path": "webview-ui/src/features/chat/store/__tests__/chatStore.test.ts",
       "reason": "codeboardingignore"
-    },
-    {
-      "path": "webview-ui/src/features/chat/store/chatStore.ts",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/features/dirac-rules/components/DiracRulesToggleModal.tsx",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/features/dirac-rules/components/HookRow.tsx",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/features/dirac-rules/components/NewRuleRow.tsx",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/features/dirac-rules/components/RuleRow.tsx",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/features/dirac-rules/components/RulesToggleList.tsx",
-      "reason": "other"
     },
     {
       "path": "webview-ui/src/features/history/components/HistoryView/HistoryView.test.tsx",
       "reason": "codeboardingignore"
     },
     {
-      "path": "webview-ui/src/features/history/components/HistoryView/HistoryView.tsx",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/features/modular-ui/ApiStatusOverlay.tsx",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/features/modular-ui/CheckpointMarker.tsx",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/features/modular-ui/ModularCard.tsx",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/features/modular-ui/ModularDiffView.tsx",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/features/modular-ui/ModularMarkdown.stories.tsx",
-      "reason": "other"
-    },
-    {
       "path": "webview-ui/src/features/modular-ui/ModularMarkdown.test.tsx",
       "reason": "codeboardingignore"
-    },
-    {
-      "path": "webview-ui/src/features/modular-ui/ModularMarkdown.tsx",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/features/modular-ui/ReasoningTimeline.tsx",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/features/modular-ui/chat/ModularChatTextArea.tsx",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/features/modular-ui/chat/ModularChatView.tsx",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/features/modular-ui/chat/components/ActionButtons.tsx",
-      "reason": "other"
     },
     {
       "path": "webview-ui/src/features/modular-ui/chat/components/AutoApprove/AutoApproveBar.test.ts",
       "reason": "codeboardingignore"
     },
     {
-      "path": "webview-ui/src/features/modular-ui/chat/components/AutoApprove/AutoApproveBar.tsx",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/features/modular-ui/chat/components/AutoApprove/AutoApproveMenuItem.tsx",
-      "reason": "other"
-    },
-    {
       "path": "webview-ui/src/features/modular-ui/chat/components/AutoApprove/AutoApproveModal.test.tsx",
       "reason": "codeboardingignore"
-    },
-    {
-      "path": "webview-ui/src/features/modular-ui/chat/components/AutoApprove/AutoApproveModal.tsx",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/features/modular-ui/chat/components/AutoApprove/AutoApproveSettingsAPI.ts",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/features/modular-ui/chat/components/AutoApprove/constants.ts",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/features/modular-ui/chat/components/AutoApprove/types.ts",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/features/modular-ui/chat/components/ChatLayout.tsx",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/features/modular-ui/chat/components/ChatRow.tsx",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/features/modular-ui/chat/components/ContextMenu.tsx",
-      "reason": "other"
     },
     {
       "path": "webview-ui/src/features/modular-ui/chat/components/GoalHeader/GoalHeader.test.tsx",
       "reason": "codeboardingignore"
     },
     {
-      "path": "webview-ui/src/features/modular-ui/chat/components/GoalHeader/GoalHeader.tsx",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/features/modular-ui/chat/components/InputPrimitive.tsx",
-      "reason": "other"
-    },
-    {
       "path": "webview-ui/src/features/modular-ui/chat/components/MessageRow.test.tsx",
       "reason": "codeboardingignore"
-    },
-    {
-      "path": "webview-ui/src/features/modular-ui/chat/components/MessageRow.tsx",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/features/modular-ui/chat/components/MessagesArea.tsx",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/features/modular-ui/chat/components/ModularWelcomeSection.tsx",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/features/modular-ui/chat/components/SlashCommandMenu.tsx",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/features/modular-ui/chat/components/TaskHeader/CheckpointError.tsx",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/features/modular-ui/chat/components/TaskHeader/ContextWindow.tsx",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/features/modular-ui/chat/components/TaskHeader/ContextWindowSummary.tsx",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/features/modular-ui/chat/components/TaskHeader/Highlights.tsx",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/features/modular-ui/chat/components/TaskHeader/TaskHeader.tsx",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/features/modular-ui/chat/components/TaskHeader/buttons/CompactTaskButton.tsx",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/features/modular-ui/chat/components/TaskHeader/buttons/CopyTaskButton.tsx",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/features/modular-ui/chat/components/TaskHeader/buttons/DeleteTaskButton.tsx",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/features/modular-ui/chat/components/TaskHeader/buttons/NewTaskButton.tsx",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/features/modular-ui/chat/components/TaskHeader/buttons/OpenDiskConversationHistoryButton.tsx",
-      "reason": "other"
     },
     {
       "path": "webview-ui/src/features/modular-ui/chat/components/TaskHeader/getCostLabel.test.ts",
       "reason": "codeboardingignore"
     },
     {
-      "path": "webview-ui/src/features/modular-ui/chat/components/TaskHeader/getCostLabel.ts",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/features/modular-ui/chat/components/TaskStatusIndicator.tsx",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/features/modular-ui/chat/components/VirtuosoItemRenderer.tsx",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/features/modular-ui/chat/constants.ts",
-      "reason": "other"
-    },
-    {
       "path": "webview-ui/src/features/modular-ui/chat/context/InteractionStateContext.test.ts",
       "reason": "codeboardingignore"
-    },
-    {
-      "path": "webview-ui/src/features/modular-ui/chat/context/InteractionStateContext.tsx",
-      "reason": "other"
     },
     {
       "path": "webview-ui/src/features/modular-ui/chat/decorators/ActionDecorator.test.tsx",
       "reason": "codeboardingignore"
     },
     {
-      "path": "webview-ui/src/features/modular-ui/chat/decorators/ActionDecorator.tsx",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/features/modular-ui/chat/decorators/HighlightDecorator.tsx",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/features/modular-ui/chat/decorators/OverlayDecorator.tsx",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/features/modular-ui/chat/decorators/view/ActionButtonsDecorator.tsx",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/features/modular-ui/chat/decorators/view/AutoApproveDecorator.tsx",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/features/modular-ui/chat/hooks/index.ts",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/features/modular-ui/chat/hooks/useChatState.ts",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/features/modular-ui/chat/hooks/useMessageHandlers.ts",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/features/modular-ui/chat/hooks/useModularInput.ts",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/features/modular-ui/chat/hooks/useScrollBehavior.ts",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/features/modular-ui/chat/sections/GoalSection.tsx",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/features/modular-ui/chat/sections/InputSection.tsx",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/features/modular-ui/chat/sections/MessagesSection.tsx",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/features/modular-ui/chat/sections/TaskSection.tsx",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/features/modular-ui/chat/sections/WelcomeSection.tsx",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/features/modular-ui/chat/traits/useFileHandlingTrait.ts",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/features/modular-ui/chat/traits/useMentionTrait.ts",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/features/modular-ui/chat/traits/useModeTrait.ts",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/features/modular-ui/chat/traits/useSlashCommandTrait.ts",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/features/modular-ui/chat/types/chatRowTypes.ts",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/features/modular-ui/chat/types/chatTypes.ts",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/features/modular-ui/chat/types.ts",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/features/modular-ui/chat/utils/buttonConfig.ts",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/features/modular-ui/chat/utils/messageUtils.ts",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/features/modular-ui/chat/utils/text-utils.ts",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/features/modular-ui/components/CardActions.tsx",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/features/modular-ui/components/CardContent.tsx",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/features/modular-ui/components/CardStatusIcon.tsx",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/features/modular-ui/components/IncrementalText.tsx",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/features/modular-ui/components/MarkdownRow.tsx",
-      "reason": "other"
-    },
-    {
       "path": "webview-ui/src/features/modular-ui/components/ModularCardBody.test.ts",
       "reason": "codeboardingignore"
-    },
-    {
-      "path": "webview-ui/src/features/modular-ui/components/ModularCardBody.tsx",
-      "reason": "other"
     },
     {
       "path": "webview-ui/src/features/modular-ui/components/ModularCardHeader.avatar.test.tsx",
@@ -5431,103 +5336,23 @@
       "reason": "codeboardingignore"
     },
     {
-      "path": "webview-ui/src/features/modular-ui/components/ModularCardHeader.tsx",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/features/modular-ui/components/QuoteButton.tsx",
-      "reason": "other"
-    },
-    {
       "path": "webview-ui/src/features/modular-ui/components/SubagentAvatar.test.tsx",
       "reason": "codeboardingignore"
-    },
-    {
-      "path": "webview-ui/src/features/modular-ui/components/SubagentAvatar.tsx",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/features/modular-ui/components/TaskFeedbackButtons.tsx",
-      "reason": "other"
     },
     {
       "path": "webview-ui/src/features/modular-ui/components/ThinkingRow.test.tsx",
       "reason": "codeboardingignore"
     },
     {
-      "path": "webview-ui/src/features/modular-ui/components/ThinkingRow.tsx",
-      "reason": "other"
-    },
-    {
       "path": "webview-ui/src/features/modular-ui/components/UserMessageContent.test.tsx",
       "reason": "codeboardingignore"
-    },
-    {
-      "path": "webview-ui/src/features/modular-ui/components/UserMessageContent.tsx",
-      "reason": "other"
     },
     {
       "path": "webview-ui/src/features/modular-ui/decorators/AskQuestionDecorator.test.tsx",
       "reason": "codeboardingignore"
     },
     {
-      "path": "webview-ui/src/features/modular-ui/decorators/AskQuestionDecorator.tsx",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/features/modular-ui/decorators/BugReportDecorator.tsx",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/features/modular-ui/decorators/CompletionDecorator.tsx",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/features/modular-ui/decorators/DiffDecorator.tsx",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/features/modular-ui/decorators/HookDecorator.tsx",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/features/modular-ui/decorators/NewTaskDecorator.ts",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/features/modular-ui/decorators/SearchDecorator.tsx",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/features/modular-ui/decorators/TerminalDecorator.tsx",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/features/modular-ui/decorators/index.ts",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/features/modular-ui/decorators/types.ts",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/features/modular-ui/hooks/useQuoteLogic.ts",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/features/modular-ui/index.ts",
-      "reason": "other"
-    },
-    {
       "path": "webview-ui/src/features/modular-ui/styles/modular-codeblock.css",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/features/modular-ui/types.ts",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/features/modular-ui/utils/cardUtils.ts",
       "reason": "other"
     },
     {
@@ -5535,83 +5360,11 @@
       "reason": "codeboardingignore"
     },
     {
-      "path": "webview-ui/src/features/modular-ui/utils/newTaskCard.ts",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/features/settings/components/ApiOptions.tsx",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/features/settings/components/AutoCondenseContextLimitSetting.tsx",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/features/settings/components/BasetenModelPicker.tsx",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/features/settings/components/CollapsibleContent.tsx",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/features/settings/components/FeaturedModelCard.tsx",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/features/settings/components/GroqModelPicker.tsx",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/features/settings/components/HuggingFaceModelPicker.tsx",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/features/settings/components/InferenceSpeedSelector.tsx",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/features/settings/components/ModelDescriptionMarkdown.tsx",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/features/settings/components/OpenRouterModelPicker.tsx",
-      "reason": "other"
-    },
-    {
       "path": "webview-ui/src/features/settings/components/OpenRouterRoutingControls.test.tsx",
       "reason": "codeboardingignore"
     },
     {
-      "path": "webview-ui/src/features/settings/components/OpenRouterRoutingControls.tsx",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/features/settings/components/PreferredLanguageSetting.tsx",
-      "reason": "other"
-    },
-    {
       "path": "webview-ui/src/features/settings/components/README.md",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/features/settings/components/ReasoningEffortSelector.tsx",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/features/settings/components/RequestyModelPicker.tsx",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/features/settings/components/Section.tsx",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/features/settings/components/SectionHeader.tsx",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/features/settings/components/SettingsSlider.tsx",
       "reason": "other"
     },
     {
@@ -5619,328 +5372,36 @@
       "reason": "codeboardingignore"
     },
     {
-      "path": "webview-ui/src/features/settings/components/SettingsView/SettingsView.tsx",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/features/settings/components/TerminalOutputLineLimitSlider.tsx",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/features/settings/components/ThinkingBudgetSlider.tsx",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/features/settings/components/UseCustomPromptCheckbox.tsx",
-      "reason": "other"
-    },
-    {
       "path": "webview-ui/src/features/settings/components/UtilityModelSelection.spec.tsx",
       "reason": "codeboardingignore"
-    },
-    {
-      "path": "webview-ui/src/features/settings/components/UtilityModelSelection.tsx",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/features/settings/components/VercelModelPicker.tsx",
-      "reason": "other"
     },
     {
       "path": "webview-ui/src/features/settings/components/__tests__/APIOptions.spec.tsx",
       "reason": "codeboardingignore"
     },
     {
-      "path": "webview-ui/src/features/settings/components/common/ApiKeyField.tsx",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/features/settings/components/common/BaseUrlField.tsx",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/features/settings/components/common/DebouncedTextField.tsx",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/features/settings/components/common/ErrorMessage.tsx",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/features/settings/components/common/ModelAutocomplete.tsx",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/features/settings/components/common/ModelInfoView.tsx",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/features/settings/components/common/ModelSelector.tsx",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/features/settings/components/common/RemotelyConfiguredInputWrapper.tsx",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/features/settings/components/providers/AihubmixProvider.tsx",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/features/settings/components/providers/AnthropicProvider.tsx",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/features/settings/components/providers/BasetenProvider.tsx",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/features/settings/components/providers/BedrockProvider.tsx",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/features/settings/components/providers/CerebrasProvider.tsx",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/features/settings/components/providers/ClaudeCodeProvider.tsx",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/features/settings/components/providers/DeepSeekProvider.tsx",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/features/settings/components/providers/DifyProvider.tsx",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/features/settings/components/providers/DoubaoProvider.tsx",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/features/settings/components/providers/FireworksProvider.tsx",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/features/settings/components/providers/GeminiProvider.tsx",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/features/settings/components/providers/GithubCopilotProvider.tsx",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/features/settings/components/providers/GroqProvider.tsx",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/features/settings/components/providers/HuaweiCloudMaasProvider.tsx",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/features/settings/components/providers/HuggingFaceProvider.tsx",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/features/settings/components/providers/LMStudioProvider.tsx",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/features/settings/components/providers/LiteLlmProvider.tsx",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/features/settings/components/providers/MiniMaxProvider.tsx",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/features/settings/components/providers/MistralProvider.tsx",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/features/settings/components/providers/MoonshotProvider.tsx",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/features/settings/components/providers/NebiusProvider.tsx",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/features/settings/components/providers/NousresearchProvider.tsx",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/features/settings/components/providers/OpenAICompatible.tsx",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/features/settings/components/providers/OpenAINative.tsx",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/features/settings/components/providers/OpenAiCodexProvider.tsx",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/features/settings/components/providers/OpenRouterProvider.tsx",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/features/settings/components/providers/QwenCodeProvider.tsx",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/features/settings/components/providers/QwenProvider.tsx",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/features/settings/components/providers/RequestyProvider.tsx",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/features/settings/components/providers/SambanovaProvider.tsx",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/features/settings/components/providers/TogetherProvider.tsx",
-      "reason": "other"
-    },
-    {
       "path": "webview-ui/src/features/settings/components/providers/UnbiasedProvider.spec.tsx",
       "reason": "codeboardingignore"
-    },
-    {
-      "path": "webview-ui/src/features/settings/components/providers/UnbiasedProvider.tsx",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/features/settings/components/providers/VSCodeLmProvider.tsx",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/features/settings/components/providers/VercelAIGatewayProvider.tsx",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/features/settings/components/providers/VertexProvider.tsx",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/features/settings/components/providers/WandbProvider.tsx",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/features/settings/components/providers/XaiProvider.tsx",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/features/settings/components/providers/ZAiProvider.tsx",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/features/settings/components/providers/openai-codex/OpenAiCodexAccountCard.tsx",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/features/settings/components/providers/openai-codex/OpenAiCodexActivity.tsx",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/features/settings/components/providers/openai-codex/OpenAiCodexLimitRow.tsx",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/features/settings/components/providers/openai-codex/OpenAiCodexProvider.stories.tsx",
-      "reason": "other"
     },
     {
       "path": "webview-ui/src/features/settings/components/providers/openai-codex/OpenAiCodexSignIn.spec.tsx",
       "reason": "codeboardingignore"
     },
     {
-      "path": "webview-ui/src/features/settings/components/providers/openai-codex/OpenAiCodexSignIn.tsx",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/features/settings/components/providers/openai-codex/OpenAiCodexUsagePanel.tsx",
-      "reason": "other"
-    },
-    {
       "path": "webview-ui/src/features/settings/components/providers/openai-codex/formatOpenAiCodexUsage.test.ts",
       "reason": "codeboardingignore"
-    },
-    {
-      "path": "webview-ui/src/features/settings/components/providers/openai-codex/formatOpenAiCodexUsage.ts",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/features/settings/components/sections/AboutSection.tsx",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/features/settings/components/sections/ApiConfigurationSection.tsx",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/features/settings/components/sections/ApprovalsSettingsSection.tsx",
-      "reason": "other"
     },
     {
       "path": "webview-ui/src/features/settings/components/sections/BrowserSettingsSection.test.ts",
       "reason": "codeboardingignore"
     },
     {
-      "path": "webview-ui/src/features/settings/components/sections/BrowserSettingsSection.tsx",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/features/settings/components/sections/DebugSection.tsx",
-      "reason": "other"
-    },
-    {
       "path": "webview-ui/src/features/settings/components/sections/FeatureSettingsSection.spec.tsx",
       "reason": "codeboardingignore"
     },
     {
-      "path": "webview-ui/src/features/settings/components/sections/FeatureSettingsSection.tsx",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/features/settings/components/sections/GeneralSettingsSection.tsx",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/features/settings/components/sections/ResponsesContextSection.tsx",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/features/settings/components/sections/RunningTasksSection.tsx",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/features/settings/components/sections/TerminalSettingsSection.tsx",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/features/settings/components/sections/ToolTogglePanel.tsx",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/features/settings/components/sections/ToolsSettingsSection.tsx",
-      "reason": "other"
-    },
-    {
       "path": "webview-ui/src/features/settings/components/sections/UserApprovedCommandsSection.spec.tsx",
       "reason": "codeboardingignore"
-    },
-    {
-      "path": "webview-ui/src/features/settings/components/sections/UserApprovedCommandsSection.tsx",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/features/settings/components/sections/UtilityModelSection.tsx",
-      "reason": "other"
     },
     {
       "path": "webview-ui/src/features/settings/components/utils/__tests__/pricingUtils.test.ts",
@@ -5949,86 +5410,6 @@
     {
       "path": "webview-ui/src/features/settings/components/utils/__tests__/providerUtils.test.ts",
       "reason": "codeboardingignore"
-    },
-    {
-      "path": "webview-ui/src/features/settings/components/utils/pricingUtils.ts",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/features/settings/components/utils/providerUtils.ts",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/features/settings/components/utils/settingsHandlers.ts",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/features/settings/components/utils/useApiConfigurationHandlers.ts",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/features/settings/components/utils/useDebouncedInput.ts",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/features/settings/store/modelsStore.ts",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/features/settings/store/settingsStore.ts",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/features/worktrees/components/CreateWorktreeModal.tsx",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/features/worktrees/components/DeleteWorktreeModal.tsx",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/features/worktrees/components/WorktreesView.tsx",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/lib/utils.ts",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/setupTests.ts",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/shared/api/grpc-client-base.ts",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/shared/api/grpc-client.ts",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/shared/api/vscode.ts",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/shared/hooks/useAutoApproveActions.ts",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/shared/hooks/useAutoApproveAll.ts",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/shared/hooks/useAutoScroll.ts",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/shared/hooks/useMenuAnnouncement.ts",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/shared/hooks/useRelinquishControl.ts",
-      "reason": "other"
     },
     {
       "path": "webview-ui/src/shared/lib/__tests__/context-mentions.test.ts",
@@ -6047,292 +5428,20 @@
       "reason": "codeboardingignore"
     },
     {
-      "path": "webview-ui/src/shared/lib/bannerUtils.tsx",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/shared/lib/context-mentions.ts",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/shared/lib/environmentColors.ts",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/shared/lib/format.ts",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/shared/lib/getConfiguredProviders.ts",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/shared/lib/getLanguageFromPath.ts",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/shared/lib/hooks.ts",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/shared/lib/platformUtils.ts",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/shared/lib/slash-commands.ts",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/shared/lib/useDebounceEffect.ts",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/shared/lib/useThrottledValue.ts",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/shared/lib/validate.ts",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/shared/lib/vscStyles.ts",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/shared/ui/AlertDialog.tsx",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/shared/ui/BannerCarousel.tsx",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/shared/ui/BrowserSettingsMenu.tsx",
-      "reason": "other"
-    },
-    {
       "path": "webview-ui/src/shared/ui/CopyButton.test.tsx",
       "reason": "codeboardingignore"
-    },
-    {
-      "path": "webview-ui/src/shared/ui/CopyButton.tsx",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/shared/ui/Demo.tsx",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/shared/ui/LightMarkdown.tsx",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/shared/ui/MarkdownBlock.stories.tsx",
-      "reason": "other"
     },
     {
       "path": "webview-ui/src/shared/ui/MarkdownBlock.test.tsx",
       "reason": "codeboardingignore"
     },
     {
-      "path": "webview-ui/src/shared/ui/MarkdownBlock.tsx",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/shared/ui/MermaidBlock.tsx",
-      "reason": "other"
-    },
-    {
       "path": "webview-ui/src/shared/ui/Navbar.test.tsx",
       "reason": "codeboardingignore"
     },
     {
-      "path": "webview-ui/src/shared/ui/Navbar.tsx",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/shared/ui/PopupModalContainer.tsx",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/shared/ui/ProgressIndicator.tsx",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/shared/ui/QuotedMessagePreview.tsx",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/shared/ui/ReleaseNotesModal.tsx",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/shared/ui/ScreenReaderAnnounce.tsx",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/shared/ui/SuccessButton.tsx",
-      "reason": "other"
-    },
-    {
       "path": "webview-ui/src/shared/ui/Tab.test.tsx",
       "reason": "codeboardingignore"
-    },
-    {
-      "path": "webview-ui/src/shared/ui/Tab.tsx",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/shared/ui/TabButton.tsx",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/shared/ui/TelemetryBanner.tsx",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/shared/ui/Thumbnails.tsx",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/shared/ui/UnsafeImage.tsx",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/shared/ui/VSCodeButtonLink.tsx",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/shared/ui/ViewHeader.tsx",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/shared/ui/WhatsNewItems.tsx",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/shared/ui/WhatsNewModal.tsx",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/shared/ui/alert.stories.tsx",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/shared/ui/alert.tsx",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/shared/ui/badge.stories.tsx",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/shared/ui/badge.tsx",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/shared/ui/button.stories.tsx",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/shared/ui/button.tsx",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/shared/ui/dialog.stories.tsx",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/shared/ui/dialog.tsx",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/shared/ui/hooks/useOpenRouterKeyInfo.ts",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/shared/ui/hover-card.stories.tsx",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/shared/ui/hover-card.tsx",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/shared/ui/input.stories.tsx",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/shared/ui/input.tsx",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/shared/ui/item.stories.tsx",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/shared/ui/item.tsx",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/shared/ui/label.tsx",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/shared/ui/popover.stories.tsx",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/shared/ui/popover.tsx",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/shared/ui/progress.stories.tsx",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/shared/ui/progress.tsx",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/shared/ui/select.stories.tsx",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/shared/ui/select.tsx",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/shared/ui/separator.stories.tsx",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/shared/ui/separator.tsx",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/shared/ui/slider.tsx",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/shared/ui/switch.stories.tsx",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/shared/ui/switch.tsx",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/shared/ui/tooltip.stories.tsx",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/shared/ui/tooltip.tsx",
-      "reason": "other"
-    },
-    {
-      "path": "webview-ui/src/vite-env.d.ts",
-      "reason": "other"
     },
     {
       "path": "webview-ui/tailwind.config.mjs",
@@ -6353,10 +5462,10 @@
   ],
   "summary": {
     "total_files": 2538,
-    "analyzed": 1270,
-    "not_analyzed": 1269,
+    "analyzed": 1567,
+    "not_analyzed": 972,
     "not_analyzed_by_reason": {
-      "other": 447,
+      "other": 150,
       "codeboardingignore": 822
     }
   }

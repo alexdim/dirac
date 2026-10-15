@@ -58,21 +58,11 @@ The entire implementation is readable locally at `~/Library/Application Support/
 
 ## Coverage gaps (real source files not analyzed)
 
-Snapshot of `file_coverage.json` after the incremental run of 2026-10-15 (commit `bf3f4b09`): 2,538 total files, 1,270 analyzed, 1,269 skipped. The backend (`src/`, `cli/`, `hosts/`, `integrations/`, `services/`) is fully covered; the real gaps below total ~345 files.
+Snapshot of `file_coverage.json` after the incremental run of 2026-10-15 ~17:41 (webview expansion run): 2,538 total files, **1,567 analyzed** (was 1,270), 972 skipped. Only **one code file** remains un-analyzed: `cli/dirac.rb` (Ruby, no extractor). Backend and frontend source are now fully covered; the remaining gaps are non-TS file types.
 
-### 1. `webview-ui/` React frontend — 310 files (extraction cap)
+### 1. `webview-ui/` React frontend — 310 files — FIXED (root cause: solution-style tsconfig)
 
-Scope 16 ("Webview UI Components") exists but sampled only 2 of ~600 files; incremental runs never re-expand unchanged scopes. Missing by area:
-
-```
-features/settings    98 files
-features/modular-ui  93 files
-app/ + shared/ + assets ~95 files
-dirac-rules/worktrees/chat/history/banners ~14 files
-other webview src    ~10 files
-```
-
-This is a CodeBoarding per-scope extraction budget cap — reportable upstream. A `codeboarding full` rerun may expand it.
+Scope 16 ("Webview UI Components") sampled only 2/~600 files because `webview-ui/tsconfig.json` is a solution file (`files: []` + `references:` → `tsc --showConfig` returns zero owned files, so `typescript_config_scanner` skipped the whole project; the scanner only discovers `tsconfig.json`/`jsconfig.json` filenames, never `tsconfig.app.json`). Fix applied: replaced `files: []` with `include: ["src/**/*"]` in `webview-ui/tsconfig.json` (safe — nothing in the build reads this file; typecheck targets `tsconfig.app.json`/`tsconfig.node.json` directly). Then removed the 320 `webview-ui/*` entries from `fingerprint.json` so the incremental diff treats them as added (A=320). Result: 301 webview files analyzed, component 16 now has real semantics and 3 relations in `overview.md`. Worth reporting upstream: solution-style tsconfigs should fall back to resolving `references:` leaf projects.
 
 ### 2. Protobuf contracts — 19 files (unsupported file type)
 
@@ -89,4 +79,4 @@ The "Dirac Protocol Message Definitions" component exists in the docs but its so
 
 `src/hosts/vscode/hostbridge/env/*` (9 files, caught by `env/` venv pattern), `src/services/temp/*` (2 files, caught by `temp/`), `hostbridge/testing/getWebviewHtml.ts` (`**/testing/**`), `vite.config.ts`/`vitest.config.ts`/`platform.config.ts` (`*.config.*`). All now analyzed; spawned the new "VS Code Hostbridge Environment Services" component.
 
-Everything else skipped is intentional: ~800 test files (`__tests__`, `*.test.*`, e2e) and ~120 docs/locales/assets.
+Everything else skipped is intentional or non-source: ~800 test files (`__tests__`, `*.test.*`, e2e), ~120 docs/locales/assets, and ~60 config/metadata files (`*.json`, `*.html`, `*.css`, `*.svg`).
