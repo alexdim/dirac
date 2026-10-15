@@ -249,6 +249,58 @@ Derived from measured scaling across `1k → 4k → 32k → 64k (65,536) → 77k
 | **`Qwen3.8-27B-oQ4e-mtp` + MLX** (`VLMBatchedEngine`, raw KV) | ~610 t/s (~134 s / 2m14s) | ~8.8 s (`4.4 s` per 2k chunk @ 80k) | **~31 – 33 tok/s** (~31 ms; `~102 ms/cycle`) | **+4.86 GB** (bf16) | **~24.6 GB** | Too slow above 32k; use only for short/medium (<16k) turns |
 | `Dirk-Qwen3.8-27B-MLX-oQ4e` + MLX (`VLMBatchedEngine`, raw KV) | ~570 t/s (~143 s / 2m23s) | ~9.0 s | ~28 – 30 tok/s (~34 ms; `~110 ms/cycle`) | **+4.86 GB** (bf16) | **~24.6 GB** | Too slow above 32k; use only for short/medium (<16k) turns |
 
+---
+
+## 10. Continuous Batching (2–4 Concurrent Requests: GEMV → GEMM) & Agent Configuration
+
+### Why 2+ Requests Increase Throughput
+
+Single-request decode reads all active weights from unified memory to process one row (`[1, D] x [D, H]`), leaving the M5 Max's 40 GPU cores memory-bandwidth-bound. With `B` concurrent requests (and `K` speculative draft tokens per sequence), the engine batches them into a `[B x K, D] x [D, H]` matrix-matrix multiply (`routed_verify_window` in MLX, `decode_b2..b4` in Splash), reading each weight tensor once from RAM for all `B` requests:
+
+```
+1 Request  (GEMV, bandwidth-bound):  [1 x K, D] x [D, H] -> 169 - 194 tok/s
+2 Requests (GEMM, shared weights):   [2 x K, D] x [D, H] -> 210 - 278 tok/s (1.55x on Splash)
+4 Requests (GEMM, sweet spot):       [4 x K, D] x [D, H] -> 403 - 449 tok/s (2.30x - 2.51x)
+```
+
+### Server Configuration (Per-Model Profile vs Global `settings.json`)
+
+| Layer & File | Setting | Previous Value | Updated Value | Effect on Batching |
+|---|---|---:|---:|---|
+| **Global MLX Scheduler** (`~/.omlx/settings.json`) | `scheduler.max_concurrent_requests` | `2` (capped MLX at x2) | **`4`** (applied & server restarted) | Unlocks **4-way batched GEMM + Lightning MTP** (`445.8 tok/s` on Tiel, `402.7 tok/s` on Occamy MLX, `214.3 tok/s` on Dirk 27B) |
+| **Splash Engine** (`occamy-oq4e-optimal-20261015`) | `maximum_batch_width` (`decode_b1..b4`) | `4` (built-in) | **`4`** (`external_engine: "splash"`) | Native 4-lane DFlash2 batching (**`278.2 tok/s` at x2**, **`448.7 tok/s` at x4**) |
+| **Per-Model Profiles** (`~/.omlx/model_profiles.json`) | `mtp_enabled: true`, `mtp_adaptive_max_depth: 3..4` | Enabled | **Enabled** | Activates `Lightning MTP batch` (`routed_verify_window`) on `Tiel`, `Qwen3.8-27B`, and `Dirk` |
+
+### How Any Agent or Pipeline Knows to Send 2–4 Concurrent Requests
+
+A standard agent loop is sequential (`1 LLM call -> tool -> 1 LLM call`), so oMLX only sees 2–4 concurrent requests when the client harness, subagent prompt rule, or pipeline worker pool explicitly fans out 2–4 calls in parallel:
+
+```
+Sequential Agent (Default -> Batch x1, ~175 tok/s):
+  Agent ──► [LLM Call 1] ──► [Tool] ──► [LLM Call 2] ──► [Tool]
+
+Parallel Fan-Out (Subagents or Worker Pool -> Batch x4, ~445 tok/s):
+            ┌──► [Subagent / Scope 1] ──┐
+  Orchestr. ├──► [Subagent / Scope 2] ──┼──► oMLX (:8000, batches 4 in 1 GEMM pass)
+            ├──► [Subagent / Scope 3] ──┤
+            └──► [Subagent / Scope 4] ──┘
+```
+
+| Workload Type | Why It Defaults to `1` | How to Make It Request `2–4` Concurrently |
+|---|---|---|
+| **Interactive Coding Agents** (Devin, Dirac, Pi, OpenCode, Goose) | One main conversation turn waits on the previous tool result before calling the LLM again | Add a standing rule to global `AGENTS.md`: *"When decomposing independent module searches, reviews, or test generation on local oMLX, spawn 2–4 parallel subagents at a time (cap at 4)."* |
+| **Repo / Doc / Eval Pipelines** (CodeBoarding, custom Python/Go pipelines) | Often default to sequential loops or a conservative concurrency limit to avoid cloud API rate limits | Set the pipeline's worker pool / semaphore to `4` (e.g. `asyncio.Semaphore(4)` or `ThreadPoolExecutor(max_workers=4)`), matching `scheduler.max_concurrent_requests = 4` |
+| **Multi-Window / Multi-Repo Dev** | A single terminal only has one active prompt | Run 2–4 agent sessions simultaneously across worktrees/repos pointed at `127.0.0.1:8000` — oMLX automatically merges their decode steps into one batched GEMM pass |
+
+### Context-Length Rule of Thumb for Batching on 64 GB RAM
+
+| Context per Request | Safe Concurrent Requests (`Occamy` + Splash int8 KV) | Safe Concurrent Requests (`Tiel` + MLX raw KV) |
+|---|---:|---:|
+| **<= 16k tokens** | **4** (`448.7 tok/s` agg) | **4** (`445.8 tok/s` agg) |
+| **32k – 64k tokens** | **2 – 4** (`~0.67 GB` KV per stream) | **2** (`~1.22 GB` KV per stream) |
+| **80k+ tokens** | **1 – 2** (`~0.83 GB` KV + `63 MiB` GDN state per stream) | **1 – 2** (`~1.53 GB` KV per stream) |
+
+
 
 
 
