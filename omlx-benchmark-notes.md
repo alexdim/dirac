@@ -210,4 +210,20 @@ On dense `qwen3_5` (Qwen3.8-27B), `VLMBatchedEngine` (`engine/vlm.py`) compiles 
 | `Dirk-Qwen3.8-27B-MLX-oQ4e` + **Splash 1.3.2** (`DFlash2` + `ane_ffn` 0.32) | 639.8 / 756.5 t/s | 45.1 (40t) / 69.5 t/s | — | 88.5 (76t) / 214.3 t/s (336t) | 24.75 GB | Slower prefill & higher memory than MLX `VLMBatchedEngine` |
 | `Qwen3.8-27B-oQ4e-mtp` + **Splash 1.3.2** (`DFlash2` + `ane_ffn` 0.32) | 580.6 / 603.5 t/s | 51.1 / 36.4 t/s (19.7–27.7 ms TPOT) | — | 87.7 (256t) / 174.1 t/s (512t) | 25.08 / 26.93 GB | Slower prefill & decode than MLX `VLMBatchedEngine` |
 
+---
+
+## 8. Long-Context 65,536 (64k) Benchmarks (`code_python`, Local-Only / Upload Skipped)
+
+Run via `POST /admin/api/bench/start` with `prompt_lengths: [65536]`, `context_profile: "code_python"`, `warmup_mode: "ane_2048"`, and `align_prompt_to_ane: true` on MLX (`skipped_reason: "ane_aligned_prompt"`, `pp=65537` → exact `65,536` prefill rows = `32 x 2,048` blocks) or `skipped_reason: "splash"` on Splash. Zero rows were uploaded to `omlx.ai`.
+
+| Model & Engine Configuration | 64k Prefill t/s (TTFT) | 64k Decode TG t/s (TPOT) | Backbone Cycle @ 64k | Reserved KV @ 64k | Peak Memory | Notes |
+|---|---:|---:|---:|---:|---:|---|
+| **`occamy-1.0-oQ4e-mtp` + Splash** (int8 KV, DFlash2) | **3,171.9 t/s** (20.66s) | **157.9 t/s** real @66k (106.0 t/s bench, 31t EOS) | 4.8 tok/cycle (DFlash2) | ~0.67 GB (int8) | **21.92 GB** | Fastest 64k prefill & real 66k–77k agentic decode (`139–158 t/s`) |
+| **`Tiel-Coder-35B-A3B-MLX-oQ4e-MTP` + MLX** (`VLMBatchedEngine`, raw KV) | **3,021.8 t/s** (21.69s) | **123.4 t/s** (8.17 ms) | **18.4 ms/cycle** (50c, 86.4% accept, 0 copy) | +1.22 GB (10 KV layers) | 23.47 GB | Fastest raw-token 64k MLX decode |
+| `occamy-1.0-oQ4e-mtp` + MLX (`BatchedEngine`, raw KV) | 2,586.2 t/s (25.34s) | 96.4 t/s (10.45 ms) | 25.6 ms/cycle (48c, 84.8% accept, 0 copy) | +1.22 GB (10 KV layers) | 22.72 GB | Missing `VLMBatchedEngine` Metal patches |
+| **`Qwen3.8-27B-oQ4e-mtp` + MLX** (`VLMBatchedEngine`, **raw KV**) | 661.6 t/s (99.06s) | **37.8 t/s** (26.69 ms) | **88.2 ms/cycle** (36c, 89.1% accept, 0 copy) | +3.89 GB (16 KV layers) | 23.40 GB | Native fused `verify_sdpa_split` beats TQ8 on decode |
+| `Qwen3.8-27B-oQ4e-mtp` + MLX (`VLMBatchedEngine`, **TQ8 8-bit KV**) | **720.3 t/s** (90.99s) | 35.5 t/s (28.36 ms) | 103.9 ms/cycle (33c, 89.4% accept, 0 copy) | +3.89 GB prefill → 8-bit post-prefill | 23.34 GB | oMLX converts 15/16 KV layers to 8-bit *after* prefill (`server.log:3781`); dequant slows verify by 18% |
+| `Dirk-Qwen3.8-27B-MLX-oQ4e` + MLX (`VLMBatchedEngine`, raw KV) | 614.8 t/s (106.59s) | 33.3 t/s (30.27 ms) | 95.4 ms/cycle (38c, 84.5% accept, 1 copy) | +3.89 GB (16 KV layers) | 23.40 GB | Same 16-KV-layer 27B dense scaling |
+
+
 
