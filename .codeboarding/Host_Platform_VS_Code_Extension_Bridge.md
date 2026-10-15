@@ -25,7 +25,7 @@ graph LR
 
 ## Details
 
-Abstracts host environment capabilities and implements VS Code extension activation, hostbridge gRPC services, diff views, terminals, and goal loops.
+Abstracts host environment capabilities, implements VS Code extension activation, hostbridge gRPC services, diff views, terminals, and goal loops.
 
 ### VS Code Host Bridge gRPC Services [[Expand]](./VS_Code_Host_Bridge_gRPC_Services.md)
 Implements VS Code gRPC host-bridge services and handlers for workspace, window, and diff operations.
@@ -88,6 +88,8 @@ Implements VS Code gRPC host-bridge services and handlers for workspace, window,
   - `src.hosts.vscode.hostbridge.diff.scrollDiff.scrollDiff` (L3-L5) - Function
 - `src/hosts/vscode/hostbridge/diff/truncateDocument.ts`
   - `src.hosts.vscode.hostbridge.diff.truncateDocument.truncateDocument` (L3-L5) - Function
+- `src/hosts/vscode/hostbridge/testing/getWebviewHtml.ts`
+  - `src.hosts.vscode.hostbridge.testing.getWebviewHtml.getWebviewHtml` (L3-L5) - Function
 - `src/hosts/vscode/hostbridge/window/getActiveEditor.ts`
   - `src.hosts.vscode.hostbridge.window.getActiveEditor.getActiveEditor` (L5-L8) - Function
 - `src/hosts/vscode/hostbridge/window/getOpenTabs.ts`

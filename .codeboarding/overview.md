@@ -15,6 +15,7 @@ graph LR
     Root_Test_Setup_Model_Catalog_Updater["Root Test Setup & Model Catalog Updater"]
     Third_Party_Type_Declarations["Third-Party Type Declarations"]
     Webview_UI_Components["Webview UI Components"]
+    VS_Code_Hostbridge_Environment_Services["VS Code Hostbridge Environment Services"]
     Core_Agent_Engine_Tool_Modules -- "drives task execution and tool orchestration in" --> Task_Lifecycle_Checkpoint_Management
     Core_Agent_Engine_Tool_Modules -- "computes API costs and executes filesystem/git helpers via" --> System_Git_Cost_Utilities
     Core_Agent_Engine_Tool_Modules -- "references third-party type declarations" --> Third_Party_Type_Declarations
@@ -127,13 +128,14 @@ graph LR
     click Task_Lifecycle_Checkpoint_Management href "./Task_Lifecycle_Checkpoint_Management.md" "Details"
     click Build_Codegen_Maintenance_Scripts href "./Build_Codegen_Maintenance_Scripts.md" "Details"
     click System_Git_Cost_Utilities href "./System_Git_Cost_Utilities.md" "Details"
+    click VS_Code_Hostbridge_Environment_Services href "./VS_Code_Hostbridge_Environment_Services.md" "Details"
 ```
 
 [![CodeBoarding](https://img.shields.io/badge/Generated%20by-CodeBoarding-9cf?style=flat-square)](https://github.com/CodeBoarding/CodeBoarding)[![Web platform](https://img.shields.io/badge/Open%20in-Web%20platform-2563EB?style=flat-square)](https://app.codeboarding.org)[![Demo](https://img.shields.io/badge/Try%20our-Demo-blue?style=flat-square)](https://www.codeboarding.org/diagrams)[![Contact](https://img.shields.io/badge/Contact%20us%20-%20contact@codeboarding.org-lightgrey?style=flat-square)](mailto:contact@codeboarding.org)
 
 ## Details
 
-The Dirac codebase is an AI coding agent platform that runs across a VS Code extension, standalone core service, and terminal CLI/ACP client. User commands and sessions enter through the Host Platform or CLI runtime, are coordinated by the Application Controller and Workspace/Task controllers, and drive the Task Lifecycle & Checkpoint Management loop, which invokes the Core Agent Engine, LLM providers, tool modules, code intelligence services, and editor/terminal integrations while persisting conversation state and history via the Storage layer.
+The Dirac codebase is an AI coding agent platform that runs across a VS Code extension, standalone core service, and terminal CLI/ACP client. User commands and sessions enter through the Host Platform or CLI runtime, are coordinated by the Application Controller and Workspace/Task controllers, and drive the Task Lifecycle & Checkpoint Management loop, which invokes the Core Agent Engine, LLM providers, tool modules, code intelligence services, and editor/terminal integrations while persisting conversation state and history via the Storage layer. This incremental analysis covers the four changed components: the Host Platform bridge, platform services, webview UI, and the newly split-out VS Code hostbridge environment services.
 
 ### Core Agent Engine & Tool Modules [[Expand]](./Core_Agent_Engine_Tool_Modules.md)
 Implements LLM API providers, system prompts, context management, permissions, hooks, and agent tool modules that drive the AI agent's core capabilities.
@@ -7891,7 +7893,7 @@ Defines shared domain models, protocol buffer conversions, logging, error helper
 
 
 ### Host Platform & VS Code Extension Bridge [[Expand]](./Host_Platform_VS_Code_Extension_Bridge.md)
-Abstracts host environment capabilities and implements VS Code extension activation, hostbridge gRPC services, diff views, terminals, and goal loops.
+Abstracts host environment capabilities, implements VS Code extension activation, hostbridge gRPC services, diff views, terminals, and goal loops.
 
 
 **Related Classes/Methods**:
@@ -8528,6 +8530,8 @@ Abstracts host environment capabilities and implements VS Code extension activat
   - `src.hosts.vscode.hostbridge.diff.scrollDiff.scrollDiff` (L3-L5) - Function
 - `src/hosts/vscode/hostbridge/diff/truncateDocument.ts`
   - `src.hosts.vscode.hostbridge.diff.truncateDocument.truncateDocument` (L3-L5) - Function
+- `src/hosts/vscode/hostbridge/testing/getWebviewHtml.ts`
+  - `src.hosts.vscode.hostbridge.testing.getWebviewHtml.getWebviewHtml` (L3-L5) - Function
 - `src/hosts/vscode/hostbridge/window/getActiveEditor.ts`
   - `src.hosts.vscode.hostbridge.window.getActiveEditor.getActiveEditor` (L5-L8) - Function
 - `src/hosts/vscode/hostbridge/window/getOpenTabs.ts`
@@ -11527,6 +11531,23 @@ Provides AST analysis, Tree-sitter parsing, symbol indexing, ripgrep search, err
   - `src.services.telemetry.providers.opentelemetry.OpenTelemetryTelemetryProvider.OpenTelemetryTelemetryProvider.dispose` (L280-L283) - Method
   - `src.services.telemetry.providers.opentelemetry.OpenTelemetryTelemetryProvider.OpenTelemetryTelemetryProvider.getTelemetryLevel` (L288-L298) - Method
   - `src.services.telemetry.providers.opentelemetry.OpenTelemetryTelemetryProvider.OpenTelemetryTelemetryProvider.flattenProperties` (L306-L379) - Method
+- `src/services/temp/DiracTempManager.ts`
+  - `src.services.temp.DiracTempManager.TempFileInfo` (L22-L26) - Interface
+  - `src.services.temp.DiracTempManager.DiracTempManagerImpl` (L31-L203) - Class
+  - `src.services.temp.DiracTempManager.DiracTempManagerImpl.constructor` (L35-L39) - Constructor
+  - `src.services.temp.DiracTempManager.DiracTempManagerImpl.ensureTempDirExists` (L41-L43) - Method
+  - `src.services.temp.DiracTempManager.DiracTempManagerImpl.getTempDir` (L48-L50) - Method
+  - `src.services.temp.DiracTempManager.DiracTempManagerImpl.createTempFilePath` (L59-L63) - Method
+  - `src.services.temp.DiracTempManager.DiracTempManagerImpl.cleanup` (L74-L152) - Method
+  - `src.services.temp.DiracTempManager.DiracTempManagerImpl.cleanup.totalSize` (L124-L124) - Class
+  - `src.services.temp.DiracTempManager.DiracTempManagerImpl.cleanup.totalSize.remainingFiles.reduce() callback` (L124-L124) - Function
+  - `src.services.temp.DiracTempManager.DiracTempManagerImpl.cleanup.remainingFiles.sort() callback` (L126-L126) - Function
+  - `src.services.temp.DiracTempManager.DiracTempManagerImpl.deleteFile` (L159-L167) - Method
+  - `src.services.temp.DiracTempManager.DiracTempManagerImpl.startPeriodicCleanup` (L173-L191) - Method
+  - `src.services.temp.DiracTempManager.DiracTempManagerImpl.startPeriodicCleanup.catch() callback` (L179-L181) - Function
+  - `src.services.temp.DiracTempManager.DiracTempManagerImpl.startPeriodicCleanup.setInterval() callback` (L183-L187) - Function
+  - `src.services.temp.DiracTempManager.DiracTempManagerImpl.startPeriodicCleanup.setInterval() callback.catch() callback` (L184-L186) - Function
+  - `src.services.temp.DiracTempManager.DiracTempManagerImpl.stopPeriodicCleanup` (L197-L202) - Method
 - `src/services/tree-sitter/index.ts`
   - `src.services.tree-sitter.index.ParsedDefinition` (L8-L14) - Interface
   - `src.services.tree-sitter.index.parseFile` (L16-L87) - Function
@@ -13993,6 +14014,24 @@ Provides React components for the webview interface, including history view item
 
 **Source Files:**
 
+- `webview-ui/src/config/platform.config.ts`
+  - `webview-ui.src.config.platform.config.PlatformConfig` (L3-L12) - Interface
+  - `webview-ui.src.config.platform.config.PlatformType` (L14-L17) - Enum
+  - `webview-ui.src.config.platform.config.stringToPlatformType` (L19-L30) - Function
+  - `webview-ui.src.config.platform.config.DiracRuntimeConfig` (L48-L50) - Interface
+  - `webview-ui.src.config.platform.config.global.Window` (L54-L62) - Interface
+  - `webview-ui.src.config.platform.config.global.acquireVsCodeApi` (L63-L63) - Function
+  - `webview-ui.src.config.platform.config.resolveTogglePlanActKeys` (L76-L81) - Function
+  - `webview-ui.src.config.platform.config.getInjectedTogglePlanActKeys` (L86-L88) - Function
+  - `webview-ui.src.config.platform.config.postMessageStrategies` (L94-L110) - Class
+  - `webview-ui.src.config.platform.config.postMessageStrategies.vscode` (L95-L101) - Method
+  - `webview-ui.src.config.platform.config.postMessageStrategies.standalone` (L102-L109) - Method
+  - `webview-ui.src.config.platform.config.messageEncoders` (L113-L116) - Class
+  - `webview-ui.src.config.platform.config.messageEncoders.none` (L114-L114) - Method
+  - `webview-ui.src.config.platform.config.messageEncoders.json` (L115-L115) - Method
+  - `webview-ui.src.config.platform.config.messageDecoders` (L119-L122) - Class
+  - `webview-ui.src.config.platform.config.messageDecoders.none` (L120-L120) - Method
+  - `webview-ui.src.config.platform.config.messageDecoders.json` (L121-L121) - Method
 - `webview-ui/src/features/history/components/HistoryViewItem.tsx`
   - `webview-ui.src.features.history.components.HistoryViewItem.HistoryViewItem` (L35-L253) - Class
   - `webview-ui.src.features.history.components.HistoryViewItem.HistoryViewItem.navigateToChat` (L45-L45) - Class
@@ -14019,6 +14058,46 @@ Provides React components for the webview interface, including history view item
   - `webview-ui.src.features.modular-ui.chat.components.HistoryPreview.HistoryPreview.handleHistorySelect.openRun.catch() callback` (L24-L27) - Function
   - `webview-ui.src.features.modular-ui.chat.components.HistoryPreview.HistoryPreview.formatDate` (L30-L36) - Method
   - `webview-ui.src.features.modular-ui.chat.components.HistoryPreview.HistoryPreview.map() callback` (L177-L210) - Function
+- `webview-ui/vite.config.ts`
+  - `webview-ui.vite.config.writePortToFile` (L10-L27) - Class
+  - `webview-ui.vite.config.writePortToFile.configureServer` (L13-L25) - Method
+  - `webview-ui.vite.config.writePortToFile.configureServer.server.httpServer.once("listening") callback` (L14-L24) - Function
+
+
+### VS Code Hostbridge Environment Services [[Expand]](./VS_Code_Hostbridge_Environment_Services.md)
+Implements environment-specific hostbridge operations for the VS Code host, including clipboard access, debug logging, version retrieval, telemetry settings, and shutdown handling.
+
+
+**Related Classes/Methods**:
+
+- `src.hosts.vscode.hostbridge.env.clipboardReadText.clipboardReadText`:4-7
+- `src.hosts.vscode.hostbridge.env.clipboardWriteText.clipboardWriteText`:4-7
+- `src.hosts.vscode.hostbridge.env.debugLog.debugLog`:7-10
+
+
+
+**Source Files:**
+
+- `src/hosts/vscode/hostbridge/env/clipboardReadText.ts`
+  - `src.hosts.vscode.hostbridge.env.clipboardReadText.clipboardReadText` (L4-L7) - Function
+- `src/hosts/vscode/hostbridge/env/clipboardWriteText.ts`
+  - `src.hosts.vscode.hostbridge.env.clipboardWriteText.clipboardWriteText` (L4-L7) - Function
+- `src/hosts/vscode/hostbridge/env/debugLog.ts`
+  - `src.hosts.vscode.hostbridge.env.debugLog.debugLog` (L7-L10) - Function
+  - `src.hosts.vscode.hostbridge.env.debugLog.registerDiracOutputChannel` (L13-L16) - Function
+- `src/hosts/vscode/hostbridge/env/getHostVersion.ts`
+  - `src.hosts.vscode.hostbridge.env.getHostVersion.getHostVersion` (L7-L14) - Function
+- `src/hosts/vscode/hostbridge/env/getIdeRedirectUri.ts`
+  - `src.hosts.vscode.hostbridge.env.getIdeRedirectUri.getIdeRedirectUri` (L4-L13) - Function
+- `src/hosts/vscode/hostbridge/env/getTelemetrySettings.ts`
+  - `src.hosts.vscode.hostbridge.env.getTelemetrySettings.getTelemetrySettings` (L6-L14) - Function
+- `src/hosts/vscode/hostbridge/env/openExternal.ts`
+  - `src.hosts.vscode.hostbridge.env.openExternal.openExternal` (L4-L9) - Function
+- `src/hosts/vscode/hostbridge/env/shutdown.ts`
+  - `src.hosts.vscode.hostbridge.env.shutdown.shutdown` (L3-L9) - Function
+- `src/hosts/vscode/hostbridge/env/subscribeToTelemetrySettings.ts`
+  - `src.hosts.vscode.hostbridge.env.subscribeToTelemetrySettings.subscribeToTelemetrySettings` (L9-L20) - Function
+  - `src.hosts.vscode.hostbridge.env.subscribeToTelemetrySettings.subscribeToTelemetrySettings.vscode.env.onDidChangeTelemetryEnabled() callback` (L14-L19) - Function
 
 
 

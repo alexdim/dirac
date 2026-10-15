@@ -1,17 +1,17 @@
 {
   "metadata": {
-    "generated_at": "2026-10-15T10:32:17.059148+00:00",
-    "source_tree_hash": "272405a90f47a401c66e62ff119c088721fdff6342bcafe9d2e20223ca0f4fb2",
+    "generated_at": "2026-10-15T14:01:32.730396+00:00",
+    "source_tree_hash": "0176e29628185ce685f08b2f0c66d309f75171b5e597c82e64a08e5183cacec0",
     "repo_name": "dirac",
     "depth_level": 3,
     "depth_cap": 3,
     "file_coverage_summary": {
-      "total_files": 2540,
-      "analyzed": 1255,
-      "not_analyzed": 1286,
+      "total_files": 2538,
+      "analyzed": 1270,
+      "not_analyzed": 1269,
       "not_analyzed_by_reason": {
-        "other": 449,
-        "codeboardingignore": 837
+        "other": 447,
+        "codeboardingignore": 822
       }
     },
     "tree_spec": {
@@ -23,7 +23,7 @@
           "axis": "structural",
           "rung": "frontier",
           "leaf_reason": "",
-          "last_id": 16,
+          "last_id": 17,
           "rules": [
             {
               "id": "1",
@@ -432,6 +432,20 @@
               "prefixes": [
                 [
                   "webview-ui"
+                ]
+              ]
+            },
+            {
+              "id": "17",
+              "name": "env",
+              "origin": "new_scope",
+              "prefixes": [
+                [
+                  "src",
+                  "hosts",
+                  "vscode",
+                  "hostbridge",
+                  "env"
                 ]
               ]
             }
@@ -1997,6 +2011,177 @@
           "leaf_reason": "small: 2 units, at most 7; nothing to un-merge",
           "last_id": 0,
           "rules": []
+        },
+        "17": {
+          "axis": "files",
+          "rung": "files",
+          "leaf_reason": "",
+          "last_id": 4,
+          "rules": [
+            {
+              "id": "17.1",
+              "name": "Loose files",
+              "origin": "loose",
+              "fallback_prefixes": [
+                [
+                  "src",
+                  "hosts",
+                  "vscode",
+                  "hostbridge",
+                  "env"
+                ]
+              ]
+            },
+            {
+              "id": "17.2",
+              "name": "getTelemetrySettings",
+              "origin": "grouped",
+              "prefixes": [
+                [
+                  "src",
+                  "hosts",
+                  "vscode",
+                  "hostbridge",
+                  "env",
+                  "getHostVersion.ts"
+                ],
+                [
+                  "src",
+                  "hosts",
+                  "vscode",
+                  "hostbridge",
+                  "env",
+                  "getIdeRedirectUri.ts"
+                ],
+                [
+                  "src",
+                  "hosts",
+                  "vscode",
+                  "hostbridge",
+                  "env",
+                  "getTelemetrySettings.ts"
+                ]
+              ],
+              "terms": [
+                "get"
+              ],
+              "parts": [
+                {
+                  "id": "",
+                  "name": "getHostVersion",
+                  "origin": "file",
+                  "prefixes": [
+                    [
+                      "src",
+                      "hosts",
+                      "vscode",
+                      "hostbridge",
+                      "env",
+                      "getHostVersion.ts"
+                    ]
+                  ]
+                },
+                {
+                  "id": "",
+                  "name": "getIdeRedirectUri",
+                  "origin": "file",
+                  "prefixes": [
+                    [
+                      "src",
+                      "hosts",
+                      "vscode",
+                      "hostbridge",
+                      "env",
+                      "getIdeRedirectUri.ts"
+                    ]
+                  ]
+                },
+                {
+                  "id": "",
+                  "name": "getTelemetrySettings",
+                  "origin": "file",
+                  "prefixes": [
+                    [
+                      "src",
+                      "hosts",
+                      "vscode",
+                      "hostbridge",
+                      "env",
+                      "getTelemetrySettings.ts"
+                    ]
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "17.3",
+              "name": "clipboardReadText",
+              "origin": "grouped",
+              "prefixes": [
+                [
+                  "src",
+                  "hosts",
+                  "vscode",
+                  "hostbridge",
+                  "env",
+                  "clipboardReadText.ts"
+                ],
+                [
+                  "src",
+                  "hosts",
+                  "vscode",
+                  "hostbridge",
+                  "env",
+                  "clipboardWriteText.ts"
+                ]
+              ],
+              "terms": [
+                "clipboard"
+              ],
+              "parts": [
+                {
+                  "id": "",
+                  "name": "clipboardReadText",
+                  "origin": "file",
+                  "prefixes": [
+                    [
+                      "src",
+                      "hosts",
+                      "vscode",
+                      "hostbridge",
+                      "env",
+                      "clipboardReadText.ts"
+                    ]
+                  ]
+                },
+                {
+                  "id": "",
+                  "name": "clipboardWriteText",
+                  "origin": "file",
+                  "prefixes": [
+                    [
+                      "src",
+                      "hosts",
+                      "vscode",
+                      "hostbridge",
+                      "env",
+                      "clipboardWriteText.ts"
+                    ]
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "17.4",
+              "name": "src",
+              "origin": "new_scope",
+              "prefixes": [
+                [
+                  "src"
+                ]
+              ]
+            }
+          ]
         },
         "1.1": {
           "axis": "structural",
@@ -6437,6 +6622,27 @@
           "axis": "",
           "rung": "leaf",
           "leaf_reason": "small: 2 units, at most 7; un-merge failed the guard",
+          "last_id": 0,
+          "rules": []
+        },
+        "17.2": {
+          "axis": "",
+          "rung": "leaf",
+          "leaf_reason": "small: 3 units, at most 7; un-merge failed the guard",
+          "last_id": 0,
+          "rules": []
+        },
+        "17.3": {
+          "axis": "",
+          "rung": "leaf",
+          "leaf_reason": "small: 2 units, at most 7; un-merge failed the guard",
+          "last_id": 0,
+          "rules": []
+        },
+        "17.4": {
+          "axis": "",
+          "rung": "leaf",
+          "leaf_reason": "small: 4 units, at most 7; nothing to un-merge",
           "last_id": 0,
           "rules": []
         },
@@ -12691,7 +12897,7 @@
       }
     }
   },
-  "description": "The Dirac codebase is an AI coding agent platform that runs across a VS Code extension, standalone core service, and terminal CLI/ACP client. User commands and sessions enter through the Host Platform or CLI runtime, are coordinated by the Application Controller and Workspace/Task controllers, and drive the Task Lifecycle & Checkpoint Management loop, which invokes the Core Agent Engine, LLM providers, tool modules, code intelligence services, and editor/terminal integrations while persisting conversation state and history via the Storage layer.",
+  "description": "The Dirac codebase is an AI coding agent platform that runs across a VS Code extension, standalone core service, and terminal CLI/ACP client. User commands and sessions enter through the Host Platform or CLI runtime, are coordinated by the Application Controller and Workspace/Task controllers, and drive the Task Lifecycle & Checkpoint Management loop, which invokes the Core Agent Engine, LLM providers, tool modules, code intelligence services, and editor/terminal integrations while persisting conversation state and history via the Storage layer. This incremental analysis covers the four changed components: the Host Platform bridge, platform services, webview UI, and the newly split-out VS Code hostbridge environment services.",
   "files": {
     "src/core/api/ApiConfigurationError.ts": {
       "method_keys": [
@@ -25050,6 +25256,13 @@
       "content_hash": "7027a47497f1cf88",
       "module_hash": "dc189b9c5fb2f5c3"
     },
+    "src/hosts/vscode/hostbridge/testing/getWebviewHtml.ts": {
+      "method_keys": [
+        "src/hosts/vscode/hostbridge/testing/getWebviewHtml.ts|src.hosts.vscode.hostbridge.testing.getWebviewHtml.getWebviewHtml"
+      ],
+      "content_hash": "f1cff284977f15cd",
+      "module_hash": "b2858f4dc258dc62"
+    },
     "src/hosts/vscode/hostbridge/window/getActiveEditor.ts": {
       "method_keys": [
         "src/hosts/vscode/hostbridge/window/getActiveEditor.ts|src.hosts.vscode.hostbridge.window.getActiveEditor.getActiveEditor"
@@ -28958,6 +29171,28 @@
       "content_hash": "da69e32bac68624d",
       "module_hash": "65058d3b24472277"
     },
+    "src/services/temp/DiracTempManager.ts": {
+      "method_keys": [
+        "src/services/temp/DiracTempManager.ts|src.services.temp.DiracTempManager.TempFileInfo",
+        "src/services/temp/DiracTempManager.ts|src.services.temp.DiracTempManager.DiracTempManagerImpl",
+        "src/services/temp/DiracTempManager.ts|src.services.temp.DiracTempManager.DiracTempManagerImpl.constructor",
+        "src/services/temp/DiracTempManager.ts|src.services.temp.DiracTempManager.DiracTempManagerImpl.ensureTempDirExists",
+        "src/services/temp/DiracTempManager.ts|src.services.temp.DiracTempManager.DiracTempManagerImpl.getTempDir",
+        "src/services/temp/DiracTempManager.ts|src.services.temp.DiracTempManager.DiracTempManagerImpl.createTempFilePath",
+        "src/services/temp/DiracTempManager.ts|src.services.temp.DiracTempManager.DiracTempManagerImpl.cleanup",
+        "src/services/temp/DiracTempManager.ts|src.services.temp.DiracTempManager.DiracTempManagerImpl.cleanup.totalSize",
+        "src/services/temp/DiracTempManager.ts|src.services.temp.DiracTempManager.DiracTempManagerImpl.cleanup.totalSize.remainingFiles.reduce() callback",
+        "src/services/temp/DiracTempManager.ts|src.services.temp.DiracTempManager.DiracTempManagerImpl.cleanup.remainingFiles.sort() callback",
+        "src/services/temp/DiracTempManager.ts|src.services.temp.DiracTempManager.DiracTempManagerImpl.deleteFile",
+        "src/services/temp/DiracTempManager.ts|src.services.temp.DiracTempManager.DiracTempManagerImpl.startPeriodicCleanup",
+        "src/services/temp/DiracTempManager.ts|src.services.temp.DiracTempManager.DiracTempManagerImpl.startPeriodicCleanup.catch() callback",
+        "src/services/temp/DiracTempManager.ts|src.services.temp.DiracTempManager.DiracTempManagerImpl.startPeriodicCleanup.setInterval() callback",
+        "src/services/temp/DiracTempManager.ts|src.services.temp.DiracTempManager.DiracTempManagerImpl.startPeriodicCleanup.setInterval() callback.catch() callback",
+        "src/services/temp/DiracTempManager.ts|src.services.temp.DiracTempManager.DiracTempManagerImpl.stopPeriodicCleanup"
+      ],
+      "content_hash": "b3ea4ad5d5483131",
+      "module_hash": "7e918fc91b1dfdc8"
+    },
     "src/services/tree-sitter/index.ts": {
       "method_keys": [
         "src/services/tree-sitter/index.ts|src.services.tree-sitter.index.ParsedDefinition",
@@ -32118,6 +32353,29 @@
       "content_hash": "9f89705c46180eff",
       "module_hash": "c27d0b80e0386b9b"
     },
+    "webview-ui/src/config/platform.config.ts": {
+      "method_keys": [
+        "webview-ui/src/config/platform.config.ts|webview-ui.src.config.platform.config.PlatformConfig",
+        "webview-ui/src/config/platform.config.ts|webview-ui.src.config.platform.config.PlatformType",
+        "webview-ui/src/config/platform.config.ts|webview-ui.src.config.platform.config.stringToPlatformType",
+        "webview-ui/src/config/platform.config.ts|webview-ui.src.config.platform.config.DiracRuntimeConfig",
+        "webview-ui/src/config/platform.config.ts|webview-ui.src.config.platform.config.global.Window",
+        "webview-ui/src/config/platform.config.ts|webview-ui.src.config.platform.config.global.acquireVsCodeApi",
+        "webview-ui/src/config/platform.config.ts|webview-ui.src.config.platform.config.resolveTogglePlanActKeys",
+        "webview-ui/src/config/platform.config.ts|webview-ui.src.config.platform.config.getInjectedTogglePlanActKeys",
+        "webview-ui/src/config/platform.config.ts|webview-ui.src.config.platform.config.postMessageStrategies",
+        "webview-ui/src/config/platform.config.ts|webview-ui.src.config.platform.config.postMessageStrategies.vscode",
+        "webview-ui/src/config/platform.config.ts|webview-ui.src.config.platform.config.postMessageStrategies.standalone",
+        "webview-ui/src/config/platform.config.ts|webview-ui.src.config.platform.config.messageEncoders",
+        "webview-ui/src/config/platform.config.ts|webview-ui.src.config.platform.config.messageEncoders.none",
+        "webview-ui/src/config/platform.config.ts|webview-ui.src.config.platform.config.messageEncoders.json",
+        "webview-ui/src/config/platform.config.ts|webview-ui.src.config.platform.config.messageDecoders",
+        "webview-ui/src/config/platform.config.ts|webview-ui.src.config.platform.config.messageDecoders.none",
+        "webview-ui/src/config/platform.config.ts|webview-ui.src.config.platform.config.messageDecoders.json"
+      ],
+      "content_hash": "8b361e03f9b4082b",
+      "module_hash": "0d3c0bd68b471a4a"
+    },
     "webview-ui/src/features/history/components/HistoryViewItem.tsx": {
       "method_keys": [
         "webview-ui/src/features/history/components/HistoryViewItem.tsx|webview-ui.src.features.history.components.HistoryViewItem.HistoryViewItem",
@@ -32153,6 +32411,80 @@
       ],
       "content_hash": "a1acf1677a295f86",
       "module_hash": "b610c16573e73a88"
+    },
+    "webview-ui/vite.config.ts": {
+      "method_keys": [
+        "webview-ui/vite.config.ts|webview-ui.vite.config.writePortToFile",
+        "webview-ui/vite.config.ts|webview-ui.vite.config.writePortToFile.configureServer",
+        "webview-ui/vite.config.ts|webview-ui.vite.config.writePortToFile.configureServer.server.httpServer.once(\"listening\") callback"
+      ],
+      "content_hash": "bfbb6c4a73c0643f",
+      "module_hash": "801546d0d0923d78"
+    },
+    "src/hosts/vscode/hostbridge/env/clipboardReadText.ts": {
+      "method_keys": [
+        "src/hosts/vscode/hostbridge/env/clipboardReadText.ts|src.hosts.vscode.hostbridge.env.clipboardReadText.clipboardReadText"
+      ],
+      "content_hash": "6d76f239ef940ccc",
+      "module_hash": "86210cf19f982319"
+    },
+    "src/hosts/vscode/hostbridge/env/clipboardWriteText.ts": {
+      "method_keys": [
+        "src/hosts/vscode/hostbridge/env/clipboardWriteText.ts|src.hosts.vscode.hostbridge.env.clipboardWriteText.clipboardWriteText"
+      ],
+      "content_hash": "b0b59c0cb72abb6f",
+      "module_hash": "d822f4b3bf533986"
+    },
+    "src/hosts/vscode/hostbridge/env/debugLog.ts": {
+      "method_keys": [
+        "src/hosts/vscode/hostbridge/env/debugLog.ts|src.hosts.vscode.hostbridge.env.debugLog.debugLog",
+        "src/hosts/vscode/hostbridge/env/debugLog.ts|src.hosts.vscode.hostbridge.env.debugLog.registerDiracOutputChannel"
+      ],
+      "content_hash": "f19d6a36f93b2109",
+      "module_hash": "cea564e2df06c3e7"
+    },
+    "src/hosts/vscode/hostbridge/env/getHostVersion.ts": {
+      "method_keys": [
+        "src/hosts/vscode/hostbridge/env/getHostVersion.ts|src.hosts.vscode.hostbridge.env.getHostVersion.getHostVersion"
+      ],
+      "content_hash": "a10241e7ac74f198",
+      "module_hash": "fd4d0b21dce94380"
+    },
+    "src/hosts/vscode/hostbridge/env/getIdeRedirectUri.ts": {
+      "method_keys": [
+        "src/hosts/vscode/hostbridge/env/getIdeRedirectUri.ts|src.hosts.vscode.hostbridge.env.getIdeRedirectUri.getIdeRedirectUri"
+      ],
+      "content_hash": "5444949694e6bd24",
+      "module_hash": "86210cf19f982319"
+    },
+    "src/hosts/vscode/hostbridge/env/getTelemetrySettings.ts": {
+      "method_keys": [
+        "src/hosts/vscode/hostbridge/env/getTelemetrySettings.ts|src.hosts.vscode.hostbridge.env.getTelemetrySettings.getTelemetrySettings"
+      ],
+      "content_hash": "0cf955c022c7c4fa",
+      "module_hash": "ba7497a5d760b014"
+    },
+    "src/hosts/vscode/hostbridge/env/openExternal.ts": {
+      "method_keys": [
+        "src/hosts/vscode/hostbridge/env/openExternal.ts|src.hosts.vscode.hostbridge.env.openExternal.openExternal"
+      ],
+      "content_hash": "a1e3a8b8761dfc77",
+      "module_hash": "d822f4b3bf533986"
+    },
+    "src/hosts/vscode/hostbridge/env/shutdown.ts": {
+      "method_keys": [
+        "src/hosts/vscode/hostbridge/env/shutdown.ts|src.hosts.vscode.hostbridge.env.shutdown.shutdown"
+      ],
+      "content_hash": "d6ef2957c68809a2",
+      "module_hash": "b580ff701bc0667e"
+    },
+    "src/hosts/vscode/hostbridge/env/subscribeToTelemetrySettings.ts": {
+      "method_keys": [
+        "src/hosts/vscode/hostbridge/env/subscribeToTelemetrySettings.ts|src.hosts.vscode.hostbridge.env.subscribeToTelemetrySettings.subscribeToTelemetrySettings",
+        "src/hosts/vscode/hostbridge/env/subscribeToTelemetrySettings.ts|src.hosts.vscode.hostbridge.env.subscribeToTelemetrySettings.subscribeToTelemetrySettings.vscode.env.onDidChangeTelemetryEnabled() callback"
+      ],
+      "content_hash": "d98422362dda653f",
+      "module_hash": "9a9f0bf33dd385fd"
     }
   },
   "methods_index": {
@@ -92324,6 +92656,14 @@
       "type": "FUNCTION",
       "content_hash": "5865bb06c11ade7f"
     },
+    "src/hosts/vscode/hostbridge/testing/getWebviewHtml.ts|src.hosts.vscode.hostbridge.testing.getWebviewHtml.getWebviewHtml": {
+      "file_path": "src/hosts/vscode/hostbridge/testing/getWebviewHtml.ts",
+      "qualified_name": "src.hosts.vscode.hostbridge.testing.getWebviewHtml.getWebviewHtml",
+      "start_line": 3,
+      "end_line": 5,
+      "type": "FUNCTION",
+      "content_hash": "dd5ecf01bc095409"
+    },
     "src/hosts/vscode/hostbridge/window/getActiveEditor.ts|src.hosts.vscode.hostbridge.window.getActiveEditor.getActiveEditor": {
       "file_path": "src/hosts/vscode/hostbridge/window/getActiveEditor.ts",
       "qualified_name": "src.hosts.vscode.hostbridge.window.getActiveEditor.getActiveEditor",
@@ -114372,6 +114712,134 @@
       "type": "METHOD",
       "content_hash": "8604ccc05b1a0ef7"
     },
+    "src/services/temp/DiracTempManager.ts|src.services.temp.DiracTempManager.TempFileInfo": {
+      "file_path": "src/services/temp/DiracTempManager.ts",
+      "qualified_name": "src.services.temp.DiracTempManager.TempFileInfo",
+      "start_line": 22,
+      "end_line": 26,
+      "type": "INTERFACE",
+      "content_hash": "7a5923d6e7c2f641"
+    },
+    "src/services/temp/DiracTempManager.ts|src.services.temp.DiracTempManager.DiracTempManagerImpl": {
+      "file_path": "src/services/temp/DiracTempManager.ts",
+      "qualified_name": "src.services.temp.DiracTempManager.DiracTempManagerImpl",
+      "start_line": 31,
+      "end_line": 203,
+      "type": "CLASS",
+      "content_hash": "8f109014ba41b5a5"
+    },
+    "src/services/temp/DiracTempManager.ts|src.services.temp.DiracTempManager.DiracTempManagerImpl.constructor": {
+      "file_path": "src/services/temp/DiracTempManager.ts",
+      "qualified_name": "src.services.temp.DiracTempManager.DiracTempManagerImpl.constructor",
+      "start_line": 35,
+      "end_line": 39,
+      "type": "CONSTRUCTOR",
+      "content_hash": "2bb9b2ed898df276"
+    },
+    "src/services/temp/DiracTempManager.ts|src.services.temp.DiracTempManager.DiracTempManagerImpl.ensureTempDirExists": {
+      "file_path": "src/services/temp/DiracTempManager.ts",
+      "qualified_name": "src.services.temp.DiracTempManager.DiracTempManagerImpl.ensureTempDirExists",
+      "start_line": 41,
+      "end_line": 43,
+      "type": "METHOD",
+      "content_hash": "ce6750093f2bfac8"
+    },
+    "src/services/temp/DiracTempManager.ts|src.services.temp.DiracTempManager.DiracTempManagerImpl.getTempDir": {
+      "file_path": "src/services/temp/DiracTempManager.ts",
+      "qualified_name": "src.services.temp.DiracTempManager.DiracTempManagerImpl.getTempDir",
+      "start_line": 48,
+      "end_line": 50,
+      "type": "METHOD",
+      "content_hash": "f661d3eed98dba71"
+    },
+    "src/services/temp/DiracTempManager.ts|src.services.temp.DiracTempManager.DiracTempManagerImpl.createTempFilePath": {
+      "file_path": "src/services/temp/DiracTempManager.ts",
+      "qualified_name": "src.services.temp.DiracTempManager.DiracTempManagerImpl.createTempFilePath",
+      "start_line": 59,
+      "end_line": 63,
+      "type": "METHOD",
+      "content_hash": "7bcdc4438a8455b0"
+    },
+    "src/services/temp/DiracTempManager.ts|src.services.temp.DiracTempManager.DiracTempManagerImpl.cleanup": {
+      "file_path": "src/services/temp/DiracTempManager.ts",
+      "qualified_name": "src.services.temp.DiracTempManager.DiracTempManagerImpl.cleanup",
+      "start_line": 74,
+      "end_line": 152,
+      "type": "METHOD",
+      "content_hash": "03afd778c17eba7b"
+    },
+    "src/services/temp/DiracTempManager.ts|src.services.temp.DiracTempManager.DiracTempManagerImpl.cleanup.totalSize": {
+      "file_path": "src/services/temp/DiracTempManager.ts",
+      "qualified_name": "src.services.temp.DiracTempManager.DiracTempManagerImpl.cleanup.totalSize",
+      "start_line": 124,
+      "end_line": 124,
+      "type": "CLASS",
+      "content_hash": "c80c81f19280da3a"
+    },
+    "src/services/temp/DiracTempManager.ts|src.services.temp.DiracTempManager.DiracTempManagerImpl.cleanup.totalSize.remainingFiles.reduce() callback": {
+      "file_path": "src/services/temp/DiracTempManager.ts",
+      "qualified_name": "src.services.temp.DiracTempManager.DiracTempManagerImpl.cleanup.totalSize.remainingFiles.reduce() callback",
+      "start_line": 124,
+      "end_line": 124,
+      "type": "FUNCTION",
+      "content_hash": "c80c81f19280da3a"
+    },
+    "src/services/temp/DiracTempManager.ts|src.services.temp.DiracTempManager.DiracTempManagerImpl.cleanup.remainingFiles.sort() callback": {
+      "file_path": "src/services/temp/DiracTempManager.ts",
+      "qualified_name": "src.services.temp.DiracTempManager.DiracTempManagerImpl.cleanup.remainingFiles.sort() callback",
+      "start_line": 126,
+      "end_line": 126,
+      "type": "FUNCTION",
+      "content_hash": "7ee315f4d4ba61a1"
+    },
+    "src/services/temp/DiracTempManager.ts|src.services.temp.DiracTempManager.DiracTempManagerImpl.deleteFile": {
+      "file_path": "src/services/temp/DiracTempManager.ts",
+      "qualified_name": "src.services.temp.DiracTempManager.DiracTempManagerImpl.deleteFile",
+      "start_line": 159,
+      "end_line": 167,
+      "type": "METHOD",
+      "content_hash": "4a9fcb52f80c3e0a"
+    },
+    "src/services/temp/DiracTempManager.ts|src.services.temp.DiracTempManager.DiracTempManagerImpl.startPeriodicCleanup": {
+      "file_path": "src/services/temp/DiracTempManager.ts",
+      "qualified_name": "src.services.temp.DiracTempManager.DiracTempManagerImpl.startPeriodicCleanup",
+      "start_line": 173,
+      "end_line": 191,
+      "type": "METHOD",
+      "content_hash": "e4d0db8bd90089fd"
+    },
+    "src/services/temp/DiracTempManager.ts|src.services.temp.DiracTempManager.DiracTempManagerImpl.startPeriodicCleanup.catch() callback": {
+      "file_path": "src/services/temp/DiracTempManager.ts",
+      "qualified_name": "src.services.temp.DiracTempManager.DiracTempManagerImpl.startPeriodicCleanup.catch() callback",
+      "start_line": 179,
+      "end_line": 181,
+      "type": "FUNCTION",
+      "content_hash": "692a178fe030b021"
+    },
+    "src/services/temp/DiracTempManager.ts|src.services.temp.DiracTempManager.DiracTempManagerImpl.startPeriodicCleanup.setInterval() callback": {
+      "file_path": "src/services/temp/DiracTempManager.ts",
+      "qualified_name": "src.services.temp.DiracTempManager.DiracTempManagerImpl.startPeriodicCleanup.setInterval() callback",
+      "start_line": 183,
+      "end_line": 187,
+      "type": "FUNCTION",
+      "content_hash": "00811e15f726262c"
+    },
+    "src/services/temp/DiracTempManager.ts|src.services.temp.DiracTempManager.DiracTempManagerImpl.startPeriodicCleanup.setInterval() callback.catch() callback": {
+      "file_path": "src/services/temp/DiracTempManager.ts",
+      "qualified_name": "src.services.temp.DiracTempManager.DiracTempManagerImpl.startPeriodicCleanup.setInterval() callback.catch() callback",
+      "start_line": 184,
+      "end_line": 186,
+      "type": "FUNCTION",
+      "content_hash": "2487ae11c71d9680"
+    },
+    "src/services/temp/DiracTempManager.ts|src.services.temp.DiracTempManager.DiracTempManagerImpl.stopPeriodicCleanup": {
+      "file_path": "src/services/temp/DiracTempManager.ts",
+      "qualified_name": "src.services.temp.DiracTempManager.DiracTempManagerImpl.stopPeriodicCleanup",
+      "start_line": 197,
+      "end_line": 202,
+      "type": "METHOD",
+      "content_hash": "7708090dd8c05579"
+    },
     "src/services/tree-sitter/index.ts|src.services.tree-sitter.index.ParsedDefinition": {
       "file_path": "src/services/tree-sitter/index.ts",
       "qualified_name": "src.services.tree-sitter.index.ParsedDefinition",
@@ -131780,6 +132248,142 @@
       "type": "FUNCTION",
       "content_hash": "986b3ed3e035c6d2"
     },
+    "webview-ui/src/config/platform.config.ts|webview-ui.src.config.platform.config.PlatformConfig": {
+      "file_path": "webview-ui/src/config/platform.config.ts",
+      "qualified_name": "webview-ui.src.config.platform.config.PlatformConfig",
+      "start_line": 3,
+      "end_line": 12,
+      "type": "INTERFACE",
+      "content_hash": "fdc711f3390f6594"
+    },
+    "webview-ui/src/config/platform.config.ts|webview-ui.src.config.platform.config.PlatformType": {
+      "file_path": "webview-ui/src/config/platform.config.ts",
+      "qualified_name": "webview-ui.src.config.platform.config.PlatformType",
+      "start_line": 14,
+      "end_line": 17,
+      "type": "ENUM",
+      "content_hash": "473b0e0264d67338"
+    },
+    "webview-ui/src/config/platform.config.ts|webview-ui.src.config.platform.config.stringToPlatformType": {
+      "file_path": "webview-ui/src/config/platform.config.ts",
+      "qualified_name": "webview-ui.src.config.platform.config.stringToPlatformType",
+      "start_line": 19,
+      "end_line": 30,
+      "type": "FUNCTION",
+      "content_hash": "7ddb1121bf1347ce"
+    },
+    "webview-ui/src/config/platform.config.ts|webview-ui.src.config.platform.config.DiracRuntimeConfig": {
+      "file_path": "webview-ui/src/config/platform.config.ts",
+      "qualified_name": "webview-ui.src.config.platform.config.DiracRuntimeConfig",
+      "start_line": 48,
+      "end_line": 50,
+      "type": "INTERFACE",
+      "content_hash": "2ed974d30e501db4"
+    },
+    "webview-ui/src/config/platform.config.ts|webview-ui.src.config.platform.config.global.Window": {
+      "file_path": "webview-ui/src/config/platform.config.ts",
+      "qualified_name": "webview-ui.src.config.platform.config.global.Window",
+      "start_line": 54,
+      "end_line": 62,
+      "type": "INTERFACE",
+      "content_hash": "0666f6bfd26b7a10"
+    },
+    "webview-ui/src/config/platform.config.ts|webview-ui.src.config.platform.config.global.acquireVsCodeApi": {
+      "file_path": "webview-ui/src/config/platform.config.ts",
+      "qualified_name": "webview-ui.src.config.platform.config.global.acquireVsCodeApi",
+      "start_line": 63,
+      "end_line": 63,
+      "type": "FUNCTION",
+      "content_hash": "649c6b444889f632"
+    },
+    "webview-ui/src/config/platform.config.ts|webview-ui.src.config.platform.config.resolveTogglePlanActKeys": {
+      "file_path": "webview-ui/src/config/platform.config.ts",
+      "qualified_name": "webview-ui.src.config.platform.config.resolveTogglePlanActKeys",
+      "start_line": 76,
+      "end_line": 81,
+      "type": "FUNCTION",
+      "content_hash": "e5cf682974baabed"
+    },
+    "webview-ui/src/config/platform.config.ts|webview-ui.src.config.platform.config.getInjectedTogglePlanActKeys": {
+      "file_path": "webview-ui/src/config/platform.config.ts",
+      "qualified_name": "webview-ui.src.config.platform.config.getInjectedTogglePlanActKeys",
+      "start_line": 86,
+      "end_line": 88,
+      "type": "FUNCTION",
+      "content_hash": "d82dabc239b85c09"
+    },
+    "webview-ui/src/config/platform.config.ts|webview-ui.src.config.platform.config.postMessageStrategies": {
+      "file_path": "webview-ui/src/config/platform.config.ts",
+      "qualified_name": "webview-ui.src.config.platform.config.postMessageStrategies",
+      "start_line": 94,
+      "end_line": 110,
+      "type": "CLASS",
+      "content_hash": "f4cb4cf65ea3b1df"
+    },
+    "webview-ui/src/config/platform.config.ts|webview-ui.src.config.platform.config.postMessageStrategies.vscode": {
+      "file_path": "webview-ui/src/config/platform.config.ts",
+      "qualified_name": "webview-ui.src.config.platform.config.postMessageStrategies.vscode",
+      "start_line": 95,
+      "end_line": 101,
+      "type": "METHOD",
+      "content_hash": "5a04b061f7e910ab"
+    },
+    "webview-ui/src/config/platform.config.ts|webview-ui.src.config.platform.config.postMessageStrategies.standalone": {
+      "file_path": "webview-ui/src/config/platform.config.ts",
+      "qualified_name": "webview-ui.src.config.platform.config.postMessageStrategies.standalone",
+      "start_line": 102,
+      "end_line": 109,
+      "type": "METHOD",
+      "content_hash": "736030033e70be04"
+    },
+    "webview-ui/src/config/platform.config.ts|webview-ui.src.config.platform.config.messageEncoders": {
+      "file_path": "webview-ui/src/config/platform.config.ts",
+      "qualified_name": "webview-ui.src.config.platform.config.messageEncoders",
+      "start_line": 113,
+      "end_line": 116,
+      "type": "CLASS",
+      "content_hash": "b447f42eca2d4612"
+    },
+    "webview-ui/src/config/platform.config.ts|webview-ui.src.config.platform.config.messageEncoders.none": {
+      "file_path": "webview-ui/src/config/platform.config.ts",
+      "qualified_name": "webview-ui.src.config.platform.config.messageEncoders.none",
+      "start_line": 114,
+      "end_line": 114,
+      "type": "METHOD",
+      "content_hash": "9d019399d9b282c3"
+    },
+    "webview-ui/src/config/platform.config.ts|webview-ui.src.config.platform.config.messageEncoders.json": {
+      "file_path": "webview-ui/src/config/platform.config.ts",
+      "qualified_name": "webview-ui.src.config.platform.config.messageEncoders.json",
+      "start_line": 115,
+      "end_line": 115,
+      "type": "METHOD",
+      "content_hash": "ae920450e26bae93"
+    },
+    "webview-ui/src/config/platform.config.ts|webview-ui.src.config.platform.config.messageDecoders": {
+      "file_path": "webview-ui/src/config/platform.config.ts",
+      "qualified_name": "webview-ui.src.config.platform.config.messageDecoders",
+      "start_line": 119,
+      "end_line": 122,
+      "type": "CLASS",
+      "content_hash": "93bc37baf4ab1145"
+    },
+    "webview-ui/src/config/platform.config.ts|webview-ui.src.config.platform.config.messageDecoders.none": {
+      "file_path": "webview-ui/src/config/platform.config.ts",
+      "qualified_name": "webview-ui.src.config.platform.config.messageDecoders.none",
+      "start_line": 120,
+      "end_line": 120,
+      "type": "METHOD",
+      "content_hash": "4d56a50b0bc9b486"
+    },
+    "webview-ui/src/config/platform.config.ts|webview-ui.src.config.platform.config.messageDecoders.json": {
+      "file_path": "webview-ui/src/config/platform.config.ts",
+      "qualified_name": "webview-ui.src.config.platform.config.messageDecoders.json",
+      "start_line": 121,
+      "end_line": 121,
+      "type": "METHOD",
+      "content_hash": "d4064ef343c79f94"
+    },
     "webview-ui/src/features/history/components/HistoryViewItem.tsx|webview-ui.src.features.history.components.HistoryViewItem.HistoryViewItem": {
       "file_path": "webview-ui/src/features/history/components/HistoryViewItem.tsx",
       "qualified_name": "webview-ui.src.features.history.components.HistoryViewItem.HistoryViewItem",
@@ -131971,6 +132575,118 @@
       "end_line": 210,
       "type": "FUNCTION",
       "content_hash": "36f56ab1238334bc"
+    },
+    "webview-ui/vite.config.ts|webview-ui.vite.config.writePortToFile": {
+      "file_path": "webview-ui/vite.config.ts",
+      "qualified_name": "webview-ui.vite.config.writePortToFile",
+      "start_line": 10,
+      "end_line": 27,
+      "type": "CLASS",
+      "content_hash": "9fda68779fd7ec0d"
+    },
+    "webview-ui/vite.config.ts|webview-ui.vite.config.writePortToFile.configureServer": {
+      "file_path": "webview-ui/vite.config.ts",
+      "qualified_name": "webview-ui.vite.config.writePortToFile.configureServer",
+      "start_line": 13,
+      "end_line": 25,
+      "type": "METHOD",
+      "content_hash": "3cdaf28a719bc268"
+    },
+    "webview-ui/vite.config.ts|webview-ui.vite.config.writePortToFile.configureServer.server.httpServer.once(\"listening\") callback": {
+      "file_path": "webview-ui/vite.config.ts",
+      "qualified_name": "webview-ui.vite.config.writePortToFile.configureServer.server.httpServer.once(\"listening\") callback",
+      "start_line": 14,
+      "end_line": 24,
+      "type": "FUNCTION",
+      "content_hash": "e7effb77eec71788"
+    },
+    "src/hosts/vscode/hostbridge/env/clipboardReadText.ts|src.hosts.vscode.hostbridge.env.clipboardReadText.clipboardReadText": {
+      "file_path": "src/hosts/vscode/hostbridge/env/clipboardReadText.ts",
+      "qualified_name": "src.hosts.vscode.hostbridge.env.clipboardReadText.clipboardReadText",
+      "start_line": 4,
+      "end_line": 7,
+      "type": "FUNCTION",
+      "content_hash": "091201b1913ad2c0"
+    },
+    "src/hosts/vscode/hostbridge/env/clipboardWriteText.ts|src.hosts.vscode.hostbridge.env.clipboardWriteText.clipboardWriteText": {
+      "file_path": "src/hosts/vscode/hostbridge/env/clipboardWriteText.ts",
+      "qualified_name": "src.hosts.vscode.hostbridge.env.clipboardWriteText.clipboardWriteText",
+      "start_line": 4,
+      "end_line": 7,
+      "type": "FUNCTION",
+      "content_hash": "24ab1dbcd106d100"
+    },
+    "src/hosts/vscode/hostbridge/env/debugLog.ts|src.hosts.vscode.hostbridge.env.debugLog.debugLog": {
+      "file_path": "src/hosts/vscode/hostbridge/env/debugLog.ts",
+      "qualified_name": "src.hosts.vscode.hostbridge.env.debugLog.debugLog",
+      "start_line": 7,
+      "end_line": 10,
+      "type": "FUNCTION",
+      "content_hash": "ae5000c319c41431"
+    },
+    "src/hosts/vscode/hostbridge/env/debugLog.ts|src.hosts.vscode.hostbridge.env.debugLog.registerDiracOutputChannel": {
+      "file_path": "src/hosts/vscode/hostbridge/env/debugLog.ts",
+      "qualified_name": "src.hosts.vscode.hostbridge.env.debugLog.registerDiracOutputChannel",
+      "start_line": 13,
+      "end_line": 16,
+      "type": "FUNCTION",
+      "content_hash": "d6fccc94bdeedf30"
+    },
+    "src/hosts/vscode/hostbridge/env/getHostVersion.ts|src.hosts.vscode.hostbridge.env.getHostVersion.getHostVersion": {
+      "file_path": "src/hosts/vscode/hostbridge/env/getHostVersion.ts",
+      "qualified_name": "src.hosts.vscode.hostbridge.env.getHostVersion.getHostVersion",
+      "start_line": 7,
+      "end_line": 14,
+      "type": "FUNCTION",
+      "content_hash": "03502b97520bee18"
+    },
+    "src/hosts/vscode/hostbridge/env/getIdeRedirectUri.ts|src.hosts.vscode.hostbridge.env.getIdeRedirectUri.getIdeRedirectUri": {
+      "file_path": "src/hosts/vscode/hostbridge/env/getIdeRedirectUri.ts",
+      "qualified_name": "src.hosts.vscode.hostbridge.env.getIdeRedirectUri.getIdeRedirectUri",
+      "start_line": 4,
+      "end_line": 13,
+      "type": "FUNCTION",
+      "content_hash": "acd71dcfd2fc7a93"
+    },
+    "src/hosts/vscode/hostbridge/env/getTelemetrySettings.ts|src.hosts.vscode.hostbridge.env.getTelemetrySettings.getTelemetrySettings": {
+      "file_path": "src/hosts/vscode/hostbridge/env/getTelemetrySettings.ts",
+      "qualified_name": "src.hosts.vscode.hostbridge.env.getTelemetrySettings.getTelemetrySettings",
+      "start_line": 6,
+      "end_line": 14,
+      "type": "FUNCTION",
+      "content_hash": "b4fbe1de8174f441"
+    },
+    "src/hosts/vscode/hostbridge/env/openExternal.ts|src.hosts.vscode.hostbridge.env.openExternal.openExternal": {
+      "file_path": "src/hosts/vscode/hostbridge/env/openExternal.ts",
+      "qualified_name": "src.hosts.vscode.hostbridge.env.openExternal.openExternal",
+      "start_line": 4,
+      "end_line": 9,
+      "type": "FUNCTION",
+      "content_hash": "7fcc66be27a5c8c6"
+    },
+    "src/hosts/vscode/hostbridge/env/shutdown.ts|src.hosts.vscode.hostbridge.env.shutdown.shutdown": {
+      "file_path": "src/hosts/vscode/hostbridge/env/shutdown.ts",
+      "qualified_name": "src.hosts.vscode.hostbridge.env.shutdown.shutdown",
+      "start_line": 3,
+      "end_line": 9,
+      "type": "FUNCTION",
+      "content_hash": "4b5a003e89a82bc7"
+    },
+    "src/hosts/vscode/hostbridge/env/subscribeToTelemetrySettings.ts|src.hosts.vscode.hostbridge.env.subscribeToTelemetrySettings.subscribeToTelemetrySettings": {
+      "file_path": "src/hosts/vscode/hostbridge/env/subscribeToTelemetrySettings.ts",
+      "qualified_name": "src.hosts.vscode.hostbridge.env.subscribeToTelemetrySettings.subscribeToTelemetrySettings",
+      "start_line": 9,
+      "end_line": 20,
+      "type": "FUNCTION",
+      "content_hash": "92b656c315ab9de5"
+    },
+    "src/hosts/vscode/hostbridge/env/subscribeToTelemetrySettings.ts|src.hosts.vscode.hostbridge.env.subscribeToTelemetrySettings.subscribeToTelemetrySettings.vscode.env.onDidChangeTelemetryEnabled() callback": {
+      "file_path": "src/hosts/vscode/hostbridge/env/subscribeToTelemetrySettings.ts",
+      "qualified_name": "src.hosts.vscode.hostbridge.env.subscribeToTelemetrySettings.subscribeToTelemetrySettings.vscode.env.onDidChangeTelemetryEnabled() callback",
+      "start_line": 14,
+      "end_line": 19,
+      "type": "FUNCTION",
+      "content_hash": "2e18785668974059"
     }
   },
   "components": [
@@ -179845,558 +180561,6 @@
       ],
       "components_relations": [
         {
-          "relation": "initializes core services and validates API handlers via",
-          "src_name": "ACP Server & Dirac Agent Adapter",
-          "dst_name": "CLI Bootstrap & Core Service Integration",
-          "evidence": "",
-          "key_edges": [
-            {
-              "source": "cli/src/agent/DiracAgent.ts|cli.src.agent.DiracAgent.DiracAgent.initialize",
-              "target": "cli/src/initCoreServices.ts|cli.src.initCoreServices.initCoreServices",
-              "call_sites": [
-                {
-                  "line": 1153,
-                  "column": 9
-                }
-              ],
-              "description": "Initializes core services when starting DiracAgent."
-            },
-            {
-              "source": "cli/src/agent/DiracAgent.ts|cli.src.agent.DiracAgent.DiracAgent.loadSession",
-              "target": "src/core/api/index.ts|src.core.api.index.validateApiConfiguration",
-              "call_sites": [
-                {
-                  "line": 1432,
-                  "column": 3
-                }
-              ],
-              "description": "Validates API configuration and builds model handlers for agent sessions and diff reviews."
-            }
-          ],
-          "src_id": "2.3",
-          "dst_id": "2.4",
-          "is_static": true,
-          "all_edges": [
-            {
-              "source": "cli/src/agent/DiracAgent.ts|cli.src.agent.DiracAgent.DiracAgent.initialize",
-              "target": "cli/src/initCoreServices.ts|cli.src.initCoreServices.initCoreServices",
-              "call_sites": [
-                {
-                  "line": 1153,
-                  "column": 9
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "cli/src/agent/DiracAgent.ts|cli.src.agent.DiracAgent.DiracAgent.loadSession",
-              "target": "src/core/api/index.ts|src.core.api.index.validateApiConfiguration",
-              "call_sites": [
-                {
-                  "line": 1432,
-                  "column": 3
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "cli/src/agent/DiracAgent.ts|cli.src.agent.DiracAgent.DiracAgent.refreshSessionProviderRuntime",
-              "target": "src/core/api/index.ts|src.core.api.index.validateApiConfiguration",
-              "call_sites": [
-                {
-                  "line": 903,
-                  "column": 3
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "cli/src/agent/DiracAgent.ts|cli.src.agent.DiracAgent.DiracAgent.resolveSessionTaskRuntime",
-              "target": "src/core/api/index.ts|src.core.api.index.validateApiConfiguration",
-              "call_sites": [
-                {
-                  "line": 888,
-                  "column": 3
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "cli/src/agent/review.ts|cli.src.agent.review.runReviewModelOnDiff",
-              "target": "src/core/api/index.ts|src.core.api.index.buildApiHandler",
-              "call_sites": [
-                {
-                  "line": 282,
-                  "column": 21
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "cli/src/agent/review.ts|cli.src.agent.review.runReviewModelOnDiff",
-              "target": "src/core/api/providers/unbiased.ts|src.core.api.providers.unbiased.UnbiasedHandler.abort",
-              "call_sites": [
-                {
-                  "line": 328,
-                  "column": 14
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "cli/src/agent/review.ts|cli.src.agent.review.runReviewModelOnDiff",
-              "target": "src/core/api/providers/unbiased.ts|src.core.api.providers.unbiased.UnbiasedHandler.createMessage",
-              "call_sites": [
-                {
-                  "line": 317,
-                  "column": 40
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "cli/src/agent/sessionConfig.ts|cli.src.agent.sessionConfig.SessionConfigManager.resolveInferenceModelId",
-              "target": "src/core/api/index.ts|src.core.api.index.resolveModelIdForProvider",
-              "call_sites": [
-                {
-                  "line": 580,
-                  "column": 11
-                }
-              ],
-              "description": ""
-            }
-          ]
-        },
-        {
-          "relation": "starts ACP server mode in",
-          "src_name": "CLI Bootstrap & Core Service Integration",
-          "dst_name": "ACP Server & Dirac Agent Adapter",
-          "evidence": "",
-          "key_edges": [
-            {
-              "source": "cli/src/index.ts|cli.src.index.action() callback",
-              "target": "cli/src/acp/index.ts|cli.src.acp.index.runAcpMode",
-              "call_sites": [
-                {
-                  "line": 276,
-                  "column": 10
-                }
-              ],
-              "description": "Launches the ACP server runtime when the CLI is invoked in ACP mode."
-            }
-          ],
-          "src_id": "2.4",
-          "dst_id": "2.3",
-          "is_static": true,
-          "all_edges": [
-            {
-              "source": "cli/src/index.ts|cli.src.index.action() callback",
-              "target": "cli/src/acp/index.ts|cli.src.acp.index.runAcpMode",
-              "call_sites": [
-                {
-                  "line": 276,
-                  "column": 10
-                }
-              ],
-              "description": ""
-            }
-          ]
-        },
-        {
-          "relation": "instantiates CLI webview and host bridge controllers in",
-          "src_name": "CLI Bootstrap & Core Service Integration",
-          "dst_name": "CLI Host Bridge & Review Controllers",
-          "evidence": "",
-          "key_edges": [
-            {
-              "source": "cli/src/init.ts|cli.src.init.initializeCli",
-              "target": "cli/src/controllers/index.ts|cli.src.controllers.index.createCliHostBridgeProvider",
-              "call_sites": [
-                {
-                  "line": 77,
-                  "column": 3
-                }
-              ],
-              "description": "Instantiates the CLI webview provider and host bridge provider during CLI initialization."
-            }
-          ],
-          "src_id": "2.4",
-          "dst_id": "2.6",
-          "is_static": true,
-          "all_edges": [
-            {
-              "source": "cli/src/init.ts|cli.src.init.initializeCli",
-              "target": "cli/src/controllers/CliWebviewProvider.ts|cli.src.controllers.CliWebviewProvider.CliWebviewProvider",
-              "call_sites": [
-                {
-                  "line": 73,
-                  "column": 13
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "cli/src/init.ts|cli.src.init.initializeCli",
-              "target": "cli/src/controllers/CliWebviewProvider.ts|cli.src.controllers.CliWebviewProvider.CliWebviewProvider.constructor",
-              "call_sites": [
-                {
-                  "line": 73,
-                  "column": 13
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "cli/src/init.ts|cli.src.init.initializeCli",
-              "target": "cli/src/controllers/index.ts|cli.src.controllers.index.createCliHostBridgeProvider",
-              "call_sites": [
-                {
-                  "line": 77,
-                  "column": 3
-                }
-              ],
-              "description": ""
-            }
-          ]
-        },
-        {
-          "relation": "formats and prints review output via",
-          "src_name": "CLI Host Bridge & Review Controllers",
-          "dst_name": "CLI Runtime & Display Utilities",
-          "evidence": "",
-          "key_edges": [
-            {
-              "source": "cli/src/controllers/CliCommentReviewController.ts|cli.src.controllers.CliCommentReviewController.CliCommentReviewController.addReviewComment",
-              "target": "cli/src/utils/display.ts|cli.src.utils.display.print",
-              "call_sites": [
-                {
-                  "line": 27,
-                  "column": 3
-                },
-                {
-                  "line": 28,
-                  "column": 3
-                }
-              ],
-              "description": "Formats and prints streaming review comments to the terminal."
-            }
-          ],
-          "src_id": "2.6",
-          "dst_id": "2.2",
-          "is_static": true,
-          "all_edges": [
-            {
-              "source": "cli/src/controllers/CliCommentReviewController.ts|cli.src.controllers.CliCommentReviewController.CliCommentReviewController.addReviewComment",
-              "target": "cli/src/utils/display.ts|cli.src.utils.display.print",
-              "call_sites": [
-                {
-                  "line": 27,
-                  "column": 3
-                },
-                {
-                  "line": 28,
-                  "column": 3
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "cli/src/controllers/CliCommentReviewController.ts|cli.src.controllers.CliCommentReviewController.CliCommentReviewController.addReviewComment",
-              "target": "cli/src/utils/display.ts|cli.src.utils.display.style",
-              "call_sites": [
-                {
-                  "line": 27,
-                  "column": 15
-                },
-                {
-                  "line": 28,
-                  "column": 15
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "cli/src/controllers/CliCommentReviewController.ts|cli.src.controllers.CliCommentReviewController.CliCommentReviewController.addReviewComment",
-              "target": "cli/src/utils/display.ts|cli.src.utils.display.style.dim",
-              "call_sites": [
-                {
-                  "line": 28,
-                  "column": 15
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "cli/src/controllers/CliCommentReviewController.ts|cli.src.controllers.CliCommentReviewController.CliCommentReviewController.addReviewComment",
-              "target": "cli/src/utils/display.ts|cli.src.utils.display.style.info",
-              "call_sites": [
-                {
-                  "line": 27,
-                  "column": 15
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "cli/src/controllers/CliCommentReviewController.ts|cli.src.controllers.CliCommentReviewController.CliCommentReviewController.endStreamingComment",
-              "target": "cli/src/utils/display.ts|cli.src.utils.display.print",
-              "call_sites": [
-                {
-                  "line": 56,
-                  "column": 4
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "cli/src/controllers/CliCommentReviewController.ts|cli.src.controllers.CliCommentReviewController.CliCommentReviewController.startStreamingComment",
-              "target": "cli/src/utils/display.ts|cli.src.utils.display.print",
-              "call_sites": [
-                {
-                  "line": 40,
-                  "column": 3
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "cli/src/controllers/CliCommentReviewController.ts|cli.src.controllers.CliCommentReviewController.CliCommentReviewController.startStreamingComment",
-              "target": "cli/src/utils/display.ts|cli.src.utils.display.style",
-              "call_sites": [
-                {
-                  "line": 40,
-                  "column": 15
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "cli/src/controllers/CliCommentReviewController.ts|cli.src.controllers.CliCommentReviewController.CliCommentReviewController.startStreamingComment",
-              "target": "cli/src/utils/display.ts|cli.src.utils.display.style.info",
-              "call_sites": [
-                {
-                  "line": 40,
-                  "column": 15
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "cli/src/controllers/index.ts|cli.src.controllers.index.CliDiffServiceClient.openMultiFileDiff",
-              "target": "cli/src/utils/display.ts|cli.src.utils.display.printInfo",
-              "call_sites": [
-                {
-                  "line": 70,
-                  "column": 4
-                },
-                {
-                  "line": 72,
-                  "column": 5
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "cli/src/controllers/index.ts|cli.src.controllers.index.CliEnvServiceClient.clipboardWriteText",
-              "target": "cli/src/utils/display.ts|cli.src.utils.display.printInfo",
-              "call_sites": [
-                {
-                  "line": 93,
-                  "column": 3
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "cli/src/controllers/index.ts|cli.src.controllers.index.CliEnvServiceClient.debugLog",
-              "target": "cli/src/utils/display.ts|cli.src.utils.display.printInfo",
-              "call_sites": [
-                {
-                  "line": 137,
-                  "column": 4
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "cli/src/controllers/index.ts|cli.src.controllers.index.CliEnvServiceClient.openExternal",
-              "target": "cli/src/utils/browser.ts|cli.src.utils.browser.openUrlInBrowser",
-              "call_sites": [
-                {
-                  "line": 148,
-                  "column": 28
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "cli/src/controllers/index.ts|cli.src.controllers.index.CliEnvServiceClient.shutdown",
-              "target": "cli/src/utils/display.ts|cli.src.utils.display.printInfo",
-              "call_sites": [
-                {
-                  "line": 143,
-                  "column": 3
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "cli/src/controllers/index.ts|cli.src.controllers.index.CliWindowServiceClient.openFile",
-              "target": "cli/src/utils/display.ts|cli.src.utils.display.printInfo",
-              "call_sites": [
-                {
-                  "line": 201,
-                  "column": 3
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "cli/src/controllers/index.ts|cli.src.controllers.index.CliWindowServiceClient.openSettings",
-              "target": "cli/src/utils/display.ts|cli.src.utils.display.printInfo",
-              "call_sites": [
-                {
-                  "line": 206,
-                  "column": 3
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "cli/src/controllers/index.ts|cli.src.controllers.index.CliWindowServiceClient.showInputBox",
-              "target": "cli/src/utils/display.ts|cli.src.utils.display.printWarning",
-              "call_sites": [
-                {
-                  "line": 191,
-                  "column": 3
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "cli/src/controllers/index.ts|cli.src.controllers.index.CliWindowServiceClient.showMessage",
-              "target": "cli/src/utils/display.ts|cli.src.utils.display.printError",
-              "call_sites": [
-                {
-                  "line": 175,
-                  "column": 5
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "cli/src/controllers/index.ts|cli.src.controllers.index.CliWindowServiceClient.showMessage",
-              "target": "cli/src/utils/display.ts|cli.src.utils.display.printInfo",
-              "call_sites": [
-                {
-                  "line": 182,
-                  "column": 5
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "cli/src/controllers/index.ts|cli.src.controllers.index.CliWindowServiceClient.showMessage",
-              "target": "cli/src/utils/display.ts|cli.src.utils.display.printWarning",
-              "call_sites": [
-                {
-                  "line": 178,
-                  "column": 5
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "cli/src/controllers/index.ts|cli.src.controllers.index.CliWindowServiceClient.showOpenDialogue",
-              "target": "cli/src/utils/display.ts|cli.src.utils.display.printWarning",
-              "call_sites": [
-                {
-                  "line": 165,
-                  "column": 3
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "cli/src/controllers/index.ts|cli.src.controllers.index.CliWindowServiceClient.showSaveDialog",
-              "target": "cli/src/utils/display.ts|cli.src.utils.display.printWarning",
-              "call_sites": [
-                {
-                  "line": 196,
-                  "column": 3
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "cli/src/controllers/index.ts|cli.src.controllers.index.CliWindowServiceClient.showTextDocument",
-              "target": "cli/src/utils/display.ts|cli.src.utils.display.printInfo",
-              "call_sites": [
-                {
-                  "line": 158,
-                  "column": 3
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "cli/src/controllers/index.ts|cli.src.controllers.index.CliWorkspaceServiceClient.executeCommandInTerminal",
-              "target": "cli/src/utils/display.ts|cli.src.utils.display.printInfo",
-              "call_sites": [
-                {
-                  "line": 282,
-                  "column": 3
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "cli/src/controllers/index.ts|cli.src.controllers.index.CliWorkspaceServiceClient.openFolder",
-              "target": "cli/src/utils/display.ts|cli.src.utils.display.printInfo",
-              "call_sites": [
-                {
-                  "line": 293,
-                  "column": 3
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "cli/src/controllers/index.ts|cli.src.controllers.index.CliWorkspaceServiceClient.openInFileExplorerPanel",
-              "target": "cli/src/utils/display.ts|cli.src.utils.display.printInfo",
-              "call_sites": [
-                {
-                  "line": 263,
-                  "column": 3
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "cli/src/controllers/index.ts|cli.src.controllers.index.CliWorkspaceServiceClient.openProblemsPanel",
-              "target": "cli/src/utils/display.ts|cli.src.utils.display.printInfo",
-              "call_sites": [
-                {
-                  "line": 256,
-                  "column": 3
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "cli/src/controllers/index.ts|cli.src.controllers.index.CliWorkspaceServiceClient.openTerminalPanel",
-              "target": "cli/src/utils/display.ts|cli.src.utils.display.printInfo",
-              "call_sites": [
-                {
-                  "line": 275,
-                  "column": 3
-                }
-              ],
-              "description": ""
-            }
-          ]
-        },
-        {
           "relation": "calls",
           "src_name": "Terminal Commands & Ink UI Components",
           "dst_name": "CLI Runtime & Display Utilities",
@@ -183199,6 +183363,129 @@
           ]
         },
         {
+          "relation": "initializes core services and validates API handlers via",
+          "src_name": "ACP Server & Dirac Agent Adapter",
+          "dst_name": "CLI Bootstrap & Core Service Integration",
+          "evidence": "",
+          "key_edges": [
+            {
+              "source": "cli/src/agent/DiracAgent.ts|cli.src.agent.DiracAgent.DiracAgent.initialize",
+              "target": "cli/src/initCoreServices.ts|cli.src.initCoreServices.initCoreServices",
+              "call_sites": [
+                {
+                  "line": 1153,
+                  "column": 9
+                }
+              ],
+              "description": "Initializes core services when starting DiracAgent."
+            },
+            {
+              "source": "cli/src/agent/DiracAgent.ts|cli.src.agent.DiracAgent.DiracAgent.loadSession",
+              "target": "src/core/api/index.ts|src.core.api.index.validateApiConfiguration",
+              "call_sites": [
+                {
+                  "line": 1432,
+                  "column": 3
+                }
+              ],
+              "description": "Validates API configuration and builds model handlers for agent sessions and diff reviews."
+            }
+          ],
+          "src_id": "2.3",
+          "dst_id": "2.4",
+          "is_static": true,
+          "all_edges": [
+            {
+              "source": "cli/src/agent/DiracAgent.ts|cli.src.agent.DiracAgent.DiracAgent.initialize",
+              "target": "cli/src/initCoreServices.ts|cli.src.initCoreServices.initCoreServices",
+              "call_sites": [
+                {
+                  "line": 1153,
+                  "column": 9
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "cli/src/agent/DiracAgent.ts|cli.src.agent.DiracAgent.DiracAgent.loadSession",
+              "target": "src/core/api/index.ts|src.core.api.index.validateApiConfiguration",
+              "call_sites": [
+                {
+                  "line": 1432,
+                  "column": 3
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "cli/src/agent/DiracAgent.ts|cli.src.agent.DiracAgent.DiracAgent.refreshSessionProviderRuntime",
+              "target": "src/core/api/index.ts|src.core.api.index.validateApiConfiguration",
+              "call_sites": [
+                {
+                  "line": 903,
+                  "column": 3
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "cli/src/agent/DiracAgent.ts|cli.src.agent.DiracAgent.DiracAgent.resolveSessionTaskRuntime",
+              "target": "src/core/api/index.ts|src.core.api.index.validateApiConfiguration",
+              "call_sites": [
+                {
+                  "line": 888,
+                  "column": 3
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "cli/src/agent/review.ts|cli.src.agent.review.runReviewModelOnDiff",
+              "target": "src/core/api/index.ts|src.core.api.index.buildApiHandler",
+              "call_sites": [
+                {
+                  "line": 282,
+                  "column": 21
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "cli/src/agent/review.ts|cli.src.agent.review.runReviewModelOnDiff",
+              "target": "src/core/api/providers/unbiased.ts|src.core.api.providers.unbiased.UnbiasedHandler.abort",
+              "call_sites": [
+                {
+                  "line": 328,
+                  "column": 14
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "cli/src/agent/review.ts|cli.src.agent.review.runReviewModelOnDiff",
+              "target": "src/core/api/providers/unbiased.ts|src.core.api.providers.unbiased.UnbiasedHandler.createMessage",
+              "call_sites": [
+                {
+                  "line": 317,
+                  "column": 40
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "cli/src/agent/sessionConfig.ts|cli.src.agent.sessionConfig.SessionConfigManager.resolveInferenceModelId",
+              "target": "src/core/api/index.ts|src.core.api.index.resolveModelIdForProvider",
+              "call_sites": [
+                {
+                  "line": 580,
+                  "column": 11
+                }
+              ],
+              "description": ""
+            }
+          ]
+        },
+        {
           "relation": "dispatches CLI subcommands to",
           "src_name": "CLI Bootstrap & Core Service Integration",
           "dst_name": "Terminal Commands & Ink UI Components",
@@ -183608,6 +183895,98 @@
                 {
                   "line": 95,
                   "column": 2
+                }
+              ],
+              "description": ""
+            }
+          ]
+        },
+        {
+          "relation": "starts ACP server mode in",
+          "src_name": "CLI Bootstrap & Core Service Integration",
+          "dst_name": "ACP Server & Dirac Agent Adapter",
+          "evidence": "",
+          "key_edges": [
+            {
+              "source": "cli/src/index.ts|cli.src.index.action() callback",
+              "target": "cli/src/acp/index.ts|cli.src.acp.index.runAcpMode",
+              "call_sites": [
+                {
+                  "line": 276,
+                  "column": 10
+                }
+              ],
+              "description": "Launches the ACP server runtime when the CLI is invoked in ACP mode."
+            }
+          ],
+          "src_id": "2.4",
+          "dst_id": "2.3",
+          "is_static": true,
+          "all_edges": [
+            {
+              "source": "cli/src/index.ts|cli.src.index.action() callback",
+              "target": "cli/src/acp/index.ts|cli.src.acp.index.runAcpMode",
+              "call_sites": [
+                {
+                  "line": 276,
+                  "column": 10
+                }
+              ],
+              "description": ""
+            }
+          ]
+        },
+        {
+          "relation": "instantiates CLI webview and host bridge controllers in",
+          "src_name": "CLI Bootstrap & Core Service Integration",
+          "dst_name": "CLI Host Bridge & Review Controllers",
+          "evidence": "",
+          "key_edges": [
+            {
+              "source": "cli/src/init.ts|cli.src.init.initializeCli",
+              "target": "cli/src/controllers/index.ts|cli.src.controllers.index.createCliHostBridgeProvider",
+              "call_sites": [
+                {
+                  "line": 77,
+                  "column": 3
+                }
+              ],
+              "description": "Instantiates the CLI webview provider and host bridge provider during CLI initialization."
+            }
+          ],
+          "src_id": "2.4",
+          "dst_id": "2.6",
+          "is_static": true,
+          "all_edges": [
+            {
+              "source": "cli/src/init.ts|cli.src.init.initializeCli",
+              "target": "cli/src/controllers/CliWebviewProvider.ts|cli.src.controllers.CliWebviewProvider.CliWebviewProvider",
+              "call_sites": [
+                {
+                  "line": 73,
+                  "column": 13
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "cli/src/init.ts|cli.src.init.initializeCli",
+              "target": "cli/src/controllers/CliWebviewProvider.ts|cli.src.controllers.CliWebviewProvider.CliWebviewProvider.constructor",
+              "call_sites": [
+                {
+                  "line": 73,
+                  "column": 13
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "cli/src/init.ts|cli.src.init.initializeCli",
+              "target": "cli/src/controllers/index.ts|cli.src.controllers.index.createCliHostBridgeProvider",
+              "call_sites": [
+                {
+                  "line": 77,
+                  "column": 3
                 }
               ],
               "description": ""
@@ -184071,6 +184450,343 @@
                 {
                   "line": 27,
                   "column": 60
+                }
+              ],
+              "description": ""
+            }
+          ]
+        },
+        {
+          "relation": "formats and prints review output via",
+          "src_name": "CLI Host Bridge & Review Controllers",
+          "dst_name": "CLI Runtime & Display Utilities",
+          "evidence": "",
+          "key_edges": [
+            {
+              "source": "cli/src/controllers/CliCommentReviewController.ts|cli.src.controllers.CliCommentReviewController.CliCommentReviewController.addReviewComment",
+              "target": "cli/src/utils/display.ts|cli.src.utils.display.print",
+              "call_sites": [
+                {
+                  "line": 27,
+                  "column": 3
+                },
+                {
+                  "line": 28,
+                  "column": 3
+                }
+              ],
+              "description": "Formats and prints streaming review comments to the terminal."
+            }
+          ],
+          "src_id": "2.6",
+          "dst_id": "2.2",
+          "is_static": true,
+          "all_edges": [
+            {
+              "source": "cli/src/controllers/CliCommentReviewController.ts|cli.src.controllers.CliCommentReviewController.CliCommentReviewController.addReviewComment",
+              "target": "cli/src/utils/display.ts|cli.src.utils.display.print",
+              "call_sites": [
+                {
+                  "line": 27,
+                  "column": 3
+                },
+                {
+                  "line": 28,
+                  "column": 3
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "cli/src/controllers/CliCommentReviewController.ts|cli.src.controllers.CliCommentReviewController.CliCommentReviewController.addReviewComment",
+              "target": "cli/src/utils/display.ts|cli.src.utils.display.style",
+              "call_sites": [
+                {
+                  "line": 27,
+                  "column": 15
+                },
+                {
+                  "line": 28,
+                  "column": 15
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "cli/src/controllers/CliCommentReviewController.ts|cli.src.controllers.CliCommentReviewController.CliCommentReviewController.addReviewComment",
+              "target": "cli/src/utils/display.ts|cli.src.utils.display.style.dim",
+              "call_sites": [
+                {
+                  "line": 28,
+                  "column": 15
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "cli/src/controllers/CliCommentReviewController.ts|cli.src.controllers.CliCommentReviewController.CliCommentReviewController.addReviewComment",
+              "target": "cli/src/utils/display.ts|cli.src.utils.display.style.info",
+              "call_sites": [
+                {
+                  "line": 27,
+                  "column": 15
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "cli/src/controllers/CliCommentReviewController.ts|cli.src.controllers.CliCommentReviewController.CliCommentReviewController.endStreamingComment",
+              "target": "cli/src/utils/display.ts|cli.src.utils.display.print",
+              "call_sites": [
+                {
+                  "line": 56,
+                  "column": 4
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "cli/src/controllers/CliCommentReviewController.ts|cli.src.controllers.CliCommentReviewController.CliCommentReviewController.startStreamingComment",
+              "target": "cli/src/utils/display.ts|cli.src.utils.display.print",
+              "call_sites": [
+                {
+                  "line": 40,
+                  "column": 3
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "cli/src/controllers/CliCommentReviewController.ts|cli.src.controllers.CliCommentReviewController.CliCommentReviewController.startStreamingComment",
+              "target": "cli/src/utils/display.ts|cli.src.utils.display.style",
+              "call_sites": [
+                {
+                  "line": 40,
+                  "column": 15
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "cli/src/controllers/CliCommentReviewController.ts|cli.src.controllers.CliCommentReviewController.CliCommentReviewController.startStreamingComment",
+              "target": "cli/src/utils/display.ts|cli.src.utils.display.style.info",
+              "call_sites": [
+                {
+                  "line": 40,
+                  "column": 15
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "cli/src/controllers/index.ts|cli.src.controllers.index.CliDiffServiceClient.openMultiFileDiff",
+              "target": "cli/src/utils/display.ts|cli.src.utils.display.printInfo",
+              "call_sites": [
+                {
+                  "line": 70,
+                  "column": 4
+                },
+                {
+                  "line": 72,
+                  "column": 5
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "cli/src/controllers/index.ts|cli.src.controllers.index.CliEnvServiceClient.clipboardWriteText",
+              "target": "cli/src/utils/display.ts|cli.src.utils.display.printInfo",
+              "call_sites": [
+                {
+                  "line": 93,
+                  "column": 3
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "cli/src/controllers/index.ts|cli.src.controllers.index.CliEnvServiceClient.debugLog",
+              "target": "cli/src/utils/display.ts|cli.src.utils.display.printInfo",
+              "call_sites": [
+                {
+                  "line": 137,
+                  "column": 4
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "cli/src/controllers/index.ts|cli.src.controllers.index.CliEnvServiceClient.openExternal",
+              "target": "cli/src/utils/browser.ts|cli.src.utils.browser.openUrlInBrowser",
+              "call_sites": [
+                {
+                  "line": 148,
+                  "column": 28
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "cli/src/controllers/index.ts|cli.src.controllers.index.CliEnvServiceClient.shutdown",
+              "target": "cli/src/utils/display.ts|cli.src.utils.display.printInfo",
+              "call_sites": [
+                {
+                  "line": 143,
+                  "column": 3
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "cli/src/controllers/index.ts|cli.src.controllers.index.CliWindowServiceClient.openFile",
+              "target": "cli/src/utils/display.ts|cli.src.utils.display.printInfo",
+              "call_sites": [
+                {
+                  "line": 201,
+                  "column": 3
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "cli/src/controllers/index.ts|cli.src.controllers.index.CliWindowServiceClient.openSettings",
+              "target": "cli/src/utils/display.ts|cli.src.utils.display.printInfo",
+              "call_sites": [
+                {
+                  "line": 206,
+                  "column": 3
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "cli/src/controllers/index.ts|cli.src.controllers.index.CliWindowServiceClient.showInputBox",
+              "target": "cli/src/utils/display.ts|cli.src.utils.display.printWarning",
+              "call_sites": [
+                {
+                  "line": 191,
+                  "column": 3
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "cli/src/controllers/index.ts|cli.src.controllers.index.CliWindowServiceClient.showMessage",
+              "target": "cli/src/utils/display.ts|cli.src.utils.display.printError",
+              "call_sites": [
+                {
+                  "line": 175,
+                  "column": 5
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "cli/src/controllers/index.ts|cli.src.controllers.index.CliWindowServiceClient.showMessage",
+              "target": "cli/src/utils/display.ts|cli.src.utils.display.printInfo",
+              "call_sites": [
+                {
+                  "line": 182,
+                  "column": 5
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "cli/src/controllers/index.ts|cli.src.controllers.index.CliWindowServiceClient.showMessage",
+              "target": "cli/src/utils/display.ts|cli.src.utils.display.printWarning",
+              "call_sites": [
+                {
+                  "line": 178,
+                  "column": 5
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "cli/src/controllers/index.ts|cli.src.controllers.index.CliWindowServiceClient.showOpenDialogue",
+              "target": "cli/src/utils/display.ts|cli.src.utils.display.printWarning",
+              "call_sites": [
+                {
+                  "line": 165,
+                  "column": 3
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "cli/src/controllers/index.ts|cli.src.controllers.index.CliWindowServiceClient.showSaveDialog",
+              "target": "cli/src/utils/display.ts|cli.src.utils.display.printWarning",
+              "call_sites": [
+                {
+                  "line": 196,
+                  "column": 3
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "cli/src/controllers/index.ts|cli.src.controllers.index.CliWindowServiceClient.showTextDocument",
+              "target": "cli/src/utils/display.ts|cli.src.utils.display.printInfo",
+              "call_sites": [
+                {
+                  "line": 158,
+                  "column": 3
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "cli/src/controllers/index.ts|cli.src.controllers.index.CliWorkspaceServiceClient.executeCommandInTerminal",
+              "target": "cli/src/utils/display.ts|cli.src.utils.display.printInfo",
+              "call_sites": [
+                {
+                  "line": 282,
+                  "column": 3
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "cli/src/controllers/index.ts|cli.src.controllers.index.CliWorkspaceServiceClient.openFolder",
+              "target": "cli/src/utils/display.ts|cli.src.utils.display.printInfo",
+              "call_sites": [
+                {
+                  "line": 293,
+                  "column": 3
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "cli/src/controllers/index.ts|cli.src.controllers.index.CliWorkspaceServiceClient.openInFileExplorerPanel",
+              "target": "cli/src/utils/display.ts|cli.src.utils.display.printInfo",
+              "call_sites": [
+                {
+                  "line": 263,
+                  "column": 3
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "cli/src/controllers/index.ts|cli.src.controllers.index.CliWorkspaceServiceClient.openProblemsPanel",
+              "target": "cli/src/utils/display.ts|cli.src.utils.display.printInfo",
+              "call_sites": [
+                {
+                  "line": 256,
+                  "column": 3
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "cli/src/controllers/index.ts|cli.src.controllers.index.CliWorkspaceServiceClient.openTerminalPanel",
+              "target": "cli/src/utils/display.ts|cli.src.utils.display.printInfo",
+              "call_sites": [
+                {
+                  "line": 275,
+                  "column": 3
                 }
               ],
               "description": ""
@@ -187424,7 +188140,7 @@
     },
     {
       "name": "Host Platform & VS Code Extension Bridge",
-      "description": "Abstracts host environment capabilities and implements VS Code extension activation, hostbridge gRPC services, diff views, terminals, and goal loops.",
+      "description": "Abstracts host environment capabilities, implements VS Code extension activation, hostbridge gRPC services, diff views, terminals, and goal loops.",
       "key_entities": [
         {
           "qualified_name": "src.hosts.host-provider.HostProvider",
@@ -188316,6 +189032,12 @@
           ]
         },
         {
+          "file_path": "src/hosts/vscode/hostbridge/testing/getWebviewHtml.ts",
+          "methods": [
+            "src.hosts.vscode.hostbridge.testing.getWebviewHtml.getWebviewHtml"
+          ]
+        },
+        {
           "file_path": "src/hosts/vscode/hostbridge/window/getActiveEditor.ts",
           "methods": [
             "src.hosts.vscode.hostbridge.window.getActiveEditor.getActiveEditor"
@@ -188935,6 +189657,12 @@
               ]
             },
             {
+              "file_path": "src/hosts/vscode/hostbridge/testing/getWebviewHtml.ts",
+              "methods": [
+                "src.hosts.vscode.hostbridge.testing.getWebviewHtml.getWebviewHtml"
+              ]
+            },
+            {
               "file_path": "src/hosts/vscode/hostbridge/window/getActiveEditor.ts",
               "methods": [
                 "src.hosts.vscode.hostbridge.window.getActiveEditor.getActiveEditor"
@@ -189396,6 +190124,12 @@
                     "src.hosts.vscode.hostbridge-grpc-service.createServiceRegistry.handleStreamingRequest",
                     "src.hosts.vscode.hostbridge-grpc-service.createServiceRegistry.isStreamingMethod"
                   ]
+                },
+                {
+                  "file_path": "src/hosts/vscode/hostbridge/testing/getWebviewHtml.ts",
+                  "methods": [
+                    "src.hosts.vscode.hostbridge.testing.getWebviewHtml.getWebviewHtml"
+                  ]
                 }
               ],
               "component_id": "4.1.4",
@@ -189442,7 +190176,60 @@
               "src_name": "Host Bridge gRPC Client Factory",
               "dst_name": "Host Bridge gRPC Request Dispatcher & Service Registry",
               "evidence": "",
-              "key_edges": [],
+              "key_edges": [
+                {
+                  "source": "src/hosts/vscode/hostbridge/client/host-grpc-client-base.ts|src.hosts.vscode.hostbridge.client.host-grpc-client-base.createGrpcClient",
+                  "target": "src/hosts/vscode/hostbridge-grpc-handler.ts|src.hosts.vscode.hostbridge-grpc-handler.GrpcHandler",
+                  "call_sites": [
+                    {
+                      "line": 36,
+                      "column": 26
+                    }
+                  ],
+                  "description": "createGrpcClient instantiates GrpcHandler to handle routed calls"
+                },
+                {
+                  "source": "src/hosts/vscode/hostbridge/client/host-grpc-client-base.ts|src.hosts.vscode.hostbridge.client.host-grpc-client-base.createGrpcClient",
+                  "target": "src/hosts/vscode/hostbridge-grpc-handler.ts|src.hosts.vscode.hostbridge-grpc-handler.GrpcHandler.constructor",
+                  "call_sites": [
+                    {
+                      "line": 36,
+                      "column": 26
+                    }
+                  ],
+                  "description": "createGrpcClient invokes GrpcHandler constructor to initialize the handler"
+                },
+                {
+                  "source": "src/hosts/vscode/hostbridge/client/host-grpc-client-base.ts|src.hosts.vscode.hostbridge.client.host-grpc-client-base.createGrpcClient.forEach() callback.[methodKey]",
+                  "target": "src/hosts/vscode/hostbridge-grpc-handler.ts|src.hosts.vscode.hostbridge-grpc-handler.GrpcHandler",
+                  "call_sites": [
+                    {
+                      "line": 51,
+                      "column": 40
+                    },
+                    {
+                      "line": 80,
+                      "column": 41
+                    }
+                  ],
+                  "description": "forEach callback registers method keys via GrpcHandler"
+                },
+                {
+                  "source": "src/hosts/vscode/hostbridge/client/host-grpc-client-base.ts|src.hosts.vscode.hostbridge.client.host-grpc-client-base.createGrpcClient.forEach() callback.[methodKey]",
+                  "target": "src/hosts/vscode/hostbridge-grpc-handler.ts|src.hosts.vscode.hostbridge-grpc-handler.GrpcHandler.dispatchGrpcMethod",
+                  "call_sites": [
+                    {
+                      "line": 51,
+                      "column": 40
+                    },
+                    {
+                      "line": 80,
+                      "column": 41
+                    }
+                  ],
+                  "description": "forEach callback maps method keys to dispatchGrpcMethod for invocation"
+                }
+              ],
               "src_id": "4.1.5",
               "dst_id": "4.1.4",
               "is_static": true,
@@ -191169,41 +191956,6 @@
       ],
       "components_relations": [
         {
-          "relation": "resolves terminal icon URI via",
-          "src_name": "VS Code Host Bridge gRPC Services",
-          "dst_name": "VS Code Editor & Webview Utilities",
-          "evidence": "",
-          "key_edges": [
-            {
-              "source": "src/hosts/vscode/hostbridge/workspace/executeCommandInTerminal.ts|src.hosts.vscode.hostbridge.workspace.executeCommandInTerminal.executeCommandInTerminal",
-              "target": "src/hosts/vscode/iconUtils.ts|src.hosts.vscode.iconUtils.getDiracIconUri",
-              "call_sites": [
-                {
-                  "line": 18,
-                  "column": 14
-                }
-              ],
-              "description": "Resolves the extension icon URI when creating a terminal to execute workspace commands."
-            }
-          ],
-          "src_id": "4.1",
-          "dst_id": "4.2",
-          "is_static": true,
-          "all_edges": [
-            {
-              "source": "src/hosts/vscode/hostbridge/workspace/executeCommandInTerminal.ts|src.hosts.vscode.hostbridge.workspace.executeCommandInTerminal.executeCommandInTerminal",
-              "target": "src/hosts/vscode/iconUtils.ts|src.hosts.vscode.iconUtils.getDiracIconUri",
-              "call_sites": [
-                {
-                  "line": 18,
-                  "column": 14
-                }
-              ],
-              "description": ""
-            }
-          ]
-        },
-        {
           "relation": "consumes host provider and language model services from",
           "src_name": "VS Code Editor & Webview Utilities",
           "dst_name": "Host Provider & VS Code Terminal Execution",
@@ -192742,6 +193494,41 @@
                 {
                   "line": 627,
                   "column": 36
+                }
+              ],
+              "description": ""
+            }
+          ]
+        },
+        {
+          "relation": "resolves terminal icon URI via",
+          "src_name": "VS Code Host Bridge gRPC Services",
+          "dst_name": "VS Code Editor & Webview Utilities",
+          "evidence": "executeCommandInTerminal calls getDiracIconUri at src/hosts/vscode/hostbridge/workspace/executeCommandInTerminal.ts:11 → src/hosts/vscode/iconUtils.ts:4",
+          "key_edges": [
+            {
+              "source": "src/hosts/vscode/hostbridge/workspace/executeCommandInTerminal.ts|src.hosts.vscode.hostbridge.workspace.executeCommandInTerminal.executeCommandInTerminal",
+              "target": "src/hosts/vscode/iconUtils.ts|src.hosts.vscode.iconUtils.getDiracIconUri",
+              "call_sites": [
+                {
+                  "line": 18,
+                  "column": 14
+                }
+              ],
+              "description": "The gRPC workspace handler requests the Dirac icon URI from the shared icon utilities to set terminal icon decorations."
+            }
+          ],
+          "src_id": "4.1",
+          "dst_id": "4.2",
+          "is_static": true,
+          "all_edges": [
+            {
+              "source": "src/hosts/vscode/hostbridge/workspace/executeCommandInTerminal.ts|src.hosts.vscode.hostbridge.workspace.executeCommandInTerminal.executeCommandInTerminal",
+              "target": "src/hosts/vscode/iconUtils.ts|src.hosts.vscode.iconUtils.getDiracIconUri",
+              "call_sites": [
+                {
+                  "line": 18,
+                  "column": 14
                 }
               ],
               "description": ""
@@ -205014,6 +205801,27 @@
           ]
         },
         {
+          "file_path": "src/services/temp/DiracTempManager.ts",
+          "methods": [
+            "src.services.temp.DiracTempManager.TempFileInfo",
+            "src.services.temp.DiracTempManager.DiracTempManagerImpl",
+            "src.services.temp.DiracTempManager.DiracTempManagerImpl.constructor",
+            "src.services.temp.DiracTempManager.DiracTempManagerImpl.ensureTempDirExists",
+            "src.services.temp.DiracTempManager.DiracTempManagerImpl.getTempDir",
+            "src.services.temp.DiracTempManager.DiracTempManagerImpl.createTempFilePath",
+            "src.services.temp.DiracTempManager.DiracTempManagerImpl.cleanup",
+            "src.services.temp.DiracTempManager.DiracTempManagerImpl.cleanup.totalSize",
+            "src.services.temp.DiracTempManager.DiracTempManagerImpl.cleanup.totalSize.remainingFiles.reduce() callback",
+            "src.services.temp.DiracTempManager.DiracTempManagerImpl.cleanup.remainingFiles.sort() callback",
+            "src.services.temp.DiracTempManager.DiracTempManagerImpl.deleteFile",
+            "src.services.temp.DiracTempManager.DiracTempManagerImpl.startPeriodicCleanup",
+            "src.services.temp.DiracTempManager.DiracTempManagerImpl.startPeriodicCleanup.catch() callback",
+            "src.services.temp.DiracTempManager.DiracTempManagerImpl.startPeriodicCleanup.setInterval() callback",
+            "src.services.temp.DiracTempManager.DiracTempManagerImpl.startPeriodicCleanup.setInterval() callback.catch() callback",
+            "src.services.temp.DiracTempManager.DiracTempManagerImpl.stopPeriodicCleanup"
+          ]
+        },
+        {
           "file_path": "src/services/tree-sitter/index.ts",
           "methods": [
             "src.services.tree-sitter.index.ParsedDefinition",
@@ -207075,6 +207883,27 @@
               ]
             },
             {
+              "file_path": "src/services/temp/DiracTempManager.ts",
+              "methods": [
+                "src.services.temp.DiracTempManager.TempFileInfo",
+                "src.services.temp.DiracTempManager.DiracTempManagerImpl",
+                "src.services.temp.DiracTempManager.DiracTempManagerImpl.constructor",
+                "src.services.temp.DiracTempManager.DiracTempManagerImpl.ensureTempDirExists",
+                "src.services.temp.DiracTempManager.DiracTempManagerImpl.getTempDir",
+                "src.services.temp.DiracTempManager.DiracTempManagerImpl.createTempFilePath",
+                "src.services.temp.DiracTempManager.DiracTempManagerImpl.cleanup",
+                "src.services.temp.DiracTempManager.DiracTempManagerImpl.cleanup.totalSize",
+                "src.services.temp.DiracTempManager.DiracTempManagerImpl.cleanup.totalSize.remainingFiles.reduce() callback",
+                "src.services.temp.DiracTempManager.DiracTempManagerImpl.cleanup.remainingFiles.sort() callback",
+                "src.services.temp.DiracTempManager.DiracTempManagerImpl.deleteFile",
+                "src.services.temp.DiracTempManager.DiracTempManagerImpl.startPeriodicCleanup",
+                "src.services.temp.DiracTempManager.DiracTempManagerImpl.startPeriodicCleanup.catch() callback",
+                "src.services.temp.DiracTempManager.DiracTempManagerImpl.startPeriodicCleanup.setInterval() callback",
+                "src.services.temp.DiracTempManager.DiracTempManagerImpl.startPeriodicCleanup.setInterval() callback.catch() callback",
+                "src.services.temp.DiracTempManager.DiracTempManagerImpl.stopPeriodicCleanup"
+              ]
+            },
+            {
               "file_path": "src/services/uri/SharedUriHandler.ts",
               "methods": [
                 "src.services.uri.SharedUriHandler.SharedUriHandler",
@@ -207567,109 +208396,6 @@
           ]
         },
         {
-          "relation": "resolves distinct client identity from",
-          "src_name": "Telemetry Service & Providers",
-          "dst_name": "Environment, Identity & URI Utilities",
-          "evidence": "",
-          "key_edges": [
-            {
-              "source": "src/services/telemetry/providers/DiracTelemetryProvider.ts|src.services.telemetry.providers.DiracTelemetryProvider.DiracTelemetryProvider.captureToDirac",
-              "target": "src/services/logging/distinctId.ts|src.services.logging.distinctId.getDistinctId",
-              "call_sites": [
-                {
-                  "line": 177,
-                  "column": 18
-                }
-              ],
-              "description": "Dirac telemetry provider retrieves the distinct client ID when capturing events."
-            },
-            {
-              "source": "src/services/telemetry/providers/opentelemetry/OpenTelemetryTelemetryProvider.ts|src.services.telemetry.providers.opentelemetry.OpenTelemetryTelemetryProvider.OpenTelemetryTelemetryProvider.log",
-              "target": "src/services/logging/distinctId.ts|src.services.logging.distinctId.getDistinctId",
-              "call_sites": [
-                {
-                  "line": 114,
-                  "column": 19
-                }
-              ],
-              "description": "OpenTelemetry provider attaches the distinct client ID to logged telemetry events."
-            }
-          ],
-          "src_id": "7.1",
-          "dst_id": "7.4",
-          "is_static": true,
-          "all_edges": [
-            {
-              "source": "src/services/telemetry/providers/DiracTelemetryProvider.ts|src.services.telemetry.providers.DiracTelemetryProvider.DiracTelemetryProvider.captureToDirac",
-              "target": "src/services/logging/distinctId.ts|src.services.logging.distinctId.getDistinctId",
-              "call_sites": [
-                {
-                  "line": 177,
-                  "column": 18
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "src/services/telemetry/providers/opentelemetry/OpenTelemetryTelemetryProvider.ts|src.services.telemetry.providers.opentelemetry.OpenTelemetryTelemetryProvider.OpenTelemetryTelemetryProvider.log",
-              "target": "src/services/logging/distinctId.ts|src.services.logging.distinctId.getDistinctId",
-              "call_sites": [
-                {
-                  "line": 114,
-                  "column": 19
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "src/services/telemetry/providers/opentelemetry/OpenTelemetryTelemetryProvider.ts|src.services.telemetry.providers.opentelemetry.OpenTelemetryTelemetryProvider.OpenTelemetryTelemetryProvider.logRequired",
-              "target": "src/services/logging/distinctId.ts|src.services.logging.distinctId.getDistinctId",
-              "call_sites": [
-                {
-                  "line": 129,
-                  "column": 19
-                }
-              ],
-              "description": ""
-            }
-          ]
-        },
-        {
-          "relation": "resolves distinct client identity from",
-          "src_name": "Error Reporting Service",
-          "dst_name": "Environment, Identity & URI Utilities",
-          "evidence": "",
-          "key_edges": [
-            {
-              "source": "src/services/error/providers/DiracErrorProvider.ts|src.services.error.providers.DiracErrorProvider.DiracErrorProvider.sendToDirac",
-              "target": "src/services/logging/distinctId.ts|src.services.logging.distinctId.getDistinctId",
-              "call_sites": [
-                {
-                  "line": 140,
-                  "column": 18
-                }
-              ],
-              "description": "Dirac error provider attaches the distinct client ID when sending error reports."
-            }
-          ],
-          "src_id": "7.2",
-          "dst_id": "7.4",
-          "is_static": true,
-          "all_edges": [
-            {
-              "source": "src/services/error/providers/DiracErrorProvider.ts|src.services.error.providers.DiracErrorProvider.DiracErrorProvider.sendToDirac",
-              "target": "src/services/logging/distinctId.ts|src.services.logging.distinctId.getDistinctId",
-              "call_sites": [
-                {
-                  "line": 140,
-                  "column": 18
-                }
-              ],
-              "description": ""
-            }
-          ]
-        },
-        {
           "relation": "queries symbol locations and project root from",
           "src_name": "Source AST Analysis & Mutation Service",
           "dst_name": "Symbol Index Service",
@@ -207941,63 +208667,6 @@
           ]
         },
         {
-          "relation": "builds Dirac request headers via",
-          "src_name": "Banner Management Service",
-          "dst_name": "Environment, Identity & URI Utilities",
-          "evidence": "",
-          "key_edges": [
-            {
-              "source": "src/services/banner/RemoteBannerService.ts|src.services.banner.RemoteBannerService.RemoteBannerService.fetchBanners",
-              "target": "src/services/EnvUtils.ts|src.services.EnvUtils.buildBasicDiracHeaders",
-              "call_sites": [
-                {
-                  "line": 167,
-                  "column": 74
-                }
-              ],
-              "description": "Remote banner service constructs Dirac HTTP headers when fetching banners."
-            },
-            {
-              "source": "src/services/banner/RemoteBannerService.ts|src.services.banner.RemoteBannerService.RemoteBannerService.sendBannerEvent",
-              "target": "src/services/EnvUtils.ts|src.services.EnvUtils.buildBasicDiracHeaders",
-              "call_sites": [
-                {
-                  "line": 140,
-                  "column": 45
-                }
-              ],
-              "description": "Remote banner service builds Dirac HTTP headers when sending banner interaction events."
-            }
-          ],
-          "src_id": "7.5",
-          "dst_id": "7.4",
-          "is_static": true,
-          "all_edges": [
-            {
-              "source": "src/services/banner/RemoteBannerService.ts|src.services.banner.RemoteBannerService.RemoteBannerService.fetchBanners",
-              "target": "src/services/EnvUtils.ts|src.services.EnvUtils.buildBasicDiracHeaders",
-              "call_sites": [
-                {
-                  "line": 167,
-                  "column": 74
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "src/services/banner/RemoteBannerService.ts|src.services.banner.RemoteBannerService.RemoteBannerService.sendBannerEvent",
-              "target": "src/services/EnvUtils.ts|src.services.EnvUtils.buildBasicDiracHeaders",
-              "call_sites": [
-                {
-                  "line": 140,
-                  "column": 45
-                }
-              ],
-              "description": ""
-            }
-          ]
-        },
-        {
           "relation": "loads language parsers for file indexing via",
           "src_name": "Symbol Index Service",
           "dst_name": "Tree-sitter Language Parser Service",
@@ -208072,6 +208741,177 @@
                 {
                   "line": 48,
                   "column": 25
+                }
+              ],
+              "description": ""
+            }
+          ]
+        },
+        {
+          "relation": "resolves distinct client identity from",
+          "src_name": "Telemetry Service & Providers",
+          "dst_name": "Environment, Identity & URI Utilities",
+          "evidence": "",
+          "key_edges": [
+            {
+              "source": "src/services/telemetry/providers/DiracTelemetryProvider.ts|src.services.telemetry.providers.DiracTelemetryProvider.DiracTelemetryProvider.captureToDirac",
+              "target": "src/services/logging/distinctId.ts|src.services.logging.distinctId.getDistinctId",
+              "call_sites": [
+                {
+                  "line": 177,
+                  "column": 18
+                }
+              ],
+              "description": "Dirac telemetry provider obtains distinct client ID for telemetry capture"
+            },
+            {
+              "source": "src/services/telemetry/providers/opentelemetry/OpenTelemetryTelemetryProvider.ts|src.services.telemetry.providers.opentelemetry.OpenTelemetryTelemetryProvider.OpenTelemetryTelemetryProvider.log",
+              "target": "src/services/logging/distinctId.ts|src.services.logging.distinctId.getDistinctId",
+              "call_sites": [
+                {
+                  "line": 114,
+                  "column": 19
+                }
+              ],
+              "description": "OpenTelemetry provider obtains distinct client ID for logging"
+            },
+            {
+              "source": "src/services/telemetry/providers/opentelemetry/OpenTelemetryTelemetryProvider.ts|src.services.telemetry.providers.opentelemetry.OpenTelemetryTelemetryProvider.OpenTelemetryTelemetryProvider.logRequired",
+              "target": "src/services/logging/distinctId.ts|src.services.logging.distinctId.getDistinctId",
+              "call_sites": [
+                {
+                  "line": 129,
+                  "column": 19
+                }
+              ],
+              "description": "OpenTelemetry provider obtains distinct client ID for required logging"
+            }
+          ],
+          "src_id": "7.1",
+          "dst_id": "7.4",
+          "is_static": true,
+          "all_edges": [
+            {
+              "source": "src/services/telemetry/providers/DiracTelemetryProvider.ts|src.services.telemetry.providers.DiracTelemetryProvider.DiracTelemetryProvider.captureToDirac",
+              "target": "src/services/logging/distinctId.ts|src.services.logging.distinctId.getDistinctId",
+              "call_sites": [
+                {
+                  "line": 177,
+                  "column": 18
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "src/services/telemetry/providers/opentelemetry/OpenTelemetryTelemetryProvider.ts|src.services.telemetry.providers.opentelemetry.OpenTelemetryTelemetryProvider.OpenTelemetryTelemetryProvider.log",
+              "target": "src/services/logging/distinctId.ts|src.services.logging.distinctId.getDistinctId",
+              "call_sites": [
+                {
+                  "line": 114,
+                  "column": 19
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "src/services/telemetry/providers/opentelemetry/OpenTelemetryTelemetryProvider.ts|src.services.telemetry.providers.opentelemetry.OpenTelemetryTelemetryProvider.OpenTelemetryTelemetryProvider.logRequired",
+              "target": "src/services/logging/distinctId.ts|src.services.logging.distinctId.getDistinctId",
+              "call_sites": [
+                {
+                  "line": 129,
+                  "column": 19
+                }
+              ],
+              "description": ""
+            }
+          ]
+        },
+        {
+          "relation": "resolves distinct client identity from",
+          "src_name": "Error Reporting Service",
+          "dst_name": "Environment, Identity & URI Utilities",
+          "evidence": "",
+          "key_edges": [
+            {
+              "source": "src/services/error/providers/DiracErrorProvider.ts|src.services.error.providers.DiracErrorProvider.DiracErrorProvider.sendToDirac",
+              "target": "src/services/logging/distinctId.ts|src.services.logging.distinctId.getDistinctId",
+              "call_sites": [
+                {
+                  "line": 140,
+                  "column": 18
+                }
+              ],
+              "description": "Dirac error provider obtains distinct client ID for error reporting"
+            }
+          ],
+          "src_id": "7.2",
+          "dst_id": "7.4",
+          "is_static": true,
+          "all_edges": [
+            {
+              "source": "src/services/error/providers/DiracErrorProvider.ts|src.services.error.providers.DiracErrorProvider.DiracErrorProvider.sendToDirac",
+              "target": "src/services/logging/distinctId.ts|src.services.logging.distinctId.getDistinctId",
+              "call_sites": [
+                {
+                  "line": 140,
+                  "column": 18
+                }
+              ],
+              "description": ""
+            }
+          ]
+        },
+        {
+          "relation": "builds Dirac request headers via",
+          "src_name": "Banner Management Service",
+          "dst_name": "Environment, Identity & URI Utilities",
+          "evidence": "",
+          "key_edges": [
+            {
+              "source": "src/services/banner/RemoteBannerService.ts|src.services.banner.RemoteBannerService.RemoteBannerService.fetchBanners",
+              "target": "src/services/EnvUtils.ts|src.services.EnvUtils.buildBasicDiracHeaders",
+              "call_sites": [
+                {
+                  "line": 167,
+                  "column": 74
+                }
+              ],
+              "description": "Remote banner service builds Dirac request headers for banner fetching"
+            },
+            {
+              "source": "src/services/banner/RemoteBannerService.ts|src.services.banner.RemoteBannerService.RemoteBannerService.sendBannerEvent",
+              "target": "src/services/EnvUtils.ts|src.services.EnvUtils.buildBasicDiracHeaders",
+              "call_sites": [
+                {
+                  "line": 140,
+                  "column": 45
+                }
+              ],
+              "description": "Remote banner service builds Dirac request headers for banner event reporting"
+            }
+          ],
+          "src_id": "7.5",
+          "dst_id": "7.4",
+          "is_static": true,
+          "all_edges": [
+            {
+              "source": "src/services/banner/RemoteBannerService.ts|src.services.banner.RemoteBannerService.RemoteBannerService.fetchBanners",
+              "target": "src/services/EnvUtils.ts|src.services.EnvUtils.buildBasicDiracHeaders",
+              "call_sites": [
+                {
+                  "line": 167,
+                  "column": 74
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "src/services/banner/RemoteBannerService.ts|src.services.banner.RemoteBannerService.RemoteBannerService.sendBannerEvent",
+              "target": "src/services/EnvUtils.ts|src.services.EnvUtils.buildBasicDiracHeaders",
+              "call_sites": [
+                {
+                  "line": 140,
+                  "column": 45
                 }
               ],
               "description": ""
@@ -223007,6 +223847,28 @@
       ],
       "file_methods": [
         {
+          "file_path": "webview-ui/src/config/platform.config.ts",
+          "methods": [
+            "webview-ui.src.config.platform.config.PlatformConfig",
+            "webview-ui.src.config.platform.config.PlatformType",
+            "webview-ui.src.config.platform.config.stringToPlatformType",
+            "webview-ui.src.config.platform.config.DiracRuntimeConfig",
+            "webview-ui.src.config.platform.config.global.Window",
+            "webview-ui.src.config.platform.config.global.acquireVsCodeApi",
+            "webview-ui.src.config.platform.config.resolveTogglePlanActKeys",
+            "webview-ui.src.config.platform.config.getInjectedTogglePlanActKeys",
+            "webview-ui.src.config.platform.config.postMessageStrategies",
+            "webview-ui.src.config.platform.config.postMessageStrategies.vscode",
+            "webview-ui.src.config.platform.config.postMessageStrategies.standalone",
+            "webview-ui.src.config.platform.config.messageEncoders",
+            "webview-ui.src.config.platform.config.messageEncoders.none",
+            "webview-ui.src.config.platform.config.messageEncoders.json",
+            "webview-ui.src.config.platform.config.messageDecoders",
+            "webview-ui.src.config.platform.config.messageDecoders.none",
+            "webview-ui.src.config.platform.config.messageDecoders.json"
+          ]
+        },
+        {
           "file_path": "webview-ui/src/features/history/components/HistoryViewItem.tsx",
           "methods": [
             "webview-ui.src.features.history.components.HistoryViewItem.HistoryViewItem",
@@ -223039,11 +223901,272 @@
             "webview-ui.src.features.modular-ui.chat.components.HistoryPreview.HistoryPreview.formatDate",
             "webview-ui.src.features.modular-ui.chat.components.HistoryPreview.HistoryPreview.map() callback"
           ]
+        },
+        {
+          "file_path": "webview-ui/vite.config.ts",
+          "methods": [
+            "webview-ui.vite.config.writePortToFile",
+            "webview-ui.vite.config.writePortToFile.configureServer",
+            "webview-ui.vite.config.writePortToFile.configureServer.server.httpServer.once(\"listening\") callback"
+          ]
         }
       ],
       "component_id": "16",
       "can_expand": false,
       "components": [],
+      "components_relations": []
+    },
+    {
+      "name": "VS Code Hostbridge Environment Services",
+      "description": "Implements environment-specific hostbridge operations for the VS Code host, including clipboard access, debug logging, version retrieval, telemetry settings, and shutdown handling.",
+      "key_entities": [
+        {
+          "qualified_name": "src.hosts.vscode.hostbridge.env.clipboardReadText.clipboardReadText",
+          "reference_file": "src/hosts/vscode/hostbridge/env/clipboardReadText.ts",
+          "reference_start_line": 4,
+          "reference_end_line": 7
+        },
+        {
+          "qualified_name": "src.hosts.vscode.hostbridge.env.clipboardWriteText.clipboardWriteText",
+          "reference_file": "src/hosts/vscode/hostbridge/env/clipboardWriteText.ts",
+          "reference_start_line": 4,
+          "reference_end_line": 7
+        },
+        {
+          "qualified_name": "src.hosts.vscode.hostbridge.env.debugLog.debugLog",
+          "reference_file": "src/hosts/vscode/hostbridge/env/debugLog.ts",
+          "reference_start_line": 7,
+          "reference_end_line": 10
+        }
+      ],
+      "source_cluster_ids": [
+        "871",
+        "872",
+        "873",
+        "874",
+        "875",
+        "876",
+        "877",
+        "878",
+        "879"
+      ],
+      "file_methods": [
+        {
+          "file_path": "src/hosts/vscode/hostbridge/env/clipboardReadText.ts",
+          "methods": [
+            "src.hosts.vscode.hostbridge.env.clipboardReadText.clipboardReadText"
+          ]
+        },
+        {
+          "file_path": "src/hosts/vscode/hostbridge/env/clipboardWriteText.ts",
+          "methods": [
+            "src.hosts.vscode.hostbridge.env.clipboardWriteText.clipboardWriteText"
+          ]
+        },
+        {
+          "file_path": "src/hosts/vscode/hostbridge/env/debugLog.ts",
+          "methods": [
+            "src.hosts.vscode.hostbridge.env.debugLog.debugLog",
+            "src.hosts.vscode.hostbridge.env.debugLog.registerDiracOutputChannel"
+          ]
+        },
+        {
+          "file_path": "src/hosts/vscode/hostbridge/env/getHostVersion.ts",
+          "methods": [
+            "src.hosts.vscode.hostbridge.env.getHostVersion.getHostVersion"
+          ]
+        },
+        {
+          "file_path": "src/hosts/vscode/hostbridge/env/getIdeRedirectUri.ts",
+          "methods": [
+            "src.hosts.vscode.hostbridge.env.getIdeRedirectUri.getIdeRedirectUri"
+          ]
+        },
+        {
+          "file_path": "src/hosts/vscode/hostbridge/env/getTelemetrySettings.ts",
+          "methods": [
+            "src.hosts.vscode.hostbridge.env.getTelemetrySettings.getTelemetrySettings"
+          ]
+        },
+        {
+          "file_path": "src/hosts/vscode/hostbridge/env/openExternal.ts",
+          "methods": [
+            "src.hosts.vscode.hostbridge.env.openExternal.openExternal"
+          ]
+        },
+        {
+          "file_path": "src/hosts/vscode/hostbridge/env/shutdown.ts",
+          "methods": [
+            "src.hosts.vscode.hostbridge.env.shutdown.shutdown"
+          ]
+        },
+        {
+          "file_path": "src/hosts/vscode/hostbridge/env/subscribeToTelemetrySettings.ts",
+          "methods": [
+            "src.hosts.vscode.hostbridge.env.subscribeToTelemetrySettings.subscribeToTelemetrySettings",
+            "src.hosts.vscode.hostbridge.env.subscribeToTelemetrySettings.subscribeToTelemetrySettings.vscode.env.onDidChangeTelemetryEnabled() callback"
+          ]
+        }
+      ],
+      "component_id": "17",
+      "can_expand": true,
+      "components": [
+        {
+          "name": "Host and IDE identity queries",
+          "description": "Provides the host application version and the IDE redirect URI for auth callbacks.",
+          "key_entities": [
+            {
+              "qualified_name": "src.hosts.vscode.hostbridge.env.getHostVersion.getHostVersion",
+              "reference_file": "src/hosts/vscode/hostbridge/env/getHostVersion.ts",
+              "reference_start_line": 7,
+              "reference_end_line": 14
+            },
+            {
+              "qualified_name": "src.hosts.vscode.hostbridge.env.getIdeRedirectUri.getIdeRedirectUri",
+              "reference_file": "src/hosts/vscode/hostbridge/env/getIdeRedirectUri.ts",
+              "reference_start_line": 4,
+              "reference_end_line": 13
+            }
+          ],
+          "source_cluster_ids": [
+            "17.3",
+            "17.4",
+            "17.5"
+          ],
+          "file_methods": [
+            {
+              "file_path": "src/hosts/vscode/hostbridge/env/getHostVersion.ts",
+              "methods": [
+                "src.hosts.vscode.hostbridge.env.getHostVersion.getHostVersion"
+              ]
+            },
+            {
+              "file_path": "src/hosts/vscode/hostbridge/env/getIdeRedirectUri.ts",
+              "methods": [
+                "src.hosts.vscode.hostbridge.env.getIdeRedirectUri.getIdeRedirectUri"
+              ]
+            },
+            {
+              "file_path": "src/hosts/vscode/hostbridge/env/getTelemetrySettings.ts",
+              "methods": [
+                "src.hosts.vscode.hostbridge.env.getTelemetrySettings.getTelemetrySettings"
+              ]
+            }
+          ],
+          "component_id": "17.2",
+          "can_expand": false,
+          "components": [],
+          "components_relations": []
+        },
+        {
+          "name": "Clipboard access",
+          "description": "Reads and writes plain text through the VSCode clipboard API.",
+          "key_entities": [
+            {
+              "qualified_name": "src.hosts.vscode.hostbridge.env.clipboardReadText.clipboardReadText",
+              "reference_file": "src/hosts/vscode/hostbridge/env/clipboardReadText.ts",
+              "reference_start_line": 4,
+              "reference_end_line": 7
+            },
+            {
+              "qualified_name": "src.hosts.vscode.hostbridge.env.clipboardWriteText.clipboardWriteText",
+              "reference_file": "src/hosts/vscode/hostbridge/env/clipboardWriteText.ts",
+              "reference_start_line": 4,
+              "reference_end_line": 7
+            }
+          ],
+          "source_cluster_ids": [
+            "17.0",
+            "17.1"
+          ],
+          "file_methods": [
+            {
+              "file_path": "src/hosts/vscode/hostbridge/env/clipboardReadText.ts",
+              "methods": [
+                "src.hosts.vscode.hostbridge.env.clipboardReadText.clipboardReadText"
+              ]
+            },
+            {
+              "file_path": "src/hosts/vscode/hostbridge/env/clipboardWriteText.ts",
+              "methods": [
+                "src.hosts.vscode.hostbridge.env.clipboardWriteText.clipboardWriteText"
+              ]
+            }
+          ],
+          "component_id": "17.3",
+          "can_expand": false,
+          "components": [],
+          "components_relations": []
+        },
+        {
+          "name": "Telemetry, logging, and host lifecycle",
+          "description": "Subscribes to telemetry setting changes, appends debug logs to the Dirac output channel, opens external URLs, and handles shutdown.",
+          "key_entities": [
+            {
+              "qualified_name": "src.hosts.vscode.hostbridge.env.subscribeToTelemetrySettings.subscribeToTelemetrySettings",
+              "reference_file": "src/hosts/vscode/hostbridge/env/subscribeToTelemetrySettings.ts",
+              "reference_start_line": 9,
+              "reference_end_line": 20
+            },
+            {
+              "qualified_name": "src.hosts.vscode.hostbridge.env.debugLog.debugLog",
+              "reference_file": "src/hosts/vscode/hostbridge/env/debugLog.ts",
+              "reference_start_line": 7,
+              "reference_end_line": 10
+            },
+            {
+              "qualified_name": "src.hosts.vscode.hostbridge.env.openExternal.openExternal",
+              "reference_file": "src/hosts/vscode/hostbridge/env/openExternal.ts",
+              "reference_start_line": 4,
+              "reference_end_line": 9
+            },
+            {
+              "qualified_name": "src.hosts.vscode.hostbridge.env.shutdown.shutdown",
+              "reference_file": "src/hosts/vscode/hostbridge/env/shutdown.ts",
+              "reference_start_line": 3,
+              "reference_end_line": 9
+            }
+          ],
+          "source_cluster_ids": [
+            "17.2",
+            "17.6",
+            "17.7",
+            "17.8"
+          ],
+          "file_methods": [
+            {
+              "file_path": "src/hosts/vscode/hostbridge/env/debugLog.ts",
+              "methods": [
+                "src.hosts.vscode.hostbridge.env.debugLog.debugLog",
+                "src.hosts.vscode.hostbridge.env.debugLog.registerDiracOutputChannel"
+              ]
+            },
+            {
+              "file_path": "src/hosts/vscode/hostbridge/env/openExternal.ts",
+              "methods": [
+                "src.hosts.vscode.hostbridge.env.openExternal.openExternal"
+              ]
+            },
+            {
+              "file_path": "src/hosts/vscode/hostbridge/env/shutdown.ts",
+              "methods": [
+                "src.hosts.vscode.hostbridge.env.shutdown.shutdown"
+              ]
+            },
+            {
+              "file_path": "src/hosts/vscode/hostbridge/env/subscribeToTelemetrySettings.ts",
+              "methods": [
+                "src.hosts.vscode.hostbridge.env.subscribeToTelemetrySettings.subscribeToTelemetrySettings",
+                "src.hosts.vscode.hostbridge.env.subscribeToTelemetrySettings.subscribeToTelemetrySettings.vscode.env.onDidChangeTelemetryEnabled() callback"
+              ]
+            }
+          ],
+          "component_id": "17.4",
+          "can_expand": false,
+          "components": [],
+          "components_relations": []
+        }
+      ],
       "components_relations": []
     }
   ],
@@ -260831,17 +261954,6 @@
           "description": "Controller command delegates to Task for execution"
         },
         {
-          "source": "src/core/controller/commands/improveWithDirac.ts|src.core.controller.commands.improveWithDirac.improveWithDirac",
-          "target": "src/core/task/index.ts|src.core.task.index.Task.stateView",
-          "call_sites": [
-            {
-              "line": 39,
-              "column": 34
-            }
-          ],
-          "description": "Command accesses task state view for UI updates"
-        },
-        {
           "source": "src/core/controller/commands/addToDirac.ts|src.core.controller.commands.addToDirac.addToDirac",
           "target": "src/core/task/index.ts|src.core.task.index.Task.submitCardResponse",
           "call_sites": [
@@ -260851,6 +261963,17 @@
             }
           ],
           "description": "Commands and tools interact with active Task instances and submit card responses."
+        },
+        {
+          "source": "src/core/controller/commands/improveWithDirac.ts|src.core.controller.commands.improveWithDirac.improveWithDirac",
+          "target": "src/core/task/index.ts|src.core.task.index.Task.stateView",
+          "call_sites": [
+            {
+              "line": 39,
+              "column": 34
+            }
+          ],
+          "description": "Command accesses task state view for UI updates"
         }
       ],
       "src_id": "1.2.5",
@@ -268168,6 +269291,17 @@
           "description": "Provider uses cost utilities for model info"
         },
         {
+          "source": "src/core/api/providers/baseten.ts|src.core.api.providers.baseten.BasetenHandler.yieldUsage",
+          "target": "src/utils/cost.ts|src.utils.cost.calculateApiCostOpenAI",
+          "call_sites": [
+            {
+              "line": 91,
+              "column": 17
+            }
+          ],
+          "description": "API providers calculate token usage costs and use filesystem/git utilities."
+        },
+        {
           "source": "src/core/api/providers/bedrock.ts|src.core.api.providers.bedrock.AwsBedrockHandler.createDeepseekMessage",
           "target": "src/utils/cost.ts|src.utils.cost.calculateApiCostOpenAI",
           "call_sites": [
@@ -268193,17 +269327,6 @@
             }
           ],
           "description": "Provider calculates API cost using shared utility"
-        },
-        {
-          "source": "src/core/api/providers/baseten.ts|src.core.api.providers.baseten.BasetenHandler.yieldUsage",
-          "target": "src/utils/cost.ts|src.utils.cost.calculateApiCostOpenAI",
-          "call_sites": [
-            {
-              "line": 91,
-              "column": 17
-            }
-          ],
-          "description": "API providers calculate token usage costs and use filesystem/git utilities."
         }
       ],
       "src_id": "1.3.1",
@@ -309337,17 +310460,6 @@
         },
         {
           "source": "cli/src/agent/DiracAgent.ts|cli.src.agent.DiracAgent.DiracAgent.initializeHostProvider",
-          "target": "src/hosts/external/ExternalCommentReviewController.ts|src.hosts.external.ExternalCommentReviewController.ExternalCommentReviewController",
-          "call_sites": [
-            {
-              "line": 1254,
-              "column": 14
-            }
-          ],
-          "description": "CLI agent initializes external comment review controller"
-        },
-        {
-          "source": "cli/src/agent/DiracAgent.ts|cli.src.agent.DiracAgent.DiracAgent.initializeHostProvider",
           "target": "src/hosts/external/AuthHandler.ts|src.hosts.external.AuthHandler.AuthHandler.getInstance",
           "call_sites": [
             {
@@ -309356,6 +310468,17 @@
             }
           ],
           "description": "DiracAgent initializes external host bridge providers for auth, comments, and webviews."
+        },
+        {
+          "source": "cli/src/agent/DiracAgent.ts|cli.src.agent.DiracAgent.DiracAgent.initializeHostProvider",
+          "target": "src/hosts/external/ExternalCommentReviewController.ts|src.hosts.external.ExternalCommentReviewController.ExternalCommentReviewController",
+          "call_sites": [
+            {
+              "line": 1254,
+              "column": 14
+            }
+          ],
+          "description": "CLI agent initializes external comment review controller"
         }
       ],
       "src_id": "2.3.1",
@@ -312816,17 +313939,6 @@
           "description": "CLI ACP client uses shared logger"
         },
         {
-          "source": "cli/src/acp/ACPHostBridgeClientProvider.ts|cli.src.acp.ACPHostBridgeClientProvider.ACPEnvServiceClient.clipboardWriteText",
-          "target": "src/shared/services/Logger.ts|src.shared.services.Logger.Logger.debug",
-          "call_sites": [
-            {
-              "line": 136,
-              "column": 10
-            }
-          ],
-          "description": "CLI ACP client logs via shared logger"
-        },
-        {
           "source": "cli/src/acp/ACPHostBridgeClientProvider.ts|cli.src.acp.ACPHostBridgeClientProvider.ACPEnvServiceClient.clipboardReadText",
           "target": "src/shared/services/Logger.ts|src.shared.services.Logger.Logger.debug",
           "call_sites": [
@@ -312836,6 +313948,17 @@
             }
           ],
           "description": "CLI and ACP components log events and convert proto models using shared services."
+        },
+        {
+          "source": "cli/src/acp/ACPHostBridgeClientProvider.ts|cli.src.acp.ACPHostBridgeClientProvider.ACPEnvServiceClient.clipboardWriteText",
+          "target": "src/shared/services/Logger.ts|src.shared.services.Logger.Logger.debug",
+          "call_sites": [
+            {
+              "line": 136,
+              "column": 10
+            }
+          ],
+          "description": "CLI ACP client logs via shared logger"
         }
       ],
       "src_id": "2.3.2",
@@ -322874,7 +323997,60 @@
       "src_name": "Host Bridge gRPC Client Factory",
       "dst_name": "Host Bridge gRPC Request Dispatcher & Service Registry",
       "evidence": "",
-      "key_edges": [],
+      "key_edges": [
+        {
+          "source": "src/hosts/vscode/hostbridge/client/host-grpc-client-base.ts|src.hosts.vscode.hostbridge.client.host-grpc-client-base.createGrpcClient",
+          "target": "src/hosts/vscode/hostbridge-grpc-handler.ts|src.hosts.vscode.hostbridge-grpc-handler.GrpcHandler",
+          "call_sites": [
+            {
+              "line": 36,
+              "column": 26
+            }
+          ],
+          "description": "createGrpcClient instantiates GrpcHandler to handle routed calls"
+        },
+        {
+          "source": "src/hosts/vscode/hostbridge/client/host-grpc-client-base.ts|src.hosts.vscode.hostbridge.client.host-grpc-client-base.createGrpcClient",
+          "target": "src/hosts/vscode/hostbridge-grpc-handler.ts|src.hosts.vscode.hostbridge-grpc-handler.GrpcHandler.constructor",
+          "call_sites": [
+            {
+              "line": 36,
+              "column": 26
+            }
+          ],
+          "description": "createGrpcClient invokes GrpcHandler constructor to initialize the handler"
+        },
+        {
+          "source": "src/hosts/vscode/hostbridge/client/host-grpc-client-base.ts|src.hosts.vscode.hostbridge.client.host-grpc-client-base.createGrpcClient.forEach() callback.[methodKey]",
+          "target": "src/hosts/vscode/hostbridge-grpc-handler.ts|src.hosts.vscode.hostbridge-grpc-handler.GrpcHandler",
+          "call_sites": [
+            {
+              "line": 51,
+              "column": 40
+            },
+            {
+              "line": 80,
+              "column": 41
+            }
+          ],
+          "description": "forEach callback registers method keys via GrpcHandler"
+        },
+        {
+          "source": "src/hosts/vscode/hostbridge/client/host-grpc-client-base.ts|src.hosts.vscode.hostbridge.client.host-grpc-client-base.createGrpcClient.forEach() callback.[methodKey]",
+          "target": "src/hosts/vscode/hostbridge-grpc-handler.ts|src.hosts.vscode.hostbridge-grpc-handler.GrpcHandler.dispatchGrpcMethod",
+          "call_sites": [
+            {
+              "line": 51,
+              "column": 40
+            },
+            {
+              "line": 80,
+              "column": 41
+            }
+          ],
+          "description": "forEach callback maps method keys to dispatchGrpcMethod for invocation"
+        }
+      ],
       "src_id": "4.1.5",
       "dst_id": "4.1.4",
       "is_static": true,
@@ -327359,6 +328535,17 @@
       "key_edges": [
         {
           "source": "src/common.ts|src.common.tearDownServices",
+          "target": "src/core/task/tools/subagent/AgentConfigLoader.ts|src.core.task.tools.subagent.AgentConfigLoader.AgentConfigLoader.dispose",
+          "call_sites": [
+            {
+              "line": 180,
+              "column": 35
+            }
+          ],
+          "description": "Host-level service teardown disposes core agent subagent configuration loader resources."
+        },
+        {
+          "source": "src/common.ts|src.common.tearDownServices",
           "target": "src/core/task/tools/subagent/AgentConfigLoader.ts|src.core.task.tools.subagent.AgentConfigLoader.AgentConfigLoader",
           "call_sites": [
             {
@@ -329640,7 +330827,23 @@
       "src_name": "Extension Activation & Service Initialization",
       "dst_name": "Symbol Index Service",
       "evidence": "",
-      "key_edges": [],
+      "key_edges": [
+        {
+          "source": "src/common.ts|src.common.initializeServices",
+          "target": "src/services/symbol-index/SymbolIndexService.ts|src.services.symbol-index.SymbolIndexService.SymbolIndexService",
+          "call_sites": [
+            {
+              "line": 124,
+              "column": 7
+            },
+            {
+              "line": 123,
+              "column": 24
+            }
+          ],
+          "description": "Host initialization sets up the symbol indexing service as a platform capability."
+        }
+      ],
       "src_id": "4.6",
       "dst_id": "7.6",
       "is_static": true,
@@ -329789,6 +330992,17 @@
           "description": "Host common uses state manager for worktree settings"
         },
         {
+          "source": "src/common.ts|src.common.checkWorktreeAutoOpen",
+          "target": "src/core/storage/StateManager.ts|src.core.storage.StateManager.StateManager.setGlobalState",
+          "call_sites": [
+            {
+              "line": 159,
+              "column": 17
+            }
+          ],
+          "description": "Host startup initializes StateManager and reads/writes global state keys."
+        },
+        {
           "source": "src/common.ts|src.common.initializeServices",
           "target": "src/core/storage/StateManager.ts|src.core.storage.StateManager.StateManager",
           "call_sites": [
@@ -329802,17 +331016,6 @@
             }
           ],
           "description": "Host initialization uses state manager"
-        },
-        {
-          "source": "src/common.ts|src.common.checkWorktreeAutoOpen",
-          "target": "src/core/storage/StateManager.ts|src.core.storage.StateManager.StateManager.setGlobalState",
-          "call_sites": [
-            {
-              "line": 159,
-              "column": 17
-            }
-          ],
-          "description": "Host startup initializes StateManager and reads/writes global state keys."
         }
       ],
       "src_id": "4.6",
@@ -338690,17 +339893,6 @@
       "evidence": "",
       "key_edges": [
         {
-          "source": "src/core/commands/repairMissingTaskHistory.ts|src.core.commands.repairMissingTaskHistory.repairMissingTaskHistoryWithLease",
-          "target": "src/core/commands/reconstructTaskHistory.ts|src.core.commands.reconstructTaskHistory.initialGoalDisplayText",
-          "call_sites": [
-            {
-              "line": 59,
-              "column": 47
-            }
-          ],
-          "description": "Controller repair command uses core reconstruction logic"
-        },
-        {
           "source": "src/core/commands/repairMissingTaskHistory.ts|src.core.commands.repairMissingTaskHistory.reconstructOrdinaryTasks",
           "target": "src/core/commands/reconstructTaskHistory.ts|src.core.commands.reconstructTaskHistory.reconstructTaskHistoryItem",
           "call_sites": [
@@ -338710,6 +339902,17 @@
             }
           ],
           "description": "Controller and task history repair invoke state queues, goal history, and subcontrollers in core."
+        },
+        {
+          "source": "src/core/commands/repairMissingTaskHistory.ts|src.core.commands.repairMissingTaskHistory.repairMissingTaskHistoryWithLease",
+          "target": "src/core/commands/reconstructTaskHistory.ts|src.core.commands.reconstructTaskHistory.initialGoalDisplayText",
+          "call_sites": [
+            {
+              "line": 59,
+              "column": 47
+            }
+          ],
+          "description": "Controller repair command uses core reconstruction logic"
         }
       ],
       "src_id": "5.2.3",
@@ -341002,17 +342205,6 @@
           "description": "Controller delegates background command to task controller"
         },
         {
-          "source": "src/core/controller/index.ts|src.core.controller.index.Controller.backgroundCommandTaskId",
-          "target": "src/core/controller/task/TaskController.ts|src.core.controller.task.TaskController.TaskController.backgroundCommandTaskId",
-          "call_sites": [
-            {
-              "line": 257,
-              "column": 30
-            }
-          ],
-          "description": "Controller queries task controller for background task ID"
-        },
-        {
           "source": "src/core/controller/index.ts|src.core.controller.index.Controller.backgroundCommandRunning",
           "target": "src/core/controller/task/TaskController.ts|src.core.controller.task.TaskController.TaskController.backgroundCommandRunning",
           "call_sites": [
@@ -341022,6 +342214,17 @@
             }
           ],
           "description": "Controller delegates task and workspace lifecycle operations to TaskController and WorkspaceController."
+        },
+        {
+          "source": "src/core/controller/index.ts|src.core.controller.index.Controller.backgroundCommandTaskId",
+          "target": "src/core/controller/task/TaskController.ts|src.core.controller.task.TaskController.TaskController.backgroundCommandTaskId",
+          "call_sites": [
+            {
+              "line": 257,
+              "column": 30
+            }
+          ],
+          "description": "Controller queries task controller for background task ID"
         }
       ],
       "src_id": "5.2.3",
@@ -357283,6 +358486,17 @@
             }
           ],
           "description": "OpenTelemetry provider attaches the distinct client ID to logged telemetry events."
+        },
+        {
+          "source": "src/services/telemetry/providers/opentelemetry/OpenTelemetryTelemetryProvider.ts|src.services.telemetry.providers.opentelemetry.OpenTelemetryTelemetryProvider.OpenTelemetryTelemetryProvider.logRequired",
+          "target": "src/services/logging/distinctId.ts|src.services.logging.distinctId.getDistinctId",
+          "call_sites": [
+            {
+              "line": 129,
+              "column": 19
+            }
+          ],
+          "description": "OpenTelemetry provider obtains distinct client ID for required logging"
         }
       ],
       "src_id": "7.1.3",
@@ -358591,23 +359805,11 @@
       ]
     },
     {
-      "relation": "uses shared logging and banner types from",
+      "relation": "calls",
       "src_name": "Environment, Identity & URI Utilities",
       "dst_name": "Logging & Background Sync Services",
       "evidence": "",
-      "key_edges": [
-        {
-          "source": "src/services/EnvUtils.ts|src.services.EnvUtils.buildBasicDiracHeaders",
-          "target": "src/shared/services/Logger.ts|src.shared.services.Logger.Logger.log",
-          "call_sites": [
-            {
-              "line": 33,
-              "column": 10
-            }
-          ],
-          "description": "Services use shared Logger and banner definitions."
-        }
-      ],
+      "key_edges": [],
       "src_id": "7.4",
       "dst_id": "3.5",
       "is_static": true,
@@ -358839,6 +360041,95 @@
             {
               "line": 70,
               "column": 13
+            }
+          ],
+          "description": ""
+        },
+        {
+          "source": "src/services/temp/DiracTempManager.ts|src.services.temp.DiracTempManager.DiracTempManagerImpl.cleanup",
+          "target": "src/shared/services/Logger.ts|src.shared.services.Logger.Logger",
+          "call_sites": [
+            {
+              "line": 145,
+              "column": 12
+            },
+            {
+              "line": 148,
+              "column": 11
+            }
+          ],
+          "description": ""
+        },
+        {
+          "source": "src/services/temp/DiracTempManager.ts|src.services.temp.DiracTempManager.DiracTempManagerImpl.cleanup",
+          "target": "src/shared/services/Logger.ts|src.shared.services.Logger.Logger.error",
+          "call_sites": [
+            {
+              "line": 148,
+              "column": 11
+            }
+          ],
+          "description": ""
+        },
+        {
+          "source": "src/services/temp/DiracTempManager.ts|src.services.temp.DiracTempManager.DiracTempManagerImpl.cleanup",
+          "target": "src/shared/services/Logger.ts|src.shared.services.Logger.Logger.info",
+          "call_sites": [
+            {
+              "line": 145,
+              "column": 12
+            }
+          ],
+          "description": ""
+        },
+        {
+          "source": "src/services/temp/DiracTempManager.ts|src.services.temp.DiracTempManager.DiracTempManagerImpl.deleteFile",
+          "target": "src/shared/services/Logger.ts|src.shared.services.Logger.Logger",
+          "call_sites": [
+            {
+              "line": 164,
+              "column": 12
+            }
+          ],
+          "description": ""
+        },
+        {
+          "source": "src/services/temp/DiracTempManager.ts|src.services.temp.DiracTempManager.DiracTempManagerImpl.deleteFile",
+          "target": "src/shared/services/Logger.ts|src.shared.services.Logger.Logger.error",
+          "call_sites": [
+            {
+              "line": 164,
+              "column": 12
+            }
+          ],
+          "description": ""
+        },
+        {
+          "source": "src/services/temp/DiracTempManager.ts|src.services.temp.DiracTempManager.DiracTempManagerImpl.startPeriodicCleanup",
+          "target": "src/shared/services/Logger.ts|src.shared.services.Logger.Logger",
+          "call_sites": [
+            {
+              "line": 180,
+              "column": 11
+            },
+            {
+              "line": 185,
+              "column": 12
+            }
+          ],
+          "description": ""
+        },
+        {
+          "source": "src/services/temp/DiracTempManager.ts|src.services.temp.DiracTempManager.DiracTempManagerImpl.startPeriodicCleanup",
+          "target": "src/shared/services/Logger.ts|src.shared.services.Logger.Logger.error",
+          "call_sites": [
+            {
+              "line": 180,
+              "column": 11
+            },
+            {
+              "line": 185,
+              "column": 12
             }
           ],
           "description": ""
@@ -367719,17 +369010,6 @@
           "description": "Storage parses task history with telemetry capture"
         },
         {
-          "source": "src/core/storage/taskHistory.ts|src.core.storage.taskHistory.readTaskHistoryFromState",
-          "target": "src/services/telemetry/TelemetryService.ts|src.services.telemetry.TelemetryService.TelemetryService.captureExtensionStorageError",
-          "call_sites": [
-            {
-              "line": 82,
-              "column": 20
-            }
-          ],
-          "description": "Storage captures telemetry on storage errors"
-        },
-        {
           "source": "src/core/storage/taskHistory.ts|src.core.storage.taskHistory.parseTaskHistoryContents",
           "target": "src/services/telemetry/TelemetryService.ts|src.services.telemetry.TelemetryService.TelemetryService.captureExtensionStorageError",
           "call_sites": [
@@ -367747,6 +369027,17 @@
             }
           ],
           "description": "Task history storage reports storage parse errors to TelemetryService."
+        },
+        {
+          "source": "src/core/storage/taskHistory.ts|src.core.storage.taskHistory.readTaskHistoryFromState",
+          "target": "src/services/telemetry/TelemetryService.ts|src.services.telemetry.TelemetryService.TelemetryService.captureExtensionStorageError",
+          "call_sites": [
+            {
+              "line": 82,
+              "column": 20
+            }
+          ],
+          "description": "Storage captures telemetry on storage errors"
         }
       ],
       "src_id": "9.1.2",

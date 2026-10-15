@@ -37,6 +37,7 @@
       "Terminal_Commands_Ink_UI_Components.md",
       "VS_Code_Editor_Webview_Utilities.md",
       "VS_Code_Host_Bridge_gRPC_Services.md",
+      "VS_Code_Hostbridge_Environment_Services.md",
       "Workspace_Checkpoint_Integration.md",
       "Workspace_Tool_Registry_Subagent_Execution.md",
       "overview.md"

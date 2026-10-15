@@ -164,6 +164,8 @@ Dispatches unary and streaming host bridge gRPC requests, tracks active streamin
   - `src.hosts.vscode.hostbridge-grpc-service.createServiceRegistry.dispatchGrpcMethod` (L133-L133) - Method
   - `src.hosts.vscode.hostbridge-grpc-service.createServiceRegistry.handleStreamingRequest` (L135-L136) - Method
   - `src.hosts.vscode.hostbridge-grpc-service.createServiceRegistry.isStreamingMethod` (L138-L138) - Method
+- `src/hosts/vscode/hostbridge/testing/getWebviewHtml.ts`
+  - `src.hosts.vscode.hostbridge.testing.getWebviewHtml.getWebviewHtml` (L3-L5) - Function
 
 
 ### Host Bridge gRPC Client Factory

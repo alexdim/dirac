@@ -550,6 +550,23 @@ Provides shared platform utilities for distinct client identification, Dirac req
   - `src.services.logging.distinctId.getMachineId` (L45-L55) - Function
   - `src.services.logging.distinctId.setDistinctId` (L61-L66) - Function
   - `src.services.logging.distinctId.getDistinctId` (L73-L78) - Function
+- `src/services/temp/DiracTempManager.ts`
+  - `src.services.temp.DiracTempManager.TempFileInfo` (L22-L26) - Interface
+  - `src.services.temp.DiracTempManager.DiracTempManagerImpl` (L31-L203) - Class
+  - `src.services.temp.DiracTempManager.DiracTempManagerImpl.constructor` (L35-L39) - Constructor
+  - `src.services.temp.DiracTempManager.DiracTempManagerImpl.ensureTempDirExists` (L41-L43) - Method
+  - `src.services.temp.DiracTempManager.DiracTempManagerImpl.getTempDir` (L48-L50) - Method
+  - `src.services.temp.DiracTempManager.DiracTempManagerImpl.createTempFilePath` (L59-L63) - Method
+  - `src.services.temp.DiracTempManager.DiracTempManagerImpl.cleanup` (L74-L152) - Method
+  - `src.services.temp.DiracTempManager.DiracTempManagerImpl.cleanup.totalSize` (L124-L124) - Class
+  - `src.services.temp.DiracTempManager.DiracTempManagerImpl.cleanup.totalSize.remainingFiles.reduce() callback` (L124-L124) - Function
+  - `src.services.temp.DiracTempManager.DiracTempManagerImpl.cleanup.remainingFiles.sort() callback` (L126-L126) - Function
+  - `src.services.temp.DiracTempManager.DiracTempManagerImpl.deleteFile` (L159-L167) - Method
+  - `src.services.temp.DiracTempManager.DiracTempManagerImpl.startPeriodicCleanup` (L173-L191) - Method
+  - `src.services.temp.DiracTempManager.DiracTempManagerImpl.startPeriodicCleanup.catch() callback` (L179-L181) - Function
+  - `src.services.temp.DiracTempManager.DiracTempManagerImpl.startPeriodicCleanup.setInterval() callback` (L183-L187) - Function
+  - `src.services.temp.DiracTempManager.DiracTempManagerImpl.startPeriodicCleanup.setInterval() callback.catch() callback` (L184-L186) - Function
+  - `src.services.temp.DiracTempManager.DiracTempManagerImpl.stopPeriodicCleanup` (L197-L202) - Method
 - `src/services/uri/SharedUriHandler.ts`
   - `src.services.uri.SharedUriHandler.SharedUriHandler` (L9-L78) - Class
   - `src.services.uri.SharedUriHandler.SharedUriHandler.handleUri` (L15-L77) - Method

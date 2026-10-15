@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generated_at": "2026-10-15T10:32:17.110616+00:00",
+  "generated_at": "2026-10-15T14:01:32.780298+00:00",
   "analyzed_files": [
     "cli/acp-spawn-debug.mjs",
     "cli/scripts/acp-probe.mts",
@@ -199,6 +199,7 @@
     "cli/src/utils/update.ts",
     "cli/src/utils/vim-editor.ts",
     "cli/src/vscode-context.ts",
+    "cli/vitest.config.ts",
     "private/plans/scc-prototype.mjs",
     "scripts/api-secrets-parser.mjs",
     "scripts/build-proto.mjs",
@@ -891,6 +892,16 @@
     "src/hosts/vscode/hostbridge/diff/saveDocument.ts",
     "src/hosts/vscode/hostbridge/diff/scrollDiff.ts",
     "src/hosts/vscode/hostbridge/diff/truncateDocument.ts",
+    "src/hosts/vscode/hostbridge/env/clipboardReadText.ts",
+    "src/hosts/vscode/hostbridge/env/clipboardWriteText.ts",
+    "src/hosts/vscode/hostbridge/env/debugLog.ts",
+    "src/hosts/vscode/hostbridge/env/getHostVersion.ts",
+    "src/hosts/vscode/hostbridge/env/getIdeRedirectUri.ts",
+    "src/hosts/vscode/hostbridge/env/getTelemetrySettings.ts",
+    "src/hosts/vscode/hostbridge/env/openExternal.ts",
+    "src/hosts/vscode/hostbridge/env/shutdown.ts",
+    "src/hosts/vscode/hostbridge/env/subscribeToTelemetrySettings.ts",
+    "src/hosts/vscode/hostbridge/testing/getWebviewHtml.ts",
     "src/hosts/vscode/hostbridge/window/getActiveEditor.ts",
     "src/hosts/vscode/hostbridge/window/getOpenTabs.ts",
     "src/hosts/vscode/hostbridge/window/getVisibleTabs.ts",
@@ -1061,6 +1072,8 @@
     "src/services/telemetry/providers/opentelemetry/OpenTelemetryExporterFactory.ts",
     "src/services/telemetry/providers/opentelemetry/OpenTelemetryTelemetryProvider.ts",
     "src/services/telemetry/providers/opentelemetry/otel-exporter-diagnostics.ts",
+    "src/services/temp/DiracTempManager.ts",
+    "src/services/temp/index.ts",
     "src/services/tree-sitter/index.ts",
     "src/services/tree-sitter/languageParser.ts",
     "src/services/tree-sitter/queries/c-sharp.ts",
@@ -1255,8 +1268,10 @@
     "src/utils/worktree-include.ts",
     "test-setup.js",
     "update_models.js",
+    "webview-ui/src/config/platform.config.ts",
     "webview-ui/src/features/history/components/HistoryViewItem.tsx",
-    "webview-ui/src/features/modular-ui/chat/components/HistoryPreview.tsx"
+    "webview-ui/src/features/modular-ui/chat/components/HistoryPreview.tsx",
+    "webview-ui/vite.config.ts"
   ],
   "not_analyzed_files": [
     {
@@ -1736,10 +1751,6 @@
       "reason": "other"
     },
     {
-      "path": "cli/vitest.config.ts",
-      "reason": "codeboardingignore"
-    },
-    {
       "path": "cli/workspaceState.json",
       "reason": "other"
     },
@@ -1833,14 +1844,6 @@
     },
     {
       "path": "locales/zh-tw/CONTRIBUTING.md",
-      "reason": "other"
-    },
-    {
-      "path": "omlx-benchmark-notes.md",
-      "reason": "other"
-    },
-    {
-      "path": "omlx-leaderboard-message.md",
       "reason": "other"
     },
     {
@@ -3284,46 +3287,6 @@
       "reason": "codeboardingignore"
     },
     {
-      "path": "src/hosts/vscode/hostbridge/env/clipboardReadText.ts",
-      "reason": "codeboardingignore"
-    },
-    {
-      "path": "src/hosts/vscode/hostbridge/env/clipboardWriteText.ts",
-      "reason": "codeboardingignore"
-    },
-    {
-      "path": "src/hosts/vscode/hostbridge/env/debugLog.ts",
-      "reason": "codeboardingignore"
-    },
-    {
-      "path": "src/hosts/vscode/hostbridge/env/getHostVersion.ts",
-      "reason": "codeboardingignore"
-    },
-    {
-      "path": "src/hosts/vscode/hostbridge/env/getIdeRedirectUri.ts",
-      "reason": "codeboardingignore"
-    },
-    {
-      "path": "src/hosts/vscode/hostbridge/env/getTelemetrySettings.ts",
-      "reason": "codeboardingignore"
-    },
-    {
-      "path": "src/hosts/vscode/hostbridge/env/openExternal.ts",
-      "reason": "codeboardingignore"
-    },
-    {
-      "path": "src/hosts/vscode/hostbridge/env/shutdown.ts",
-      "reason": "codeboardingignore"
-    },
-    {
-      "path": "src/hosts/vscode/hostbridge/env/subscribeToTelemetrySettings.ts",
-      "reason": "codeboardingignore"
-    },
-    {
-      "path": "src/hosts/vscode/hostbridge/testing/getWebviewHtml.ts",
-      "reason": "codeboardingignore"
-    },
-    {
       "path": "src/hosts/vscode/hostbridge/window/getOpenTabs.test.ts",
       "reason": "codeboardingignore"
     },
@@ -3577,14 +3540,6 @@
     },
     {
       "path": "src/services/telemetry/providers/opentelemetry/OpenTelemetryExporterFactory.test.ts",
-      "reason": "codeboardingignore"
-    },
-    {
-      "path": "src/services/temp/DiracTempManager.ts",
-      "reason": "codeboardingignore"
-    },
-    {
-      "path": "src/services/temp/index.ts",
       "reason": "codeboardingignore"
     },
     {
@@ -5084,10 +5039,6 @@
       "reason": "other"
     },
     {
-      "path": "webview-ui/src/config/platform.config.ts",
-      "reason": "codeboardingignore"
-    },
-    {
       "path": "webview-ui/src/constants.ts",
       "reason": "other"
     },
@@ -6398,19 +6349,15 @@
     {
       "path": "webview-ui/tsconfig.node.json",
       "reason": "other"
-    },
-    {
-      "path": "webview-ui/vite.config.ts",
-      "reason": "codeboardingignore"
     }
   ],
   "summary": {
-    "total_files": 2540,
-    "analyzed": 1255,
-    "not_analyzed": 1286,
+    "total_files": 2538,
+    "analyzed": 1270,
+    "not_analyzed": 1269,
     "not_analyzed_by_reason": {
-      "other": 449,
-      "codeboardingignore": 837
+      "other": 447,
+      "codeboardingignore": 822
     }
   }
 }
