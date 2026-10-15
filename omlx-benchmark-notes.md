@@ -90,6 +90,16 @@ Once `jundot/omlx` ports those four `mlx-vlm` patches to `BatchedEngine`, switch
 - **Location**: `/Applications/oMLX.app/Contents/Resources/omlx/admin/benchmark.py` (lines 1588–1661).
 - **Mechanism**: When a model echoes repetitive prompt lines (as Tiel did on `code_mixed` at 8k, 32k, and 131k), oMLX's prefix-copy path accepts up to 386 of 512 tokens (`tok/cycle = 4.34–5.95` on depth-3 MTP), uploading 303–312 t/s "decode" numbers that measure prompt-copying rather than model generation.
 
+### Issue 8 — `TurboQuant` KV cache allocates raw 16-bit KV during prefill, quantizes post-prefill, and slows 64k verify by 18%
+
+- **Location**: `server.log` lines 3749–3783 (`TurboQuant: converted 15/64 cache layers to 8.0-bit, skipped last KVCache layer`).
+- **Mechanism**: With `turboquant_kv_enabled: true (8.0 bits)` on `Qwen3.8-27B-oQ4e-mtp` at 65,537 tokens, the scheduler still reserves full 16-bit KV capacity during prefill (`+3.89 GB`, peak `23.34 GB` vs `23.40 GB` raw) and only converts 15/16 KV layers to 8-bit *after* all 65,536 prefill tokens finish (`421 ms` post-prefill step). During decode, `turboquant_attention` bypasses the native fused `verify_sdpa_split` kernel and dequantizes on the fly, increasing 64k backbone verify latency from **88.2 ms/cycle** (raw KV, `37.8 t/s`) to **103.9 ms/cycle** (TQ8, `35.5 t/s`).
+
+### Issue 9 — Dense `qwen3_5` (`Qwen3.8-27B`) `qwen35_packed_linear` (296 layers) is only wired in `VLMBatchedEngine`
+
+- **Location**: `server.log` lines 2835 vs 2912–2913 & 2932 (`omlx.patches.qwen35_packed_linear` / `engine/vlm.py`).
+- **Mechanism**: When a dense `qwen3_5` checkpoint (such as `Dirk-Qwen3.8-27B-MLX-oQ4e`) is forced to `model_type_override: "llm"` (`BatchedEngine`), it loses `Qwen packed 4-bit projections: 296 layers` (`qwen35_packed_linear`), drops from 1,266 to 986 `oQ A8` modules, and loses `qwen35_verify_sdpa_split` + `qwen35_gdn_prework`. Removing `model_type_override: "llm"` boosted Dirk's decode from **33.7–38.1 t/s** to **59.8–62.5 t/s** (+72–85%) and prefill from **618–777 t/s** to **978–1,216 t/s** (+58%).
+
 ---
 
 ## 4. Complete Performance Tables
@@ -224,6 +234,21 @@ Run via `POST /admin/api/bench/start` with `prompt_lengths: [65536]`, `context_p
 | **`Qwen3.8-27B-oQ4e-mtp` + MLX** (`VLMBatchedEngine`, **raw KV**) | 661.6 t/s (99.06s) | **37.8 t/s** (26.69 ms) | **88.2 ms/cycle** (36c, 89.1% accept, 0 copy) | +3.89 GB (16 KV layers) | 23.40 GB | Native fused `verify_sdpa_split` beats TQ8 on decode |
 | `Qwen3.8-27B-oQ4e-mtp` + MLX (`VLMBatchedEngine`, **TQ8 8-bit KV**) | **720.3 t/s** (90.99s) | 35.5 t/s (28.36 ms) | 103.9 ms/cycle (33c, 89.4% accept, 0 copy) | +3.89 GB prefill → 8-bit post-prefill | 23.34 GB | oMLX converts 15/16 KV layers to 8-bit *after* prefill (`server.log:3781`); dequant slows verify by 18% |
 | `Dirk-Qwen3.8-27B-MLX-oQ4e` + MLX (`VLMBatchedEngine`, raw KV) | 614.8 t/s (106.59s) | 33.3 t/s (30.27 ms) | 95.4 ms/cycle (38c, 84.5% accept, 1 copy) | +3.89 GB (16 KV layers) | 23.40 GB | Same 16-KV-layer 27B dense scaling |
+
+---
+
+## 9. Projection for 80k Context (`81,920` tokens) @ 128k Window & Final Model Selection
+
+Derived from measured scaling across `1k → 4k → 32k → 64k (65,536) → 77k (77,160 real CodeBoarding run) → 131k (131,072)` and per-chunk marginal prefill logs (`server.log` chunk 32 @ 64k and chunk 40 @ 80k):
+
+| Model & Optimal Engine | Cold 80k Prefill (TTFT) | Agentic Turn TTFT @ 80k (`76k cached + 4k delta`) | Steady-State 80k Decode TG (TPOT) | 80k KV Cache Size | Total Memory @ 80k | Recommendation @ 80k Agentic |
+|---|---:|---:|---:|---:|---:|---|
+| **`occamy-1.0-oQ4e-mtp` + Splash** (`int8` KV, `DFlash2`) | **~2,850 t/s (~28.7 s)** | **~1.5 – 3.0 s** | **~135 – 145 tok/s** (~7.0 ms; measured **139.3 t/s** @ 77.2k) | **~0.83 GB** (int8) | **~22.1 GB** | **#1 Choice for long-turn agentic & CodeBoarding** |
+| **`Tiel-Coder-35B-A3B` + MLX** (`VLMBatchedEngine`, raw KV) | **~2,700 t/s (~30.3 s)** | **~2.5 s** (`1.25 s` per 2k chunk @ 80k) | **~110 – 115 tok/s** (~8.9 ms; `~20.8 ms/cycle`) | +1.53 GB (bf16) | **~23.9 GB** | **#2 Choice (fastest pure MLX @ 80k; pass `terse=false` for pipelines)** |
+| `occamy-1.0-oQ4e-mtp` + MLX (`BatchedEngine`, raw KV) | ~2,350 t/s (~34.8 s) | ~2.6 s | ~85 – 90 tok/s (~11.4 ms; `~28.5 ms/cycle`) | +1.53 GB (bf16) | ~23.1 GB | Use Splash instead (`+55%` faster decode @ 80k) |
+| **`Qwen3.8-27B-oQ4e-mtp` + MLX** (`VLMBatchedEngine`, raw KV) | ~610 t/s (~134 s / 2m14s) | ~8.8 s (`4.4 s` per 2k chunk @ 80k) | **~31 – 33 tok/s** (~31 ms; `~102 ms/cycle`) | **+4.86 GB** (bf16) | **~24.6 GB** | Too slow above 32k; use only for short/medium (<16k) turns |
+| `Dirk-Qwen3.8-27B-MLX-oQ4e` + MLX (`VLMBatchedEngine`, raw KV) | ~570 t/s (~143 s / 2m23s) | ~9.0 s | ~28 – 30 tok/s (~34 ms; `~110 ms/cycle`) | **+4.86 GB** (bf16) | **~24.6 GB** | Too slow above 32k; use only for short/medium (<16k) turns |
+
 
 
 

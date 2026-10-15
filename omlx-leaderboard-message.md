@@ -1,4 +1,4 @@
-Subject: Request to remove 20 non-canonical code_mixed benchmark rows + 4 findings from server.log
+Subject: Request to remove 20 non-canonical code_mixed benchmark rows + 8 findings from server.log
 
 Hi jundot,
 
@@ -6,8 +6,8 @@ While benchmarking `occamy-1.0-oQ4e-mtp` and `Tiel-Coder-35B-A3B-MLX-oQ4e-MTP`
 on oMLX 0.7.1.dev1/dev2 (Apple M5 Max, 64 GB, 40 GPU cores), I ran five
 exploratory `code_mixed` matrices (`[1024, 8192, 32768, 131072]`, `gen=128` and
 `gen=512`) before running the canonical `code_python` `[1024, 4096]` `gen=128`
-matrix. All 24 MLX rows auto-uploaded; the Splash runs were properly skipped by
-`skipped_reason="splash"`.
+matrix. All 24 MLX rows auto-uploaded; the Splash and `align_prompt_to_ane`
+runs were properly skipped.
 
 Could you remove the 20 non-canonical `code_mixed` rows below and keep only the
 4 canonical `code_python` rows?
@@ -50,37 +50,25 @@ Owner hash: `dd59c5a4ad19a6d5e0c5fc4762b675cf85f40c8666fe1a79ddf09f1728a39d7b`
 
 *(Note: 20 rows in the table above + 4 canonical rows = 24 total uploads under this `owner_hash`.)*
 
-### Four technical findings from `server.log` and `splash.log`
+### Eight technical findings from `server.log` and `splash.log` (`0.7.1.dev2`)
 
-1. **`BatchedEngine` (`mlx-lm`) vs `VLMBatchedEngine` (`mlx-vlm`) kernel parity on `qwen3_5_moe`**:
-   `occamy-1.0-oQ4e-mtp` (text-only `qwen3_5_moe_text`, no `vision_config`) loads
-   into `BatchedEngine`, whereas `Tiel-Coder-35B-A3B-MLX-oQ4e-MTP` (which keeps
-   `vision_config`) loads into `VLMBatchedEngine`. In `0.7.1.dev2`, four patches
-   are wired in `engine/vlm.py:2630-2720` but not in `engine/batched.py`:
-   `qwen35_moe_routed_decode`, `qwen35_gdn_prework` (`qwen35_gdn_verify_fused`),
-   `qwen35_verify_sdpa_split`, and `qwen35_gdn_chunked`. Consequently, identical
-   40-layer `qwen3_5_moe` oQ4e weights run at **11.0–12.2 ms/backbone-cycle** on
-   `VLMBatchedEngine` vs **16.5–19.5 ms/backbone-cycle** on `BatchedEngine`.
-2. **`warmup_mode="quick"` (32 prompt / 8 decode tokens) misses shape-gated kernels**:
-   On a cold process, a 32-token warmup leaves `qwen35_moe_weighted_sum`
-   (`min_tokens=1024`), `qwen35_q4_mlp` NAX dispatch (`min_tokens=2048`), and
-   `qwen35_verify_sdpa_split` (`q_len in {2,3,7,8}`) uncompiled until the first
-   1k and 2k+ benchmark trials execute.
-3. **MTP prefix-copy filtering on leaderboard uploads**:
-   At 8k/32k/131k in `code_mixed`, Tiel echoed prompt lines and accepted 259–386
-   of 512 tokens via the prefix-copy path (`tok/cycle` 4.34–5.95 on depth-3 MTP).
-   Flagging or rejecting uploads where `tok/cycle > mtp_depth + 1` (or where
-   `copy / tokens` exceeds a threshold) would keep copy-path outliers off the
-   decode leaderboard.
-4. **`_ChatBenchmark` (Splash) prompt layout with system-prompt templates**:
-   `_ChatBenchmark` sends `[{"role": "user", "content": "BENCH-<uuid> ..."}]`
-   with no instruction. Checkpoints whose `chat_template.jinja` prepends a
-   default system prompt (e.g., Tiel's ~175-token `_terse` block) place static
-   tokens before `BENCH-<uuid>`, causing Splash to deduplicate/cache the first
-   160 tokens (5 x 32-token KV blocks) across trials, and the un-instructed
-   code dump causes early EOS (`44–101/128` tokens). Putting `BENCH-<uuid>` in a
-   leading `system` turn and appending a one-line continuation/analysis prompt
-   eliminated both the 160-token cache hit and early EOS in our follow-up runs.
+1. **`BatchedEngine` (`mlx-lm`) vs `VLMBatchedEngine` (`mlx-vlm`) kernel parity on `qwen3_5_moe` and dense `qwen3_5`**:
+   - **On 35B MoE (`qwen3_5_moe`)**: `occamy-1.0-oQ4e-mtp` (text-only `qwen3_5_moe_text`, no `vision_config`) loads into `BatchedEngine`, whereas `Tiel-Coder-35B-A3B-MLX-oQ4e-MTP` (which keeps `vision_config`) loads into `VLMBatchedEngine`. In `0.7.1.dev2`, four patches are wired in `engine/vlm.py:2630-2720` but not in `engine/batched.py`: `qwen35_moe_routed_decode`, `qwen35_gdn_prework` (`qwen35_gdn_verify_fused`), `qwen35_verify_sdpa_split`, and `qwen35_gdn_chunked`. Identical 40-layer `qwen3_5_moe` oQ4e weights run at **11.0–12.2 ms/backbone-cycle** (@4k) and **18.4 ms/cycle** (@64k) on `VLMBatchedEngine` vs **16.5–19.5 ms/cycle** (@4k) and **25.6 ms/cycle** (@64k) on `BatchedEngine`.
+   - **On 27B Dense (`qwen3_5`)**: Setting `model_type_override: "llm"` (`BatchedEngine`) on `Dirk-Qwen3.8-27B-MLX-oQ4e` also loses `qwen35_packed_linear` (`Qwen packed 4-bit projections: 296 layers`), drops `qwen35_oq_a8` coverage from 1,266 modules to 986 modules, and loses `qwen35_verify_sdpa_split` + `qwen35_gdn_prework`. Clearing `model_type_override` to `null` (`VLMBatchedEngine`) boosted Dirk from **33.7–38.1 t/s** to **59.8–62.5 t/s** decode (+72–85%) and from **618–777 t/s** to **978–1,216 t/s** prefill (+58%).
+2. **`TurboQuant` 8-bit KV at 64k (`pp=65537`) allocates raw 16-bit KV during prefill and slows verify by 18%**:
+   On `Qwen3.8-27B-oQ4e-mtp` at 65,537 tokens with `turboquant_kv_enabled: true (8.0 bits)`, the scheduler still reserves full 16-bit KV capacity during prefill (`Reserved prefill capacity for 65537 tokens across 16 caches (+3.89GB)`, peak `23.34 GB` vs `23.40 GB` raw) and only converts 15/16 KV layers to 8-bit *after* prefill completes (`TurboQuant: converted 15/64 cache layers to 8.0-bit`). During 64k decode, `turboquant_attention` bypasses the native fused `verify_sdpa_split` kernel and dequantizes on the fly, increasing backbone verify time from **88.2 ms/cycle** (`37.8 t/s` on raw KV) to **103.9 ms/cycle** (`35.5 t/s` on TQ8).
+3. **`SplashEngine` (`splash_has_vision`) ignores `model_type_override == "llm"`**:
+   `splash_has_vision(config)` in `engine/splash.py:289` checks `isinstance(config.get("vision_config"), dict)` on raw `config.json` without checking `model_settings.model_type_override == "llm"`. As a result, VLM checkpoints used strictly as text models (e.g. Tiel, Dirk, `Qwen3.8-27B-oQ4e-mtp`) never receive `--language-only` when served through Splash.
+4. **`SplashEngine._stream()` re-tokenizes every streamed SSE chunk in Python**:
+   In `engine/splash.py:1122` and `1219`, requests proxied through `127.0.0.1:8000/v1/chat/completions` run Python `apply_chat_template` in `count_chat_tokens()` before forwarding and call `self._tokenizer.encode(piece)` on every streamed SSE chunk, reducing measured 4k prefill throughput from `5,191–6,764 t/s` (direct Splash loopback) to `4,658–5,005 t/s` (proxied).
+5. **Default Splash memory budget (`splash_max_memory_gb = null`) with persistent SSD cache**:
+   `splash_memory_estimate()` in `engine/splash.py:403` budgets `weights + draft + 3 GiB + 1 x max_context KV` (`24.04 GiB` on a 64 GB Mac). With `--persistent-cache` enabled, Splash restores up to 19 GDN state checkpoints (`63 MiB` each) and `2,367` KV blocks (`~2.08 GiB`) at startup into a `3.19 GiB` dynamic budget (`dynamic_budget_bytes`), pressuring multi-request and batch runs unless a larger `splash_max_memory_gb` is set.
+6. **`warmup_mode="quick"` (32 prompt / 8 decode tokens) misses shape-gated kernels**:
+   On a cold process, a 32-token warmup leaves `qwen35_moe_weighted_sum` (`min_tokens=1024`), `qwen35_q4_mlp` NAX dispatch (`min_tokens=2048`), and `qwen35_verify_sdpa_split` (`q_len in {2,3,7,8}`) uncompiled until the first 1k and 2k+ benchmark trials execute.
+7. **MTP prefix-copy filtering on leaderboard uploads**:
+   At 8k/32k/131k in `code_mixed`, Tiel echoed prompt lines and accepted 259–386 of 512 tokens via the prefix-copy path (`tok/cycle` 4.34–5.95 on depth-3 MTP). Flagging or rejecting uploads where `tok/cycle > mtp_depth + 1` (or where `copy / tokens` exceeds a threshold) would keep copy-path outliers off the decode leaderboard.
+8. **`_ChatBenchmark` (Splash) prompt layout with system-prompt templates**:
+   `_ChatBenchmark` sends `[{"role": "user", "content": "BENCH-<uuid> ..."}]` with no instruction. Checkpoints whose `chat_template.jinja` prepends a default system prompt (e.g., Tiel's ~175-token `_terse` block) place static tokens before `BENCH-<uuid>`, causing Splash to deduplicate/cache the first 160 tokens (5 x 32-token KV blocks) across trials, and the un-instructed code dump causes early EOS (`31–101/128` tokens). Putting `BENCH-<uuid>` in a leading `system` turn and appending a one-line continuation/analysis prompt eliminated both the 160-token cache hit and early EOS.
 
 Happy to share the full logs if helpful. Thanks for oMLX!
 
