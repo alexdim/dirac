@@ -13,9 +13,11 @@ Captured 2026-10-15 on Apple M5 Max (64 GB, 40 GPU cores, macOS 27.0.1), oMLX `0
 
 ---
 
-## 2. Should Tiel Be Forced from VLM (`VLMBatchedEngine`) to LLM (`BatchedEngine`)?
+## 2. Why VLM Beats LLM in oMLX `0.7.1.dev2` (Contradicting the Usual Rule)
 
-**Verdict: No on MLX (`external_engine: null`), Yes in principle on Splash — because oMLX `0.7.1.dev2` has an inverted optimization gap where `VLMBatchedEngine` has faster Qwen3.5/3.6 MoE Metal decode kernels than `BatchedEngine`.**
+**Do not switch Tiel from VLM (`VLMBatchedEngine`) to LLM (`BatchedEngine`) in oMLX `0.7.1.dev2`; doing so drops its MLX decode speed by ~25–35%.**
+
+While keeping `vision_config` normally hurts text-only inference (and does cost ~0.49 GB of unused vision weights in RAM), oMLX `0.7.1.dev2` currently wires four Qwen3.5/3.6 MoE Metal decode/prefill patches in `/Applications/oMLX.app/Contents/Resources/omlx/engine/vlm.py` (lines 2630–2720) that have not been ported to `/Applications/oMLX.app/Contents/Resources/omlx/engine/batched.py` (`qwen35_moe_routed_decode`, `qwen35_gdn_prework`, `qwen35_verify_sdpa_split`, and `qwen35_gdn_chunked`). Furthermore, on the Splash path, `/Applications/oMLX.app/Contents/Resources/omlx/engine/splash.py` (lines 289–291, `splash_has_vision`) inspects raw `config.json["vision_config"]` and ignores `model_type_override: "llm"`.
 
 ```
 Tiel checkpoint (has vision_config in config.json)
@@ -33,10 +35,13 @@ Tiel checkpoint (has vision_config in config.json)
         + Gain: None for text-only coding
 ```
 
-| Engine Path | Effect of VLM (`vision_config` present) | Effect of forcing `model_type_override: "llm"` | Recommendation |
-|---|---|---|---|
-| **oMLX In-Process MLX** | Costs ~0.5 GB RAM, but unlocks four `mlx-vlm`-only Qwen3.5/3.6 Metal kernels (`11.0–12.2 ms/cycle` vs `16.5–19.5 ms/cycle` on `BatchedEngine`) | Routes to `BatchedEngine` (`mlx-lm`), **losing ~25–35% decode throughput** because `BatchedEngine` lacks `qwen35_moe_routed_decode` and `qwen35_gdn_prework` | **Keep as VLM** (`model_type_override` unset) until oMLX ports the 4 patches to `BatchedEngine` |
-| **Splash (`external_engine: "splash"`)** | `splash_has_vision()` omits `--language-only`, loading unused vision weights (`24.72 GB` vs `24.04 GB`) | **No effect** — `splash.py:289` (`splash_has_vision`) only inspects `config.json["vision_config"]` and ignores `model_type_override` | Don't use Splash for Tiel (or strip `vision_config` only if running Tiel on Splash) |
+| Configuration for Tiel | Engine Used | Backbone Cycle Time | Chat Decode TG (Thinking On) | Memory (Actual) | Trade-off |
+|---|---|---:|---:|---:|---|
+| **Default VLM (`model_type_override: null`, MLX)** | `VLMBatchedEngine` (`mlx-vlm`) | **11.0–12.2 ms** | **171–185 t/s** | 20.30 GB | **Keep** — gets all 4 `mlx-vlm` Metal patches for +0.49 GB RAM |
+| Forced LLM (`model_type_override: "llm"`, MLX) | `BatchedEngine` (`mlx-lm`) | 16.5–19.5 ms | ~123–125 t/s | ~19.81 GB | Saves ~0.49 GB RAM, but loses `qwen35_moe_routed_decode` & `gdn_prework` |
+| Splash (`external_engine: "splash"`) | `splash serve-native` | — | 118–131 t/s | 24.72 GB | `splash_has_vision()` ignores `model_type_override` and omits `--language-only` |
+
+Once `jundot/omlx` ports those four `mlx-vlm` patches to `BatchedEngine`, switching Tiel to `llm` (and running Occamy on MLX) will gain the expected speed and memory savings.
 
 ---
 
