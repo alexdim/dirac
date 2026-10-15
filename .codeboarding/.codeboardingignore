@@ -128,3 +128,15 @@ vite.config.*
 gulpfile*
 gruntfile*
 *.config.*
+
+# ============================================================================
+# Negations — real source wrongly matched by patterns above
+# (must come last: last matching pattern wins)
+# ============================================================================
+
+!src/hosts/vscode/hostbridge/env/
+!src/hosts/vscode/hostbridge/testing/**
+!src/services/temp/
+!webview-ui/vite.config.ts
+!webview-ui/src/config/platform.config.ts
+!cli/vitest.config.ts
