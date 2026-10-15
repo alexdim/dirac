@@ -1,14 +1,14 @@
 import { strict as assert } from "node:assert"
-import { describe, it } from "mocha"
 import type { Task } from "@core/task"
 import type { TaskRunOutcome } from "@core/task/TaskRunOutcome"
 import type { CardParams, ICardHandle } from "@core/task/tools/interfaces/IToolEnvironment"
-import { CardStatus, DiracMessageType, type DiracMessage } from "@shared/ExtensionMessage"
+import { CardStatus, type DiracMessage, DiracMessageType } from "@shared/ExtensionMessage"
 import type { GoalRecord } from "@shared/goal"
 import { ResponseOperation } from "@shared/responseTool"
 import { DiracAskResponse } from "@shared/WebviewMessage"
+import { describe, it } from "mocha"
 import type { GoalRecordUpdate, GoalStore } from "../GoalStore"
-import { GoalTaskHost, GoalTerminalGuardError, type GoalChildTaskFactoryInput } from "../GoalTaskHost"
+import { type GoalChildTaskFactoryInput, GoalTaskHost, GoalTerminalGuardError } from "../GoalTaskHost"
 
 interface Deferred<T> {
 	promise: Promise<T>
@@ -27,7 +27,10 @@ class MemoryGoalStore {
 	private now = 100
 
 	private nextUpdateFailure?: Error
-	constructor(private record: GoalRecord, private readonly clockStepMs = 1) { }
+	constructor(
+		private record: GoalRecord,
+		private readonly clockStepMs = 1,
+	) {}
 
 	failNextUpdate(error: Error): void {
 		this.nextUpdateFailure = error
@@ -176,6 +179,22 @@ function interactionCard(params: CardParams): ICardHandle {
 }
 
 describe("GoalTaskHost", () => {
+	for (const operation of ["cancel", "shutdown"] as const) {
+		it(`stops live children during ${operation} even if persisted state says interrupted`, async () => {
+			const { host, store } = createHarness()
+			const child = await host.startTask({ taskTitle: "Still running", prompt: "Work" })
+			await store.update("goal", (goal, now) => {
+				goal.children[0].status = "interrupted"
+				goal.children[0].endedAt = now
+			})
+			await assert.rejects(host.guardTerminalTransition(), GoalTerminalGuardError)
+			if (operation === "cancel") await host.cancelTask(child.id, "Stop the live task")
+			else await host.shutdown("cancelled", "Stop the live task")
+			assert.equal((await store.read("goal")).children[0].status, "cancelled")
+			assert.equal((await store.read("goal")).children[0].terminalSummary, "Stop the live task")
+		})
+	}
+
 	it("runs children concurrently with unique same-millisecond timestamp IDs and distinct conversation ULIDs", async () => {
 		const { host, taskInputs } = createHarness(undefined, 0)
 		const [first, second] = await Promise.all([
@@ -199,16 +218,20 @@ describe("GoalTaskHost", () => {
 		await assert.rejects(
 			host.commitTerminalAttempt(async () => ({ committed: true })),
 			(error: unknown) =>
-				error instanceof GoalTerminalGuardError &&
-				error.message.includes(first.id) &&
-				error.message.includes(second.id),
+				error instanceof GoalTerminalGuardError && error.message.includes(first.id) && error.message.includes(second.id),
 		)
 
 		const firstPage = await host.listTasks({ status: ["running"], limit: 1 })
-		assert.deepEqual(firstPage.tasks.map((task) => task.id), [first.id])
+		assert.deepEqual(
+			firstPage.tasks.map((task) => task.id),
+			[first.id],
+		)
 		await host.cancelTask(first.id)
 		const secondPage = await host.listTasks({ status: ["running"], cursor: firstPage.nextCursor, limit: 1 })
-		assert.deepEqual(secondPage.tasks.map((task) => task.id), [second.id])
+		assert.deepEqual(
+			secondPage.tasks.map((task) => task.id),
+			[second.id],
+		)
 		await host.cancelTask(second.id)
 		assert.deepEqual(await host.commitTerminalAttempt(async () => ({ committed: true })), { committed: true })
 	})
@@ -244,7 +267,11 @@ describe("GoalTaskHost", () => {
 
 		const wake = await host.waitForEvents()
 		assert.ok(wake.indexOf(question) < wake.indexOf(completePayload))
-		assert.ok(wake.includes(`Response payload: ${JSON.stringify({ operation: ResponseOperation.QUESTION, text: question, options })}`))
+		assert.ok(
+			wake.includes(
+				`Response payload: ${JSON.stringify({ operation: ResponseOperation.QUESTION, text: question, options })}`,
+			),
+		)
 		assert.ok(wake.includes(completePayload))
 
 		const beforePersistence = await store.read("goal")

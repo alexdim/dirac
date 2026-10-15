@@ -190,6 +190,7 @@ export class ResponseProcessor {
 			}
 		}
 
+		await this.dependencies.messageStateHandler.flushPendingWrites()
 		this.dependencies.taskState.completeStreamRead()
 		const partialToolBlocks = params.toolUseHandler.getParsedToolUseStates(true)
 		await this.syncStreamState(params.assistantTextOnly, partialToolBlocks, true)

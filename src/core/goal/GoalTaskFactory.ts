@@ -2,18 +2,18 @@ import type { Controller } from "@core/controller"
 import type { StateManager } from "@core/storage/StateManager"
 import { getTaskDirectoryPath } from "@core/storage/taskDirectory"
 import { Task, type TaskParams } from "@core/task"
-import { acquireTaskLock } from "@core/task/TaskLockUtils"
-import type { TaskExecutionProfile } from "@core/task/TaskExecutionProfile"
-import type { GoalChildRole } from "@shared/goal"
-import type { ToolEnvironmentFactory } from "@core/task/tools/interfaces/ToolEnvironmentFactory"
 import {
 	createTaskWorkingConfiguration,
 	type TaskWorkingConfiguration,
 	type TaskWorkingConfigurationInput,
 } from "@core/task/runtime/TaskWorkingConfiguration"
-import type { Settings } from "@shared/storage/state-keys"
+import type { TaskExecutionProfile } from "@core/task/TaskExecutionProfile"
+import { acquireTaskLock } from "@core/task/TaskLockUtils"
+import type { ToolEnvironmentFactory } from "@core/task/tools/interfaces/ToolEnvironmentFactory"
 import type { WorkspaceRootManager } from "@core/workspace/WorkspaceRootManager"
+import type { GoalChildRole } from "@shared/goal"
 import type { HistoryItem } from "@shared/HistoryItem"
+import type { Settings } from "@shared/storage/state-keys"
 
 interface GoalTaskBaseConstruction {
 	id: string
@@ -26,10 +26,11 @@ interface GoalTaskBaseConstruction {
 	conversationPersistenceHooks?: TaskParams["conversationPersistenceHooks"]
 }
 
-export type GoalTaskConstruction = GoalTaskBaseConstruction & (
-	| { executionProfile: "goal_child"; childRole: GoalChildRole }
-	| { executionProfile: Extract<TaskExecutionProfile, "goal_coordinator" | "goal_followup">; childRole?: never }
-)
+export type GoalTaskConstruction = GoalTaskBaseConstruction &
+	(
+		| { executionProfile: "goal_child"; childRole: GoalChildRole }
+		| { executionProfile: Extract<TaskExecutionProfile, "goal_coordinator" | "goal_followup">; childRole?: never }
+	)
 
 export interface GoalTaskFactoryDependencies {
 	controller: Controller
@@ -42,10 +43,12 @@ export interface GoalTaskFactoryDependencies {
 
 /** Constructs Goal-owned Tasks without routing them through the top-level TaskController. */
 export class GoalTaskFactory {
-	constructor(private readonly dependencies: GoalTaskFactoryDependencies) { }
+	constructor(private readonly dependencies: GoalTaskFactoryDependencies) {}
 
 	async create(input: GoalTaskConstruction): Promise<Task> {
-		const releaseTaskLock = await acquireTaskLock(getTaskDirectoryPath(input.id))
+		// GoalLoop owns the coordinator directory until all owned activity and persistence settle.
+		const releaseTaskLock =
+			input.executionProfile === "goal_child" ? await acquireTaskLock(getTaskDirectoryPath(input.id)) : undefined
 
 		let task!: Task
 		try {
@@ -70,8 +73,7 @@ export class GoalTaskFactory {
 				terminalReuseEnabled: workingConfiguration.executionOptions.terminalReuseEnabled,
 				terminalOutputLineLimit: workingConfiguration.settings.terminalOutputLineLimit,
 				defaultTerminalProfile: workingConfiguration.settings.defaultTerminalProfile,
-				vscodeTerminalExecutionMode:
-					workingConfiguration.executionOptions.vscodeTerminalExecutionMode,
+				vscodeTerminalExecutionMode: workingConfiguration.executionOptions.vscodeTerminalExecutionMode,
 				cwd: this.dependencies.cwd,
 				stateManager: this.dependencies.stateManager,
 				workingConfiguration,
@@ -93,7 +95,7 @@ export class GoalTaskFactory {
 			task = new Task(params)
 			return task
 		} catch (error) {
-			await releaseTaskLock()
+			await releaseTaskLock?.()
 			throw error
 		}
 	}
@@ -114,15 +116,11 @@ export class GoalTaskFactory {
 				hooksEnabled: false,
 				...(childRole === "verification" ? { doubleCheckCompletionEnabled: false } : {}),
 			},
-			apiConfiguration: structuredClone(
-				source.apiConfiguration,
-			) as TaskWorkingConfigurationInput["apiConfiguration"],
+			apiConfiguration: structuredClone(source.apiConfiguration) as TaskWorkingConfigurationInput["apiConfiguration"],
 			workspaceConfiguration: structuredClone(
 				source.workspaceConfiguration,
 			) as TaskWorkingConfigurationInput["workspaceConfiguration"],
-			executionOptions: structuredClone(
-				source.executionOptions,
-			) as TaskWorkingConfigurationInput["executionOptions"],
+			executionOptions: structuredClone(source.executionOptions) as TaskWorkingConfigurationInput["executionOptions"],
 		})
 	}
 }

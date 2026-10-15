@@ -65,6 +65,7 @@ export async function* attemptApiRequest(
 		providerDispatch.options,
 	)
 	const iterator = stream[Symbol.asyncIterator]()
+	let emittedOutput = false
 
 	try {
 		ctx.taskState.status = TaskStatus.WAITING_FOR_API
@@ -81,6 +82,7 @@ export async function* attemptApiRequest(
 			return
 		}
 
+		emittedOutput = firstChunk.value.type !== "usage"
 		yield firstChunk.value
 
 		for await (const chunk of iterator) {
@@ -95,12 +97,16 @@ export async function* attemptApiRequest(
 				continue
 			}
 
+			emittedOutput = true
 			yield chunk
 		}
 
 		recordSuccessfulModelProviderPreset(ctx.stateManager, providerId as ApiProvider, model.id, model.info, providerInfo.mode)
 		await finalizeApiReqMsg()
 	} catch (error) {
+		// Once output is exposed, replaying this request would append a second response
+		// to the same stream. Let the outer loop persist the interrupted turn instead.
+		if (emittedOutput) throw error
 		const shouldRetry = await handleApiRequestError(ctx, {
 			error,
 			previousApiReqIndex,

@@ -47,19 +47,19 @@ export interface GoalObjectiveRevision {
 
 export type GoalEvent =
 	| {
-		kind: "task_response"
-		sequence: number
-		taskId: string
-		responseCursor: number
-		occurredAt: number
-	}
+			kind: "task_response"
+			sequence: number
+			taskId: string
+			responseCursor: number
+			occurredAt: number
+	  }
 	| {
-		kind: "task_interaction"
-		sequence: number
-		taskId: string
-		interactionId: string
-		occurredAt: number
-	}
+			kind: "task_interaction"
+			sequence: number
+			taskId: string
+			interactionId: string
+			occurredAt: number
+	  }
 	| { kind: "task_failed"; sequence: number; taskId: string; occurredAt: number }
 	| { kind: "task_finished"; sequence: number; taskId: string; occurredAt: number }
 	| { kind: "user_steering"; sequence: number; occurredAt: number }
@@ -99,6 +99,8 @@ export interface GoalViewState {
 	id: string
 	status: GoalStatus
 	followUpActive: boolean
+	/** Local coordinator ownership, not a claim that no other process owns this Goal. */
+	hasLocalExecution?: boolean
 	statusReason?: string
 	objective: GoalObjectiveRevision
 	createdAt: number

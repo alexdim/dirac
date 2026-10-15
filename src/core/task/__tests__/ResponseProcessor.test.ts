@@ -298,6 +298,42 @@ describe("ResponseProcessor", () => {
 	})
 
 	describe("routeAssistantResponse", () => {
+		it("defers complete tool execution until the assistant response is durably saved", async () => {
+			streamHandler.processToolUseDelta(
+				{ id: "tu1", name: "write_to_file", input: '{"path":"x","content":"saved"}' },
+				"call1",
+			)
+			streamHandler.processTextDelta({ id: "t1", text: "Done" })
+			await processor.syncStreamState("Done")
+			await processor.presentAssistantMessage()
+			expect(deps.toolExecutor.executeTool.getCalls().every((call: sinon.SinonSpyCall) => call.args[1] === false)).to.equal(
+				true,
+			)
+			let flushCompleted = false
+			deps.messageStateHandler.flushPendingWrites.callsFake(async () => {
+				flushCompleted = true
+			})
+			deps.toolExecutor.executeTool.callsFake(async (_block: unknown, complete: boolean) => {
+				if (complete) expect(flushCompleted).to.equal(true)
+			})
+			await processor.routeAssistantResponse(createRouteParams({ assistantMessage: "Done", assistantTextOnly: "Done" }))
+			expect(deps.toolExecutor.executeTool.getCalls().some((call: sinon.SinonSpyCall) => call.args[1] === true)).to.equal(
+				true,
+			)
+		})
+
+		it("does not execute completed tools when assistant persistence fails", async () => {
+			streamHandler.processToolUseDelta({ id: "tu1", name: "write_to_file", input: "{}" }, "call1")
+			deps.messageStateHandler.flushPendingWrites.rejects(new Error("disk full"))
+			await processor.routeAssistantResponse(createRouteParams()).then(
+				() => {
+					throw new Error("expected persistence failure")
+				},
+				(error) => expect(error.message).to.equal("disk full"),
+			)
+			sinon.assert.notCalled(deps.toolExecutor.executeTool)
+		})
+
 		it("returns false when no content and no message", async () => {
 			const result = await processor.routeAssistantResponse(
 				createRouteParams({ assistantMessage: "", assistantTextOnly: "" }),
@@ -538,6 +574,7 @@ describe("ResponseProcessor", () => {
 		})
 
 		it("sets status to EXECUTING_TOOL for complete tool_use", async () => {
+			taskState.completeStreamRead()
 			taskState.assistantMessageContent = [
 				{ type: "tool_use", name: "read_file", params: {}, isComplete: true, call_id: "c1" } as any,
 			]
@@ -779,7 +816,10 @@ function createMockDeps(taskState: TaskState, streamHandler: StreamResponseHandl
 	return {
 		taskState,
 		streamHandler,
-		messageStateHandler: { addToApiConversationHistory: sinon.stub().resolves() },
+		messageStateHandler: {
+			addToApiConversationHistory: sinon.stub().resolves(),
+			flushPendingWrites: sinon.stub().resolves(),
+		},
 		taskMessenger: {
 			createCard: sinon.stub().resolves({
 				finalize: sinon.stub().resolves(),

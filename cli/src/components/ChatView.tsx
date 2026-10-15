@@ -1,4 +1,5 @@
 import { theme } from "../constants/theme"
+
 /**
  * Unified Chat View component
  * Combines the welcome screen layout with task message display
@@ -40,44 +41,27 @@ import { theme } from "../constants/theme"
  * - log-update: node_modules/ink/build/log-update.js (eraseLines logic)
  */
 
-import { DiracMessageType, TaskStatus, UIActionButtonType, isFinalStatus } from "@shared/ExtensionMessage"
-import { modelSupportsInferenceSpeed, type ApiProvider } from "@shared/api"
-import type { Settings } from "@shared/storage/state-keys"
-import { DiracAskResponse } from "@shared/WebviewMessage"
-import { getRandomQuote } from "@/shared/quotes"
-import type { Mode } from "@shared/storage/types"
-import { Box, Static, Text, useStdout } from "ink"
 import path from "node:path"
+import { type ApiProvider, modelSupportsInferenceSpeed } from "@shared/api"
+import { DiracMessageType, isFinalStatus, TaskStatus, UIActionButtonType } from "@shared/ExtensionMessage"
+import type { Settings } from "@shared/storage/state-keys"
+import type { Mode } from "@shared/storage/types"
+import { DiracAskResponse } from "@shared/WebviewMessage"
+import { Box, Static, Text, useStdout } from "ink"
 import Image from "ink-picture"
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { StateManager } from "@/core/storage/StateManager"
+import { getRandomQuote } from "@/shared/quotes"
 import { Logger } from "@/shared/services/Logger"
 import { useTaskContext, useTaskState } from "../context/TaskContext"
-import { useIsSpinnerActive } from "../hooks/useStateSubscriber"
-import { useTerminalSize } from "../hooks/useTerminalSize"
-import { setTerminalTitle } from "../utils/display"
-import { processImagePaths } from "../utils/parser"
-import { ActionButtons } from "./ActionButtons"
-
-import { ChatMessage } from "./ChatMessage"
-import { renderMarkdownLines } from "../utils/markdown"
-import { FileMentionMenu } from "./FileMentionMenu"
-import { HelpPanelContent } from "./HelpPanelContent"
-import { HistoryPanelContent } from "./HistoryPanelContent"
-import { SettingsPanelContent } from "./SettingsPanelContent"
-import { SkillsPanelContent } from "./SkillsPanelContent"
-import { OpenAiCodexUsagePanel } from "./OpenAiCodexUsagePanel"
-import { AgentPanelContent } from "./AgentPanelContent"
-import { PermissionModal } from "./PermissionModal"
-import { SlashCommandMenu } from "./SlashCommandMenu"
-import { ThinkingIndicator } from "./ThinkingIndicator"
-import { ChatFooter } from "./ChatFooter"
-import { ChatHeader } from "./ChatHeader"
-import { ChatInputBar } from "./ChatInputBar"
-import { useComposer, type ActivePanel, type ComposerActions } from "../hooks/useComposer"
-import { useChatTimeline } from "../hooks/useChatTimeline"
 import { useChatFooterStatus } from "../hooks/useChatFooterStatus"
 import { useChatTask } from "../hooks/useChatTask"
+import { useChatTimeline } from "../hooks/useChatTimeline"
+import { type ActivePanel, type ComposerActions, useComposer } from "../hooks/useComposer"
+import { useIsSpinnerActive } from "../hooks/useStateSubscriber"
+import { useTerminalSize } from "../hooks/useTerminalSize"
+import { CliPanelType } from "../types"
+import { cardBodyForDisplay } from "../utils/card-body"
 import { expandPastedTexts, getAskPromptType, isYoloSuppressed, parseAskOptions } from "../utils/chat"
 import {
 	calculateChatLayoutRows,
@@ -85,15 +69,31 @@ import {
 	calculatePermissionModalLayout,
 	shouldShowGoalFooter,
 } from "../utils/chat-layout"
-import { estimateVisualLineCount } from "../utils/text-clipping"
-import { getInputContentWidth } from "../utils/input-layout"
-import { cardBodyForDisplay } from "../utils/card-body"
 import { createDiffLayout } from "../utils/diff-layout"
+import { setTerminalTitle } from "../utils/display"
+import { type GoalLifecycleAction, isRunningGoalStatus } from "../utils/goals"
+import { getInputContentWidth } from "../utils/input-layout"
+import { renderMarkdownLines } from "../utils/markdown"
+import { processImagePaths } from "../utils/parser"
 import { createCardBodySuppressionPolicy } from "../utils/quiet-mode"
 import { clearTaskDeadline, getTaskDeadline, hasTaskTimedOut, markTaskTimedOut } from "../utils/task-timeout"
-import { CliPanelType } from "../types"
+import { estimateVisualLineCount } from "../utils/text-clipping"
+import { ActionButtons } from "./ActionButtons"
+import { AgentPanelContent } from "./AgentPanelContent"
+import { ChatFooter } from "./ChatFooter"
+import { ChatHeader } from "./ChatHeader"
+import { ChatInputBar } from "./ChatInputBar"
+import { ChatMessage } from "./ChatMessage"
+import { FileMentionMenu } from "./FileMentionMenu"
 import { GoalSummary } from "./GoalSummary"
-import { type GoalLifecycleAction, isRunningGoalStatus } from "../utils/goals"
+import { HelpPanelContent } from "./HelpPanelContent"
+import { HistoryPanelContent } from "./HistoryPanelContent"
+import { OpenAiCodexUsagePanel } from "./OpenAiCodexUsagePanel"
+import { PermissionModal } from "./PermissionModal"
+import { SettingsPanelContent } from "./SettingsPanelContent"
+import { SkillsPanelContent } from "./SkillsPanelContent"
+import { SlashCommandMenu } from "./SlashCommandMenu"
+import { ThinkingIndicator } from "./ThinkingIndicator"
 
 const GOAL_STOP_CONFIRMATION_MS = 5_000
 interface ChatViewProps {
@@ -431,11 +431,12 @@ export const ChatView: React.FC<ChatViewProps> = ({
 		if (!permissionCard) return 0
 		const body = cardBodyForDisplay(permissionCard.body, permissionCard.renderType)
 		if (!body) return 0
-		const totalLines = permissionCard.renderType === "markdown"
-			? renderMarkdownLines(body, permissionModalLayout.bodyColumns).length
-			: permissionCard.renderType === "diff" && !permissionCard.diffs?.length
-				? createDiffLayout(body, permissionModalLayout.bodyColumns).rows.length
-				: estimateVisualLineCount(body, permissionModalLayout.bodyColumns)
+		const totalLines =
+			permissionCard.renderType === "markdown"
+				? renderMarkdownLines(body, permissionModalLayout.bodyColumns).length
+				: permissionCard.renderType === "diff" && !permissionCard.diffs?.length
+					? createDiffLayout(body, permissionModalLayout.bodyColumns).rows.length
+					: estimateVisualLineCount(body, permissionModalLayout.bodyColumns)
 		return Math.max(0, totalLines - permissionModalLayout.bodyLines)
 	}, [permissionCard, permissionModalLayout.bodyColumns, permissionModalLayout.bodyLines])
 
@@ -463,7 +464,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
 	let inputPrompt = ""
 	if (selectedGoal?.followUpActive) {
 		inputPrompt = "(steer follow-up)"
-	} else if (isRunningGoalStatus(selectedGoal?.status)) {
+	} else if (selectedGoal?.hasLocalExecution !== false && isRunningGoalStatus(selectedGoal?.status)) {
 		inputPrompt = "(steer Goal)"
 	} else if (selectedGoal) {
 		inputPrompt = "(follow up Goal)"
@@ -515,7 +516,10 @@ export const ChatView: React.FC<ChatViewProps> = ({
 		scrollableCardMaxOffset: activeScrollableMaxOffset,
 		cardScrollOffset: activeScrollOffset,
 		setCardScrollOffset: setActiveScrollOffset,
-		goalStatus: selectedGoal?.status,
+		goalStatus:
+			selectedGoal?.hasLocalExecution === false && isRunningGoalStatus(selectedGoal.status)
+				? "paused"
+				: selectedGoal?.status,
 		handleGoalControl,
 		toggleGoalDetails,
 		disarmGoalStopConfirmation,
@@ -618,7 +622,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
 	}, [isProcessing, uiActionState, isSpinnerActive, setIsProcessing])
 
 	const handleButtonAction = useCallback(
-		async (action: UIActionButtonType | string | undefined, _isPrimary: boolean = true, value?: string) => {
+		async (action: UIActionButtonType | string | undefined, _isPrimary = true, value?: string) => {
 			if (!action || !ctrl || isProcessing) return
 			setIsProcessing(true)
 			setLastError(null)
@@ -871,17 +875,17 @@ export const ChatView: React.FC<ChatViewProps> = ({
 		return (
 			<React.Fragment key={item.key}>
 				<ChatMessage
+					activeVoiceStreamId={taskState.activeVoiceStreamId}
+					compact={item.isCompact}
 					isExecuting={msg.id === respondedToAsk}
 					isStreaming={msg.id === taskState.activeVoiceStreamId}
+					maxContentLines={item.maxContentLines}
 					message={msg}
 					mode={mode}
-					activeVoiceStreamId={taskState.activeVoiceStreamId}
-					showReasoning={true}
-					compact={item.isCompact}
-					tailOnly={item.tailOnly}
-					maxContentLines={item.maxContentLines}
 					scrollOffset={item.scrollOffset}
+					showReasoning={true}
 					suppressCardBody={shouldSuppressCardBody(msg)}
+					tailOnly={item.tailOnly}
 				/>
 			</React.Fragment>
 		)
@@ -894,9 +898,6 @@ export const ChatView: React.FC<ChatViewProps> = ({
 			{isSpinnerActive && (
 				<ThinkingIndicator
 					isActive={!activePanel}
-					mode={mode}
-					onCancel={handleCancel}
-					startTime={spinnerStartTime}
 					lastAction={(() => {
 						const msgs = taskState.diracMessages ?? []
 						for (let i = msgs.length - 1; i >= 0; i--) {
@@ -907,6 +908,9 @@ export const ChatView: React.FC<ChatViewProps> = ({
 						}
 						return undefined
 					})()}
+					mode={mode}
+					onCancel={handleCancel}
+					startTime={spinnerStartTime}
 				/>
 			)}
 
@@ -916,11 +920,11 @@ export const ChatView: React.FC<ChatViewProps> = ({
 
 	const liveViewportContent = (
 		<Box
-			key="live-viewport"
 			flexDirection="column"
 			flexShrink={0}
 			height={layoutRows.liveViewportRows}
 			justifyContent="flex-start"
+			key="live-viewport"
 			overflow="hidden"
 			width="100%">
 			{dynamicItemsContent}
@@ -930,11 +934,11 @@ export const ChatView: React.FC<ChatViewProps> = ({
 
 	const permissionViewportContent = permissionCard ? (
 		<Box
-			key={`permission-${permissionCard.id}`}
 			alignItems="center"
 			flexDirection="column"
 			flexGrow={1}
 			justifyContent="center"
+			key={`permission-${permissionCard.id}`}
 			width="100%">
 			<PermissionModal
 				bodyColumns={permissionModalLayout.bodyColumns}
@@ -1010,8 +1014,8 @@ export const ChatView: React.FC<ChatViewProps> = ({
 
 			{activePanel?.type === CliPanelType.AGENTS && (
 				<AgentPanelContent
-					messages={taskState.diracMessages ?? []}
 					availableRows={Math.max(1, terminalRows - layoutRows.liveViewportRows)}
+					messages={taskState.diracMessages ?? []}
 					onClose={() => setActivePanel(null)}
 					taskStatus={taskState.taskStatus}
 				/>
@@ -1049,31 +1053,31 @@ export const ChatView: React.FC<ChatViewProps> = ({
 					borderColor={borderColor}
 					cursorPos={cursorPos}
 					inputPrompt={inputPrompt}
-					textInput={textInput}
 					terminalColumns={terminalColumns}
 					terminalRows={terminalRows}
+					textInput={textInput}
 				/>
 			)}
 
 			{shouldShowFooter && (
 				<ChatFooter
 					autoApproveAll={autoApproveAll}
-					yoloMode={yolo}
-					quietMode={quietMode}
-					vimMode={vimMode}
+					cacheHitRate={footerStatus.cacheHitRate}
 					contextWindowSize={footerStatus.contextWindowSize}
+					fastModeEnabled={footerStatus.fastModeEnabled}
 					gitBranch={footerStatus.gitBranch}
 					gitDiffStats={footerStatus.gitDiffStats}
+					isGoalActive={selectedGoal !== undefined}
 					lastApiReqTotalTokens={footerStatus.lastApiReqTotalTokens}
 					mode={mode}
 					modelId={footerStatus.modelId}
-					fastModeEnabled={footerStatus.fastModeEnabled}
-					isGoalActive={selectedGoal !== undefined}
 					provider={footerStatus.provider}
-					totalCost={footerStatus.totalCost}
-					cacheHitRate={footerStatus.cacheHitRate}
+					quietMode={quietMode}
 					taskStatus={footerStatus.taskStatus}
+					totalCost={footerStatus.totalCost}
+					vimMode={vimMode}
 					workspacePath={footerStatus.workspacePath}
+					yoloMode={yolo}
 				/>
 			)}
 		</React.Fragment>
@@ -1097,11 +1101,11 @@ export const ChatView: React.FC<ChatViewProps> = ({
 					return (
 						<Box key={item.key} paddingX={1} width="100%">
 							<ChatMessage
+								activeVoiceStreamId={taskState.activeVoiceStreamId}
 								message={item.message}
 								mode={mode}
-								activeVoiceStreamId={taskState.activeVoiceStreamId}
-								showReasoning={true}
 								reasoningDisplay={quietMode ? "tail" : "full"}
+								showReasoning={true}
 								suppressCardBody={shouldSuppressCardBody(item.message)}
 							/>
 						</Box>
@@ -1111,8 +1115,8 @@ export const ChatView: React.FC<ChatViewProps> = ({
 
 			<Box
 				flexDirection="column"
-				width="100%"
 				flexGrow={1}
+				width="100%"
 				{...(isEmptyConversation ? { maxHeight: Math.max(1, terminalRows - 6) } : {})}>
 				{isWelcomeState && (
 					<ChatHeader
@@ -1160,8 +1164,8 @@ export const ChatView: React.FC<ChatViewProps> = ({
 						paddingRight: 2,
 						paddingBottom: 1,
 					} as any)}>
-					<Box flexDirection="column" alignItems="flex-end">
-						<Box borderStyle="round" borderColor={theme.magenta}>
+					<Box alignItems="flex-end" flexDirection="column">
+						<Box borderColor={theme.magenta} borderStyle="round">
 							<Image
 								key={imagePaths[imagePaths.length - 1]}
 								src={path.resolve(imagePaths[imagePaths.length - 1])}

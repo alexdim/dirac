@@ -11,6 +11,7 @@ import type {
 	SourceMutationPlan,
 } from "@services/source-ast/types"
 import type { GoalChildRecord, GoalChildRole, GoalChildStatus, GoalObjectiveRevision, GoalTaskSummary } from "@shared/goal"
+import type { TranscriptPage } from "@shared/messages/content"
 import { FileDiagnostics } from "@shared/proto/index.dirac"
 import type { ResponseArguments } from "@shared/responseTool"
 import type { SubagentIdentity } from "@shared/subagents"
@@ -27,7 +28,6 @@ import {
 	RenderType,
 	CardParams as SharedCardParams,
 } from "../../../../shared/ExtensionMessage"
-import type { DiracStorageMessage } from "../../../../shared/messages/content"
 import { SkillContent, SkillMetadata } from "../../../../shared/skills"
 import { DiracAskResponse } from "../../../../shared/WebviewMessage"
 import { HookExecutionResult } from "../../../hooks/hook-executor"
@@ -406,10 +406,7 @@ export interface IResponseObserverTrait {
 	recordResponse(response: ResponseArguments): Promise<void>
 }
 
-export interface TranscriptPage {
-	entries: DiracStorageMessage[]
-	nextCursor?: string
-}
+export type { TranscriptPage } from "@shared/messages/content"
 
 export interface IGoalTrait {
 	startTask(input: { taskTitle: string; prompt: string }): Promise<GoalChildRecord>

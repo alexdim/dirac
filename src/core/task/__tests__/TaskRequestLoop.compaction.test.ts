@@ -57,13 +57,16 @@ describe("TaskRequestLoop automatic condensation", () => {
 		assert.deepEqual(userContent, originalContent)
 	})
 
-	it("does not consume the incoming prompt when condensation fails", async () => {
+	it("falls back to active-model condensation while preserving the incoming prompt", async () => {
 		const { context, prepareApiRequest, runCompaction } = createContext()
 		runCompaction.resolves(undefined)
 		const userContent: DiracContent[] = [{ type: "text", text: "Task B", isUserInput: true }]
 
 		assert.equal(await recursivelyMakeDiracRequests(context as any, userContent), true)
-		assert.equal(prepareApiRequest.callCount, 0)
+		assert.equal(prepareApiRequest.callCount, 1)
+		assert.equal(prepareApiRequest.firstCall.args[0].shouldCompact, true)
+		assert.deepEqual(prepareApiRequest.firstCall.args[0].userContent[0], userContent[0])
+		assert.match(prepareApiRequest.firstCall.args[0].userContent[1].text, /non-empty context argument/)
 		assert.deepEqual(userContent, [{ type: "text", text: "Task B", isUserInput: true }])
 	})
 })

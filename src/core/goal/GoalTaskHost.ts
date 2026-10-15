@@ -1,27 +1,36 @@
-import { CardKind, CardStatus, type Card, type DiracMessage } from "@shared/ExtensionMessage"
-import { DiracAskResponse } from "@shared/WebviewMessage"
-import type { DiracStorageMessage } from "@shared/messages/content"
-import type { ResponseArguments } from "@shared/responseTool"
+import { getSavedApiConversationHistory, getSavedDiracMessages } from "@core/storage/disk"
+import type { Task } from "@core/task"
+import type { TaskRunOutcome } from "@core/task/TaskRunOutcome"
+import type {
+	CardParams,
+	CompletionCommitResult,
+	ICardHandle,
+	TranscriptPage,
+} from "@core/task/tools/interfaces/IToolEnvironment"
+import type { ToolEnvironmentFactory } from "@core/task/tools/interfaces/ToolEnvironmentFactory"
+import { type Card, CardKind, CardStatus, type DiracMessage } from "@shared/ExtensionMessage"
 import {
-	isTerminalGoalChildStatus,
 	type GoalChildRecord,
 	type GoalChildRole,
 	type GoalChildStatus,
 	type GoalEvent,
 	type GoalRecord,
+	isTerminalGoalChildStatus,
 } from "@shared/goal"
-import { getSavedApiConversationHistory, getSavedDiracMessages } from "@core/storage/disk"
-import type { Task } from "@core/task"
-import type { TaskRunOutcome } from "@core/task/TaskRunOutcome"
-import type { ToolEnvironmentFactory } from "@core/task/tools/interfaces/ToolEnvironmentFactory"
-import type { CardParams, TranscriptPage } from "@core/task/tools/interfaces/IToolEnvironment"
-import type { ICardHandle } from "@core/task/tools/interfaces/IToolEnvironment"
-import type { CompletionCommitResult } from "@core/task/tools/interfaces/IToolEnvironment"
+import type { DiracStorageMessage } from "@shared/messages/content"
+import type { ResponseArguments } from "@shared/responseTool"
+import { Logger } from "@shared/services/Logger"
+import { DiracAskResponse } from "@shared/WebviewMessage"
 import Mutex from "p-mutex"
 import { ulid } from "ulid"
-import { GoalChildToolEnvironmentFactory, type GoalChildInteractionResult, type GoalChildSurfaceOwner } from "./GoalTaskEnvironment"
-import { GoalStore } from "./GoalStore"
 import { interruptNonterminalGoalChildren } from "./GoalLifecycle"
+import { GoalStore } from "./GoalStore"
+import {
+	type GoalChildInteractionResult,
+	type GoalChildSurfaceOwner,
+	GoalChildToolEnvironmentFactory,
+} from "./GoalTaskEnvironment"
+import { goalTranscriptPage } from "./GoalTranscript"
 
 const DEFAULT_LIST_LIMIT = 20
 const MAX_LIST_LIMIT = 100
@@ -29,9 +38,7 @@ const DEFAULT_TRANSCRIPT_LIMIT = 50
 const MAX_TRANSCRIPT_LIMIT = 200
 
 function nextGoalChildTaskId(goal: GoalRecord, now: number): string {
-	const timestampIds = [goal.id, ...goal.children.map((child) => child.id)]
-		.filter((id) => /^\d+$/.test(id))
-		.map(Number)
+	const timestampIds = [goal.id, ...goal.children.map((child) => child.id)].filter((id) => /^\d+$/.test(id)).map(Number)
 	return String(Math.max(now - 1, ...timestampIds) + 1)
 }
 
@@ -84,7 +91,7 @@ export class GoalTaskHost implements GoalChildSurfaceOwner {
 		private readonly store: GoalStore,
 		private readonly createTask: GoalChildTaskFactory,
 		private readonly interventionDeadlineMs?: number,
-	) { }
+	) {}
 
 	async startTask(input: { taskTitle: string; prompt: string }, role: GoalChildRole = "task"): Promise<GoalChildRecord> {
 		const title = input.taskTitle.trim()
@@ -155,6 +162,7 @@ export class GoalTaskHost implements GoalChildSurfaceOwner {
 			const live: LiveChild = { task, run }
 			this.liveChildren.set(taskId, live)
 			live.settlement = this.observeRun(taskId, run)
+			void live.settlement.catch((error) => Logger.error(`[Goal ${this.goalId}] Child ${taskId} settlement failed:`, error))
 			return record
 		})
 	}
@@ -246,12 +254,7 @@ ${childSummary || "No contained Tasks have been recorded."}
 		})
 	}
 
-	async listTasks(input: {
-		status?: GoalChildStatus[]
-		role?: GoalChildRole
-		cursor?: string
-		limit?: number
-	}) {
+	async listTasks(input: { status?: GoalChildStatus[]; role?: GoalChildRole; cursor?: string; limit?: number }) {
 		const goal = await this.store.read(this.goalId)
 		const now = Date.now()
 		const offset = parseCursor(input.cursor)
@@ -291,7 +294,7 @@ ${childSummary || "No contained Tasks have been recorded."}
 	async cancelTask(taskId: string, reason?: string): Promise<GoalChildRecord> {
 		return this.registryMutex.withLock(async () => {
 			const record = await this.childRecord(taskId)
-			if (isTerminalGoalChildStatus(record.status)) return record
+			if (!this.liveChildren.has(taskId) && isTerminalGoalChildStatus(record.status)) return record
 			const live = this.requireLiveChild(taskId)
 			const failures: unknown[] = []
 			try {
@@ -317,14 +320,8 @@ ${childSummary || "No contained Tasks have been recorded."}
 
 	async readTaskTranscript(taskId: string, cursor?: string, requestedLimit?: number): Promise<TranscriptPage> {
 		await this.childRecord(taskId)
-		const offset = parseCursor(cursor)
 		const limit = boundedLimit(requestedLimit, DEFAULT_TRANSCRIPT_LIMIT, MAX_TRANSCRIPT_LIMIT)
-		const apiEntries = await this.apiTranscript(taskId)
-		const entries = apiEntries.slice(offset, offset + limit)
-		return {
-			entries,
-			...(offset + limit < apiEntries.length ? { nextCursor: String(offset + limit) } : {}),
-		}
+		return goalTranscriptPage(await this.apiTranscript(taskId), cursor, limit)
 	}
 
 	async recordResponse(taskId: string, _response: ResponseArguments): Promise<void> {
@@ -352,11 +349,7 @@ ${childSummary || "No contained Tasks have been recorded."}
 		})
 	}
 
-	async waitForInteraction(
-		taskId: string,
-		params: CardParams,
-		cardHandle: ICardHandle,
-	): Promise<GoalChildInteractionResult> {
+	async waitForInteraction(taskId: string, params: CardParams, cardHandle: ICardHandle): Promise<GoalChildInteractionResult> {
 		this.assertAcceptingWork()
 		const interactionId = ulid()
 		await this.store.update(this.goalId, (goal, now) => {
@@ -524,9 +517,7 @@ ${childSummary || "No contained Tasks have been recorded."}
 				}),
 			)
 			await Promise.all(
-				[...this.liveChildren.entries()].map(async ([taskId, live]) => {
-					const child = await this.childRecord(taskId)
-					if (isTerminalGoalChildStatus(child.status)) return
+				[...this.liveChildren.values()].map(async (live) => {
 					try {
 						await live.task.abortTask({ kind, reason })
 					} catch (error) {
@@ -555,7 +546,6 @@ ${childSummary || "No contained Tasks have been recorded."}
 		const outcome = await run
 		await this.store.update(this.goalId, (goal, now) => {
 			const child = requireChild(goal, taskId)
-			if (isTerminalGoalChildStatus(child.status)) return
 			child.endedAt = now
 			child.pendingInteraction = undefined
 			switch (outcome.kind) {
@@ -679,13 +669,17 @@ ${childSummary || "No contained Tasks have been recorded."}
 				else resolve(result)
 			}
 			const notify = () => finish("events")
-			const timer = this.interventionDeadlineMs === undefined
-				? undefined
-				: setTimeout(() => finish("intervention"), this.interventionDeadlineMs)
+			const timer =
+				this.interventionDeadlineMs === undefined
+					? undefined
+					: setTimeout(() => finish("intervention"), this.interventionDeadlineMs)
 			this.waiter = notify
-			void this.store.read(this.goalId).then((record) => {
-				if (record.events.length > 0 || this.closed) notify()
-			}, (error) => finish("events", error))
+			void this.store.read(this.goalId).then(
+				(record) => {
+					if (record.events.length > 0 || this.closed) notify()
+				},
+				(error) => finish("events", error),
+			)
 		})
 	}
 
@@ -753,7 +747,9 @@ ${childSummary || "No contained Tasks have been recorded."}
 
 	private async assertNoLiveChildren(): Promise<void> {
 		const record = await this.store.read(this.goalId)
-		const active = record.children.filter((child) => !isTerminalGoalChildStatus(child.status))
+		const active = record.children.filter(
+			(child) => this.liveChildren.has(child.id) || !isTerminalGoalChildStatus(child.status),
+		)
 		if (active.length === 0) return
 		throw new GoalTerminalGuardError(
 			`Goal cannot become terminal while contained Tasks are active:\n${active
@@ -794,14 +790,17 @@ function requireChild(goal: GoalRecord, taskId: string): GoalChildRecord {
 }
 
 function nextResponseCursor(goal: GoalRecord, child: GoalChildRecord): number {
-	return Math.max(
-		child.deliveredResponseCursor,
-		...goal.events
-			.filter((event): event is Extract<GoalEvent, { kind: "task_response" }> =>
-				event.kind === "task_response" && event.taskId === child.id,
-			)
-			.map((event) => event.responseCursor),
-	) + 1
+	return (
+		Math.max(
+			child.deliveredResponseCursor,
+			...goal.events
+				.filter(
+					(event): event is Extract<GoalEvent, { kind: "task_response" }> =>
+						event.kind === "task_response" && event.taskId === child.id,
+				)
+				.map((event) => event.responseCursor),
+		) + 1
+	)
 }
 
 function parseCursor(cursor?: string): number {

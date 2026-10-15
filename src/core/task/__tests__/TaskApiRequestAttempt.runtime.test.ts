@@ -31,6 +31,43 @@ function emptyStream() {
 }
 
 describe("TaskApiRequestAttempt request runtime", () => {
+	for (const firstChunk of [
+		{ type: "text", text: "Partial response" },
+		{ type: "tool_calls", tool_call: { function: { id: "tool1", name: "write_to_file", arguments: "{}" } } },
+	]) {
+		it(`does not replay a request after yielding ${firstChunk.type}`, async () => {
+			const sandbox = sinon.createSandbox()
+			try {
+				sandbox.stub(requestBuilder, "buildApiRequestParams").resolves({
+					systemPrompt: "system",
+					toolSnapshot: { nativeTools: [] },
+					contextManagementMetadata: { truncatedConversationHistory: [] },
+					providerInfo: { providerId: "anthropic", model: { id: "model", info: {} }, mode: "act" },
+				} as any)
+				sandbox.stub(steering, "appendQueuedSteeringToNextApiRequest").resolves()
+				const retry = sandbox.stub(requestOutcome, "handleApiRequestError").resolves(true)
+				const failure = new Error("connection reset after output")
+				const createMessage = sandbox.stub().callsFake(async function* () {
+					yield firstChunk
+					throw failure
+				})
+				const ctx = {
+					taskState: new TaskState(),
+					postStateToWebview: async () => {},
+					requestRuntime: { api: { createMessage } },
+					apiConversationManager: { prepareProviderConversationDispatch: async () => ({ messages: [], options: {} }) },
+				} as any
+				const stream = attemptApiRequest(ctx, -1, 0)
+				assert.deepEqual((await stream.next()).value, firstChunk)
+				await assert.rejects(stream.next(), (error) => error === failure)
+				sinon.assert.calledOnce(createMessage)
+				sinon.assert.notCalled(retry)
+			} finally {
+				sandbox.restore()
+			}
+		})
+	}
+
 	it("reuses the exact request runtime and API handler across an automatic retry", async () => {
 		const sandbox = sinon.createSandbox()
 		try {

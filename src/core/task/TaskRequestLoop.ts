@@ -96,14 +96,25 @@ export async function recursivelyMakeDiracRequests(
 			triggerApiRequestIndex: previousApiReqIndex,
 			pendingUserContent: userContent,
 		})
-		if (!continuation) return true
-
-		const compactedContext: DiracContent[] = [{ type: "text", text: continuation }]
-		if (ctx.taskState.pinnedContext) {
-			compactedContext.push({ type: "text", text: ctx.taskState.pinnedContext })
+		if (ctx.taskState.abort) return true
+		if (continuation) {
+			const compactedContext: DiracContent[] = [{ type: "text", text: continuation }]
+			if (ctx.taskState.pinnedContext) {
+				compactedContext.push({ type: "text", text: ctx.taskState.pinnedContext })
+			}
+			userContent = [...compactedContext, ...userContent]
+			shouldCompact = false
+		} else {
+			// The original history is intact. Ask the active model to supply the summary
+			// rather than ending the task or retrying the unavailable Utility model forever.
+			userContent = [
+				...userContent,
+				{
+					type: "text",
+					text: "Utility condensation failed. Condense the conversation using your own summary: call condense with a non-empty context argument; do not delegate condensation to Utility again.",
+				},
+			]
 		}
-		userContent = [...compactedContext, ...userContent]
-		shouldCompact = false
 	}
 	const steeringClaim = await appendQueuedSteeringToUserContent(ctx.steeringContext, userContent)
 
@@ -220,18 +231,17 @@ export async function recursivelyMakeDiracRequests(
 			await ctx.messageStateHandler.saveDiracMessagesAndUpdateHistory()
 
 			const metrics = metricsManager.getMetrics()
+			const interruptedContent = ctx.streamHandler.getOrderedBlocks()
 			await ctx.messageStateHandler.addToApiConversationHistory({
 				role: "assistant",
 				content: [
+					...interruptedContent,
 					{
 						type: "text",
 						text:
-							assistantMessage +
-							`\n\n[${
-								cancelReason === "streaming_failed"
-									? "Response interrupted by API Error"
-									: "Response interrupted by user"
-							}]`,
+							cancelReason === "streaming_failed"
+								? "[Response interrupted by API Error; pending tool calls were not executed]"
+								: "[Response interrupted by user; pending tool calls were not executed]",
 					},
 				],
 				modelInfo,
@@ -245,6 +255,21 @@ export async function recursivelyMakeDiracRequests(
 				},
 				ts: Date.now(),
 			})
+			const interruptedCalls = interruptedContent.filter((block) => block.type === "tool_use")
+			if (interruptedCalls.length) {
+				await ctx.messageStateHandler.addToApiConversationHistory({
+					role: "user",
+					content: interruptedCalls.map((call) => ({
+						type: "tool_result" as const,
+						tool_use_id: call.id,
+						call_id: call.call_id,
+						is_error: true,
+						content: "Not executed: the response stream was interrupted before tool execution.",
+					})),
+					ts: Date.now(),
+				})
+			}
+			await ctx.messageStateHandler.flushPendingWrites()
 
 			telemetryService.captureConversationTurnEvent(
 				ctx.ulid,
