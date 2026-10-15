@@ -1,0 +1,315 @@
+---
+component_id: 6.1.6
+component_name: File Context Tracking & Rule Conditionals
+---
+
+# File Context Tracking & Rule Conditionals
+
+## Component Description
+
+Tracks referenced file context state and evaluates conditional user instruction rules.
+
+---
+
+## Key References:
+
+### /Users/highlands/pools/Development/dirac/src/core/context/context-tracking/FileContextTracker.ts (lines 32-321)
+```
+export class FileContextTracker {
+	private stateStore: FileContextStateStore
+	readonly taskId: string
+
+	// File tracking and watching
+	private fileWatchers = new Map<string, FSWatcher>()
+	private readonly watcherCloser = new ChokidarWatcherCloser()
+	private recentlyModifiedFiles = new Set<string>()
+	private recentlyEditedByDirac = new Set<string>()
+
+	constructor(
+		stateStore: FileContextStateStore,
+		taskId: string,
+		private watcherFactory: WatcherFactory = chokidar.watch,
+	) {
+		this.stateStore = stateStore
+		this.taskId = taskId
+	}
+
+	/**
+	 * File watchers are set up for each file that is tracked in the task metadata.
+	 */
+	async setupFileWatcher(filePath: string) {
+		await this.watcherCloser.closeAll()
+		if (this.fileWatchers.has(filePath)) return
+
+		const cwd = await getCwd()
+		if (!cwd) {
+			Logger.info("No workspace folder available - cannot determine current working directory")
+			return
+		}
+
+		const resolvedFilePath = path.resolve(cwd, filePath)
+		try {
+			const watcher = this.watcherFactory(resolvedFilePath, {
+				persistent: true,
+				ignoreInitial: true,
+				atomic: true,
+				awaitWriteFinish: {
+					stabilityThreshold: 100,
+					pollInterval: 100,
+				},
+			})
+			this.fileWatchers.set(filePath, watcher)
+			watcher.on("error", (error) => {
+				if (this.fileWatchers.get(filePath) !== watcher) return
+				this.fileWatchers.delete(filePath)
+				Logger.error(`File context live tracking is disabled for ${filePath} after watcher failure:`, error)
+				void this.watcherCloser
+					.close(watcher)
+					.catch((closeError) =>
+						Logger.error(`Failed to close disabled file context watcher for ${filePath}:`, closeError),
+					)
+			})
+			watcher.on("change", () => {
+				if (this.fileWatchers.get(filePath) !== watcher) return
+				const isDiracEdit = this.recentlyEditedByDirac.has(filePath)
+				if (isDiracEdit) {
+					this.recentlyEditedByDirac.delete(filePath)
+				} else {
+					this.recentlyModifiedFiles.add(filePath)
+					void this.trackFileContext(filePath, "user_edited")
+				}
+			})
+		} catch (error) {
+			this.fileWatchers.delete(filePath)
+			Logger.error(`File context live tracking could not start and is disabled for ${filePath}:`, error)
+		}
+	}
+
+	/**
+	 * Tracks a file operation in metadata and sets up a watcher for the file
+	 * This is the main entry point for FileContextTracker and is called when a file is passed to Dirac via a tool, mention, or edit.
+	 */
+	async trackFileContext(filePath: string, operation: "read_tool" | "user_edited" | "dirac_edited" | "file_mentioned") {
+		try {
+			const cwd = await getCwd()
+			if (!cwd) {
+				Logger.info("No workspace folder available - cannot determine current working directory")
+				return
+			}
+
+			// Add file to metadata
+			await this.addFileToFileContextTracker(this.taskId, filePath, operation)
+
+			// Set up file watcher for this file
+			await this.setupFileWatcher(filePath)
+		} catch (error) {
+			Logger.error("Failed to track file operation:", error)
+		}
+	}
+
+	/**
+	 * Adds a file to the metadata tracker
+	 * This handles the business logic of determining if the file is new, stale, or active.
+	 * It also updates the metadata with the latest read/edit dates.
+	 */
+	async addFileToFileContextTracker(taskId: string, filePath: string, source: FileMetadataEntry["record_source"]) {
+		try {
+			await updateTaskMetadata(taskId, (metadata) => {
+				const now = Date.now()
+
+				metadata.files_in_context.forEach((entry) => {
+					if (entry.path === filePath && entry.record_state === "active") entry.record_state = "stale"
+				})
+
+				const getLatestDateForField = (path: string, field: keyof FileMetadataEntry): number | null => {
+					const relevantEntries = metadata.files_in_context
+						.filter((entry) => entry.path === path && entry[field])
+						.sort((a, b) => (b[field] as number) - (a[field] as number))
+					return relevantEntries.length > 0 ? (relevantEntries[0][field] as number) : null
+				}
+
+				const newEntry: FileMetadataEntry = {
+					path: filePath,
+					record_state: "active",
+					record_source: source,
+					dirac_read_date: getLatestDateForField(filePath, "dirac_read_date"),
+					dirac_edit_date: getLatestDateForField(filePath, "dirac_edit_date"),
+					user_edit_date: getLatestDateForField(filePath, "user_edit_date"),
+				}
+
+				switch (source) {
+					case "user_edited":
+						newEntry.user_edit_date = now
+						this.recentlyModifiedFiles.add(filePath)
+						break
+					case "dirac_edited":
+						newEntry.dirac_read_date = now
+						newEntry.dirac_edit_date = now
+						break
+					case "read_tool":
+					case "file_mentioned":
+						newEntry.dirac_read_date = now
+						break
+				}
+
+				metadata.files_in_context.push(newEntry)
+			})
+		} catch (error) {
+			Logger.error("Failed to add file to metadata:", error)
+		}
+	}
+
+	/**
+	 * Returns (and then clears) the set of recently modified files
+	 */
+	getAndClearRecentlyModifiedFiles(): string[] {
+		const files = Array.from(this.recentlyModifiedFiles)
+		this.recentlyModifiedFiles.clear()
+		return files
+	}
+
+	/**
+	 * Marks a file as edited by Dirac to prevent false positives in file watchers
+	 */
+	markFileAsEditedByDirac(filePath: string): void {
+		this.recentlyEditedByDirac.add(filePath)
+	}
+
+	/**
+	 * Disposes all file watchers
+	 */
+	async dispose(): Promise<void> {
+		const watchers = Array.from(this.fileWatchers.values())
+		this.fileWatchers.clear()
+		await this.watcherCloser.closeAll(watchers)
+	}
+
+	/**
+	 * Detects files that were edited by Dirac or users after a specific message timestamp
+	 * This is used when restoring checkpoints to warn about potential file content mismatches
+	 */
+	async detectFilesEditedAfterMessage(messageTs: number, deletedMessages: DiracMessage[]): Promise<string[]> {
+		const editedFiles: string[] = []
+
+		try {
+			// Check task metadata for files that were edited by Dirac or users after the message timestamp
+			const taskMetadata = await getTaskMetadata(this.taskId)
+
+			if (taskMetadata?.files_in_context) {
+				for (const fileEntry of taskMetadata.files_in_context) {
+					const diracEditedAfter = fileEntry.dirac_edit_date && fileEntry.dirac_edit_date > messageTs
+					const userEditedAfter = fileEntry.user_edit_date && fileEntry.user_edit_date > messageTs
+
+					if (diracEditedAfter || userEditedAfter) {
+						editedFiles.push(fileEntry.path)
+					}
+				}
+			}
+		} catch (error) {
+			Logger.error("Error checking file context metadata:", error)
+		}
+
+		// Also check deleted task messages for file operations
+		for (const message of deletedMessages) {
+			if (message.content.type === DiracMessageType.CARD && message.content.card.body) {
+				try {
+					const toolData = JSON.parse(message.content.card.body)
+					// Legacy camelCase card `tool` values from persisted history — current producers emit snake_case tool ids.
+					if ((toolData.tool === "editedExistingFile" || toolData.tool === "newFileCreated") && toolData.path) {
+						if (!editedFiles.includes(toolData.path)) {
+							editedFiles.push(toolData.path)
+						}
+					}
+				} catch (error) {
+					Logger.error("Error checking task messages:", error)
+				}
+			}
+		}
+		return [...new Set(editedFiles)]
+	}
+
+	/**
+	 * Stores pending file context warning in workspace state so it persists across task reinitialization
+	 */
+	async storePendingFileContextWarning(files: string[]): Promise<void> {
+		try {
+			const key = `pendingFileContextWarning_${this.taskId}`
+			this.stateStore.setWorkspaceState(key, files)
+		} catch (error) {
+			Logger.error("Error storing pending file context warning:", error)
+		}
+	}
+
+	/**
+	 * Retrieves pending file context warning from workspace state (without clearing it)
+	 */
+	async retrievePendingFileContextWarning(): Promise<string[] | undefined> {
+		try {
+			const key = `pendingFileContextWarning_${this.taskId}`
+			const files = this.stateStore.getWorkspaceStateKey(key) as string[] | undefined
+			return files
+		} catch (error) {
+			Logger.error("Error retrieving pending file context warning:", error)
+		}
+		return undefined
+	}
+
+	/**
+	 * Retrieves and clears pending file context warning from workspace state
+	 */
+	async retrieveAndClearPendingFileContextWarning(): Promise<string[] | undefined> {
+		try {
+			const files = await this.retrievePendingFileContextWarning()
+			if (files) {
+				this.stateStore.setWorkspaceState(`pendingFileContextWarning_${this.taskId}`, undefined)
+				return files
+			}
+		} catch (error) {
+			Logger.error("Error retrieving pending file context warning:", error)
+		}
+		return undefined
+	}
+
+	/**
+	 * Static method to clean up orphaned pending file context warnings at startup
+	 * This removes warnings for tasks that may no longer exist
+	 */
+	static async cleanupOrphanedWarnings(stateStore: FileContextStateStore): Promise<void> {
+		const startTime = Date.now()
+		try {
+			const taskHistory = await readTaskHistoryFromState()
+			const existingTaskIds = new Set(taskHistory.map((task) => task.id))
+			const allStateKeys = Object.keys(stateStore.getAllWorkspaceStateEntries())
+			const pendingWarningKeys = allStateKeys.filter((key) => key.startsWith("pendingFileContextWarning_"))
+
+			const orphanedPendingContextTasks: string[] = []
+			for (const key of pendingWarningKeys) {
+				const taskId = key.replace("pendingFileContextWarning_", "")
+				if (!existingTaskIds.has(taskId)) {
+					orphanedPendingContextTasks.push(key)
+				}
+			}
+
+			if (orphanedPendingContextTasks.length > 0) {
+				for (const key of orphanedPendingContextTasks) {
+					await stateStore.setWorkspaceState(key, undefined)
+				}
+			}
+
+			const duration = Date.now() - startTime
+			Logger.log(
+				`FileContextTracker: Processed ${existingTaskIds.size} tasks, found ${pendingWarningKeys.length} pending warnings, ${orphanedPendingContextTasks.length} orphaned, deleted ${orphanedPendingContextTasks.length}, took ${duration}ms`,
+			)
+		} catch (error) {
+			Logger.error("[FileContextTracker] Error cleaning up orphaned file context warnings:", error)
+		}
+	}
+}
+```
+
+
+## Source Files:
+
+- `src/core/context/context-tracking/FileContextTracker.ts`
+- `src/core/context/instructions/user-instructions/rule-conditionals.ts`
+

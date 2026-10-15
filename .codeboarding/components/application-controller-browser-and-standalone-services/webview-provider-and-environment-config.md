@@ -1,0 +1,431 @@
+---
+component_id: 5.6
+component_name: Webview Provider & Environment Config
+---
+
+# Webview Provider & Environment Config
+
+## Component Description
+
+Manages the Dirac webview lifecycle, developer task commands, and environment and telemetry configuration validation.
+
+---
+
+## Key References:
+
+### /Users/highlands/pools/Development/dirac/src/core/webview/WebviewProvider.ts (lines 12-297)
+```
+export abstract class DiracWebviewProvider {
+	controller: Controller
+
+	private static instance: DiracWebviewProvider | null = null
+
+	constructor(readonly context: DiracExtensionContext) {
+		DiracWebviewProvider.instance = this
+
+		// Create controller with cache service
+		this.controller = new Controller(context)
+	}
+
+	async dispose() {
+		await this.controller.dispose()
+		DiracWebviewProvider.instance = null
+	}
+
+	public static getInstance(): DiracWebviewProvider {
+		if (!DiracWebviewProvider.instance) {
+			throw new Error(
+				"DiracWebviewProvider instance not initialized. Make sure to create a DiracWebviewProvider instance first.",
+			)
+		}
+		return DiracWebviewProvider.instance
+	}
+
+	public static getVisibleInstance(): DiracWebviewProvider | undefined {
+		return DiracWebviewProvider.instance?.isVisible() ? DiracWebviewProvider.instance : undefined
+	}
+
+	public static async disposeAllInstances() {
+		if (DiracWebviewProvider.instance) {
+			await DiracWebviewProvider.instance.dispose()
+		}
+	}
+
+	/**
+	 * Converts a local filesystem path to a URL that can be used within the webview.
+	 *
+	 * @param path - The local path to convert
+	 * @returns A URL that can be used within the webview
+	 */
+	abstract getWebviewUrl(path: string): string
+
+	/**
+	 * Gets the Content Security Policy source for the webview.
+	 *
+	 * @returns The CSP source string to be used in the webview's Content-Security-Policy
+	 */
+	abstract getCspSource(): string
+
+	/**
+	 * Checks if the webview is currently visible to the user.
+	 *
+	 * @returns True if the webview is visible, false otherwise
+	 */
+	abstract isVisible(): boolean
+
+	/**
+	 * Returns host-specific runtime configuration to inject into the webview.
+	 *
+	 * This is the seam through which a host (e.g. VSCode) can forward user
+	 * settings to the webview without going through the gRPC state pipeline.
+	 * The returned object is serialized into `window.__DIRAC_CONFIG__` inside the
+	 * webview HTML. The base implementation injects nothing.
+	 *
+	 * @returns A JSON-serializable config object (empty by default).
+	 */
+	protected getInjectedConfig(): Record<string, unknown> {
+		return {}
+	}
+
+	/**
+	 * Builds a nonce-guarded inline script that exposes the host-injected runtime
+	 * config on `window.__DIRAC_CONFIG__` before the app bundle runs.
+	 *
+	 * @param nonce - The CSP nonce that authorizes inline scripts in the webview.
+	 * @returns An HTML `<script>` tag, or an empty string when there is no config.
+	 */
+	protected getInjectedConfigScript(nonce: string): string {
+		const config = this.getInjectedConfig()
+		if (!config || Object.keys(config).length === 0) {
+			return ""
+		}
+		// JSON.stringify is safe to embed in a script as long as we guard the
+		// closing-tag sequence, which cannot otherwise appear in JSON output.
+		const serialized = JSON.stringify(config).replace(/</g, "\\u003c")
+		return /*html*/ `<script nonce="${nonce}">window.__DIRAC_CONFIG__ = ${serialized};</script>`
+	}
+
+	/**
+	 * Defines and returns the HTML that should be rendered within the webview panel.
+	 *
+	 * @remarks This is also the place where references to the React webview build files
+	 * are created and inserted into the webview HTML.
+	 *
+	 * @returns A template string literal containing the HTML that should be
+	 * rendered within the webview panel
+	 */
+	public getHtmlContent(): string {
+		// Get the local path to main script run in the webview,
+		// then convert it to a url we can use in the webview.
+		// The JS file from the React build output
+		const geistSansUrl = this.getExtensionUrl("webview-ui", "build", "fonts", "Geist[wght].woff2")
+		const geistMonoUrl = this.getExtensionUrl("webview-ui", "build", "fonts", "GeistMono[wght].woff2")
+
+		const scriptUrl = this.getExtensionUrl("webview-ui", "build", "assets", "index.js")
+
+		// The CSS file from the React build output
+		const stylesUrl = this.getExtensionUrl("webview-ui", "build", "assets", "index.css")
+
+		// The codicon font from the React build output
+		// https://github.com/microsoft/vscode-extension-samples/blob/main/webview-codicons-sample/src/extension.ts
+		// we installed this package in the extension so that we can access it how its intended from the extension (the font file is likely bundled in vscode), and we just import the css fileinto our react app we don't have access to it
+		// don't forget to add font-src ${webview.cspSource};
+		const codiconsUrl = this.getExtensionUrl("node_modules", "@vscode", "codicons", "dist", "codicon.css")
+
+		// Use a nonce to only allow a specific script to be run.
+		/*
+                content security policy of your webview to only allow scripts that have a specific nonce
+                create a content security policy meta tag so that only loading scripts with a nonce is allowed
+                As your extension grows you will likely want to add custom styles, fonts, and/or images to your webview. If you do, you will need to update the content security policy meta tag to explicitly allow for these resources. E.g.
+                                <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${webview.cspSource}; font-src ${webview.cspSource}; img-src ${webview.cspSource} https:; script-src 'nonce-${nonce}';">
+        - 'unsafe-inline' is required for styles due to vscode-webview-toolkit's dynamic style injection
+        - since we pass base64 images to the webview, we need to specify img-src ${webview.cspSource} data:;
+
+                in meta tag we add nonce attribute: A cryptographic nonce (only used once) to allow scripts. The server must generate a unique nonce value each time it transmits a policy. It is critical to provide a nonce that cannot be guessed as bypassing a resource's policy is otherwise trivial.
+                */
+		const nonce = getNonce()
+
+		// Tip: Install the es6-string-html VS Code extension to enable code highlighting below
+		return /*html*/ `
+			<!DOCTYPE html>
+			<html lang="en">
+				<head>
+				<meta charset="utf-8">
+				<meta name="viewport" content="width=device-width,initial-scale=1,shrink-to-fit=no">
+				<meta name="theme-color" content="#000000">
+				<style>
+					:root {
+						--geist-sans-url: url("${geistSansUrl}");
+						--geist-mono-url: url("${geistMonoUrl}");
+					}
+				</style>
+				<link rel="stylesheet" type="text/css" href="${stylesUrl}">
+				<link href="${codiconsUrl}" rel="stylesheet" />
+				<meta http-equiv="Content-Security-Policy" content="default-src 'none';
+					connect-src https://*.posthog.com https://*.dirac.run; 
+					font-src ${this.getCspSource()} data:; 
+					style-src ${this.getCspSource()} 'unsafe-inline'; 
+					img-src ${this.getCspSource()} https: data:; 
+					script-src 'nonce-${nonce}' 'unsafe-eval';">
+				<title>Dirac</title>
+			</head>
+			<body>
+				<noscript>You need to enable JavaScript to run this app.</noscript>
+				<div id="root"></div>
+				${this.getInjectedConfigScript(nonce)}
+				<script type="module" nonce="${nonce}" src="${scriptUrl}"></script>
+			</body>
+		</html>
+		`
+	}
+
+	/**
+	 * Reads the Vite dev server port from the generated port file to avoid conflicts
+	 * Returns a Promise that resolves to the port number
+	 * If the file doesn't exist or can't be read, it resolves to the default port
+	 */
+	private getDevServerPort(): Promise<number> {
+		const DEFAULT_PORT = 25463
+
+		const portFilePath = path.join(__dirname, "..", "webview-ui", ".vite-port")
+
+		return readFile(portFilePath, "utf8")
+			.then((portFile) => {
+				const port = Number.parseInt(portFile.trim()) || DEFAULT_PORT
+				Logger.info(`[getDevServerPort] Using dev server port ${port} from .vite-port file`)
+
+				return port
+			})
+			.catch((_err) => {
+				Logger.warn(
+					`[getDevServerPort] Port file not found or couldn't be read at ${portFilePath}, using default port: ${DEFAULT_PORT}`,
+				)
+				return DEFAULT_PORT
+			})
+	}
+
+	/**
+	 * Connects to the local Vite dev server to allow HMR, with fallback to the bundled assets
+	 *
+	 * @param webview A reference to the extension webview
+	 * @returns A template string literal containing the HTML that should be
+	 * rendered within the webview panel
+	 */
+	protected async getHMRHtmlContent(): Promise<string> {
+		const localPort = await this.getDevServerPort()
+		const localServerUrl = `localhost:${localPort}`
+
+		// Check if local dev server is running.
+		try {
+			await axios.get(`http://${localServerUrl}`)
+		} catch (_error) {
+			// Only show the error message when in development mode.
+			if (isDev()) {
+				HostProvider.window.showMessage({
+					type: ShowMessageType.ERROR,
+					message:
+						"Dirac: Local webview dev server is not running, HMR will not work. Please run 'npm run dev:webview' before launching the extension to enable HMR. Using bundled assets.",
+				})
+			}
+
+			return this.getHtmlContent()
+		}
+
+		const nonce = getNonce()
+		const geistSansUrl = this.getExtensionUrl("webview-ui", "public", "fonts", "Geist[wght].woff2")
+		const geistMonoUrl = this.getExtensionUrl("webview-ui", "public", "fonts", "GeistMono[wght].woff2")
+
+		const stylesUrl = this.getExtensionUrl("webview-ui", "build", "assets", "index.css")
+		const codiconsUrl = this.getExtensionUrl("node_modules", "@vscode", "codicons", "dist", "codicon.css")
+
+		const scriptEntrypoint = "src/app/main.tsx"
+		const scriptUrl = `http://${localServerUrl}/${scriptEntrypoint}`
+
+		const reactRefresh = /*html*/ `
+			<script nonce="${nonce}" type="module">
+				import RefreshRuntime from "http://${localServerUrl}/@react-refresh"
+				RefreshRuntime.injectIntoGlobalHook(window)
+				window.$RefreshReg$ = () => {}
+				window.$RefreshSig$ = () => (type) => type
+				window.__vite_plugin_react_preamble_installed__ = true
+			</script>
+		`
+
+		const csp = [
+			"default-src 'none'",
+			`font-src ${this.getCspSource()}`,
+			`style-src ${this.getCspSource()} 'unsafe-inline' https://* http://${localServerUrl} http://0.0.0.0:${localPort}`,
+			`img-src ${this.getCspSource()} https: data:`,
+			`script-src 'unsafe-eval' https://* http://${localServerUrl} http://0.0.0.0:${localPort} 'nonce-${nonce}'`,
+			`connect-src https://* ws://${localServerUrl} ws://0.0.0.0:${localPort} http://${localServerUrl} http://0.0.0.0:${localPort}`,
+		]
+
+		return /*html*/ `
+			<!DOCTYPE html>
+			<html lang="en">
+				<head>
+					${isDev() ? '<script src="http://localhost:8097"></script>' : ""}
+					<meta charset="utf-8">
+					<meta name="viewport" content="width=device-width,initial-scale=1,shrink-to-fit=no">
+					<meta http-equiv="Content-Security-Policy" content="${csp.join("; ")}">
+					<link rel="stylesheet" type="text/css" href="${stylesUrl}">
+					<link href="${codiconsUrl}" rel="stylesheet" />
+					<title>Dirac</title>
+					<style>
+						:root {
+							--geist-sans-url: url("${geistSansUrl}");
+							--geist-mono-url: url("${geistMonoUrl}");
+						}
+					</style>
+				</head>
+				<body>
+					<div id="root"></div>
+					${reactRefresh}
+					${this.getInjectedConfigScript(nonce)}
+					<script type="module" src="${scriptUrl}"></script>
+				</body>
+			</html>
+		`
+	}
+	/**
+	 * A helper function which will get the webview URL of a given file or resource in the extension directory.
+	 *
+	 * @remarks This URL can be used within a webview's HTML as a link to the
+	 * given file/resource.
+	 *
+	 * @param pathList An array of strings representing the path to a file/resource in the extension directory.
+	 * @returns A URL pointing to the file/resource
+	 */
+	private getExtensionUrl(...pathList: string[]): string {
+		const assetPath = path.resolve(HostProvider.get().extensionFsPath, ...pathList)
+		return this.getWebviewUrl(assetPath)
+	}
+}
+```
+
+### /Users/highlands/pools/Development/dirac/src/dev/commands/tasks.ts (lines 14-112)
+```
+export function registerTaskCommands(controller: Controller): vscode.Disposable[] {
+	return [
+		vscode.commands.registerCommand("dirac.dev.createTestTasks", async () => {
+			const count = (
+				await HostProvider.window.showInputBox({
+					title: "Test Tasks",
+					prompt: "How many test tasks to create?",
+					value: "10",
+				})
+			).response
+
+			if (count === undefined) {
+				return
+			}
+
+			const tasksCount = Number.parseInt(count)
+			const globalStoragePath = HostProvider.get().globalStorageFsPath
+			const tasksDir = path.join(globalStoragePath, "tasks")
+
+			vscode.window.withProgress(
+				{
+					location: vscode.ProgressLocation.Notification,
+					title: `Creating ${tasksCount} test tasks...`,
+					cancellable: false,
+				},
+				async (progress) => {
+					for (let i = 0; i < tasksCount; i++) {
+						// Generate a timestamp to ensure unique IDs
+						const timestamp = Date.now() + i
+						const taskId = `${timestamp}`
+						const taskDir = path.join(tasksDir, taskId)
+
+						await fs.mkdir(taskDir, { recursive: true })
+
+						// Generate a task prompt
+						const taskName = getRandomTaskName(i)
+
+						// Create realistic message sequence
+						const messages = createRealisticMessageSequence(timestamp, taskName, i)
+
+						// Create API conversation history file
+						await fs.writeFile(
+							path.join(taskDir, "api_conversation_history.json"),
+							JSON.stringify(
+								[
+									{
+										role: "user",
+										content: [{ type: "text", text: `<task>\n${taskName}\n</task>` }],
+									},
+									{
+										role: "assistant",
+										content: [
+											{
+												type: "text",
+												text: `I'll help you ${taskName.toLowerCase()}. Let me break this down into steps.`,
+											},
+										],
+									},
+								],
+								null,
+								2,
+							),
+						)
+
+						// Create UI messages file with realistic message sequence
+						await fs.writeFile(path.join(taskDir, "ui_messages.json"), JSON.stringify(messages, null, 2))
+
+						// Create history item to be shown in the HistoryView
+						const historyItem: HistoryItem = {
+							id: taskId,
+							ts: timestamp,
+							task: taskName,
+							tokensIn: Math.floor(100 + Math.random() * 900), // Random token count from 100-1000
+							tokensOut: Math.floor(200 + Math.random() * 1800), // Random token count from 200-2000
+							cacheWrites: i % 3 === 0 ? Math.floor(50 + Math.random() * 150) : undefined, // Only add cache writes to every 3rd task
+							cacheReads: i % 3 === 0 ? Math.floor(20 + Math.random() * 80) : undefined, // Only add cache reads to every 3rd task
+							totalCost: Number((0.0001 + Math.random() * 0.01).toFixed(5)), // Random cost from $0.0001 to $0.0101
+							size: 1024 * 1024, // 1MB
+						}
+
+						// Update task history in global state
+						await controller.updateTaskHistory(historyItem)
+
+						progress.report({ increment: 100 / tasksCount })
+					}
+
+					// Update the UI to show the new tasks
+					await controller.postStateToWebview()
+
+					const message = `Created ${tasksCount} test tasks`
+					HostProvider.window.showMessage({
+						type: ShowMessageType.INFORMATION,
+						message,
+					})
+				},
+			)
+		}),
+	]
+}
+```
+
+### /Users/highlands/pools/Development/dirac/src/shared/services/config/dirac-telemetry-config.ts (lines 50-61)
+```
+export function isDiracTelemetryConfigValid(config: DiracTelemetryClientConfig): config is DiracTelemetryClientValidConfig {
+	// Allow invalid config in test environment to enable mocking and stubbing
+	if (isTestEnv) {
+		return false
+	}
+	return (
+		typeof config.apiKey === "string" &&
+		typeof config.errorTrackingApiKey === "string" &&
+		typeof config.host === "string" &&
+		typeof config.uiHost === "string"
+	)
+}
+```
+
+
+## Source Files:
+
+- `src/core/webview/WebviewProvider.ts`
+- `src/dev/commands/tasks.ts`
+- `src/shared/services/config/dirac-telemetry-config.ts`
+

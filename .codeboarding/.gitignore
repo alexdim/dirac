@@ -1,0 +1,6 @@
+logs/
+cache/
+health/
+static_analysis.lock
+static_analysis.pkl
+static_analysis.sha

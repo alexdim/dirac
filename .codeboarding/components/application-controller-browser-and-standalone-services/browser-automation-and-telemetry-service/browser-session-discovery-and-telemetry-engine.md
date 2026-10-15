@@ -1,0 +1,305 @@
+---
+component_id: 5.1.2
+component_name: Browser Session, Discovery & Telemetry Engine
+---
+
+# Browser Session, Discovery & Telemetry Engine
+
+## Component Description
+
+Manages Chrome instance discovery, remote and local browser sessions, URL content fetching, and associated telemetry reporting.
+
+---
+
+## Key References:
+
+### /Users/highlands/pools/Development/dirac/src/services/browser/BrowserDiscovery.ts (lines 59-72)
+```
+export async function discoverChromeInstances(): Promise<string | null> {
+	// Only try localhost
+	const ipAddresses = ["localhost", "127.0.0.1"]
+
+	// Try connecting to each IP address
+	for (const ip of ipAddresses) {
+		const connection = await tryConnect(ip)
+		if (connection) {
+			return `http://${connection.ip}:9222`
+		}
+	}
+
+	return null
+}
+```
+
+### /Users/highlands/pools/Development/dirac/src/services/browser/BrowserSession.ts (lines 21-270)
+```
+export class BrowserSession {
+	private connection: BrowserConnectionManager
+	private currentMousePosition?: string
+	private useWebp: boolean
+
+	constructor(settingsSource: StateManager | BrowserSettings | (() => BrowserSettings), useWebp = true) {
+		this.connection = new BrowserConnectionManager(settingsSource)
+		this.useWebp = useWebp
+	}
+
+	// --- connection lifecycle (delegated) ---
+
+	async testConnection(host: string): Promise<{ success: boolean; message: string; endpoint?: string }> {
+		return this.connection.testConnection(host)
+	}
+
+	getConnectionInfo(): BrowserConnectionInfo {
+		return this.connection.getConnectionInfo()
+	}
+
+	async getDetectedChromePath(): Promise<{ path: string; isBundled: boolean }> {
+		return this.connection.getDetectedChromePath()
+	}
+
+	async relaunchChromeDebugMode(controller: Controller): Promise<string> {
+		return this.connection.relaunchChromeDebugMode(controller)
+	}
+
+	async launchBrowser() {
+		await this.connection.launchBrowser()
+	}
+
+	async launchLocalBrowser() {
+		await this.connection.launchLocalBrowser()
+	}
+
+	async launchRemoteBrowser() {
+		await this.connection.launchRemoteBrowser()
+	}
+
+	async closeBrowser(): Promise<BrowserActionResult> {
+		try {
+			return await this.connection.closeBrowser()
+		} finally {
+			// Reset mouse state even if closeBrowser throws so a reused session doesn't report a stale position.
+			this.currentMousePosition = undefined
+		}
+	}
+
+	async dispose() {
+		await this.connection.dispose()
+	}
+
+	setUlid(ulid: string) {
+		this.connection.setUlid(ulid)
+	}
+
+	// --- action execution ---
+
+	async executePageAction(action: (page: Page) => Promise<void>): Promise<BrowserActionResult> {
+		const page = this.connection.getPage()
+		if (!page) {
+			throw new Error(
+				"Browser is not launched. This may occur if the browser was automatically closed by a non-`browser_action` tool.",
+			)
+		}
+
+		const logs: string[] = []
+		let lastLogTs = Date.now()
+
+		const consoleListener = (msg: ConsoleMessage) => {
+			if (msg.type() === "log") {
+				logs.push(msg.text())
+			} else {
+				logs.push(`[${msg.type()}] ${msg.text()}`)
+			}
+			lastLogTs = Date.now()
+		}
+
+		const errorListener = (err: Error) => {
+			logs.push(`[Page Error] ${err.toString()}`)
+			lastLogTs = Date.now()
+		}
+
+		page.on("console", consoleListener)
+		page.on("pageerror", errorListener)
+
+		const isRemote = this.connection.getIsConnectedToRemote()
+		const ulid = this.connection.getUlid()
+
+		try {
+			await action(page)
+		} catch (err) {
+			const errorMessage = getErrorMessage(err)
+
+			if (!(err instanceof TimeoutError)) {
+				logs.push(`[Error] ${errorMessage}`)
+				if (ulid) {
+					telemetryService.captureBrowserError(ulid, "browser_action_error", errorMessage, {
+						isRemote,
+						action: this.connection.getLastAction(),
+					})
+				}
+			}
+		}
+
+		try {
+			// Wait for console inactivity, with a timeout
+			await pWaitFor(() => Date.now() - lastLogTs >= 500, {
+				timeout: 3_000,
+				interval: 100,
+			}).catch(() => {})
+
+			const options: ScreenshotOptions = { encoding: "base64" }
+			const screenshotType = this.useWebp ? "webp" : "png"
+			let screenshotBase64 = await page.screenshot({ ...options, type: screenshotType })
+			let screenshot = `data:image/${screenshotType};base64,${screenshotBase64}`
+
+			if (!screenshotBase64) {
+				// retry screenshot as png regardless of initial type
+				Logger.info(`${screenshotType} screenshot failed, trying png`)
+				screenshotBase64 = await page.screenshot({ ...options, type: "png" })
+				screenshot = `data:image/png;base64,${screenshotBase64}`
+			}
+
+			if (!screenshotBase64) {
+				if (ulid) {
+					telemetryService.captureBrowserError(ulid, "screenshot_error", "Failed to take screenshot", {
+						isRemote,
+						action: this.connection.getLastAction(),
+					})
+				}
+				throw new Error("Failed to take screenshot.")
+			}
+
+			return {
+				screenshot,
+				logs: logs.join("\n"),
+				currentUrl: page.url(),
+				currentMousePosition: this.currentMousePosition,
+			}
+		} finally {
+			// page.removeAllListeners() crashes the page; just remove our listeners
+			page.off("console", consoleListener)
+			page.off("pageerror", errorListener)
+		}
+	}
+
+	async navigateToUrl(url: string): Promise<BrowserActionResult> {
+		this.connection.trackAction(`navigate: url`)
+		return this.executePageAction(async (page) => {
+			// networkidle2 isn't good enough since page may take some time to load
+			await page.goto(url, {
+				timeout: 7_000,
+				waitUntil: ["domcontentloaded", "networkidle2"],
+			})
+			await this.waitTillHTMLStable(page) // in case the page is loading more resources
+		})
+	}
+
+	// page.goto { waitUntil: "networkidle0" } may not ever resolve; waiting ensures js has loaded
+	// https://stackoverflow.com/questions/52497252/puppeteer-wait-until-page-is-completely-loaded/61304202#61304202
+	private async waitTillHTMLStable(page: Page, timeout = 5_000) {
+		const checkDurationMsecs = 500
+		const maxChecks = timeout / checkDurationMsecs
+		let lastHTMLSize = 0
+		let checkCounts = 1
+		let countStableSizeIterations = 0
+		const minStableSizeIterations = 3
+
+		while (checkCounts++ <= maxChecks) {
+			const html = await page.content()
+			const currentHTMLSize = html.length
+			Logger.info("last: ", lastHTMLSize, " <> curr: ", currentHTMLSize)
+
+			if (lastHTMLSize !== 0 && currentHTMLSize === lastHTMLSize) {
+				countStableSizeIterations++
+			} else {
+				countStableSizeIterations = 0 // reset the counter
+			}
+
+			if (countStableSizeIterations >= minStableSizeIterations) {
+				Logger.info("Page rendered fully...")
+				break
+			}
+
+			lastHTMLSize = currentHTMLSize
+			await setTimeoutPromise(checkDurationMsecs)
+		}
+	}
+
+	async click(coordinate: string): Promise<BrowserActionResult> {
+		this.connection.trackAction(`click: coordinate`)
+		const [x, y] = coordinate.split(",").map(Number)
+		return this.executePageAction(async (page) => {
+			// monitor network activity to decide whether to wait for navigation
+			let hasNetworkActivity = false
+			const requestListener = () => {
+				hasNetworkActivity = true
+			}
+			page.on("request", requestListener)
+
+			try {
+				await page.mouse.click(x, y)
+				this.currentMousePosition = coordinate
+
+				await setTimeoutPromise(100)
+
+				if (hasNetworkActivity) {
+					await page
+						.waitForNavigation({
+							waitUntil: ["domcontentloaded", "networkidle2"],
+							timeout: 7000,
+						})
+						.catch(() => {})
+					await this.waitTillHTMLStable(page)
+				}
+			} finally {
+				page.off("request", requestListener)
+			}
+		})
+	}
+
+	async type(text: string): Promise<BrowserActionResult> {
+		this.connection.trackAction(`type:${text.length} chars`)
+		return this.executePageAction(async (page) => {
+			await page.keyboard.type(text)
+		})
+	}
+
+	async scrollDown(): Promise<BrowserActionResult> {
+		this.connection.trackAction("scrollDown")
+		return this.executePageAction(async (page) => {
+			await page.evaluate(() => {
+				window.scrollBy({ top: 600, behavior: "auto" })
+			})
+			await setTimeoutPromise(300)
+		})
+	}
+
+	async scrollUp(): Promise<BrowserActionResult> {
+		this.connection.trackAction("scrollUp")
+		return this.executePageAction(async (page) => {
+			await page.evaluate(() => {
+				window.scrollBy({ top: -600, behavior: "auto" })
+			})
+			await setTimeoutPromise(300)
+		})
+	}
+}
+```
+
+### /Users/highlands/pools/Development/dirac/src/services/browser/BrowserSession.ts (lines 33-35)
+```
+	async testConnection(host: string): Promise<{ success: boolean; message: string; endpoint?: string }> {
+		return this.connection.testConnection(host)
+	}
+```
+
+
+## Source Files:
+
+- `src/services/browser/BrowserConnectionManager.ts`
+- `src/services/browser/BrowserDiscovery.ts`
+- `src/services/browser/BrowserSession.ts`
+- `src/services/browser/UrlContentFetcher.ts`
+- `src/services/browser/utils.ts`
+- `src/services/telemetry/BrowserTelemetry.ts`
+- `src/services/telemetry/TelemetryService.ts`
+

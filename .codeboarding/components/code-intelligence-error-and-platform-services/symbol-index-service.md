@@ -1,0 +1,697 @@
+---
+component_id: 7.6
+component_name: Symbol Index Service
+---
+
+# Symbol Index Service
+
+## Component Description
+
+Maintains the project symbol index database, stages source files for indexing, and tracks symbol index telemetry.
+
+---
+
+## Key References:
+
+### /Users/highlands/pools/Development/dirac/src/services/symbol-index/SymbolIndexService.ts (lines 46-611)
+```
+export class SymbolIndexService {
+	private static instance: SymbolIndexService | null = null
+	private static readonly DEFAULT_MAX_FILE_SIZE_BYTES = 1024 * 1024
+	private static readonly MAX_FIRST_LINE_LENGTH = 5000
+	private static readonly MAX_AVERAGE_LINE_LENGTH = 2000
+	private static readonly INDEX_DIR = ".dirac-cache"
+	private static readonly INDEX_FILE = "symbol-index.db"
+	private static readonly LEGACY_INDEX_DIR = ".dirac-symbol-index"
+	private static readonly LEGACY_INDEX_FILE = "data.db"
+	private static readonly MAX_STALE_LOOKUP_PASSES = 10
+	private static readonly REMOVAL_BATCH_SIZE = 100
+	private static readonly INDEXING_BATCH_SIZE = 10
+	private static readonly PROGRESS_LOG_BATCH_INTERVAL = 10
+	private static readonly COMPACTION_MIN_RECLAIMABLE_BYTES = 64 * 1024 * 1024
+	private static readonly COMPACTION_MIN_FREE_RATIO = 0.25
+
+	private projectRoot = ""
+	private db: SymbolIndexDatabase | null = null
+	private eligibility: SymbolIndexEligibility | null = null
+	private runtime: SymbolIndexRuntime | null = null
+	private retryTimeout: NodeJS.Timeout | null = null
+	private isScanningInternal = false
+	private isPersistenceEnabled = true
+	private skipRepoCheck = false
+	private maxFileSizeBytes = SymbolIndexService.DEFAULT_MAX_FILE_SIZE_BYTES
+	private operationTail: Promise<void> = Promise.resolve()
+	private activeReconciliation: Promise<void> | null = null
+	private queuedReconciliationReason: string | null = null
+	private eligiblePaths = new Set<string>()
+	private externalControlPaths = new Set<string>()
+	private disposed = false
+
+	private constructor() {}
+
+	public static getInstance(): SymbolIndexService {
+		if (!SymbolIndexService.instance) SymbolIndexService.instance = new SymbolIndexService()
+		return SymbolIndexService.instance
+	}
+
+	public getProjectRoot(): string {
+		return this.projectRoot
+	}
+
+	public isScanning(): boolean {
+		return this.isScanningInternal
+	}
+
+	public setSkipRepoCheck(skip: boolean): void {
+		this.skipRepoCheck = skip
+	}
+
+	public setPersistenceEnabled(enabled: boolean): void {
+		this.isPersistenceEnabled = enabled
+	}
+
+	public setMaxFileSizeBytes(maxFileSizeBytes: number): void {
+		this.maxFileSizeBytes = maxFileSizeBytes
+	}
+
+	public shouldIndexPath(absolutePath: string): boolean {
+		if (!this.projectRoot) return false
+		return (this.eligibility ?? new SymbolIndexEligibility(this.projectRoot)).admitsAbsolutePath(absolutePath)
+	}
+
+	public async initialize(projectRoot: string): Promise<void> {
+		Logger.info(`[SymbolIndexService] Initializing for root: ${projectRoot}`)
+		if (this.projectRoot === projectRoot && this.db) return
+		if (!this.skipRepoCheck && !(await this.isRepository(projectRoot))) {
+			Logger.info(`[SymbolIndexService] ${projectRoot} is not a repository; symbol indexing is disabled`)
+			return
+		}
+
+		this.disposed = false
+		await this.resetProjectDatabase(projectRoot)
+		if (this.disposed) return
+
+		this.runtime = new SymbolIndexRuntime(projectRoot, {
+			admitsPath: (absolutePath) => this.shouldIndexPath(absolutePath),
+			excludesPath: (absolutePath) => this.eligibility?.excludesAbsolutePath(absolutePath) ?? true,
+			isControlPath: (absolutePath) => this.eligibility?.isControlPath(absolutePath) ?? false,
+			applyWatcherEvents: (events) => this.applyWatcherEvents(events),
+			requestReconciliation: (reason) => this.requestReconciliation(reason),
+		})
+		try {
+			const controlPaths = await this.eligibility!.prepareControlPaths()
+			this.externalControlPaths = controlPaths.externalControlPaths
+			this.runtime.refreshExternalControlPaths(this.externalControlPaths)
+		} catch (error) {
+			SymbolIndexTelemetry.recordFailure()
+			Logger.error("[SymbolIndexService] Failed to prepare eligibility control watchers", error)
+		}
+		await this.requestReconciliation("initial")
+	}
+
+	public async updateFile(absolutePath: string): Promise<void> {
+		await this.applyWatcherEvents([{ absolutePath, kind: "change" }])
+	}
+
+	public async removeFile(absolutePath: string): Promise<void> {
+		await this.applyWatcherEvents([{ absolutePath, kind: "remove" }])
+	}
+
+	public requestFullRescan(): void {
+		void this.requestReconciliation("requested rescan")
+	}
+
+	public requestReconciliation(reason: string): Promise<void> {
+		if (!this.db || !this.eligibility || this.disposed) return Promise.resolve()
+		if (this.activeReconciliation) {
+			this.queuedReconciliationReason = reason
+			return this.activeReconciliation
+		}
+
+		const reconciliation = this.enqueueOperation(() => this.runReconciliationQueue(reason))
+		this.activeReconciliation = reconciliation.finally(() => {
+			this.activeReconciliation = null
+		})
+		return this.activeReconciliation
+	}
+
+	public dispose(): void {
+		this.disposed = true
+		if (this.retryTimeout) clearTimeout(this.retryTimeout)
+		this.retryTimeout = null
+		if (this.runtime) void this.runtime.dispose()
+		this.runtime = null
+
+		this.db?.close()
+		this.db = null
+		SymbolIndexTelemetry.logSummary("deactivation")
+	}
+
+	public getSymbols(symbol: string, type?: "definition" | "reference", limit?: number): SymbolLocation[] {
+		if (!this.db) return []
+		let locations: SymbolLocation[] = []
+		for (let pass = 0; pass < SymbolIndexService.MAX_STALE_LOOKUP_PASSES; pass++) {
+			locations = this.db.getSymbolsByName(symbol, type, limit)
+			const stalePaths = this.findMissingResultPaths(locations)
+			if (stalePaths.length === 0) return locations
+			if (this.removeStaleIndexedPaths(stalePaths, "symbol lookup") === 0) return locations
+		}
+		return locations
+	}
+
+	public getReferences(symbol: string, limit?: number): SymbolLocation[] {
+		return this.getSymbols(symbol, "reference", limit)
+	}
+
+	public getDefinitions(symbol: string, limit?: number): SymbolLocation[] {
+		return this.getSymbols(symbol, "definition", limit)
+	}
+
+	private async runReconciliationQueue(initialReason: string): Promise<void> {
+		let reason: string | null = initialReason
+		while (reason) {
+			try {
+				await this.reconcile(reason)
+			} catch (error) {
+				SymbolIndexTelemetry.recordFailure()
+				Logger.error(`[SymbolIndexService] Reconciliation failed (${reason}); completed batches retained`, error)
+			}
+			reason = this.queuedReconciliationReason
+			this.queuedReconciliationReason = null
+		}
+	}
+
+	private async reconcile(reason: string): Promise<boolean> {
+		const db = this.db
+		const eligibility = this.eligibility
+		if (!db || !eligibility || this.disposed) return false
+
+		this.isScanningInternal = true
+		try {
+			const eligibilityResult = await eligibility.enumerate()
+			if (this.disposed || this.db !== db) return false
+			const eligiblePaths = eligibilityResult.paths
+			const existingMetadata = db.getAllFilesMetadata()
+			const ineligiblePaths = [...existingMetadata.keys()].filter((relPath) => !eligiblePaths.has(relPath))
+			const candidates: FileCandidate[] = []
+			const rejectedPaths: string[] = []
+
+			for (const relPath of eligiblePaths) {
+				const absolutePath = path.join(this.projectRoot, relPath)
+				try {
+					const stats = await fs.stat(absolutePath)
+					if (!stats.isFile()) {
+						rejectedPaths.push(relPath)
+						continue
+					}
+					const existing = existingMetadata.get(relPath)
+					if (
+						existing &&
+						Math.floor(existing.mtime / 1_000) === Math.floor(stats.mtimeMs / 1_000) &&
+						existing.size === stats.size
+					)
+						continue
+					candidates.push({ absolutePath, relPath })
+				} catch (error) {
+					if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error
+					rejectedPaths.push(relPath)
+				}
+			}
+
+			const removalPaths = [...ineligiblePaths, ...rejectedPaths]
+			const removedBeforeParsing = await this.applyRemovalBatches(db, removalPaths, reason)
+			if (this.disposed || this.db !== db) return removedBeforeParsing > 0
+			const candidateResult = await this.applyCandidateBatches(db, candidates, reason)
+			if (this.disposed || this.db !== db) return removedBeforeParsing > 0 || candidateResult.changed
+
+			this.eligiblePaths = eligiblePaths
+			this.externalControlPaths = eligibilityResult.externalControlPaths
+			if (candidateResult.retryRequested) this.rescheduleChangedDuringRead()
+			this.runtime?.refreshExternalControlPaths(this.externalControlPaths)
+			const removed = removedBeforeParsing + candidateResult.removed
+			this.compactDatabaseIfNeeded(db, reason)
+			SymbolIndexTelemetry.recordReconciliation(eligiblePaths.size, removed, candidateResult.replaced)
+			return removed > 0 || candidateResult.changed
+		} finally {
+			this.isScanningInternal = false
+		}
+	}
+
+	private enqueueOperation(operation: () => Promise<void>): Promise<void> {
+		const queuedOperation = this.operationTail.then(operation)
+		this.operationTail = queuedOperation.catch(() => {})
+		return queuedOperation
+	}
+
+	private applyWatcherEvents(events: readonly SymbolIndexWatcherEvent[]): Promise<void> {
+		if (events.length === 0) return Promise.resolve()
+		return this.enqueueOperation(() => this.applyWatcherEventsSerially(events))
+	}
+
+	private async applyWatcherEventsSerially(events: readonly SymbolIndexWatcherEvent[]): Promise<void> {
+		const db = this.db
+		const eligibility = this.eligibility
+		if (!db || !eligibility || this.disposed) return
+		SymbolIndexTelemetry.recordUpdateRun()
+
+		const removedPaths = new Set<string>()
+		const removedPathHints = new Set<string>()
+		const candidatePaths = new Map<string, FileCandidate>()
+		let directoryChangeDetected = false
+
+		for (const event of events) {
+			const relPath = path.normalize(path.relative(this.projectRoot, event.absolutePath))
+			if (relPath === ".." || relPath.startsWith(`..${path.sep}`) || path.isAbsolute(relPath)) {
+				SymbolIndexTelemetry.recordWatcherRejected()
+				continue
+			}
+
+			if (event.kind === "remove") {
+				removedPathHints.add(relPath)
+				continue
+			}
+
+			let stats
+			try {
+				stats = await fs.stat(event.absolutePath)
+			} catch (error) {
+				if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error
+				removedPathHints.add(relPath)
+				continue
+			}
+
+			if (stats.isDirectory()) {
+				directoryChangeDetected = true
+				continue
+			}
+			if (!stats.isFile() || !eligibility.admitsRelativePath(relPath)) {
+				if (this.eligiblePaths.has(relPath)) removedPaths.add(relPath)
+				SymbolIndexTelemetry.recordWatcherRejected()
+				continue
+			}
+			candidatePaths.set(relPath, { absolutePath: event.absolutePath, relPath })
+		}
+
+		this.collectRemovedPaths(removedPathHints, removedPaths)
+
+		const eligibleAbsolutePaths = await eligibility.filterAbsolutePaths(
+			[...candidatePaths.values()].map((candidate) => candidate.absolutePath),
+		)
+		const eligibleCandidates: FileCandidate[] = []
+		for (const candidate of candidatePaths.values()) {
+			if (eligibleAbsolutePaths.has(candidate.absolutePath)) eligibleCandidates.push(candidate)
+			else removedPaths.add(candidate.relPath)
+		}
+
+		await this.applyRemovalBatches(db, [...removedPaths], "watcher update")
+		if (this.disposed || this.db !== db) return
+		const candidateResult = await this.applyCandidateBatches(db, eligibleCandidates, "watcher update")
+		if (this.disposed || this.db !== db) return
+
+		for (const relPath of removedPaths) this.eligiblePaths.delete(relPath)
+		for (const candidate of eligibleCandidates) this.eligiblePaths.add(candidate.relPath)
+		if (candidateResult.retryRequested) this.rescheduleChangedDuringRead()
+		if (directoryChangeDetected) void this.requestReconciliation("watcher directory change")
+	}
+
+	private collectRemovedPaths(relativePathHints: ReadonlySet<string>, removedPaths: Set<string>): void {
+		const possibleDirectoryPaths = new Set<string>()
+		for (const relativePath of relativePathHints) {
+			if (this.eligiblePaths.has(relativePath)) removedPaths.add(relativePath)
+			else possibleDirectoryPaths.add(relativePath)
+		}
+		if (possibleDirectoryPaths.size === 0) return
+		if (possibleDirectoryPaths.has(".")) {
+			for (const eligiblePath of this.eligiblePaths) removedPaths.add(eligiblePath)
+			return
+		}
+
+		for (const eligiblePath of this.eligiblePaths) {
+			let ancestorPath = path.dirname(eligiblePath)
+			while (ancestorPath !== ".") {
+				if (possibleDirectoryPaths.has(ancestorPath)) {
+					removedPaths.add(eligiblePath)
+					break
+				}
+				const parentPath = path.dirname(ancestorPath)
+				if (parentPath === ancestorPath) break
+				ancestorPath = parentPath
+			}
+		}
+	}
+
+	private compactDatabaseIfNeeded(db: SymbolIndexDatabase, reason: string): void {
+		if (this.disposed || this.db !== db) return
+		const before = db.getAllocation()
+		const freeRatio = before.pageCount === 0 ? 0 : before.freelistCount / before.pageCount
+		if (before.reclaimableBytes < SymbolIndexService.COMPACTION_MIN_RECLAIMABLE_BYTES) return
+		if (freeRatio < SymbolIndexService.COMPACTION_MIN_FREE_RATIO) return
+
+		Logger.info(
+			`[SymbolIndexService] Compacting database reason=${reason} reclaimableBytes=${before.reclaimableBytes} freeRatio=${freeRatio.toFixed(3)}`,
+		)
+		db.compact()
+		const after = db.getAllocation()
+		Logger.info(
+			`[SymbolIndexService] Compacted database reason=${reason} beforeBytes=${before.databaseBytes} afterBytes=${after.databaseBytes} reclaimedBytes=${before.databaseBytes - after.databaseBytes}`,
+		)
+	}
+
+	private async applyRemovalBatches(
+		db: SymbolIndexDatabase,
+		relativePaths: readonly string[],
+		reason: string,
+	): Promise<number> {
+		let removed = 0
+		for (let offset = 0; offset < relativePaths.length; offset += SymbolIndexService.REMOVAL_BATCH_SIZE) {
+			if (this.disposed || this.db !== db) return removed
+			const batch = relativePaths.slice(offset, offset + SymbolIndexService.REMOVAL_BATCH_SIZE)
+			removed += db.applyMutation({ removals: batch, replacements: [] }).removed
+			const processed = Math.min(offset + batch.length, relativePaths.length)
+			const batchNumber = Math.floor(offset / SymbolIndexService.REMOVAL_BATCH_SIZE) + 1
+			if (processed === relativePaths.length || batchNumber % SymbolIndexService.PROGRESS_LOG_BATCH_INTERVAL === 0)
+				Logger.info(
+					`[SymbolIndexService] Removal progress reason=${reason} processed=${processed}/${relativePaths.length} removed=${removed}`,
+				)
+			await this.yieldAfterMutationBatch()
+		}
+		return removed
+	}
+
+	private async applyCandidateBatches(
+		db: SymbolIndexDatabase,
+		candidates: readonly FileCandidate[],
+		reason: string,
+	): Promise<{ changed: boolean; removed: number; replaced: number; retryRequested: boolean }> {
+		let changed = false
+		let removed = 0
+		let replaced = 0
+		let retryRequested = false
+		for (let offset = 0; offset < candidates.length; offset += SymbolIndexService.INDEXING_BATCH_SIZE) {
+			if (this.disposed || this.db !== db) break
+			const batch = candidates.slice(offset, offset + SymbolIndexService.INDEXING_BATCH_SIZE)
+			const staged = await this.stageFiles(batch)
+			if (this.disposed || this.db !== db) break
+			const mutation = db.applyMutation({ removals: staged.rejectedPaths, replacements: staged.replacements })
+			changed ||= mutation.changed
+			removed += mutation.removed
+			replaced += mutation.replaced
+			retryRequested ||= staged.retryRequested
+			await this.yieldAfterMutationBatch()
+		}
+		return { changed, removed, replaced, retryRequested }
+	}
+
+	private async yieldAfterMutationBatch(): Promise<void> {
+		await new Promise<void>((resolve) => setImmediate(resolve))
+	}
+
+	private async stageFiles(candidates: readonly FileCandidate[]): Promise<{
+		replacements: FileSymbolReplacement[]
+		rejectedPaths: string[]
+		retryRequested: boolean
+	}> {
+		if (candidates.length === 0) return { replacements: [], rejectedPaths: [], retryRequested: false }
+		const languageParsers = await loadRequiredLanguageParsers(candidates.map((candidate) => candidate.absolutePath))
+		const replacements: FileSymbolReplacement[] = []
+		const rejectedPaths: string[] = []
+		let retryRequested = false
+
+		for (const candidate of candidates) {
+			const outcome = await this.indexFile(candidate.absolutePath, languageParsers)
+			if (outcome.status === "indexed") replacements.push({ relPath: candidate.relPath, ...outcome.entry })
+			else if (outcome.status === "rejected") rejectedPaths.push(candidate.relPath)
+			else retryRequested = true
+		}
+		return { replacements, rejectedPaths, retryRequested }
+	}
+
+	private async indexFile(absolutePath: string, languageParsers: LanguageParsers): Promise<FileIndexOutcome> {
+		let before
+		try {
+			before = await fs.stat(absolutePath)
+		} catch (error) {
+			if ((error as NodeJS.ErrnoException).code === "ENOENT") return { status: "rejected", reason: "missing" }
+			throw error
+		}
+		if (!before.isFile()) return { status: "rejected", reason: "not a file" }
+		if (before.size > this.maxFileSizeBytes) {
+			SymbolIndexTelemetry.recordSizeSkip()
+			return { status: "rejected", reason: "oversized" }
+		}
+
+		const fileBuffer = await fs.readFile(absolutePath)
+		const fileContent = fileBuffer.toString("utf8")
+		let rejectionReason: string | null = null
+		const symbols: FileIndexEntry["symbols"] = []
+		if (this.isLikelyMinifiedOrGenerated(fileContent)) {
+			SymbolIndexTelemetry.recordMinifiedSkip()
+			rejectionReason = "generated or minified"
+		}
+
+		const extension = path.extname(absolutePath).toLowerCase().slice(1)
+		const { parser, query } = languageParsers[extension] ?? {}
+		if (!rejectionReason && (!parser || !query)) rejectionReason = "unsupported parser"
+
+		let tree: Tree | null = null
+		try {
+			if (!rejectionReason && parser && query) {
+				tree = parser.parse(fileContent)
+				if (!tree?.rootNode) rejectionReason = "parse failure"
+				else {
+					for (const capture of query.captures(tree.rootNode)) {
+						const { node, name } = capture
+						if (name !== "name.reference" && !name.includes("name.definition")) continue
+						symbols.push({
+							n: fileContent.slice(node.startIndex, node.endIndex),
+							t: name.includes("name.definition") ? "d" : "r",
+							k: name.split(".").pop(),
+							r: [node.startPosition.row, node.startPosition.column, node.endPosition.row, node.endPosition.column],
+						})
+					}
+				}
+			}
+		} finally {
+			tree?.delete()
+		}
+
+		let after
+		try {
+			after = await fs.stat(absolutePath)
+		} catch (error) {
+			if ((error as NodeJS.ErrnoException).code === "ENOENT") return { status: "retry" }
+			throw error
+		}
+		if (before.mtimeMs !== after.mtimeMs || before.size !== after.size) return { status: "retry" }
+		if (rejectionReason) return { status: "rejected", reason: rejectionReason }
+		return { status: "indexed", entry: { mtime: after.mtimeMs, size: after.size, symbols } }
+	}
+
+	private rescheduleChangedDuringRead(): void {
+		if (this.retryTimeout || this.disposed) return
+		this.retryTimeout = setTimeout(() => {
+			this.retryTimeout = null
+			void this.requestReconciliation("file changed during indexing")
+		}, 250)
+		this.retryTimeout.unref()
+	}
+
+	private isLikelyMinifiedOrGenerated(fileContent: string): boolean {
+		const lines = fileContent.split(/\r?\n/)
+		if (lines[0]?.length > SymbolIndexService.MAX_FIRST_LINE_LENGTH) return true
+		const totalLength = lines.reduce((total, line) => total + line.length, 0)
+		return totalLength / Math.max(lines.length, 1) > SymbolIndexService.MAX_AVERAGE_LINE_LENGTH
+	}
+
+	private findMissingResultPaths(locations: SymbolLocation[]): string[] {
+		if (!this.projectRoot) return []
+		const stalePaths: string[] = []
+		for (const relativePath of new Set(locations.map((location) => location.path))) {
+			try {
+				if (!statSync(path.join(this.projectRoot, relativePath)).isFile()) stalePaths.push(relativePath)
+			} catch (error) {
+				if ((error as NodeJS.ErrnoException).code === "ENOENT") stalePaths.push(relativePath)
+			}
+		}
+		return stalePaths
+	}
+
+	private removeStaleIndexedPaths(relativePaths: readonly string[], reason: string): number {
+		if (!this.db || relativePaths.length === 0) return 0
+		const removed = this.db.removeFiles(relativePaths)
+		if (removed > 0) {
+			Logger.info(`[SymbolIndexService] Removed ${removed} stale indexed file(s) during ${reason}`)
+		}
+		return removed
+	}
+
+	private async resetProjectDatabase(projectRoot: string): Promise<void> {
+		if (this.runtime) await this.runtime.dispose()
+		this.runtime = null
+		await this.operationTail
+		if (this.db) this.db.close()
+		this.projectRoot = projectRoot
+		this.eligibility = new SymbolIndexEligibility(projectRoot)
+		this.eligiblePaths = new Set()
+		this.externalControlPaths = new Set()
+
+		let databasePath: string | undefined
+		if (this.isPersistenceEnabled) {
+			await this.ensureIndexDir()
+			databasePath = path.join(projectRoot, SymbolIndexService.INDEX_DIR, SymbolIndexService.INDEX_FILE)
+		}
+		this.db = await SymbolIndexDatabase.create(databasePath)
+	}
+
+	private async isRepository(directoryPath: string): Promise<boolean> {
+		for (const vcsDirectory of [".git", ".hg", ".svn"]) {
+			try {
+				await fs.access(path.join(directoryPath, vcsDirectory))
+				return true
+			} catch {}
+		}
+		return new SymbolIndexEligibility(directoryPath).isGitWorkspace()
+	}
+
+	private async ensureIndexDir(): Promise<void> {
+		const indexDirectory = path.join(this.projectRoot, SymbolIndexService.INDEX_DIR)
+		const legacyIndexDirectory = path.join(this.projectRoot, SymbolIndexService.LEGACY_INDEX_DIR)
+		const indexDirectoryExists = await this.pathExists(indexDirectory)
+		const legacyIndexDirectoryExists = await this.pathExists(legacyIndexDirectory)
+		if (legacyIndexDirectoryExists && indexDirectoryExists) await fs.rm(legacyIndexDirectory, { recursive: true })
+		if (legacyIndexDirectoryExists && !indexDirectoryExists) await fs.rename(legacyIndexDirectory, indexDirectory)
+		await fs.mkdir(indexDirectory, { recursive: true })
+		await this.migrateLegacyIndexFile(indexDirectory)
+	}
+
+	private async migrateLegacyIndexFile(indexDirectory: string): Promise<void> {
+		const legacyIndexFile = path.join(indexDirectory, SymbolIndexService.LEGACY_INDEX_FILE)
+		if (!(await this.pathExists(legacyIndexFile))) return
+		const indexFile = path.join(indexDirectory, SymbolIndexService.INDEX_FILE)
+		if (await this.pathExists(indexFile)) await fs.rm(legacyIndexFile)
+		else await fs.rename(legacyIndexFile, indexFile)
+	}
+
+	private async pathExists(filePath: string): Promise<boolean> {
+		try {
+			await fs.access(filePath)
+			return true
+		} catch {
+			return false
+		}
+	}
+}
+```
+
+### /Users/highlands/pools/Development/dirac/src/services/symbol-index/SymbolIndexService.ts (lines 80-83)
+```
+	public static getInstance(): SymbolIndexService {
+		if (!SymbolIndexService.instance) SymbolIndexService.instance = new SymbolIndexService()
+		return SymbolIndexService.instance
+	}
+```
+
+### /Users/highlands/pools/Development/dirac/src/services/symbol-index/SymbolIndexService.ts (lines 85-87)
+```
+	public getProjectRoot(): string {
+		return this.projectRoot
+	}
+```
+
+### /Users/highlands/pools/Development/dirac/src/services/symbol-index/SymbolIndexService.ts (lines 437-455)
+```
+	private async stageFiles(candidates: readonly FileCandidate[]): Promise<{
+		replacements: FileSymbolReplacement[]
+		rejectedPaths: string[]
+		retryRequested: boolean
+	}> {
+		if (candidates.length === 0) return { replacements: [], rejectedPaths: [], retryRequested: false }
+		const languageParsers = await loadRequiredLanguageParsers(candidates.map((candidate) => candidate.absolutePath))
+		const replacements: FileSymbolReplacement[] = []
+		const rejectedPaths: string[] = []
+		let retryRequested = false
+
+		for (const candidate of candidates) {
+			const outcome = await this.indexFile(candidate.absolutePath, languageParsers)
+			if (outcome.status === "indexed") replacements.push({ relPath: candidate.relPath, ...outcome.entry })
+			else if (outcome.status === "rejected") rejectedPaths.push(candidate.relPath)
+			else retryRequested = true
+		}
+		return { replacements, rejectedPaths, retryRequested }
+	}
+```
+
+### /Users/highlands/pools/Development/dirac/src/services/symbol-index/SymbolIndexTelemetry.ts (lines 33-88)
+```
+export class SymbolIndexTelemetry {
+	private static counters = createCounters()
+
+	public static recordWatcherEvent(): void {
+		SymbolIndexTelemetry.counters.watcherEvents++
+	}
+
+	public static recordWatcherRejected(): void {
+		SymbolIndexTelemetry.counters.watcherRejected++
+	}
+
+	public static recordDirtySetSize(size: number): void {
+		SymbolIndexTelemetry.counters.dirtySetHighWaterMark = Math.max(SymbolIndexTelemetry.counters.dirtySetHighWaterMark, size)
+	}
+
+	public static recordUpdateRun(): void {
+		SymbolIndexTelemetry.counters.updateRuns++
+	}
+
+	public static recordSizeSkip(): void {
+		SymbolIndexTelemetry.counters.sizeSkips++
+	}
+
+	public static recordMinifiedSkip(): void {
+		SymbolIndexTelemetry.counters.minifiedSkips++
+	}
+
+	public static recordGrammarLoad(): void {
+		SymbolIndexTelemetry.counters.grammarLoads++
+	}
+
+	public static recordReconciliation(eligible: number, removed: number, updated: number): void {
+		SymbolIndexTelemetry.counters.reconciliations++
+		SymbolIndexTelemetry.counters.eligibleFiles += eligible
+		SymbolIndexTelemetry.counters.removedFiles += removed
+		SymbolIndexTelemetry.counters.updatedFiles += updated
+	}
+
+	public static recordUpdateFailure(): void {
+		SymbolIndexTelemetry.recordFailure()
+	}
+
+	public static recordFailure(): void {
+		SymbolIndexTelemetry.counters.failures++
+	}
+
+	public static logSummary(reason: "periodic" | "deactivation"): void {
+		const counters = SymbolIndexTelemetry.counters
+		if (Object.values(counters).every((value) => value === 0)) return
+
+		Logger.info(
+			`[SymbolIndex] ${reason} summary events=${counters.watcherEvents} rejected=${counters.watcherRejected} dirtyHighWater=${counters.dirtySetHighWaterMark} updates=${counters.updateRuns} sizeSkips=${counters.sizeSkips} minifiedSkips=${counters.minifiedSkips} grammarLoads=${counters.grammarLoads} reconciliations=${counters.reconciliations} eligible=${counters.eligibleFiles} removed=${counters.removedFiles} indexed=${counters.updatedFiles} failures=${counters.failures}`,
+		)
+		SymbolIndexTelemetry.counters = createCounters()
+	}
+}
+```
+
+### /Users/highlands/pools/Development/dirac/src/services/symbol-index/SymbolIndexTelemetry.ts (lines 60-62)
+```
+	public static recordGrammarLoad(): void {
+		SymbolIndexTelemetry.counters.grammarLoads++
+	}
+```
+
+
+## Source Files:
+
+- `src/services/symbol-index/SymbolIndexDatabase.ts`
+- `src/services/symbol-index/SymbolIndexService.ts`
+- `src/services/symbol-index/SymbolIndexTelemetry.ts`
+
