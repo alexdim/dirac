@@ -55,3 +55,38 @@ Feasible variants:
 - Full multi-language replication: not worth it — that is their core asset.
 
 The entire implementation is readable locally at `~/Library/Application Support/pipx/venvs/codeboarding/lib/python3.12/site-packages/` (`static_analyzer/`, `diagram_analysis/`, `agents/`, `output_generators/`).
+
+## Coverage gaps (real source files not analyzed)
+
+Snapshot of `file_coverage.json` after the incremental run of 2026-10-15 (commit `bf3f4b09`): 2,538 total files, 1,270 analyzed, 1,269 skipped. The backend (`src/`, `cli/`, `hosts/`, `integrations/`, `services/`) is fully covered; the real gaps below total ~345 files.
+
+### 1. `webview-ui/` React frontend — 310 files (extraction cap)
+
+Scope 16 ("Webview UI Components") exists but sampled only 2 of ~600 files; incremental runs never re-expand unchanged scopes. Missing by area:
+
+```
+features/settings    98 files
+features/modular-ui  93 files
+app/ + shared/ + assets ~95 files
+dirac-rules/worktrees/chat/history/banners ~14 files
+other webview src    ~10 files
+```
+
+This is a CodeBoarding per-scope extraction budget cap — reportable upstream. A `codeboarding full` rerun may expand it.
+
+### 2. Protobuf contracts — 19 files (unsupported file type)
+
+`proto/dirac/` — the extension↔core gRPC surface: `task.proto` (TaskService: cancel/clear/size), `browser.proto` (BrowserService: Chrome discovery/relaunch), `checkpoints.proto`, `commands.proto`, `common.proto`, `file.proto`, `goal.proto`, `hooks.proto`, `models.proto`, `slash.proto`, `state.proto`, `ui.proto`, `web.proto`, `worktree.proto`.
+`proto/host/` — the host-IDE bridge surface: `diff.proto`, `env.proto`, `testing.proto`, `window.proto`, `workspace.proto`.
+
+The "Dirac Protocol Message Definitions" component exists in the docs but its sources were never extracted.
+
+### 3. Build/release scripts — 16 files (unsupported file type)
+
+`scripts/`: `add-endpoints-to-{jetbrains,npm,vsix}.sh` (enterprise endpoint injection), `build-cli-artifact.sh` (CLI release via GitHub Actions), `check-architecture.sh` (TECH-DEBT-PLAN architecture guard), `package-cli.sh`, `publish.sh` (unified resumable publisher), `publish-extension.sh` (deprecated shim → publish.sh), `proto-lint.sh`, `install.sh`, `test-install.sh`, `test-bundled-endpoints.sh`, `run-extension-host.sh`, `rundiraccore.sh`, `get-vscode-usages.sh`, `review-by-category.sh` (PR #125 helper).
+
+### 4. Previously over-ignored — FIXED in commit e171bd4b
+
+`src/hosts/vscode/hostbridge/env/*` (9 files, caught by `env/` venv pattern), `src/services/temp/*` (2 files, caught by `temp/`), `hostbridge/testing/getWebviewHtml.ts` (`**/testing/**`), `vite.config.ts`/`vitest.config.ts`/`platform.config.ts` (`*.config.*`). All now analyzed; spawned the new "VS Code Hostbridge Environment Services" component.
+
+Everything else skipped is intentional: ~800 test files (`__tests__`, `*.test.*`, e2e) and ~120 docs/locales/assets.
