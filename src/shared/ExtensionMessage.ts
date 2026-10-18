@@ -82,6 +82,7 @@ export interface ExtensionState {
 	goal?: GoalViewState | null
 	isNewUser: boolean
 	welcomeViewCompleted: boolean
+	shouldShowUnbiasedWelcome?: boolean
 	onboardingModels?: OnboardingModelGroup | undefined
 	apiConfiguration?: ApiConfiguration
 	modelProviderPresets: ModelProviderPreset[]
@@ -210,19 +211,19 @@ export enum DiracMessageType {
 export type DiracMessageContent =
 	/** Stateless conversational content (speech, reasoning, info) */
 	| {
-		type: DiracMessageType.MARKDOWN
-		content: string
-		isReasoning?: boolean
-		images?: string[]
-		files?: string[]
-		isCompletion?: boolean
-		completionType?: "act" | "plan"
-		showFeedback?: boolean
-		role?: "user" | "assistant"
-		agentId?: number
-		agentName?: string
-		steering?: { status: SteeringTranscriptStatus }
-	}
+			type: DiracMessageType.MARKDOWN
+			content: string
+			isReasoning?: boolean
+			images?: string[]
+			files?: string[]
+			isCompletion?: boolean
+			completionType?: "act" | "plan"
+			showFeedback?: boolean
+			role?: "user" | "assistant"
+			agentId?: number
+			agentName?: string
+			steering?: { status: SteeringTranscriptStatus }
+	  }
 	/** Stateful tool-mediated unit of work */
 	| { type: DiracMessageType.CARD; card: Card }
 	/** System telemetry and vitals (tokens, cost, latency) */

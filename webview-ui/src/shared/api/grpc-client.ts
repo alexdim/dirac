@@ -291,6 +291,9 @@ export class StateServiceClient extends ProtoBusClient {
 	static async setWelcomeViewCompleted(request: proto.dirac.BooleanRequest): Promise<proto.dirac.Empty> {
 		return this.makeUnaryRequest("setWelcomeViewCompleted", request, proto.dirac.BooleanRequest.toJSON, proto.dirac.Empty.fromJSON)
 	}
+	static async dismissUnbiasedWelcomeOffer(request: proto.dirac.EmptyRequest): Promise<proto.dirac.Empty> {
+		return this.makeUnaryRequest("dismissUnbiasedWelcomeOffer", request, proto.dirac.EmptyRequest.toJSON, proto.dirac.Empty.fromJSON)
+	}
 	static async updateInfoBannerVersion(request: proto.dirac.Int64Request): Promise<proto.dirac.Empty> {
 		return this.makeUnaryRequest("updateInfoBannerVersion", request, proto.dirac.Int64Request.toJSON, proto.dirac.Empty.fromJSON)
 	}

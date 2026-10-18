@@ -68,6 +68,7 @@ const GLOBAL_STATE_FIELDS = {
 	},
 	isNewUser: { default: true as boolean },
 	welcomeViewCompleted: { default: undefined as boolean | undefined },
+	unbiasedWelcomeOfferStatus: { default: undefined as "pending" | "dismissed" | "ineligible" | undefined },
 	workspaceRoots: { default: undefined as WorkspaceRoot[] | undefined },
 	primaryRootIndex: { default: 0 as number },
 	multiRootEnabled: { default: true as boolean },

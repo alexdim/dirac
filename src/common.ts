@@ -14,6 +14,7 @@ import { AgentConfigLoader } from "./core/task/tools/subagent/AgentConfigLoader"
 import { ErrorService } from "./services/error"
 import { featureFlagsService } from "./services/feature-flags"
 import { getDistinctId } from "./services/logging/distinctId"
+import { initializeUnbiasedWelcomeOffer } from "./core/storage/unbiasedWelcomeOffer"
 import { recordVersionUpgrade } from "./services/release-notes/recordVersionUpgrade"
 import { SymbolIndexService } from "./services/symbol-index/SymbolIndexService"
 import { telemetryService } from "./services/telemetry"
@@ -84,6 +85,8 @@ async function initializeServices(storageContext: StorageContext): Promise<Dirac
 	// Legacy telemetry removed
 
 	const stateManager = StateManager.get()
+	// Classify the installation before recording its first installed version.
+	await initializeUnbiasedWelcomeOffer(stateManager)
 	// Record an exact-version upgrade before constructing a webview/controller that can publish state.
 	await recordVersionUpgrade(stateManager)
 
