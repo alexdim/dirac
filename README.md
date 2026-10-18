@@ -11,10 +11,10 @@ Dirac combines autonomous task execution with purpose-built code tools: hash-anc
 ## Sponsors
 
 <a href="https://unbiased.ai/">
-  <img src="assets/sponsors/unbiased-icon.svg" alt="" height="40" />
+  <img src="assets/sponsors/unbiased-icon.png" alt="" height="40" />
   <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="assets/sponsors/unbiased-wordmark-dark.svg" />
-    <img src="assets/sponsors/unbiased-wordmark.svg" alt="Unbiased AI" height="32" />
+    <source media="(prefers-color-scheme: dark)" srcset="assets/sponsors/unbiased-wordmark-dark.png" />
+    <img src="assets/sponsors/unbiased-wordmark.png" alt="Unbiased AI" height="32" />
   </picture>
 </a>
 
