@@ -8,6 +8,20 @@ Dirac is an open-source coding agent you can use in VS Code, from the terminal, 
 
 Dirac combines autonomous task execution with purpose-built code tools: hash-anchored file editing, syntax-tree inspection and refactoring, parallel operations, subagents, continuous steering, and configurable permission controls. The goal is simple: give capable models better infrastructure so they can work longer, faster, and with less token overhead.
 
+## Sponsors
+
+<a href="https://unbiased.ai/">
+  <img src="assets/sponsors/unbiased-icon.svg" alt="" height="40" />
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="assets/sponsors/unbiased-wordmark-dark.svg" />
+    <img src="assets/sponsors/unbiased-wordmark.svg" alt="Unbiased AI" height="32" />
+  </picture>
+</a>
+
+Thank you to [Unbiased AI](https://unbiased.ai/) for sponsoring Dirac's open-source development.
+
+Interested in sponsoring Dirac? [Get in touch](https://dirac.run/contact).
+
 ## Why Dirac?
 
 <details>
