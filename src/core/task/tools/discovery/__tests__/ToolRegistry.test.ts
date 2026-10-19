@@ -5,6 +5,7 @@ import type { DiscoveredTool } from "../DiscoveredTool"
 import { ToolDiscoveryService } from "../ToolDiscoveryService"
 import type { DiracDefaultTool, DiracToolSpec } from "@/shared/tools"
 import { LegacyResponseTool, RESPOND_TOOL_NAME } from "@shared/responseTool"
+import type { SystemPromptContext } from "@core/prompts/system-prompt/types"
 
 const legacyCompletionToolName = LegacyResponseTool.COMPLETE
 const legacyProgressToolName = LegacyResponseTool.PROGRESS
@@ -553,6 +554,47 @@ describe("ToolRegistry", () => {
 			assert.strictEqual(changed, true)
 			assert.strictEqual(registry.getVersion(), version + 1)
 		})
+	})
+
+	describe("context-only subagents", () => {
+		function registerSubagentTool(): ToolRegistry {
+			const registry = ToolRegistry.getInstance()
+			const tool = ToolDiscoveryService.scanBuiltinTools().find((tool) => tool.id === "use_subagents")
+			assert.ok(tool)
+			assert.deepStrictEqual(tool.exposure, { kind: "context_only" })
+			registry.registerBuiltin(tool)
+			return registry
+		}
+
+		it("omits the duplicate Tools setting and rejects direct toggles", () => {
+			const registry = registerSubagentTool()
+			assert.deepStrictEqual(registry.getConfigurableTools(), [])
+			assert.throws(() => registry.enable("use_subagents"), /cannot be enabled or disabled directly/)
+			assert.throws(() => registry.disable("use_subagents"), /cannot be enabled or disabled directly/)
+			assert.throws(() => registry.toggleAndPersist("use_subagents", false), /cannot be enabled or disabled directly/)
+		})
+
+		for (const legacyToggle of [undefined, false, true]) {
+			for (const subagentsEnabled of [false, true]) {
+				it(`uses only the feature setting (${subagentsEnabled}) with legacy toggle ${legacyToggle}`, () => {
+					const registry = registerSubagentTool()
+					registry.registerBuiltin(makeTool({ id: "other_tool" }))
+					registry.loadToggles({
+						other_tool: false,
+						...(legacyToggle === undefined ? {} : { use_subagents: legacyToggle }),
+					})
+
+					assert.deepStrictEqual(registry.getToggles(), { other_tool: false })
+					assert.equal(registry.isEnabled("use_subagents"), true)
+					assert.deepStrictEqual(registry.getEnabledTools().map((tool) => tool.id), ["use_subagents"])
+					const context = { subagentsEnabled } as SystemPromptContext
+					assert.deepStrictEqual(
+						registry.getEnabledSpecs(context).map((spec) => spec.name),
+						subagentsEnabled ? ["use_subagents"] : [],
+					)
+				})
+			}
+		}
 	})
 
 	describe("skill-only exposure", () => {
