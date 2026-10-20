@@ -297,16 +297,20 @@ describe("AcpAgent", () => {
 		expect(mocks.diracAgentInstance.publishSessionSetupUpdates).toHaveBeenCalledWith("session-forked")
 	})
 
-	it("delegates unstable_listSessions", async () => {
+	it("delegates listSessions and unstable_listSessions", async () => {
 		mocks.diracAgentInstance.unstable_listSessions.mockResolvedValue({
 			sessions: [{ sessionId: "task-1", cwd: "/tmp/workspace", title: "Task", updatedAt: "2026-05-27T00:00:00.000Z" }],
 		})
 		const agent = new AcpAgent(connection, {})
 
+		await expect(agent.listSessions({ cwd: "/tmp/workspace" })).resolves.toEqual({
+			sessions: [{ sessionId: "task-1", cwd: "/tmp/workspace", title: "Task", updatedAt: "2026-05-27T00:00:00.000Z" }],
+		})
 		await expect(agent.unstable_listSessions({ cwd: "/tmp/workspace" })).resolves.toEqual({
 			sessions: [{ sessionId: "task-1", cwd: "/tmp/workspace", title: "Task", updatedAt: "2026-05-27T00:00:00.000Z" }],
 		})
 
+		expect(mocks.diracAgentInstance.unstable_listSessions).toHaveBeenCalledTimes(2)
 		expect(mocks.diracAgentInstance.unstable_listSessions).toHaveBeenCalledWith({ cwd: "/tmp/workspace" })
 	})
 

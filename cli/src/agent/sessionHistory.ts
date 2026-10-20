@@ -179,16 +179,18 @@ export async function cloneForkedSessionArtifacts(options: {
 	forkTitle: string
 }): Promise<string | undefined> {
 	const { dataDir, sourceSessionId, newSessionId, sourceState, forkTitle } = options
-	if (!sourceState.sourceTaskId) return undefined
+	const { sourceTaskId } = sourceState
+	if (!sourceTaskId) return undefined
 
-	const newTaskId = crypto.randomUUID()
-	const sourceTaskDir = path.join(dataDir, "tasks", sourceState.sourceTaskId)
-	const newTaskDir = path.join(dataDir, "tasks", newTaskId)
-	await fs.mkdir(path.dirname(newTaskDir), { recursive: true })
-	await fs.cp(sourceTaskDir, newTaskDir, { recursive: true })
+	// Hold the task-history inventory lock across filesystem copy, history upsert, and journal copy to prevent concurrent deletion.
+	return await withTaskHistoryInventoryLock(async () => {
+		const newTaskId = crypto.randomUUID()
+		const sourceTaskDir = path.join(dataDir, "tasks", sourceTaskId)
+		const newTaskDir = path.join(dataDir, "tasks", newTaskId)
+		await fs.mkdir(path.dirname(newTaskDir), { recursive: true })
+		await fs.cp(sourceTaskDir, newTaskDir, { recursive: true })
 
-	const sourceTaskHistory = sourceState.sourceHistoryItem as TaskHistoryItem | undefined
-	await withTaskHistoryInventoryLock(async () => {
+		const sourceTaskHistory = sourceState.sourceHistoryItem as TaskHistoryItem | undefined
 		const historyItem: TaskHistoryItem = {
 			id: newTaskId,
 			ulid: newSessionId,
@@ -204,8 +206,7 @@ export async function cloneForkedSessionArtifacts(options: {
 		const stateManager = StateManager.get()
 		stateManager.upsertTaskHistoryItem(historyItem)
 		await stateManager.flushPendingState()
+		copySessionUpdates(sourceSessionId, newSessionId)
+		return newTaskId
 	})
-
-	copySessionUpdates(sourceSessionId, newSessionId)
-	return newTaskId
 }

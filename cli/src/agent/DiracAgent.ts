@@ -79,6 +79,9 @@ import {
 import {
 	deleteSessionWorktree,
 	getSessionWorktree,
+	getWorktreeOwnerSessionIds,
+	hasOtherSessionWorktreeOwners,
+	resolveSharedSessionWorktree,
 	type SessionWorktree,
 	setSessionWorktree,
 } from "../acp/acp-session-worktrees.js"
@@ -161,6 +164,14 @@ function worktreeProvisioningRequest(params: acp.NewSessionRequest): WorktreePro
 	return { ...(baseBranch === undefined ? {} : { baseBranch }) }
 }
 
+// Result of cloning a fork's persisted state before in-memory registration.
+type ForkSnapshot = {
+	sourceState: ReturnType<typeof resolveForkSourceState>
+	forkTitle: string
+	newTaskId?: string
+	sharedWorktree?: SessionWorktree
+}
+
 /**
  * Dirac's implementation of the ACP Agent interface.
  *
@@ -208,41 +219,51 @@ export class DiracAgent implements acp.Agent {
 		this.acpSessionOverrides.delete(sessionId)
 		this.activePromptOverrides.delete(sessionId)
 		this.configuringSessions.delete(sessionId)
-		this.sessionRuntimeMutationTails.delete(sessionId)
+		if (force) {
+			this.sessionRuntimeMutationTails.delete(sessionId)
+		}
 		this.bridges.delete(sessionId)
 		this.releasePromptSteeringOwnership(sessionId)
 	}
 
-	/** Delete a session's active resources, owned worktree, and persisted task history. */
-	private async deleteSessionResources(sessionId: string): Promise<void> {
-		await this.releaseSessionResources(sessionId)
-
+	/** Remove a session's Dirac-managed git worktree only when no other session shares ownership of it. */
+	private async releaseOwnedSessionWorktree(sessionId: string): Promise<void> {
 		const worktree = getSessionWorktree(sessionId)
-		if (worktree) {
+		if (!worktree) return
+		if (!hasOtherSessionWorktreeOwners(sessionId, worktree.worktreePath)) {
 			const removal = await deleteWorktree(worktree.sourceCwd, worktree.worktreePath, true)
 			if (!removal.success) {
 				throw new Error(removal.message)
 			}
-			deleteSessionWorktree(sessionId)
 		}
+		deleteSessionWorktree(sessionId)
+	}
 
-		const taskIds = getTaskIdsForSession(sessionId)
-		const stateManager = StateManager.get()
-		await withTaskHistoryInventoryLock(async () => {
-			for (const taskId of taskIds) {
-				await fs.rm(`${this.ctx.DATA_DIR}/tasks/${taskId}`, {
-					recursive: true,
-					force: true,
-				})
-			}
-			stateManager.removeTaskHistoryItems(taskIds)
-			await stateManager.flushPendingState()
+	/** Delete a session's active resources, owned worktree, and persisted task history. */
+	private async deleteSessionResources(sessionId: string): Promise<void> {
+		// Serialize deletion with in-flight fork snapshots and runtime mutations for this session.
+		await this.runSynchronizedSessionOperation(sessionId, async () => {
+			await this.releaseSessionResources(sessionId)
+
+			await withTaskHistoryInventoryLock(async () => {
+				await this.releaseOwnedSessionWorktree(sessionId)
+
+				const taskIds = getTaskIdsForSession(sessionId)
+				const stateManager = StateManager.get()
+				for (const taskId of taskIds) {
+					await fs.rm(`${this.ctx.DATA_DIR}/tasks/${taskId}`, {
+						recursive: true,
+						force: true,
+					})
+				}
+				stateManager.removeTaskHistoryItems(taskIds)
+				await stateManager.flushPendingState()
+				deleteTasksForSession(sessionId)
+				deleteSessionUpdates(sessionId)
+				deletePinnedSessionMessages(sessionId)
+				deleteSessionRuntimeConfig(this.ctx.DATA_DIR, sessionId)
+			})
 		})
-		deleteTasksForSession(sessionId)
-		deleteSessionUpdates(sessionId)
-		deletePinnedSessionMessages(sessionId)
-
-		deleteSessionRuntimeConfig(this.ctx.DATA_DIR, sessionId)
 	}
 
 	/** Create a branch-backed git worktree owned exclusively by one ACP session. */
@@ -298,10 +319,12 @@ export class DiracAgent implements acp.Agent {
 			throw new Error(`Session ${sessionId} has no Dirac-provisioned worktree`)
 		}
 
-		const activeSession = this.sessions.get(sessionId)
-		const activeController = activeSession ? this.#sessionControllers.get(activeSession) : undefined
-		if (activeController?.task) {
-			throw new Error(`Cannot integrate ACP session ${sessionId} while its task is active; close the session first`)
+		for (const ownerSessionId of getWorktreeOwnerSessionIds(worktree.worktreePath)) {
+			const activeSession = this.sessions.get(ownerSessionId)
+			const activeController = activeSession ? this.#sessionControllers.get(activeSession) : undefined
+			if (activeController?.task) {
+				throw new Error(`Cannot integrate ACP session ${sessionId} while its task is active; close the session first`)
+			}
 		}
 
 		const branch = targetBranch ?? worktree.targetBranch
@@ -325,8 +348,10 @@ export class DiracAgent implements acp.Agent {
 
 		await targetGit.merge([worktree.branch, "--no-edit"])
 		if (deleteAfterMerge) {
-			await targetGit.raw(["worktree", "remove", "--force", worktree.worktreePath])
-			await targetGit.deleteLocalBranch(worktree.branch)
+			if (!hasOtherSessionWorktreeOwners(sessionId, worktree.worktreePath)) {
+				await targetGit.raw(["worktree", "remove", "--force", worktree.worktreePath])
+				await targetGit.deleteLocalBranch(worktree.branch)
+			}
 			deleteSessionWorktree(sessionId)
 		}
 
@@ -850,9 +875,11 @@ export class DiracAgent implements acp.Agent {
 		})
 	}
 
-	private async runSessionRuntimeMutation<T>(sessionId: string, mutation: () => Promise<T>): Promise<T> {
-		if (!this.sessionStates.has(sessionId)) throw new Error(`Session not found: ${sessionId}`)
-
+	private async runSynchronizedSessionOperation<T>(
+		sessionId: string,
+		operation: () => Promise<T>,
+		options: { markConfiguring?: boolean } = {},
+	): Promise<T> {
 		const previousMutation = this.sessionRuntimeMutationTails.get(sessionId) ?? Promise.resolve()
 		let releaseMutation!: () => void
 		const mutationBarrier = new Promise<void>((resolve) => {
@@ -860,19 +887,34 @@ export class DiracAgent implements acp.Agent {
 		})
 		const mutationTail = previousMutation.then(() => mutationBarrier)
 		this.sessionRuntimeMutationTails.set(sessionId, mutationTail)
-		this.configuringSessions.add(sessionId)
+		if (options.markConfiguring) {
+			this.configuringSessions.add(sessionId)
+		}
 
 		await previousMutation
 		try {
-			if (!this.sessionStates.has(sessionId)) throw new Error(`Session not found: ${sessionId}`)
-			return await mutation()
+			return await operation()
 		} finally {
 			releaseMutation()
 			if (this.sessionRuntimeMutationTails.get(sessionId) === mutationTail) {
 				this.sessionRuntimeMutationTails.delete(sessionId)
-				this.configuringSessions.delete(sessionId)
+				if (options.markConfiguring) {
+					this.configuringSessions.delete(sessionId)
+				}
 			}
 		}
+	}
+
+	private async runSessionRuntimeMutation<T>(sessionId: string, mutation: () => Promise<T>): Promise<T> {
+		if (!this.sessionStates.has(sessionId)) throw new Error(`Session not found: ${sessionId}`)
+		return this.runSynchronizedSessionOperation(
+			sessionId,
+			async () => {
+				if (!this.sessionStates.has(sessionId)) throw new Error(`Session not found: ${sessionId}`)
+				return await mutation()
+			},
+			{ markConfiguring: true },
+		)
 	}
 
 	private resolveSessionTaskRuntime(
@@ -1461,12 +1503,49 @@ export class DiracAgent implements acp.Agent {
 	 * Unlike `loadSession`, this restores the same persisted task context but leaves
 	 * transcript ownership with the reattaching client.
 	 */
+	async resumeSession(params: acp.ResumeSessionRequest): Promise<acp.ResumeSessionResponse> {
+		return this.unstable_resumeSession(params)
+	}
+
 	async unstable_resumeSession(params: acp.ResumeSessionRequest): Promise<acp.ResumeSessionResponse> {
 		return this.loadSession({
 			sessionId: params.sessionId,
 			cwd: params.cwd,
 			mcpServers: params.mcpServers ?? [],
 		})
+	}
+
+	/** Capture the source session's fork state; must run under the source session's synchronization. */
+	private async captureForkSnapshot(sourceSessionId: string, newSessionId: string, requestedCwd?: string): Promise<ForkSnapshot> {
+		if (this.sessionStates.get(sourceSessionId)?.status === AcpSessionStatus.Processing) {
+			throw new Error(`Cannot fork session ${sourceSessionId} while a prompt is in progress`)
+		}
+		const sourceState = resolveForkSourceState({
+			dataDir: this.ctx.DATA_DIR,
+			sourceSessionId,
+			requestedCwd,
+			defaultCwd: this.options.cwd,
+			activeSource: this.sessions.get(sourceSessionId),
+			activeOverrides: this.acpSessionOverrides.get(sourceSessionId),
+		})
+		const forkTitle = sourceState.sourceTitle ? `Fork of ${sourceState.sourceTitle}` : `Fork of ${sourceSessionId.slice(0, 8)}`
+		const sharedWorktree = resolveSharedSessionWorktree(sourceSessionId, sourceState.sourceCwd)
+		if (sharedWorktree) {
+			setSessionWorktree(newSessionId, sharedWorktree)
+		}
+		try {
+			const newTaskId = await cloneForkedSessionArtifacts({
+				dataDir: this.ctx.DATA_DIR,
+				sourceSessionId,
+				newSessionId,
+				sourceState,
+				forkTitle,
+			})
+			return { sourceState, forkTitle, newTaskId, sharedWorktree }
+		} catch (error) {
+			if (sharedWorktree) deleteSessionWorktree(newSessionId)
+			throw error
+		}
 	}
 
 	/**
@@ -1477,43 +1556,23 @@ export class DiracAgent implements acp.Agent {
 	 */
 	async unstable_forkSession(params: acp.ForkSessionRequest): Promise<acp.ForkSessionResponse> {
 		const sourceSessionId = params.sessionId
-		if (this.sessionStates.get(sourceSessionId)?.status === AcpSessionStatus.Processing) {
-			throw new Error(`Cannot fork session ${sourceSessionId} while a prompt is in progress`)
-		}
-
-		const readSourceState = async () =>
-			resolveForkSourceState({
-				dataDir: this.ctx.DATA_DIR,
-				sourceSessionId,
-				requestedCwd: params.cwd,
-				defaultCwd: this.options.cwd,
-				activeSource: this.sessions.get(sourceSessionId),
-				activeOverrides: this.acpSessionOverrides.get(sourceSessionId),
-			})
-
-		// Synchronize against active runtime mutations when the source session is loaded in memory.
-		const sourceState = this.sessionStates.has(sourceSessionId)
-			? await this.runSessionRuntimeMutation(sourceSessionId, readSourceState)
-			: await readSourceState()
-
 		const newSessionId = crypto.randomUUID()
-		const forkTitle = sourceState.sourceTitle
-			? `Fork of ${sourceState.sourceTitle}`
-			: `Fork of ${sourceSessionId.slice(0, 8)}`
-		const newTaskId = await cloneForkedSessionArtifacts({
-			dataDir: this.ctx.DATA_DIR,
-			sourceSessionId,
-			newSessionId,
-			sourceState,
-			forkTitle,
-		})
-
-		return this.registerForkedSession({
-			newSessionId,
-			forkTitle,
-			newTaskId,
-			sourceState,
-		})
+		// Check source status and clone persisted artifacts under per-session synchronization to prevent races with prompts or deletion.
+		const snapshot = await this.runSynchronizedSessionOperation(sourceSessionId, () =>
+			this.captureForkSnapshot(sourceSessionId, newSessionId, params.cwd),
+		)
+		try {
+			return await this.registerForkedSession({
+				newSessionId,
+				forkTitle: snapshot.forkTitle,
+				newTaskId: snapshot.newTaskId,
+				sourceState: snapshot.sourceState,
+			})
+		} catch (error) {
+			// Release the fork's shared worktree ownership when in-memory registration fails.
+			if (snapshot.sharedWorktree) deleteSessionWorktree(newSessionId)
+			throw error
+		}
 	}
 
 	/** Register a newly forked ACP session, its controller, and its runtime overrides. */
@@ -1676,7 +1735,7 @@ export class DiracAgent implements acp.Agent {
 			throw new Error("Controller not initialized for session. This is a bug in the ACP agent setup.")
 		}
 
-		const activeOverrides = await this.runSessionRuntimeMutation(params.sessionId, async () => {
+		await this.runSessionRuntimeMutation(params.sessionId, async () => {
 			if (sessionState.status !== AcpSessionStatus.Idle) {
 				throw new Error(`Session ${params.sessionId} is busy with another operation`)
 			}
@@ -2413,6 +2472,10 @@ export class DiracAgent implements acp.Agent {
 			title: session.title ?? null,
 			updatedAt: new Date(session.lastActivityAt).toISOString(),
 		})
+	}
+
+	async listSessions(params: acp.ListSessionsRequest): Promise<acp.ListSessionsResponse> {
+		return this.unstable_listSessions_internal(params)
 	}
 
 	async unstable_listSessions(params: acp.ListSessionsRequest): Promise<acp.ListSessionsResponse> {
