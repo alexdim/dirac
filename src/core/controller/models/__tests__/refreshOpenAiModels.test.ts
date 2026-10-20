@@ -84,6 +84,7 @@ describe("refreshOpenAiModels", () => {
 
 	it("includes openAiHeaders and caches discovered models in StateManager", async () => {
 		const setModelsCache = sinon.stub()
+		sinon.stub(StateManager, "isInitialized").returns(true)
 		sinon.stub(StateManager, "get").returns({
 			getApiConfiguration: () => ({ openAiApiKey: "fallback-key", openAiBaseUrl: "https://proxy.example/v1" }),
 			getGlobalSettingsKey: (key: string) => (key === "openAiHeaders" ? { "X-Custom-Org": "repado" } : undefined),
@@ -110,6 +111,96 @@ describe("refreshOpenAiModels", () => {
 		sinon.assert.calledOnceWithExactly(setModelsCache, "openai", {
 			"custom-model-1": { ...openAiModelInfoSaneDefaults },
 		})
+	})
+
+	it("does not leak saved openAiHeaders or saved API key when onboarding a different explicit endpoint", async () => {
+		const setModelsCache = sinon.stub()
+		sinon.stub(StateManager, "isInitialized").returns(true)
+		sinon.stub(StateManager, "get").returns({
+			getApiConfiguration: () => ({
+				openAiApiKey: "secret-a",
+				openAiCompatibleCustomApiKey: "custom-secret-a",
+				openAiBaseUrl: "https://endpoint-a.example/v1",
+			}),
+			getGlobalSettingsKey: (key: string) =>
+				key === "openAiHeaders" ? { "X-Api-Key": "secret-header-a", Authorization: "Bearer header-a" } : undefined,
+			setModelsCache,
+		} as unknown as StateManager)
+		const get = sinon.stub(axios, "get").resolves({ data: { data: [{ id: "endpoint-b-model" }] } })
+
+		const modelsWithKey = await getOpenAiModels({
+			baseUrl: "https://endpoint-b.example/v1",
+			apiKey: "secret-b",
+		})
+		modelsWithKey.should.deepEqual({
+			"endpoint-b-model": { ...openAiModelInfoSaneDefaults },
+		})
+		sinon.assert.calledOnceWithExactly(
+			get,
+			"https://endpoint-b.example/v1/models",
+			sinon.match({
+				headers: { Authorization: "Bearer secret-b" },
+				timeout: 5000,
+			}),
+		)
+		const firstCallHeaders = get.firstCall.args[1]?.headers as Record<string, string>
+		firstCallHeaders.should.not.have.property("X-Api-Key")
+
+		get.resetHistory()
+		const modelsWithoutKey = await getOpenAiModels({
+			baseUrl: "https://endpoint-b.example/v1",
+		})
+		modelsWithoutKey.should.deepEqual({
+			"endpoint-b-model": { ...openAiModelInfoSaneDefaults },
+		})
+		sinon.assert.calledOnce(get)
+		;(get.firstCall.args[1]?.headers === undefined).should.be.true()
+		sinon.assert.notCalled(setModelsCache)
+	})
+
+	it("preserves explicit empty apiKey and does not inherit saved credentials or sensitive custom headers", async () => {
+		const setModelsCache = sinon.stub()
+		sinon.stub(StateManager, "isInitialized").returns(true)
+		sinon.stub(StateManager, "get").returns({
+			getApiConfiguration: () => ({
+				openAiApiKey: "secret-a",
+				openAiBaseUrl: "https://endpoint-a.example/v1",
+			}),
+			getGlobalSettingsKey: (key: string) => (key === "openAiHeaders" ? { "X-Api-Key": "secret-header-a" } : undefined),
+			setModelsCache,
+		} as unknown as StateManager)
+		const get = sinon.stub(axios, "get").resolves({ data: { data: [{ id: "local-model" }] } })
+
+		const models = await getOpenAiModels({
+			baseUrl: "https://endpoint-a.example/v1",
+			apiKey: "",
+		})
+
+		models.should.deepEqual({
+			"local-model": { ...openAiModelInfoSaneDefaults },
+		})
+		sinon.assert.calledOnce(get)
+		;(get.firstCall.args[1]?.headers === undefined).should.be.true()
+		sinon.assert.notCalled(setModelsCache)
+	})
+
+	it("preserves explicit empty baseUrl and does not inherit saved baseUrl or make network requests", async () => {
+		sinon.stub(StateManager, "isInitialized").returns(true)
+		sinon.stub(StateManager, "get").returns({
+			getApiConfiguration: () => ({
+				openAiApiKey: "secret-a",
+				openAiBaseUrl: "https://endpoint-a.example/v1",
+			}),
+			getGlobalSettingsKey: (key: string) => (key === "openAiHeaders" ? { "X-Api-Key": "secret-header-a" } : undefined),
+			setModelsCache: sinon.stub(),
+		} as unknown as StateManager)
+		const get = sinon.stub(axios, "get")
+
+		;(await getOpenAiModels({ baseUrl: "", apiKey: "secret-b" })).should.deepEqual({})
+		;(await getOpenAiModels({ baseUrl: "   ", apiKey: "" })).should.deepEqual({})
+		;(await getOpenAiModels({ apiKey: "secret-b" })).should.deepEqual({})
+		;(await getOpenAiModels({ apiKey: "" })).should.deepEqual({})
+		sinon.assert.notCalled(get)
 	})
 
 	it("warns without logging an error when authentication fails with HTTP 401", async () => {

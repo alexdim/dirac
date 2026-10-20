@@ -20,6 +20,7 @@ export interface OpenAiModelsFetchOptions {
 	controller?: Controller
 	baseUrl?: string
 	apiKey?: string
+	headers?: Record<string, string>
 }
 
 export interface OpenAiModelsErrorClassification {
@@ -27,27 +28,33 @@ export interface OpenAiModelsErrorClassification {
 	isExpectedWarning: boolean
 }
 
-// Reads configured custom headers and fallback API key from StateManager when initialized.
-function getOpenAiRequestContext(controller?: Controller): {
+interface OpenAiRequestContext {
 	customHeaders?: Record<string, string>
 	fallbackApiKey?: string
 	fallbackBaseUrl?: string
 	setModelsCache?: (models: Record<string, ModelInfo>) => void
-} {
-	try {
-		const stateManager = controller?.stateManager ?? StateManager.get()
-		const apiConfig = stateManager.getApiConfiguration()
-		const customHeaders = stateManager.getGlobalSettingsKey("openAiHeaders")
-		const fallbackApiKey = apiConfig.openAiCompatibleCustomApiKey || apiConfig.openAiApiKey
-		const fallbackBaseUrl = apiConfig.openAiBaseUrl
-		return {
-			customHeaders,
-			fallbackApiKey,
-			fallbackBaseUrl,
-			setModelsCache: (models) => stateManager.setModelsCache("openai", models),
-		}
-	} catch {
-		return {}
+}
+
+interface ResolvedOpenAiDiscoveryRequest {
+	baseUrl: string
+	headers: Record<string, string>
+	shouldCacheModels: boolean
+}
+
+// Reads configured custom headers and fallback API key from StateManager when initialized.
+function getOpenAiRequestContext(controller?: Controller): OpenAiRequestContext {
+	// Without a controller, saved settings exist only once the StateManager singleton is initialised.
+	const stateManager = controller?.stateManager ?? (StateManager.isInitialized() ? StateManager.get() : undefined)
+	if (!stateManager) return {}
+	const apiConfig = stateManager.getApiConfiguration()
+	const customHeaders = stateManager.getGlobalSettingsKey("openAiHeaders")
+	const fallbackApiKey = apiConfig.openAiCompatibleCustomApiKey || apiConfig.openAiApiKey
+	const fallbackBaseUrl = apiConfig.openAiBaseUrl
+	return {
+		customHeaders,
+		fallbackApiKey,
+		fallbackBaseUrl,
+		setModelsCache: (models) => stateManager.setModelsCache("openai", models),
 	}
 }
 
@@ -115,19 +122,56 @@ export function logOpenAiModelsError(error: unknown): string {
 	return message
 }
 
+// Builds request headers from optional custom headers and an optional Bearer API key.
+function buildDiscoveryHeaders(apiKey: string, customHeaders?: Record<string, string>): Record<string, string> {
+	const headers: Record<string, string> = { ...(customHeaders || {}) }
+	if (apiKey) headers.Authorization = `Bearer ${apiKey}`
+	return headers
+}
+
+// Resolves endpoint and authentication as one coherent configuration without mixing explicit and saved credentials.
+function resolveOpenAiDiscoveryRequest(
+	options: OpenAiModelsFetchOptions,
+	context: OpenAiRequestContext,
+): ResolvedOpenAiDiscoveryRequest {
+	const savedBaseUrl = normalizeOpenAiBaseUrl(context.fallbackBaseUrl)
+	const savedApiKey = context.fallbackApiKey?.trim() ?? ""
+
+	// Use the saved configuration as a whole only when no explicit endpoint or credentials are supplied.
+	if (options.baseUrl === undefined && options.apiKey === undefined && options.headers === undefined) {
+		return {
+			baseUrl: savedBaseUrl,
+			headers: buildDiscoveryHeaders(savedApiKey, context.customHeaders),
+			shouldCacheModels: true,
+		}
+	}
+
+	// Preserve intentional empty values; never fall back to savedBaseUrl when explicit options are provided.
+	const baseUrl = normalizeOpenAiBaseUrl(options.baseUrl)
+	const explicitApiKey = options.apiKey?.trim()
+	// Saved key and headers may only be re-sent to the same saved endpoint with the same (or no explicit) key.
+	const canReuseSavedAuth =
+		Boolean(baseUrl && baseUrl === savedBaseUrl) &&
+		(explicitApiKey === undefined || Boolean(explicitApiKey && explicitApiKey === savedApiKey))
+	const apiKey = explicitApiKey ?? (canReuseSavedAuth ? savedApiKey : "")
+	const customHeaders = options.headers ?? (canReuseSavedAuth ? context.customHeaders : undefined)
+
+	return {
+		baseUrl,
+		headers: buildDiscoveryHeaders(apiKey, customHeaders),
+		shouldCacheModels: canReuseSavedAuth && options.headers === undefined,
+	}
+}
+
 // Fetches and caches OpenAI-compatible models as a Record<modelId, ModelInfo> for CLI and backend consumers.
 export async function getOpenAiModels(options: OpenAiModelsFetchOptions = {}): Promise<Record<string, ModelInfo>> {
 	const context = getOpenAiRequestContext(options.controller)
-	const apiKey = options.apiKey || context.fallbackApiKey || ""
-	const baseUrl = normalizeOpenAiBaseUrl(options.baseUrl || context.fallbackBaseUrl)
+	const { baseUrl, headers, shouldCacheModels } = resolveOpenAiDiscoveryRequest(options, context)
 	if (!baseUrl || !URL.canParse(baseUrl)) return {}
-
-	const headers: Record<string, string> = { ...(context.customHeaders || {}) }
-	if (apiKey) headers.Authorization = `Bearer ${apiKey}`
 
 	const uniqueIds = await fetchOpenAiModelIds(baseUrl, headers)
 	const models: Record<string, ModelInfo> = Object.fromEntries(uniqueIds.map((id) => [id, { ...openAiModelInfoSaneDefaults }]))
-	if (context.setModelsCache && uniqueIds.length > 0) context.setModelsCache(models)
+	if (shouldCacheModels && context.setModelsCache && uniqueIds.length > 0) context.setModelsCache(models)
 	return models
 }
 
