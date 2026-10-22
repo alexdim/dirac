@@ -30,6 +30,7 @@ function createSteerableTask() {
 	task.messageStateHandler.getApiConversationProviderState = sinon.stub().returns({})
 	task.messageStateHandler.recordDeliveredSteeringMessageIds = sinon.stub().resolves()
 	task.messageStateHandler.saveDiracMessagesAndUpdateHistory = sinon.stub().resolves()
+	task.messageStateHandler.flushPendingWrites = sinon.stub().resolves()
 
 	task.messageStateHandler.appendToLastApiConversationUserMessage = sinon.stub().callsFake(async (contentBlock: any) => {
 		const lastMessage = task.apiConversationHistory.at(-1)
@@ -209,9 +210,7 @@ describe("Task steering inbox", () => {
 		const followUp = await task.waitForFollowUp()
 
 		assert.equal(task.taskState.status, TaskStatus.COMPLETED)
-		assert.deepEqual(followUp, [
-			{ type: "text", text: "<feedback>\nImmediate follow-up\n</feedback>", isUserInput: true },
-		])
+		assert.deepEqual(followUp, [{ type: "text", text: "<feedback>\nImmediate follow-up\n</feedback>", isUserInput: true }])
 	})
 
 	it("does not let a stale plan-response flag reject steering without a waiting card", async () => {
@@ -265,7 +264,10 @@ describe("Task steering inbox", () => {
 		await task.commitSteeringClaim(claim.id)
 		const commandContent: any[] = []
 		const commandClaim = await task.appendQueuedSteeringToUserContent(commandContent)
-		assert.deepEqual(commandClaim.messages.map((message: any) => message.text), ["/compact"])
+		assert.deepEqual(
+			commandClaim.messages.map((message: any) => message.text),
+			["/compact"],
+		)
 		assert.ok(commandContent[0].text.includes("<steering_message>/compact</steering_message>"))
 		assert.deepEqual(
 			task.taskState.steeringMessages.map((message: any) => message.deliveryState),
@@ -290,7 +292,6 @@ describe("Task steering inbox", () => {
 		assert.equal(task.taskState.steeringMessages[0].deliveryState, SteeringDeliveryState.QUEUED)
 		assert.deepEqual(messages[0].content.steering, { status: SteeringTranscriptStatus.QUEUED })
 	})
-
 
 	it("attaches queued steering to the next outbound tool-result request", async () => {
 		const { task, messages } = createSteerableTask()
@@ -333,6 +334,18 @@ describe("Task steering inbox", () => {
 		assert.deepEqual(task.taskState.steeringMessages, [])
 	})
 
+	it("does not duplicate staged late steering after a conversation flush fails", async () => {
+		const { task } = createSteerableTask()
+		await task.enqueueSteeringMessage("Late feedback")
+		task.apiConversationHistory.push({ role: "user", content: [{ type: "text", text: "Tool response" }] })
+		task.messageStateHandler.flushPendingWrites.rejects(new Error("disk full"))
+		await assert.rejects(task.appendQueuedSteeringToNextApiRequest(task.apiConversationHistory), /disk full/)
+		task.messageStateHandler.flushPendingWrites.resolves()
+		await task.appendQueuedSteeringToNextApiRequest(task.apiConversationHistory)
+		assert.equal(task.apiConversationHistory[0].content.length, 2)
+		assert.equal(task.messageStateHandler.appendToLastApiConversationUserMessage.callCount, 1)
+	})
+
 	it("keeps a consumed claim sent when durable receipt persistence fails", async () => {
 		const { task, messages } = createSteerableTask()
 		await task.enqueueSteeringMessage("/reloadtools")
@@ -346,6 +359,4 @@ describe("Task steering inbox", () => {
 		task.restoreQueuedSteeringFromTranscript()
 		assert.deepEqual(task.taskState.steeringMessages, [])
 	})
-
-
 })

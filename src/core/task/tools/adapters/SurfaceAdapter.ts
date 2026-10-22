@@ -1,7 +1,9 @@
+import { getTaskDirectoryPath } from "@core/storage/taskDirectory"
 import { IDiracContext } from "../interfaces/IDiracContext"
 import {
 	CardParams,
 	IAnchorTrait,
+	IArchitectureTrait,
 	IBrowserTrait,
 	ICardHandle,
 	IDiagnosticsTrait,
@@ -39,6 +41,7 @@ import {
 import { buildTelemetryTrait } from "./traits/TelemetryTraitBuilder"
 import { buildWorkspaceTrait } from "./traits/WorkspaceTraitBuilder"
 import { buildConversationCondensationTrait } from "./traits/ConversationCondensationTraitBuilder"
+import { buildArchitectureTrait } from "./traits/ArchitectureTraitBuilder"
 
 import { AnchorStateManager } from "@utils/AnchorStateManager"
 /**
@@ -61,6 +64,7 @@ export class SurfaceAdapter implements ToolExecutionEnvironment {
 	public readonly editor: IEditorTrait
 	public readonly browser: IBrowserTrait
 	public readonly skills: ISkillsTrait
+	public readonly architecture?: IArchitectureTrait
 	public readonly logging: ILoggingTrait
 	public readonly context: IDiracContext
 
@@ -80,6 +84,12 @@ export class SurfaceAdapter implements ToolExecutionEnvironment {
 		this.interaction = buildInteractionTrait(config, this.createCard.bind(this))
 		this.browser = buildBrowserTrait(config)
 		this.skills = buildSkillsTrait(config)
+		this.architecture = buildArchitectureTrait({
+			taskId: config.taskId,
+			foreground: !config.isSubagentExecution && config.executionProfile !== "goal_child",
+			canWaitForInput: !config.yoloModeToggled,
+			resolveTaskDirectory: () => getTaskDirectoryPath(config.taskId),
+		})
 		this.system = buildSystemTrait(config, this.executeCommand.bind(this))
 		this.telemetry = buildTelemetryTrait(this, config)
 		this.workspace = buildWorkspaceTrait(config)

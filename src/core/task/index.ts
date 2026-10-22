@@ -96,6 +96,8 @@ import {
 	type TaskSteeringContext,
 } from "./TaskSteering"
 import { submitCardResponse, waitForFollowUp } from "./TaskUserInput"
+import { submitContextualInput } from "./TaskContextualInput"
+import type { ContextualInput, ContextualInputRoute } from "@shared/messages/contextualInput"
 import { ToolExecutor } from "./ToolExecutor"
 import { SurfaceToolEnvironmentFactory } from "./tools/adapters/SurfaceAdapter"
 import { DiracContext } from "./tools/context/DiracContext"
@@ -277,6 +279,20 @@ export class Task {
 
 	public canAcceptSteeringMessage(): boolean {
 		return canAcceptSteeringMessage(this.steeringContext)
+	}
+
+	public submitContextualInput(input: ContextualInput, route: ContextualInputRoute, assertOwner: () => void) {
+		return submitContextualInput(
+			{
+				...this.steeringContext,
+				canAcceptSteering: () => this.canAcceptSteeringMessage(),
+				submitResponse: (cardId, value) =>
+					submitCardResponse({ taskState: this.taskState }, { cardId, value, response: DiracAskResponse.MESSAGE }),
+			},
+			input,
+			route,
+			assertOwner,
+		)
 	}
 
 	public async enqueueSteeringMessage(text: string): Promise<string> {
@@ -668,10 +684,7 @@ export class Task {
 		const commandExecutorCallbacks: CommandExecutorCallbacks = {
 			taskMessenger: this.taskMessenger,
 			updateBackgroundCommandState: (isRunning: boolean) =>
-				(updateBackgroundCommandState ?? this.host.updateBackgroundCommandState.bind(this.host))(
-					isRunning,
-					this.taskId,
-				),
+				(updateBackgroundCommandState ?? this.host.updateBackgroundCommandState.bind(this.host))(isRunning, this.taskId),
 			updateDiracMessage: async (index: number, updates: Partial<import("@shared/ExtensionMessage").DiracMessage>) => {
 				await this.messageStateHandler.updateDiracMessage(index, updates)
 				await this.postStateToWebview()
@@ -748,6 +761,7 @@ export class Task {
 		})
 
 		this.contextLoader = new ContextLoader({
+			executionProfile: this.executionProfile,
 			ulid: this.ulid,
 			stateManager: this.stateManager,
 			getRequestRuntime: () => {
@@ -1120,13 +1134,16 @@ export class Task {
 				if (this.executionProfile === "standalone" && this.taskState.didAttemptCompletion) {
 					const followUp = await this.waitForFollowUp()
 					if (followUp) {
-						await this.taskMessenger.upsertText(
-							this.taskState.askResponseText || "",
-							false,
-							this.taskState.askResponseImages,
-							this.taskState.askResponseFiles,
-							"user",
-						)
+						// Contextual follow-ups already have a durable user transcript entry.
+						if (followUp.length) {
+							await this.taskMessenger.upsertText(
+								this.taskState.askResponseText || "",
+								false,
+								this.taskState.askResponseImages,
+								this.taskState.askResponseFiles,
+								"user",
+							)
+						}
 						nextUserContent = [...this.taskState.userMessageContent, ...followUp]
 						this.taskState.didAttemptCompletion = false
 						this.taskState.clearCompletionResponse()

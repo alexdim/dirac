@@ -10,6 +10,7 @@ import { DynamicIcon } from "lucide-react/dynamic"
 import { CARD_DECORATORS } from "../decorators"
 import { CardStatusIcon } from "./CardStatusIcon"
 import { SubagentAvatar } from "./SubagentAvatar"
+import { ArchitectureNavigation } from "./ArchitectureNavigation"
 import { getStatusTextColorClass } from "../utils/cardUtils"
 import React, { useEffect, useMemo, useState } from "react"
 
@@ -92,6 +93,7 @@ export const ModularCardHeader: React.FC<ModularCardHeaderProps> = ({
 				</span>
 			</button>
 
+			{card.architectureReference && <ArchitectureNavigation selection={card.architectureReference} />}
 			{filePath && !decorators.some((decorator) => decorator.renderHeaderActions) && (
 				<button
 					aria-label={`Open ${filePath}`}

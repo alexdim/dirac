@@ -17,8 +17,12 @@ import { openAiCodexUsageService } from "@/integrations/openai-codex/OpenAiCodex
 import { BannerService } from "@/services/banner/BannerService"
 import { DiracExtensionContext } from "@/shared/dirac"
 import { Logger } from "@/shared/services/Logger"
+import { getHostCapabilities } from "@hosts/host-capabilities"
+import type { ArchitectureBoardController } from "./architecture/ArchitectureBoardController"
 import { SkillMetadata } from "@/shared/skills"
 import { StateManager } from "../storage/StateManager"
+import { getTaskDirectoryPath } from "../storage/taskDirectory"
+import { readPresentationHistory } from "../storage/conversationHistory"
 import { Task } from "../task"
 import type { PresentationSnapshot } from "../task/message-state"
 import type { ITaskHost } from "../task/types/task-host"
@@ -53,6 +57,35 @@ interface SelectedPresentation extends PresentationSnapshot {
 }
 
 export class Controller implements ITaskHost {
+	private architectureBoards?: ArchitectureBoardController
+	private architectureBoardsLoading?: Promise<ArchitectureBoardController>
+	private architectureBoardsDisposed = false
+
+	async getArchitectureBoards(): Promise<ArchitectureBoardController> {
+		if (this.architectureBoardsDisposed) throw new Error("Architecture controller is disposed")
+		if (!getHostCapabilities().architectureViewer) throw new Error("Architecture viewer is unavailable on this host")
+		if (this.architectureBoards) return this.architectureBoards
+		if (!this.architectureBoardsLoading) {
+			this.architectureBoardsLoading = import("./architecture/createArchitectureBoardController")
+				.then(({ createArchitectureBoardController }) => {
+					if (this.architectureBoardsDisposed) throw new Error("Architecture controller is disposed")
+					if (!getHostCapabilities().architectureViewer)
+						throw new Error("Architecture viewer is unavailable on this host")
+					this.architectureBoards = createArchitectureBoardController({
+						selected: () => ({ task: this.task, goalId: this.selectedGoalId }),
+						history: () => this.stateManager.getGlobalStateKey("taskHistory"),
+						directory: getTaskDirectoryPath,
+						readConversation: async (taskId) =>
+							(await readPresentationHistory(getTaskDirectoryPath(taskId))).messages,
+					})
+					return this.architectureBoards
+				})
+				.finally(() => {
+					this.architectureBoardsLoading = undefined
+				})
+		}
+		return this.architectureBoardsLoading
+	}
 	public discoveredSkillsCache?: SkillMetadata[]
 	readonly stateManager: StateManager
 	private availableToolsFingerprint?: string
@@ -169,6 +202,13 @@ export class Controller implements ITaskHost {
 	- https://github.com/microsoft/vscode-extension-samples/blob/main/webview-sample/src/extension.ts
 	*/
 	async dispose() {
+		this.architectureBoardsDisposed = true
+		try {
+			this.architectureBoards?.dispose()
+		} catch (error) {
+			Logger.warn("Architecture board cleanup failed", error)
+		}
+		this.architectureBoards = undefined
 		this.openAiCodexUsageUnsubscribe?.()
 		this.openAiCodexUsageUnsubscribe = undefined
 		await this.goalController.dispose()

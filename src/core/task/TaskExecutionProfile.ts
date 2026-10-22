@@ -1,6 +1,16 @@
+import type { SkillMetadata } from "@shared/skills"
 import type { DiscoveredTool } from "./tools/discovery/DiscoveredTool"
 
 export type TaskExecutionProfile = "standalone" | "goal_coordinator" | "goal_followup" | "goal_child"
+
+export function isSkillAvailableToTaskProfile(
+	profile: TaskExecutionProfile,
+	skill: SkillMetadata,
+	isSubagentExecution = false,
+): boolean {
+	if (!skill.foregroundOnly) return true
+	return !isSubagentExecution && (profile === "standalone" || profile === "goal_coordinator" || profile === "goal_followup")
+}
 
 export const GOAL_TOOL_NAMES = [
 	"start_task",

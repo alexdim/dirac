@@ -10,6 +10,23 @@ import { VsCodeLmHandler } from "./vscode-lm"
  * Keeps every `vscode.*` API call inside the hosts layer — core never imports vscode.
  */
 export const vscodeHostCapabilities: HostCapabilities = {
+	architectureViewer: {
+		openSelection: async (selection) => {
+			const { DiracWebviewProvider } = await import("@core/webview")
+			const boards = await DiracWebviewProvider.getInstance().controller.getArchitectureBoards()
+			await boards.open(selection)
+		},
+		prepare: async () => (await import("./architecture-board/ArchitectureBoardPanel")).prepareArchitectureBoard(),
+		createPanel: async (options) =>
+			(await import("./architecture-board/ArchitectureBoardPanel")).createArchitectureBoardPanel(options),
+		openCode: async (absolutePath, line, symbol, assertCurrent) =>
+			(await import("./architecture-board/openArchitectureCode")).openArchitectureCode(
+				absolutePath,
+				line,
+				symbol,
+				assertCurrent,
+			),
+	},
 	openWalkthrough: async () => {
 		await vscode.commands.executeCommand(
 			"workbench.action.openWalkthrough",

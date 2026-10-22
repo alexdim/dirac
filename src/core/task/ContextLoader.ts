@@ -1,3 +1,4 @@
+import { meetsHostCapabilityRequirement } from "@hosts/host-capabilities"
 import { GlobalFileNames } from "@core/storage/disk"
 import { USER_CONTENT_TAGS } from "@shared/messages/constants"
 import { DiracContent, DiracTextContentBlock } from "@shared/messages/content"
@@ -7,6 +8,7 @@ import { getOrDiscoverSkills } from "../context/instructions/user-instructions/s
 import { refreshWorkflowToggles } from "../context/instructions/user-instructions/workflows"
 import { FileContextLoader } from "./context/FileContextLoader"
 import { MentionContextLoader } from "./context/MentionContextLoader"
+import { isSkillAvailableToTaskProfile } from "./TaskExecutionProfile"
 import { ContextLoaderDependencies } from "./types/context-loader"
 import { CONVERSATION_CONTINUATION_TEMPLATE_ID, TASK_HANDOFF_TEMPLATE_ID } from "@core/text-condensation/templates"
 import type { SlashCommandDirectAction } from "@core/slash-commands"
@@ -115,7 +117,8 @@ export class ContextLoader {
 		const { settings, workspaceConfiguration } = this.dependencies.getRequestRuntime().workingConfiguration
 		const globalToggles = settings.globalSkillsToggles ?? {}
 		const localToggles = workspaceConfiguration.localSkillsToggles ?? {}
-		return providerSkills.filter((skill) => {
+		return providerSkills.filter(meetsHostCapabilityRequirement).filter((skill) => {
+			if (!isSkillAvailableToTaskProfile(this.dependencies.executionProfile, skill)) return false
 			if (settings.yoloModeToggled && skill.interactiveOnly) return false
 			if (skill.source === "builtin") return true
 			const toggles = skill.source === "global" ? globalToggles : localToggles

@@ -29,6 +29,7 @@ export type VsCodeLmHandlerFactoryOptions = CommonApiHandlerOptions & { vsCodeLm
  * handle absence (typically by degrading or throwing a descriptive error).
  */
 export interface HostCapabilities {
+	architectureViewer?: import("@shared/architecture/panel").ArchitectureViewer
 	/** Opens the product walkthrough UI (VS Code only). */
 	openWalkthrough?: () => Promise<void>
 	/** Reads the visible contents of the active terminal, when the host exposes them. */

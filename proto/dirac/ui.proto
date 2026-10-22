@@ -2,6 +2,7 @@ syntax = "proto3";
 
 package dirac;
 
+import "dirac/architecture.proto";
 import "dirac/common.proto";
 
 option go_package = "github.com/dirac/grpc-go/dirac";
@@ -144,6 +145,7 @@ message Card {
   repeated CardDiff diffs = 23;
   repeated CardLocation locations = 24;
   optional bool auto_scroll = 25;
+  optional ArchitectureReference architecture_reference = 26;
 }
 
 // Enum for DiracSayTool tool types

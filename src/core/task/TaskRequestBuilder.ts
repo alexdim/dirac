@@ -1,3 +1,4 @@
+import { meetsHostCapabilityRequirement } from "@hosts/host-capabilities"
 import type { ApiProviderInfo } from "@core/api"
 import {
 	getGlobalDiracRules,
@@ -39,7 +40,7 @@ import type { ToolExecutor } from "./ToolExecutor"
 import type { TaskRequestRuntime } from "./runtime/TaskRequestRuntime"
 import { bindToolSnapshotToRequestRuntime } from "./runtime/TaskRequestRuntime"
 import type { TaskExecutionProfile } from "./TaskExecutionProfile"
-import { taskProfileSystemInstructions } from "./TaskExecutionProfile"
+import { isSkillAvailableToTaskProfile, taskProfileSystemInstructions } from "./TaskExecutionProfile"
 
 export interface TaskRequestBuilderContext {
 	taskId: string
@@ -156,7 +157,8 @@ export async function buildApiRequestParams(
 	})
 	const globalSkillsToggles = settings.globalSkillsToggles ?? {}
 	const localSkillsToggles = workspaceConfiguration.localSkillsToggles ?? {}
-	const availableSkills = providerSkills.filter((skill) => {
+	const availableSkills = providerSkills.filter(meetsHostCapabilityRequirement).filter((skill) => {
+		if (!isSkillAvailableToTaskProfile(ctx.executionProfile, skill)) return false
 		if (settings.yoloModeToggled && skill.interactiveOnly) return false
 		if (skill.source === "builtin") return true
 		const toggles = skill.source === "global" ? globalSkillsToggles : localSkillsToggles

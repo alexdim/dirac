@@ -1,7 +1,9 @@
+import { meetsHostCapabilityRequirement } from "@hosts/host-capabilities"
 import * as path from "node:path"
 import { getOrDiscoverSkills } from "@core/context/instructions/user-instructions/skills"
 import { DiracToolSet, PromptRegistry } from "@core/prompts/system-prompt"
 import type { SystemPromptContext } from "@core/prompts/system-prompt/types"
+import { isSkillAvailableToTaskProfile } from "@core/task/TaskExecutionProfile"
 import { type ToolRequestSnapshot, validateToolRequestSnapshot } from "@core/task/tools/runtime/ToolSnapshot"
 import { Logger } from "@shared/services/Logger"
 import { filterSkillsByProviderCapabilities } from "@shared/skills"
@@ -45,7 +47,8 @@ export class SubagentContextBuilder {
 		const providerSkills = filterSkillsByProviderCapabilities(availableSkills, {
 			native_web_search: providerInfo.supportsNativeWebSearch,
 		})
-		const skills = this.resolveSkills(providerSkills)
+		const skills = this.resolveSkills(providerSkills.filter((skill) =>
+			isSkillAvailableToTaskProfile(this.baseConfig.executionProfile, skill, true)))
 		const context: SystemPromptContext = {
 			providerInfo,
 			cwd: this.baseConfig.cwd,
@@ -91,7 +94,8 @@ export class SubagentContextBuilder {
 		const parentSnapshot = this.baseConfig.activeToolSnapshot
 		const workspaceRoot = this.baseConfig.workspaceManager?.getPrimaryRoot()?.path
 		const activeSkillIds = new Set(parentSnapshot?.activeSkillIds ?? this.baseConfig.taskState.activeSkillIds)
-		const activeSkills = this.baseConfig.taskState.availableSkills.filter((skill) => activeSkillIds.has(skill.name))
+		const activeSkills = this.baseConfig.taskState.availableSkills.filter(meetsHostCapabilityRequirement).filter((skill) =>
+			activeSkillIds.has(skill.name) && isSkillAvailableToTaskProfile(this.baseConfig.executionProfile, skill, true))
 		const { parentTools, skillTools } = parentSnapshot
 			? { parentTools: parentSnapshot.inventoryEnabledTools, skillTools: [] as DiscoveredTool[] }
 			: await ToolRegistry.withExclusiveAccess((registry) => ({
@@ -101,6 +105,9 @@ export class SubagentContextBuilder {
 		const enabledTools = this.mergeTools(parentTools, skillTools)
 		const registry = ToolRegistry.getInstance()
 		const allowedEnabledTools = enabledTools
+			.filter((tool) => meetsHostCapabilityRequirement(tool.spec))
+			.filter((tool) => tool.exposure.kind !== "skill_only" ||
+				activeSkills.some((skill) => tool.exposure.kind === "skill_only" && tool.exposure.authorizedSkillIds.includes(skill.name)))
 			.map((tool) => registry.scopeToolForSubagent(tool, this.allowedTools))
 			.filter((tool): tool is DiscoveredTool => Boolean(tool))
 		const contextFilteredSpecs = allowedEnabledTools

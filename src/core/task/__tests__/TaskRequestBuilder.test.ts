@@ -1,3 +1,4 @@
+import { setHostCapabilities } from "@hosts/host-capabilities"
 import { strict as assert } from "node:assert"
 import * as diracRules from "@core/context/instructions/user-instructions/dirac-rules"
 import * as externalRules from "@core/context/instructions/user-instructions/external-rules"
@@ -63,7 +64,10 @@ describe("TaskRequestBuilder", () => {
 		} as unknown as AgentConfigLoader)
 	})
 
-	afterEach(() => sandbox.restore())
+	afterEach(() => {
+		sandbox.restore()
+		setHostCapabilities(undefined)
+	})
 
 	function createContext(
 		utilityModelSelection: unknown,
@@ -100,6 +104,8 @@ describe("TaskRequestBuilder", () => {
 			}
 		})
 		const context = {
+			executionProfile: "standalone",
+			getPinnedContext: async () => undefined,
 			taskId: "task-1",
 			cwd: "/tmp/workspace",
 			terminalExecutionMode: "backgroundExec",
@@ -256,6 +262,28 @@ describe("TaskRequestBuilder", () => {
 			sinon.assert.calledOnce(writePromptMetadataArtifacts)
 		}
 	})
+
+	it("does not advertise the board skill in a headless request even with cached discovery metadata", async () => {
+		setHostCapabilities({})
+			; (skills.getOrDiscoverSkills as sinon.SinonStub).resolves(skills.BUILTIN_SKILLS)
+		const { context, requestRuntime, getCapturedPromptContext } = createContext(undefined)
+		await buildApiRequestParams(context, requestRuntime, { previousApiReqIndex: 0 })
+		assert.equal(getCapturedPromptContext()?.skills?.some((skill) => skill.name === "architecture-board"), false)
+		assert.equal(context.taskState.availableSkills.some((skill) => skill.name === "architecture-board"), false)
+	})
+
+	for (const executionProfile of ["standalone", "goal_coordinator", "goal_followup", "goal_child"] as const) {
+		it(`advertises foreground-only skills correctly in ${executionProfile} request assembly`, async () => {
+			setHostCapabilities({ architectureViewer: { prepare: async () => { }, createPanel: async () => { throw new Error("not used") } } })
+				; (skills.getOrDiscoverSkills as sinon.SinonStub).resolves(skills.BUILTIN_SKILLS)
+			const { context, requestRuntime, getCapturedPromptContext } = createContext(undefined)
+			context.executionProfile = executionProfile
+			context.getPinnedContext = async () => undefined
+			await buildApiRequestParams(context, requestRuntime, { previousApiReqIndex: 0 })
+			assert.equal(getCapturedPromptContext()?.skills?.some((skill) => skill.name === "architecture-board"), executionProfile !== "goal_child")
+			assert.equal(context.taskState.availableSkills.some((skill) => skill.name === "architecture-board"), executionProfile !== "goal_child")
+		})
+	}
 
 	it("uses one request runtime for prompt context, tools, provider reporting, and metadata", async () => {
 		const requestBrowserSettings = { disableToolUse: true, remoteBrowserHost: "request.example" }

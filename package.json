@@ -263,6 +263,11 @@
         ],
         "keybindings": [
             {
+                "command": "dirac.architectureBoard.exitFullscreen",
+                "key": "escape escape",
+                "when": "inZenMode && activeWebviewPanelId == 'dirac.architectureBoard'"
+            },
+            {
                 "command": "editor.action.submitComment",
                 "key": "enter",
                 "when": "commentEditorFocused && commentController == dirac-ai-review && !commentIsEmpty"
@@ -395,6 +400,12 @@
         "configuration": {
             "title": "Dirac",
             "properties": {
+                "dirac.architectureBoard.style": {
+                    "type": "string",
+                    "default": "auto",
+                    "scope": "application",
+                    "markdownDescription": "Architecture-board visual style: Earth, Linen, or Soft. Choose a style using the board's Style dropdown; applies to all diagrams and comparison panes. The default `auto` follows appearance: Earth for dark mode and Linen for light mode. Unavailable styles also follow appearance. Set this to `auto` to resume automatic selection."
+                },
                 "dirac.planActToggleShortcut": {
                     "type": "string",
                     "default": "",

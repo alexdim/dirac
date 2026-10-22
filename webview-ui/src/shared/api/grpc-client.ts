@@ -4,6 +4,27 @@ import * as proto from "@shared/proto/index"
 export { DiracError, DiracErrorType } from "@/../../src/services/error/DiracError"
 import { ProtoBusClient, Callbacks } from "./grpc-client-base"
 
+export class ArchitectureServiceClient extends ProtoBusClient {
+	static override serviceName: string = "dirac.ArchitectureService"
+	static async openArchitectureBoard(request: proto.dirac.ArchitectureReference): Promise<proto.dirac.Empty> {
+		return this.makeUnaryRequest("openArchitectureBoard", request, proto.dirac.ArchitectureReference.toJSON, proto.dirac.Empty.fromJSON)
+	}
+	static async readArchitectureBoard(request: proto.dirac.ArchitectureBoardRequest): Promise<proto.dirac.ArchitectureBoardView> {
+		return this.makeUnaryRequest("readArchitectureBoard", request, proto.dirac.ArchitectureBoardRequest.toJSON, proto.dirac.ArchitectureBoardView.fromJSON)
+	}
+	static async saveArchitecturePresentation(request: proto.dirac.ArchitecturePresentationRequest): Promise<proto.dirac.Empty> {
+		return this.makeUnaryRequest("saveArchitecturePresentation", request, proto.dirac.ArchitecturePresentationRequest.toJSON, proto.dirac.Empty.fromJSON)
+	}
+	static async mutateArchitectureComment(request: proto.dirac.ArchitectureCommentRequest): Promise<proto.dirac.ArchitectureComments> {
+		return this.makeUnaryRequest("mutateArchitectureComment", request, proto.dirac.ArchitectureCommentRequest.toJSON, proto.dirac.ArchitectureComments.fromJSON)
+	}
+	static async submitArchitectureFeedback(request: proto.dirac.ArchitectureFeedbackRequest): Promise<proto.dirac.ArchitectureFeedbackResult> {
+		return this.makeUnaryRequest("submitArchitectureFeedback", request, proto.dirac.ArchitectureFeedbackRequest.toJSON, proto.dirac.ArchitectureFeedbackResult.fromJSON)
+	}
+	static async openArchitectureCode(request: proto.dirac.ArchitectureCodeRequest): Promise<proto.dirac.Empty> {
+		return this.makeUnaryRequest("openArchitectureCode", request, proto.dirac.ArchitectureCodeRequest.toJSON, proto.dirac.Empty.fromJSON)
+	}
+}
 export class BrowserServiceClient extends ProtoBusClient {
 	static override serviceName: string = "dirac.BrowserService"
 	static async getBrowserConnectionInfo(request: proto.dirac.EmptyRequest): Promise<proto.dirac.BrowserConnectionInfo> {

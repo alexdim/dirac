@@ -1,3 +1,4 @@
+import { meetsHostCapabilityRequirement } from "@hosts/host-capabilities"
 import { DiracToolSet } from "@core/prompts/system-prompt/registry/DiracToolSet"
 import type { SystemPromptContext } from "@core/prompts/system-prompt/types"
 import { DiracDefaultTool } from "@/shared/tools"
@@ -61,7 +62,7 @@ export class ToolSnapshotManager {
 			// this request's detached toggles before deriving enabled membership.
 			registry.loadToggles(this.options.getToggles())
 			const inventory = this.getInventorySnapshot(registry)
-			const activeSkills = this.options.getActiveSkills()
+			const activeSkills = this.options.getActiveSkills().filter(meetsHostCapabilityRequirement)
 			const skillTools = registry.resolveSkillDependencyTools(
 				activeSkills,
 				this.options.getTaskId(),
@@ -73,7 +74,7 @@ export class ToolSnapshotManager {
 				this.options.getSelectionPolicy(),
 			)
 			const effectiveTools = this.mergeTools(selectedConfiguredTools, skillTools).filter(
-				(tool) => this.options.isToolAvailable?.(tool) ?? true,
+				(tool) => meetsHostCapabilityRequirement(tool.spec) && (this.options.isToolAvailable?.(tool) ?? true),
 			)
 			const promptVisibleSpecs = this.buildPromptVisibleSpecs(effectiveTools, context)
 			const nativeTools = DiracToolSet.convertSpecsToNativeTools(promptVisibleSpecs, context)
@@ -129,7 +130,7 @@ export class ToolSnapshotManager {
 		const workspaceRoot = this.options.getWorkspaceRoot()
 		const tools = [...registry.getAllTools(ownerTaskId, workspaceRoot)]
 		const enabledTools = [...registry.getEnabledTools(ownerTaskId, workspaceRoot)].filter(
-			(tool) => this.options.isToolAvailable?.(tool) ?? true,
+			(tool) => meetsHostCapabilityRequirement(tool.spec) && (this.options.isToolAvailable?.(tool) ?? true),
 		)
 		const coordinator = this.buildCoordinator(enabledTools)
 		this.validateInventoryCoordinator(enabledTools, coordinator)

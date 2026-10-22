@@ -103,6 +103,7 @@ export class TaskState {
 	askResponseImages?: string[]
 	askResponseFiles?: string[]
 	lastMessageTs?: number
+	waitingForFollowUp = false
 	waitingCardIds: string[] = []
 	get lastWaitingCardId(): string | undefined {
 		return this.waitingCardIds[0]

@@ -38,6 +38,7 @@ import { CommandPermissionController } from "@/core/permissions/CommandPermissio
 import type { ToolPermissionRule } from "@/core/permissions/types.js"
 import { getSavedDiracMessages, setRuntimeHooksDir } from "@/core/storage/disk"
 import { StateManager } from "@/core/storage/StateManager"
+import { deleteTaskDirectory } from "@/core/storage/taskDirectory"
 import { withTaskHistoryInventoryLock } from "@/core/storage/taskHistory"
 import { AuthHandler } from "@/hosts/external/AuthHandler.js"
 import { ExternalCommentReviewController } from "@/hosts/external/ExternalCommentReviewController.js"
@@ -228,10 +229,7 @@ export class DiracAgent implements acp.Agent {
 		const stateManager = StateManager.get()
 		await withTaskHistoryInventoryLock(async () => {
 			for (const taskId of taskIds) {
-				await fs.rm(`${this.ctx.DATA_DIR}/tasks/${taskId}`, {
-					recursive: true,
-					force: true,
-				})
+				await deleteTaskDirectory(taskId)
 			}
 			stateManager.removeTaskHistoryItems(taskIds)
 			await stateManager.flushPendingState()

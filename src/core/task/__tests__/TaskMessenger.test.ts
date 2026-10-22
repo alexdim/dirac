@@ -177,6 +177,31 @@ describe("TaskMessenger text authorship", () => {
 		assert.equal(card.getCard().endTime !== undefined, true)
 	})
 
+	it("architecture display uses real chat input/cancellation and persists navigation without opening a panel", async () => {
+		const { create } = await import("../tools/modules/architecture_diagram/tool")
+		const { CardHandle } = await import("../tools/adapters/CardHandle")
+		for (const cancel of [false, true]) {
+			const { messenger, taskState, messages, messageStateHandler } = createMessenger()
+			const operation = create().processCall({ operation: "display_diagram", name: "tools" }, {
+				ui: { createCard: async (params) => new CardHandle(await messenger.createCard(params)) },
+				architecture: {
+					openDisplay: async (selection) => ({ available: true, waitForInput: true, selection: { ...selection, taskId: "owner" } }),
+				} as import("../tools/interfaces/IArchitectureTrait").IArchitectureTrait,
+			})
+			const settled = assert.rejects(operation, cancel ? /aborted/ : ToolSkippedByUserMessage)
+			await pWaitFor(() => taskState.status === TaskStatus.AWAITING_USER_INPUT, { timeout: 1500 })
+			assert.ok(messageStateHandler.flushPendingWrites.called)
+			assert.equal(messages[0].content.card.architectureReference.mode, "latest")
+			if (cancel) taskState.abort = true
+			else await submitCardResponse({ taskState }, { cardId: "", response: DiracAskResponse.MESSAGE, text: "Keep the boundary", images: [], files: [] })
+			await settled
+			assert.equal(messages[0].content.card.status, cancel ? CardStatus.CANCELLED : CardStatus.SKIPPED)
+			assert.equal(messages[0].content.card.architectureReference.taskId, "owner")
+			assert.deepEqual(taskState.waitingCardIds, [])
+			if (!cancel) assert.equal(messages[1].content.content, "Keep the boundary")
+		}
+	})
+
 	it("services concurrent card waits in FIFO order", async () => {
 		const { messenger, taskState } = createMessenger()
 		const first = await messenger.createCard({ header: "First", requireApproval: true })
@@ -216,7 +241,7 @@ describe("TaskMessenger text authorship", () => {
 							},
 						)
 					}
-					const publication = sinon.stub().callsFake(stage === "presentation" ? answer : async () => {})
+					const publication = sinon.stub().callsFake(stage === "presentation" ? answer : async () => { })
 					const { messenger, taskState, messageStateHandler } = createMessenger(publication)
 					if (stage === "persistence") messageStateHandler.flushPendingWrites.callsFake(answer)
 					const card = await messenger.createCard({ header: "Permission", requireApproval: true })
@@ -363,7 +388,7 @@ describe("TaskMessenger text authorship", () => {
 	})
 
 	it("does not block card lifecycle operations on state delivery", async () => {
-		const postStateToWebview = sinon.stub().returns(new Promise<void>(() => {}))
+		const postStateToWebview = sinon.stub().returns(new Promise<void>(() => { }))
 		const { messenger, messages, messageStateHandler } = createMessenger(postStateToWebview)
 
 		const card = await messenger.createCard({ header: "Long-running publication" })

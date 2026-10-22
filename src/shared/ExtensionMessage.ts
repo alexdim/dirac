@@ -211,19 +211,21 @@ export enum DiracMessageType {
 export type DiracMessageContent =
 	/** Stateless conversational content (speech, reasoning, info) */
 	| {
-			type: DiracMessageType.MARKDOWN
-			content: string
-			isReasoning?: boolean
-			images?: string[]
-			files?: string[]
-			isCompletion?: boolean
-			completionType?: "act" | "plan"
-			showFeedback?: boolean
-			role?: "user" | "assistant"
-			agentId?: number
-			agentName?: string
-			steering?: { status: SteeringTranscriptStatus }
-	  }
+		type: DiracMessageType.MARKDOWN
+		content: string
+		isReasoning?: boolean
+		images?: string[]
+		files?: string[]
+		isCompletion?: boolean
+		completionType?: "act" | "plan"
+		showFeedback?: boolean
+		role?: "user" | "assistant"
+		agentId?: number
+		agentName?: string
+		steering?: { status: SteeringTranscriptStatus }
+		/** Source identities for durable contextual input; transcript-only transport metadata. */
+		contextualInput?: { references: string[] }
+	}
 	/** Stateful tool-mediated unit of work */
 	| { type: DiracMessageType.CARD; card: Card }
 	/** System telemetry and vitals (tokens, cost, latency) */
@@ -484,6 +486,8 @@ export interface Card {
 
 	rawInput?: CardRawInput
 	rawOutput?: CardRawOutput
+	/** Navigation only; never an interaction action or approval. */
+	architectureReference?: import("./architecture").ArchitectureSelection
 	diffs?: CardDiff[]
 	locations?: CardLocation[]
 	requireApproval?: boolean
@@ -540,6 +544,7 @@ export interface CardParams {
 
 	rawInput?: CardRawInput
 	rawOutput?: CardRawOutput
+	architectureReference?: import("./architecture").ArchitectureSelection
 	diffs?: CardDiff[]
 	locations?: CardLocation[]
 	requireApproval?: boolean
