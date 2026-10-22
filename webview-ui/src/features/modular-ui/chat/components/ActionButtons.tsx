@@ -29,7 +29,6 @@ const ActionButtons: React.FC<ActionButtonsProps> = ({ task, chatState, messageH
 	} = chatState
 	const [isProcessing, setIsProcessing] = useState(false)
 
-	const { lastMessage, secondLastMessage } = chatState
 	const activeCard = useChatStore((state) => {
 		const activeCardId = state.uiActionState?.activeCardId
 		const activeCardIndex = activeCardId ? state.messageIndexById.get(activeCardId) : undefined
@@ -44,19 +43,6 @@ const ActionButtons: React.FC<ActionButtonsProps> = ({ task, chatState, messageH
 		}
 	}, [uiActionState, setSendingDisabled])
 
-	// Clear input when transitioning from command_output to api_req
-	// This happens when user provides feedback during command execution
-	useEffect(() => {
-		if (
-			lastMessage?.content.type === "api_status" &&
-			secondLastMessage?.content.type === "card" &&
-			secondLastMessage.content.card.icon === "terminal"
-		) {
-			chatState.setInputValue("")
-			chatState.setSelectedImages([])
-			chatState.setSelectedFiles([])
-		}
-	}, [lastMessage, secondLastMessage, chatState])
 
 	const handleActionClick = useCallback(
 		async (action: ButtonActionType, value?: string, text?: string, images?: string[], files?: string[]) => {
