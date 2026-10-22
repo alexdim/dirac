@@ -69,7 +69,7 @@ import {
 	setSessionRuntimeConfig,
 	TASK_RUNTIME_SETTINGS_KEYS,
 } from "../acp/acp-session-runtime-config.js"
-import { deleteTasksForSession, getLatestTaskIdForSession, recordTaskForSession } from "../acp/acp-session-tasks.js"
+import { deleteTasksForSession, getLatestTaskIdForSession } from "../acp/acp-session-tasks.js"
 import {
 	deleteSessionUpdates,
 	getSessionUpdates,
@@ -418,7 +418,7 @@ export class DiracAgent implements acp.Agent {
 		}
 
 		if (!task.canAcceptSteeringMessage()) {
-			if (task.taskState.abort || task.taskState.pendingTaskReplacement) {
+			if (task.taskState.abort) {
 				this.unbindPromptTask(sessionId)
 			}
 			this.bufferWhisper(sessionId, text)
@@ -1651,29 +1651,6 @@ export class DiracAgent implements acp.Agent {
 			)
 			subscribedTask = task
 		}
-		const removeTaskReplacementListener = controller.onTaskReplaced(async (taskId) => {
-			await bridge.cancelInFlightToolCalls(params.sessionId, sessionState)
-			await recordTaskForSession(params.sessionId, taskId)
-			session.taskId = taskId
-			this.persistSessionOverrides(params.sessionId)
-			subscribedTask = undefined
-			const replacementTask = controller.task
-			if (!replacementTask) return
-			await this.bindPromptTask(params.sessionId, replacementTask)
-			const replayEndIndex = replacementTask.messageStateHandler.getDiracMessages().length
-			subscribeToCurrentTask()
-			await bridge.replayTaskMessages(
-				controller,
-				params.sessionId,
-				sessionState,
-				resolvePrompt!,
-				rejectPrompt!,
-				promptResolved,
-				0,
-				replayEndIndex,
-			)
-		})
-		cleanupFunctions.push(removeTaskReplacementListener)
 
 		try {
 			// Extract text content from prompt

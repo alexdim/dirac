@@ -50,7 +50,6 @@ export type ConfiguredAPIKeys = Partial<Record<ApiProvider, boolean>>
 /** Independently controls which sidecar operations may use the Utility model. */
 export interface UtilityModelUseCases {
 	condense: boolean
-	newTask: boolean
 	generateCommitMessage: boolean
 	permissionHandling: boolean
 }
@@ -231,7 +230,6 @@ const USER_SETTINGS_FIELDS = {
 	// Retained only to migrate configurations written before Utility use cases were independent.
 	utilityModelEnabled: { default: false as boolean },
 	utilityModelUseCondense: { default: true as boolean },
-	utilityModelUseNewTask: { default: true as boolean },
 	utilityModelUseGenerateCommitMessage: { default: true as boolean },
 	utilityModelUsePermissionHandling: { default: false as boolean },
 	utilityModelPermissionPolicy: { default: "" as string },

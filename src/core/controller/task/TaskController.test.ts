@@ -5,97 +5,12 @@ import * as taskDirectory from "@core/storage/taskDirectory"
 import { Logger } from "@/shared/services/Logger"
 import { TaskController } from "./TaskController"
 
-describe("TaskController task replacement", () => {
+describe("TaskController task lifecycle", () => {
 	afterEach(() => sinon.restore())
 
 	function createController(): TaskController {
 		return new (TaskController as any)({})
 	}
-
-	it("starts an approved replacement even when the old task run rejects", async () => {
-		const controller = createController()
-		const replacement = { context: "replacement context", images: ["image"], files: ["file"] }
-		const latestWorkingConfiguration = {
-			revision: 4,
-			settings: { mode: "act" },
-			apiConfiguration: {},
-			workspaceConfiguration: {},
-			executionOptions: {},
-		} as any
-		const task = {
-			taskState: { pendingTaskReplacement: replacement },
-			get stateView() {
-				return this.taskState
-			},
-			getWorkingConfiguration: () => latestWorkingConfiguration,
-		} as any
-		controller.task = task
-		const ownerOptions = { runtimeConfigurationOverrides: { mode: "plan", autoApproveAllToggled: true } } as const
-		;(controller as any).currentInitializationOptions = ownerOptions
-		const controllerInternals = controller as any
-		const initTask = sinon.stub(controller, "initTask").callsFake(async () => {
-			assert.equal(task.taskState.pendingTaskReplacement, replacement)
-			controllerInternals._taskRunPromise = Promise.resolve()
-			return "replacement-task-id"
-		})
-
-		await (controller as any).runTaskWithReplacement(task, Promise.reject(new Error("old task unwind failed")))
-
-		sinon.assert.calledOnceWithExactly(
-			initTask,
-			replacement.context,
-			replacement.images,
-			replacement.files,
-			undefined,
-			undefined,
-			undefined,
-			undefined,
-			{
-				workingConfiguration: latestWorkingConfiguration,
-			},
-		)
-		const replacementOptions = initTask.firstCall.args[7]!
-		assert.equal(replacementOptions.workingConfiguration, latestWorkingConfiguration)
-		assert.equal(replacementOptions.runtimeConfigurationOverrides, undefined)
-		assert.equal(task.taskState.pendingTaskReplacement, undefined)
-	})
-
-	it("retains the approved replacement and surfaces replacement initialization failure", async () => {
-		const controller = createController()
-		const replacement = { context: "replacement context" }
-		const task = {
-			taskState: { pendingTaskReplacement: replacement },
-			get stateView() {
-				return this.taskState
-			},
-		} as any
-		controller.task = task
-		const initializationFailure = new Error("replacement initialization failed")
-		sinon.stub(controller, "initTask").rejects(initializationFailure)
-
-		await assert.rejects(
-			() => (controller as any).runTaskWithReplacement(task, Promise.resolve()),
-			(error: unknown) => error === initializationFailure,
-		)
-		assert.equal(task.taskState.pendingTaskReplacement, replacement)
-	})
-
-	it("propagates the old task failure when no replacement was approved", async () => {
-		const controller = createController()
-		const task = {
-			taskState: { pendingTaskReplacement: undefined },
-			get stateView() {
-				return this.taskState
-			},
-		} as any
-		controller.task = task
-		const oldTaskFailure = new Error("old task failed")
-
-		await assert.rejects(
-			() => (controller as any).runTaskWithReplacement(task, Promise.reject(oldTaskFailure)),
-			(error: unknown) => error === oldTaskFailure,
-		)
-	})
 
 	it("observes detached task failures while preserving them for callers", async () => {
 		const controller = createController()
@@ -121,7 +36,7 @@ describe("TaskController task replacement", () => {
 		})
 		const task = {
 			taskId: "history-task",
-			taskState: { pendingTaskReplacement: undefined },
+			taskState: {},
 			get stateView() {
 				return this.taskState
 			},
@@ -156,7 +71,7 @@ describe("TaskController task replacement", () => {
 		const controller = new (TaskController as any)({ clearTaskSettings }) as TaskController
 		const task = {
 			taskId: "broken-history-task",
-			taskState: { pendingTaskReplacement: undefined },
+			taskState: {},
 			get stateView() {
 				return this.taskState
 			},
@@ -182,7 +97,7 @@ describe("TaskController task replacement", () => {
 		const stack = "StorageReplayError: Invalid operation record\n    at replayOperationRecords"
 		const task = {
 			taskId: "invalid-operation-history-task",
-			taskState: { pendingTaskReplacement: undefined },
+			taskState: {},
 			get stateView() {
 				return this.taskState
 			},
@@ -213,7 +128,7 @@ describe("TaskController task replacement", () => {
 		const controller = new (TaskController as any)({ clearTaskSettings }) as TaskController
 		const task = {
 			taskId: "stalled-history-task",
-			taskState: { pendingTaskReplacement: undefined },
+			taskState: {},
 			get stateView() {
 				return this.taskState
 			},
@@ -241,7 +156,7 @@ describe("TaskController task replacement", () => {
 		})
 		const task = {
 			taskId: "replaced-history-task",
-			taskState: { pendingTaskReplacement: undefined },
+			taskState: {},
 			get stateView() {
 				return this.taskState
 			},

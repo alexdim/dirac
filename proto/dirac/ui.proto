@@ -224,11 +224,6 @@ message DiracAskQuestion {
   string selected = 3;
 }
 
-// Message for DiracAskNewTask
-message DiracAskNewTask {
-  string context = 1;
-}
-
 // Message for API request retry status
 message ApiReqRetryStatus {
   int32 attempt = 1;
@@ -317,7 +312,8 @@ message DiracMessage {
   BrowserActionResult browser_action_result = 17 [deprecated = true];
   DiracPlanModeResponse plan_mode_response = 19 [deprecated = true];
   DiracAskQuestion ask_question = 20 [deprecated = true];
-  DiracAskNewTask ask_new_task = 21 [deprecated = true];
+  reserved 21;
+  reserved "ask_new_task";
 }
 
 message ShowWebviewEvent {

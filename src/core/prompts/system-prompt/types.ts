@@ -24,7 +24,6 @@ export interface SystemPromptContext {
 		readonly visible?: readonly string[]
 	}
 	readonly supportsBrowserUse?: boolean
-	readonly taskHandoffCondensationAvailable?: boolean
 	readonly skills?: SkillMetadata[]
 	readonly globalDiracRulesFileInstructions?: string
 	readonly localDiracRulesFileInstructions?: string

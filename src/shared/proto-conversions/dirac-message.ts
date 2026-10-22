@@ -261,7 +261,6 @@ export function convertDiracMessageToProto(message: AppDiracMessage): ProtoDirac
 		browserActionResult: undefined,
 		planModeResponse: undefined,
 		askQuestion: undefined,
-		askNewTask: undefined,
 	}
 
 	// Map content union to proto fields

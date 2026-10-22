@@ -48,7 +48,6 @@ const mocks = vi.hoisted(() => {
 		task: typeof task | undefined
 		taskRunPromise: Promise<void> | undefined
 		getStateToPostToWebview = vi.fn(async () => ({ mode: "act" }))
-		onTaskReplaced = vi.fn(() => () => undefined)
 		dispose = vi.fn()
 		initTask = vi.fn(async () => {
 			this.task = task

@@ -166,7 +166,6 @@ describe("TaskRequestBuilder", () => {
 								globalSkillsToggles: {},
 								utilityModelEnabled: false,
 								utilityModelUseCondense: true,
-								utilityModelUseNewTask: true,
 								yoloModeToggled: false,
 								diracWebToolsEnabled: false,
 								enableParallelToolCalling: false,

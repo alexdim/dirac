@@ -132,6 +132,8 @@ message UserApprovedCommand {
 }
 
 message Settings {
+  reserved 209;
+  reserved "utility_model_use_new_task";
   optional string lite_llm_base_url = 1;
   optional bool lite_llm_use_prompt_cache = 2;
   optional string anthropic_base_url = 4;
@@ -301,7 +303,6 @@ message Settings {
   optional ModelProviderSelection utility_model_selection = 206;
   repeated UserApprovedCommand user_approved_commands = 207;
   optional bool utility_model_use_condense = 208;
-  optional bool utility_model_use_new_task = 209;
   optional bool utility_model_use_generate_commit_message = 210;
   optional bool low_verbosity_enabled = 211;
   optional bool utility_model_use_permission_handling = 212;
@@ -449,7 +450,8 @@ message UpdateSettingsRequest {
   optional ModelProviderSelection utility_model_selection = 48;
   optional UserApprovedCommandsUpdate user_approved_commands = 49;
   optional bool utility_model_use_condense = 50;
-  optional bool utility_model_use_new_task = 51;
+  reserved 51;
+  reserved "utility_model_use_new_task";
   optional bool utility_model_use_generate_commit_message = 52;
   optional bool low_verbosity_enabled = 53;
   optional bool utility_model_use_permission_handling = 54;

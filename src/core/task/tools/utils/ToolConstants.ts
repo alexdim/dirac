@@ -31,7 +31,6 @@ export const TASK_CONFIG_KEYS = [
 	"useAutoCondense",
 	"utilityModelEnabled",
 	"utilityModelUseCondense",
-	"utilityModelUseNewTask",
 	"globalSkillsToggles",
 	"localSkillsToggles",
 	"taskState",

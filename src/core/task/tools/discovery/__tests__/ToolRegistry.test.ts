@@ -67,6 +67,13 @@ describe("ToolRegistry", () => {
 		})
 	})
 
+	it("does not discover the retired replacement tool", () => {
+		const toolNames = ToolDiscoveryService.scanBuiltinTools().map((tool) => tool.spec.name)
+		assert.equal(toolNames.includes("new_task"), false)
+		assert.ok(toolNames.includes("condense"))
+		assert.ok(toolNames.includes("start_task"))
+	})
+
 	describe("registration", () => {
 		it("registers built-in and user tools separately", () => {
 			const registry = ToolRegistry.getInstance()

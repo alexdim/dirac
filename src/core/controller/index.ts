@@ -116,10 +116,6 @@ export class Controller implements ITaskHost {
 		return this.taskController?.taskRunPromise
 	}
 
-	onTaskReplaced(listener: (taskId: string) => void | Promise<void>): () => void {
-		return this.taskController.onTaskReplaced(listener)
-	}
-
 	private lastPublishedPresentation?: {
 		surfaceId?: string
 		source?: object

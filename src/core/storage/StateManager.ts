@@ -181,7 +181,6 @@ export class StateManager {
 			const { globalState, secrets, workspaceState } = await StateManager.instance.persistence.readAllFromDisk()
 			const rawLegacyUtilityModelEnabled = storage.globalStateBackingStore.get<boolean>("utilityModelEnabled")
 			const rawUtilityModelUseCondense = storage.globalStateBackingStore.get<boolean>("utilityModelUseCondense")
-			const rawUtilityModelUseNewTask = storage.globalStateBackingStore.get<boolean>("utilityModelUseNewTask")
 			const rawUtilityModelUseGenerateCommitMessage = storage.globalStateBackingStore.get<boolean>(
 				"utilityModelUseGenerateCommitMessage",
 			)
@@ -195,12 +194,11 @@ export class StateManager {
 			// existing user's intent. Read directly from the backing store because the
 			// normalized state reader fills missing settings with their defaults.
 			const utilityUseCaseUpdates: Partial<
-				Pick<Settings, "utilityModelUseCondense" | "utilityModelUseNewTask" | "utilityModelUseGenerateCommitMessage">
+				Pick<Settings, "utilityModelUseCondense" | "utilityModelUseGenerateCommitMessage">
 			> = {}
 			if (rawLegacyUtilityModelEnabled !== undefined) {
 				const enabled = rawLegacyUtilityModelEnabled === true
 				if (rawUtilityModelUseCondense === undefined) utilityUseCaseUpdates.utilityModelUseCondense = enabled
-				if (rawUtilityModelUseNewTask === undefined) utilityUseCaseUpdates.utilityModelUseNewTask = enabled
 				if (rawUtilityModelUseGenerateCommitMessage === undefined) {
 					utilityUseCaseUpdates.utilityModelUseGenerateCommitMessage = enabled
 				}

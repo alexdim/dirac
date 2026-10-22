@@ -46,7 +46,7 @@ function createMocks() {
 		},
 		getWorkingConfiguration: sinon.stub().returns({
 			settings: {
-				utilityModelEnabled: true, utilityModelUseCondense: true, utilityModelUseNewTask: true,
+				utilityModelEnabled: true, utilityModelUseCondense: true,
 				utilityModelSelection: selection, hooksEnabled: false, mode: "act",
 			},
 			apiConfiguration: { apiKey: "test-key" },

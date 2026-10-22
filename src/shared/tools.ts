@@ -51,7 +51,6 @@ export enum DiracDefaultTool {
 	SEARCH = "search_files",
 	LIST_FILES = "list_files",
 	BROWSER = "browser_action",
-	NEW_TASK = "new_task",
 	CONDENSE = "condense",
 	USE_SKILL = "use_skill",
 	LIST_SKILLS = "list_skills",

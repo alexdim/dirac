@@ -89,7 +89,6 @@ export interface ExtensionState {
 	utilityModelEnabled: boolean
 	utilityModelSelection?: ModelProviderSelection
 	utilityModelUseCondense: boolean
-	utilityModelUseNewTask: boolean
 	utilityModelUseGenerateCommitMessage: boolean
 	utilityModelUsePermissionHandling: boolean
 	utilityModelPermissionPolicy: string

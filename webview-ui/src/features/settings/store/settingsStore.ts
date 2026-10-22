@@ -46,7 +46,6 @@ interface SettingsState {
 	utilityModelEnabled: boolean
 	utilityModelSelection?: ModelProviderSelection
 	utilityModelUseCondense: boolean
-	utilityModelUseNewTask: boolean
 	utilityModelUseGenerateCommitMessage: boolean
 	utilityModelUsePermissionHandling: boolean
 	utilityModelPermissionPolicy: string
@@ -271,7 +270,6 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
 	utilityModelEnabled: false,
 	utilityModelSelection: undefined,
 	utilityModelUseCondense: true,
-	utilityModelUseNewTask: true,
 	utilityModelUseGenerateCommitMessage: true,
 	utilityModelUsePermissionHandling: false,
 	utilityModelPermissionPolicy: "",

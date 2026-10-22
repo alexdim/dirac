@@ -53,7 +53,6 @@ function buildCliSettingsPersistencePatch(
 		utilityModelEnabled,
 		utilityModelSelection,
 		utilityModelUseCondense,
-		utilityModelUseNewTask,
 		utilityModelUseGenerateCommitMessage,
 		utilityModelUsePermissionHandling,
 		utilityModelPermissionPolicy,
@@ -84,7 +83,6 @@ function buildCliSettingsPersistencePatch(
 		globalSettings.utilityModelSelection = convertProtoToModelProviderSelection(utilityModelSelection)
 	}
 	if (utilityModelUseCondense !== undefined) globalSettings.utilityModelUseCondense = utilityModelUseCondense
-	if (utilityModelUseNewTask !== undefined) globalSettings.utilityModelUseNewTask = utilityModelUseNewTask
 	if (utilityModelUseGenerateCommitMessage !== undefined) {
 		globalSettings.utilityModelUseGenerateCommitMessage = utilityModelUseGenerateCommitMessage
 	}
@@ -223,7 +221,6 @@ function buildActiveTaskPatch(
 			utilityModelEnabled,
 			utilityModelSelection,
 			utilityModelUseCondense,
-			utilityModelUseNewTask,
 			utilityModelUseGenerateCommitMessage,
 			utilityModelUsePermissionHandling,
 			utilityModelPermissionPolicy,
@@ -269,7 +266,6 @@ function buildActiveTaskPatch(
 		if (utilityModelSelection !== undefined)
 			settingsPatch.utilityModelSelection = convertProtoToModelProviderSelection(utilityModelSelection)
 		if (utilityModelUseCondense !== undefined) settingsPatch.utilityModelUseCondense = utilityModelUseCondense
-		if (utilityModelUseNewTask !== undefined) settingsPatch.utilityModelUseNewTask = utilityModelUseNewTask
 		if (utilityModelUseGenerateCommitMessage !== undefined)
 			settingsPatch.utilityModelUseGenerateCommitMessage = utilityModelUseGenerateCommitMessage
 		if (utilityModelUsePermissionHandling !== undefined)

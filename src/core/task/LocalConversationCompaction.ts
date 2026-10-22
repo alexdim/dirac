@@ -76,7 +76,6 @@ export class LocalConversationCompaction {
 			{
 				utilityModelEnabled: this.dependencies.getWorkingConfiguration().settings.utilityModelEnabled,
 				utilityModelUseCondense: this.dependencies.getWorkingConfiguration().settings.utilityModelUseCondense,
-				utilityModelUseNewTask: this.dependencies.getWorkingConfiguration().settings.utilityModelUseNewTask,
 				utilityModelSelection: this.dependencies.getWorkingConfiguration().settings.utilityModelSelection,
 			},
 			CONVERSATION_CONTINUATION_TEMPLATE_ID,
@@ -89,7 +88,6 @@ export class LocalConversationCompaction {
 		const settings = {
 			utilityModelEnabled: this.dependencies.getWorkingConfiguration().settings.utilityModelEnabled,
 			utilityModelUseCondense: this.dependencies.getWorkingConfiguration().settings.utilityModelUseCondense,
-			utilityModelUseNewTask: this.dependencies.getWorkingConfiguration().settings.utilityModelUseNewTask,
 			utilityModelSelection: this.dependencies.getWorkingConfiguration().settings.utilityModelSelection,
 		}
 		const selection = getConfiguredUtilityModelSelection(settings.utilityModelSelection)

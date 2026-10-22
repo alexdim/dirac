@@ -361,12 +361,6 @@ function createUtilityItems(props: UseSettingsItemsProps): ListItem[] {
 			"Summarize long conversations before their context limit is reached.",
 		),
 		checkbox(
-			"utilityModelUseNewTask",
-			"New-task handoffs",
-			utilityModelUseCases.newTask,
-			"Generate a complete handoff from a concise new-task intent.",
-		),
-		checkbox(
 			"utilityModelUseGenerateCommitMessage",
 			"Generate commit messages",
 			utilityModelUseCases.generateCommitMessage,

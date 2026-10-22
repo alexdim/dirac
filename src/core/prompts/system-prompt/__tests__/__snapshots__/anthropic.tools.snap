@@ -273,22 +273,6 @@
     }
   },
   {
-    "name": "new_task",
-    "description": "Creates a replacement task from a complete standalone implementation handoff that you generate. The replacement task will not have access to this conversation.",
-    "input_schema": {
-      "type": "object",
-      "properties": {
-        "context": {
-          "type": "string",
-          "description": "Complete standalone implementation handoff for the replacement task. Include the objective, user intent, settled decisions, constraints, current state, findings, exact relevant files and symbols, completed work, and ordered next steps. The replacement task cannot access this conversation."
-        }
-      },
-      "required": [
-        "context"
-      ]
-    }
-  },
-  {
     "name": "read_file",
     "description": "Reads complete files or selected line ranges, including extracted text from rich files such as PDF, DOCX, notebooks, and spreadsheets. Prefer inspect_ast when source structure or symbol identity matters. For editable text/source files, set include_anchors: true to read exact raw source lines as standalone coordinates required by edit_file. Extracted rich-file and image content is read-only and cannot provide edit_file coordinates.",
     "input_schema": {

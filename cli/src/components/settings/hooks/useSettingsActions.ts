@@ -33,7 +33,6 @@ import { nextReasoningEffort, normalizeReasoningEffort } from "../utils"
 
 const utilityModelUseCaseSettings = {
 	utilityModelUseCondense: "condense",
-	utilityModelUseNewTask: "newTask",
 	utilityModelUseGenerateCommitMessage: "generateCommitMessage",
 	utilityModelUsePermissionHandling: "permissionHandling",
 } as const

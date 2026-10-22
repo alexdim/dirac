@@ -101,10 +101,6 @@ export function buildOrchestrationTrait(config: TaskConfig): IOrchestrationTrait
 			config.taskState[key] = value
 		},
 		commitCompletionResponse: (response) => config.taskState.commitCompletionResponse(response),
-		requestTaskReplacement: (context, images, files) => {
-			config.taskState.pendingTaskReplacement = { context, images, files }
-			config.taskState.abort = true
-		},
 		activateSkill: (skillId) => activateTaskSkill(config.taskId, config.taskState, skillId),
 		doesLatestTaskCompletionHaveNewChanges: () => config.callbacks.doesLatestTaskCompletionHaveNewChanges(),
 		updateMessage: (index, updates) => config.callbacks.updateDiracMessage(index, updates as Partial<DiracMessage>),

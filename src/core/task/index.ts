@@ -783,7 +783,6 @@ export class Task {
 					{
 						utilityModelEnabled: this.workingConfiguration.settings.utilityModelEnabled,
 						utilityModelUseCondense: this.workingConfiguration.settings.utilityModelUseCondense,
-						utilityModelUseNewTask: this.workingConfiguration.settings.utilityModelUseNewTask,
 						utilityModelSelection: this.workingConfiguration.settings.utilityModelSelection,
 					},
 					template,

@@ -26,7 +26,7 @@ export interface TaskSteeringContext {
 
 export function canAcceptSteeringMessage(ctx: TaskSteeringContext): boolean {
 	if (ctx.taskState.completionCommitted) return false
-	if (ctx.taskState.abort || ctx.taskState.pendingTaskReplacement) return false
+	if (ctx.taskState.abort) return false
 	if (ctx.taskState.waitingCardIds.length > 0 && !ctx.allowWhileWaitingForInteraction) return false
 	return ![TaskStatus.IDLE, TaskStatus.COMPLETED, TaskStatus.CANCELLED, TaskStatus.CANCELLING].includes(ctx.taskState.status)
 }

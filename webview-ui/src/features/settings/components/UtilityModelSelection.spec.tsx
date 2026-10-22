@@ -10,7 +10,6 @@ vi.mock("@/features/settings/store/settingsStore", () => ({
 	useSettingsStore: vi.fn(() => ({
 		utilityModelSelection: undefined,
 		utilityModelUseCondense: true,
-		utilityModelUseNewTask: true,
 		utilityModelUseGenerateCommitMessage: true,
 		utilityModelUsePermissionHandling: mockPermissionSettings.enabled,
 		utilityModelPermissionPolicy: mockPermissionSettings.policy,
@@ -65,8 +64,8 @@ describe("UtilityModelSelection", () => {
 	it("shows each Utility use case enabled by default", () => {
 		render(<UtilityModelSelection />)
 
-		expect(screen.getByRole("checkbox", { name: "Condense conversation" })).toBeChecked()
-		expect(screen.getByRole("checkbox", { name: "New task handoffs" })).toBeChecked()
+		expect(screen.getByRole("checkbox", { name: "Condense conversations" })).toBeChecked()
+		expect(screen.queryByRole("checkbox", { name: "New task handoffs" })).not.toBeInTheDocument()
 		expect(screen.getByRole("checkbox", { name: "Generate commit messages" })).toBeChecked()
 		expect(screen.getByRole("checkbox", { name: "Handle permission requests" })).not.toBeChecked()
 	})
@@ -74,8 +73,8 @@ describe("UtilityModelSelection", () => {
 	it("persists each use case independently", () => {
 		render(<UtilityModelSelection />)
 
-		fireEvent.click(screen.getByRole("checkbox", { name: "New task handoffs" }))
-		expect(mockUpdateSetting).toHaveBeenCalledWith("utilityModelUseNewTask", false)
+		fireEvent.click(screen.getByRole("checkbox", { name: "Condense conversations" }))
+		expect(mockUpdateSetting).toHaveBeenCalledWith("utilityModelUseCondense", false)
 	})
 
 	it("persists permission handling independently", () => {

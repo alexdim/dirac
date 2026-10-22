@@ -7,7 +7,6 @@ import type { SteeringMessage } from "./steering"
 export interface TaskContextualInputContext {
 	taskState: {
 		abort: boolean
-		pendingTaskReplacement?: unknown
 		status: TaskStatus
 		askResponse?: unknown
 		lastWaitingCardId?: string
@@ -26,8 +25,8 @@ export interface TaskContextualInputContext {
 
 export function assertContextualInputRoute(ctx: TaskContextualInputContext, route: ContextualInputRoute): void {
 	const state = ctx.taskState
-	if (state.abort || state.pendingTaskReplacement || [TaskStatus.CANCELLED, TaskStatus.CANCELLING].includes(state.status))
-		throw new Error("Conversation is cancelled or being replaced; resume it before sending feedback")
+	if (state.abort || [TaskStatus.CANCELLED, TaskStatus.CANCELLING].includes(state.status))
+		throw new Error("Conversation is cancelled; resume it before sending feedback")
 	if (state.askResponse !== undefined) throw new Error("Another conversation response is already being accepted")
 	if (route.kind === "interaction") {
 		if (state.lastWaitingCardId !== route.cardId || state.waitingCardIds.length !== 1)

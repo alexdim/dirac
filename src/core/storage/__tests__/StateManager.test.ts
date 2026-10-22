@@ -134,7 +134,6 @@ describe("StateManager", () => {
 			const sm = await StateManager.initialize(storage)
 
 			sm.getGlobalSettingsKey("utilityModelUseCondense").should.equal(true)
-			sm.getGlobalSettingsKey("utilityModelUseNewTask").should.equal(true)
 			sm.getGlobalSettingsKey("utilityModelUseGenerateCommitMessage").should.equal(true)
 			sinon.assert.notCalled(setBatch)
 		})
@@ -145,7 +144,6 @@ describe("StateManager", () => {
 			const sm = await StateManager.initialize(storage)
 
 			sm.getGlobalSettingsKey("utilityModelUseCondense").should.equal(true)
-			sm.getGlobalSettingsKey("utilityModelUseNewTask").should.equal(true)
 			sm.getGlobalSettingsKey("utilityModelUseGenerateCommitMessage").should.equal(true)
 		})
 
@@ -155,7 +153,6 @@ describe("StateManager", () => {
 			const sm = await StateManager.initialize(storage)
 
 			sm.getGlobalSettingsKey("utilityModelUseCondense").should.equal(false)
-			sm.getGlobalSettingsKey("utilityModelUseNewTask").should.equal(false)
 			sm.getGlobalSettingsKey("utilityModelUseGenerateCommitMessage").should.equal(false)
 		})
 
@@ -166,21 +163,18 @@ describe("StateManager", () => {
 			const sm = await StateManager.initialize(storage)
 
 			sm.getGlobalSettingsKey("utilityModelUseCondense").should.equal(false)
-			sm.getGlobalSettingsKey("utilityModelUseNewTask").should.equal(true)
 			sm.getGlobalSettingsKey("utilityModelUseGenerateCommitMessage").should.equal(true)
 		})
 
 		it("does not rewrite configurations with every independent use case persisted", async () => {
 			await setPersistedUtilitySetting("utilityModelEnabled", false)
 			await setPersistedUtilitySetting("utilityModelUseCondense", true)
-			await setPersistedUtilitySetting("utilityModelUseNewTask", false)
 			await setPersistedUtilitySetting("utilityModelUseGenerateCommitMessage", true)
 			const setBatch = sandbox.spy(storage.globalStateBackingStore, "setBatch")
 
 			const sm = await StateManager.initialize(storage)
 
 			sm.getGlobalSettingsKey("utilityModelUseCondense").should.equal(true)
-			sm.getGlobalSettingsKey("utilityModelUseNewTask").should.equal(false)
 			sm.getGlobalSettingsKey("utilityModelUseGenerateCommitMessage").should.equal(true)
 			sinon.assert.notCalled(setBatch)
 		})

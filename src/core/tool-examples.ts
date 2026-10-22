@@ -12,7 +12,6 @@ export const TOOL_EXAMPLES: Partial<Record<DiracDefaultTool, string>> = {
 	[DiracDefaultTool.EXECUTE_COMMAND]: '{"commands": ["ls -R"]}',
 	[DiracDefaultTool.INSPECT_AST]: '{"operation": "implementation", "paths": ["src/main.ts"], "symbols": ["main"]}',
 	[DiracDefaultTool.LIST_FILES]: '{"paths": ["src"]}',
-	[DiracDefaultTool.NEW_TASK]: '{"context": "Detailed summary of the conversation..."}',
 	[DiracDefaultTool.FILE_READ]: '{"paths": ["src/main.ts"]}',
 	[DiracDefaultTool.SEARCH]: '{"paths": ["src"], "regex": "TODO"}',
 	[DiracDefaultTool.USE_SUBAGENTS]:

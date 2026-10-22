@@ -73,7 +73,7 @@ export interface IInteractionTrait {
 	}>
 
 	/**
-	 * Generic ask for followup, plan_mode, new_task, condense, etc.
+	 * Generic ask for followup, plan_mode, condense, etc.
 	 */
 }
 
@@ -315,8 +315,6 @@ export interface IOrchestrationTrait {
 	/** Records the accepted completion response on task state. */
 	commitCompletionResponse(response: string): void
 
-	/** Ends the current task and asks its controller to start a replacement after unwind. */
-	requestTaskReplacement(context: string, images?: string[], files?: string[]): void
 
 	/** Activates a trusted skill and persists the activation for task resume. */
 	activateSkill(skillId: string): Promise<void>

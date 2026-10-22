@@ -13,8 +13,6 @@ import {
 } from "@core/context/instructions/user-instructions/external-rules"
 import { formatResponse } from "@core/formatResponse"
 import { ensureRulesDirectoryExists, ensureTaskDirectoryExists } from "@core/storage/disk"
-import { createDefaultTextCondensationTemplateRegistry, TASK_HANDOFF_TEMPLATE_ID } from "@core/text-condensation/templates"
-import { isUtilityTextCondensationAvailable } from "@core/text-condensation/UtilityTextCondensationAvailability"
 import { getConfiguredUtilityModelSelection } from "@core/utility-model/UtilityModelSelection"
 import { HostProvider } from "@hosts/host-provider"
 import { featureFlagsService } from "@services/feature-flags"
@@ -174,16 +172,6 @@ export async function buildApiRequestParams(
 		visible: visibleTabPaths.slice(0, cap),
 	}
 	const shellInfo = detectBestShell()
-	const taskHandoffCondensationAvailable = isUtilityTextCondensationAvailable(
-		{
-			utilityModelEnabled: settings.utilityModelEnabled,
-			utilityModelUseCondense: settings.utilityModelUseCondense,
-			utilityModelUseNewTask: settings.utilityModelUseNewTask,
-			utilityModelSelection: settings.utilityModelSelection,
-		},
-		TASK_HANDOFF_TEMPLATE_ID,
-		createDefaultTextCondensationTemplateRegistry(),
-	)
 
 	const promptContext: SystemPromptContext = {
 		executionProfile: ctx.executionProfile,
@@ -193,7 +181,6 @@ export async function buildApiRequestParams(
 		providerInfo,
 		editorTabs,
 		supportsBrowserUse,
-		taskHandoffCondensationAvailable,
 		utilityModelConfigured: getConfiguredUtilityModelSelection(settings.utilityModelSelection) !== undefined,
 		skills: availableSkills,
 		globalDiracRulesFileInstructions,

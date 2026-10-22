@@ -176,10 +176,10 @@ describe("SurfaceAdapter", () => {
 			config.taskMessenger.createCard = sinon.stub().resolves(attachCardState(fakeHandle))
 
 			const handle = await adapter.ui.createCard({
-				header: "New Task",
+				header: "Action",
 				requireApproval: true,
 				requireFeedback: true,
-				actions: [{ label: "Approve New Task", value: "new_task", primary: true }],
+				actions: [{ label: "Approve Action", value: "confirm_action", primary: true }],
 			})
 			const result = await handle.waitForInteraction()
 
@@ -189,9 +189,9 @@ describe("SurfaceAdapter", () => {
 				actions: undefined,
 			})
 			sinon.assert.notCalled(fakeHandle.waitForInteraction)
-			result.action.should.equal("new_task")
+			result.action.should.equal("confirm_action")
 			result.response.should.equal(DiracAskResponse.APPROVE)
-			result.value!.should.equal("new_task")
+			result.value!.should.equal("confirm_action")
 		})
 
 		it("publishes a completed audit card for a permission-agent approval", async () => {
@@ -471,7 +471,7 @@ describe("SurfaceAdapter", () => {
 			}
 			config.taskMessenger.createCard = sinon.stub().resolves(attachCardState(fakeHandle))
 
-			const handle = await adapter.ui.createCard({ header: "New Task", requireApproval: true })
+			const handle = await adapter.ui.createCard({ header: "Action", requireApproval: true })
 			await handle.waitForInteraction()
 
 			sinon.assert.notCalled(readBinding)

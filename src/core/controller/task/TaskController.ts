@@ -15,7 +15,7 @@ import {
 	type TaskWorkingConfigurationInput,
 } from "../../task/runtime/TaskWorkingConfiguration"
 import { acquireTaskLock } from "../../task/TaskLockUtils"
-import { deserializeTaskError, type TaskRunOutcome } from "../../task/TaskRunOutcome"
+import { deserializeTaskError } from "../../task/TaskRunOutcome"
 import { detectWorkspaceRoots } from "../../workspace/detection"
 import { setupWorkspaceManager } from "../../workspace/setup"
 import type { WorkspaceRootManager } from "../../workspace/WorkspaceRootManager"
@@ -68,7 +68,6 @@ export class TaskController {
 	private _backgroundCommandTaskId?: string
 	private cancelInProgress = false
 	private _taskRunPromise?: Promise<void>
-	private readonly taskReplacementListeners = new Set<(taskId: string) => void | Promise<void>>()
 	private currentConversationUlid?: string
 	private currentInitializationOptions?: TaskInitializationOptions
 
@@ -115,11 +114,6 @@ export class TaskController {
 		return this._backgroundCommandTaskId
 	}
 
-	onTaskReplaced(listener: (taskId: string) => void | Promise<void>): () => void {
-		this.taskReplacementListeners.add(listener)
-		return () => this.taskReplacementListeners.delete(listener)
-	}
-
 	/** Return a live task ready for follow-up input, restoring ended runs without losing their conversation. */
 	async prepareTaskForFollowUp(initializationOptions?: TaskInitializationOptions): Promise<Task> {
 		const task = this._task
@@ -161,39 +155,6 @@ export class TaskController {
 		}
 	}
 
-	private async runTaskWithReplacement(task: Task, run: Promise<TaskRunOutcome>): Promise<void> {
-		let runFailure: { error: unknown } | undefined
-		try {
-			await run
-		} catch (error) {
-			runFailure = { error }
-		}
-
-		const replacement = task.stateView.pendingTaskReplacement
-		if (this._task !== task || !replacement) {
-			if (runFailure) throw runFailure.error
-			return
-		}
-
-		if (runFailure) {
-			Logger.warn("Old task run failed while starting an approved replacement", runFailure.error)
-		}
-
-		const taskId = await this.initTask(
-			replacement.context,
-			replacement.images,
-			replacement.files,
-			undefined,
-			undefined,
-			this.currentConversationUlid,
-			undefined,
-			this.reconstructionInitializationOptions(task),
-		)
-		task.taskState.pendingTaskReplacement = undefined
-		await Promise.all([...this.taskReplacementListeners].map((listener) => listener(taskId)))
-		await this._taskRunPromise
-	}
-
 	private trackTaskRun(run: Promise<void>): void {
 		this._taskRunPromise = run
 		void run.catch((error) => Logger.error("Task run failed", error))
@@ -212,8 +173,7 @@ export class TaskController {
 			didRestore = true
 			resolveRestore()
 		})
-		const run = this.runTaskWithReplacement(task, taskRun)
-		this.trackTaskRun(run)
+		this.trackTaskRun(taskRun.then(() => undefined))
 		void taskRun.then(
 			(outcome) => {
 				if (didRestore) return
@@ -358,7 +318,7 @@ export class TaskController {
 		if (historyItem) {
 			await this.startHistoricalTaskAndWaitForRestore(this._task)
 		} else if (task || images || files) {
-			this.trackTaskRun(this.runTaskWithReplacement(this._task, this._task.startTask(task, images, files)))
+			this.trackTaskRun(this._task.startTask(task, images, files).then(() => undefined))
 		} else {
 			this._taskRunPromise = undefined
 		}

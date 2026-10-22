@@ -11,7 +11,6 @@ export function assembleModelState(stateManager: StateManager) {
 		utilityModelEnabled: stateManager.getGlobalSettingsKey("utilityModelEnabled"),
 		utilityModelSelection: stateManager.getGlobalSettingsKey("utilityModelSelection"),
 		utilityModelUseCondense: stateManager.getGlobalSettingsKey("utilityModelUseCondense"),
-		utilityModelUseNewTask: stateManager.getGlobalSettingsKey("utilityModelUseNewTask"),
 		utilityModelUseGenerateCommitMessage: stateManager.getGlobalSettingsKey("utilityModelUseGenerateCommitMessage"),
 		utilityModelUsePermissionHandling: stateManager.getGlobalSettingsKey("utilityModelUsePermissionHandling"),
 		utilityModelPermissionPolicy: stateManager.getGlobalSettingsKey("utilityModelPermissionPolicy"),

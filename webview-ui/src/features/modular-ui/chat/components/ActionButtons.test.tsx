@@ -1,8 +1,7 @@
 import { CardStatus, type DiracMessage, DiracMessageType } from "@shared/ExtensionMessage"
 import { render } from "@testing-library/react"
 import { createRef, type ComponentProps } from "react"
-import { beforeEach, describe, expect, it, vi } from "vitest"
-import { useChatStore } from "@/features/chat/store/chatStore"
+import { describe, expect, it, vi } from "vitest"
 import type { ChatState } from "../types/chatTypes"
 import ActionButtons from "./ActionButtons"
 
@@ -77,9 +76,6 @@ function expectDraftUntouched(chatState: ChatState) {
 }
 
 describe("ActionButtons draft preservation", () => {
-	beforeEach(() => {
-		useChatStore.setState(useChatStore.getInitialState(), true)
-	})
 
 	it("preserves an unsent draft and attachments when a command is followed by an API request", () => {
 		const props = createProps()

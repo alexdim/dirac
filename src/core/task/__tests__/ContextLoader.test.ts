@@ -628,7 +628,7 @@ describe("ContextLoader (characterization)", () => {
 			ruleConditionalsModule.extractSymbolLikeStrings = () => []
 			stubOutline()
 			const loader = new ContextLoader(makeDependencies())
-			const result = await loader.loadContext([{ type: "text", isUserInput: true, text: `<task>/newtask here</task>` }], true, false)
+			const result = await loader.loadContext([{ type: "text", isUserInput: true, text: `<task>/compact here</task>` }], true, false)
 				; (result[0][0] as any).text.should.not.containEql("file_skeleton")
 		})
 
