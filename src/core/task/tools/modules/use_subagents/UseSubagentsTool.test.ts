@@ -29,8 +29,8 @@ interface RecordedCard {
 function createRecordedCardEnvironment(
 	runSubagent: (_prompt: string, options: any) => Promise<any>,
 	shouldFailUpdate: (params: any) => boolean = () => false,
-	beforeCardUpdate: (params: any, patch: any) => Promise<void> = async () => {},
-	beforeCreateCard: (params: any) => Promise<void> = async () => {},
+	beforeCardUpdate: (params: any, patch: any) => Promise<void> = async () => { },
+	beforeCreateCard: (params: any) => Promise<void> = async () => { },
 ): {
 	env: IToolEnvironment
 	cards: RecordedCard[]
@@ -50,7 +50,7 @@ function createRecordedCardEnvironment(
 		orchestration: {
 			getHistory: () => [],
 			getTaskState: () => 0,
-			setTaskState: () => {},
+			setTaskState: () => { },
 			runSubagent,
 		},
 		ui: {
@@ -81,13 +81,40 @@ function createRecordedCardEnvironment(
 		},
 		logging: {
 			warn: (...args: unknown[]) => warnings.push(args),
-			debug: () => {},
+			debug: () => { },
 		},
 	} as unknown as IToolEnvironment
 	return { env, cards, warnings, telemetryMetadata }
 }
 
 describe("UseSubagentsTool", () => {
+	for (const status of [SubagentExecutionStatus.COMPLETED, SubagentExecutionStatus.FAILED, SubagentExecutionStatus.CANCELLED]) {
+		it(`returns full ${status} details for every agent without truncating at 1,200 characters`, async () => {
+			const reports = [1199, 1200, 1201, 12000].map((length) => {
+				const tail = `\nEND-${length}`
+				return "x".repeat(length - tail.length) + tail
+			})
+			const { env } = createRecordedCardEnvironment(async (prompt) => ({
+				status,
+				...(status === SubagentExecutionStatus.COMPLETED
+					? { result: reports[Number(prompt)] }
+					: { error: reports[Number(prompt)] }),
+				stats: EMPTY_STATS,
+			}))
+
+			const result = await new UseSubagentsTool().processCall(
+				{ subagents: reports.map((_, index) => ({ task_title: `Report ${index}`, prompt: String(index) })) },
+				env,
+			)
+
+			assert.equal(typeof result, "string")
+			for (const report of reports) {
+				assert.ok(result.includes(report), `Missing full ${report.length}-character ${status} detail`)
+			}
+			assert.ok(!result.includes("..."), "Tool result must not replace report content with an ellipsis")
+		})
+	}
+
 	for (const status of [SubagentExecutionStatus.COMPLETED, SubagentExecutionStatus.FAILED, SubagentExecutionStatus.CANCELLED]) {
 		it(`persists final usage inside the ${status} execution card`, async () => {
 			const usage = { inputTokens: 1234, outputTokens: 50, cacheReadTokens: 1000, cacheWriteTokens: 25, totalCost: 0.125 }
@@ -232,7 +259,7 @@ describe("UseSubagentsTool", () => {
 				async (params, patch) => {
 					if (params.header === "Run Subagents") return
 					if (patch.rawOutput?.status === SubagentExecutionStatus.RUNNING) {
-						await new Promise<void>(() => {})
+						await new Promise<void>(() => { })
 					}
 				},
 			)
@@ -299,9 +326,9 @@ describe("UseSubagentsTool", () => {
 			const { env, warnings } = createRecordedCardEnvironment(
 				async () => ({ status: SubagentExecutionStatus.COMPLETED, result: "done", stats: EMPTY_STATS }),
 				() => false,
-				async () => {},
+				async () => { },
 				async (params) => {
-					if (params.header === "Run Subagents") await new Promise<void>(() => {})
+					if (params.header === "Run Subagents") await new Promise<void>(() => { })
 				},
 			)
 
@@ -326,9 +353,9 @@ describe("UseSubagentsTool", () => {
 			const { env, warnings } = createRecordedCardEnvironment(
 				async () => ({ status: SubagentExecutionStatus.COMPLETED, result: "done", stats: EMPTY_STATS }),
 				() => false,
-				async () => {},
+				async () => { },
 				async (params) => {
-					if (params.header !== "Run Subagents") await new Promise<void>(() => {})
+					if (params.header !== "Run Subagents") await new Promise<void>(() => { })
 				},
 			)
 
@@ -401,7 +428,7 @@ describe("UseSubagentsTool", () => {
 				return { status: SubagentExecutionStatus.COMPLETED, result: `${prompt} result`, stats: EMPTY_STATS }
 			},
 			() => false,
-			async () => {},
+			async () => { },
 			async (params) => {
 				if (params.rawInput?.prompt === "first prompt") await new Promise((resolve) => setTimeout(resolve, 15))
 			},

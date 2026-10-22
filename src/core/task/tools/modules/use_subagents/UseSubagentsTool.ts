@@ -18,7 +18,6 @@ import { toError } from "@/shared/errors"
 import { DiracIcon } from "@/shared/icons"
 import { DiracDefaultTool, DiracToolSpec } from "@/shared/tools"
 import { stripHashes } from "../../../../../shared/utils/line-hashing"
-import { excerpt } from "../../../utils/excerpt"
 import { IDiracTool } from "../../interfaces/IDiracTool"
 import { ICardHandle, IToolEnvironment } from "../../interfaces/IToolEnvironment"
 import { AgentConfigLoader } from "../../subagent/AgentConfigLoader"
@@ -738,7 +737,7 @@ export class UseSubagentsTool implements IDiracTool {
 			"",
 			...entries.map((entry) => {
 				const header = `${entry.name}: ${entry.taskTitle} · ${entry.status.toUpperCase()} - ${entry.prompt}`
-				const detail = entry.status === SubagentExecutionStatus.COMPLETED ? excerpt(entry.result) : excerpt(entry.error)
+				const detail = (entry.status === SubagentExecutionStatus.COMPLETED ? entry.result : entry.error)?.trim()
 				return detail ? `${header}\n${detail}` : header
 			}),
 		]
