@@ -1,3 +1,4 @@
+import { meetsHostCapabilityRequirement } from "@hosts/host-capabilities"
 import type { ApiProviderInfo } from "@core/api"
 import {
 	getGlobalDiracRules,
@@ -12,8 +13,6 @@ import {
 } from "@core/context/instructions/user-instructions/external-rules"
 import { formatResponse } from "@core/formatResponse"
 import { ensureRulesDirectoryExists, ensureTaskDirectoryExists } from "@core/storage/disk"
-import { createDefaultTextCondensationTemplateRegistry, TASK_HANDOFF_TEMPLATE_ID } from "@core/text-condensation/templates"
-import { isUtilityTextCondensationAvailable } from "@core/text-condensation/UtilityTextCondensationAvailability"
 import { getConfiguredUtilityModelSelection } from "@core/utility-model/UtilityModelSelection"
 import { HostProvider } from "@hosts/host-provider"
 import { featureFlagsService } from "@services/feature-flags"
@@ -39,7 +38,7 @@ import type { ToolExecutor } from "./ToolExecutor"
 import type { TaskRequestRuntime } from "./runtime/TaskRequestRuntime"
 import { bindToolSnapshotToRequestRuntime } from "./runtime/TaskRequestRuntime"
 import type { TaskExecutionProfile } from "./TaskExecutionProfile"
-import { taskProfileSystemInstructions } from "./TaskExecutionProfile"
+import { isSkillAvailableToTaskProfile, taskProfileSystemInstructions } from "./TaskExecutionProfile"
 
 export interface TaskRequestBuilderContext {
 	taskId: string
@@ -156,7 +155,8 @@ export async function buildApiRequestParams(
 	})
 	const globalSkillsToggles = settings.globalSkillsToggles ?? {}
 	const localSkillsToggles = workspaceConfiguration.localSkillsToggles ?? {}
-	const availableSkills = providerSkills.filter((skill) => {
+	const availableSkills = providerSkills.filter(meetsHostCapabilityRequirement).filter((skill) => {
+		if (!isSkillAvailableToTaskProfile(ctx.executionProfile, skill)) return false
 		if (settings.yoloModeToggled && skill.interactiveOnly) return false
 		if (skill.source === "builtin") return true
 		const toggles = skill.source === "global" ? globalSkillsToggles : localSkillsToggles
@@ -172,16 +172,6 @@ export async function buildApiRequestParams(
 		visible: visibleTabPaths.slice(0, cap),
 	}
 	const shellInfo = detectBestShell()
-	const taskHandoffCondensationAvailable = isUtilityTextCondensationAvailable(
-		{
-			utilityModelEnabled: settings.utilityModelEnabled,
-			utilityModelUseCondense: settings.utilityModelUseCondense,
-			utilityModelUseNewTask: settings.utilityModelUseNewTask,
-			utilityModelSelection: settings.utilityModelSelection,
-		},
-		TASK_HANDOFF_TEMPLATE_ID,
-		createDefaultTextCondensationTemplateRegistry(),
-	)
 
 	const promptContext: SystemPromptContext = {
 		executionProfile: ctx.executionProfile,
@@ -191,7 +181,6 @@ export async function buildApiRequestParams(
 		providerInfo,
 		editorTabs,
 		supportsBrowserUse,
-		taskHandoffCondensationAvailable,
 		utilityModelConfigured: getConfiguredUtilityModelSelection(settings.utilityModelSelection) !== undefined,
 		skills: availableSkills,
 		globalDiracRulesFileInstructions,

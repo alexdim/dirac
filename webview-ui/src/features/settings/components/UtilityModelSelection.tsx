@@ -15,11 +15,6 @@ const USE_CASES = [
 		description: "Summarize long conversations before their context limit is reached.",
 	},
 	{
-		field: "utilityModelUseNewTask" as const,
-		label: "New task handoffs",
-		description: "Generate complete task handoffs from concise new-task intents.",
-	},
-	{
 		field: "utilityModelUseGenerateCommitMessage" as const,
 		label: "Generate commit messages",
 		description: "Generate Git commit messages in VS Code.",
@@ -50,7 +45,6 @@ const UtilityModelSelection = () => {
 	const {
 		utilityModelSelection,
 		utilityModelUseCondense,
-		utilityModelUseNewTask,
 		utilityModelUseGenerateCommitMessage,
 		utilityModelUsePermissionHandling,
 		utilityModelPermissionPolicy,
@@ -96,7 +90,6 @@ const UtilityModelSelection = () => {
 	const models = useMemo(() => getProviderModels(provider, dynamicModels), [dynamicModels, provider])
 	const anyUseCaseEnabled =
 		utilityModelUseCondense ||
-		utilityModelUseNewTask ||
 		utilityModelUseGenerateCommitMessage ||
 		utilityModelUsePermissionHandling
 
@@ -180,11 +173,9 @@ const UtilityModelSelection = () => {
 							checked={
 								field === "utilityModelUseCondense"
 									? utilityModelUseCondense
-									: field === "utilityModelUseNewTask"
-										? utilityModelUseNewTask
-										: field === "utilityModelUseGenerateCommitMessage"
-											? utilityModelUseGenerateCommitMessage
-											: utilityModelUsePermissionHandling
+									: field === "utilityModelUseGenerateCommitMessage"
+										? utilityModelUseGenerateCommitMessage
+										: utilityModelUsePermissionHandling
 							}
 							onChange={(event: any) => updateSetting(field, event.target.checked === true)}>
 							{label}

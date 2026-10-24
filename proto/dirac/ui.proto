@@ -2,6 +2,7 @@ syntax = "proto3";
 
 package dirac;
 
+import "dirac/architecture.proto";
 import "dirac/common.proto";
 
 option go_package = "github.com/dirac/grpc-go/dirac";
@@ -144,6 +145,7 @@ message Card {
   repeated CardDiff diffs = 23;
   repeated CardLocation locations = 24;
   optional bool auto_scroll = 25;
+  optional ArchitectureReference architecture_reference = 26;
 }
 
 // Enum for DiracSayTool tool types
@@ -220,11 +222,6 @@ message DiracAskQuestion {
   string question = 1;
   repeated string options = 2;
   string selected = 3;
-}
-
-// Message for DiracAskNewTask
-message DiracAskNewTask {
-  string context = 1;
 }
 
 // Message for API request retry status
@@ -315,7 +312,8 @@ message DiracMessage {
   BrowserActionResult browser_action_result = 17 [deprecated = true];
   DiracPlanModeResponse plan_mode_response = 19 [deprecated = true];
   DiracAskQuestion ask_question = 20 [deprecated = true];
-  DiracAskNewTask ask_new_task = 21 [deprecated = true];
+  reserved 21;
+  reserved "ask_new_task";
 }
 
 message ShowWebviewEvent {

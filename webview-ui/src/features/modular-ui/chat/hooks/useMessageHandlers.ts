@@ -73,8 +73,7 @@ export function useMessageHandlers(chatState: ChatState): MessageHandlers {
 						activeCardKind === CardKind.RESUME_COMPLETED_TASK ||
 						uiActionState?.cardButtons.some(
 							(button) =>
-								button.action === UIActionButtonType.NEW_TASK ||
-								(button.action === UIActionButtonType.UTILITY && button.value === "condense"),
+								button.action === UIActionButtonType.UTILITY && button.value === "condense",
 						) === true
 					const cardId = uiActionState?.activeCardId
 					if (!cardId) throw new Error(`Goal ${goal.id} interaction is missing its active card identity`)
@@ -98,8 +97,7 @@ export function useMessageHandlers(chatState: ChatState): MessageHandlers {
 								activeCardKind === CardKind.RESUME_COMPLETED_TASK ||
 								uiActionState?.cardButtons.some(
 									(button) =>
-										button.action === UIActionButtonType.NEW_TASK ||
-										(button.action === UIActionButtonType.UTILITY && button.value === "condense"),
+										button.action === UIActionButtonType.UTILITY && button.value === "condense",
 								) === true
 							await TaskServiceClient.askResponse(
 								AskResponseRequest.create({

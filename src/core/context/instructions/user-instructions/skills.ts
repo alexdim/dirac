@@ -1,5 +1,6 @@
+import { meetsHostCapabilityRequirement } from "@hosts/host-capabilities"
 import { getSkillsDirectoriesForScan } from "@core/storage/disk"
-import type { SkillContent, SkillMetadata } from "@shared/skills"
+import { ARCHITECTURE_BOARD_SKILL_NAME, type SkillContent, type SkillMetadata } from "@shared/skills"
 import { parseYamlFrontmatter } from "@utils/frontmatter"
 import { fileExistsAtPath, isDirectory } from "@utils/fs"
 import * as fs from "fs/promises"
@@ -143,6 +144,16 @@ const BUILTIN_SKILL_CONTENT = new Map<string, string>([
 ])
 
 export const BUILTIN_SKILLS: SkillMetadata[] = [
+	{
+		name: ARCHITECTURE_BOARD_SKILL_NAME,
+		description:
+			"Understand existing systems, design and refine architectures, and review before/after changes with source-grounded, versioned diagrams.",
+		path: "<builtin>/architecture-board/SKILL.md",
+		source: "builtin",
+		foregroundOnly: true,
+		requiredHostCapability: "architectureViewer",
+		toolDependencies: ["architecture_diagram"],
+	},
 	{
 		name: "new-tool",
 		description: "Create a custom Dirac tool from user-provided or model-derived requirements",
@@ -325,7 +336,11 @@ export async function listSupportingFiles(skillMdPath: string): Promise<{ docs: 
 
 export async function getSkillContent(skillName: string, availableSkills: SkillMetadata[]): Promise<SkillContent | null> {
 	const skill = availableSkills.find((s) => s.name === skillName)
-	if (!skill) return null
+	if (!skill || !meetsHostCapabilityRequirement(skill)) return null
+	if (skill.path === "<builtin>/architecture-board/SKILL.md") {
+		const { ARCHITECTURE_BOARD_INSTRUCTIONS } = await import("@core/prompts/skills/architecture-board/instructions")
+		return { ...skill, instructions: ARCHITECTURE_BOARD_INSTRUCTIONS.trim() }
+	}
 
 	// Check built-in skills first (embedded content, no filesystem read needed)
 	const builtinContent = BUILTIN_SKILL_CONTENT.get(skill.path)
@@ -359,11 +374,11 @@ export async function getOrDiscoverSkills(
 	cacheProvider: { discoveredSkillsCache?: SkillMetadata[] },
 ): Promise<SkillMetadata[]> {
 	if (cacheProvider.discoveredSkillsCache !== undefined) {
-		return cacheProvider.discoveredSkillsCache
+		return cacheProvider.discoveredSkillsCache.filter(meetsHostCapabilityRequirement)
 	}
 
 	const allSkills = await discoverSkills(cwd)
 	const resolvedSkills = getAvailableSkills(allSkills)
 	cacheProvider.discoveredSkillsCache = resolvedSkills
-	return resolvedSkills
+	return resolvedSkills.filter(meetsHostCapabilityRequirement)
 }

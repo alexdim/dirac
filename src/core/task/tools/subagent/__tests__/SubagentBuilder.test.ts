@@ -97,7 +97,6 @@ describe("SubagentBuilder", () => {
 		assert.ok(builder.getAllowedTools().includes(DiracDefaultTool.EDIT_FILE))
 		assert.ok(builder.getAllowedTools().includes(DiracDefaultTool.FILE_NEW))
 		assert.ok(builder.getAllowedTools().includes(DiracDefaultTool.EXECUTE_COMMAND))
-		assert.equal(builder.getAllowedTools().includes(DiracDefaultTool.NEW_TASK), false)
 		const prompt = builder.buildSystemPrompt("generated prompt")
 		assert.equal(prompt, `generated prompt${SUBAGENT_SYSTEM_SUFFIX}${SUBAGENT_PROGRESS_INSTRUCTION}`)
 		assert.match(prompt, /create, modify, or delete files/)

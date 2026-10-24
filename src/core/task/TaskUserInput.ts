@@ -12,40 +12,31 @@ export interface TaskUserInputContext {
 }
 
 export async function waitForFollowUp(ctx: TaskUserInputContext): Promise<DiracContent[] | undefined> {
-	if (ctx.taskState.status !== TaskStatus.COMPLETED) {
-		ctx.taskState.status = TaskStatus.AWAITING_USER_INPUT
-	}
-
+	if (ctx.taskState.status !== TaskStatus.COMPLETED) ctx.taskState.status = TaskStatus.AWAITING_USER_INPUT
 	const messageTs = Date.now()
 	ctx.taskState.lastMessageTs = messageTs
-
-	await pWaitFor(
-		() => {
-			return ctx.taskState.askResponse !== undefined || ctx.taskState.lastMessageTs !== messageTs || ctx.taskState.abort
-		},
-		{ interval: 100 },
-	)
-
-	if (ctx.taskState.abort || ctx.taskState.lastMessageTs !== messageTs) {
-		return undefined
-	}
-
-	const text = ctx.taskState.askResponseText || ""
-	const images = ctx.taskState.askResponseImages as string[] | undefined
-	const files = ctx.taskState.askResponseFiles as string[] | undefined
-
-	const userContent: DiracContent[] = [{ type: "text", text: `<feedback>\n${text}\n</feedback>`, isUserInput: true }]
-	if (images && images.length > 0) {
-		userContent.push(...formatResponse.imageBlocks(images))
-	}
-	if (files && files.length > 0) {
-		const fileContentString = await processFilesIntoText(files)
-		if (fileContentString) {
-			userContent.push({ type: "text", text: fileContentString })
+	ctx.taskState.waitingForFollowUp = true
+	try {
+		await pWaitFor(
+			() => ctx.taskState.askResponse !== undefined || ctx.taskState.lastMessageTs !== messageTs || ctx.taskState.abort,
+			{ interval: 100 },
+		)
+		if (ctx.taskState.abort || ctx.taskState.lastMessageTs !== messageTs) return undefined
+		const text = ctx.taskState.askResponseText || ""
+		const images = ctx.taskState.askResponseImages
+		const files = ctx.taskState.askResponseFiles
+		const userContent: DiracContent[] = text
+			? [{ type: "text", text: `<feedback>\n${text}\n</feedback>`, isUserInput: true }]
+			: []
+		if (images?.length) userContent.push(...formatResponse.imageBlocks(images))
+		if (files?.length) {
+			const fileContentString = await processFilesIntoText(files)
+			if (fileContentString) userContent.push({ type: "text", text: fileContentString })
 		}
+		return userContent
+	} finally {
+		ctx.taskState.waitingForFollowUp = false
 	}
-
-	return userContent
 }
 
 export function clearAskResponse(taskState: TaskState): void {

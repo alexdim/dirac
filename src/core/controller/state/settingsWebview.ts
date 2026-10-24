@@ -19,7 +19,6 @@ export function buildWebviewSettingsPatch(request: UpdateSettingsRequest): Parti
 	if (request.utilityModelSelection !== undefined)
 		settings.utilityModelSelection = convertProtoToModelProviderSelection(request.utilityModelSelection)
 	if (request.utilityModelUseCondense !== undefined) settings.utilityModelUseCondense = request.utilityModelUseCondense
-	if (request.utilityModelUseNewTask !== undefined) settings.utilityModelUseNewTask = request.utilityModelUseNewTask
 	if (request.utilityModelUseGenerateCommitMessage !== undefined)
 		settings.utilityModelUseGenerateCommitMessage = request.utilityModelUseGenerateCommitMessage
 	if (request.utilityModelUsePermissionHandling !== undefined)

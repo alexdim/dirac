@@ -38,6 +38,7 @@ import { CommandPermissionController } from "@/core/permissions/CommandPermissio
 import type { ToolPermissionRule } from "@/core/permissions/types.js"
 import { getSavedDiracMessages, setRuntimeHooksDir } from "@/core/storage/disk"
 import { StateManager } from "@/core/storage/StateManager"
+import { deleteTaskDirectory } from "@/core/storage/taskDirectory"
 import { withTaskHistoryInventoryLock } from "@/core/storage/taskHistory"
 import { AuthHandler } from "@/hosts/external/AuthHandler.js"
 import { ExternalCommentReviewController } from "@/hosts/external/ExternalCommentReviewController.js"
@@ -68,7 +69,7 @@ import {
 	setSessionRuntimeConfig,
 	TASK_RUNTIME_SETTINGS_KEYS,
 } from "../acp/acp-session-runtime-config.js"
-import { deleteTasksForSession, getLatestTaskIdForSession, recordTaskForSession } from "../acp/acp-session-tasks.js"
+import { deleteTasksForSession, getLatestTaskIdForSession } from "../acp/acp-session-tasks.js"
 import {
 	deleteSessionUpdates,
 	getSessionUpdates,
@@ -251,10 +252,7 @@ export class DiracAgent implements acp.Agent {
 				const taskIds = getTaskIdsForSession(sessionId)
 				const stateManager = StateManager.get()
 				for (const taskId of taskIds) {
-					await fs.rm(`${this.ctx.DATA_DIR}/tasks/${taskId}`, {
-						recursive: true,
-						force: true,
-					})
+					await deleteTaskDirectory(taskId)
 				}
 				stateManager.removeTaskHistoryItems(taskIds)
 				await stateManager.flushPendingState()
@@ -447,7 +445,7 @@ export class DiracAgent implements acp.Agent {
 		}
 
 		if (!task.canAcceptSteeringMessage()) {
-			if (task.taskState.abort || task.taskState.pendingTaskReplacement) {
+			if (task.taskState.abort) {
 				this.unbindPromptTask(sessionId)
 			}
 			this.bufferWhisper(sessionId, text)
@@ -1597,10 +1595,10 @@ export class DiracAgent implements acp.Agent {
 			lastActivityAt: now,
 			...(newTaskId
 				? {
-						isLoadedFromHistory: true,
-						loadedTaskId: newTaskId,
-						taskId: newTaskId,
-					}
+					isLoadedFromHistory: true,
+					loadedTaskId: newTaskId,
+					taskId: newTaskId,
+				}
 				: {}),
 		}
 
@@ -1815,29 +1813,6 @@ export class DiracAgent implements acp.Agent {
 			)
 			subscribedTask = task
 		}
-		const removeTaskReplacementListener = controller.onTaskReplaced(async (taskId) => {
-			await bridge.cancelInFlightToolCalls(params.sessionId, sessionState)
-			await recordTaskForSession(params.sessionId, taskId)
-			session.taskId = taskId
-			this.persistSessionOverrides(params.sessionId)
-			subscribedTask = undefined
-			const replacementTask = controller.task
-			if (!replacementTask) return
-			await this.bindPromptTask(params.sessionId, replacementTask)
-			const replayEndIndex = replacementTask.messageStateHandler.getDiracMessages().length
-			subscribeToCurrentTask()
-			await bridge.replayTaskMessages(
-				controller,
-				params.sessionId,
-				sessionState,
-				resolvePrompt!,
-				rejectPrompt!,
-				promptResolved,
-				0,
-				replayEndIndex,
-			)
-		})
-		cleanupFunctions.push(removeTaskReplacementListener)
 
 		try {
 			// Extract text content from prompt

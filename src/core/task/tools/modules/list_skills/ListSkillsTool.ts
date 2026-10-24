@@ -31,7 +31,9 @@ export class ListSkillsTool implements IDiracTool {
 	}
 
 	public async processCall(_args: any, env: IToolEnvironment): Promise<any> {
-		const skills = env.config.taskState.availableSkills || []
+		const available = await env.skills.getAvailableSkills()
+		const skills = (env.config.taskState.availableSkills || []).filter((skill) =>
+			available.some((candidate) => candidate.name === skill.name && candidate.path === skill.path))
 
 		if (skills.length === 0) {
 			if (!env.config.isSubagentExecution) {

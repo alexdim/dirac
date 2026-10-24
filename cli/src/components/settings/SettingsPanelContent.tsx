@@ -136,7 +136,6 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 	})
 	const [utilityModelUseCases, setUtilityModelUseCases] = useState<UtilityModelUseCases>(() => ({
 		condense: stateManager.getGlobalSettingsKey("utilityModelUseCondense"),
-		newTask: stateManager.getGlobalSettingsKey("utilityModelUseNewTask"),
 		generateCommitMessage: stateManager.getGlobalSettingsKey("utilityModelUseGenerateCommitMessage"),
 		permissionHandling: stateManager.getGlobalSettingsKey("utilityModelUsePermissionHandling"),
 	}))

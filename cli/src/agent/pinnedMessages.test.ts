@@ -72,7 +72,6 @@ vi.mock("@/core/controller", () => ({
 			await this.reinitExistingTaskFromId(this.task.taskId, options)
 			return this.task
 		})
-		onTaskReplaced = vi.fn(() => () => undefined)
 		constructor() {
 			controllerInstances.push(this)
 		}

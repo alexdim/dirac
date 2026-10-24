@@ -26,7 +26,7 @@ export interface TaskSteeringContext {
 
 export function canAcceptSteeringMessage(ctx: TaskSteeringContext): boolean {
 	if (ctx.taskState.completionCommitted) return false
-	if (ctx.taskState.abort || ctx.taskState.pendingTaskReplacement) return false
+	if (ctx.taskState.abort) return false
 	if (ctx.taskState.waitingCardIds.length > 0 && !ctx.allowWhileWaitingForInteraction) return false
 	return ![TaskStatus.IDLE, TaskStatus.COMPLETED, TaskStatus.CANCELLED, TaskStatus.CANCELLING].includes(ctx.taskState.status)
 }
@@ -145,8 +145,8 @@ export async function rollbackSteeringClaim(ctx: TaskSteeringContext, claimId: s
 	})
 }
 
-export function isSlashCommandSteeringMessage(message: Pick<SteeringMessage, "text">): boolean {
-	return findSlashCommandInTags(formatSteeringMessages([message])) !== null
+export function isSlashCommandSteeringMessage(message: Pick<SteeringMessage, "text" | "contextual">): boolean {
+	return !message.contextual && findSlashCommandInTags(formatSteeringMessages([message])) !== null
 }
 
 export async function releaseSteeringClaimSuffix(
@@ -167,6 +167,16 @@ export async function releaseSteeringClaimSuffix(
 	return { ...claim, messages: retainedMessages }
 }
 
+function steeringContent(messages: SteeringMessage[]): DiracTextContentBlock[] {
+	// Keep contextual blocks separate even when raw chat and feedback share a claim.
+	return messages.map((message) => ({
+		type: "text",
+		text: formatSteeringMessages([message]),
+		isUserInput: !message.contextual,
+		steeringMessageIds: [message.transcriptMessageId],
+	}))
+}
+
 export async function appendQueuedSteeringToUserContent(
 	ctx: TaskSteeringContext,
 	userContent: DiracContent[],
@@ -175,23 +185,13 @@ export async function appendQueuedSteeringToUserContent(
 	if (!steeringClaim) return undefined
 	const commandIndex = steeringClaim.messages.findIndex((message) => isSlashCommandSteeringMessage(message))
 	if (commandIndex === -1) {
-		userContent.push({
-			type: "text",
-			text: formatSteeringMessages(steeringClaim.messages),
-			isUserInput: true,
-			steeringMessageIds: steeringClaim.messages.map((message) => message.transcriptMessageId),
-		})
+		userContent.push(...steeringContent(steeringClaim.messages))
 		return steeringClaim
 	}
 
 	const retainedCount = commandIndex === 0 ? 1 : commandIndex
 	const requestClaim = await releaseSteeringClaimSuffix(ctx, steeringClaim, retainedCount)
-	userContent.push({
-		type: "text",
-		text: formatSteeringMessages(requestClaim.messages),
-		isUserInput: true,
-		steeringMessageIds: requestClaim.messages.map((message) => message.transcriptMessageId),
-	})
+	userContent.push(...steeringContent(requestClaim.messages))
 	return requestClaim
 }
 
@@ -218,10 +218,10 @@ export async function appendQueuedSteeringToNextApiRequest(
 		throw new Error("Cannot steer a model request without a final user message")
 	}
 
-	let userMessagePersisted = false
+	let userMessageStaged = false
 	try {
 		const persistedUserMessage = await ctx.messageStateHandler.appendToLastApiConversationUserMessage(steeringBlock)
-		userMessagePersisted = true
+		userMessageStaged = true
 		if (outboundUserMessage !== persistedUserMessage) {
 			if (typeof outboundUserMessage.content === "string") {
 				outboundUserMessage.content = [{ type: "text", text: outboundUserMessage.content }, steeringBlock]
@@ -229,9 +229,12 @@ export async function appendQueuedSteeringToNextApiRequest(
 				outboundUserMessage.content.push(steeringBlock)
 			}
 		}
+		await ctx.messageStateHandler.flushPendingWrites()
 		await settleConsumedSteeringClaim(ctx, steeringClaim)
 	} catch (error) {
-		if (!userMessagePersisted) await rollbackSteeringClaim(ctx, steeringClaim.id)
+		// A failed flush leaves this block in the existing history/write buffer for retry.
+		// Do not append it twice; restart restores any input absent from durable history.
+		if (!userMessageStaged) await rollbackSteeringClaim(ctx, steeringClaim.id)
 		throw error
 	}
 }

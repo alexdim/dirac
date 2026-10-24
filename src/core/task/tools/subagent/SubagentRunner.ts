@@ -1,6 +1,7 @@
 import * as path from "node:path"
 import { formatResponse } from "@core/formatResponse"
 import { StreamResponseHandler } from "@core/task/StreamResponseHandler"
+import { isSkillAvailableToTaskProfile } from "@core/task/TaskExecutionProfile"
 import { type ToolRequestSnapshot } from "@core/task/tools/runtime/ToolSnapshot"
 import { SubagentExecutionStatus } from "@shared/ExtensionMessage"
 import { DiracContent, DiracStorageMessage, DiracTextContentBlock } from "@shared/messages"
@@ -375,8 +376,10 @@ export class SubagentRunner {
 	private async executeRun(prompt: string, timeout: number, includeHistory?: boolean): Promise<SubagentRunResult> {
 		const state = new TaskState()
 		state.abort = this.abortRequested
-		state.activeSkillIds = [...this.baseConfig.taskState.activeSkillIds]
-		state.availableSkills = this.baseConfig.taskState.availableSkills
+		state.availableSkills = this.baseConfig.taskState.availableSkills.filter((skill) =>
+			isSkillAvailableToTaskProfile(this.baseConfig.executionProfile, skill, true))
+		state.activeSkillIds = this.baseConfig.taskState.activeSkillIds.filter((id) =>
+			state.availableSkills.some((skill) => skill.name === id))
 		this.activeTaskState = state
 		let emptyAssistantResponseRetries = 0
 		const conversation = this.activeConversation

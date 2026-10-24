@@ -140,10 +140,14 @@ export async function getSavedDiracMessages(taskId: string): Promise<DiracMessag
 }
 
 export async function getSavedPresentationHistory(taskId: string): Promise<SavedPresentationHistory> {
-	const taskDirectory = await ensureTaskDirectoryExists(taskId)
+	return readPresentationHistory(await ensureTaskDirectoryExists(taskId), true)
+}
+
+/** Explicit history access without creating storage; only normal startup opts into legacy migration. */
+export async function readPresentationHistory(taskDirectory: string, migrateLegacy = false): Promise<SavedPresentationHistory> {
 	const filePath = path.join(taskDirectory, GlobalFileNames.uiMessages)
 	const baselinePath = path.join(taskDirectory, GlobalFileNames.uiMessagesBaseline)
-	const baseline = await readPresentationBaseline(taskDirectory, filePath, baselinePath)
+	const baseline = await readPresentationBaseline(taskDirectory, filePath, baselinePath, migrateLegacy)
 	const operationPath = path.join(taskDirectory, GlobalFileNames.uiMessageOperations)
 	return replayPresentationOperationPaths([operationPath], baseline.messages, baseline.lastOffset)
 }
@@ -181,17 +185,12 @@ export async function getPresentationHistoryAtMessage(taskId: string, messageId:
 	if (legacyTargetIndex !== -1) return structuredClone(messages.slice(0, legacyTargetIndex + 1))
 
 	let targetState: DiracMessage[] | undefined
-	await replayPresentationOperationPaths(
-		await presentationOperationHistoryPaths(taskDirectory),
-		messages,
-		-1,
-		(state) => {
-			if (targetState) return
-			const targetIndex = state.messageIndexes.get(messageId)
-			if (targetIndex === undefined) return
-			targetState = snapshotPresentationMessages(state).slice(0, targetIndex + 1)
-		},
-	)
+	await replayPresentationOperationPaths(await presentationOperationHistoryPaths(taskDirectory), messages, -1, (state) => {
+		if (targetState) return
+		const targetIndex = state.messageIndexes.get(messageId)
+		if (targetIndex === undefined) return
+		targetState = snapshotPresentationMessages(state).slice(0, targetIndex + 1)
+	})
 	if (!targetState) throw new Error(`Presentation checkpoint message ${messageId} is absent from task ${taskId}`)
 	return targetState
 }
@@ -224,6 +223,7 @@ async function readPresentationBaseline(
 	taskDirectory: string,
 	legacyPath: string,
 	baselinePath: string,
+	migrateLegacy: boolean,
 ): Promise<SavedPresentationHistory> {
 	if (!(await fileExistsAtPath(baselinePath))) {
 		if (await fileExistsAtPath(legacyPath)) {
@@ -236,8 +236,10 @@ async function readPresentationBaseline(
 		if (!(await fileExistsAtPath(oldPath))) return { messages: [], lastOffset: -1 }
 		const contents = await fs.readFile(oldPath, "utf8")
 		const messages = await parseSavedDiracMessages(contents, oldPath)
-		await atomicWriteFile(legacyPath, JSON.stringify(messages))
-		await fs.unlink(oldPath)
+		if (migrateLegacy) {
+			await atomicWriteFile(legacyPath, JSON.stringify(messages))
+			await fs.unlink(oldPath)
+		}
 		return { messages, lastOffset: -1 }
 	}
 
@@ -299,9 +301,7 @@ function clonePresentationReplayState(state: PresentationReplayState): Presentat
 	return {
 		messages,
 		messageIndexes: indexMessagesById(messages),
-		appendChunks: new Map(
-			[...state.appendChunks].map(([messageId, chunks]) => [messageId, chunks.slice()] as const),
-		),
+		appendChunks: new Map([...state.appendChunks].map(([messageId, chunks]) => [messageId, chunks.slice()] as const)),
 		lastOffset: state.lastOffset,
 	}
 }

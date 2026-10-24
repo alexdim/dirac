@@ -6,6 +6,7 @@ import * as coreApi from "@core/api"
 import * as skills from "@core/context/instructions/user-instructions/skills"
 import { DiracToolSet, PromptRegistry } from "@core/prompts/system-prompt"
 import type { TaskConfig } from "@core/task/tools/types/TaskConfig"
+import { ToolExecutorCoordinator } from "@core/task/tools/ToolExecutorCoordinator"
 import { SubagentExecutionStatus } from "@shared/ExtensionMessage"
 import { ResponseOperation } from "@shared/responseTool"
 import { SubagentTrajectoryEventType } from "@shared/subagents"
@@ -52,6 +53,7 @@ function initializeHostProvider() {
 
 function createTaskConfig(): TaskConfig {
 	return {
+		executionProfile: "standalone",
 		taskId: "task-1",
 		ulid: "ulid-1",
 		cwd: "/tmp",
@@ -117,6 +119,7 @@ function createTaskConfig(): TaskConfig {
 			},
 		},
 		coordinator: {
+			createEmptySibling: () => new ToolExecutorCoordinator(),
 			getHandler: sinon.stub().callsFake((toolName: DiracDefaultTool) => {
 				if (toolName === DiracDefaultTool.LIST_FILES) {
 					return {
@@ -344,7 +347,7 @@ describe("SubagentRunner", () => {
 		await fs.rm(taskDirectory, { recursive: true, force: true })
 	})
 
-	it("syncs activated skills to the parent before a completed tool turn returns", async () => {
+	it("keeps foreground skills out of worker state while syncing new worker skills to the parent", async () => {
 		const createMessage = sinon.stub().callsFake(async function* () {
 			yield {
 				type: "tool_calls",
@@ -358,23 +361,28 @@ describe("SubagentRunner", () => {
 			}
 		})
 		const promptRegistry = PromptRegistry.getInstance()
-		sinon.stub(promptRegistry, "get").callsFake(async () => {
+		sinon.stub(promptRegistry, "get").callsFake(async (context) => {
+			assert.equal(context.skills?.some((skill) => skill.name === "architecture-board"), false)
 			promptRegistry.nativeTools = [{ name: DiracDefaultTool.RESPOND } as any]
 			return "system prompt"
 		})
-		sinon.stub(skills, "getOrDiscoverSkills").resolves([])
+		sinon.stub(skills, "getOrDiscoverSkills").resolves(skills.BUILTIN_SKILLS)
 		sinon.stub(SubagentToolExecutor.prototype, "executeToolCalls").callsFake(async (_calls, state, _snapshot, stats) => {
+			assert.equal(state.activeSkillIds.includes("architecture-board"), false)
+			assert.equal(state.availableSkills.some((skill) => skill.name === "architecture-board"), false)
 			state.activeSkillIds = ["web-search"]
 			return { completed: { result: "done", stats }, toolResultBlocks: [] }
 		})
 		stubApiHandler(createMessage)
 		initializeHostProvider()
 		const config = createTaskConfigWithListFilesSnapshot()
+		config.taskState.availableSkills = skills.BUILTIN_SKILLS
+		config.taskState.activeSkillIds = ["architecture-board"]
 
 		const result = await new SubagentRunner(config).run("Search", () => { })
 
 		assert.equal(result.status, SubagentExecutionStatus.COMPLETED)
-		assert.deepEqual(config.taskState.activeSkillIds, ["web-search"])
+		assert.deepEqual(config.taskState.activeSkillIds, ["architecture-board", "web-search"])
 	})
 
 	it("delivers all accepted progress updates before normal completion", async () => {

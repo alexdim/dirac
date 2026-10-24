@@ -61,7 +61,6 @@ export interface TaskConfig {
 	useAutoCondense: boolean
 	utilityModelEnabled: boolean
 	utilityModelUseCondense: boolean
-	utilityModelUseNewTask: boolean
 	utilityModelSelection?: ModelProviderSelection
 	globalSkillsToggles: Readonly<Record<string, boolean>>
 	localSkillsToggles: Readonly<Record<string, boolean>>

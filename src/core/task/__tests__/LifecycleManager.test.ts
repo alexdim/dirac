@@ -183,7 +183,7 @@ describe("LifecycleManager", () => {
 				files_in_context: [],
 				model_usage: [],
 				environment_history: [],
-				active_skill_ids: ["new-tool"],
+				active_skill_ids: ["new-tool", "architecture-board"],
 			})
 		}
 
@@ -399,7 +399,7 @@ describe("LifecycleManager", () => {
 			setupDiskMocks()
 			unblockWaitFor()
 			await manager.resumeTaskFromHistory()
-			deps.taskState.activeSkillIds.should.eql(["new-tool"])
+			deps.taskState.activeSkillIds.should.eql(["new-tool", "architecture-board"])
 		})
 
 		it("waits in the completed state and processes a follow-up message", async () => {

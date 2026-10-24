@@ -35,7 +35,7 @@ export class TaskMessenger implements ITaskMessenger {
 	private activeVoiceStream?: ITextStreamHandle
 	private lastMessageId = 0
 
-	constructor(private dependencies: TaskMessengerDependencies) {}
+	constructor(private dependencies: TaskMessengerDependencies) { }
 
 	private postPresentationToWebview(): Promise<void> {
 		return (this.dependencies.postPresentationToWebview ?? this.dependencies.postStateToWebview)()
@@ -141,6 +141,7 @@ export class TaskMessenger implements ITaskMessenger {
 			body: params.body || "",
 			rawInput: params.rawInput,
 			rawOutput: params.rawOutput,
+			architectureReference: params.architectureReference,
 			diffs: params.diffs,
 			locations: params.locations,
 			requireApproval: params.requireApproval,

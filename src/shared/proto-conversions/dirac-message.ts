@@ -1,3 +1,5 @@
+import { parseArchitectureSelection } from "@shared/architecture/selection"
+import { Logger } from "@shared/services/Logger"
 import {
 	Card as AppCard,
 	CardKind as AppCardKind,
@@ -14,6 +16,17 @@ import {
 	DiracMessage as ProtoDiracMessage,
 	SteeringTranscriptStatus as ProtoSteeringTranscriptStatus,
 } from "@shared/proto/dirac/ui"
+
+// Corrupt optional navigation must not prevent the rest of a resumed transcript from loading.
+function readArchitectureReference(input: unknown): AppCard["architectureReference"] {
+	if (input === undefined) return undefined
+	try {
+		return parseArchitectureSelection(input)
+	} catch (error) {
+		Logger.warn("Invalid architecture card reference; navigation unavailable", error)
+		return undefined
+	}
+}
 
 function convertCardStatusToProtoEnum(status: AppCardStatus): ProtoCardStatus {
 	const mapping: Record<AppCardStatus, ProtoCardStatus> = {
@@ -104,7 +117,6 @@ function convertProtoEnumToSteeringStatus(
 	return parseLegacySteeringStatus(legacyStatus)
 }
 
-
 function serializeCardRecord(value: Record<string, unknown> | undefined): string | undefined {
 	if (value === undefined) return undefined
 	try {
@@ -125,7 +137,6 @@ function parseCardRecord(value: string | undefined): Record<string, unknown> | u
 		return undefined
 	}
 }
-
 
 function convertCardToProto(card: AppCard): Card {
 	return {
@@ -149,6 +160,7 @@ function convertCardToProto(card: AppCard): Card {
 		toolName: card.toolName ?? undefined,
 		rawInputJson: serializeCardRecord(card.rawInput),
 		rawOutputJson: serializeCardRecord(card.rawOutput),
+		architectureReference: card.architectureReference,
 		diffs:
 			card.diffs?.map((diff) => ({
 				path: diff.path,
@@ -194,6 +206,7 @@ function convertProtoToCard(protoCard: Card): AppCard {
 		toolName: protoCard.toolName ?? undefined,
 		rawInput: parseCardRecord(protoCard.rawInputJson),
 		rawOutput: parseCardRecord(protoCard.rawOutputJson),
+		architectureReference: readArchitectureReference(protoCard.architectureReference),
 		diffs:
 			protoCard.diffs.length > 0
 				? protoCard.diffs.map((diff) => ({ path: diff.path, oldText: diff.oldText, newText: diff.newText }))
@@ -228,9 +241,9 @@ export function convertDiracMessageToProto(message: AppDiracMessage): ProtoDirac
 		conversationHistoryIndex: message.conversationHistoryIndex ?? 0,
 		conversationHistoryDeletedRange: message.conversationHistoryDeletedRange
 			? {
-				startIndex: message.conversationHistoryDeletedRange[0],
-				endIndex: message.conversationHistoryDeletedRange[1],
-			}
+					startIndex: message.conversationHistoryDeletedRange[0],
+					endIndex: message.conversationHistoryDeletedRange[1],
+				}
 			: undefined,
 		modelInfo: message.modelInfo ?? undefined,
 		multiCommandState: undefined, // multiCommandState is deprecated or handled elsewhere
@@ -248,7 +261,6 @@ export function convertDiracMessageToProto(message: AppDiracMessage): ProtoDirac
 		browserActionResult: undefined,
 		planModeResponse: undefined,
 		askQuestion: undefined,
-		askNewTask: undefined,
 	}
 
 	// Map content union to proto fields

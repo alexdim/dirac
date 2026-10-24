@@ -87,7 +87,6 @@ function prepareTaskSettings(
 		utilityModelEnabled: _utilityModelEnabled,
 		utilityModelSelection: _utilityModelSelection,
 		utilityModelUseCondense: _utilityModelUseCondense,
-		utilityModelUseNewTask: _utilityModelUseNewTask,
 		utilityModelUseGenerateCommitMessage: _utilityModelUseGenerateCommitMessage,
 		...simpleValues
 	} = settings

@@ -7,12 +7,6 @@ export interface SlashCommand {
 
 export const BASE_SLASH_COMMANDS: SlashCommand[] = [
 	{
-		name: "newtask",
-		description: "Create a new task with context from the current task",
-		section: "default",
-		cliCompatible: true,
-	},
-	{
 		name: "smol",
 		description: "Condenses your current context window",
 		section: "default",

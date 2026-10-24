@@ -1,3 +1,4 @@
+import type { HostCapabilityRequirement } from "./host-capabilities"
 import { Tool as AnthropicTool } from "@anthropic-ai/sdk/resources/index"
 import { FunctionDeclaration as GoogleTool } from "@google/genai"
 import { ChatCompletionTool as OpenAITool } from "openai/resources/chat/completions"
@@ -30,7 +31,7 @@ export interface DiracToolSpecParameter<TContext = any> {
 	[key: string]: any
 }
 
-export interface DiracToolSpec<TContext = any> {
+export interface DiracToolSpec<TContext = any> extends HostCapabilityRequirement {
 	id: DiracDefaultTool | string
 	name: string
 	description: string
@@ -50,7 +51,6 @@ export enum DiracDefaultTool {
 	SEARCH = "search_files",
 	LIST_FILES = "list_files",
 	BROWSER = "browser_action",
-	NEW_TASK = "new_task",
 	CONDENSE = "condense",
 	USE_SKILL = "use_skill",
 	LIST_SKILLS = "list_skills",

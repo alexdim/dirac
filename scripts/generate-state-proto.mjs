@@ -306,6 +306,16 @@ function parseProtoMessageFieldNumbers(protoContent, messageName) {
 		fieldNumbers[camelName] = fieldNum
 	}
 
+	// Keep retired numeric tags unavailable for future generated fields.
+	for (const reservation of messageBody.matchAll(/\breserved\s+([^;]+);/g)) {
+		if (reservation[1].includes('"')) continue
+		for (const entry of reservation[1].split(",")) {
+			const range = entry.trim().match(/^(\d+)(?:\s+to\s+(\d+|max))?$/)
+			if (!range) throw new Error(`Unsupported protobuf reservation: ${entry}`)
+			const highest = range[2] === "max" ? 536870911 : Number(range[2] ?? range[1])
+			fieldNumbers[`__reserved_${highest}`] = highest
+		}
+	}
 	return fieldNumbers
 }
 
@@ -422,8 +432,18 @@ function replaceMessage(protoContent, messageName, newMessageContent) {
 	// Match the message definition including nested braces
 	const messageRegex = new RegExp(`message\\s+${messageName}\\s*\\{[^}]*(?:\\{[^}]*\\}[^}]*)*\\}`, "g")
 
-	if (messageRegex.test(protoContent)) {
-		return protoContent.replace(messageRegex, newMessageContent)
+	const existingMessage = protoContent.match(messageRegex)?.[0]
+	if (existingMessage) {
+		const reservations = [...existingMessage.matchAll(/\breserved\s+[^;]+;/g)].map((match) => match[0])
+		for (const reservation of reservations) {
+			for (const name of reservation.matchAll(/"([^"]+)"/g)) {
+				if (new RegExp(`\\b${name[1]}\\s*=`).test(newMessageContent)) {
+					throw new Error(`Cannot reuse reserved protobuf field ${messageName}.${name[1]}`)
+				}
+			}
+		}
+		const replacement = newMessageContent.replace("{", `{${reservations.map((line) => `\n  ${line}`).join("")}`)
+		return protoContent.replace(messageRegex, replacement)
 	}
 	// Message doesn't exist, append before the first message or at end
 	console.warn(`Warning: ${messageName} message not found in proto file, appending`)

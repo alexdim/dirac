@@ -30,7 +30,6 @@ function createEnvironment(history: DiracStorageMessage[] = [{ role: "user", con
 	const settings: Record<string, unknown> = {
 		utilityModelEnabled: true,
 		utilityModelUseCondense: true,
-		utilityModelUseNewTask: true,
 		utilityModelSelection: selection,
 	}
 	const getApiConfiguration = sinon.stub().returns({
@@ -42,7 +41,6 @@ function createEnvironment(history: DiracStorageMessage[] = [{ role: "user", con
 	Object.defineProperties(config, {
 		utilityModelEnabled: { get: () => settings.utilityModelEnabled, configurable: true },
 		utilityModelUseCondense: { get: () => settings.utilityModelUseCondense ?? true, configurable: true },
-		utilityModelUseNewTask: { get: () => settings.utilityModelUseNewTask ?? true, configurable: true },
 		utilityModelSelection: { get: () => settings.utilityModelSelection, configurable: true },
 	})
 	config.callbacks.createUtilityModelRunner = (runnerSelection, options) =>
@@ -175,7 +173,7 @@ describe("ConversationCondensationTraitBuilder", () => {
 			return {
 				run(request: UtilityModelRequest) {
 					requests.push(request)
-					return textStream("complete handoff", () => {
+					return textStream("complete summary", () => {
 						options?.onModelResolved?.({ selection: runnerSelection, modelId: runnerSelection.modelId })
 					})
 				},
@@ -183,9 +181,9 @@ describe("ConversationCondensationTraitBuilder", () => {
 		})
 		const trait = buildConversationCondensationTrait(config)
 
-		await trait.condenseConversation("task_handoff", {
+		await trait.condenseConversation("conversation_continuation", {
 			historyScope: "complete",
-			additionalSourceText: '=== REQUESTED NEW TASK INTENT ===\n{"intent":"authoritative intent"}',
+			additionalSourceText: '=== CONTINUATION OBJECTIVE ===\n{"intent":"authoritative intent"}',
 		})
 
 		assert.equal(requests.length, 1)
@@ -200,7 +198,7 @@ describe("ConversationCondensationTraitBuilder", () => {
 		]) {
 			assert.ok(source.includes(marker), `Missing Utility request marker: ${marker}`)
 		}
-		assert.ok(source.indexOf("REQUESTED NEW TASK INTENT") > source.indexOf("full-history-last"))
+		assert.ok(source.indexOf("CONTINUATION OBJECTIVE") > source.indexOf("full-history-last"))
 		assert.ok(source.includes("authoritative intent"))
 		sinon.assert.notCalled(getTruncatedMessages)
 	})

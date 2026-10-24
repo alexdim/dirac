@@ -23,12 +23,6 @@ function profileTool(profiles: readonly TaskExecutionProfile[]): DiscoveredTool 
 }
 
 describe("Task execution profiles", () => {
-	it("centrally excludes new_task from every Goal-owned profile", () => {
-		assert.equal(isToolAvailableToTaskProfile("standalone", "new_task"), true)
-		assert.equal(isToolAvailableToTaskProfile("goal_coordinator", "new_task"), false)
-		assert.equal(isToolAvailableToTaskProfile("goal_followup", "new_task"), false)
-		assert.equal(isToolAvailableToTaskProfile("goal_child", "new_task"), false)
-	})
 
 	it("makes Goal tools available to coordinator and follow-up turns", () => {
 		assert.equal(isToolAvailableToTaskProfile("standalone", "start_task"), false)

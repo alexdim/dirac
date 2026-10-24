@@ -46,7 +46,6 @@ interface SettingsState {
 	utilityModelEnabled: boolean
 	utilityModelSelection?: ModelProviderSelection
 	utilityModelUseCondense: boolean
-	utilityModelUseNewTask: boolean
 	utilityModelUseGenerateCommitMessage: boolean
 	utilityModelUsePermissionHandling: boolean
 	utilityModelPermissionPolicy: string
@@ -73,7 +72,7 @@ interface SettingsState {
 	huggingFaceModels: any
 	requestyModels: any
 	openAiModels: any
-	refreshOpenAiModels: (baseUrl: string, apiKey: string) => Promise<void>
+	refreshOpenAiModels: (baseUrl?: string, apiKey?: string) => Promise<void>
 	githubCopilotModels: any
 	githubCopilotIsAuthenticated: boolean
 	githubCopilotEmail?: string
@@ -271,7 +270,6 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
 	utilityModelEnabled: false,
 	utilityModelSelection: undefined,
 	utilityModelUseCondense: true,
-	utilityModelUseNewTask: true,
 	utilityModelUseGenerateCommitMessage: true,
 	utilityModelUsePermissionHandling: false,
 	utilityModelPermissionPolicy: "",
@@ -353,12 +351,13 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
 			set({ openRouterModelRankings: [] })
 		}
 	},
-	refreshOpenAiModels: async (baseUrl: string, apiKey: string) => {
+	refreshOpenAiModels: async (baseUrl?: string, apiKey?: string) => {
+		if (!baseUrl) return
 		try {
 			const response = await ModelsServiceClient.refreshOpenAiModels(
 				OpenAiModelsRequest.create({
-					baseUrl,
-					apiKey,
+					baseUrl: baseUrl ?? "",
+					apiKey: apiKey ?? "",
 				}),
 			)
 			if (response?.values) {

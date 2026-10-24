@@ -651,7 +651,7 @@ export class ToolRegistry {
 		const tool = this.getTool(toolId)
 		if (!tool || tool.exposure.kind === "configurable") return
 		throw new Error(
-			`${tool.exposure.kind === "skill_only" ? "Skill-only" : "Profile-only"} tool '${toolId}' cannot be enabled or disabled directly.`,
+			`Tool '${toolId}' (${tool.exposure.kind}) cannot be enabled or disabled directly.`,
 		)
 	}
 

@@ -15,7 +15,7 @@ import {
 import type { PresentationOperation } from "@/shared/PresentationOperation"
 import { Logger } from "@/shared/services/Logger"
 import { getCwd, getDesktopDir } from "@/utils/path"
-import type { ApiConversationOperation } from "../storage/conversationHistory"
+import { readPresentationHistory, type ApiConversationOperation } from "../storage/conversationHistory"
 import {
 	appendApiConversationOperations,
 	appendPresentationOperations,
@@ -73,6 +73,14 @@ export const UI_MESSAGES_FLUSH_DEBOUNCE_MS = 250
 export const UI_MESSAGES_FLUSH_MAX_DELAY_MS = 2_000
 export const MAX_PENDING_PRESENTATION_PUBLICATION_BYTES = 2 * 1024 * 1024
 
+interface PendingDurableInput {
+	message: DiracMessage
+	messages: DiracMessage[]
+	generation: number
+	predecessorIds: Set<string>
+	taskDirectory: string
+}
+
 export class MessageStateHandler extends EventEmitter<MessageStateHandlerEvents> {
 	private workspaceRootPath?: string
 	private apiConversationHistory: DiracStorageMessage[] = []
@@ -114,6 +122,16 @@ export class MessageStateHandler extends EventEmitter<MessageStateHandlerEvents>
 	private uiFlushDeadline?: number
 	private apiHistoryFlushScheduled = false
 	private persistenceRetired = false
+	private pendingDurableInput?: PendingDurableInput
+
+	private queuePresentationPublication(operation: PresentationOperation, bytes: number): void {
+		this.pendingPresentationPublications.push(operation)
+		this.pendingPresentationPublicationBytes += bytes
+		if (this.pendingPresentationPublicationBytes <= MAX_PENDING_PRESENTATION_PUBLICATION_BYTES) return
+		this.pendingPresentationPublications = []
+		this.pendingPresentationPublicationBytes = 0
+		this.presentationPublicationGapThroughOffset = operation.offset
+	}
 
 	private recordPresentationOperation(operation: PresentationOperation): void {
 		if (this.persistenceRetired) return
@@ -121,12 +139,7 @@ export class MessageStateHandler extends EventEmitter<MessageStateHandlerEvents>
 		const operationBytes = Buffer.byteLength(JSON.stringify(recordedOperation), "utf8")
 		this.pendingPresentationOperations.push(recordedOperation)
 		this.pendingPresentationPersistenceBytes += operationBytes
-		this.pendingPresentationPublications.push(recordedOperation)
-		this.pendingPresentationPublicationBytes += operationBytes
-		if (this.pendingPresentationPublicationBytes <= MAX_PENDING_PRESENTATION_PUBLICATION_BYTES) return
-		this.pendingPresentationPublications = []
-		this.pendingPresentationPublicationBytes = 0
-		this.presentationPublicationGapThroughOffset = operation.offset
+		this.queuePresentationPublication(recordedOperation, operationBytes)
 	}
 
 	private recordApiConversationOperation(operation: ApiConversationOperation): void {
@@ -284,6 +297,7 @@ export class MessageStateHandler extends EventEmitter<MessageStateHandlerEvents>
 		this.apiHistoryFlushScheduled = false
 		await this.persistenceMutex.withLock(() =>
 			this.withStateLock(() => {
+				this.pendingDurableInput = undefined
 				this.pendingPresentationOperations = []
 				this.pendingPresentationPersistenceBytes = 0
 				this.pendingPresentationPublications = []
@@ -296,8 +310,9 @@ export class MessageStateHandler extends EventEmitter<MessageStateHandlerEvents>
 	}
 
 	/** Captures pending records under the state lock, then appends them without blocking mutations. */
-	private async persistPendingOperations(): Promise<void> {
+	private async persistPendingOperations(compact = true): Promise<void> {
 		if (this.persistenceRetired) return
+		if (this.pendingDurableInput) await this.reconcileDurableInput(this.pendingDurableInput)
 		const pending = await this.withStateLock(() => {
 			const hasPendingApiConversation = this.pendingApiConversationOperations.length > 0
 			const captured = {
@@ -332,7 +347,7 @@ export class MessageStateHandler extends EventEmitter<MessageStateHandlerEvents>
 			})
 		}
 		if (firstError) throw firstError
-		await this.createBaselinesWhenTailIsLarge()
+		if (compact) await this.createBaselinesWhenTailIsLarge()
 	}
 
 	private async createBaselinesWhenTailIsLarge(): Promise<void> {
@@ -662,39 +677,128 @@ export class MessageStateHandler extends EventEmitter<MessageStateHandlerEvents>
 		})
 	}
 
-	/**
-	 * Add a new message to diracMessages array with proper index tracking
-	 * CRITICAL: This entire operation must be atomic to prevent race conditions (RC-4)
-	 * The conversationHistoryIndex must be set correctly based on the current state,
-	 * and the message must be added and saved without any interleaving operations
+	/** Reserve transcript ordering, but never hold the message-state lock during disk I/O.
+	 * An uncertain append is reconciled before any later persistence can use its offsets.
 	 */
-	async addToDiracMessages(message: DiracMessage) {
-		await this.withStateLock(async () => {
-			if (this.messageIndexById.has(message.id)) throw new Error(`Message with id ${message.id} already exists`)
-			if (message.content.type === DiracMessageType.CARD && this.cardMessageIndexById.has(message.content.card.id)) {
-				throw new Error(`Card with id ${message.content.card.id} already exists`)
-			}
-			message.conversationHistoryIndex = this.apiConversationHistory.length - 1
-			message.conversationHistoryDeletedRange = this.taskState.conversationHistoryDeletedRange
-			const index = this.diracMessages.length
-			this.diracMessages.push(message)
-			this.messageIndexById.set(message.id, index)
-			if (message.content.type === DiracMessageType.CARD) {
-				this.cardMessageIndexById.set(message.content.card.id, index)
-			}
-			if (message.content.type === DiracMessageType.API_STATUS) this.lastApiStatusMessageId = message.id
-			this.updateHistoryProjection(message)
-			this.emitDiracMessagesChanged({
-				type: "add",
-				messages: this.diracMessages,
-				index,
-				message,
+	async appendDurableUserMessage(message: DiracMessage, assertCurrent: () => void): Promise<void> {
+		if (message.content.type !== DiracMessageType.MARKDOWN || message.content.role !== "user")
+			throw new Error("Durable input must be a user transcript message")
+		await this.persistenceMutex.withLock(async () => {
+			// Compaction is unrelated to accepting input and must not delay its short state transition.
+			await this.persistPendingOperations(false)
+			const taskDirectory = await ensureTaskDirectoryExists(this.taskId)
+			const reserved = await this.withStateLock(() => {
+				if (this.persistenceRetired) throw new Error("Conversation persistence was retired")
+				assertCurrent()
+				if (this.messageIndexById.has(message.id)) throw new Error(`Duplicate input ${message.id}`)
+				message.conversationHistoryIndex = this.apiConversationHistory.length - 1
+				message.conversationHistoryDeletedRange = this.taskState.conversationHistoryDeletedRange
+				const input: PendingDurableInput = {
+					message: structuredClone(message),
+					messages: this.diracMessages,
+					generation: this.presentationStateGeneration + 1,
+					predecessorIds: new Set(this.messageIndexById.keys()),
+					taskDirectory,
+				}
+				const operations = this.pendingPresentationOperations.splice(0)
+				this.pendingPresentationPersistenceBytes = 0
+				operations.push({ offset: ++this.presentationOffset, type: "create", message: input.message })
+				this.pendingDurableInput = input
+				// A snapshot may temporarily omit the reserved message. Settlement increments the
+				// generation again so a client that acknowledged that snapshot cannot miss it.
+				this.invalidatePresentationPublication()
+				return { input, operations }
 			})
-			this.recordPresentationOperation({
+			try {
+				await appendPresentationOperations(this.taskId, reserved.operations)
+			} catch (error) {
+				if (!(await this.reconcileDurableInput(reserved.input))) throw error
+				return
+			}
+			await this.withStateLock(() => this.commitDurableInput(reserved.input))
+		})
+	}
+
+	private invalidatePresentationPublication(): void {
+		this.pendingPresentationPublications = []
+		this.pendingPresentationPublicationBytes = 0
+		this.presentationPublicationGapThroughOffset = this.presentationOffset
+		this.presentationStateGeneration++
+	}
+
+	/** Called under the state lock, only after durable acceptance is known. */
+	private commitDurableInput(input: PendingDurableInput): void {
+		if (this.pendingDurableInput === input) this.pendingDurableInput = undefined
+		if (
+			this.persistenceRetired ||
+			this.diracMessages !== input.messages ||
+			this.presentationStateGeneration !== input.generation
+		)
+			throw new Error("Conversation changed while input was persisted; resume to recover it")
+		const firstConcurrentIndex = this.diracMessages.findIndex((message) => !input.predecessorIds.has(message.id))
+		const index = firstConcurrentIndex === -1 ? this.diracMessages.length : firstConcurrentIndex
+		this.diracMessages.splice(index, 0, input.message)
+		this.rebuildMessageIndexes()
+		this.rebuildHistoryProjection()
+		this.invalidatePresentationPublication()
+		this.emitDiracMessagesChanged({ type: "add", messages: this.diracMessages, index, message: input.message })
+	}
+
+	/** The persistence mutex remains held across reconciliation. A failed read leaves the
+	 * reservation intact, blocking later disk writes (not ordinary in-memory mutations).
+	 */
+	private async reconcileDurableInput(input: PendingDurableInput): Promise<boolean> {
+		const saved = await readPresentationHistory(input.taskDirectory)
+		const persisted = saved.messages.find((message) => message.id === input.message.id)
+		if (persisted && JSON.stringify(persisted) !== JSON.stringify(input.message))
+			throw new Error(`Persisted input identity conflicts with ${input.message.id}`)
+		return this.withStateLock(() => {
+			if (persisted) {
+				this.commitDurableInput(input)
+				return true
+			}
+			if (this.pendingDurableInput === input) this.pendingDurableInput = undefined
+			if (
+				this.persistenceRetired ||
+				this.diracMessages !== input.messages ||
+				this.presentationStateGeneration !== input.generation
+			)
+				throw new Error("Conversation changed during input persistence")
+			// Some predecessor records may have reached disk before rejection. A fresh reset
+			// bridges the reserved gap without replaying them or buffering rejected input.
+			this.materializeAllPresentationAppends()
+			this.presentationOffset = Math.max(this.presentationOffset, saved.lastOffset)
+			const reset: PresentationOperation = {
 				offset: ++this.presentationOffset,
-				type: "create",
-				message,
-			})
+				type: "reset",
+				messages: structuredClone(this.diracMessages),
+			}
+			this.pendingPresentationOperations = [reset]
+			this.pendingPresentationPersistenceBytes = Buffer.byteLength(JSON.stringify(reset), "utf8")
+			this.invalidatePresentationPublication()
+			return false
+		})
+	}
+
+	private appendDiracMessage(message: DiracMessage): void {
+		if (this.messageIndexById.has(message.id)) throw new Error(`Message with id ${message.id} already exists`)
+		if (message.content.type === DiracMessageType.CARD && this.cardMessageIndexById.has(message.content.card.id))
+			throw new Error(`Card with id ${message.content.card.id} already exists`)
+		message.conversationHistoryIndex = this.apiConversationHistory.length - 1
+		message.conversationHistoryDeletedRange = this.taskState.conversationHistoryDeletedRange
+		const index = this.diracMessages.length
+		this.diracMessages.push(message)
+		this.messageIndexById.set(message.id, index)
+		if (message.content.type === DiracMessageType.CARD) this.cardMessageIndexById.set(message.content.card.id, index)
+		if (message.content.type === DiracMessageType.API_STATUS) this.lastApiStatusMessageId = message.id
+		this.updateHistoryProjection(message)
+		this.emitDiracMessagesChanged({ type: "add", messages: this.diracMessages, index, message })
+	}
+
+	async addToDiracMessages(message: DiracMessage) {
+		await this.withStateLock(() => {
+			this.appendDiracMessage(message)
+			this.recordPresentationOperation({ offset: ++this.presentationOffset, type: "create", message })
 		})
 		await this.flushIfPersistenceBatchIsFull()
 		this.scheduleUiFlush()
@@ -768,7 +872,11 @@ export class MessageStateHandler extends EventEmitter<MessageStateHandlerEvents>
 			this.materializePresentationAppends(message)
 			const before = this.historyProjectionBeforeMutation(message)
 			Object.assign(message.content.card, patch)
-			this.updateHistoryProjection(message, before, patch.header === undefined && patch.body === undefined && patch.rawOutput === undefined)
+			this.updateHistoryProjection(
+				message,
+				before,
+				patch.header === undefined && patch.body === undefined && patch.rawOutput === undefined,
+			)
 			this.recordPresentationOperation({
 				offset: ++this.presentationOffset,
 				type: "patch_card",

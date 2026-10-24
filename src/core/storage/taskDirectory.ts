@@ -1,3 +1,4 @@
+import { invalidateArchitectureTask } from "@core/architecture/architectureLifetime"
 import fs from "fs/promises"
 import path from "path"
 import { HostProvider } from "@/hosts/host-provider"
@@ -29,5 +30,7 @@ export async function listTaskDirectoryIds(): Promise<string[]> {
 
 /** Deletes every persisted artifact owned by one Task-shaped run directory. */
 export async function deleteTaskDirectory(taskId: string): Promise<void> {
-	await fs.rm(getTaskDirectoryPath(taskId), { recursive: true, force: true })
+	const taskDirectory = getTaskDirectoryPath(taskId)
+	invalidateArchitectureTask(taskDirectory)
+	await fs.rm(taskDirectory, { recursive: true, force: true })
 }

@@ -13,11 +13,6 @@ export interface CompletionVerificationFailure {
 	reports: string[]
 }
 
-export interface TaskReplacementRequest {
-	context: string
-	images?: string[]
-	files?: string[]
-}
 
 export class TaskState {
 	status: TaskStatus = TaskStatus.IDLE
@@ -103,6 +98,7 @@ export class TaskState {
 	askResponseImages?: string[]
 	askResponseFiles?: string[]
 	lastMessageTs?: number
+	waitingForFollowUp = false
 	waitingCardIds: string[] = []
 	get lastWaitingCardId(): string | undefined {
 		return this.waitingCardIds[0]
@@ -205,8 +201,6 @@ export class TaskState {
 	get abortSignal(): AbortSignal {
 		return this.#abortController.signal
 	}
-	/** Requested by a tool after its current task has unwound. */
-	pendingTaskReplacement?: TaskReplacementRequest
 	/** One-way latch: set once the abort teardown has run; never reset within a task lifecycle. */
 	#didFinishAbortingStream = false
 	get didFinishAbortingStream(): boolean {

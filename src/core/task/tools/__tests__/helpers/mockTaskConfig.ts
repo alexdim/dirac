@@ -215,7 +215,6 @@ export function createMockTaskConfig(options: MockTaskConfigOptions = {}) {
 		useAutoCondense: true,
 		utilityModelEnabled: false,
 		utilityModelUseCondense: true,
-		utilityModelUseNewTask: true,
 		utilityModelSelection: undefined,
 		globalSkillsToggles: {},
 		localSkillsToggles: {},

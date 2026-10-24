@@ -314,7 +314,6 @@ export class ToolExecutor {
 			useAutoCondense: settings.useAutoCondense,
 			utilityModelEnabled: settings.utilityModelEnabled,
 			utilityModelUseCondense: settings.utilityModelUseCondense,
-			utilityModelUseNewTask: settings.utilityModelUseNewTask,
 			utilityModelSelection: settings.utilityModelSelection
 				? (structuredClone(settings.utilityModelSelection) as ModelProviderSelection)
 				: undefined,

@@ -106,13 +106,6 @@ describe("TaskState", () => {
 		assert.equal(state.totalToolCallCount, 1)
 	})
 
-	it("records a pending task replacement", () => {
-		const state = new TaskState()
-		state.pendingTaskReplacement = { context: "do the next thing" }
-		assert.deepEqual(state.pendingTaskReplacement, { context: "do the next thing" })
-		state.pendingTaskReplacement = undefined
-		assert.equal(state.pendingTaskReplacement, undefined)
-	})
 
 	it("accumulates steering messages", () => {
 		const state = new TaskState()

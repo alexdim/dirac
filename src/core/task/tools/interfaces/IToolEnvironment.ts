@@ -1,3 +1,5 @@
+import type { CardParams, ICardHandle } from "./ICardHandle"
+import type { IArchitectureTrait } from "./IArchitectureTrait"
 import type { TextCondensationTemplateId } from "@core/text-condensation/TextCondenser"
 import type {
 	AstImplementationRequest,
@@ -17,86 +19,15 @@ import type { ResponseArguments } from "@shared/responseTool"
 import type { SubagentIdentity } from "@shared/subagents"
 import type { TextFileWindow, TextFileWindowOptions } from "@shared/text-file-window"
 import { FileInfo } from "../../../../services/glob/list-files"
-import {
-	ActionButton,
-	BrowserActionResult,
-	Card,
-	CardLocation,
-	CardStatus,
-	CleanupStrategy,
-	DiracMessage,
-	RenderType,
-	CardParams as SharedCardParams,
-} from "../../../../shared/ExtensionMessage"
+import { BrowserActionResult, DiracMessage } from "../../../../shared/ExtensionMessage"
 import { SkillContent, SkillMetadata } from "../../../../shared/skills"
-import { DiracAskResponse } from "../../../../shared/WebviewMessage"
 import { HookExecutionResult } from "../../../hooks/hook-executor"
 import { TaskState, type TaskStateWritableKey } from "../../TaskState"
 import { SubagentProgressUpdate, SubagentRunResult } from "../subagent/SubagentRunner"
 import { TaskConfig } from "../types/TaskConfig"
 import { IDiracContext } from "./IDiracContext"
-
-export interface ICardHandle {
-	readonly collapsed: boolean
-	readonly id: string
-	readonly header: string
-	readonly icon?: string
-	readonly renderType: RenderType
-	readonly body?: string
-
-	readonly rawInput?: import("../../../../shared/ExtensionMessage").CardRawInput
-	readonly rawOutput?: import("../../../../shared/ExtensionMessage").CardRawOutput
-	readonly locations?: CardLocation[]
-	readonly requireApproval?: boolean
-	readonly requireFeedback?: boolean
-	readonly feedbackPlaceholder?: string
-	readonly actions?: ActionButton[]
-	readonly maxHeight?: number
-	readonly cleanupStrategy?: CleanupStrategy
-	readonly status: CardStatus
-	/** Whether waitForInteraction will actually suspend for user input. */
-	readonly requiresUserInteraction?: boolean
-
-	/**
-	 * Update the card's metadata or state.
-	 */
-	update(patch: Partial<Omit<Card, "id">>): Promise<void>
-
-	/**
-	 * Blocks until the user interacts with the card (approval, feedback, or custom action).
-	 * Returns the action value (e.g., 'approve', 'reject', 'submit', or custom button value).
-	 */
-	waitForInteraction(): Promise<{
-		action: DiracAskResponse | string
-		response: DiracAskResponse
-		value?: string
-		text?: string
-		images?: string[]
-		files?: string[]
-		userEdits?: Record<string, string>
-	}>
-
-	/**
-	 * Append a small, bounded status update to the existing body.
-	 * Callers must not use this for unbounded stdout or log streaming.
-	 */
-	appendBody(chunk: string): Promise<void>
-
-	/**
-	 * Transitions the card to a final state and resolves any pending interaction.
-	 */
-	finalize(status: CardStatus, doNotAutoCollapse?: boolean): Promise<void>
-}
-
-export interface CardParams extends SharedCardParams {
-	/**
-	 * Classifies tool permissions for the shared approval pipeline.
-	 * Utility may approve `tool`; `manual_tool` requires the user unless an explicit unrestricted mode is active.
-	 */
-	permissionRequestKind?: "tool" | "manual_tool"
-	/** Internal live predicate used to resolve a displayed tool permission after settings change. */
-	isAutoApproved?: () => boolean
-}
+export type { CardParams, ICardHandle } from "./ICardHandle"
+export type { IArchitectureTrait } from "./IArchitectureTrait"
 
 export interface IUITrait {
 	/**
@@ -142,7 +73,7 @@ export interface IInteractionTrait {
 	}>
 
 	/**
-	 * Generic ask for followup, plan_mode, new_task, condense, etc.
+	 * Generic ask for followup, plan_mode, condense, etc.
 	 */
 }
 
@@ -384,8 +315,6 @@ export interface IOrchestrationTrait {
 	/** Records the accepted completion response on task state. */
 	commitCompletionResponse(response: string): void
 
-	/** Ends the current task and asks its controller to start a replacement after unwind. */
-	requestTaskReplacement(context: string, images?: string[], files?: string[]): void
 
 	/** Activates a trusted skill and persists the activation for task resume. */
 	activateSkill(skillId: string): Promise<void>
@@ -505,6 +434,8 @@ export interface IToolEnvironment {
 	readonly editor: IEditorTrait
 	readonly browser: IBrowserTrait
 	readonly skills: ISkillsTrait
+	/** Only foreground conversations own architecture storage; absent for private workers. */
+	readonly architecture?: IArchitectureTrait
 	readonly orchestration: IOrchestrationTrait
 	readonly responseObserver: IResponseObserverTrait
 	readonly goal?: IGoalTrait

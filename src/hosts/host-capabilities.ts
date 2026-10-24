@@ -1,3 +1,4 @@
+import type { HostCapabilityRequirement } from "@shared/host-capabilities"
 import type { HostCapabilities } from "./host-provider-types"
 
 // Leaf accessor so dependency-light modules (src/utils, src/core/api) can read
@@ -15,4 +16,9 @@ export function getHostCapabilities(): HostCapabilities {
 		throw new Error("HostProvider not setup. Call HostProvider.initialize() first.")
 	}
 	return capabilities
+}
+
+/** Optional features are unavailable until the host advertises their required capability. */
+export function meetsHostCapabilityRequirement(requirement: HostCapabilityRequirement): boolean {
+	return !requirement.requiredHostCapability || capabilities?.[requirement.requiredHostCapability] !== undefined
 }
